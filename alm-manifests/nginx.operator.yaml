@@ -1,0 +1,10 @@
+apiVersion: app.coreos.com/v1
+kind: Operator
+metadata: 
+  name: NginxOperator
+  namespace: alm
+spec: 
+  containers: 
+  - name: nginx-operator
+    image: quay.io/coreos/stateless-app-operator:stable
+ 

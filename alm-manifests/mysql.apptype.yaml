@@ -1,0 +1,28 @@
+apiVersion: app.coreos.com/v1
+kind: AppType
+metadata: 
+  name: mysql
+  type: com.tectonic.storage
+spec:
+  operator: 
+    image: quay.io/coreos/mysql-operator:stable
+  descriptions: 
+    short: Managed MySQL database
+    long: Provides a managed MySQL database including support for automatic high availability, continuous backups and restoration, dashboards and management tooling.
+  resources:
+  - metadata:
+      name: mysqls.mysql.coreos.com
+    spec:
+      group: mysql.coreos.com
+      version: v1
+      scope: Namespaced
+      names: 
+        plural: mysqls
+        singular: mysql
+        kind: MySQL
+    schema: TODO
+    outputs:
+    - name: service-name
+      type: string
+      description: The service name at which to connect to the newly formed MySQL
+

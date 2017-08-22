@@ -1,0 +1,2 @@
+apiVersion: tectonic-console.coreos.com/v1
+kind: TectonicConsole
