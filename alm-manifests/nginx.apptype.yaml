@@ -1,0 +1,8 @@
+apiVersion: app.coreos.com/v1
+kind: AppType 
+metadata:
+  name: nginx
+spec:
+  operator: 
+    image: quay.io/coreos/stateless-app-operator:stable
+

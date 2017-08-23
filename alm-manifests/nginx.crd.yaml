@@ -1,0 +1,17 @@
+# FIXME: Should be created by the ALM Operator
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata: 
+  name: nginxes.nginx.coreos.com
+spec: 
+  group: nginx.coreos.com
+  version: v1
+  validation:
+    openAPISpecV3: TODO
+  scope: Namespaced
+  names:
+    plural: nginxes
+    singular: nginx
+    kind: Nginx
+    shortNames:
+    - ng

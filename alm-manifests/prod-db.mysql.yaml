@@ -1,0 +1,8 @@
+apiVersion: mysql.coreos.com/v1
+kind: MySQL
+metadata: 
+  name: prod-db
+spec:
+  size: 3
+  version: 5.7.0
+
