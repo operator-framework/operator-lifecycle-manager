@@ -1,0 +1,39 @@
+image: golang:1.9.0
+
+variables:
+  GIT_REPO_NAME: github.com/coreos-inc/alm
+  IMAGE_REPO_NAME: quay.io/quay/alm
+
+before_script:
+  - mkdir -p $GOPATH/src/$GIT_REPO_NAME
+  - cp -a $CI_PROJECT_DIR/* $GOPATH/src/$GIT_REPO_NAME
+  - cd $GOPATH/src/$GIT_REPO_NAME
+
+stages:
+    - test
+    - docker_build
+
+unit-tests:
+    stage: test
+    tags:
+        - kubernetes
+    script:
+      - go fmt $(go list ./... | grep -v /vendor/)
+      - go vet $(go list ./... | grep -v /vendor/)
+      - go test -race $(go list ./... | grep -v /vendor/)
+
+container-build:
+  only:
+    - master
+  stage: docker_build
+  before_script:
+    - docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io
+  image: docker:git
+  script:
+    - docker build -t ${IMAGE_REPO_NAME}:${CI_COMMIT_REF_SLUG} -f Dockerfile .
+    - docker push ${IMAGE_REPO_NAME}:${CI_COMMIT_REF_SLUG}
+  tags:
+    - kubernetes
+  variables:
+    DOCKER_DRIVER: overlay
+    DOCKER_HOST: tcp://docker-host.gitlab-runner.svc.cluster.local:2375
