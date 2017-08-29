@@ -11,13 +11,13 @@ The aim of this project is to serve the following purposes:
 
 ## Usage
 
-**Asumption**: The ALM operator is already installed in the cluster, which defines an AppType CRD and an InstallStrategy CRD
+**Asumption**: The ALM operator is already installed in the cluster, which defines an AppType CRD and an OperatorVersion CRD
 
 ```sh
 kubectl get crd
-NAME                            KIND
-app.stable.coreos.com           CustomResourceDefinition.v1beta1.apiextensions.k8s.io
-opinstaller.stable.coreos.com   CustomResourceDefinition.v1beta1.apiextensions.k8s.io
+NAME                                 KIND
+apptypes.stable.coreos.com           CustomResourceDefinition.v1beta1.apiextensions.k8s.io
+operatorversions.stable.coreos.com   CustomResourceDefinition.v1beta1.apiextensions.k8s.io
 ```
 
 ### Create an instance of an app type
@@ -40,26 +40,26 @@ metadata:
 ### Create an InstallStrategy
 
 ```sh
-kubectl create -f etcd-op-installstrategy.yaml
+kubectl create -f etcd-op.yaml
 ```
 
 ```yaml
-apiVersion: opinstaller.coreos.com/v1beta1
-kind: InstallStrategy 
+apiVersion: operator.coreos.com/v1beta1
+kind: OperatorVersion 
 metadata:
   ownerReference: etcd.com.tectonic.storage
-  version: 1
-  selfRef: install.1.etcd.com.tectonic.storage
+  version: aef4455
+  selfRef: operatorversion.aef4455.etcd.com.tectonic.storage
 spec:
   # an install strategy for the operator.
   strategy: 
     type: helm
     helmChart: quay.io/coreos/etcd-operator
     sha256: aef4455
-    values:
-      replicas: 2
+    valuesConfigMap: etcd-operator-values
   resources:
-    - etcds.1.etcd.coreos.com
+    - name: etcds.1.etcd.coreos.com
+      sha256: ffaaee1234
 ```
 
 ### Create the CRDs managed by the operator
@@ -149,25 +149,28 @@ spec:
   size: 3
   version: 3.2.2
   autoMinorVersionUpgrade: True
+  # these are added by the etcd operator
   outputs:
     service-name: etcd-purple-ant.service
 ```
 
-## Adding a new InstallStrategy and Resource
+## Adding a new OperatorVersion and  
 
 ```yaml
 apiVersion: opinstaller.coreos.com/v1beta1
-kind: InstallStrategy 
+kind: OperatorVersion 
 metadata:
-  version: 2
+  version: dbc1122
   # ...
 spec:
   strategy: 
     # ...
-    sha256: aef4455
+    sha256: dbc1122
   resources:
-    - etcds.1.etcd.coreos.com
-    - etcds.2.etcd.coreos.com
+    - name: etcds.1.etcd.coreos.com
+      sha256: ffaaee1234
+    - name: etcds.2.etcd.coreos.com
+      sha256: abababab
 ---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
