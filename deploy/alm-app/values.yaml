@@ -1,0 +1,8 @@
+replicaCount: 1
+image:
+  repository: quay.io/quay/alm
+  tag: master
+  pullPolicy: Always
+service:
+  internalPort: 80
+namespace: alm-app
