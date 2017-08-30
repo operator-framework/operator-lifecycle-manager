@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func MustNewKubeExtClient() apiextensionsclient.Interface {
+func MustNewKubeExtClient() clientset.Interface {
 	cfg, err := InClusterConfig()
 	if err != nil {
 		panic(err)
