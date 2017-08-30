@@ -1,0 +1,81 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata: 
+  name: apptype-v1s.app.coreos.com
+spec: 
+  group: app.coreos.com
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIv3:
+      type: object
+      description: Document which defines how to model an App as a CRD in an ALM compatible way
+      additionalProperties: false
+      required:
+      - displayName
+      properties:
+        displayName:
+          type: string
+          description: Human readable name of the application that will be displayed in the ALM UI
+
+        description:
+          type: string
+          description: Human readable description of what the application does.
+
+        # Open question: do these belong as k8s annotations? Should ALM do that?
+        keywords:
+          type: array
+          description: List of keywords which will be used to discover and categorize app types
+          items:
+            type: string
+
+        # Open question: do these belong as k8s annotations? Should ALM do that?
+        maintainers:
+          type: array
+          description: Those responsible for the creation of this specific app type
+          items:
+            type: object
+            description: Information for a single maintainer
+            required:
+            - name
+            - email
+            properties:
+              name:
+                type: string
+                description: Maintainer's name
+              email:
+                type: string
+                description: Maintainer's email address
+                format: email
+            additionalProperties:
+              type: string
+              description: "Any additional key-value metadata you wish to expose about the maintainer, e.g. github: <username>"
+
+        links:
+          type: array
+          description: Interesting links to find more information about the project, such as marketing page, documentation, or github page
+          items:
+            type: object
+            description: A single link to describe one aspect of the project
+            additionalProperties: false
+            required:
+            - name
+            - url
+            properties:
+              name:
+                type: string
+                description: Name of the link type, e.g. homepage or github url
+              url:
+                type: string
+                description: URL to which the link should point
+                format: uri
+
+        iconURL:
+          type: string
+          description: URL which points to an icon which will be shown next to this application type when rendered in a UI
+          format: uri
+  
+  names: 
+    plural: apptype-v1s
+    singular: apptype-v1
+    kind: AppType-v1

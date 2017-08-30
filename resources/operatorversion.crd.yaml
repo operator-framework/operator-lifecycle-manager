@@ -1,0 +1,92 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata: 
+  name: operatorversion-v1s.app.coreos.com
+spec: 
+  group: app.coreos.com
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIv3:
+      type: object
+      description: Represents a single version of the operator software
+      additionalProperties: false
+      required:
+      - version
+      - maturity
+      - requirements
+      - permissions
+      - installStrategy
+      properties:
+        version:
+          type: string
+          description: Version string, recommended that users use semantic versioning
+
+        replaces:
+          type: string
+          description: Name of the OperatorVersion custom resource that this version replaces
+          pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
+
+        maturity:
+          type: string
+          description: What level of maturity the software has achieved at this version
+          enum:
+          - planning
+          - pre-alpha
+          - alpha
+          - beta
+          - stable
+          - mature
+          - inactive
+          - deprecated
+
+        requirements:
+          type: array
+          description: What requirements that we have before this OperatorVersion can run, may include CRD objects and k8s features
+          items:
+            allOf:
+            - type: object
+              description: Single requirement that must be satisfied for the OperatorVersion to be installed and to work correctly
+              required:
+              - requirementType
+              properties:
+                requirementType:
+                  type: string
+                  description: The type of resource we are modeling.
+            - anyOf:
+              - type: object
+                additionalProperties: false
+                required:
+                - resourceDefinitionLink
+                properties:
+                  requirementType:
+                    type: string
+                    enum:
+                    - customresourcedefinition
+                  resourceDefinitionLink:
+                    type: string
+                    description: API link which can be used to query for the CRD document
+                  resourceDefinitionHash:
+                    type: string
+                    description: SHA-256 hash of the CRD we consume, if we want to be extra-strict
+                    pattern: ^[a-f0-9]{64}$
+              # TODO add another anyOf type to model a cluster feature/version requirement
+
+        permissions:
+          type: array
+          description: List of permissions that should be granted to this operator by ALM
+          items:
+            # TODO figure out how to model permissions, these should cause ALM
+            # to generate RBAC rules for the role account for the downstream
+            # operator
+            type: string
+
+        installStrategy:
+          # TODO EvB
+          type: object
+          description: Information required to install this specific version of the operato software
+
+  names: 
+    plural: operatorversion-v1s
+    singular: operatorversion-v1
+    kind: OperatorVersion-v1

@@ -1,0 +1,52 @@
+type: object
+description: Meta-schema which all app specific CRDs must conform to in order to be ALM compatible
+additionalProperties: false
+required:
+- group
+- version
+- scope
+- validation
+- outputs
+properties:
+  group:
+    type: string
+    description: API group into which this CRD will be bound
+    # TODO supply a pattern that matches what k8s expects
+
+  version:
+    type: string
+    description: API version which will be associated with this CRD API
+    # TODO supply a pattern that matches what k8s expects
+
+  scope:
+    type: string
+    description: CRD scope, must always be Namespaced
+    enum:
+    - Namespaced
+
+  validation:
+    type: object
+    description: Schema defining interface for creating instances of the AppType
+    # TODO do we define how the user defines the json schema? do we embed the spec?        
+
+  outputs:
+    type: array
+    description: Machine readable outputs that each individual instance will publish for consumption by other services, i.e. CloudFormation output equivalents
+    items:
+      type: object
+      additionalProperties: false
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
+        x-alm-capabilities:
+          type: array
+          description: List of capabilities in URN format that this output satisfies, e.g. postgres compatible db connection string
+          items:
+            type: string
+            pattern: ^urn:alm:capability:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$
+        description:
+          type: string
+          description: Human readable description of what the output signifies
