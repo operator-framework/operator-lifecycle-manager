@@ -20,7 +20,7 @@ spec:
 
         description:
           type: string
-          description: Human readable description of what the application does.
+          description: Human readable description of what the application does
 
         # Open question: do these belong as k8s annotations? Should ALM do that?
         keywords:
@@ -70,11 +70,26 @@ spec:
                 description: URL to which the link should point
                 format: uri
 
-        iconURL:
-          type: string
-          description: URL which points to an icon which will be shown next to this application type when rendered in a UI
-          format: uri
-  
+        icon:
+          type: object
+          description: Icon which should be rendered with the application information
+          required:
+          - base64data
+          - mediatype
+          properties:
+            base64data:
+              type: string
+              description: Base64 binary representation of the icon image
+              pattern: ^(?:[A-Za-z0-9+/]{4}){0,16250}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$
+            mediatype:
+              type: string
+              description: Mediatype for the binary data specified in the base64data property
+              enum:
+              - image/gif
+              - image/jpeg
+              - image/png
+              - image/svg+xml
+
   names: 
     plural: apptype-v1s
     singular: apptype-v1
