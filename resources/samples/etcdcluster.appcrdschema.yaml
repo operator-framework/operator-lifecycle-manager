@@ -1,0 +1,36 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata: 
+  name: etcdcluster.etcd.database.coreos.com
+spec: 
+  group: etcd.database.coreos.com
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIv3:
+      type: object
+      description: Represents a single instance of etcd
+      additionalProperties: false
+      required:
+      - version
+      properties:
+        version:
+          type: string
+          description: Version string
+          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
+        size:
+          type: number
+          description: The size of the etcd cluster
+          min: 1
+          max: 9
+
+  outputs:
+  - name: etcd-cluster-service-name
+    x-alm-capabilities:
+    - urn:alm:capability:com.coreos.etcd:api.v3.grpc
+    - urn:alm:capability:com.coreos.etcd:api.v2.rest
+
+  names: 
+    plural: etcdclusters
+    singular: etcdcluster
+    kind: EtcdCluster

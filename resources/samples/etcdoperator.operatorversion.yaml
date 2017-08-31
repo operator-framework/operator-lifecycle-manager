@@ -1,0 +1,14 @@
+apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+kind: OperatorVersion
+metadata:
+  namespace: staging-environment
+  name: etcd-operator
+spec:
+  installStrategy:
+    type: image
+    image: quay.io/coreos/etcd-operator:v0.5.1
+  version: 0.5.1
+  maturity: beta
+  permissions:
+  - fooPermission
+  - barPermission
