@@ -4,5 +4,5 @@ image:
   tag: master
   pullPolicy: Always
 service:
-  internalPort: 80
+  internalPort: 8080
 namespace: alm-app
