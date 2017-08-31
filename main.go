@@ -1,19 +1,33 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"github.com/coreos-inc/alm/alm"
 	"net/http"
-	"os"
 )
 
 func doesShitWork() {
 	fmt.Println("testing...")
-	installer := alm.MockInstall{"does this shit even work?"}
-	err := installer.Install(context.TODO(), "alm-system", []byte("wat"))
-	fmt.Printf("Done. err=%s\n", err)
-	os.Exit(0)
+	testApp := &alm.AppType{
+		DisplayName: "TestAppType",
+		Description: "This is a test app type",
+		Keywords:    []string{"mock", "dev", "alm"},
+		Maintainers: []alm.Maintainer{{
+			Name:  "testbot",
+			Email: "testbot@coreos.com",
+		}},
+		Links: []alm.AppLink{{
+			Name: "ALM Homepage",
+			URL:  "https://github.com/coreos-inc/alm",
+		}},
+		Icon: alm.Icon{
+			Data:      "dGhpcyBpcyBhIHRlc3Q=",
+			MediaType: "image/gif",
+		},
+	}
+	mock := alm.MockALM{Name: "MainMock"}
+	_, err := mock.RegisterAppType(testApp)
+	fmt.Println("Error? ", err)
 }
 
 func handler(w http.ResponseWriter, r *http.Request) {
