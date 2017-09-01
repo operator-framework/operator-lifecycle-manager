@@ -1,18 +1,22 @@
 image: golang:1.9.0
-
 variables:
   GIT_REPO_NAME: github.com/coreos-inc/alm
   IMAGE_REPO_NAME: quay.io/quay/alm
-
+  DOCKER_HOST: tcp://docker-host.gitlab-runner.svc.cluster.local:2375
+  DOCKER_DRIVER: overlay
+  ALM_DOMAIN: alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
+  K8S_NAMESPACE: ci-alm-${CI_COMMIT_REF_SLUG}
 before_script:
   - mkdir -p $GOPATH/src/$GIT_REPO_NAME
   - cp -a $CI_PROJECT_DIR/* $GOPATH/src/$GIT_REPO_NAME
   - cd $GOPATH/src/$GIT_REPO_NAME
-
 stages:
+    - docker_build
     - test
     - docker_build
-
+    - docker_ci_build
+    - deploy_preview
+    - stop_preview
 unit-tests:
     stage: test
     tags:
@@ -21,7 +25,6 @@ unit-tests:
       - go fmt $(go list ./... | grep -v /vendor/)
       - go vet $(go list ./... | grep -v /vendor/)
       - go test -race $(go list ./... | grep -v /vendor/)
-
 container-build:
   only:
     - master
@@ -34,6 +37,62 @@ container-build:
     - docker push ${IMAGE_REPO_NAME}:${CI_COMMIT_REF_SLUG}
   tags:
     - kubernetes
+container-ci-build:
+  before_script:
+  - docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io
+  image: docker:git
+  script:
+  - docker build --no-cache -t quay.io/quay/alm-ci:${CI_COMMIT_REF_SLUG} -f Dockerfile .
+  - docker push quay.io/quay/alm-ci:${CI_COMMIT_REF_SLUG}
+  stage: docker_ci_build
+  tags:
+  - kubernetes
+deploy_preview:
+  before_script:
+  - appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io
+  - cd deploy/alm-app
+  - 'echo version: 1.0.0-${CI_COMMIT_REF_SLUG} >> Chart.yaml'
+  - 'echo "{\"domain\": \"$ALM_DOMAIN\", \"image\": \"quay.io/quay/alm-ci:${CI_COMMIT_REF_SLUG}\", \"tag\": \"${CI_COMMIT_REF_SLUG}\"}" > params.json'
+  - cat params.json
+  environment:
+    name: review/${CI_COMMIT_REF_SLUG}
+    on_stop: stop_preview
+    url: https://alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
+  except:
+  - master
+  image: quay.io/quay/alm-ci-build:latest
+  only:
+  - branches
+  script:
+  - appr push --channel alpha quay.io/quay/alm-ci-app -f
+  - cd ..
+  - kubectl create ns $K8S_NAMESPACE
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server=quay.io --docker-username=$DOCKER_USER --docker-password=$DOCKER_PASS --docker-email=toto@toto.com --namespace=$K8S_NAMESPACE
+  - helm install -n $K8S_NAMESPACE ./alm-app --namespace=$K8S_NAMESPACE --set image.repository=quay.io/quay/alm-ci --set image.tag=${CI_COMMIT_REF_SLUG} --set namespace=$K8S_NAMESPACE
+  - kubectl get ingresses -n $K8S_NAMESPACE -o wide
+  stage: deploy_preview
+  tags:
+  - kubernetes
   variables:
-    DOCKER_DRIVER: overlay
-    DOCKER_HOST: tcp://docker-host.gitlab-runner.svc.cluster.local:2375
+  when: manual
+stop_preview:
+  before_script: []
+  environment:
+    action: stop
+    name: review/${CI_COMMIT_REF_SLUG}
+    url: https://alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
+  except:
+  - master
+  image: quay.io/quay/alm-ci-build:latest
+  only:
+  - branches
+  script:
+  - helm del --purge ci-alm-pr-16-add-in-manual-deploy-of-branch
+  - kubectl delete ns $K8S_NAMESPACE
+  - kubectl get pods -o wide -n $K8S_NAMESPACE
+  stage: deploy_preview
+  tags:
+  - kubernetes
+  variables:
+    GIT_STRATEGY: none
+  when: manual
