@@ -14,7 +14,3 @@ import:
   - kubernetes
   - plugin/pkg/client/auth/gcp
   - rest
-- package: github.com/emicklei/go-restful
-  version: ~2.2.1
-  subpackages:
-  - log

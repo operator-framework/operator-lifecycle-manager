@@ -133,11 +133,11 @@ func main() {
 		WebServicesUrl: "http://localhost:8080",
 		ApiPath:        "/apidocs.json",
 
-		// Optionally, specify where the UI is located
+		// Optionally, specifiy where the UI is located
 		SwaggerPath:     "/apidocs/",
 		SwaggerFilePath: "/Users/emicklei/Projects/swagger-ui/dist"}
 	swagger.InstallSwaggerService(config)
 
-	log.Print("start listening on localhost:8080")
+	log.Printf("start listening on localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
