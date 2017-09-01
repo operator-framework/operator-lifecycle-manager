@@ -1,5 +1,5 @@
-hash: 11bd84394c4eaa3522ace251475a482a82bab6537e38cd99ea5d6da5daa18821
-updated: 2017-08-30T16:33:52.103864766-04:00
+hash: 9ddcbb3a754599eaddd45560e204a8eff18735ec0f00285481b99f8a78640e16
+updated: 2017-09-01T13:14:10.559053409-04:00
 imports:
 - name: cloud.google.com/go
   version: 3b1ae45394a234c385be014e9a488f2bb6eef821
@@ -16,7 +16,7 @@ imports:
   - digest
   - reference
 - name: github.com/emicklei/go-restful
-  version: ff4f55a206334ef123e4f79bbf348980da81ca46
+  version: 68c9750c36bb8cb433f1b88c807b4b30df4acc40
   subpackages:
   - log
 - name: github.com/emicklei/go-restful-swagger12
@@ -120,7 +120,7 @@ imports:
   - pkg/client/clientset/clientset/scheme
   - pkg/client/clientset/clientset/typed/apiextensions/v1beta1
 - name: k8s.io/apimachinery
-  version: 1fd2e63a9a370677308a42f24fd40c86438afddf
+  version: dc1f89aff9a7509782bde3b68824c8043a3e58cc
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
