@@ -7,7 +7,7 @@ spec:
   version: v1alpha1
   scope: Namespaced
   validation:
-    openAPIv3:
+    openAPIV3Schema:
       type: object
       description: Document which defines how to model an App as a CRD in an ALM compatible way
       additionalProperties: false

@@ -7,7 +7,7 @@ spec:
   version: v1alpha1
   scope: Namespaced
   validation:
-    openAPIv3:
+    openAPIV3Schema:
       type: object
       description: Represents a single version of the operator software
       additionalProperties: false
