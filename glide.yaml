@@ -1,0 +1,7 @@
+package: github.com/coreos-inc/alm
+import:
+- package: k8s.io/apimachinery
+  subpackages:
+  - pkg/apis/meta/v1
+  - pkg/apis/meta/v1/unstructured
+  - pkg/openapi
