@@ -6,14 +6,14 @@ import (
 	"k8s.io/apimachinery/pkg/openapi"
 )
 
+/////////////////
+//  App Types  //
+/////////////////
+
 const (
 	AppTypeCRDName    = "apptype-v1s.app.coreos.com"
 	AppTypeAPIVersion = "apiextensions.k8s.io/v1beta1"
 )
-
-/////////////////
-//  App Types  //
-/////////////////
 
 // AppType defines an Application that can be installed
 type AppType struct {

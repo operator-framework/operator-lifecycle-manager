@@ -1,5 +1,5 @@
-hash: 11bd84394c4eaa3522ace251475a482a82bab6537e38cd99ea5d6da5daa18821
-updated: 2017-09-01T13:48:24.432755321-04:00
+hash: fcac32db4ee5cd96ae7b24b1342e1d3e6c0561c03d27dc2bc85688fbbbb84dfc
+updated: 2017-09-01T15:23:41.221065024-04:00
 imports:
 - name: github.com/davecgh/go-spew
   version: 782f4967f2dc4564575ca782fe2d04090b5faca8
@@ -63,11 +63,6 @@ imports:
   - width
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
-- name: k8s.io/apiextensions-apiserver
-  version: 79ecda8df91cd9304503d6f3e488341eabe2287f
-  subpackages:
-  - pkg/apis/apiextensions/v1beta1
-  - pkg/client/clientset/clientset
 - name: k8s.io/apimachinery
   version: dc1f89aff9a7509782bde3b68824c8043a3e58cc
   subpackages:
@@ -97,10 +92,4 @@ imports:
   - pkg/util/wait
   - pkg/watch
   - third_party/forked/golang/reflect
-- name: k8s.io/client-go
-  version: d92e8497f71b7b4e0494e5bd204b48d34bd6f254
-  subpackages:
-  - kubernetes
-  - plugin/pkg/client/auth/gcp
-  - rest
 testImports: []
