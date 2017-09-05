@@ -11,12 +11,13 @@ The aim of this project is to serve the following purposes:
 
 ## Usage
 
-**Asumption**: The ALM operator is already installed in the cluster, which defines an app CRD.
+**Asumption**: The ALM operator is already installed in the cluster, which defines an AppType CRD and an OperatorVersion CRD
 
 ```sh
 kubectl get crd
-NAME                          KIND
-app.stable.coreos.com         CustomResourceDefinition.v1beta1.apiextensions.k8s.io
+NAME                                 KIND
+apptypes.stable.coreos.com           CustomResourceDefinition.v1beta1.apiextensions.k8s.io
+operatorversions.stable.coreos.com   CustomResourceDefinition.v1beta1.apiextensions.k8s.io
 ```
 
 ### Create an instance of an app type
@@ -27,47 +28,71 @@ kubectl create -f etcdapp.yaml
 
 ```yaml
 apiVersion: app.coreos.com/v1beta1
-kind: App
+kind: AppType
 metadata:
+  # (name, type) is unique and immutable
   name: etcd
   type: com.tectonic.storage
+  # generated
+  selfRef: etcd.com.tectonic.storage
+```
+
+### Create an InstallStrategy
+
+```sh
+kubectl create -f etcd-op.yaml
+```
+
+```yaml
+apiVersion: operator.coreos.com/v1beta1
+kind: OperatorVersion 
+metadata:
+  ownerReference: etcd.com.tectonic.storage
+  version: aef4455
+  selfRef: operatorversion.aef4455.etcd.com.tectonic.storage
 spec:
-  operator:
+  # an install strategy for the operator.
+  strategy: 
     type: helm
-    helmChart:
-      # This contains the deployment for the controller
-      # this will watch the channel on Quay and upgrade the operator when necessary
-      template: quay.io/coreos/etcd-operator:stable
-      values:
-        replicas: 2
-  # This writes out the CRDs for the app type and allows for linking app type instances to the app
+    helmChart: quay.io/coreos/etcd-operator
+    sha256: aef4455
+    valuesConfigMap: etcd-operator-values
   resources:
-  - name: cluster.etcd.coreos.com
-    spec:
-      # group name to use for REST API: /apis/<group>/<version>
-      group: etcd.coreos.com
-      # version name to use for REST API: /apis/<group>/<version>
-      version: v1
-      # either Namespaced or Cluster
-      scope: Namespaced
-      names:
-        # plural name to be used in the URL: /apis/<group>/<version>/<plural>
-        plural: etcds
-        # singular name to be used as an alias on the CLI and for display
-        singular: etcd
-        # kind is normally the CamelCased singular type. Your resource manifests use this.
-        kind: Etcd
-    schema: "Putting something here would be super useful for showing how to interact with the operator"
-    outputs:
-    - name: service-name
-      type: string
-      description: The service name at which to contact the newly formed etcd
-    - name: client-cert-secret
-      type: string
-      description: The k8s secret at which to find the credentials to auth with the cluster
-    - name: client-cert-key-secret
-      type: string
-      description: The k8s secret at which to find the private key for authenticating with the cluster
+    - name: etcds.1.etcd.coreos.com
+      sha256: ffaaee1234
+```
+
+### Create the CRDs managed by the operator
+
+```sh
+kubectl create -f etcd-crd.yaml
+```
+
+```yaml
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  ownerRef: etcd.com.tectonic.storage
+  name: etcds.1.etcd.coreos.com
+spec:
+  group: 1.etcd.coreos.com
+  version: 1
+  scope: Namespaced
+  names:
+    plural: etcds
+    singular: etcd
+    kind: EtcdCluster
+  validation:
+    openAPIv3: |
+      {
+        // real json schema
+        "size": "int",
+        "version": "string",
+        "autoMinorVersionUpgrade": "bool",
+        "outputs": {
+          "serviceName": "string"
+        }
+      } 
 ```
 
 ### List the app types
@@ -75,18 +100,18 @@ spec:
 ```sh
 kubectl get Apps
 NAME                 KIND
-etcd                 Etcd.v1.etcd.coreos.com
+etcd                 Etcd.1.etcd.coreos.com
 ```
 
-### Create an instance of the app
+### Create an instance of the managed CRD
 
 ```sh
 kubectl create -f myetcd.yaml
 ```
 
 ```yaml
-apiVersion: etcd.coreos.com/v1
-kind: Etcd
+apiVersion: v1alpha1.etcd.coreos.com/v1alpha1
+kind: EtcdCluster
 metadata:
   name: etcd-purple-ant
   namespace: default
@@ -99,9 +124,9 @@ spec:
 ### List instances of the app
 
 ```sh
-kubectl get Etcds
+kubectl get etcds
 NAME                 KIND
-etcd-purple-ant      Etcd.v1.etcd.coreos.com
+etcd-purple-ant      Etcd.1.etcd.coreos.com
 ```
 
 ### Get details about the app
@@ -111,8 +136,8 @@ kubectl get etcd etcd-purple-ant -o yaml
 ```
 
 ```yaml
-apiVersion: etcd.coreos.com/v1
-kind: Etcd
+apiVersion: v1alpha1.etcd.coreos.com/v1
+kind: EtcdCluster
 metadata:
   creationTimestamp: 2017-07-20T23:52:44Z
   name: etcd-purple-ant
@@ -124,12 +149,72 @@ spec:
   size: 3
   version: 3.2.2
   autoMinorVersionUpgrade: True
-status:
+  # these are added by the etcd operator
   outputs:
     service-name: etcd-purple-ant.service
-    client-cert-secret: etcd-purple-ant-cert
-    client-cert-key-secret: etcd-purple-ant-key
 ```
+
+## Adding a new OperatorVersion and  
+
+```yaml
+apiVersion: opinstaller.coreos.com/v1beta1
+kind: OperatorVersion 
+metadata:
+  version: dbc1122
+  # ...
+spec:
+  strategy: 
+    # ...
+    sha256: dbc1122
+  resources:
+    - name: etcds.1.etcd.coreos.com
+      sha256: ffaaee1234
+    - name: etcds.2.etcd.coreos.com
+      sha256: abababab
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+# ...
+spec:
+  version: 2
+  # ...
+  validation:
+    openAPIv3: |
+      {
+        // real json schema
+        "size": "int",
+        "version": "string",
+        "autoMinorVersionUpgrade": "bool",
+        "outputs": {
+          "serviceName": "string",
+          "keySecretName": "string"
+        }
+      } 
+```
+
+This new operator is backwards-compatible with v1, so both v1 and v2 are listed as resources. 
+
+### ALM Operator Reconciliation Loops
+
+1. Watches for new AppType definitions and installs defined operators and CRDs.
+1. Watches CRDs for new definitions that have `ownerReference` set to ALM.
+    1. Queries catalog for the highest version AppType that lists the CRD as an instance.
+    1. Installs AppType, if found.
+    1. If no AppType exists in the cluster (installed manually or discovered), status is written back to the CRD about the failure.
+1. Watches CustomResources (instances of CRDs) that it has an AppType installed for.
+    1. If operator is not yet installed, installs operator according to the install strategy for the AppType (operator field)
+1. Tracks catalog for new AppType versions higher than those installed.
+    1. If all resources managed by the current AppType are also managed by the new AppType, the new AppType can be installed.
+        1. If auto-update is enabled, the AppType will be installed in the cluster and the new operator/CRDs will be installed. 
+        1. If manual update is enabled, the AppType will be available for installation in the UI.
+    1. If there are resources managed by the current AppType that are not managed by the new AppType, the new AppType is not available for installation.
+        1. If auto-update is enabled, this results in a cluster alert.
+        1. If manual updated is anbled, the AppType will be visible in the UI but not available for installation. 
+        1. In all cases, steps can be communicated to the user on how to enable the update to proceed.
+        1. Note that this will only be a problem when the `resource` definitions deprecate a version of a CRD, which should correspond to major version changes in the operator.
+
+
+# Future work
 
 ### Simple deployment of a stateless app
 
@@ -139,7 +224,7 @@ kubectl create -f coreoswebsite.yaml
 
 ```yaml
 apiVersion: app.coreos.com/v1beta1
-kind: App
+kind: AppType
 metadata:
   name: coreos-website
   type: com.tectonic.web
@@ -147,7 +232,7 @@ spec:
   operator:
     type: helm
     helmChart:
-      template: quay.io/coreos/stateless-app-operator:stable
+      template: quay.io/coreos/stateless-app-operator@sha256:asdf123
       values:
         replicas: 2
   resources:
