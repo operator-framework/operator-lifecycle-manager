@@ -10,8 +10,30 @@ spec:
     resourceDefinitionLink: /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/apptypes.app.coreos.com
   - requirementType: configmap
     resourceDefinitionLink: /api/v1/namespaces/kube-system/configmaps/cluster-features
-    values:
-      - path: features.apiextension
+    requiredValues:
+      - fieldPath: features.apiextension
         value: true
+  - requirementType: serviceaccount
+    resourceDefinitionLink: /api/v1/namespaces/kube-system/serviceaccounts/alm-service
+    rules:
+    # This is a list of permissions that are required for the operator compenent (using the above serviceAccount)
+    # to do its job. A user with appropriate permissions will need to create it (automated in tectonic UI w/ impersonation) 
+    - apiGroups: [""]
+      resources: ["pods"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch", "extensions"]
+      resources: ["jobs"]
+      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      resourceNames: ["my-config"]
+      verbs: ["get"]
+  - requirementType: serviceaccount
+    resourceDefinitionLink: /api/v1/namespaces/kube-system/serviceaccounts/alm-cluster-aware-service 
+    rules:
+    - apiGroups: [""]
+      resources: ["configmaps"]
+      resourceNames: ["cluster-features"]
+      verbs: ["get"]
   installStrategy:
     todo: EvB
