@@ -6,15 +6,20 @@ spec:
   version: 0.0.1
   maturity: pre-alpha
   requirements:
-  - requirementType: customresourcedefinition
-    resourceDefinitionLink: /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/apptypes.app.coreos.com
-  - requirementType: configmap
-    resourceDefinitionLink: /api/v1/namespaces/kube-system/configmaps/cluster-features
-    requiredValues:
-      - fieldPath: features.apiextension
-        value: true
-  - requirementType: serviceaccount
-    resourceDefinitionLink: /api/v1/namespaces/kube-system/serviceaccounts/alm-service
+  - kind: CustomResourceDefinition 
+    apiVersion: v1beta1
+    name: apptypes.app.coreos.com
+    sha256: a916282c05b74d39076e223ebde312f6de2346f1fbb87c75bb315cad9cc6eab7
+  - kind: ConfigMap
+    apiVersion: v1
+    name: cluster-features
+    namespace: kube-system
+    matchExpressions:
+      - {key: features.apiextension, operator: In, values: [true]}
+  - kind: ServiceAccount
+    apiVersion: v1
+    name: alm-service
+    namespace: kube-system
     rules:
     # This is a list of permissions that are required for the operator compenent (using the above serviceAccount)
     # to do its job. A user with appropriate permissions will need to create it (automated in tectonic UI w/ impersonation) 
@@ -28,8 +33,10 @@ spec:
       resources: ["configmaps"]
       resourceNames: ["my-config"]
       verbs: ["get"]
-  - requirementType: serviceaccount
-    resourceDefinitionLink: /api/v1/namespaces/kube-system/serviceaccounts/alm-cluster-aware-service 
+  - kind: ServiceAccount
+    apiVersion: v1
+    name: alm-cluster-aware-service
+    namespace: kube-system
     rules:
     - apiGroups: [""]
       resources: ["configmaps"]
