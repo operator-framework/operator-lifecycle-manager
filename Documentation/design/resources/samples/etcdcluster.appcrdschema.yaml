@@ -25,10 +25,36 @@ spec:
           max: 9
 
   outputs:
+  # The name of the cluster, based on the service name. Filled in by the etcd-operator.
   - name: etcd-cluster-service-name
+    description: The service name for the running etcd cluster.
     x-alm-capabilities:
     - urn:alm:capability:com.coreos.etcd:api.v3.grpc
     - urn:alm:capability:com.coreos.etcd:api.v2.rest
+
+  # A URL to the grafana dashboard running for the etcd cluster. Most likely filled in by
+  # the ALM reading an annotation off of the CRD created by the etcd-operator to create the
+  # grafana dashboard. If this is the design we choose, there would be another schema field
+  # here that would "x-path" down to the URL annotation on the CRD.
+  - name: etcd-dashboard
+    description: URL of a Grafana dashboard for the etcd cluster.
+    x-alm-capabilities:
+    - urn:alm:capability:org.w3:link
+  
+  # The service endpoint for the etcd cluster's prometheus.
+  - name: etcd-prometheus
+    description: Endpoint of the prometheus instance for the etcd cluster.
+    x-alm-capabilities:
+    - urn:alm:capability:io.prometheus:prometheus.v1
+
+  # An output which lists the "important" metrics for the etcd cluster. The metrics will be in a JSON
+  # form defined by the Console team, and would include the Prometheus query, as well as the type of
+  # chart to use to display the metric, as well as optional data such as ordering and whether the metric
+  # should always be displayed.
+  - name: etcd-important-metrics
+    description: Important prometheus metrics for the etcd cluster.
+    x-alm-capabilities:
+    - urn:alm:capability:com.tectonic.ui:metrics
 
   names: 
     plural: etcdclusters
