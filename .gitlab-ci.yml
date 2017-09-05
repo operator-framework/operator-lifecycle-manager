@@ -47,6 +47,10 @@ container-ci-build:
   stage: docker_ci_build
   tags:
   - kubernetes
+  except:
+  - master
+  only:
+  - branches
 deploy_preview:
   before_script:
   - appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io
@@ -61,6 +65,8 @@ deploy_preview:
   except:
   - master
   image: quay.io/quay/alm-ci-build:latest
+  except:
+  - master
   only:
   - branches
   script:
@@ -84,6 +90,8 @@ stop_preview:
   except:
   - master
   image: quay.io/quay/alm-ci-build:latest
+  except:
+  - master
   only:
   - branches
   script:
