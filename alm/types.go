@@ -49,6 +49,14 @@ type AppTypeResource struct {
 	Status metav1.Status `json:"status"`
 }
 
+func CreateAppTypeResource(app *AppType) *AppTypeResource {
+	resource := AppTypeResource{}
+	resource.Kind = AppTypeCRDName
+	resource.APIVersion = AppTypeAPIVersion
+	resource.Spec = app
+	return &resource
+}
+
 type AppTypeList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`

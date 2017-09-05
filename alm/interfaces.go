@@ -6,7 +6,7 @@ import (
 )
 
 type ALM interface {
-	RegisterAppType(*AppType) (*AppTypeResource, error)
+	RegisterAppType(name string, appinfo *AppType) (*AppTypeResource, error)
 	ListAppTypes() (*AppTypeList, error)
 	InstallAppOperator(apptype string, version string) (*OperatorVersionResource, error)
 	ListOperatorVersionsForApp(apptype string, version string) (*OperatorVersion, error)
@@ -17,14 +17,19 @@ type OperatorInstaller interface {
 }
 
 type MockALM struct {
-	Name string
+	Name    string
+	Catalog map[string]*AppTypeResource
 }
 
-func (m *MockALM) RegisterAppType(app *AppType) (*AppTypeResource, error) {
-	resource := AppTypeResource{}
-	resource.Kind = AppTypeCRDName
-	resource.APIVersion = AppTypeAPIVersion
-	resource.Spec = app
-	fmt.Printf("[%s] AppType: %+v\n Resource: %+v\n", m.Name, app, resource)
-	return &resource, nil
+func NewMock(name string) MockALM {
+	return MockALM{Name: name, Catalog: map[string]*AppTypeResource{}}
+}
+func (m *MockALM) RegisterAppType(name string, app *AppType) (*AppTypeResource, error) {
+	if _, ok := m.Catalog[name]; ok {
+		return nil, fmt.Errorf("App '%s' already registered", name)
+	}
+	resource := CreateAppTypeResource(app)
+	resource.Name = name
+	m.Catalog[name] = resource
+	return resource, nil
 }

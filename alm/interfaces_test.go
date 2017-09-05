@@ -23,8 +23,8 @@ func TestRegisterAppType(t *testing.T) {
 			MediaType: "image/gif",
 		},
 	}
-	mock := MockALM{Name: "MainMock"}
-	rsrc, err := mock.RegisterAppType(testApp)
+	mock := NewMock("MainMock")
+	rsrc, err := mock.RegisterAppType("mytestapp", testApp)
 	assert.NoError(t, err)
 	assert.Equal(t, AppTypeCRDName, rsrc.Kind)
 }
