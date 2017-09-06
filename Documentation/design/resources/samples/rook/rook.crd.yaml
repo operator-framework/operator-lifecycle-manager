@@ -1,0 +1,92 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: Cluster.rook.io
+spec:
+  group: rook.io
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIv3:
+      type: object
+      description: Represents an available Rook storage cluster
+      additionalProperties: false
+      required:
+      - version
+      - dataDirHostPath
+      - placement
+      - storage
+      properties:
+        version:
+          type: string
+          description: Version string
+
+        paused:
+          type: bool
+          description: Pause the control of the operator for the rook cluster
+
+        dataDirHostPath:
+          type: string
+          description: The path on the host where config and data can be persisted
+
+        placement:
+          # TODO(jzelinskie): there's a lot of optional fields here
+          type: object
+          description: The placement-related configuration to pass to Kubernetes (affinity, node selector, tolerations).
+
+        storage:
+          # TODO(jzelinskie): there's a lot of optional fields here
+          type: object
+          description: A spec for available storage in the cluster and how it should be used
+
+  outputs:
+  - name: rook-cluster-namespace-name
+
+  names:
+    plural: clusters
+    singular: cluster
+    kind: Cluster
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: Pool.rook.io
+spec:
+  group: rook.io
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIv3:
+      type: object
+      description: Represents an available Rook replica pool
+      additionalProperties: false
+      required:
+      - replication
+      properties:
+        replication:
+          type: object
+          description: the configuration for replication
+          additionalProperties: false
+          required:
+          - size
+          properties:
+            size:
+              type: number
+              description: The size of the replica pool
+              min: 1
+        erasureCode:
+          properties:
+            codingChunks:
+              type: number
+            dataChunks:
+              type: number
+
+  inputs:
+  - name: rook-cluster-namespace-name
+  outputs:
+  - name: kubernetes-storage-provisioner
+
+  names:
+    plural: pools
+    singular: pool
+    kind: Pool
