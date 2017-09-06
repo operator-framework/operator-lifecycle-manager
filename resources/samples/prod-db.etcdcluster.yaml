@@ -1,0 +1,8 @@
+apiVersion: etcd.database.coreos.com/v1alpha1
+kind: EtcdCluster
+metadata: 
+  name: prod-db
+spec: 
+  version: 3.2.2
+  size: 3
+  

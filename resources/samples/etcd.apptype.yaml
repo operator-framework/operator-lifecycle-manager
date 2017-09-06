@@ -1,5 +1,5 @@
 apiVersion: app.coreos.com/v1alpha1
-kind: AppType-v1
+kind: AppType
 metadata:
   namespace: staging-environment
   name: etcd
@@ -7,6 +7,9 @@ spec:
   displayName: Etcd
   description: A highly available, consistent key-value store with automatic backups
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
+  provider: 
+    name: CoreOs, Inc
+    website: coreos.com
   maintainers:
   - name: Xiang Li
     email: xiang.li@coreos.com
