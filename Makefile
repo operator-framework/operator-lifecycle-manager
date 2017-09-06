@@ -1,5 +1,5 @@
-SHELL := /bin/bash
-PKG := github.com/coreos-inc/alm
+SHELL := /bin/sh
+PKG := github.com/coreos-inc/alm/cmd/alm
 PKGS := $(shell go list ./... | grep -v /vendor)
 EXECUTABLE := ./bin/alm
 .PHONY: test $(PKGS) run clean vendor vendor-update
