@@ -43,6 +43,7 @@ spec:
   - name: etcd-dashboard
     description: URL of a Grafana dashboard for the etcd cluster.
     x-alm-capabilities:
+    - urn:alm:capability:com.tectonic.ui:important.link
     - urn:alm:capability:org.w3:link
   
   # The service endpoint for the etcd cluster's prometheus.
@@ -52,7 +53,8 @@ spec:
     description: Endpoint of the prometheus instance for the etcd cluster.
     x-alm-capabilities:
     - urn:alm:capability:io.prometheus:prometheus.v1
-
+    - urn:alm:capability:org.w3:link
+  
   # An output which lists the "important" metrics for the etcd cluster. The metrics will be in a JSON
   # form defined by the Console team, and would include the Prometheus query, as well as the type of
   # chart to use to display the metric, as well as optional data such as ordering and whether the metric
