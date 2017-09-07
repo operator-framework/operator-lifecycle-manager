@@ -1,0 +1,32 @@
+apiVersion: etcd.database.coreos.com/v1alpha1
+kind: EtcdCluster
+metadata:
+  namespace: staging-environment
+  name: my-etcd-cluster
+  ownerReferences:
+    - apiVersion: apps/v1beta1
+      kind: OperatorVersion
+      name: etcd-operator
+      uid: 533014bc-93ee-11e7-bbd9-06a8104093b6
+spec:
+  version: 0.5.1
+  size: 3
+outputs:
+  etcd-cluster-service-name: my-etcd-cluster
+  etcd-dashboard: https://internal-grafana/dashboards/my-etcd-cluster
+  etcd-prometheus: https://my-etcd-cluster-prometheus
+  etcd-important-metrics: "{\"metrics\": [{\"query\": \"has_leader\", \"name\": \"Has Active Leader\", \"type\": \"Gauge\", \"subtype\": \"boolean\"},{\"query\": \"leader_changes_seen_total\", \"name\": \"Leader Changes\", \"type": \"Counter\"}]}"
+status:
+  observedGeneration: 1
+  replicas: 1
+  updatedReplicas: 1
+  readyReplicas: 1
+  availableReplicas: 1
+  conditions:
+    - type: Available
+      status: 'True'
+      lastUpdateTime: '2017-08-30T13:51:53Z'
+      lastTransitionTime: '2017-08-30T13:51:53Z'
+      reason: MinimumReplicasAvailable
+      message: Deployment has minimum availability.
+      

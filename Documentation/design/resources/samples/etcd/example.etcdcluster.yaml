@@ -6,8 +6,3 @@ metadata:
 spec:
   version: 0.5.1
   size: 3
-outputs:
-  etcd-cluster-service-name: my-etcd-cluster
-  etcd-dashboard: https://internal-grafana/dashboards/my-etcd-cluster
-  etcd-prometheus: https://my-etcd-cluster-prometheus
-  etcd-important-metrics: "{\"metrics\": [{\"query\": \"has_leader\", \"name\": \"Has Active Leader\", \"type\": \"Gauge\", \"subtype\": \"boolean\"},{\"query\": \"leader_changes_seen_total\", \"name\": \"Leader Changes\", \"type": \"Counter\"}]}"
