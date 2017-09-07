@@ -7,12 +7,53 @@ spec:
   installStrategy:
     type: image
     image: quay.io/coreos/vault-operator:0.0.2
-  version: 0.02
+  version: 0.0.2
   maturity: beta
-  permissions:
-  - fooPermission
-  - barPermission
+  replaces: 0.0.1
   requirements:
-  - requirementType: customresourcedefinition
-    resourceDefinitionLink: etcdcluster.etcd.database.coreos.com
-    resourceDefinitionHash: a916282c05b74d39076e223ebde312f6de2346f1fbb87c75bb315cad9cc6eab7
+  - kind: EtcdCluster-v1  
+    apiVersion: v1beta1
+    name: etcdcluster.etcd.database.coreos.com
+  - kind: VaultCluster-v1
+    apiVersion: v1alpha1
+    name: vaultcluster.vault.security.coreos.com
+  - kind: ServiceAccount
+    apiVersion: v1
+    name: etcd-operator
+    namespace: kube-system
+    blocksInstall: true
+    rules:
+    - apiGroups:
+      - etcd.database.coreos.com
+      resources:
+      - etcdclusters
+      verbs:
+      - "*"
+    - apiGroups:
+      - vault.security.coreos.com
+      resources:
+      - vaultclusters
+      verbs:
+      - "*"
+    - apiGroups:
+      - storage.k8s.io
+      resources:
+      - storageclasses
+      verbs:
+      - "*"
+    - apiGroups: 
+      - ""
+      resources:
+      - pods
+      - services
+      - endpoints
+      - persistentvolumeclaims
+      - events
+      verbs:
+      - "*"
+    - apiGroups:
+      - apps
+      resources:
+      - deployments
+      verbs:
+      - "*"
