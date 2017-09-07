@@ -1,0 +1,10 @@
+apiVersion: vault.security.coreos.com/v1alpha1
+kind: VaultService
+metadata:
+  namespace: staging-environment
+  name: my-vault-service
+spec:
+  version: "0.8.0-0"
+  nodes: 1
+outputs:
+  vault-service-name: my-vault-cluster

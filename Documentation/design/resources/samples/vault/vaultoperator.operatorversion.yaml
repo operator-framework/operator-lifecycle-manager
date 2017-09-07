@@ -1,0 +1,18 @@
+apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+kind: OperatorVersion
+metadata:
+  namespace: staging-environment
+  name: vault-operator
+spec:
+  installStrategy:
+    type: image
+    image: quay.io/coreos/vault-operator:0.0.2
+  version: 0.02
+  maturity: beta
+  permissions:
+  - fooPermission
+  - barPermission
+  requirements:
+  - requirementType: customresourcedefinition
+    resourceDefinitionLink: etcdcluster.etcd.database.coreos.com
+    resourceDefinitionHash: a916282c05b74d39076e223ebde312f6de2346f1fbb87c75bb315cad9cc6eab7
