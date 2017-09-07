@@ -108,8 +108,6 @@ deploy-staging:
   - cat params.json
   environment:
     name: staging
-  except:
-  - branches
   image: ${IMAGE_REPO_NAME}-ci-build:latest
   only:
   - master
