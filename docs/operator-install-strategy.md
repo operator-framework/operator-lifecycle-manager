@@ -31,7 +31,7 @@ metadata:
   type: com.tectonic.storage
 spec:
   operators:
-    cdr: vault
+    crd: vault
     installStrategy:
       kind: Deployment
       metadata:
