@@ -112,7 +112,7 @@ deploy-staging:
   only:
   - master
   script:
-  - appr push --channel staging ${IMAGE_REPO_NAME}-${SHA8}-app -f
+  - appr push --channel staging ${IMAGE_REPO_NAME}-app -f
   - cd ..
   - helm upgrade alm-app ./alm-app --install --force --namespace=alm-app
   - kubectl get ingresses -n alm-app -o wide
