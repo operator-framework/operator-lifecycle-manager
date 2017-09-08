@@ -3,11 +3,7 @@ kind: AppType-v1
 metadata:
   namespace: staging-environment
   name: etcd
-  ownerReferences:
-    - apiVersion: apps/v1beta1
-      kind: CustomResourceDefinition
-      name: AppType-v1
-      uid: 233014bc-93ee-11e7-bbd9-06a8104093b6
+  uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
 spec:
   displayName: Etcd
   description: A highly available, consistent key-value store with automatic backups

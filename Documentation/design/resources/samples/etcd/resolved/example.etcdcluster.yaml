@@ -3,11 +3,12 @@ kind: EtcdCluster
 metadata:
   namespace: staging-environment
   name: my-etcd-cluster
+  uid: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
   ownerReferences:
-    - apiVersion: apps/v1beta1
+    - apiVersion: app.coreos.com/v1alpha1
       kind: OperatorVersion
       name: etcd-operator
-      uid: 533014bc-93ee-11e7-bbd9-06a8104093b6
+      uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
 spec:
   version: 0.5.1
   size: 3

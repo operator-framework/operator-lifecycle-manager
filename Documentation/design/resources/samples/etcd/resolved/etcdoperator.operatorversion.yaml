@@ -3,11 +3,12 @@ kind: OperatorVersion
 metadata:
   namespace: staging-environment
   name: etcd-operator
+  uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   ownerReferences:
-    - apiVersion: apps/v1beta1
+    - apiVersion: app.coreos.com/v1alpha1
       kind: AppType-v1
       name: etcd
-      uid: 433014bc-93ee-11e7-bbd9-06a8104093b6
+      uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
 spec:
   installStrategy:
     type: image

@@ -3,11 +3,12 @@ kind: CustomResourceDefinition
 metadata: 
   namespace: staging-environment
   name: etcdcluster.etcd.database.coreos.com
+  uid: 11111111-bbbb-cccc-dddd-eeeeeeeeeeee
   ownerReferences:
-    - apiVersion: apps/v1beta1
+    - apiVersion: app.coreos.com/v1alpha1
       kind: AppType-v1
       name: etcd
-      uid: 433014bc-93ee-11e7-bbd9-06a8104093b6
+      uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
 spec: 
   group: etcd.database.coreos.com
   version: v1alpha1
