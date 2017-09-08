@@ -28,7 +28,7 @@ func (m *MockALM) RegisterAppType(name string, app *AppType) (*AppTypeResource, 
 	if _, ok := m.Catalog[name]; ok {
 		return nil, fmt.Errorf("App '%s' already registered", name)
 	}
-	resource := CreateAppTypeResource(app)
+	resource := NewAppTypeResource(app)
 	resource.Name = name
 	m.Catalog[name] = resource
 	return resource, nil

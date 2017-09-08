@@ -11,8 +11,8 @@ import (
 /////////////////
 
 const (
-	AppTypeCRDName    = "apptype-v1s.app.coreos.com"
-	AppTypeAPIVersion = "apiextensions.k8s.io/v1beta1"
+	AppTypeCRDName       = "apptype-v1s.app.coreos.com"
+	AppTypeCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 )
 
 // AppType defines an Application that can be installed
@@ -49,10 +49,10 @@ type AppTypeResource struct {
 	Status metav1.Status `json:"status"`
 }
 
-func CreateAppTypeResource(app *AppType) *AppTypeResource {
+func NewAppTypeResource(app *AppType) *AppTypeResource {
 	resource := AppTypeResource{}
 	resource.Kind = AppTypeCRDName
-	resource.APIVersion = AppTypeAPIVersion
+	resource.APIVersion = AppTypeCRDAPIVersion
 	resource.Spec = app
 	return &resource
 }
