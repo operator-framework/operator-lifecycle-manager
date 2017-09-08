@@ -1,4 +1,4 @@
-package alm
+package schema
 
 import (
 	"io/ioutil"
@@ -7,6 +7,8 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+// LoadCRDFromFile is a utility function for loading the CRD schemas.
+// !!! WARNING !!!   Not recommended for production use
 func LoadCRDFromFile(filepath string) (*v1beta1extensions.CustomResourceDefinition, error) {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
