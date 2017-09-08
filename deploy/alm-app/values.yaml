@@ -1,6 +1,6 @@
 replicaCount: 1
 image:
-  repository: quay.io/quay/alm
+  repository: quay.io/coreos/alm
   tag: master
   pullPolicy: Always
 service:
