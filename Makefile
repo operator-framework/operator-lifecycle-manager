@@ -19,16 +19,16 @@ $(PKGS): vendor
 	go vet $@
 	go test -v -race $@
 
-GODEP := $(GOPATH)/bin/dep
-$(GODEP):
-	go get github.com/golang/dep/cmd/dep
+GLIDE := $(GOPATH)/bin/glide
+$(GLIDE):
+	go get github.com/Masterminds/glide
 
-vendor: $(GODEP)
-	$(GODEP) ensure
+vendor: $(GLIDE)
+	$(GLIDE) install -v
 
-vendor-update: vendor $(GODEP)
-	$(GODEP) ensure -update
-	$(GODEP) prune
+vendor-update: vendor
+	$(GLIDE) up -v
+
 
 clean:
 	rm $(EXECUTABLE)
