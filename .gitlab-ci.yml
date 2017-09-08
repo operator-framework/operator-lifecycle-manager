@@ -114,7 +114,7 @@ deploy-staging:
   script:
   - appr push --channel staging ${IMAGE_REPO_NAME}-app -f
   - cd ..
-  - helm upgrade alm-app ./alm-app --install --force --namespace=alm-app
+  - helm upgrade alm-app ./alm-app --install --force --namespace=alm-app --set image.tag=${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl get ingresses -n alm-app -o wide
   stage: deploy_staging
   tags:
