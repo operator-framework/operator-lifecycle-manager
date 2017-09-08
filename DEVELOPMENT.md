@@ -2,42 +2,89 @@
 
 ### Requirements
 
-| Requirement | Purpose               | macOS            |
-|-------------|-----------------------|------------------|
-| Go          | Compiler              | brew install go  |
-| Dep         | Dependency Management | brew install dep |
-| Docker      | Packaging             | [Docker for Mac] |
+| Requirement | Purpose               | macOS              |
+|-------------|-----------------------|--------------------|
+| Go          | Compiler              | brew install go    |
+| Glide       | Dependency Management | brew install glide |
+| Docker      | Packaging             | [Docker for Mac]   |
 
 [Docker for Mac]: https://store.docker.com/editions/community/docker-ce-desktop-mac
 
 ### Usage
 
-#### Dependency Management
+#### Testing
 
-This project uses [dep] for managing dependencies.
+This project uses the built-in testing support for golang.
 
-[dep]: https://github.com/golang/dep
+To run the tests for all go packages outside of the vendor directory, run:
+```sh
+$ make test
+```
+
+#### Building
+
+Ensure your version of go is up to date; check that you're running v1.9 with the
+command:
+```sh
+$ go version
+```
+
+To build the go binary, run:
+```sh
+$ make build
+```
+
+#### Packaging
+
+To build the project as a Docker image, use the standard docker tooling:
+```sh
+$ docker build -t coreos-alm:dev ./
+```
+
+### Dependency Management
+
+#### Using glide
+
+This project uses [glide] for managing dependencies.
+
+[glide]: https://github.com/Masterminds/glide
 
 To install the projects dependencies into the `vendor` directory, run the following command:
 
 ```sh
-$ dep ensure
+$ glide install -v
 ```
 
 To add a new dependency, run the following command:
 
 ```sh
-$ dep ensure -add github.com/foo/bar
+$ glide get -v github.com/foo/bar
 ```
 
-To update a particular dependency, run the following command:
+To add a new dependency at a specific version, append with `#{version}`:
 
 ```sh
-$ dep ensure github.com/foo/bar@^1.0.1
+$ glide get github.com/foo/bar#~1.2.0
 ```
 
 To update all existing dependencies, run the following command:
 
 ```sh
-$ dep ensure -update
+$ glide up -v
 ```
+
+#### Using make
+These commands are handled for you via the Makefile. To install the project
+dependencies, run:
+
+```sh
+$ make vendor
+```
+
+To update the dependencies, run:
+```sh
+$ make vendor-update
+```
+
+The Makefile recipes for testing and builds ensure the project's dependencies
+are properly installed and vendored before running.
