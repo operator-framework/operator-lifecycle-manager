@@ -3,6 +3,7 @@ package alm
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

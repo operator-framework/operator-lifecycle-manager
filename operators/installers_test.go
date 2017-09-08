@@ -1,6 +1,8 @@
 package alm
 
 import (
+	"testing"
+
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -8,7 +10,6 @@ import (
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"testing"
 )
 
 func TestKubeDeployment(t *testing.T) {

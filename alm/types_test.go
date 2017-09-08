@@ -1,8 +1,9 @@
 package alm
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestRegisterAppType(t *testing.T) {
