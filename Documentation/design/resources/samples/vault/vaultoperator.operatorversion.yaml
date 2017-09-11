@@ -21,7 +21,6 @@ spec:
     apiVersion: v1
     name: etcd-operator
     namespace: kube-system
-    blocksInstall: true
     rules:
     - apiGroups:
       - etcd.database.coreos.com
