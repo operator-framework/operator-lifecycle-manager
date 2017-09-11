@@ -1,18 +1,28 @@
 ### ALM Operator Reconciliation Loops
 
-1. Watches for new AppType definitions and installs defined operators and CRDs.
-1. Watches CRDs for new definitions that have `ownerReference` set to ALM.
-    1. Queries catalog for the highest version AppType that lists the CRD as an instance.
-    1. Installs AppType, if found.
-    1. If no AppType exists in the cluster (installed manually or discovered), status is written back to the CRD about the failure.
-1. Watches CustomResources (instances of CRDs) that it has an AppType installed for.
-    1. If operator is not yet installed, installs operator according to the install strategy for the AppType (operator field)
-1. Tracks catalog for new AppType versions higher than those installed.
-    1. If all resources managed by the current AppType are also managed by the new AppType, the new AppType can be installed.
-        1. If auto-update is enabled, the AppType will be installed in the cluster and the new operator/CRDs will be installed. 
-        1. If manual update is enabled, the AppType will be available for installation in the UI.
-    1. If there are resources managed by the current AppType that are not managed by the new AppType, the new AppType is not available for installation.
-        1. If auto-update is enabled, this results in a cluster alert.
-        1. If manual updated is enabled, the AppType will be visible in the UI but not available for installation. 
-        1. In all cases, steps can be communicated to the user on how to enable the update to proceed.
-        1. Note that this will only be a problem when the `resource` definitions deprecate a version of a CRD, which should correspond to major version changes in the operator.
+#### `AppType` Loop
+1. Watches for new `AppType` defintions in a namespace
+    1. Finds the latest `OperatorVersion` for the `AppType` in the catalog.
+    1. If the `OperatorVersion` is newer than the installed `OperatorVersion`:
+        1. Determines if an automatic upgrade is possible, if so, upgrades `OperatorVersion`
+        1. If auto upgrade is not possible, status is written back to the installed `OperatorVersion` about the higher version that's available (but blocked). 
+
+#### `OperatorVersion` loop
+1. Watches for new `OperatorVersion` definitions in a namespace
+    1. Checks that requirements are met
+    1. If requirements are met:
+        1. Follows `installStrategy` to install operator into the namespace
+    1. If requirements are not met:
+        1. If one of the requirements is a CRD, searches for that CRD by `(group, kind, apiVersion)` and installs it if found. Sets `ownerReference` of the CRD to ALM.
+    1. Writes status back to `OperatorVersion` about missing requirements or successful deployment
+
+### `CRD` loop
+1. Watches CRDs for definitions that have `ownerReference` set to ALM.
+    1. Queries catalog by `(group, kind, apiVersion)` for the `AppType` that lists an `OperatorVersion` that has the CRD as a requirement.
+    1. If the `AppType` does not exist in the cluster, it is created.
+
+### Catalog loop
+1. Tracks catalog for new `OperatorVersions` higher than those installed.
+    1. If the `OperatorVersion` is newer than the installed `OperatorVersion`:
+        1. Determines if an automatic upgrade is possible, if so, upgrades `OperatorVersion`
+        1. If auto upgrade is not possible, status is written back to the installed `OperatorVersion` about the higher version that's available (but blocked).
