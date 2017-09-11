@@ -11,9 +11,9 @@ spec:
   replaces: 0.5.0
   maturity: beta
   requirements:
-  - kind: EtcdCluster-v1  
+  - kind: CustomResourceDefinition
     apiVersion: v1beta1
-    name: etcdcluster.etcd.database.coreos.com
+    name: etcdclusters-v1.etcd.database.coreos.com
   - kind: ServiceAccount
     apiVersion: v1
     name: etcd-operator
