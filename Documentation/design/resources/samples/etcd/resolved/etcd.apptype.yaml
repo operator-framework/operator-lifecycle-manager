@@ -1,3 +1,4 @@
+#! validate-crd: apptype.crd.yaml
 apiVersion: apptype-v1s.app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
