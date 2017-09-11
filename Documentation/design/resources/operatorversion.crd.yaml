@@ -36,7 +36,8 @@ spec:
           - stable
           - mature
           - inactive
-          - deprecated    
+          - deprecated   
+
         requirements:
           type: array
           description: What requirements that we have before this OperatorVersion can run, may include CRD objects and k8s features
@@ -66,6 +67,10 @@ spec:
                   type: string
                   description: Optional SHA-256 hash of the resource we consume, if we want to be extra-strict
                   pattern: ^[a-f0-9]{64}$
+                optional:
+                  type: boolean
+                  description: If true, this requirement will not block install of the operator.
+                  default: false
                 matchExpressions: 
                   type: array
                   descriptions: A set of expressions to match against the resource. Requirement will not be considered 'met' if these evaluate to false.
