@@ -1,0 +1,8 @@
+apiVersion: etcd.database.coreos.com/v1alpha1
+kind: EtcdCluster
+metadata:
+  namespace: staging-environment
+  name: my-etcd-cluster
+spec:
+  version: 0.5.1
+  size: 3

@@ -1,0 +1,28 @@
+apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+kind: OperatorVersion
+metadata:
+  namespace: staging-environment
+  name: etcd-operator
+  uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
+  ownerReferences:
+    - apiVersion: app.coreos.com/v1alpha1
+      kind: AppType-v1
+      name: etcd
+      uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
+spec:
+  installStrategy:
+    type: image
+    image: quay.io/coreos/etcd-operator:v0.5.1
+  version: 0.5.1
+  maturity: beta
+  permissions:
+  - fooPermission
+  - barPermission
+status:
+  conditions:
+    - type: Available
+      status: 'True'
+      lastUpdateTime: '2017-08-30T13:51:53Z'
+      lastTransitionTime: '2017-08-30T13:51:53Z'
+      reason: OperatorRunningAndHealthy
+      message: Operator is running and healthy
