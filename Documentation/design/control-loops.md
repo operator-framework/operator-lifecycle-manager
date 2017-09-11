@@ -6,6 +6,7 @@
     1. If the `OperatorVersion` is newer than the installed `OperatorVersion`:
         1. Determines if an automatic upgrade is possible, if so, upgrades `OperatorVersion`
         1. If auto upgrade is not possible, status is written back to the installed `OperatorVersion` about the higher version that's available (but blocked). 
+    1. If no `OperatorVersion` is installed for the `AppType`, applies the latest `OperatorVersion` to the cluster.
 
 #### `OperatorVersion` loop
 1. Watches for new `OperatorVersion` definitions in a namespace
