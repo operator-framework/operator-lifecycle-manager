@@ -5,10 +5,12 @@ metadata:
 spec:
   version: 0.0.1
   maturity: pre-alpha
+  replaces: 0.0.0
   requirements:
   - kind: CustomResourceDefinition 
     apiVersion: v1beta1
     name: apptypes.app.coreos.com
+    namespace: my-namespace
     sha256: a916282c05b74d39076e223ebde312f6de2346f1fbb87c75bb315cad9cc6eab7
   - kind: ConfigMap
     apiVersion: v1
@@ -22,7 +24,7 @@ spec:
     namespace: kube-system
     rules:
     # This is a list of permissions that are required for the operator compenent (using the above serviceAccount)
-    # to do its job. A user with appropriate permissions will need to create it (automated in tectonic UI w/ impersonation) 
+    # to do its job. A user with appropriate permissions will need to create it (automated in tectonic UI) 
     - apiGroups: [""]
       resources: ["pods"]
       verbs: ["get", "list", "watch"]
@@ -37,6 +39,7 @@ spec:
     apiVersion: v1
     name: alm-cluster-aware-service
     namespace: kube-system
+    optional: true
     rules:
     - apiGroups: [""]
       resources: ["configmaps"]
