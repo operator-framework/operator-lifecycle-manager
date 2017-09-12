@@ -11,7 +11,7 @@
 
 ### `CRD` loop
 1. Watches CRDs for definitions that have `ownerReference` set to `<ALM managed resource>`
-    1. Queries atalog by `(group, kind, apiVersion)` for the `AppType` that lists an `OperatorVersion` that has the CRD as a requirement.
+    1. Queries catalog by `(group, kind, apiVersion)` for the `AppType` that lists an `OperatorVersion` that has the CRD as a requirement.
     1. If the `AppType` does not exist in the cluster, it is created.
 
 ### Catalog loop
