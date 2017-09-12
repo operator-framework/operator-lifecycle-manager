@@ -1,5 +1,5 @@
 #! validate-crd: apptype.crd.yaml
-apiVersion: apptype-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
   namespace: staging-environment
@@ -13,7 +13,8 @@ spec:
     email: xiang.li@coreos.com
   - name: Hongchao Deng
     email: hongchao.deng@coreos.com
-
+  provider: 
+    name: CoreOS, Inc
   links:
   - name: Vault Project
     url: https://www.vaultproject.io/
