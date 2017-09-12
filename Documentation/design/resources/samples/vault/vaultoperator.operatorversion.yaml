@@ -1,4 +1,4 @@
-apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion
 metadata:
   namespace: staging-environment
