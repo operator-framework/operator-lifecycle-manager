@@ -10,6 +10,8 @@ metadata:
       kind: OperatorVersion
       name: etcd-operator
       uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
+  labels:
+    operated-by: etcd-operator
 spec:
   version: 0.5.1
   size: 3

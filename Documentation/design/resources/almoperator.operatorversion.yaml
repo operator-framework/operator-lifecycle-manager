@@ -7,6 +7,9 @@ spec:
   version: 0.0.1
   maturity: pre-alpha
   replaces: 0.0.0
+  selector:
+    matchExpressions:
+    - {key: alm-status, operator: In, values: [running, pending, stopped]}
   requirements:
   - kind: CustomResourceDefinition 
     apiVersion: v1beta1
