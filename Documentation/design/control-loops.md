@@ -3,11 +3,12 @@
 ## Service Catalog
 #### `AppType` Loop
 1. Watches for new `AppType` defintions in a namespace
-    1. Finds the latest `OperatorVersion` for the `AppType` in the catalog.
-    1. If the `OperatorVersion` is newer than the installed `OperatorVersion`:
-        1. Determines if an automatic upgrade is possible, if so, upgrades `OperatorVersion`
-        1. If auto upgrade is not possible, status is written back to the installed `OperatorVersion` about the higher version that's available (but blocked). 
-    1. If no `OperatorVersion` is installed for the `AppType`, applies the latest `OperatorVersion` to the cluster.
+    1. Finds the latest`OperatorVersion` for the `AppType` in the catalog.
+    1. Creates the `OperatorVersion` in the namespace.
+
+### `OperatorVersion` Loop
+1. Watches for pending `OperatorVersion`
+    1. If it has a requirement on a `CRD` that doesn't exist, looks it up and creates it in the namespace
 
 ### `CRD` loop
 1. Watches CRDs for definitions that have `ownerReference` set to `<ALM managed resource>`
@@ -15,11 +16,8 @@
     1. If the `AppType` does not exist in the cluster, it is created.
 
 ### Catalog loop
-1. Queries catalog for new `OperatorVersion`s with a higher version and a `replaces` range that includes the current version.
+1. Finds all `OperatorVersion`s with a higher version and a `replaces` field that includes an existing `OperatorVersion`'s version.
     1. If found, creates the new `OperatorVersion` in the namespace.
-    1. If the `OperatorVersion` is newer than the installed `OperatorVersion`:
-        1. Determines if an automatic upgrade is possible, if so, upgrades `OperatorVersion`
-        1. If auto upgrade is not possible, status is written back to the installed `OperatorVersion` about the higher version that's available (but blocked).
 
 ## ALM
 
@@ -28,9 +26,6 @@
     1. Checks that requirements are met
     1. If requirements are met:
         1. Follows `installStrategy` to install operator into the namespace
-    1. If requirements are not met:
-        1. If one of the requirements is a CRD, searches for `(CRD, AppType)` by `(group, kind, apiVersion)` and installs them if found. 
-            1. Sets `ownerReference` of the CRD to the AppType.
     1. Writes status back to `OperatorVersion` about missing requirements or successful deployment
 
 
@@ -45,7 +40,7 @@
         1. Finds all resources owned by the old operator
         1. Performs any necessary domain-specific handoff, if any
         1. Adds an additional `ownerReferences` entry pointing to the new operator
-        1. Sets the `controller` flag to `true` on the `ownerReference` pointing to th enew operator
+        1. Sets the `controller` flag to `true` on the `ownerReference` pointing to the new operator
         1. Removes the `ownerReference` pointing to the the old operator
 
 ### `OperatorVersion` GC loop
