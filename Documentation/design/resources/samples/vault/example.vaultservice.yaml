@@ -1,3 +1,4 @@
+#! validate-crd: samples/vault/vaultservice.appcrdschema.yaml
 apiVersion: vault.security.coreos.com/v1alpha1
 kind: VaultService
 metadata:

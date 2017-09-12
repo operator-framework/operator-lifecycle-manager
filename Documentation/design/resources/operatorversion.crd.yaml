@@ -19,6 +19,7 @@ spec:
         version:
           type: string
           description: Version string, recommended that users use semantic versioning
+          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
 
         replaces:
           type: string
@@ -70,8 +71,7 @@ spec:
                 optional:
                   type: boolean
                   description: If true, this requirement will not block install of the operator.
-                  default: false
-                matchExpressions: 
+                matchExpressions:
                   type: array
                   descriptions: A set of expressions to match against the resource. Requirement will not be considered 'met' if these evaluate to false.
                   items:
@@ -145,3 +145,4 @@ spec:
     plural: operatorversion-v1s
     singular: operatorversion-v1
     kind: OperatorVersion-v1
+    listKind: OperatorVersionList-v1

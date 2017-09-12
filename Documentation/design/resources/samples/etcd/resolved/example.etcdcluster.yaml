@@ -1,3 +1,4 @@
+#! validate-crd: samples/etcd/resolved/etcdcluster.appcrdschema.yaml
 apiVersion: etcd.database.coreos.com/v1alpha1
 kind: EtcdCluster
 metadata:
@@ -16,7 +17,7 @@ outputs:
   etcd-cluster-service-name: my-etcd-cluster
   etcd-dashboard: https://internal-grafana/dashboards/my-etcd-cluster
   etcd-prometheus: https://my-etcd-cluster-prometheus
-  etcd-important-metrics: "{\"metrics\": [{\"query\": \"has_leader\", \"name\": \"Has Active Leader\", \"type\": \"Gauge\", \"subtype\": \"boolean\"},{\"query\": \"leader_changes_seen_total\", \"name\": \"Leader Changes\", \"type": \"Counter\"}]}"
+  etcd-important-metrics: "{\"metrics\": [{\"query\": \"has_leader\", \"name\": \"Has Active Leader\", \"type\": \"Gauge\", \"subtype\": \"boolean\"},{\"query\": \"leader_changes_seen_total\", \"name\": \"Leader Changes\", \"type\": \"Counter\"}]}"
 status:
   observedGeneration: 1
   replicas: 1

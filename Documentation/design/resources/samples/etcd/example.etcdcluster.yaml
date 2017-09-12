@@ -1,3 +1,4 @@
+#! validate-crd: samples/etcd/etcdcluster.appcrdschema.yaml
 apiVersion: etcd.database.coreos.com/v1alpha1
 kind: EtcdCluster
 metadata:

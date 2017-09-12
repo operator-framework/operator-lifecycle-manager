@@ -1,8 +1,8 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata: 
-  name: etcdcluster.etcd.database.coreos.com
-spec: 
+  name: etcdclusters.etcd.database.coreos.com
+spec:
   group: etcd.database.coreos.com
   version: v1alpha1
   scope: Namespaced
@@ -71,7 +71,8 @@ spec:
     x-alm-capabilities:
     - urn:alm:capability:com.tectonic.ui:metrics
 
-  names: 
+  names:
     plural: etcdclusters
     singular: etcdcluster
     kind: EtcdCluster
+    listKind: EtcdClusterList

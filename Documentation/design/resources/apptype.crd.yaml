@@ -10,7 +10,6 @@ spec:
     openAPIV3Schema:
       type: object
       description: Document which defines how to model an App as a CRD in an ALM compatible way
-      additionalProperties: false
       required:
       - displayName
       properties:
@@ -47,7 +46,7 @@ spec:
                 type: string
                 description: Maintainer's email address
                 format: email
-            additionalProperties:
+            optionalProperties:
               type: string
               description: "Any additional key-value metadata you wish to expose about the maintainer, e.g. github: <username>"
 
@@ -57,7 +56,6 @@ spec:
           items:
             type: object
             description: A single link to describe one aspect of the project
-            additionalProperties: false
             required:
             - name
             - url
@@ -71,7 +69,7 @@ spec:
                 format: uri
 
         icon:
-          type: object
+          type: array
           description: Icon which should be rendered with the application information
           required:
           - base64data
@@ -94,3 +92,4 @@ spec:
     plural: apptype-v1s
     singular: apptype-v1
     kind: AppType-v1
+    listKind: AppTypeList-v1

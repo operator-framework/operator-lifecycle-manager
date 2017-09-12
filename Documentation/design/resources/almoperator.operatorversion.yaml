@@ -1,3 +1,4 @@
+#! validate-crd: operatorversion.crd.yaml
 apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion-v1
 metadata:
