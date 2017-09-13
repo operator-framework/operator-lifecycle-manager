@@ -3,13 +3,14 @@ package alm
 import (
 	"context"
 	"fmt"
+	"github.com/coreos/go-semver/semver"
 )
 
 type ALM interface {
 	RegisterAppType(name string, appinfo *AppType) (*AppTypeResource, error)
 	ListAppTypes() (*AppTypeList, error)
-	InstallAppOperator(apptype string, version string) (*OperatorVersionResource, error)
-	ListOperatorVersionsForApp(apptype string, version string) (*OperatorVersion, error)
+	InstallAppOperator(appType AppTypeResource, version semver.Version) (*OperatorVersionResource, error)
+	ListOperatorVersionsForApp(appType AppType) (*OperatorVersion, error)
 }
 
 type OperatorInstaller interface {
@@ -26,7 +27,7 @@ func NewMock(name string) MockALM {
 }
 func (m *MockALM) RegisterAppType(name string, app *AppType) (*AppTypeResource, error) {
 	if _, ok := m.Catalog[name]; ok {
-		return nil, fmt.Errorf("App '%s' already registered", name)
+		return nil, fmt.Errorf("app '%s' already registered", name)
 	}
 	resource := NewAppTypeResource(app)
 	resource.Name = name

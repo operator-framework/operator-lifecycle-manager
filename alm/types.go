@@ -1,6 +1,7 @@
 package alm
 
 import (
+	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/openapi"
@@ -107,7 +108,7 @@ type ResourceNames struct {
 // given version and AppType
 type OperatorVersion struct {
 	InstallStrategy InstallStrategy              `json:"installStrategy"`
-	Version         string                       `json:"version"`
+	Version         semver.Version               `json:"version"`
 	Maturity        string                       `json:"maturity"`
 	Requirements    []*unstructured.Unstructured `json:"requirements"`
 	Permissions     []string                     `json:"permissions"`
