@@ -12,9 +12,11 @@ spec:
   version: 0.0.2
   maturity: beta
   replaces: 0.0.1
+  labels:
+    operated-by: vault-operator.0.0.2
   selector:
     matchLabels:
-      operated-by: vault-operator
+      operated-by: vault-operator.0.0.2
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1

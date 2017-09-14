@@ -12,9 +12,11 @@ spec:
   version: 0.5.1
   replaces: 0.5.0
   maturity: beta
+  labels:
+    operated-by: etcd-operator.v0.5.1
   selector:
     matchLabels:
-      operated-by: etcd-operator
+      operated-by: etcd-operator.v0.5.1
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1

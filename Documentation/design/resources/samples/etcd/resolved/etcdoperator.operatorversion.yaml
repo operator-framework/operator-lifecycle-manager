@@ -6,7 +6,7 @@ metadata:
   name: etcd-operator
   uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
+    owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
   ownerReferences:
   - apiVersion: app.coreos.com/v1alpha1
     kind: AppType-v1
@@ -21,7 +21,9 @@ spec:
   maturity: beta
   selector:
     matchLabels:
-      operated-by: etcd-operator
+      operated-by: etcd-operator.v0.5.1
+  labels:
+    operated-by: etcd-operator.v0.5.1
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1

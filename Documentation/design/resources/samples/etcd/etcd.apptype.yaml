@@ -17,9 +17,12 @@ spec:
   provider:
     name: CoreOS, Inc
 
+  labels:
+    owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
+
   selector:
     matchLabels:
-      etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
+      owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
 
   links:
   - name: Blog

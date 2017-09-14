@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata: 
   name: vaultservices.vault.security.coreos.com
   labels:
-    vault-app: vault.apptype-v1s.app.coreos.com/v1alpha1 
+    owner-vault: vault.apptype-v1s.app.coreos.com.v1alpha1 
 spec: 
   group: vault.security.coreos.com
   version: v1alpha1
@@ -25,6 +25,9 @@ spec:
           description: The number of nodes in the Vault cluster
           min: 1
           max: 9
+        labels:
+          type: object
+          description: Labels to apply to associated resources
 
   outputs:
   # The name of the cluster, based on the service name. Filled in by the vault-operator.

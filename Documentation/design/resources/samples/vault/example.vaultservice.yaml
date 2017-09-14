@@ -5,8 +5,8 @@ metadata:
   namespace: staging-environment
   name: my-vault-service
   labels:
-    operated-by: vault-operator
-    vault-app: vault.apptype-v1s.app.coreos.com/v1alpha1 
+    operated-by: vault-operator.0.0.2
+    owner-vault: vault.apptype-v1s.app.coreos.com.v1alpha1 
 spec:
   version: "0.8.0-0"
   nodes: 1

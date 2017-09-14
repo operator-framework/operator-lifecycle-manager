@@ -39,7 +39,9 @@ spec:
           - mature
           - inactive
           - deprecated   
-        
+        labels:
+          type: object
+          description: Labels that will be applied to associated resources created by the operator.
         selector:
           type: object
           description: Label selector to find resources associated with or managed by the operator

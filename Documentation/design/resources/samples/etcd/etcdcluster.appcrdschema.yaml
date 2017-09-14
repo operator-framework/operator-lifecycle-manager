@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata: 
   name: etcdclusters.etcd.database.coreos.com
   labels:
-    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
+    owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
 spec:
   group: etcd.database.coreos.com
   version: v1alpha1
@@ -25,6 +25,9 @@ spec:
           description: The size of the etcd cluster
           min: 1
           max: 9
+        labels:
+          type: object
+          description: labels to apply to associated objects
 
   outputs:
   # The name of the cluster, based on the service name. Filled in by the etcd-operator.
