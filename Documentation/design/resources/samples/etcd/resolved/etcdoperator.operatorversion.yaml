@@ -5,6 +5,8 @@ metadata:
   namespace: staging-environment
   name: etcd-operator
   uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
+  labels:
+    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
   ownerReferences:
   - apiVersion: app.coreos.com/v1alpha1
     kind: AppType-v1

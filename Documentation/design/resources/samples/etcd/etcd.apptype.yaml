@@ -13,8 +13,14 @@ spec:
     email: xiang.li@coreos.com
   - name: Hongchao Deng
     email: hongchao.deng@coreos.com
+
   provider:
     name: CoreOS, Inc
+
+  selector:
+    matchLabels:
+      etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
+
   links:
   - name: Blog
     url: https://coreos.com/etcd

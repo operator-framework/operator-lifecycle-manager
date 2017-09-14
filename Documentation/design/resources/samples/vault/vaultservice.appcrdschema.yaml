@@ -2,6 +2,8 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata: 
   name: vaultservices.vault.security.coreos.com
+  labels:
+    vault-app: vault.apptype-v1s.app.coreos.com/v1alpha1 
 spec: 
   group: vault.security.coreos.com
   version: v1alpha1

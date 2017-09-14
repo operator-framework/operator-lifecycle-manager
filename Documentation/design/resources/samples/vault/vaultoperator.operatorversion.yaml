@@ -3,6 +3,8 @@ kind: OperatorVersion
 metadata:
   namespace: staging-environment
   name: vault-operator
+  labels:
+    vault-app: vault.apptype-v1s.app.coreos.com/v1alpha1 
 spec:
   installStrategy:
     type: image

@@ -3,6 +3,8 @@ apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion
 metadata:
   namespace: staging-environment
+  labels:
+    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
 spec:
   installStrategy:
     type: image
