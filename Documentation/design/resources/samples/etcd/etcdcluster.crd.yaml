@@ -3,7 +3,11 @@ kind: CustomResourceDefinition
 metadata: 
   name: etcdclusters.etcd.database.coreos.com
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Etcd Cluster
+    description: Represents a cluster of etc nodes as one unit.
+    outputs: "[{\"name\":\"etcd-cluster-service-name\",\"description\":\"The service name for the running etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:com.coreos.etcd:api.v3.grpc\",\"urn:alm:capability:com.coreos.etcd:api.v2.rest\"]},{\"name\":\"etcd-dashboard\",\"description\":\"URL of a Grafana dashboard for the etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:com.tectonic.ui:important.link\",\"urn:alm:capability:org.w3:link\"]},{\"name\":\"etcd-prometheus\",\"description\":\"Endpoint of the prometheus instance for the etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:io.prometheus:prometheus.v1\",\"urn:alm:capability:org.w3:link\"]},{\"name\":\"etcd-important-metrics\",\"description\":\"Important prometheus metrics for the etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:com.tectonic.ui:metrics\"]}]"
 spec:
   group: etcd.database.coreos.com
   version: v1alpha1
@@ -28,54 +32,6 @@ spec:
         labels:
           type: object
           description: labels to apply to associated objects
-
-  outputs:
-  # The name of the cluster, based on the service name. Filled in by the etcd-operator.
-  #
-  # Sample output: `my-etcd-cluster`
-  - name: etcd-cluster-service-name
-    description: The service name for the running etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.coreos.etcd:api.v3.grpc
-    - urn:alm:capability:com.coreos.etcd:api.v2.rest
-
-  # A URL to the grafana dashboard running for the etcd cluster. Most likely filled in by
-  # the ALM reading an annotation off of the CRD created by the etcd-operator to create the
-  # grafana dashboard. If this is the design we choose, there would be another schema field
-  # here that would "x-path" down to the URL annotation on the CRD.
-  #
-  # Sample output: `https://internal-grafana/dashboards/my-etcd-cluster`
-  - name: etcd-dashboard
-    description: URL of a Grafana dashboard for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.tectonic.ui:important.link
-    - urn:alm:capability:org.w3:link
-  
-  # The service endpoint for the etcd cluster's prometheus.
-  #
-  # Sample output: `https://my-etcd-cluster-prometheus`
-  - name: etcd-prometheus
-    description: Endpoint of the prometheus instance for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:io.prometheus:prometheus.v1
-    - urn:alm:capability:org.w3:link
-  
-  # An output which lists the "important" metrics for the etcd cluster. The metrics will be in a JSON
-  # form defined by the Console team, and would include the Prometheus query, as well as the type of
-  # chart to use to display the metric, as well as optional data such as ordering and whether the metric
-  # should always be displayed.
-  #
-  # Sample output: `{
-  #  "metrics": [
-  #    {"query": "has_leader", "name": "Has Active Leader", "type": "Gauge", "subtype": "boolean"},
-  #    {"query": "leader_changes_seen_total", "name": "Leader Changes", "type": "Counter"}
-  #  ]
-  #}`
-  - name: etcd-important-metrics
-    description: Important prometheus metrics for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.tectonic.ui:metrics
-
   names:
     plural: etcdclusters
     singular: etcdcluster

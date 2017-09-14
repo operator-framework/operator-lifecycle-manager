@@ -3,7 +3,11 @@ kind: CustomResourceDefinition
 metadata: 
   name: vaultservices.vault.security.coreos.com
   labels:
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Vault Service
+    description: A running Vault instance, backed by an Etcd Cluster
+    outputs: "[{\"name\":\"vault-service-name\",\"description\":\"The service name for the running vault cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:io.vaultproject:api.v1\"]}]"
 spec: 
   group: vault.security.coreos.com
   version: v1alpha1
@@ -28,16 +32,6 @@ spec:
         labels:
           type: object
           description: Labels to apply to associated resources
-
-  outputs:
-  # The name of the cluster, based on the service name. Filled in by the vault-operator.
-  #
-  # Sample output: `my-vault-cluster`
-  - name: vault-service-name
-    description: The service name for the running vault cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:io.vaultproject:api.v1
-
   names: 
     plural: vaultservices
     singular: vaultservice
