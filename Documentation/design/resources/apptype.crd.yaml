@@ -12,6 +12,8 @@ spec:
       description: Document which defines how to model an App as a CRD in an ALM compatible way
       required:
       - displayName
+      - labels
+      - selector
       properties:
         displayName:
           type: string
@@ -87,6 +89,41 @@ spec:
               - image/jpeg
               - image/png
               - image/svg+xml
+        labels:
+          type: object
+          description: Labels that will be applies to associated resources
+        selector:
+          type: object
+          description: Label selector to find resources associated with this AppType
+          properties:
+            matchLabels:
+              type: object
+              description: Label key:value pairs to match directly
+            matchExpressions:
+              type: array
+              descriptions: A set of expressions to match against the resource.
+              items:
+                allOf:
+                  - type: object
+                    required:
+                    - key
+                    - operator
+                    - values
+                    properties:
+                      key:
+                        type: string
+                        description: the key to match
+                      operator:
+                        type: string
+                        description: the operator for the expression
+                        enum: 
+                        - In
+                        - NotIn
+                        - Exists
+                        - DoesNotExist
+                      values:
+                        type: array
+                        description: set of values for the expression 
 
   names: 
     plural: apptype-v1s

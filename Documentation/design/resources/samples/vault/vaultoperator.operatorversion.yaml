@@ -3,6 +3,8 @@ kind: OperatorVersion
 metadata:
   namespace: staging-environment
   name: vault-operator
+  labels:
+    vault-app: vault.apptype-v1s.app.coreos.com/v1alpha1 
 spec:
   installStrategy:
     type: image
@@ -10,6 +12,11 @@ spec:
   version: 0.0.2
   maturity: beta
   replaces: 0.0.1
+  labels:
+    operated-by: vault-operator.0.0.2
+  selector:
+    matchLabels:
+      operated-by: vault-operator.0.0.2
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1

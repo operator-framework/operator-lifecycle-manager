@@ -8,6 +8,8 @@ metadata:
       kind: AppType-v1
       name: etcd
       uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
+  labels:
+    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
 spec: 
   group: etcd.database.coreos.com
   version: v1alpha1
@@ -29,7 +31,9 @@ spec:
           description: The size of the etcd cluster
           min: 1
           max: 9
-
+        labels:
+          type: object
+          description: A set of labels to apply to associated reasources
   outputs:
   # The name of the cluster, based on the service name. Filled in by the etcd-operator.
   #

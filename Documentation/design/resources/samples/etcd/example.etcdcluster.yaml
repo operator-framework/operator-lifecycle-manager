@@ -4,6 +4,12 @@ kind: EtcdCluster
 metadata:
   namespace: staging-environment
   name: my-etcd-cluster
+labels:
+  operated-by: etcd-operator.v0.5.1
+  owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+  owner-vault: vault.apptype-v1s.app.coreos.com.v1alpha1
 spec:
   version: 0.5.1
   size: 3
+  labels:
+    owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1

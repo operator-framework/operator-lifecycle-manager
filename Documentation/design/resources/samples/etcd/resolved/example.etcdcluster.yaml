@@ -10,7 +10,13 @@ metadata:
       kind: OperatorVersion
       name: etcd-operator
       uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
+  labels:
+    operated-by: etcd-operator.v0.5.1
+    owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+    owner-vault: vault.apptype-v1s.app.coreos.com.v1alpha1
 spec:
+  labels:
+   owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
   version: 0.5.1
   size: 3
 outputs:
