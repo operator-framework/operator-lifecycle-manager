@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata: 
   name: vaultservices.vault.security.coreos.com
   labels:
-    owner-vault: vault.apptype-v1s.app.coreos.com.v1alpha1 
+    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
 spec: 
   group: vault.security.coreos.com
   version: v1alpha1

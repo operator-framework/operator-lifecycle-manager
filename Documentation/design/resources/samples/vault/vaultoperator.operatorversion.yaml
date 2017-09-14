@@ -1,10 +1,10 @@
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion
+kind: OperatorVersion-v1
 metadata:
-  namespace: staging-environment
+  namespace: default 
   name: vault-operator
   labels:
-    vault-app: vault.apptype-v1s.app.coreos.com/v1alpha1 
+    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
 spec:
   installStrategy:
     type: image
@@ -13,10 +13,10 @@ spec:
   maturity: beta
   replaces: 0.0.1
   labels:
-    operated-by: vault-operator.0.0.2
+    operated-by: vaultoperator.0.0.2
   selector:
     matchLabels:
-      operated-by: vault-operator.0.0.2
+      operated-by: vaultoperator.0.0.2
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1

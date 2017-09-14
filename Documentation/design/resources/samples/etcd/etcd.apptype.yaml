@@ -2,7 +2,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
-  namespace: staging-environment
+  namespace: default 
   name: etcd
 spec:
   displayName: Etcd
@@ -18,11 +18,11 @@ spec:
     name: CoreOS, Inc
 
   labels:
-    alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
 
   selector:
     matchLabels:
-      alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1 
+      alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
 
   links:
   - name: Blog

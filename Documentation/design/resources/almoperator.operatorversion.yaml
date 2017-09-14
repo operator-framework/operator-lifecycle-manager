@@ -2,16 +2,16 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion-v1
 metadata:
-  name: alm-operator
+  name: alm-operator.0.0.1
 spec:
   version: 0.0.1
   maturity: pre-alpha
   replaces: 0.0.0
   labels:
-    owner-alm: alm-operator.app.coreos.com.0.0.1
+    alm-owner-alm: almoperator.app.coreos.com.0.0.1
   selector:
     matchLabels:
-      owner-alm: alm-operator.app.coreos.com.0.0.1
+      alm-owner-alm: almoperator.app.coreos.com.0.0.1
     matchExpressions:
     - {key: alm-status, operator: In, values: [running, pending, stopped]}
   requirements:

@@ -2,15 +2,9 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata: 
   name: etcdclusters.etcd.database.coreos.com
-  uid: 11111111-bbbb-cccc-dddd-eeeeeeeeeeee
-  ownerReferences:
-    - apiVersion: app.coreos.com/v1alpha1
-      kind: AppType-v1
-      name: etcd
-      uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
-spec: 
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
+spec:
   group: etcd.database.coreos.com
   version: v1alpha1
   scope: Namespaced
@@ -33,7 +27,8 @@ spec:
           max: 9
         labels:
           type: object
-          description: A set of labels to apply to associated reasources
+          description: labels to apply to associated objects
+
   outputs:
   # The name of the cluster, based on the service name. Filled in by the etcd-operator.
   #
@@ -81,7 +76,7 @@ spec:
     x-alm-capabilities:
     - urn:alm:capability:com.tectonic.ui:metrics
 
-  names: 
+  names:
     plural: etcdclusters
     singular: etcdcluster
     kind: EtcdCluster

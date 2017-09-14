@@ -1,10 +1,11 @@
 #! validate-crd: operatorversion.crd.yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion
+kind: OperatorVersion-v1
 metadata:
-  namespace: staging-environment
+  namespace: default
+  name: etcdoperator.v0.5.1
   labels:
-    etcd-app: etcd.apptype-v1s.app.coreos.com/v1alpha1 
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
 spec:
   installStrategy:
     type: image
@@ -13,10 +14,10 @@ spec:
   replaces: 0.5.0
   maturity: beta
   labels:
-    operated-by: etcd-operator.v0.5.1
+    operated-by: etcdoperator.v0.5.1
   selector:
     matchLabels:
-      operated-by: etcd-operator.v0.5.1
+      operated-by: etcdoperator.v0.5.1
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1
