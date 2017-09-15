@@ -1,38 +1,44 @@
 package: github.com/coreos-inc/alm
 import:
-- package: k8s.io/apimachinery
-  subpackages:
-  - pkg/apis/meta/v1
-  - pkg/apis/meta/v1/unstructured
-  - pkg/openapi
 - package: k8s.io/client-go
+  version: 45673e060eb921b510677b1123737ad1158e49fa
   subpackages:
-  - kubernetes/typed/autoscaling/v2beta1
-  - kubernetes/typed/rbac/v1
+  - kubernetes
   - kubernetes/scheme
-  - tools/pager
-  - pkg/api/v1
+  - rest
+  - tools/cache
+  - tools/clientcmd
+  - tools/leaderelection/resourcelock
+  - util/workqueue
 - package: github.com/coreos-inc/operator-client
   vcs: git
   repo: git@github.com:coreos-inc/operator-client.git
   subpackages:
   - pkg/client
+- package: github.com/coreos/go-semver
+  version: ~0.2.0
+  subpackages:
+  - semver
+- package: github.com/sirupsen/logrus
+  version: ~1.0.3
 - package: k8s.io/api
   subpackages:
   - extensions/v1beta1
 - package: k8s.io/apiextensions-apiserver
   subpackages:
   - pkg/apis/apiextensions/v1beta1
-- package: github.com/sirupsen/logrus
+- package: k8s.io/apimachinery
   subpackages:
-  - golang.org/x/crypto/ssh/terminal
-  - golang.org/x/sys/unix
-  version: ~1.0.3
+  - pkg/apis/meta/v1
+  - pkg/apis/meta/v1/unstructured
+  - pkg/fields
+  - pkg/openapi
 testImport:
 - package: github.com/golang/mock
   version: v1.0.0
   subpackages:
   - gomock
 - package: github.com/stretchr/testify
+  version: ~1.1.4
   subpackages:
   - assert
