@@ -6,6 +6,13 @@ variables:
   DOCKER_DRIVER: overlay
   K8S_NAMESPACE: ci-alm-${CI_COMMIT_REF_SLUG}
 before_script:
+  - mkdir -p ~/.ssh
+  - echo "$COREOSBOT_ID_RSA" | tr -d '\r' > ~/.ssh/id_rsa
+  - chmod 600 ~/.ssh/id_rsa
+  - eval "$(ssh-agent -s)"
+  - ssh-add ~/.ssh/id_rsa
+  - git config --global url."git@github.com:".insteadOf "https://github.com/"
+  - echo "$KNOWN_HOSTS" >> ~/.ssh/known_hosts
   - mkdir -p $GOPATH/src/$GIT_REPO_NAME
   - cp -a $CI_PROJECT_DIR/* $GOPATH/src/$GIT_REPO_NAME
   - cd $GOPATH/src/$GIT_REPO_NAME
