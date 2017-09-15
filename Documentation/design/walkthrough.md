@@ -22,7 +22,7 @@ It also contains useful metadata used to identify and discover the application.
 To create an etcd AppType, a user executes `kubectl apply` with the following YAML:
 
 ```yaml
-apiVersion: apptype-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
   namespace: staging-environment
@@ -36,6 +36,16 @@ spec:
     email: xiang.li@coreos.com
   - name: Hongchao Deng
     email: hongchao.deng@coreos.com
+
+  provider:
+    name: CoreOS, Inc
+
+  labels:
+    alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+
+  selector:
+    matchLabels:
+      alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
 
   links:
   - name: Blog
@@ -49,16 +59,11 @@ spec:
 Now we can `kubectl describe apptype etcd`:
 
 ```yaml
-apiVersion: apptype-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
   namespace: staging-environment
   name: etcd
-  ownerReferences:
-    - apiVersion: apps/v1beta1
-      kind: CustomResourceDefinition
-      name: AppType-v1
-      uid: 233014bc-93ee-11e7-bbd9-06a8104093b6
 spec:
   displayName: Etcd
   description: A highly available, consistent key-value store with automatic backups
@@ -68,6 +73,16 @@ spec:
     email: xiang.li@coreos.com
   - name: Hongchao Deng
     email: hongchao.deng@coreos.com
+
+  provider:
+    name: CoreOS, Inc
+
+  labels:
+    alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+
+  selector:
+    matchLabels:
+      alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
 
   links:
   - name: Blog
@@ -99,7 +114,33 @@ Using `kubctl apply`:
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: etcdcluster.etcd.database.coreos.com
+  name: etcdclusters.etcd.database.coreos.com
+  labels:
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Etcd Cluster
+    description: Represents a cluster of etc nodes as one unit.
+    outputs: '{
+      "etcd-cluster-service-name": {
+        "displayName":"Service Name",
+        "description":"The service name for the running etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.coreos.etcd:api.v3.grpc","urn:alm:capability:com.coreos.etcd:api.v2.rest"]
+      },
+      "etcd-dashboard": {
+        "displayName":"Dashboard",
+        "description":"URL of a Grafana dashboard for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:important.link","urn:alm:capability:org.w3:link"]
+      },
+      "etcd-prometheus": {
+        "displayName":"Prometheus Endpoint",
+        "description":"Endpoint of the prometheus instance for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:io.prometheus:prometheus.v1","urn:alm:capability:org.w3:link"]
+      },
+      "etcd-important-metrics": {
+        "displayName":"Important Metrics",
+        "description":"Important prometheus metrics for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:metrics"]
+      }}'
 spec:
   group: etcd.database.coreos.com
   version: v1alpha1
@@ -121,58 +162,14 @@ spec:
           description: The size of the etcd cluster
           min: 1
           max: 9
-
-  outputs:
-  # The name of the cluster, based on the service name. Filled in by the etcd-operator.
-  #
-  # Sample output: `my-etcd-cluster`
-  - name: etcd-cluster-service-name
-    description: The service name for the running etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.coreos.etcd:api.v3.grpc
-    - urn:alm:capability:com.coreos.etcd:api.v2.rest
-
-  # A URL to the grafana dashboard running for the etcd cluster. Most likely filled in by
-  # the ALM reading an annotation off of the CRD created by the etcd-operator to create the
-  # grafana dashboard. If this is the design we choose, there would be another schema field
-  # here that would "x-path" down to the URL annotation on the CRD.
-  #
-  # Sample output: `https://internal-grafana/dashboards/my-etcd-cluster`
-  - name: etcd-dashboard
-    description: URL of a Grafana dashboard for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.tectonic.ui:important.link
-    - urn:alm:capability:org.w3:link
-
-  # The service endpoint for the etcd cluster's prometheus.
-  #
-  # Sample output: `https://my-etcd-cluster-prometheus`
-  - name: etcd-prometheus
-    description: Endpoint of the prometheus instance for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:io.prometheus:prometheus.v1
-    - urn:alm:capability:org.w3:link
-
-  # An output which lists the "important" metrics for the etcd cluster. The metrics will be in a JSON
-  # form defined by the Console team, and would include the Prometheus query, as well as the type of
-  # chart to use to display the metric, as well as optional data such as ordering and whether the metric
-  # should always be displayed.
-  #
-  # Sample output: `{
-  #  "metrics": [
-  #    {"query": "has_leader", "name": "Has Active Leader", "type": "Gauge", "subtype": "boolean"},
-  #    {"query": "leader_changes_seen_total", "name": "Leader Changes", "type": "Counter"}
-  #  ]
-  #}`
-  - name: etcd-important-metrics
-    description: Important prometheus metrics for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.tectonic.ui:metrics
-
+        labels:
+          type: object
+          description: labels to apply to associated objects
   names:
     plural: etcdclusters
     singular: etcdcluster
     kind: EtcdCluster
+    listKind: EtcdClusterList
 ```
 
 Now we can `kubectl describe crd etcdcluster.etcd.database.coreos.com`:
@@ -181,13 +178,39 @@ Now we can `kubectl describe crd etcdcluster.etcd.database.coreos.com`:
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  namespace: staging-environment
-  name: etcdcluster.etcd.database.coreos.com
+  name: etcdclusters.etcd.database.coreos.com
+  uid: 11111111-bbbb-cccc-dddd-eeeeeeeeeeee
   ownerReferences:
-    - apiVersion: apps/v1beta1
+    - apiVersion: app.coreos.com/v1alpha1
       kind: AppType-v1
       name: etcd
-      uid: 433014bc-93ee-11e7-bbd9-06a8104093b6
+      uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
+  labels:
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Etcd Cluster
+    description: Represents a cluster of etc nodes as one unit.
+    outputs: '{
+      "etcd-cluster-service-name": {
+        "displayName":"Service Name",
+        "description":"The service name for the running etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.coreos.etcd:api.v3.grpc","urn:alm:capability:com.coreos.etcd:api.v2.rest"]
+      },
+      "etcd-dashboard": {
+        "displayName":"Dashboard",
+        "description":"URL of a Grafana dashboard for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:important.link","urn:alm:capability:org.w3:link"]
+      },
+      "etcd-prometheus": {
+        "displayName":"Prometheus Endpoint",
+        "description":"Endpoint of the prometheus instance for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:io.prometheus:prometheus.v1","urn:alm:capability:org.w3:link"]
+      },
+      "etcd-important-metrics": {
+        "displayName":"Important Metrics",
+        "description":"Important prometheus metrics for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:metrics"]
+      }}'
 spec:
   group: etcd.database.coreos.com
   version: v1alpha1
@@ -203,64 +226,39 @@ spec:
         version:
           type: string
           description: Version string
-          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
+          pattern: ^(0|[1-9]d*).(0|[1-9]d*).(0|[1-9]d*)(-(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*)(.(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(+[0-9a-zA-Z-]+(.[0-9a-zA-Z-]+)*)?$
         size:
           type: number
           description: The size of the etcd cluster
           min: 1
           max: 9
-
-  outputs:
-  # The name of the cluster, based on the service name. Filled in by the etcd-operator.
-  #
-  # Sample output: `my-etcd-cluster`
-  - name: etcd-cluster-service-name
-    description: The service name for the running etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.coreos.etcd:api.v3.grpc
-    - urn:alm:capability:com.coreos.etcd:api.v2.rest
-
-  # A URL to the grafana dashboard running for the etcd cluster. Most likely filled in by
-  # the ALM reading an annotation off of the CRD created by the etcd-operator to create the
-  # grafana dashboard. If this is the design we choose, there would be another schema field
-  # here that would "x-path" down to the URL annotation on the CRD.
-  #
-  # Sample output: `https://internal-grafana/dashboards/my-etcd-cluster`
-  - name: etcd-dashboard
-    description: URL of a Grafana dashboard for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.tectonic.ui:important.link
-    - urn:alm:capability:org.w3:link
-
-  # The service endpoint for the etcd cluster's prometheus.
-  #
-  # Sample output: `https://my-etcd-cluster-prometheus`
-  - name: etcd-prometheus
-    description: Endpoint of the prometheus instance for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:io.prometheus:prometheus.v1
-    - urn:alm:capability:org.w3:link
-
-  # An output which lists the "important" metrics for the etcd cluster. The metrics will be in a JSON
-  # form defined by the Console team, and would include the Prometheus query, as well as the type of
-  # chart to use to display the metric, as well as optional data such as ordering and whether the metric
-  # should always be displayed.
-  #
-  # Sample output: `{
-  #  "metrics": [
-  #    {"query": "has_leader", "name": "Has Active Leader", "type": "Gauge", "subtype": "boolean"},
-  #    {"query": "leader_changes_seen_total", "name": "Leader Changes", "type": "Counter"}
-  #  ]
-  #}`
-  - name: etcd-important-metrics
-    description: Important prometheus metrics for the etcd cluster.
-    x-alm-capabilities:
-    - urn:alm:capability:com.tectonic.ui:metrics
-
+        labels:
+          type: object
+          description: labels to apply to associated objects
   names:
     plural: etcdclusters
     singular: etcdcluster
     kind: EtcdCluster
+    listKind: EtcdClusterList
+```
+
+You can create an EtcdCluster like so:
+
+```yaml
+apiVersion: etcd.database.coreos.com/v1alpha1
+kind: EtcdCluster
+metadata:
+  namespace: default
+  name: my-etcd-cluster
+  labels:
+    operated-by: etcdoperator.v0.5.1
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+spec:
+  version: 0.5.1
+  size: 3
+  labels:
+    owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
 ```
 
 ## OperatorVersion
@@ -273,27 +271,33 @@ The contents of the requirements field contains the Custom Defined Resources req
 To add an OperatorVersion `kubectl apply` the following YAML:
 
 ```yaml
-apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
-kind: OperatorVersion
+apiVersion: app.coreos.com/v1alpha1
+kind: OperatorVersion-v1
 metadata:
-  name: operator.etcd.database.coreos.com
-  namespace: staging-environment
+  namespace: default
+  name: etcdoperator.v0.5.1
+  labels:
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
 spec:
   installStrategy:
     type: image
     image: quay.io/coreos/etcd-operator:v0.5.1
   version: 0.5.1
-  replaces: 0.5.0
+  replaces: etcdoperator.v0.5.0
   maturity: beta
+  labels:
+    operated-by: etcdoperator.v0.5.1
+  selector:
+    matchLabels:
+      operated-by: etcdoperator.v0.5.1
   requirements:
-  - kind: EtcdCluster-v1
+  - kind: CustomResourceDefinition
     apiVersion: v1beta1
-    name: etcdcluster.etcd.database.coreos.com
+    name: etcdclusters-v1.etcd.database.coreos.com
   - kind: ServiceAccount
     apiVersion: v1
     name: etcd-operator
     namespace: kube-system
-    blocksInstall: true
     rules:
     - apiGroups:
       - etcd.database.coreos.com
@@ -334,27 +338,39 @@ spec:
 Now we can `kubectl describe operatorversion operator.etcd.database.coreos.com`:
 
 ```yaml
-apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion
 metadata:
-  name: operator.etcd.database.coreos.com
   namespace: staging-environment
+  name: etcd-operator
+  uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
+  labels:
+    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+  ownerReferences:
+  - apiVersion: app.coreos.com/v1alpha1
+    kind: AppType-v1
+    name: etcd
+    uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
 spec:
   installStrategy:
     type: image
     image: quay.io/coreos/etcd-operator:v0.5.1
   version: 0.5.1
-  replaces: 0.5.0
+  replaces: etcdoperator.v0.5.0
   maturity: beta
+  selector:
+    matchLabels:
+      operated-by: etcdoperator.v0.5.1
+  labels:
+    operated-by: etcdoperator.v0.5.1
   requirements:
-  - kind: EtcdCluster-v1
+  - kind: CustomResourceDefinition
     apiVersion: v1beta1
-    name: etcdcluster.etcd.database.coreos.com
+    name: etcdclusters-v1.etcd.database.coreos.com
   - kind: ServiceAccount
     apiVersion: v1
     name: etcd-operator
     namespace: kube-system
-    blocksInstall: true
     rules:
     - apiGroups:
       - etcd.database.coreos.com
@@ -392,12 +408,12 @@ spec:
       - "*"
 status:
   conditions:
-  - type: Available
-    status: 'True'
-    lastUpdateTime: '2017-08-30T13:51:53Z'
-    lastTransitionTime: '2017-08-30T13:51:53Z'
-    reason: OperatorRunningAndHealthy
-    message: Operator is running and healthy
+    - type: Available
+      status: 'True'
+      lastUpdateTime: '2017-08-30T13:51:53Z'
+      lastTransitionTime: '2017-08-30T13:51:53Z'
+      reason: OperatorRunningAndHealthy
+      message: Operator is running and healthy
 ```
 
 ## Service Catalog
@@ -406,3 +422,7 @@ A service catalog can be thought of as an OperatorVersion operator, in that it p
 A service catalog indexes two types of resources: OperatorVersion and Custom Resource Definitions.
 Given the existence of an AppType, the service catalog can resolve the OperatorVersion and `kubectl apply` it.
 Any OperatorVersions in a PENDING state will be watched by the Service Catalog and have the Custom Resource Definitions defined in their `requirements` block `kubectl apply`ed.
+
+If you're interested in learning more about the control loops used by the ALM operator and the Service Catalog Operator, see [this document].
+
+[this document]: /Documentation/design/control-loops.md
