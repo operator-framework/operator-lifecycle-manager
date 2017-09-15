@@ -52,5 +52,15 @@ spec:
       resources: ["configmaps"]
       resourceNames: ["cluster-features"]
       verbs: ["get"]
-  installStrategy:
-    todo: EvB
+  install:
+    strategy: deployment
+    deployments:
+      - replicas: 1
+        template:
+          metadata:
+            labels:
+              name: alm-operator
+          spec:
+            containers:
+            - name: alm-operator
+              image: quay.io/coreos/alm-operator:v0.0.1

@@ -7,9 +7,18 @@ metadata:
   labels:
     alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
 spec:
-  installStrategy:
-    type: image
-    image: quay.io/coreos/etcd-operator:v0.5.1
+  install:
+    strategy: deployment
+    deployments:
+      - replicas: 1
+        template:
+          metadata:
+            labels:
+              name: etcd-operator
+          spec:
+            containers:
+            - name: etcd-operator
+              image: quay.io/coreos/etcd-operator:v0.5.1
   version: 0.5.1
   replaces: etcdoperator.v0.5.0
   maturity: beta
