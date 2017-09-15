@@ -2,7 +2,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion-v1
 metadata:
   namespace: default 
-  name: vault-operator
+  name: vault-operator.0.0.2
   labels:
     alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
 spec:
@@ -11,7 +11,7 @@ spec:
     image: quay.io/coreos/vault-operator:0.0.2
   version: 0.0.2
   maturity: beta
-  replaces: 0.0.1
+  replaces: vaultoperator.0.0.1
   labels:
     operated-by: vaultoperator.0.0.2
   selector:

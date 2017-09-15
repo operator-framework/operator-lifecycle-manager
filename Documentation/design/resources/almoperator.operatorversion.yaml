@@ -6,7 +6,6 @@ metadata:
 spec:
   version: 0.0.1
   maturity: pre-alpha
-  replaces: 0.0.0
   labels:
     alm-owner-alm: almoperator.app.coreos.com.0.0.1
   selector:

@@ -28,7 +28,7 @@ spec:
         replaces:
           type: string
           description: Name of the OperatorVersion custom resource that this version replaces
-          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
+          pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
 
         maturity:
           type: string
