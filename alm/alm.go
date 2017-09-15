@@ -6,9 +6,9 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -82,7 +82,7 @@ func New(kubeconfig string) (*Operator, error) {
 	operatorVersionWatcher := cache.NewListWatchFromClient(
 		kclient.CoreV1().RESTClient(),
 		"operatorversions",
-		v1.NamespaceAll,
+		metav1.NamespaceAll,
 		fields.Everything(),
 	)
 	operator.informer = cache.NewSharedIndexInformer(

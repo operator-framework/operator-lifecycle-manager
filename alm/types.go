@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/openapi"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 /////////////////
@@ -12,6 +13,7 @@ import (
 /////////////////
 
 const (
+	ALMGroup             = "app.coreos.com"
 	AppTypeCRDName       = "apptype-v1s.app.coreos.com"
 	AppTypeCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 )
@@ -121,6 +123,12 @@ type InstallStrategy struct {
 	Spec            *unstructured.Unstructured `json:"spec"`
 }
 
+// Interface for these install strategies
+type Installer interface {
+	Method() string
+	Install(namespace string, spec *unstructured.Unstructured) error
+}
+
 // CustomResource of type `OperatorVersion`
 type OperatorVersionResource struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -130,14 +138,38 @@ type OperatorVersionResource struct {
 	Status metav1.Status   `json:"status"`
 }
 
-// CustomResourceDefinition for OperatorVersion - installed along with ALM
-type OperatorVersionCRD struct {
+func (in *OperatorVersionResource) DeepCopyInto(out *OperatorVersionResource) {
+	*out = *in
+	return
+}
+
+func (in *OperatorVersionResource) DeepCopy() *OperatorVersionResource {
+	if in == nil {
+		return nil
+	}
+	out := new(OperatorVersionResource)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *OperatorVersionResource) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	} else {
+		return nil
+	}
+}
+
+type OperatorVersionList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   OperatorVersionCRDSpec `json:"spec"`
-	Status metav1.Status          `json:"status"`
+	Items []OperatorVersionResource `json:"items"`
 }
+
+const (
+	OperatorVersionGroupVersion = "v1alpha1"
+)
 
 type OperatorVersionCRDSpec struct {
 	metav1.GroupVersionForDiscovery `json:",inline"`

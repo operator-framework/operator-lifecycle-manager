@@ -14,10 +14,10 @@ build:
 run: build
 	./bin/$(EXECUTABLE)
 
-$(PKGS): vendor
-	gofmt -w=true $(GOPATH)/src/$@/*.go
-	go vet $@
-	go test -v -race $@
+$(PKGS):
+	@gofmt -w=true $(GOPATH)/src/$@/*.go
+	@go vet $@
+	@go test -v -race $@
 
 GLIDE := $(GOPATH)/bin/glide
 $(GLIDE):
