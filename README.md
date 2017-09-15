@@ -17,11 +17,13 @@ This enables Tectonic users to do the following in a Kubernetes-native way:
 
 ## Getting Started
 
+* Follow the [installation guide]
 * Read the [original design proposal]
 * Checkout some mocks for the [Tectonic Console integration]
 * Review the developing YAML resources for the [ALM itself]
 * Review some YAML resources for [sample operators] using ALM
 
+[installation guide]: /Documentation/install.md
 [original design proposal]: /Documentation/design/original-proposal.md
 [Tectonic Console integration]: /Documentation/design/mocks
 [ALM itself]: /Documentation/design/resources
