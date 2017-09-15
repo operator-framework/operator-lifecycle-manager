@@ -5,6 +5,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/openapi"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 /////////////////
@@ -136,6 +137,29 @@ type OperatorVersionResource struct {
 	Spec   OperatorVersion `json:"spec"`
 	Status metav1.Status   `json:"status"`
 }
+
+func (in *OperatorVersionResource) DeepCopyInto(out *OperatorVersionResource) {
+	*out = *in
+	return
+}
+
+func (in *OperatorVersionResource) DeepCopy() *OperatorVersionResource {
+	if in == nil {
+		return nil
+	}
+	out := new(OperatorVersionResource)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *OperatorVersionResource) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	} else {
+		return nil
+	}
+}
+
 type OperatorVersionList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
