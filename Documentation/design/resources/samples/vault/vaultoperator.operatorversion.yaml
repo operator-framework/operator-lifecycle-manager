@@ -6,9 +6,18 @@ metadata:
   labels:
     alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
 spec:
-  installStrategy:
-    type: image
-    image: quay.io/coreos/vault-operator:0.0.2
+  install:
+    strategy: deployment
+    deployments:
+      - replicas: 1
+        template:
+          metadata:
+            labels:
+              name: vault-operator
+          spec:
+            containers:
+            - name: vault-operator
+              image: quay.io/coreos/vault-operator:0.0.2
   version: 0.0.2
   maturity: beta
   replaces: vaultoperator.0.0.1

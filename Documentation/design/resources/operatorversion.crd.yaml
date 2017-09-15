@@ -18,7 +18,7 @@ spec:
       - maturity
       - requirements
       - selector
-      - installStrategy
+      - install
       properties:
         version:
           type: string
@@ -174,12 +174,38 @@ spec:
                                 - create
                                 - update
                                 - patch
-                                - delete   
-        installStrategy:
-          # TODO EvB
-          type: object
-          description: Information required to install this specific version of the operato software
+                                - delete  
+                                type: object
 
+        install:
+          type: object
+          description: Information required to install this specific version of the operator software
+          oneOf:
+          - type: object
+            required:
+            - strategy
+            - image
+            properties:
+              strategy: 
+                type: string
+                enum: ['image']
+              image:
+                type: string
+          - type: object
+            required:
+            - strategy
+            - deployments
+            properties:
+              strategy:
+                type: string
+                enum: ['deployment']
+              deployments: 
+                type: array
+                description: List of deployments to create
+                items:
+                - type: object
+                  description: A deployment to create in the cluster 
+        
   names: 
     plural: operatorversion-v1s
     singular: operatorversion-v1
