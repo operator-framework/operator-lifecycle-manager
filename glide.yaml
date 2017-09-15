@@ -1,5 +1,16 @@
 package: github.com/coreos-inc/alm
 import:
+- package: github.com/coreos-inc/operator-client
+  vcs: git
+  repo: git@github.com:coreos-inc/operator-client.git
+  subpackages:
+  - pkg/client
+- package: k8s.io/api
+  subpackages:
+  - extensions/v1beta1
+- package: k8s.io/apiextensions-apiserver
+  subpackages:
+  - pkg/apis/apiextensions/v1beta1
 - package: k8s.io/apimachinery
   subpackages:
   - pkg/apis/meta/v1
@@ -10,8 +21,14 @@ import:
   - golang.org/x/crypto/ssh/terminal
   - golang.org/x/sys/unix
   version: ~1.0.3
+- package: k8s.io/client-go
+  subpackages:
+  - kubernetes/scheme
 testImport:
+- package: github.com/golang/mock
+  version: v1.0.0
+  subpackages:
+  - gomock
 - package: github.com/stretchr/testify
-  version: ^1.1.4
   subpackages:
   - assert
