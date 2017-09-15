@@ -7,7 +7,13 @@ metadata:
   annotations:
     displayName: Vault Service
     description: A running Vault instance, backed by an Etcd Cluster
-    outputs: "[{\"name\":\"vault-service-name\",\"displayName\":\"Service Name\",\"description\":\"The service name for the running vault cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:io.vaultproject:api.v1\"]}]"
+    outputs: '{
+      "name": {
+        "displayName": "ServiceName",
+        "description": "The service name for the running vault cluster",
+        "x-alm-capabilities": ["urn:alm:capability:io.vaultproject:api.v1"]
+      }
+    }'
 spec: 
   group: vault.security.coreos.com
   version: v1alpha1

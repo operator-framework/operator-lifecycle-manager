@@ -69,3 +69,44 @@ echo $crds | while read crd; do
     kubectl get $crd -l $sel
 done
 ```
+
+Find the outputs for a CRD:
+
+```sh
+$ kubectl get customresourcedefinitions etcdclusters.etcd.database.coreos.com -o jsonpath='{.metadata.annotations.outputs}' | jq
+```
+```json
+{
+  "etcd-cluster-service-name": {
+    "displayName": "Service Name",
+    "description": "The service name for the running etcd cluster.",
+    "x-alm-capabilities": [
+      "urn:alm:capability:com.coreos.etcd:api.v3.grpc",
+      "urn:alm:capability:com.coreos.etcd:api.v2.rest"
+    ]
+  },
+  "etcd-dashboard": {
+    "displayName": "Dashboard",
+    "description": "URL of a Grafana dashboard for the etcd cluster.",
+    "x-alm-capabilities": [
+      "urn:alm:capability:com.tectonic.ui:important.link",
+      "urn:alm:capability:org.w3:link"
+    ]
+  },
+  "etcd-prometheus": {
+    "displayName": "Prometheus Endpoint",
+    "description": "Endpoint of the prometheus instance for the etcd cluster.",
+    "x-alm-capabilities": [
+      "urn:alm:capability:io.prometheus:prometheus.v1",
+      "urn:alm:capability:org.w3:link"
+    ]
+  },
+  "etcd-important-metrics": {
+    "displayName": "Important Metrics",
+    "description": "Important prometheus metrics for the etcd cluster.",
+    "x-alm-capabilities": [
+      "urn:alm:capability:com.tectonic.ui:metrics"
+    ]
+  }
+}
+```

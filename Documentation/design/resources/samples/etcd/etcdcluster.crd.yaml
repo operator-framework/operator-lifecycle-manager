@@ -7,7 +7,27 @@ metadata:
   annotations:
     displayName: Etcd Cluster
     description: Represents a cluster of etc nodes as one unit.
-    outputs: "[{\"name\":\"etcd-cluster-service-name\",\"displayName\":\"Service Name\",\"description\":\"The service name for the running etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:com.coreos.etcd:api.v3.grpc\",\"urn:alm:capability:com.coreos.etcd:api.v2.rest\"]},{\"name\":\"etcd-dashboard\",\"displayName\":\"Dashboard\",\"description\":\"URL of a Grafana dashboard for the etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:com.tectonic.ui:important.link\",\"urn:alm:capability:org.w3:link\"]},{\"name\":\"etcd-prometheus\",\"displayName\":\"Prometheus Endpoint\",\"description\":\"Endpoint of the prometheus instance for the etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:io.prometheus:prometheus.v1\",\"urn:alm:capability:org.w3:link\"]},{\"name\":\"etcd-important-metrics\",\"displayName\":\"Important Metrics\",\"description\":\"Important prometheus metrics for the etcd cluster.\",\"x-alm-capabilities\":[\"urn:alm:capability:com.tectonic.ui:metrics\"]}]"
+    outputs: '{
+      "etcd-cluster-service-name": {
+        "displayName":"Service Name",
+        "description":"The service name for the running etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.coreos.etcd:api.v3.grpc","urn:alm:capability:com.coreos.etcd:api.v2.rest"]
+      },
+      "etcd-dashboard": {
+        "displayName":"Dashboard",
+        "description":"URL of a Grafana dashboard for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:important.link","urn:alm:capability:org.w3:link"]
+      },
+      "etcd-prometheus": {
+        "displayName":"Prometheus Endpoint",
+        "description":"Endpoint of the prometheus instance for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:io.prometheus:prometheus.v1","urn:alm:capability:org.w3:link"]
+      },
+      "etcd-important-metrics": {
+        "displayName":"Important Metrics",
+        "description":"Important prometheus metrics for the etcd cluster.",
+        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:metrics"]
+      }}'
 spec:
   group: etcd.database.coreos.com
   version: v1alpha1
