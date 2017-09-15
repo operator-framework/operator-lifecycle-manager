@@ -12,6 +12,7 @@ import (
 /////////////////
 
 const (
+	ALMGroup             = "app.coreos.com"
 	AppTypeCRDName       = "apptype-v1s.app.coreos.com"
 	AppTypeCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 )
@@ -121,6 +122,12 @@ type InstallStrategy struct {
 	Spec            *unstructured.Unstructured `json:"spec"`
 }
 
+// Interface for these install strategies
+type Installer interface {
+	Method() string
+	Install(namespace string, spec *unstructured.Unstructured) error
+}
+
 // CustomResource of type `OperatorVersion`
 type OperatorVersionResource struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -129,15 +136,16 @@ type OperatorVersionResource struct {
 	Spec   OperatorVersion `json:"spec"`
 	Status metav1.Status   `json:"status"`
 }
-
-// CustomResourceDefinition for OperatorVersion - installed along with ALM
-type OperatorVersionCRD struct {
+type OperatorVersionList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   OperatorVersionCRDSpec `json:"spec"`
-	Status metav1.Status          `json:"status"`
+	Items []OperatorVersionResource `json:"items"`
 }
+
+const (
+	OperatorVersionGroupVersion = "v1alpha1"
+)
 
 type OperatorVersionCRDSpec struct {
 	metav1.GroupVersionForDiscovery `json:",inline"`

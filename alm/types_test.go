@@ -23,8 +23,8 @@ func TestRegisterAppType(t *testing.T) {
 			MediaType: "image/gif",
 		},
 	}
-	mock := NewMock("MainMock")
-	rsrc, err := mock.RegisterAppType("mytestapp", testApp)
-	assert.NoError(t, err)
+
+	rsrc := NewAppTypeResource(testApp)
+
 	assert.Equal(t, AppTypeCRDName, rsrc.Kind)
 }
