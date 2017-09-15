@@ -10,5 +10,7 @@ metadata:
 spec:
   version: "0.8.0-0"
   nodes: 1
+  labels:
+     vault-service: my-vault-service
 outputs:
   vault-service-name: my-vault-cluster
