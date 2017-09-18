@@ -1,11 +1,11 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
-metadata: 
+metadata:
   name: operatorversion-v1s.app.coreos.com
   annotations:
     displayName: Operator Version
     description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
-spec: 
+spec:
   group: app.coreos.com
   version: v1alpha1
   scope: Namespaced
@@ -41,7 +41,7 @@ spec:
           - stable
           - mature
           - inactive
-          - deprecated   
+          - deprecated
         labels:
           type: object
           description: Labels that will be applied to associated resources created by the operator.
@@ -69,14 +69,14 @@ spec:
                       operator:
                         type: string
                         description: the operator for the expression
-                        enum: 
+                        enum:
                         - In
                         - NotIn
                         - Exists
                         - DoesNotExist
                       values:
                         type: array
-                        description: set of values for the expression 
+                        description: set of values for the expression
 
         requirements:
           type: array
@@ -97,7 +97,7 @@ spec:
                 apiVersion:
                   type: string
                   description: The apiVersion of the resource
-                name: 
+                name:
                   type: string
                   description: The name of the resource
                 namespace:
@@ -127,25 +127,25 @@ spec:
                           operator:
                             type: string
                             description: the operator for the expression
-                            enum: 
+                            enum:
                             - In
                             - NotIn
                             - Exists
                             - DoesNotExist
                           values:
                             type: array
-                            description: set of values for the expression 
+                            description: set of values for the expression
             - type: object
               required:
               - rules
               - kind
               properties:
-                kind: 
+                kind:
                   type: string
                   value: ServiceAccount
                 rules:
                   type: array
-                  items: 
+                  items:
                     allOf:
                       - type: object
                         description: a rule required by the service account
@@ -153,9 +153,9 @@ spec:
                           apiGroups:
                             type: array
                             description: apiGroups the rule applies to
-                            items: 
+                            items:
                               type: string
-                          resources: 
+                          resources:
                             type: array
                             items:
                               type: string
@@ -174,9 +174,7 @@ spec:
                                 - create
                                 - update
                                 - patch
-                                - delete  
-                                type: object
-
+                                - delete
         install:
           type: object
           description: Information required to install this specific version of the operator software
@@ -184,29 +182,38 @@ spec:
           - type: object
             required:
             - strategy
-            - image
+            - spec
             properties:
-              strategy: 
+              strategy:
                 type: string
                 enum: ['image']
-              image:
-                type: string
+              spec:
+                type: object
+                required:
+                - image
+                properties:
+                  image: string
           - type: object
             required:
             - strategy
-            - deployments
+            - spec
             properties:
               strategy:
                 type: string
                 enum: ['deployment']
-              deployments: 
-                type: array
-                description: List of deployments to create
-                items:
-                - type: object
-                  description: A deployment to create in the cluster 
-        
-  names: 
+              spec:
+                type: object
+                required:
+                - deployments
+                properties:
+                  deployments:
+                    type: array
+                    description: List of deployments to create
+                    items:
+                    - type: object
+                      description: A deployment to create in the cluster
+
+  names:
     plural: operatorversion-v1s
     singular: operatorversion-v1
     kind: OperatorVersion-v1
