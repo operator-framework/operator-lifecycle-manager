@@ -160,6 +160,28 @@ type OperatorVersionList struct {
 	Items []OperatorVersion `json:"items"`
 }
 
+func (in *OperatorVersionList) DeepCopyInto(out *OperatorVersionList) {
+	*out = *in
+	return
+}
+
+func (in *OperatorVersionList) DeepCopy() *OperatorVersionList {
+	if in == nil {
+		return nil
+	}
+	out := new(OperatorVersionList)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *OperatorVersionList) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	} else {
+		return nil
+	}
+}
+
 const (
 	OperatorVersionGroupVersion = "v1alpha1"
 )

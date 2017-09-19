@@ -9,7 +9,6 @@ import (
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	crv1 "k8s.io/apiextensions-apiserver/examples/client-go/apis/cr/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -47,11 +46,11 @@ func NewOperatorVersionClient(kubeconfig string) (*rest.RESTClient, error) {
 	}
 
 	scheme := runtime.NewScheme()
-	if err := crv1.AddToScheme(scheme); err != nil {
+	if err := OperatorVersionAddToScheme(scheme); err != nil {
 		return nil, err
 	}
 
-	config.GroupVersion = &crv1.SchemeGroupVersion
+	config.GroupVersion = &OperatorVersionSchemeGroupVersion
 	config.APIPath = "/apis"
 	config.ContentType = runtime.ContentTypeJSON
 	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
