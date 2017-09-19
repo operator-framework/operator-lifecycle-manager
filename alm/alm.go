@@ -16,11 +16,6 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-const (
-	defaultQPS   = 100
-	defaultBurst = 100
-)
-
 type Operator struct {
 	queue    workqueue.RateLimitingInterface
 	informer cache.SharedIndexInformer
@@ -35,7 +30,7 @@ func New(kubeconfig string) (*Operator, error) {
 	}
 	operator.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alm")
 	operatorVersionWatcher := cache.NewListWatchFromClient(
-		client.KubernetesInterface().CoreV1().RESTClient(),
+		client.KubernetesInterface().ExtensionsV1beta1().RESTClient(),
 		"operatorversion-v1s",
 		metav1.NamespaceAll,
 		fields.Everything(),
@@ -62,7 +57,7 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 			errChan <- errors.Wrap(err, "communicating with server failed")
 			return
 		}
-		log.Info("msg", "connection established", "cluster-version", v)
+		log.Infof("connection established. cluster-version: %v", v)
 		errChan <- nil
 	}()
 
@@ -71,7 +66,7 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 		if err != nil {
 			return err
 		}
-		log.Info("msg", "Operator ready")
+		log.Info("Operator ready")
 	case <-stopc:
 		return nil
 	}
@@ -86,7 +81,7 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 func (o *Operator) keyFunc(obj interface{}) (string, bool) {
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		log.Info("msg", "creating key failed", "err", err)
+		log.Infof("creating key failed: %s", err)
 		return k, false
 	}
 
