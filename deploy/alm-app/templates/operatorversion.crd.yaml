@@ -9,6 +9,11 @@ spec:
   group: app.coreos.com
   version: v1alpha1
   scope: Namespaced
+  names:
+    plural: operatorversion-v1s
+    singular: operatorversion-v1
+    kind: OperatorVersion-v1
+    listKind: OperatorVersionList-v1
   validation:
     openAPIV3Schema:
       type: object
@@ -203,9 +208,4 @@ spec:
                 items:
                 - type: object
                   description: A deployment to create in the cluster 
-        
-  names: 
-    plural: operatorversion-v1s
-    singular: operatorversion-v1
-    kind: OperatorVersion-v1
-    listKind: OperatorVersionList-v1
+
