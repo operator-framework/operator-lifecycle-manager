@@ -9,28 +9,71 @@ import (
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	crv1 "k8s.io/apiextensions-apiserver/examples/client-go/apis/cr/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type Operator struct {
-	queue    workqueue.RateLimitingInterface
-	informer cache.SharedIndexInformer
-	opClient client.Interface
+	queue       workqueue.RateLimitingInterface
+	informer    cache.SharedIndexInformer
+	opClient    client.Interface
+	opVerClient *rest.RESTClient
 }
 
-func New(kubeconfig string) (*Operator, error) {
-	client := client.NewClient(kubeconfig)
+// NewOperatorVersionClient creates a client that can interact with the OperatorVersion resource in k8s api
+func NewOperatorVersionClient(kubeconfig string) (*rest.RESTClient, error) {
+	var config *rest.Config
+	var err error
 
-	operator := &Operator{
-		opClient: client,
+	if kubeconfig != "" {
+		log.Infof("Loading kube client config from path %q", kubeconfig)
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	} else {
+		log.Infof("Using in-cluster kube client config")
+		config, err = rest.InClusterConfig()
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	scheme := runtime.NewScheme()
+	if err := crv1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
+	config.GroupVersion = &crv1.SchemeGroupVersion
+	config.APIPath = "/apis"
+	config.ContentType = runtime.ContentTypeJSON
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
+
+	return rest.RESTClientFor(config)
+}
+
+// New creates a new Operator configured to manage the cluster defined in kubeconfig
+func New(kubeconfig string) (*Operator, error) {
+	operator := &Operator{
+		opClient: client.NewClient(kubeconfig),
+	}
+
+	opVerClient, err := NewOperatorVersionClient(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	operator.opVerClient = opVerClient
+
 	operator.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alm")
 	operatorVersionWatcher := cache.NewListWatchFromClient(
-		client.KubernetesInterface().ExtensionsV1beta1().RESTClient(),
+		operator.opVerClient,
 		"operatorversion-v1s",
 		metav1.NamespaceAll,
 		fields.Everything(),
