@@ -14,7 +14,9 @@ spec:
         - replicas: 1
           template:
             metadata:
-              name: etcd-operator
+              name: etcd-operator-alm-owned
+              labels:
+                name: etcd-operator-alm-owned
             spec:
               containers:
               - name: etcd-operator

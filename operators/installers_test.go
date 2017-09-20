@@ -24,7 +24,8 @@ func TestKubeDeployment(t *testing.T) {
 
 	deployment := v1beta1extensions.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: testDeploymentNamespace,
+			Namespace:    testDeploymentNamespace,
+			GenerateName: testDeploymentNamespace,
 		},
 	}
 

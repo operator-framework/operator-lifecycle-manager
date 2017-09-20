@@ -16,8 +16,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"reflect"
-
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -192,17 +190,15 @@ func (o *Operator) sync(key string) error {
 		return fmt.Errorf("casting OperatorVersionSpec failed")
 	}
 
-	log.Info("msg", "sync OperatorVersionSpec", "key", key)
+	log.Infof("sync OperatorVersionSpec. key: %s", key)
 
 	install := operatorVersion.Spec.InstallStrategy
 	strategyDetails, err := StrategyMapper.GetStrategySpec(&install)
 	if err != nil {
 		return err
 	}
-	log.Info(strategyDetails)
-	log.Info(reflect.TypeOf(strategyDetails))
 	if install.StrategyName == "deployment" {
-		deployStrategy, ok := strategyDetails.(StrategyDetailsDeployment)
+		deployStrategy, ok := strategyDetails.(*StrategyDetailsDeployment)
 		if !ok {
 			return fmt.Errorf("couldn't cast to deploy strategy: %v", strategyDetails)
 		}

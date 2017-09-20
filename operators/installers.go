@@ -1,6 +1,8 @@
 package alm
 
 import (
+	"fmt"
+
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"k8s.io/api/extensions/v1beta1"
 )
@@ -25,6 +27,7 @@ func (d *KubeDeployment) Install(ns string, deploymentSpecs []v1beta1.Deployment
 	for _, spec := range deploymentSpecs {
 		dep := v1beta1.Deployment{Spec: spec}
 		dep.Namespace = ns
+		dep.GenerateName = fmt.Sprintf("%s-", ns)
 		_, err := d.client.CreateDeployment(&dep)
 		return err
 	}

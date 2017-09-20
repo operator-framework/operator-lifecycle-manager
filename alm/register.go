@@ -21,7 +21,8 @@ func Resource(resource string) schema.GroupResource {
 
 // addKnownTypes adds the set of types defined in this package to the supplied scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
-	scheme.AddKnownTypes(OperatorVersionSchemeGroupVersion,
+	scheme.AddKnownTypeWithName(
+		OperatorVersionSchemeGroupVersion.WithKind("OperatorVersion-v1"),
 		&OperatorVersion{},
 	)
 	scheme.AddKnownTypeWithName(
