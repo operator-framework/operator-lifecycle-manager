@@ -1,10 +1,9 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
-
-	"flag"
 	"os"
 
 	"github.com/coreos-inc/alm/alm"

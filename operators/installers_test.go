@@ -1,12 +1,12 @@
 package alm
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -25,7 +25,7 @@ func TestKubeDeployment(t *testing.T) {
 	deployment := v1beta1extensions.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    testDeploymentNamespace,
-			GenerateName: testDeploymentNamespace,
+			GenerateName: fmt.Sprintf("%s-", testDeploymentNamespace),
 		},
 	}
 
