@@ -2,6 +2,8 @@ package alm
 
 import (
 	"fmt"
+	"net"
+	"os"
 	"time"
 
 	"github.com/coreos-inc/operator-client/pkg/client"
@@ -28,20 +30,33 @@ type Operator struct {
 }
 
 // NewOperatorVersionClient creates a client that can interact with the OperatorVersion resource in k8s api
-func NewOperatorVersionClient(kubeconfig string) (*rest.RESTClient, error) {
+func NewOperatorVersionClient(kubeconfig string) (client *rest.RESTClient, err error) {
 	var config *rest.Config
-	var err error
 
-	if kubeconfig != "" {
-		log.Infof("Loading kube client config from path %q", kubeconfig)
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
+	if len(kubeconfig) == 0 {
+		// Work around https://github.com/kubernetes/kubernetes/issues/40973
+		// See https://github.com/coreos/etcd-operator/issues/731#issuecomment-283804819
+		if len(os.Getenv("KUBERNETES_SERVICE_HOST")) == 0 {
+			addrs, err := net.LookupHost("kubernetes.default.svc")
+			if err != nil {
+				panic(err)
+			}
+
+			os.Setenv("KUBERNETES_SERVICE_HOST", addrs[0])
+		}
+
+		if len(os.Getenv("KUBERNETES_SERVICE_PORT")) == 0 {
+			os.Setenv("KUBERNETES_SERVICE_PORT", "443")
+		}
+
 		log.Infof("Using in-cluster kube client config")
 		config, err = rest.InClusterConfig()
+	} else {
+		log.Infof("Loading kube client config from path %q", kubeconfig)
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
-
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	scheme := runtime.NewScheme()
@@ -53,38 +68,38 @@ func NewOperatorVersionClient(kubeconfig string) (*rest.RESTClient, error) {
 	config.APIPath = "/apis"
 	config.ContentType = runtime.ContentTypeJSON
 	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
-
 	return rest.RESTClientFor(config)
 }
 
-// New creates a new Operator configured to manage the cluster defined in kubeconfig
+// New creates a new Operator configured to manage the cluster defined in kubeconfig.
 func New(kubeconfig string) (*Operator, error) {
-	operator := &Operator{
-		opClient: client.NewClient(kubeconfig),
-	}
-
+	opClient := client.NewClient(kubeconfig)
 	opVerClient, err := NewOperatorVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
-	operator.opVerClient = opVerClient
-
-	operator.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alm")
+	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alm")
 	operatorVersionWatcher := cache.NewListWatchFromClient(
-		operator.opVerClient,
+		opVerClient,
 		"operatorversion-v1s",
 		metav1.NamespaceAll,
 		fields.Everything(),
 	)
-	operator.informer = cache.NewSharedIndexInformer(
+	operator := &Operator{
+		opClient:    opClient,
+		opVerClient: opVerClient,
+		queue:       queue,
+	}
+	informer := cache.NewSharedIndexInformer(
 		operatorVersionWatcher,
 		&OperatorVersion{},
 		15*time.Minute,
 		cache.Indexers{},
 	)
-	operator.informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: operator.handleAddOperatorVersion,
 	})
+	operator.informer = informer
 	return operator, nil
 }
 
@@ -161,15 +176,12 @@ func (o *Operator) processNextWorkItem() bool {
 	}
 	defer o.queue.Done(key)
 
-	err := o.sync(key.(string))
-	if err == nil {
-		o.queue.Forget(key)
+	if err := o.sync(key.(string)); err != nil {
+		utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
+		o.queue.AddRateLimited(key)
 		return true
 	}
-
-	utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
-	o.queue.AddRateLimited(key)
-
+	o.queue.Forget(key)
 	return true
 }
 
