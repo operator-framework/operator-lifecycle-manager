@@ -205,8 +205,9 @@ func (o *Operator) sync(key string) error {
 		kubeDeployment := alm.NewKubeDeployment(o.opClient)
 		if err := kubeDeployment.Install(operatorVersion.ObjectMeta.Namespace, deployStrategy.Deployments); err != nil {
 			return err
+		} else {
+			log.Infof("%s install strategy successful", install.StrategyName)
 		}
-
 	}
 
 	return nil
