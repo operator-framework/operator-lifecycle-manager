@@ -23,6 +23,9 @@ func Resource(resource string) schema.GroupResource {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(OperatorVersionSchemeGroupVersion,
 		&OperatorVersion{},
+	)
+	scheme.AddKnownTypeWithName(
+		OperatorVersionSchemeGroupVersion.WithKind("OperatorVersionList-v1"),
 		&OperatorVersionList{},
 	)
 	metav1.AddToGroupVersion(scheme, OperatorVersionSchemeGroupVersion)
