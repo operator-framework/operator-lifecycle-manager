@@ -213,8 +213,22 @@ func (o *Operator) sync(key string) error {
 		if !ok {
 			return fmt.Errorf("couldn't cast to deploy strategy: %v", strategyDetails)
 		}
+
+		existingDeployments, err := o.opClient.ListDeploymentsWithLabels(
+			operatorVersion.Namespace,
+			map[string]string{
+				"alm-owned":           "true",
+				"alm-owner-name":      operatorVersion.Name,
+				"alm-owner-namespace": operatorVersion.Namespace})
+		if err != nil {
+			return fmt.Errorf("couldn't query for existing deployments: %s", err)
+		}
+		if len(existingDeployments.Items) != 0 {
+			log.Infof("deployments found for %s, skipping install: %v", operatorVersion.Name, existingDeployments)
+			return nil
+		}
 		kubeDeployment := alm.NewKubeDeployment(o.opClient)
-		if err := kubeDeployment.Install(operatorVersion.ObjectMeta.Namespace, deployStrategy.Deployments); err != nil {
+		if err := kubeDeployment.Install(operatorVersion.ObjectMeta, deployStrategy.Deployments); err != nil {
 			return err
 		} else {
 			log.Infof("%s install strategy successful", install.StrategyName)

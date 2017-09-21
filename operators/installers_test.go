@@ -17,6 +17,12 @@ func TestKubeDeployment(t *testing.T) {
 	testDeploymentNamespace := "alm-test"
 	testDeploymentLabels := map[string]string{"app": "alm", "env": "test"}
 
+	mockOwner := metav1.ObjectMeta{
+		Name:         "operatorversion-owner",
+		Namespace:    testDeploymentNamespace,
+		GenerateName: fmt.Sprintf("%s-", testDeploymentNamespace),
+	}
+
 	unstructuredDep := &unstructured.Unstructured{}
 	unstructuredDep.SetName(testDeploymentName)
 	unstructuredDep.SetNamespace("not-the-same-namespace")
@@ -25,7 +31,11 @@ func TestKubeDeployment(t *testing.T) {
 	deployment := v1beta1extensions.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    testDeploymentNamespace,
-			GenerateName: fmt.Sprintf("%s-", testDeploymentNamespace),
+			GenerateName: fmt.Sprintf("%s-", mockOwner.Name),
+			Labels: map[string]string{
+				"alm-owned": "true",
+				"alm-owner": mockOwner.SelfLink,
+			},
 		},
 	}
 
@@ -39,5 +49,5 @@ func TestKubeDeployment(t *testing.T) {
 		Return(&deployment, nil)
 
 	kubeDeployer := &KubeDeployment{client: mockClient}
-	assert.NoError(t, kubeDeployer.Install(testDeploymentNamespace, []v1beta1extensions.DeploymentSpec{deployment.Spec}))
+	assert.NoError(t, kubeDeployer.Install(mockOwner, []v1beta1extensions.DeploymentSpec{deployment.Spec}))
 }
