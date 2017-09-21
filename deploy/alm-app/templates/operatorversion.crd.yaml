@@ -1,0 +1,213 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata: 
+  name: operatorversion-v1s.app.coreos.com
+  annotations:
+    displayName: Operator Version
+    description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
+spec: 
+  group: app.coreos.com
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      type: object
+      description: Represents a single version of the operator software
+      required:
+      - version
+      - maturity
+      - requirements
+      - selector
+      - install
+      properties:
+        version:
+          type: string
+          description: Version string, recommended that users use semantic versioning
+          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
+
+        replaces:
+          type: string
+          description: Name of the OperatorVersion custom resource that this version replaces
+          pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
+
+        maturity:
+          type: string
+          description: What level of maturity the software has achieved at this version
+          enum:
+          - planning
+          - pre-alpha
+          - alpha
+          - beta
+          - stable
+          - mature
+          - inactive
+          - deprecated   
+        labels:
+          type: object
+          description: Labels that will be applied to associated resources created by the operator.
+        selector:
+          type: object
+          description: Label selector to find resources associated with or managed by the operator
+          properties:
+            matchLabels:
+              type: object
+              description: Label key:value pairs to match directly
+            matchExpressions:
+              type: array
+              descriptions: A set of expressions to match against the resource.
+              items:
+                allOf:
+                  - type: object
+                    required:
+                    - key
+                    - operator
+                    - values
+                    properties:
+                      key:
+                        type: string
+                        description: the key to match
+                      operator:
+                        type: string
+                        description: the operator for the expression
+                        enum: 
+                        - In
+                        - NotIn
+                        - Exists
+                        - DoesNotExist
+                      values:
+                        type: array
+                        description: set of values for the expression 
+
+        requirements:
+          type: array
+          description: What requirements that we have before this OperatorVersion can run, may include CRD objects and k8s features
+          items:
+            anyOf:
+            - type: object
+              description: Single requirement that must be satisfied for the OperatorVersion to be installed and to work correctly
+              required:
+              - kind
+              - apiVersion
+              - name
+              - namespace
+              properties:
+                kind:
+                  type: string
+                  description: The kind of resource we are modeling.
+                apiVersion:
+                  type: string
+                  description: The apiVersion of the resource
+                name: 
+                  type: string
+                  description: The name of the resource
+                namespace:
+                  type: string
+                  description: The namespace of the resource
+                sha256:
+                  type: string
+                  description: Optional SHA-256 hash of the resource we consume, if we want to be extra-strict
+                  pattern: ^[a-f0-9]{64}$
+                optional:
+                  type: boolean
+                  description: If true, this requirement will not block install of the operator.
+                matchExpressions:
+                  type: array
+                  descriptions: A set of expressions to match against the resource. Requirement will not be considered 'met' if these evaluate to false.
+                  items:
+                    allOf:
+                      - type: object
+                        required:
+                        - key
+                        - operator
+                        - values
+                        properties:
+                          key:
+                            type: string
+                            description: the key to match
+                          operator:
+                            type: string
+                            description: the operator for the expression
+                            enum: 
+                            - In
+                            - NotIn
+                            - Exists
+                            - DoesNotExist
+                          values:
+                            type: array
+                            description: set of values for the expression 
+            - type: object
+              required:
+              - rules
+              - kind
+              properties:
+                kind: 
+                  type: string
+                  value: ServiceAccount
+                rules:
+                  type: array
+                  items: 
+                    allOf:
+                      - type: object
+                        description: a rule required by the service account
+                        properties:
+                          apiGroups:
+                            type: array
+                            description: apiGroups the rule applies to
+                            items: 
+                              type: string
+                          resources: 
+                            type: array
+                            items:
+                              type: string
+                          resourceNames:
+                            type: array
+                            items:
+                              type: string
+                          verbs:
+                            type: array
+                            items:
+                              type: string
+                              enum:
+                                - get
+                                - list
+                                - watch
+                                - create
+                                - update
+                                - patch
+                                - delete  
+                                type: object
+
+        install:
+          type: object
+          description: Information required to install this specific version of the operator software
+          oneOf:
+          - type: object
+            required:
+            - strategy
+            - image
+            properties:
+              strategy: 
+                type: string
+                enum: ['image']
+              image:
+                type: string
+          - type: object
+            required:
+            - strategy
+            - deployments
+            properties:
+              strategy:
+                type: string
+                enum: ['deployment']
+              deployments: 
+                type: array
+                description: List of deployments to create
+                items:
+                - type: object
+                  description: A deployment to create in the cluster 
+        
+  names: 
+    plural: operatorversion-v1s
+    singular: operatorversion-v1
+    kind: OperatorVersion-v1
+    listKind: OperatorVersionList-v1
