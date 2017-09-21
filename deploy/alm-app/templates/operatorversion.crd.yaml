@@ -175,8 +175,6 @@ spec:
                                 - update
                                 - patch
                                 - delete  
-                                type: object
-
         install:
           type: object
           description: Information required to install this specific version of the operator software
