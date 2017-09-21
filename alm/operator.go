@@ -61,11 +61,11 @@ func NewOperatorVersionClient(kubeconfig string) (client *rest.RESTClient, err e
 	}
 
 	scheme := runtime.NewScheme()
-	if err := OperatorVersionAddToScheme(scheme); err != nil {
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		return nil, err
 	}
 
-	config.GroupVersion = &OperatorVersionSchemeGroupVersion
+	config.GroupVersion = &v1alpha1.SchemeGroupVersion
 	config.APIPath = "/apis"
 	config.ContentType = runtime.ContentTypeJSON
 	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
