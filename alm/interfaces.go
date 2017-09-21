@@ -9,8 +9,8 @@ import (
 type ALM interface {
 	RegisterAppType(name string, appinfo *AppType) (*AppTypeResource, error)
 	ListAppTypes() (*AppTypeList, error)
-	InstallAppOperator(appType AppTypeResource, version semver.Version) (*OperatorVersionResource, error)
-	ListOperatorVersionsForApp(appType AppType) (*OperatorVersion, error)
+	InstallAppOperator(appType AppTypeResource, version semver.Version) (*OperatorVersion, error)
+	ListOperatorVersionsForApp(appType AppType) (*OperatorVersionSpec, error)
 }
 
 type OperatorInstaller interface {

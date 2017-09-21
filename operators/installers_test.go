@@ -24,9 +24,7 @@ func TestKubeDeployment(t *testing.T) {
 
 	deployment := v1beta1extensions.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testDeploymentName,
 			Namespace: testDeploymentNamespace,
-			Labels:    testDeploymentLabels,
 		},
 	}
 
@@ -40,5 +38,5 @@ func TestKubeDeployment(t *testing.T) {
 		Return(&deployment, nil)
 
 	kubeDeployer := &KubeDeployment{client: mockClient}
-	assert.NoError(t, kubeDeployer.Install(testDeploymentNamespace, unstructuredDep))
+	assert.NoError(t, kubeDeployer.Install(testDeploymentNamespace, []v1beta1extensions.DeploymentSpec{deployment.Spec}))
 }

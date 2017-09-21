@@ -71,7 +71,7 @@ type AppTypeList struct {
 //  Application Instances  //
 /////////////////////////////
 
-// CRD's representing the Apps that will be controlled by their OperatorVersion-installed operator
+// CRD's representing the Apps that will be controlled by their OperatorVersionSpec-installed operator
 type AppCRD struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
@@ -106,21 +106,14 @@ type ResourceNames struct {
 //  Operator Version  //
 ////////////////////////
 
-// OperatorVersion declarations tell the ALM how to install an operator that can manage apps for
+// OperatorVersionSpec declarations tell the ALM how to install an operator that can manage apps for
 // given version and AppType
-type OperatorVersion struct {
-	InstallStrategy InstallStrategy              `json:"installStrategy"`
+type OperatorVersionSpec struct {
+	InstallStrategy *unstructured.Unstructured   `json:"install"`
 	Version         semver.Version               `json:"version"`
 	Maturity        string                       `json:"maturity"`
 	Requirements    []*unstructured.Unstructured `json:"requirements"`
 	Permissions     []string                     `json:"permissions"`
-}
-
-// Tells the ALM how to install the operator
-// structured like a resource for standardization purposes only (not actual objects in cluster)
-type InstallStrategy struct {
-	metav1.TypeMeta `json:",inline"`
-	Spec            *unstructured.Unstructured `json:"spec"`
 }
 
 // Interface for these install strategies
@@ -129,30 +122,30 @@ type Installer interface {
 	Install(namespace string, spec *unstructured.Unstructured) error
 }
 
-// CustomResource of type `OperatorVersion`
-type OperatorVersionResource struct {
+// CustomResource of type `OperatorVersionSpec`
+type OperatorVersion struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   OperatorVersion `json:"spec"`
-	Status metav1.Status   `json:"status"`
+	Spec   OperatorVersionSpec `json:"spec"`
+	Status metav1.Status       `json:"status"`
 }
 
-func (in *OperatorVersionResource) DeepCopyInto(out *OperatorVersionResource) {
+func (in *OperatorVersion) DeepCopyInto(out *OperatorVersion) {
 	*out = *in
 	return
 }
 
-func (in *OperatorVersionResource) DeepCopy() *OperatorVersionResource {
+func (in *OperatorVersion) DeepCopy() *OperatorVersion {
 	if in == nil {
 		return nil
 	}
-	out := new(OperatorVersionResource)
+	out := new(OperatorVersion)
 	in.DeepCopyInto(out)
 	return out
 }
 
-func (in *OperatorVersionResource) DeepCopyObject() runtime.Object {
+func (in *OperatorVersion) DeepCopyObject() runtime.Object {
 	if c := in.DeepCopy(); c != nil {
 		return c
 	} else {
@@ -164,7 +157,7 @@ type OperatorVersionList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Items []OperatorVersionResource `json:"items"`
+	Items []OperatorVersion `json:"items"`
 }
 
 const (

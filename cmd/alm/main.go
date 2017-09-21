@@ -3,6 +3,11 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"flag"
+	"os"
+
+	"github.com/coreos-inc/alm/alm"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -10,6 +15,20 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	flag.Parse()
+
 	http.HandleFunc("/healthz", handler)
-	http.ListenAndServe(":8080", nil)
+	go http.ListenAndServe(":8080", nil)
+
+	almOperator, err := alm.New(*kubeConfigPath)
+	if err != nil {
+		panic(fmt.Errorf("error configuring operator: %s", err))
+	}
+	stop := make(chan struct{})
+	almOperator.Run(stop)
+	close(stop)
+
+	panic("unreachable")
 }
