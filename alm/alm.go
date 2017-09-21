@@ -19,7 +19,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/coreos-inc/alm/operators"
+	"github.com/coreos-inc/alm/installstrategies"
 )
 
 type Operator struct {
@@ -227,7 +227,7 @@ func (o *Operator) sync(key string) error {
 			log.Infof("deployments found for %s, skipping install: %v", operatorVersion.Name, existingDeployments)
 			return nil
 		}
-		kubeDeployment := alm.NewKubeDeployment(o.opClient)
+		kubeDeployment := installstrategies.NewKubeDeployment(o.opClient)
 		if err := kubeDeployment.Install(operatorVersion.ObjectMeta, deployStrategy.Deployments); err != nil {
 			return err
 		} else {

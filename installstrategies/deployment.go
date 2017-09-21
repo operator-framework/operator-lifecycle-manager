@@ -1,4 +1,4 @@
-package alm
+package installstrategies
 
 import (
 	"fmt"

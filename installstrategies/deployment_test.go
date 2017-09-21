@@ -1,4 +1,4 @@
-package alm
+package installstrategies
 
 import (
 	"fmt"
@@ -33,8 +33,9 @@ func TestKubeDeployment(t *testing.T) {
 			Namespace:    testDeploymentNamespace,
 			GenerateName: fmt.Sprintf("%s-", mockOwner.Name),
 			Labels: map[string]string{
-				"alm-owned": "true",
-				"alm-owner": mockOwner.SelfLink,
+				"alm-owned":           "true",
+				"alm-owner-name":      mockOwner.Name,
+				"alm-owner-namespace": mockOwner.Namespace,
 			},
 		},
 	}
