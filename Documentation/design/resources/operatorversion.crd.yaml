@@ -28,7 +28,6 @@ spec:
         replaces:
           type: string
           description: Name of the OperatorVersion custom resource that this version replaces
-          pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
 
         maturity:
           type: string
@@ -89,7 +88,6 @@ spec:
               - kind
               - apiVersion
               - name
-              - namespace
               properties:
                 kind:
                   type: string
@@ -100,9 +98,6 @@ spec:
                 name:
                   type: string
                   description: The name of the resource
-                namespace:
-                  type: string
-                  description: The namespace of the resource
                 sha256:
                   type: string
                   description: Optional SHA-256 hash of the resource we consume, if we want to be extra-strict
@@ -210,7 +205,7 @@ spec:
                     type: array
                     description: List of deployments to create
                     items:
-                    - type: object
+                      type: object
                       description: A deployment to create in the cluster
         
   names: 

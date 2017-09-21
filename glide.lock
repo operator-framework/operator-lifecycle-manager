@@ -1,6 +1,8 @@
-hash: 5508a331e9ce37ac6d9630945bb4c47410c82dbb18b947ed6527a36013a527ba
-updated: 2017-09-21T16:22:31.172848552-04:00
+hash: 6cd12230d637ba343a532fd1fa9d1f3a1a07ca8386834eb368a8d76846e68d9d
+updated: 2017-09-21T18:26:36.413506982-04:00
 imports:
+- name: github.com/asaskevich/govalidator
+  version: 593d64559f7600f29581a3ee42177f5dbded27a9
 - name: github.com/coreos-inc/operator-client
   version: 8970c53bd92cb8ab15e6d656c79df0ee5f316159
   repo: git@github.com:coreos-inc/operator-client.git
@@ -25,14 +27,26 @@ imports:
   version: dcef7f55730566d41eae5db10e7d6981829720f6
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- name: github.com/go-openapi/analysis
+  version: b44dc874b601d9e4e2f6e19140e794ba24bead3b
+- name: github.com/go-openapi/errors
+  version: d24ebc2075bad502fac3a8ae27aa6dd58e1952dc
 - name: github.com/go-openapi/jsonpointer
   version: 46af16f9f7b149af66e5d1bd010e3574dc06de98
 - name: github.com/go-openapi/jsonreference
   version: 13c6e3589ad90f49bd3e3bbe2c2cb3d7a4142272
+- name: github.com/go-openapi/loads
+  version: 18441dfa706d924a39a030ee2c3b1d8d81917b38
+- name: github.com/go-openapi/runtime
+  version: 11e322eeecc1032d5a0a96c566ed53f2b5c26e22
 - name: github.com/go-openapi/spec
   version: 6aced65f8501fe1217321abf0749d354824ba2ff
+- name: github.com/go-openapi/strfmt
+  version: d65c7fdb29eca313476e529628176fe17e58c488
 - name: github.com/go-openapi/swag
   version: 1d0bd113de87027671077d3c71eb3ac5d7dbba72
+- name: github.com/go-openapi/validate
+  version: deaf2c9013bc1a7f4c774662259a506ba874d80f
 - name: github.com/gogo/protobuf
   version: c0656edd0d9eab7c66d1eb0c568f9039345796f7
   subpackages:
@@ -95,7 +109,7 @@ imports:
   subpackages:
   - codec
 - name: golang.org/x/crypto
-  version: d172538b2cfce0c13cee31e647d0367aa8cd2486
+  version: 7d9177d70076375b9a59c8fde23d52d9c4a7ecd5
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
@@ -153,13 +167,17 @@ imports:
   - storage/v1
   - storage/v1beta1
 - name: k8s.io/apiextensions-apiserver
-  version: 79ecda8df91cd9304503d6f3e488341eabe2287f
+  version: 3ec44093ad247dd50afe99f65ca9432fe1dc8704
+  repo: git@github.com:sttts/apiextensions-apiserver.git
   subpackages:
   - pkg/apis/apiextensions
   - pkg/apis/apiextensions/v1beta1
+  - pkg/apis/apiextensions/validation
+  - pkg/apiserver/validation
   - pkg/client/clientset/clientset
   - pkg/client/clientset/clientset/scheme
   - pkg/client/clientset/clientset/typed/apiextensions/v1beta1
+  - pkg/features
 - name: k8s.io/apimachinery
   version: dc1f89aff9a7509782bde3b68824c8043a3e58cc
   subpackages:
@@ -167,8 +185,10 @@ imports:
   - pkg/api/errors
   - pkg/api/meta
   - pkg/api/resource
+  - pkg/api/validation
   - pkg/apis/meta/v1
   - pkg/apis/meta/v1/unstructured
+  - pkg/apis/meta/v1/validation
   - pkg/apis/meta/v1alpha1
   - pkg/conversion
   - pkg/conversion/queryparams
@@ -206,6 +226,10 @@ imports:
   - pkg/watch
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
+- name: k8s.io/apiserver
+  version: ab57ed5a72c3b67058f665d660e23bae18339fc2
+  subpackages:
+  - pkg/util/feature
 - name: k8s.io/client-go
   version: 45673e060eb921b510677b1123737ad1158e49fa
   subpackages:
@@ -263,3 +287,4 @@ testImports:
   version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
   subpackages:
   - assert
+  - require
