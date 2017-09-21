@@ -22,8 +22,6 @@ container-build:
   - docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io
   - mkdir -p $PWD/bin
   image: docker:git
-  dependencies:
-    - unit-tests
   script:
   - 'docker build  --no-cache -f alm-ci.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
