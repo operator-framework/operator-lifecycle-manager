@@ -212,8 +212,8 @@ spec:
                     items:
                     - type: object
                       description: A deployment to create in the cluster
-
-  names:
+        
+  names: 
     plural: operatorversion-v1s
     singular: operatorversion-v1
     kind: OperatorVersion-v1

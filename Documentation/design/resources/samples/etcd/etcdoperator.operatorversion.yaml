@@ -9,16 +9,16 @@ metadata:
 spec:
   install:
     strategy: deployment
-    deployments:
-      - replicas: 1
-        template:
-          metadata:
-            labels:
+    spec:
+      deployments:
+        - replicas: 1
+          template:
+            metadata:
               name: etcd-operator
-          spec:
-            containers:
-            - name: etcd-operator
-              image: quay.io/coreos/etcd-operator:v0.5.1
+            spec:
+              containers:
+              - name: etcd-operator
+                image: quay.io/coreos/etcd-operator:v0.5.1
   version: 0.5.1
   replaces: etcdoperator.v0.5.0
   maturity: beta

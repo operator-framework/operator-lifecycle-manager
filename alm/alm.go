@@ -16,6 +16,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"reflect"
+
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -191,15 +193,24 @@ func (o *Operator) sync(key string) error {
 	}
 
 	log.Info("msg", "sync OperatorVersionSpec", "key", key)
-	install := operatorVersion.Spec.InstallStrategy.UnstructuredContent()
-	strategy := install["strategy"]
-	strategyString, ok := strategy.(string)
-	if !ok {
-		return fmt.Errorf("casting strategy failed")
+
+	install := operatorVersion.Spec.InstallStrategy
+	strategyDetails, err := StrategyMapper.GetStrategySpec(&install)
+	if err != nil {
+		return err
 	}
-	if strategyString == "deployment" {
+	log.Info(strategyDetails)
+	log.Info(reflect.TypeOf(strategyDetails))
+	if install.StrategyName == "deployment" {
+		deployStrategy, ok := strategyDetails.(StrategyDetailsDeployment)
+		if !ok {
+			return fmt.Errorf("couldn't cast to deploy strategy: %v", strategyDetails)
+		}
 		kubeDeployment := alm.NewKubeDeployment(o.opClient)
-		kubeDeployment.Install(operatorVersion.ObjectMeta.Namespace, install["deployments"])
+		if err := kubeDeployment.Install(operatorVersion.ObjectMeta.Namespace, deployStrategy.Deployments); err != nil {
+			return err
+		}
+
 	}
 
 	return nil

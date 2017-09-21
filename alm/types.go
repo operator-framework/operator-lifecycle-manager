@@ -1,7 +1,13 @@
 package alm
 
 import (
+	"encoding/json"
+
+	"fmt"
+	"reflect"
+
 	"github.com/coreos/go-semver/semver"
+	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/openapi"
@@ -102,6 +108,35 @@ type ResourceNames struct {
 	Kind     string `json:"kind"`
 }
 
+type InstallStrategy struct {
+	StrategyName   string          `json:"strategy"`
+	StategySpecRaw json.RawMessage `json:"spec"`
+}
+
+type StrategyDetailsDeployment struct {
+	Deployments []v1beta1.DeploymentSpec `json:"deployments"`
+}
+
+type TypeMapper map[string]reflect.Type
+
+func (m TypeMapper) GetStrategySpec(s *InstallStrategy) (interface{}, error) {
+	t, found := m[s.StrategyName]
+	if !found {
+		return nil, fmt.Errorf("No stategy registered for name: %s", s.StrategyName)
+	}
+
+	v := reflect.New(t).Interface()
+	err := json.Unmarshal(s.StategySpecRaw, v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+var StrategyMapper = TypeMapper{
+	"deployment": reflect.TypeOf(StrategyDetailsDeployment{}),
+}
+
 ////////////////////////
 //  Operator Version  //
 ////////////////////////
@@ -109,7 +144,7 @@ type ResourceNames struct {
 // OperatorVersionSpec declarations tell the ALM how to install an operator that can manage apps for
 // given version and AppType
 type OperatorVersionSpec struct {
-	InstallStrategy *unstructured.Unstructured   `json:"install"`
+	InstallStrategy InstallStrategy              `json:"install"`
 	Version         semver.Version               `json:"version"`
 	Maturity        string                       `json:"maturity"`
 	Requirements    []*unstructured.Unstructured `json:"requirements"`
