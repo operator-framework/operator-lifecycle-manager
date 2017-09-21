@@ -1,23 +1,54 @@
 # Reconciliation Loops
 
 ## Service Catalog
-#### `AppType` Loop
-1. Watches for new `AppType` defintions in a namespace
-    1. Finds the latest`OperatorVersion` for the `AppType` in the catalog.
-    1. Creates the `OperatorVersion` in the namespace.
 
-### `OperatorVersion` Loop
-1. Watches for pending `OperatorVersion`
-    1. If it has a requirement on a `CRD` that doesn't exist, looks it up and creates it in the namespace
+### `InstallDeclaration` loop
 
-### `CRD` loop
-1. Watches CRDs for definitions that have `ownerReference` set to `<ALM managed resource>`
-    1. Queries catalog by `(group, kind, apiVersion)` for the `AppType` that lists an `OperatorVersion` that has the CRD as a requirement.
-    1. If the `AppType` does not exist in the cluster, it is created.
+Strawpeople:
+
+```
+declare: 
+ - Vault AppType 1.0.0 (ref by sha?)
+approval: manual/automatic
+status: Unresolved
+```
+
+```
+declare: 
+ - Vault AppType (ref by sha?)
+approval: manual/automatic
+resolved:
+  - Vault AppType 1.0.0
+  - Vault OpVer
+  - VaultService CRD
+  - Etcd AppType
+  - Etcd OpVer
+  - EtcdCluster CRD
+status: resolved
+```
+
+States: `Unresolved`, `Resolved`, `Approved`, `Complete`
+
+1. Watches for new `InstallDeclarations` in a namespace
+    1. If `Unresolved`, attempt to resolve those resources and write them back to the `InstallDeclaration`
+    1. If `Resolved`, wait for state to be `Approved`
+    1. If `Approved`, creates all resolved resources, reports back status
+    1. If `Running`, nothing
+
+### `Subscription` loop
+
+```
+declare: 
+ - Vault Apptype 
+approval: manual/automatic
+```
+
+1. Watches for `Subscription` objects
+   1. If no `InstallDeclaration` exists for the `Subscription`, creates it
 
 ### Catalog loop
-1. Finds all `OperatorVersion`s with a higher version and a `replaces` field that includes an existing `OperatorVersion`'s version.
-    1. If found, creates the new `OperatorVersion` in the namespace.
+
+1. Watches catalog sources and creates `InstallDeclarations' if entries match a `Subscription`
 
 ## ALM
 
