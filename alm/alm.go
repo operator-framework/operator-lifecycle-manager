@@ -36,7 +36,7 @@ func New(kubeconfig string) (*Operator, error) {
 	operator.queue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "alm")
 	operatorVersionWatcher := cache.NewListWatchFromClient(
 		client.KubernetesInterface().CoreV1().RESTClient(),
-		"operatorversions",
+		"operatorversion-v1s",
 		metav1.NamespaceAll,
 		fields.Everything(),
 	)
