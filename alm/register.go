@@ -4,6 +4,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
 )
 
 var (
@@ -12,7 +14,7 @@ var (
 )
 
 // SchemeGroupVersion is the group version used to register these objects.
-var OperatorVersionSchemeGroupVersion = schema.GroupVersion{Group: ALMGroup, Version: OperatorVersionGroupVersion}
+var OperatorVersionSchemeGroupVersion = schema.GroupVersion{Group: ALMGroup, Version: v1alpha1.GroupVersion}
 
 // Resource takes an unqualified resource and returns a Group-qualified GroupResource.
 func Resource(resource string) schema.GroupResource {
@@ -23,11 +25,11 @@ func Resource(resource string) schema.GroupResource {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypeWithName(
 		OperatorVersionSchemeGroupVersion.WithKind("OperatorVersion-v1"),
-		&OperatorVersion{},
+		&v1alpha1.OperatorVersion{},
 	)
 	scheme.AddKnownTypeWithName(
 		OperatorVersionSchemeGroupVersion.WithKind("OperatorVersionList-v1"),
-		&OperatorVersionList{},
+		&v1alpha1.OperatorVersionList{},
 	)
 	metav1.AddToGroupVersion(scheme, OperatorVersionSchemeGroupVersion)
 	return nil

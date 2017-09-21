@@ -5,13 +5,15 @@ import (
 	"fmt"
 
 	"github.com/coreos/go-semver/semver"
+
+	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
 )
 
 type ALM interface {
 	RegisterAppType(name string, appinfo *AppType) (*AppTypeResource, error)
 	ListAppTypes() (*AppTypeList, error)
-	InstallAppOperator(appType AppTypeResource, version semver.Version) (*OperatorVersion, error)
-	ListOperatorVersionsForApp(appType AppType) (*OperatorVersionSpec, error)
+	InstallAppOperator(appType AppTypeResource, version semver.Version) (*v1alpha1.OperatorVersion, error)
+	ListOperatorVersionsForApp(appType AppType) (*v1alpha1.OperatorVersionSpec, error)
 }
 
 type OperatorInstaller interface {

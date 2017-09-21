@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
 	"github.com/coreos-inc/alm/installstrategies"
 )
 
@@ -92,7 +93,7 @@ func New(kubeconfig string) (*Operator, error) {
 	}
 	informer := cache.NewSharedIndexInformer(
 		operatorVersionWatcher,
-		&OperatorVersion{},
+		&v1alpha1.OperatorVersion{},
 		15*time.Minute,
 		cache.Indexers{},
 	)
@@ -196,7 +197,7 @@ func (o *Operator) sync(key string) error {
 		return nil
 	}
 
-	operatorVersion, ok := obj.(*OperatorVersion)
+	operatorVersion, ok := obj.(*v1alpha1.OperatorVersion)
 	if !ok {
 		return fmt.Errorf("casting OperatorVersionSpec failed")
 	}
@@ -204,12 +205,12 @@ func (o *Operator) sync(key string) error {
 	log.Infof("sync OperatorVersionSpec. key: %s", key)
 
 	install := operatorVersion.Spec.InstallStrategy
-	strategyDetails, err := StrategyMapper.GetStrategySpec(&install)
+	strategyDetails, err := v1alpha1.StrategyMapper.GetStrategySpec(&install)
 	if err != nil {
 		return err
 	}
 	if install.StrategyName == "deployment" {
-		deployStrategy, ok := strategyDetails.(*StrategyDetailsDeployment)
+		deployStrategy, ok := strategyDetails.(*v1alpha1.StrategyDetailsDeployment)
 		if !ok {
 			return fmt.Errorf("couldn't cast to deploy strategy: %v", strategyDetails)
 		}
