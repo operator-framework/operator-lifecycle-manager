@@ -1,7 +1,12 @@
 package alm
 
 import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+
 	"github.com/coreos/go-semver/semver"
+	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/openapi"
@@ -71,7 +76,7 @@ type AppTypeList struct {
 //  Application Instances  //
 /////////////////////////////
 
-// CRD's representing the Apps that will be controlled by their OperatorVersion-installed operator
+// CRD's representing the Apps that will be controlled by their OperatorVersionSpec-installed operator
 type AppCRD struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
@@ -102,25 +107,47 @@ type ResourceNames struct {
 	Kind     string `json:"kind"`
 }
 
+type InstallStrategy struct {
+	StrategyName   string          `json:"strategy"`
+	StategySpecRaw json.RawMessage `json:"spec"`
+}
+
+type StrategyDetailsDeployment struct {
+	Deployments []v1beta1.DeploymentSpec `json:"deployments"`
+}
+
+type TypeMapper map[string]reflect.Type
+
+func (m TypeMapper) GetStrategySpec(s *InstallStrategy) (interface{}, error) {
+	t, found := m[s.StrategyName]
+	if !found {
+		return nil, fmt.Errorf("No stategy registered for name: %s", s.StrategyName)
+	}
+
+	v := reflect.New(t).Interface()
+	err := json.Unmarshal(s.StategySpecRaw, v)
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+var StrategyMapper = TypeMapper{
+	"deployment": reflect.TypeOf(StrategyDetailsDeployment{}),
+}
+
 ////////////////////////
 //  Operator Version  //
 ////////////////////////
 
-// OperatorVersion declarations tell the ALM how to install an operator that can manage apps for
+// OperatorVersionSpec declarations tell the ALM how to install an operator that can manage apps for
 // given version and AppType
-type OperatorVersion struct {
-	InstallStrategy InstallStrategy              `json:"installStrategy"`
+type OperatorVersionSpec struct {
+	InstallStrategy InstallStrategy              `json:"install"`
 	Version         semver.Version               `json:"version"`
 	Maturity        string                       `json:"maturity"`
 	Requirements    []*unstructured.Unstructured `json:"requirements"`
 	Permissions     []string                     `json:"permissions"`
-}
-
-// Tells the ALM how to install the operator
-// structured like a resource for standardization purposes only (not actual objects in cluster)
-type InstallStrategy struct {
-	metav1.TypeMeta `json:",inline"`
-	Spec            *unstructured.Unstructured `json:"spec"`
 }
 
 // Interface for these install strategies
@@ -129,30 +156,30 @@ type Installer interface {
 	Install(namespace string, spec *unstructured.Unstructured) error
 }
 
-// CustomResource of type `OperatorVersion`
-type OperatorVersionResource struct {
+// CustomResource of type `OperatorVersionSpec`
+type OperatorVersion struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   OperatorVersion `json:"spec"`
-	Status metav1.Status   `json:"status"`
+	Spec   OperatorVersionSpec `json:"spec"`
+	Status metav1.Status       `json:"status"`
 }
 
-func (in *OperatorVersionResource) DeepCopyInto(out *OperatorVersionResource) {
+func (in *OperatorVersion) DeepCopyInto(out *OperatorVersion) {
 	*out = *in
 	return
 }
 
-func (in *OperatorVersionResource) DeepCopy() *OperatorVersionResource {
+func (in *OperatorVersion) DeepCopy() *OperatorVersion {
 	if in == nil {
 		return nil
 	}
-	out := new(OperatorVersionResource)
+	out := new(OperatorVersion)
 	in.DeepCopyInto(out)
 	return out
 }
 
-func (in *OperatorVersionResource) DeepCopyObject() runtime.Object {
+func (in *OperatorVersion) DeepCopyObject() runtime.Object {
 	if c := in.DeepCopy(); c != nil {
 		return c
 	} else {
@@ -164,7 +191,29 @@ type OperatorVersionList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Items []OperatorVersionResource `json:"items"`
+	Items []OperatorVersion `json:"items"`
+}
+
+func (in *OperatorVersionList) DeepCopyInto(out *OperatorVersionList) {
+	*out = *in
+	return
+}
+
+func (in *OperatorVersionList) DeepCopy() *OperatorVersionList {
+	if in == nil {
+		return nil
+	}
+	out := new(OperatorVersionList)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *OperatorVersionList) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	} else {
+		return nil
+	}
 }
 
 const (

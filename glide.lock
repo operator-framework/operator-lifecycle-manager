@@ -1,8 +1,8 @@
-hash: 8bcb6fbf3457fb46ea819c286972715c1e585ae2db25a0aa161fa59c2ce78f6d
-updated: 2017-09-15T17:48:44.25514116-04:00
+hash: 5508a331e9ce37ac6d9630945bb4c47410c82dbb18b947ed6527a36013a527ba
+updated: 2017-09-18T12:53:12.521575326-04:00
 imports:
 - name: github.com/coreos-inc/operator-client
-  version: e943384b5eb7f00eed528b54069e76eabe77e2d4
+  version: 2e9d1f6799b8f15688338e24960cfe2ad4c261c3
   repo: git@github.com:coreos-inc/operator-client.git
   vcs: git
   subpackages:
@@ -39,7 +39,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 44145f04b68cf362d9c4df2182967c2275eaefed
+  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -80,6 +80,8 @@ imports:
   - buffer
   - jlexer
   - jwriter
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/PuerkitoBio/purell
   version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
 - name: github.com/PuerkitoBio/urlesc
@@ -128,7 +130,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/api
-  version: e012d1a19ed30848135c78dca93b6d6a0f82d9e0
+  version: c0bcfdc3597be1a899c9f0b4e3d1b2e023b5148f
   subpackages:
   - admissionregistration/v1alpha1
   - apps/v1beta1
