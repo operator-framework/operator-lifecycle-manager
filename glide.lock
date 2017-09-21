@@ -1,8 +1,8 @@
 hash: 5508a331e9ce37ac6d9630945bb4c47410c82dbb18b947ed6527a36013a527ba
-updated: 2017-09-18T12:53:12.521575326-04:00
+updated: 2017-09-21T16:22:31.172848552-04:00
 imports:
 - name: github.com/coreos-inc/operator-client
-  version: 2e9d1f6799b8f15688338e24960cfe2ad4c261c3
+  version: 8970c53bd92cb8ab15e6d656c79df0ee5f316159
   repo: git@github.com:coreos-inc/operator-client.git
   vcs: git
   subpackages:
@@ -101,17 +101,15 @@ imports:
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
-  - html
-  - html/atom
   - http2
   - http2/hpack
   - idna
   - lex/httplex
-  - websocket
 - name: golang.org/x/sys
   version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
   subpackages:
   - unix
+  - windows
 - name: golang.org/x/text
   version: 2910a502d2bf9e43193af9d68ca516529614eed3
   subpackages:
@@ -169,9 +167,6 @@ imports:
   - pkg/api/errors
   - pkg/api/meta
   - pkg/api/resource
-  - pkg/apimachinery
-  - pkg/apimachinery/announced
-  - pkg/apimachinery/registered
   - pkg/apis/meta/v1
   - pkg/apis/meta/v1/unstructured
   - pkg/apis/meta/v1alpha1
@@ -259,12 +254,6 @@ imports:
   - util/homedir
   - util/integer
   - util/workqueue
-- name: k8s.io/kubernetes
-  version: fdc65025ee1c828a4afbbad2830d6918b5b972d4
-  subpackages:
-  - pkg/api
-  - pkg/api/v1/pod
-  - pkg/kubelet/types
 testImports:
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
