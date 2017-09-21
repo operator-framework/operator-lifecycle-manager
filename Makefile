@@ -11,7 +11,7 @@ test:
 	go vet `glide novendor`
 	go test -v -race `glide novendor`
 
-build: vendor
+build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(EXECUTABLE) $(PKG)
 
 run: build
