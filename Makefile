@@ -1,27 +1,28 @@
 SHELL := /bin/sh
 PKG := github.com/coreos-inc/alm/cmd/alm
-PKGS := $(shell go list ./... | grep -v /vendor)
 EXECUTABLE := ./bin/alm
-.PHONY: test $(PKGS) run clean vendor vendor-update
+IMAGE_REPO := quay.io/coreos/alm
+
+.PHONY: test run clean vendor vendor-update
 
 all: test build
 
-test: $(PKGS)
+test:
+	go vet `glide novendor`
+	go test -v -race `glide novendor`
 
-build:
-	go build -o $(EXECUTABLE) $(PKG)
+build: vendor
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(EXECUTABLE) $(PKG)
 
 run: build
 	./bin/$(EXECUTABLE)
 
-$(PKGS):
-	@gofmt -w=true $(GOPATH)/src/$@/*.go
-	@go vet $@
-	@go test -v -race $@
-
 GLIDE := $(GOPATH)/bin/glide
+
 $(GLIDE):
 	go get github.com/Masterminds/glide
+
+glide: $(GLIDE)
 
 vendor: $(GLIDE)
 	$(GLIDE) install -v
@@ -29,6 +30,15 @@ vendor: $(GLIDE)
 vendor-update: vendor
 	$(GLIDE) up -v
 
+container: build
+	docker build -t $(IMAGE_REPO):dev .
 
 clean:
 	rm $(EXECUTABLE)
+
+fmt-ci:
+	find . -iname "*.jsonnet" | xargs jsonnet fmt -i -n 4
+	find . -iname "*.libsonnet" | xargs jsonnet fmt -i -n 4
+
+gen-ci: fmt-ci
+	ffctl gen
