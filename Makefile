@@ -12,7 +12,7 @@ test:
 	go test -v -race `glide novendor`
 
 build:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(EXECUTABLE) $(PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(EXECUTABLE) $(PKG)
 
 run: build
 	./bin/$(EXECUTABLE)
