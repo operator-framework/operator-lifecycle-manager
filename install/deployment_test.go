@@ -1,4 +1,4 @@
-package installstrategies
+package install
 
 //
 //import (

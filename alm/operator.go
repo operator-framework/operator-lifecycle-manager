@@ -2,80 +2,34 @@ package alm
 
 import (
 	"fmt"
-	"net"
-	"os"
 	"time"
 
-	"github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
-	"github.com/coreos-inc/alm/installstrategies"
+	"github.com/coreos-inc/alm/client"
+	"github.com/coreos-inc/alm/install"
 )
 
 type Operator struct {
 	queue       workqueue.RateLimitingInterface
 	informer    cache.SharedIndexInformer
-	opClient    client.Interface
+	opClient    opClient.Interface
 	opVerClient *rest.RESTClient
-}
-
-// NewOperatorVersionClient creates a client that can interact with the OperatorVersion resource in k8s api
-func NewOperatorVersionClient(kubeconfig string) (client *rest.RESTClient, err error) {
-	var config *rest.Config
-
-	if len(kubeconfig) == 0 {
-		// Work around https://github.com/kubernetes/kubernetes/issues/40973
-		// See https://github.com/coreos/etcd-operator/issues/731#issuecomment-283804819
-		if len(os.Getenv("KUBERNETES_SERVICE_HOST")) == 0 {
-			addrs, err := net.LookupHost("kubernetes.default.svc")
-			if err != nil {
-				panic(err)
-			}
-
-			os.Setenv("KUBERNETES_SERVICE_HOST", addrs[0])
-		}
-
-		if len(os.Getenv("KUBERNETES_SERVICE_PORT")) == 0 {
-			os.Setenv("KUBERNETES_SERVICE_PORT", "443")
-		}
-
-		log.Infof("Using in-cluster kube client config")
-		config, err = rest.InClusterConfig()
-	} else {
-		log.Infof("Loading kube client config from path %q", kubeconfig)
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	}
-	if err != nil {
-		return
-	}
-
-	scheme := runtime.NewScheme()
-	if err := v1alpha1.AddToScheme(scheme); err != nil {
-		return nil, err
-	}
-
-	config.GroupVersion = &v1alpha1.SchemeGroupVersion
-	config.APIPath = "/apis"
-	config.ContentType = runtime.ContentTypeJSON
-	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
-	return rest.RESTClientFor(config)
 }
 
 // New creates a new Operator configured to manage the cluster defined in kubeconfig.
 func New(kubeconfig string) (*Operator, error) {
-	opClient := client.NewClient(kubeconfig)
-	opVerClient, err := NewOperatorVersionClient(kubeconfig)
+	opClient := opClient.NewClient(kubeconfig)
+	opVerClient, err := client.NewOperatorVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +158,7 @@ func (o *Operator) sync(key string) error {
 
 	log.Infof("sync OperatorVersionSpec. key: %s", key)
 
-	resolver := installstrategies.NewStrategyResolver(o.opClient, operatorVersion.ObjectMeta)
+	resolver := install.NewStrategyResolver(o.opClient, operatorVersion.ObjectMeta)
 	err = resolver.ApplyStrategy(&operatorVersion.Spec.InstallStrategy)
 	if err != nil {
 		return err
