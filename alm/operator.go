@@ -204,38 +204,13 @@ func (o *Operator) sync(key string) error {
 
 	log.Infof("sync OperatorVersionSpec. key: %s", key)
 
-	install := operatorVersion.Spec.InstallStrategy
-	strategyDetails, err := v1alpha1.StrategyMapper.GetStrategySpec(&install)
+	resolver := installstrategies.NewStrategyResolver(o.opClient, operatorVersion.ObjectMeta)
+	err = resolver.ApplyStrategy(&operatorVersion.Spec.InstallStrategy)
 	if err != nil {
 		return err
 	}
-	if install.StrategyName == "deployment" {
-		deployStrategy, ok := strategyDetails.(*v1alpha1.StrategyDetailsDeployment)
-		if !ok {
-			return fmt.Errorf("couldn't cast to deploy strategy: %v", strategyDetails)
-		}
 
-		existingDeployments, err := o.opClient.ListDeploymentsWithLabels(
-			operatorVersion.Namespace,
-			map[string]string{
-				"alm-owned":           "true",
-				"alm-owner-name":      operatorVersion.Name,
-				"alm-owner-namespace": operatorVersion.Namespace})
-		if err != nil {
-			return fmt.Errorf("couldn't query for existing deployments: %s", err)
-		}
-		if len(existingDeployments.Items) != 0 {
-			log.Infof("deployments found for %s, skipping install: %v", operatorVersion.Name, existingDeployments)
-			return nil
-		}
-		kubeDeployment := installstrategies.NewKubeDeployment(o.opClient)
-		if err := kubeDeployment.Install(operatorVersion.ObjectMeta, deployStrategy.Deployments); err != nil {
-			return err
-		} else {
-			log.Infof("%s install strategy successful", install.StrategyName)
-		}
-	}
-
+	log.Infof("%s install strategy successful for key: %s", operatorVersion.Spec.InstallStrategy.StrategyName, key)
 	return nil
 }
 

@@ -4,11 +4,8 @@ package v1alpha1
 
 import (
 	"encoding/json"
-	"fmt"
-	"reflect"
 
 	"github.com/coreos/go-semver/semver"
-	"k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,35 +19,6 @@ const GroupVersion = "v1alpha1"
 type NamedInstallStrategy struct {
 	StrategyName    string          `json:"strategy"`
 	StrategySpecRaw json.RawMessage `json:"spec"`
-}
-
-// StrategyDetailsDeployment represents the parsed details of a Deployment
-// InstallStrategy.
-type StrategyDetailsDeployment struct {
-	Deployments []v1beta1.DeploymentSpec `json:"deployments"`
-}
-
-type strategyMapper map[string]reflect.Type
-
-// GetStrategySpec dynamically returns an untyped StrategyDetails for a
-// particular NamedInstallStrategy.
-func (m strategyMapper) GetStrategySpec(s *NamedInstallStrategy) (interface{}, error) {
-	t, found := m[s.StrategyName]
-	if !found {
-		return nil, fmt.Errorf("No stategy registered for name: %s", s.StrategyName)
-	}
-
-	v := reflect.New(t).Interface()
-	err := json.Unmarshal(s.StrategySpecRaw, v)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-// StrategyMapper maps strategy names to their Strategy.
-var StrategyMapper = strategyMapper{
-	"deployment": reflect.TypeOf(StrategyDetailsDeployment{}),
 }
 
 // OperatorVersionSpec declarations tell the ALM how to install an operator
