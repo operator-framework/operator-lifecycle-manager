@@ -24,9 +24,13 @@ import:
 - package: k8s.io/api
   subpackages:
   - extensions/v1beta1
+- package: github.com/go-openapi/spec
 - package: k8s.io/apiextensions-apiserver
+  repo: git@github.com:sttts/apiextensions-apiserver.git
+  version: release-1.8
   subpackages:
   - pkg/apis/apiextensions/v1beta1
+  - pkg/apiserver/validation
 - package: k8s.io/apimachinery
   subpackages:
   - pkg/apis/meta/v1
@@ -35,12 +39,20 @@ import:
   - pkg/openapi
 - package: github.com/pkg/errors
   version: ~0.8.0
+- package: k8s.io/apiserver
 testImport:
 - package: github.com/golang/mock
   version: v1.0.0
   subpackages:
   - gomock
+- package: github.com/ghodss/yaml
+  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - package: github.com/stretchr/testify
   version: ~1.1.4
   subpackages:
   - assert
+  - require
+- package: k8s.io/client-go
+  version: 45673e060eb921b510677b1123737ad1158e49fa
+  subpackages:
+  - util/jsonpath
