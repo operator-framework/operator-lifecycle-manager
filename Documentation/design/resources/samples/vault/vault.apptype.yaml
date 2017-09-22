@@ -1,5 +1,5 @@
 #! validate-crd: apptype.crd.yaml
-apiVersion: apptype-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
   namespace: default
@@ -20,6 +20,7 @@ spec:
     url: https://www.vaultproject.io/
   labels:
     alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1  
+    alm-catalog: Open Cloud Services
   selector:
     matchLabels:
       alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 

@@ -18,6 +18,26 @@ metadata:
         "description":"URL of a Grafana dashboard for the etcd cluster.",
         "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:important.link","urn:alm:capability:org.w3:link"]
       },
+      "etcd-backup-count": {
+        "displayName":"Backup Count",
+        "description":"Number of backups performed.",
+        "x-alm-capabilities":[]
+      },
+      "etcd-last-backup": {
+        "displayName":"Last Backup",
+        "description":"Timestamp of latest backup.",
+        "x-alm-capabilities":[]
+      },
+      "etcd-first-backup": {
+        "displayName":"First Backup",
+        "description":"Timestamp of oldest backup.",
+        "x-alm-capabilities":[]
+      },
+      "etcd-active-connections": {
+        "displayName":"Active Connections",
+        "description":"Number of active database connections.",
+        "x-alm-capabilities":[]
+      },
       "etcd-prometheus": {
         "displayName":"Prometheus Endpoint",
         "description":"Endpoint of the prometheus instance for the etcd cluster.",
