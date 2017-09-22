@@ -228,6 +228,9 @@ func (o *Operator) sync(key string) error {
 			return nil
 		}
 		kubeDeployment := installstrategies.NewKubeDeployment(o.opClient)
+		if len(operatorVersion.Spec.Requirements) == 0 && !requirementsMet(operatorVersion.Spec.Requirements, o.opVerClient) {
+			return fmt.Errorf("requirements were not met: %v", operatorVersion.Spec.Requirements)
+		}
 		if err := kubeDeployment.Install(operatorVersion.ObjectMeta, deployStrategy.Deployments); err != nil {
 			return err
 		} else {
@@ -245,4 +248,24 @@ func (o *Operator) handleAddOperatorVersion(obj interface{}) {
 	}
 	log.Info("msg", "OperatorVersionSpec added", "key", key)
 	o.enqueue(key)
+}
+
+func requirementsMet(requirements []Requirements, kubeClient *rest.RESTClient) bool {
+	for _, element := range requirements {
+		if element.Optional {
+			continue
+		}
+		result := kubeClient.Get().Namespace(element.Namespace).Name(element.Name).Resource(element.Kind).Do()
+		if result.Error() != nil {
+			return false
+		}
+		runtimeObj, err := result.Get()
+		if err != nil {
+			return false
+		}
+		if runtimeObj.GetObjectKind().GroupVersionKind().Version != element.ApiVersion {
+			return false
+		}
+	}
+	return true
 }
