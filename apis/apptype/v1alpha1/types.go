@@ -32,6 +32,7 @@ type Icon struct {
 	MediaType string `json:"mediatype"`
 }
 
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // Custom Resource of type "AppTypeSpec" (AppTypeSpec CRD created by ALM)
 type AppType struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -48,6 +49,8 @@ func NewAppTypeResource(app *AppTypeSpec) *AppType {
 	resource.Spec = app
 	return &resource
 }
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type AppTypeList struct {
 	metav1.TypeMeta   `json:",inline"`

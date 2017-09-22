@@ -42,3 +42,6 @@ fmt-ci:
 
 gen-ci: fmt-ci
 	ffctl gen
+
+codegen:
+	hack/k8s/codegen/update-generated.sh
