@@ -7,7 +7,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 // GroupVersion is the version used in the Scheme for OperatorVersions.
@@ -20,18 +19,28 @@ type NamedInstallStrategy struct {
 	StrategySpecRaw json.RawMessage `json:"spec"`
 }
 
+// Kind, ApiVersion, Name, Namespace uniquely identify a requirement
+type Requirements struct {
+	Kind             string                 `json:"kind"`
+	ApiVersion       string                 `json:"apiVersion"`
+	Name             string                 `json:"name"`
+	Namespace        string                 `json:"namespace"`
+	SHA256           string                 `json:"sha256"`
+	Optional         bool                   `json:"optional"`
+	MatchExpressions []metav1.LabelSelector `json:"matchExpressions"`
+}
+
 // OperatorVersionSpec declarations tell the ALM how to install an operator
 // that can manage apps for given version and AppType.
 type OperatorVersionSpec struct {
-	InstallStrategy NamedInstallStrategy         `json:"install"`
-	Version         semver.Version               `json:"version"`
-	Maturity        string                       `json:"maturity"`
-	Requirements    []*unstructured.Unstructured `json:"requirements"`
-	Permissions     []string                     `json:"permissions"`
+	InstallStrategy NamedInstallStrategy `json:"install"`
+	Version         semver.Version       `json:"version"`
+	Maturity        string               `json:"maturity"`
+	Requirements    []Requirements       `json:"requirements"`
+	Permissions     []string             `json:"permissions"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // OperatorVersion is a Custom Resource of type `OperatorVersionSpec`.
 type OperatorVersion struct {
 	metav1.TypeMeta   `json:",inline"`
