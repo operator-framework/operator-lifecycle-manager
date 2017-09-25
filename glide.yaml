@@ -26,7 +26,6 @@ import:
   - extensions/v1beta1
 - package: github.com/go-openapi/spec
 - package: k8s.io/apiextensions-apiserver
-  repo: git@github.com:sttts/apiextensions-apiserver.git
   version: release-1.8
   subpackages:
   - pkg/apis/apiextensions/v1beta1
