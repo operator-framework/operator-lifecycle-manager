@@ -1,4 +1,4 @@
-package operator
+package queueinformer
 
 import (
 	"fmt"
@@ -19,11 +19,19 @@ type Operator struct {
 // NewOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
 func NewOperator(kubeconfig string, queueInformers ...*QueueInformer) (*Operator, error) {
 	opClient := opClient.NewClient(kubeconfig)
+	if queueInformers == nil {
+		queueInformers = []*QueueInformer{}
+	}
 	operator := &Operator{
 		OpClient:       opClient,
 		queueInformers: queueInformers,
 	}
 	return operator, nil
+}
+
+// RegisterQueueInformer adds a QueueInformer to this operator
+func (o *Operator) RegisterQueueInformer(queueInformer *QueueInformer) {
+	o.queueInformers = append(o.queueInformers, queueInformer)
 }
 
 // Run starts the operator's control loops

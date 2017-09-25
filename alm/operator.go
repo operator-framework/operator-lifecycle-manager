@@ -12,11 +12,11 @@ import (
 	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
 	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/install"
-	"github.com/coreos-inc/alm/operator"
+	"github.com/coreos-inc/alm/queueinformer"
 )
 
 type ALMOperator struct {
-	*operator.Operator
+	*queueinformer.Operator
 }
 
 func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
@@ -37,13 +37,17 @@ func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
 		cache.Indexers{},
 	)
 
-	op := &ALMOperator{}
-
-	opVerLoop := operator.NewQueueInformer("operatorversions", operatorVersionInformer, op.syncOperatorVersion, nil)
-	op.Operator, err = operator.NewOperator(kubeconfig, opVerLoop)
+	queueOperator, err := queueinformer.NewOperator(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
+	op := &ALMOperator{
+		queueOperator,
+	}
+
+	opVerQueueInformer := queueinformer.New("operatorversions", operatorVersionInformer, op.syncOperatorVersion, nil)
+	op.RegisterQueueInformer(opVerQueueInformer)
+
 	return op, nil
 }
 
