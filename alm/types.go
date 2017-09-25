@@ -143,11 +143,22 @@ var StrategyMapper = TypeMapper{
 // OperatorVersionSpec declarations tell the ALM how to install an operator that can manage apps for
 // given version and AppType
 type OperatorVersionSpec struct {
-	InstallStrategy InstallStrategy              `json:"install"`
-	Version         semver.Version               `json:"version"`
-	Maturity        string                       `json:"maturity"`
-	Requirements    []*unstructured.Unstructured `json:"requirements"`
-	Permissions     []string                     `json:"permissions"`
+	InstallStrategy InstallStrategy `json:"install"`
+	Version         semver.Version  `json:"version"`
+	Maturity        string          `json:"maturity"`
+	Requirements    []Requirements  `json:"requirements"`
+	Permissions     []string        `json:"permissions"`
+}
+
+// Kind, ApiVersion, Name, Namespace uniquely identify a requirement
+type Requirements struct {
+	Kind             string                 `json:"kind"`
+	ApiVersion       string                 `json:"apiVersion"`
+	Name             string                 `json:"name"`
+	Namespace        string                 `json:"namespace"`
+	Sha256           string                 `json:"sha256"`
+	Optional         bool                   `json:"optional"`
+	MatchExpressions []metav1.LabelSelector `json:"matchExpressions"`
 }
 
 // Interface for these install strategies
