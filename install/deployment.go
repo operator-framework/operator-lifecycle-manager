@@ -8,9 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	InstallStrategyNameDeployment = "deployment"
-)
+const InstallStrategyNameDeployment = "deployment"
 
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
@@ -19,7 +17,7 @@ type StrategyDetailsDeployment struct {
 }
 
 func (d *StrategyDetailsDeployment) Install(client client.Interface, owner metav1.ObjectMeta) error {
-	if err := d.checkInstalled(client, owner, len(d.DeploymentSpecs)); err != nil {
+	if err := checkInstalled(client, owner, len(d.DeploymentSpecs)); err != nil {
 		return err
 	}
 	for _, spec := range d.DeploymentSpecs {
@@ -38,7 +36,7 @@ func (d *StrategyDetailsDeployment) Install(client client.Interface, owner metav
 	return nil
 }
 
-func (d *StrategyDetailsDeployment) checkInstalled(client client.Interface, owner metav1.ObjectMeta, expected int) error {
+func checkInstalled(client client.Interface, owner metav1.ObjectMeta, expected int) error {
 	existingDeployments, err := client.ListDeploymentsWithLabels(
 		owner.Namespace,
 		map[string]string{

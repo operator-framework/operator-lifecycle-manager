@@ -29,8 +29,7 @@ func getConfig(kubeconfig string) (*rest.Config, error) {
 
 		log.Infof("Using in-cluster kube client config")
 		return rest.InClusterConfig()
-	} else {
-		log.Infof("Loading kube client config from path %q", kubeconfig)
-		return clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
+	log.Infof("Loading kube client config from path %q", kubeconfig)
+	return clientcmd.BuildConfigFromFlags("", kubeconfig)
 }
