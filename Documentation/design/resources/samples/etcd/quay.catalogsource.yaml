@@ -1,0 +1,9 @@
+#! validate-crd: catalogsource.crd.yaml
+apiVersion: app.coreos.com/v1alpha1
+kind: CatalogSource-v1
+metadata:
+  namespace: default
+  name: quay
+spec:
+  url: quay.io/catalog
+  name: quay

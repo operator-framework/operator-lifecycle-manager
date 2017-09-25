@@ -1,0 +1,11 @@
+#! validate-crd: subscription.crd.yaml
+apiVersion: app.coreos.com/v1alpha1
+kind: Subscription-v1
+metadata:
+  namespace: default
+  name: etcd
+spec:
+  source: quay
+  apptype: etcd
+  channel: stable
+  approval: automatic
