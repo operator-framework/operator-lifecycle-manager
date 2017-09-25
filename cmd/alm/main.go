@@ -21,7 +21,7 @@ func main() {
 	http.HandleFunc("/healthz", handler)
 	go http.ListenAndServe(":8080", nil)
 
-	almOperator, err := alm.New(*kubeConfigPath)
+	almOperator, err := alm.NewALMOperator(*kubeConfigPath)
 	if err != nil {
 		panic(fmt.Errorf("error configuring operator: %s", err))
 	}

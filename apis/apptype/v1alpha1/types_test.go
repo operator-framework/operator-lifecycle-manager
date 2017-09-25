@@ -1,4 +1,4 @@
-package alm
+package v1alpha1
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func TestRegisterAppType(t *testing.T) {
-	testApp := &AppType{
+	testApp := &AppTypeSpec{
 		DisplayName: "TestAppType",
 		Description: "This is a test app type",
 		Keywords:    []string{"mock", "dev", "alm"},
