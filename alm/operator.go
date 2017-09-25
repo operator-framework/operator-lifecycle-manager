@@ -37,14 +37,14 @@ func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
 		cache.Indexers{},
 	)
 
-	alm := &ALMOperator{}
+	op := &ALMOperator{}
 
-	opVerLoop := operator.NewControlLoop("operatorversions", operatorVersionInformer, alm.syncOperatorVersion, nil)
-	alm.Operator, err = operator.NewOperator(kubeconfig, opVerLoop)
+	opVerLoop := operator.NewQueueInformer("operatorversions", operatorVersionInformer, op.syncOperatorVersion, nil)
+	op.Operator, err = operator.NewOperator(kubeconfig, opVerLoop)
 	if err != nil {
 		return nil, err
 	}
-	return alm, nil
+	return op, nil
 }
 
 func (a *ALMOperator) syncOperatorVersion(obj interface{}) error {

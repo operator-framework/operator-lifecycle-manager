@@ -9,10 +9,10 @@ import (
 // SyncHandler is the function that reconciles the controlled object when seen
 type SyncHandler func(obj interface{}) error
 
-// ControlLoop ties an informer to a queue in order to process events from the informer
+// QueueInformer ties an informer to a queue in order to process events from the informer
 // the informer watches objects of interest and adds objects to the queue for processing
 // the syncHandler is called for all objects on the queue
-type ControlLoop struct {
+type QueueInformer struct {
 	queue                     workqueue.RateLimitingInterface
 	informer                  cache.SharedIndexInformer
 	syncHandler               SyncHandler
@@ -21,7 +21,7 @@ type ControlLoop struct {
 
 // enqueue adds a key to the queue. If obj is a key already it gets added directly.
 // Otherwise, the key is extracted via keyFunc.
-func (q *ControlLoop) enqueue(obj interface{}) {
+func (q *QueueInformer) enqueue(obj interface{}) {
 	if obj == nil {
 		return
 	}
@@ -38,7 +38,7 @@ func (q *ControlLoop) enqueue(obj interface{}) {
 }
 
 // keyFunc turns an object into a key for the queue. In the future will use a (name, namespace) struct as key
-func (q *ControlLoop) keyFunc(obj interface{}) (string, bool) {
+func (q *QueueInformer) keyFunc(obj interface{}) (string, bool) {
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		log.Infof("creating key failed: %s", err)
@@ -50,7 +50,7 @@ func (q *ControlLoop) keyFunc(obj interface{}) (string, bool) {
 
 // defaultResourceEventhandlerFuncs provides the default implementation for responding to events
 // these simply log the event and add the object's key to the queue for later processing
-func (q *ControlLoop) defaultResourceEventHandlerFuncs() *cache.ResourceEventHandlerFuncs {
+func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventHandlerFuncs {
 	return &cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			key, ok := q.keyFunc(obj)
@@ -82,19 +82,19 @@ func (q *ControlLoop) defaultResourceEventHandlerFuncs() *cache.ResourceEventHan
 	}
 }
 
-// NewControlLoop creates a new control loop given a name, an informer, and a sync handler to handle the objects
+// NewQueueInformer creates a new control loop given a name, an informer, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func NewControlLoop(queuename string, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *ControlLoop {
-	controlLoop := &ControlLoop{
+func NewQueueInformer(queuename string, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *QueueInformer {
+	queueInformer := &QueueInformer{
 		queue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queuename),
 		informer:    informer,
 		syncHandler: handler,
 	}
 	if funcs == nil {
-		controlLoop.resourceEventHandlerFuncs = controlLoop.defaultResourceEventHandlerFuncs()
+		queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
 	} else {
-		controlLoop.resourceEventHandlerFuncs = funcs
+		queueInformer.resourceEventHandlerFuncs = funcs
 	}
-	controlLoop.informer.AddEventHandler(controlLoop.resourceEventHandlerFuncs)
-	return controlLoop
+	queueInformer.informer.AddEventHandler(queueInformer.resourceEventHandlerFuncs)
+	return queueInformer
 }

@@ -9,27 +9,27 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 )
 
-// An Operator is a collection of ControlLoops
+// An Operator is a collection of QueueInformers
 // OpClient is used to establish the connection to kubernetes
 type Operator struct {
-	controlLoops []*ControlLoop
-	OpClient     opClient.Interface
+	queueInformers []*QueueInformer
+	OpClient       opClient.Interface
 }
 
 // NewOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
-func NewOperator(kubeconfig string, controlLoops ...*ControlLoop) (*Operator, error) {
+func NewOperator(kubeconfig string, queueInformers ...*QueueInformer) (*Operator, error) {
 	opClient := opClient.NewClient(kubeconfig)
 	operator := &Operator{
-		OpClient:     opClient,
-		controlLoops: controlLoops,
+		OpClient:       opClient,
+		queueInformers: queueInformers,
 	}
 	return operator, nil
 }
 
 // Run starts the operator's control loops
 func (o *Operator) Run(stopc <-chan struct{}) error {
-	for _, controlLoop := range o.controlLoops {
-		defer controlLoop.queue.ShutDown()
+	for _, queueInformer := range o.queueInformers {
+		defer queueInformer.queue.ShutDown()
 	}
 
 	errChan := make(chan error)
@@ -53,9 +53,9 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 		return nil
 	}
 
-	for _, controlLoop := range o.controlLoops {
-		go o.worker(controlLoop)
-		go controlLoop.informer.Run(stopc)
+	for _, queueInformer := range o.queueInformers {
+		go o.worker(queueInformer)
+		go queueInformer.informer.Run(stopc)
 	}
 
 	<-stopc
@@ -64,12 +64,12 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
-func (o *Operator) worker(loop *ControlLoop) {
+func (o *Operator) worker(loop *QueueInformer) {
 	for o.processNextWorkItem(loop) {
 	}
 }
 
-func (o *Operator) processNextWorkItem(loop *ControlLoop) bool {
+func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 	queue := loop.queue
 	key, quit := queue.Get()
 	if quit {
@@ -86,7 +86,7 @@ func (o *Operator) processNextWorkItem(loop *ControlLoop) bool {
 	return true
 }
 
-func (o *Operator) sync(loop *ControlLoop, key string) error {
+func (o *Operator) sync(loop *QueueInformer, key string) error {
 	obj, exists, err := loop.informer.GetIndexer().GetByKey(key)
 	if err != nil {
 		return err
