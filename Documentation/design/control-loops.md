@@ -32,23 +32,25 @@ States: `Unresolved`, `Resolved`, `Approved`, `Complete`
 1. Watches for new `InstallDeclarations` in a namespace
     1. If `Unresolved`, attempt to resolve those resources and write them back to the `InstallDeclaration`
     1. If `Resolved`, wait for state to be `Approved`
+      1. If `approval` is set to `automatic`, state is transitioned to `Approved`
     1. If `Approved`, creates all resolved resources, reports back status
-    1. If `Running`, nothing
+    1. If `Complete`, nothing
 
 ### `Subscription` loop
 
 ```
 declare: 
  - Vault Apptype 
+channel: quay.io/apptypes/vault:stable
 approval: manual/automatic
+status:
+  current: v1.0.0
 ```
 
 1. Watches for `Subscription` objects
    1. If no `InstallDeclaration` exists for the `Subscription`, creates it
-
-### Catalog loop
-
-1. Watches catalog sources and creates `InstallDeclarations' if entries match a `Subscription`
+   1. Checks channel source for updates
+     1. If newer version is available in the channel and is greater that `current`, creates an `InstallDeclaration` for it.
 
 ## ALM
 
