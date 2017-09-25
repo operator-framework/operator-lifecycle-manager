@@ -71,6 +71,7 @@ type Subscription interface {
 	AppType() string
 	CurrentVersion() semver.Version
 }
+
 type InstallDeclaration struct{}
 
 type Catalog interface {
@@ -80,9 +81,9 @@ type Catalog interface {
 
 // TEMP - to be filled in with k8s and logic
 type Installer interface {
-	FindLatestVersion(sub Subscription) (InstallDeclaration, error)
 	CheckForInstallDeclaration(sub Subscription) (bool, error)
 	CreateInstallDeclaration(InstallDeclaration) error
+
 	ResolveDependencies(decl InstallDeclaration) error
 }
 
