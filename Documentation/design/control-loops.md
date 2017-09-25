@@ -57,7 +57,7 @@ name: quay
 1. Watches for `Subscription` objects
    1. If no `InstallDeclaration` exists for the `Subscription`, creates it
    1. Checks `CatalogSource` for updates
-     1. If newer version is available in the channel and is greater that `current`, creates an `InstallDeclaration` for it.
+     1. If newer version is available in the channel and is greater than `current`, creates an `InstallDeclaration` for it.
 
 ## ALM
 
