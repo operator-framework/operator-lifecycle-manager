@@ -7,3 +7,5 @@ metadata:
 spec:
   url: quay.io/catalog
   name: quay
+  sourceType: registry
+  secretName: quay-catalog-secret
