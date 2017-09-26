@@ -69,7 +69,7 @@ import (
 // TEMP - to be defined elsewhere
 type Subscription interface {
 	AppType() string
-	CurrentVersion() semver.Version
+	CurrentVersion() *semver.Version
 	Namespace() string
 }
 
@@ -105,7 +105,7 @@ func (ctl *SubscriptionController) installDeclarationForSubscription(sub Subscri
 	if err != nil {
 		return nil, err
 	}
-	return &decl, ctl.installer.CreateInstallDeclaration(sub.Namespace(), decl)
+	return decl, ctl.installer.CreateInstallDeclaration(sub.Namespace(), decl)
 }
 
 // HandleNewSubscription is the handler in the Subscription controller that checks if an
@@ -130,7 +130,7 @@ func (ctl *SubscriptionController) CheckCatalogForUpdate(sub Subscription) error
 		return err
 	}
 	currVer := sub.CurrentVersion()
-	if !currVer.LessThan(ver) {
+	if !currVer.LessThan(*ver) {
 		return nil
 	}
 	_, err = ctl.installDeclarationForSubscription(sub)
