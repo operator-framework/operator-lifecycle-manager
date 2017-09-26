@@ -30,7 +30,7 @@ func newMockSub(apptype string, ver string) *mockSubscription {
 // memCatalog is a rough mock catalog that holds apps and declarations in a map
 type memCatalog struct {
 	versions     map[string]semver.Versions
-	declarations map[string]map[semver.Version]InstallDeclaration
+	declarations map[string]map[string]InstallDeclaration
 }
 
 func latest(verlist semver.Versions) (semver.Version, ok) {
@@ -48,6 +48,18 @@ func (cat *memCatalog) FetchLatestVersion(apptype string) (*semver.Version, erro
 	if !ok {
 		return nil, fmt.Errorf("unknown apptype: %s", apptype)
 	}
+}
+
+func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype string, ver *semver.Version) (*InstallDeclaration, error) {
+	versions, ok := cat.versions[apptype]
+	if !ok {
+		return nil, fmt.Errorf("unknown apptype: %s", apptype)
+	}
+	decl, ok := versions[ver.String()]
+	if !ok {
+		return nil, fmt.Errorf("unknown version %s for app: %s", ver.String(), apptype)
+	}
+	return decl, nil
 }
 
 func TestCatalog(t *testing.T) {
