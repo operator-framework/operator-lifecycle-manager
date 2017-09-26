@@ -3,10 +3,10 @@
 ## Prereqs
 
  - Kubernetes 1.8 Cluster
+   - 1.7 will work, but CRs will not be validated against the schema in the corresponding CRD
  - Kubectl configured to talk to it
 
 ## Install ALM Types
-
 
 ### Install AppType
 
@@ -19,6 +19,18 @@ kubectl create -f design/resources/apptype.crd.yaml
 ```sh
 kubectl create -f design/resources/operatorversion.crd.yaml
 kubectl create -f design/resources/almoperator.operatorversion.yaml
+```
+
+### Install ALM Operator
+
+* Create a pull secret `coreos-pull-secret` that can read `quay.io/coreos/alm`
+* Create the service account
+```sh
+kubectl create -f rbac.yaml
+```
+* Create the deployment
+```sh
+kubectl create -f deployment.yaml
 ```
 
 ## Using ALM Types
