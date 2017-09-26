@@ -10,6 +10,7 @@ spec:
   install:
     strategy: deployment
     spec:
+      serviceAccountName: alm-operator-serviceaccount
       deployments:
         - replicas: 1
           template:

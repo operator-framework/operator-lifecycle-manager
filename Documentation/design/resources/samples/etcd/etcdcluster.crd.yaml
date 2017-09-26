@@ -30,7 +30,7 @@ metadata:
       }}'
 spec:
   group: etcd.database.coreos.com
-  version: v1alpha1
+  version: v1beta2
   scope: Namespaced
   validation:
     openAPIv3:
