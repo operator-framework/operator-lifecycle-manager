@@ -75,16 +75,15 @@ type Subscription interface {
 type InstallDeclaration struct{}
 
 type Catalog interface {
-	FetchLatestVersion(apptype string) (semver.Version, error) // TODO location? appid?
-	FetchInstallDeclarationForAppVersion(apptype string, ver semver.Version) (InstallDeclaration, error)
+	FetchLatestVersion(apptype string) (*semver.Version, error) // TODO location? appid?
+	FetchInstallDeclarationForAppVersion(apptype string, ver *semver.Version) (InstallDeclaration, error)
+	ResolveDependencies(decl InstallDeclaration) error
 }
 
 // TEMP - to be filled in with k8s and logic
 type Installer interface {
 	CheckForInstallDeclaration(sub Subscription) (bool, error)
 	CreateInstallDeclaration(InstallDeclaration) error
-
-	ResolveDependencies(decl InstallDeclaration) error
 }
 
 type SubscriptionController struct {
