@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
 	"github.com/coreos-inc/alm/client"
@@ -17,6 +18,7 @@ import (
 
 type ALMOperator struct {
 	*queueinformer.Operator
+	RestClient *rest.RESTClient
 }
 
 func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
@@ -43,6 +45,7 @@ func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
 	}
 	op := &ALMOperator{
 		queueOperator,
+		opVerClient,
 	}
 
 	opVerQueueInformer := queueinformer.New("operatorversions", operatorVersionInformer, op.syncOperatorVersion, nil)
@@ -61,6 +64,9 @@ func (a *ALMOperator) syncOperatorVersion(obj interface{}) error {
 	log.Infof("syncing OperatorVersion: %s", operatorVersion.SelfLink)
 
 	resolver := install.NewStrategyResolver(a.OpClient, operatorVersion.ObjectMeta)
+	if len(operatorVersion.Spec.Requirements) != 0 && !requirementsMet(operatorVersion.Spec.Requirements, a.RestClient) {
+		return fmt.Errorf("requirements were not met: %v", operatorVersion.Spec.Requirements)
+	}
 	err := resolver.ApplyStrategy(&operatorVersion.Spec.InstallStrategy)
 	if err != nil {
 		return err
@@ -68,4 +74,24 @@ func (a *ALMOperator) syncOperatorVersion(obj interface{}) error {
 
 	log.Infof("%s install strategy successful for %s", operatorVersion.Spec.InstallStrategy.StrategyName, operatorVersion.SelfLink)
 	return nil
+}
+
+func requirementsMet(requirements []v1alpha1.Requirements, kubeClient *rest.RESTClient) bool {
+	for _, element := range requirements {
+		if element.Optional {
+			continue
+		}
+		result := kubeClient.Get().Namespace(element.Namespace).Name(element.Name).Resource(element.Kind).Do()
+		if result.Error() != nil {
+			return false
+		}
+		runtimeObj, err := result.Get()
+		if err != nil {
+			return false
+		}
+		if runtimeObj.GetObjectKind().GroupVersionKind().Version != element.ApiVersion {
+			return false
+		}
+	}
+	return true
 }
