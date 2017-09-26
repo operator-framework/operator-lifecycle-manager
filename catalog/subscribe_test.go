@@ -62,6 +62,11 @@ func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype string, ver 
 	return decl, nil
 }
 
+func (cat *memCatalog) ResolveDependencies(decl *InstallDeclaration) error {
+	// you don't get no dependencies!
+	return nil
+}
+
 func TestCatalog(t *testing.T) {
 	return
 }
