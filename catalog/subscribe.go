@@ -70,11 +70,15 @@ import (
 type Subscription interface {
 	AppType() string
 	CurrentVersion() semver.Version
+	Namespace() string
 }
 
 // TEMP - to be defined elsewhere
 type InstallDeclaration struct{}
 
+// Catalog represents a remote, or local, listing available versions of applications as well as
+// methods to fetch and resolve an application version manifest into an InstallDeclaration and into
+// a list of its dependencies
 type Catalog interface {
 	FetchLatestVersion(apptype string) (*semver.Version, error) // TODO location? appid?
 	FetchInstallDeclarationForAppVersion(apptype string, ver *semver.Version) (InstallDeclaration, error)
@@ -83,26 +87,31 @@ type Catalog interface {
 
 // TEMP - to be filled in with k8s and logic
 type Installer interface {
-	CheckForInstallDeclaration(sub Subscription) (bool, error)
-	CreateInstallDeclaration(InstallDeclaration) error
+	CheckForInstallDeclaration(namespace string, sub Subscription) (bool, error)
+	CreateInstallDeclaration(namespace string, delc InstallDeclaration) error
 }
 
+// SubscriptionController to use for handling Subscription resource events
 type SubscriptionController struct {
 	catalog   Catalog
 	client    client.Interface
 	installer Installer
 }
 
+// installDeclarationForSubscription is a helper method that fetches the install declaration for a
+// given Subscription from the catalog and installs it into the proper namespace
 func (ctl *SubscriptionController) installDeclarationForSubscription(sub Subscription) (*InstallDeclaration, error) {
 	decl, err := ctl.catalog.FetchInstallDeclarationForAppVersion(sub.AppType(), sub.CurrentVersion())
 	if err != nil {
 		return nil, err
 	}
-	return &decl, ctl.installer.CreateInstallDeclaration(decl)
+	return &decl, ctl.installer.CreateInstallDeclaration(sub.Namespace(), decl)
 }
 
+// HandleNewSubscription is the handler in the Subscription controller that checks if an
+// InstallDeclaration object exists in the namespace for a given Subscription and creates one if not
 func (ctl *SubscriptionController) HandleNewSubscription(sub Subscription) error {
-	ok, err := ctl.installer.CheckForInstallDeclaration(sub)
+	ok, err := ctl.installer.CheckForInstallDeclaration(sub.Namespace(), sub)
 	if err != nil {
 		return err
 	}
@@ -113,6 +122,8 @@ func (ctl *SubscriptionController) HandleNewSubscription(sub Subscription) error
 	return err
 }
 
+// CheckCatalogForUpdate polls catalog for most recent version of an app and creates a new
+// InstallDeclaration is a more recent version exists
 func (ctl *SubscriptionController) CheckCatalogForUpdate(sub Subscription) error {
 	ver, err := ctl.catalog.FetchLatestVersion(sub.AppType())
 	if err != nil {

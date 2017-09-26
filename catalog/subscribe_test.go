@@ -7,9 +7,11 @@ import (
 	"github.com/coreos/go-semver/semver"
 )
 
+// TEMP - unnecessary once Subscription type implemented directly
 type mockSubscription struct {
 	appType        string
 	currentVersion semver.Version
+	namespace      string
 }
 
 func (sub *mockSubscription) AppType() string {
@@ -18,10 +20,14 @@ func (sub *mockSubscription) AppType() string {
 func (sub *mockSubscription) CurrentVersion() semver.Version {
 	return sub.currentVersion
 }
+func (sub *mockSubscription) Namespace() semver.Version {
+	return sub.namespace
+}
 func newMockSub(apptype string, ver string) *mockSubscription {
 	return &mockSubscription{apptype, semver.New(ver)}
 }
 
+// memCatalog is a rough mock catalog that holds apps and declarations in a map
 type memCatalog struct {
 	versions     map[string]semver.Versions
 	declarations map[string]map[semver.Version]InstallDeclaration
