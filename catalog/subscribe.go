@@ -72,6 +72,7 @@ type Subscription interface {
 	CurrentVersion() semver.Version
 }
 
+// TEMP - to be defined elsewhere
 type InstallDeclaration struct{}
 
 type Catalog interface {
