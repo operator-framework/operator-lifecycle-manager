@@ -4,33 +4,15 @@ import (
 	"fmt"
 	"testing"
 
+	installdeclarationv1alpha1 "github.com/coreos-inc/alm/apis/installdeclaration/v1alpha1"
+
 	"github.com/coreos/go-semver/semver"
 )
-
-// TEMP - unnecessary once Subscription type implemented directly
-type mockSubscription struct {
-	appType        string
-	currentVersion *semver.Version
-	namespace      string
-}
-
-func (sub *mockSubscription) AppType() string {
-	return sub.appType
-}
-func (sub *mockSubscription) CurrentVersion() *semver.Version {
-	return sub.currentVersion
-}
-func (sub *mockSubscription) Namespace() string {
-	return sub.namespace
-}
-func newMockSub(apptype, ver, ns string) *mockSubscription {
-	return &mockSubscription{apptype, semver.New(ver), ns}
-}
 
 // memCatalog is a rough mock catalog that holds apps and declarations in a map
 type memCatalog struct {
 	versions     map[string]semver.Versions
-	declarations map[string]map[string]InstallDeclaration
+	declarations map[string]map[string]installdeclarationv1alpha1.InstallDeclaration
 }
 
 func latest(verlist semver.Versions) (*semver.Version, bool) {
@@ -53,19 +35,19 @@ func (cat *memCatalog) FetchLatestVersion(apptype string) (*semver.Version, erro
 	return ver, nil
 }
 
-func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype string, ver *semver.Version) (*InstallDeclaration, error) {
+func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype, version string) (*installdeclarationv1alpha1.InstallDeclaration, error) {
 	appversions, ok := cat.declarations[apptype]
 	if !ok {
 		return nil, fmt.Errorf("unknown apptype: %s", apptype)
 	}
-	decl, ok := appversions[ver.String()]
+	decl, ok := appversions[version]
 	if !ok {
-		return nil, fmt.Errorf("unknown version %s for app: %s", ver.String(), apptype)
+		return nil, fmt.Errorf("unknown version %s for app: %s", version, apptype)
 	}
 	return &decl, nil
 }
 
-func (cat *memCatalog) ResolveDependencies(decl *InstallDeclaration) error {
+func (cat *memCatalog) ResolveDependencies(decl *installdeclarationv1alpha1.InstallDeclaration) error {
 	// you don't get no dependencies!
 	return nil
 }
