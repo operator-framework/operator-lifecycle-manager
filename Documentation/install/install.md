@@ -381,75 +381,7 @@ spec:
     kind: OperatorVersion-v1
     listKind: OperatorVersionList-v1
 EOF
-kubectl create -f - <<EOF
-apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion-v1
-metadata:
-  name: alm-operator.0.0.1
-  namespace: alm
-spec:
-  version: 0.0.1
-  maturity: pre-alpha
-  labels:
-    alm-owner-alm: almoperator.app.coreos.com.0.0.1
-  selector:
-    matchLabels:
-      alm-owner-alm: almoperator.app.coreos.com.0.0.1
-    matchExpressions:
-    - {key: alm-status, operator: In, values: [running, pending, stopped]}
-  requirements:
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: apptypes.app.coreos.com
-    namespace: my-namespace
-    sha256: a916282c05b74d39076e223ebde312f6de2346f1fbb87c75bb315cad9cc6eab7
-  - kind: ConfigMap
-    apiVersion: v1
-    name: cluster-features
-    namespace: kube-system
-    matchExpressions:
-      - {key: features.apiextension, operator: In, values: [true]}
-  - kind: ServiceAccount
-    apiVersion: v1
-    name: alm-service
-    namespace: kube-system
-    rules:
-    # This is a list of permissions that are required for the operator compenent (using the above serviceAccount)
-    # to do its job. A user with appropriate permissions will need to create it (automated in tectonic UI)
-    - apiGroups: [""]
-      resources: ["pods"]
-      verbs: ["get", "list", "watch"]
-    - apiGroups: ["batch", "extensions"]
-      resources: ["jobs"]
-      verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-    - apiGroups: [""]
-      resources: ["configmaps"]
-      resourceNames: ["my-config"]
-      verbs: ["get"]
-  - kind: ServiceAccount
-    apiVersion: v1
-    name: alm-cluster-aware-service
-    namespace: kube-system
-    optional: true
-    rules:
-    - apiGroups: [""]
-      resources: ["configmaps"]
-      resourceNames: ["cluster-features"]
-      verbs: ["get"]
-  install:
-    strategy: deployment
-    spec:
-      deployments:
-        - replicas: 1
-          template:
-            metadata:
-              labels:
-                name: alm-operator
-            spec:
-              containers:
-              - name: alm-operator
-                image: quay.io/coreos/alm-operator:v0.0.1
-EOF
+
 ```
 
 ### Install ALM Operator
