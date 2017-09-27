@@ -1,5 +1,5 @@
 #! validate-crd: samples/etcd/resolved/etcdcluster.crd.yaml
-apiVersion: etcd.database.coreos.com/v1alpha1
+apiVersion: database.coreos.com/v1alpha1
 kind: EtcdCluster
 metadata:
   namespace: staging-environment
