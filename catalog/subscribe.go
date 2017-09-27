@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/rest"
@@ -57,7 +58,6 @@ type SubscriptionOperator struct {
 	catalog Catalog
 	*queueinformer.Operator
 	restClient *rest.RESTClient
-	installer  Installer
 }
 
 func NewSubscriptionOperator(kubeconfig string) (*SubscriptionOperator, error) {
@@ -93,6 +93,59 @@ func NewSubscriptionOperator(kubeconfig string) (*SubscriptionOperator, error) {
 	op.RegisterQueueInformer(subscriptionQueueInformer)
 
 	return op, nil
+}
+
+func (ctl *SubscriptionOperator) createInstallDeclaration(namespace string, decl *installdeclarationv1alpha1.InstallDeclaration) error {
+	crd := &apiextensionsv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: installdeclarationv1alpha1.InstallDeclarationCRDName,
+		},
+		Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
+			Group:   installdeclarationv1alpha1.SchemeGroupVersion.Group,
+			Version: installdeclarationv1alpha1.SchemeGroupVersion.Version,
+			Scope:   apiextensionsv1beta1.NamespaceScoped,
+			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
+				Plural:     installdeclarationv1alpha1.InstallDeclarationPlural,
+				Kind:       installdeclarationv1alpha1.InstallDeclarationKind,
+				ShortNames: installdeclarationv1alpha1.InstallDeclarationNames,
+			},
+		},
+	}
+	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	if err != nil {
+		return err
+	}
+
+	// wait for CR creation
+	return wait.Poll(500*time.Millisecond, 60*time.Second, func() (bool, error) {
+		crd, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(installdeclarationv1alpha1.InstallDeclarationCRDName, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		for _, cond := range crd.Status.Conditions {
+			switch cond.Type {
+			case apiextensionsv1beta1.Established:
+				if cond.Status == apiextensionsv1beta1.ConditionTrue {
+					return true, err
+				}
+			case apiextensionsv1beta1.NamesAccepted:
+				if cond.Status == apiextensionsv1beta1.ConditionFalse {
+					// TODO: more formal logging
+					log.Printf("Name conflict: %v", cond.Reason)
+				}
+			}
+		}
+		return false, nil
+	})
+}
+
+func (ctl *SubscriptionOperator) syncSubscription(obj interface{}) error {
+	subscription, ok := obj.(*v1alpha1.Subscription)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Subscription failed")
+	}
+	return ctl.HandleNewSubscription(subscription)
 }
 
 func (ctl *SubscriptionOperator) syncSubscription(obj interface{}) error {
