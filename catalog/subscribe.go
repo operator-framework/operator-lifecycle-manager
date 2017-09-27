@@ -3,6 +3,9 @@ package catalog
 import (
 	installdeclarationv1alpha1 "github.com/coreos-inc/alm/apis/installdeclaration/v1alpha1"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/apis/subscription/v1alpha1"
+	"github.com/coreos-inc/alm/client"
+	"github.com/coreos-inc/alm/install"
+	"github.com/coreos-inc/alm/queueinformer"
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/coreos/go-semver/semver"
 )
@@ -45,10 +48,71 @@ type Installer interface {
 }
 
 // SubscriptionController to use for handling subscriptionv1alpha1.Subscription resource events
-type SubscriptionController struct {
-	catalog   Catalog
-	client    client.Interface
-	installer Installer
+type SubscriptionOperator struct {
+	catalog Catalog
+	*queueinformer.Operator
+	restClient *rest.RESTClient
+	installer  Installer
+}
+
+func NewSubscriptionOperator(kubeconfig string) (*SubscriptionOperator, error) {
+	subscriptionClient, err := client.NewSubscriptionClient(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	subscriptionWatcher := cache.NewListWatchFromClient(
+		subscriptionClient,
+		"subscription-v1s",
+		metav1.NamespaceAll,
+		fields.Everything(),
+	)
+	subscriptionInformer := cache.NewSharedIndexInformer(
+		subscriptionWatcher,
+		&v1alpha1.Subscription{},
+		15*time.Minute,
+		cache.Indexers{},
+	)
+
+	queueOperator, err := queueinformer.NewOperator(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	op := &SubscriptionOperator{
+		queueOperator,
+		subscriptionClient,
+	}
+
+	subscriptionQueueInformer := queueinformer.New("subscriptions", subscriptionInformer, op.syncSubscription, nil)
+	op.RegisterQueueInformer(subscriptionQueueInformer)
+
+	return op, nil
+}
+
+func (a *SubscriptionOperator) syncSubscription(obj interface{}) error {
+	subscription, ok := obj.(*v1alpha1.Subscription)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Subscription failed")
+	}
+
+	log.Infof("syncing Subscription: %s", subscription.SelfLink)
+
+	resolver := install.NewStrategyResolver(a.OpClient, subscription.ObjectMeta)
+	ok, err := requirementsMet(subscription.Spec.Requirements, a.restClient)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		log.Info("requirements were not met: %v", subscription.Spec.Requirements)
+		return ErrRequirementsNotMet
+	}
+	err = resolver.ApplyStrategy(&subscription.Spec.InstallStrategy)
+	if err != nil {
+		return err
+	}
+
+	log.Infof("%s install strategy successful for %s", subscription.Spec.InstallStrategy.StrategyName, subscription.SelfLink)
+	return nil
 }
 
 // installDeclarationForSubscription is a helper method that fetches the install declaration for a
