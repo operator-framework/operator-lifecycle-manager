@@ -23,7 +23,7 @@ func latest(verlist semver.Versions) (*semver.Version, bool) {
 	return verlist[verlist.Len()-1], true
 }
 
-func (cat *memCatalog) FetchLatestVersion(apptype string) (*semver.Version, error) {
+func (cat *memCatalog) FetchLatestVersion(apptype, channel string) (string, error) {
 	versions, ok := cat.versions[apptype]
 	if !ok {
 		return nil, fmt.Errorf("unknown apptype: %s", apptype)
@@ -32,7 +32,7 @@ func (cat *memCatalog) FetchLatestVersion(apptype string) (*semver.Version, erro
 	if !ok {
 		return nil, fmt.Errorf("cannot find valid version for apptype %s", apptype)
 	}
-	return ver, nil
+	return ver.String(), nil
 }
 
 func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype, version string) (*installdeclarationv1alpha1.InstallDeclaration, error) {

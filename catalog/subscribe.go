@@ -1,13 +1,18 @@
 package catalog
 
 import (
+	"time"
+
+	"github.com/coreos/go-semver/semver"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
+
 	installdeclarationv1alpha1 "github.com/coreos-inc/alm/apis/installdeclaration/v1alpha1"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/apis/subscription/v1alpha1"
 	"github.com/coreos-inc/alm/client"
-	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
-	"github.com/coreos-inc/operator-client/pkg/client"
-	"github.com/coreos/go-semver/semver"
 )
 
 // Service Catalog
@@ -37,7 +42,7 @@ import (
 // a list of its dependencies
 type Catalog interface {
 	FetchLatestVersion(apptype, channel string) (string, error) // TODO location? appid?
-	FetchInstallDeclarationForAppVersion(apptype, version string) (installdeclarationv1alpha1.InstallDeclaration, error)
+	FetchInstallDeclarationForAppVersion(apptype, version string) (*installdeclarationv1alpha1.InstallDeclaration, error)
 	ResolveDependencies(decl *installdeclarationv1alpha1.InstallDeclaration) error
 }
 
@@ -47,7 +52,7 @@ type Installer interface {
 	CreateInstallDeclaration(namespace string, delc *installdeclarationv1alpha1.InstallDeclaration) error
 }
 
-// SubscriptionController to use for handling subscriptionv1alpha1.Subscription resource events
+// SubscriptionOperator to use for handling subscriptionv1alpha1.Subscription resource events
 type SubscriptionOperator struct {
 	catalog Catalog
 	*queueinformer.Operator
@@ -68,7 +73,7 @@ func NewSubscriptionOperator(kubeconfig string) (*SubscriptionOperator, error) {
 	)
 	subscriptionInformer := cache.NewSharedIndexInformer(
 		subscriptionWatcher,
-		&v1alpha1.Subscription{},
+		&subscriptionv1alpha1.Subscription{},
 		15*time.Minute,
 		cache.Indexers{},
 	)
@@ -77,7 +82,9 @@ func NewSubscriptionOperator(kubeconfig string) (*SubscriptionOperator, error) {
 	if err != nil {
 		return nil, err
 	}
+	catalog := &memCatalog{}
 	op := &SubscriptionOperator{
+		catalog,
 		queueOperator,
 		subscriptionClient,
 	}
@@ -88,36 +95,18 @@ func NewSubscriptionOperator(kubeconfig string) (*SubscriptionOperator, error) {
 	return op, nil
 }
 
-func (a *SubscriptionOperator) syncSubscription(obj interface{}) error {
+func (ctl *SubscriptionOperator) syncSubscription(obj interface{}) error {
 	subscription, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Subscription failed")
 	}
-
-	log.Infof("syncing Subscription: %s", subscription.SelfLink)
-
-	resolver := install.NewStrategyResolver(a.OpClient, subscription.ObjectMeta)
-	ok, err := requirementsMet(subscription.Spec.Requirements, a.restClient)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		log.Info("requirements were not met: %v", subscription.Spec.Requirements)
-		return ErrRequirementsNotMet
-	}
-	err = resolver.ApplyStrategy(&subscription.Spec.InstallStrategy)
-	if err != nil {
-		return err
-	}
-
-	log.Infof("%s install strategy successful for %s", subscription.Spec.InstallStrategy.StrategyName, subscription.SelfLink)
-	return nil
+	return ctl.HandleNewSubscription(subscription)
 }
 
 // installDeclarationForSubscription is a helper method that fetches the install declaration for a
 // given Subscription from the catalog and installs it into the proper namespace
-func (ctl *SubscriptionController) installDeclarationForSubscription(sub subscriptionv1alpha1.Subscription) (*installdeclarationv1alpha1.InstallDeclaration, error) {
+func (ctl *SubscriptionOperator) installDeclarationForSubscription(sub subscriptionv1alpha1.Subscription) (*installdeclarationv1alpha1.InstallDeclaration, error) {
 	decl, err := ctl.catalog.FetchInstallDeclarationForAppVersion(sub.Spec.AppType, sub.Status.CurrentVersion)
 	if err != nil {
 		return nil, err
@@ -127,7 +116,7 @@ func (ctl *SubscriptionController) installDeclarationForSubscription(sub subscri
 
 // HandleSubscription is the handler in the subscriptionv1alpha1.Subscription controller that checks if an
 // InstallDeclaration object exists in the namespace for a given Subscription and creates one if not
-func (ctl *SubscriptionController) HandleNewSubscription(sub subscriptionv1alpha1.Subscription) error {
+func (ctl *SubscriptionOperator) HandleNewSubscription(sub *subscriptionv1alpha1.Subscription) error {
 	ok, err := ctl.installer.CheckForInstallDeclaration(sub.GetNamespace(), sub)
 	if err != nil {
 		return err
@@ -141,7 +130,7 @@ func (ctl *SubscriptionController) HandleNewSubscription(sub subscriptionv1alpha
 
 // CheckCatalogForUpdate polls catalog for most recent version of an app and creates a new
 // InstallDeclaration is a more recent version exists
-func (ctl *SubscriptionController) CheckCatalogForUpdate(sub subscriptionv1alpha1.Subscription) error {
+func (ctl *SubscriptionOperator) CheckCatalogForUpdate(sub *ubscriptionv1alpha1.Subscription) error {
 	versionStr, err := ctl.catalog.FetchLatestVersion(sub.Spec.AppType, sub.Spec.Channel)
 	if err != nil {
 		return err
