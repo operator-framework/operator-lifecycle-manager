@@ -2,7 +2,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: AppType-v1
 metadata:
-  namespace: default 
+  namespace: alm
   name: etcd
 spec:
   displayName: Etcd

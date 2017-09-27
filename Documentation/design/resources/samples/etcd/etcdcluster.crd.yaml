@@ -2,6 +2,7 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata: 
   name: etcdclusters.etcd.database.coreos.com
+  namespace:
   labels:
     alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
   annotations:
