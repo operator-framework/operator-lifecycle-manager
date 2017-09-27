@@ -1,0 +1,93 @@
+#! validate-crd: operatorversion.crd.yaml
+apiVersion: app.coreos.com/v1alpha1
+kind: OperatorVersion-v1
+metadata:
+  namespace: default 
+  name: prometheusoperator.0.13.0
+  labels:
+    alm-owner-prometheus: prometheus.apptypev1s.app.coreos.com.v1alpha1
+spec:
+  install:
+    strategy: deployment
+    spec:
+      deployments:
+      - replicas: 1
+        template:
+          metadata:
+            labels:
+              name: prometheus-operator
+          spec:
+            containers:
+            - name: prometheus-operator
+              image: quay.io/coreos/prometheus-operator:0.13.0
+  version: 0.13.0
+  maturity: beta
+  replaces: prometheusoperator.0.12.0
+  labels:
+    operated-by: prometheusoperator.0.12.0
+  selector:
+    matchLabels:
+      operated-by: prometheusoperator.0.12.0
+  requirements:
+  - kind: CustomResourceDefinition
+    apiVersion: v1beta1
+    name: prometheuses.monitoring.coreos.com
+  - kind: CustomResourceDefinition
+    apiVersion: v1beta1
+    name: servicemonitors.monitoring.coreos.com
+  - kind: CustomResourceDefinition
+    apiVersion: v1beta1
+    name: alertmanagers.monitoring.coreos.com
+  - kind: ServiceAccount
+    apiVersion: v1
+    name: prometheus-operator
+    namespace: default
+    rules:
+    - apiGroups:
+      - extensions
+      resources:
+      - thirdpartyresources
+      verbs:
+      - "*"
+    - apiGroups:
+      - apiextensions.k8s.io
+      resources:
+      - customresourcedefinitions
+      verbs:
+      - "*"
+    - apiGroups:
+      - monitoring.coreos.com
+      resources:
+      - alertmanagers
+      - prometheuses
+      - servicemonitors
+      verbs:
+      - "*"
+    - apiGroups:
+      - apps
+      resources:
+      - statefulsets
+      verbs: ["*"]
+    - apiGroups: [""]
+      resources:
+      - configmaps
+      - secrets
+      verbs: ["*"]
+    - apiGroups: [""]
+      resources:
+      - pods
+      verbs: ["list", "delete"]
+    - apiGroups: [""]
+      resources:
+      - services
+      - endpoints
+      verbs: ["get", "create", "update"]
+    - apiGroups: [""]
+      resources:
+      - nodes
+      verbs: ["list", "watch"]
+    - apiGroups: [""]
+      resources:
+      - namespaces
+      verbs: ["list"]
+

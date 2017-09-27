@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: CustomResourceDefinition
+metadata: 
+  name: prometheuses.monitoring.coreos.com/v1
+  labels:
+    alm-owner-prometheus: prometheus.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Prometheus
+    description: A running Prometheus instance
+spec: 
+  group: monitoring.coreos.com
+  version: v1
+  scope: Namespaced
+  names: 
+    plural: prometheuses
+    singular: prometheus
+    kind: Prometheus
+    listKind: PrometheusList

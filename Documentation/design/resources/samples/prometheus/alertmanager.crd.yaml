@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: CustomResourceDefinition
+metadata:
+  name: alertmanagers.monitoring.coreos.com/v1
+  labels:
+    alm-owner-prometheus: prometheus.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Alert Manager
+    description: Configures an Alert Manager for the namespace
+spec:
+  group: monitoring.coreos.com
+  version: v1
+  scope: Namespaced
+  names:
+    plural: alertmanagers
+    singular: alertmanager
+    kind: AlertManager
+    listKind: AlertManagerList

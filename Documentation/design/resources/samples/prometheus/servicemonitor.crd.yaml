@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: CustomResourceDefinition
+metadata:
+  name: servicemonitors.monitoring.coreos.com/v1
+  labels:
+    alm-owner-prometheus: prometheus.apptypev1s.app.coreos.com.v1alpha1
+  annotations:
+    displayName: Service Monitor
+    description: Configures prometheus to monitr a particular k8s service
+spec:
+  group: monitoring.coreos.com
+  version: v1
+  scope: Namespaced
+  names:
+    plural: servicemonitors
+    singular: servicemonitor
+    kind: ServiceMonitor
+    listKind: ServiceMonitorList
