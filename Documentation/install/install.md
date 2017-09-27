@@ -8,6 +8,17 @@
 
 ## Install ALM Types
 
+### Install ALM Namespace
+
+```sh
+kubectl create -f <<EOF
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: alm
+EOF
+```
+
 ### Install AppType
 
 ```sh
@@ -375,6 +386,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion-v1
 metadata:
   name: alm-operator.0.0.1
+  namespace: alm
 spec:
   version: 0.0.1
   maturity: pre-alpha
@@ -450,11 +462,13 @@ kind: ServiceAccount
 apiVersion: v1
 metadata:
   name: alm-operator-serviceaccount
+  namespace: alm
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
   name: alm-operator
+  namespace: alm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -472,7 +486,7 @@ apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
   name: alm-operator
-  namespace: default
+  namespace: alm
   labels:
     app: alm-operator
 spec:
