@@ -25,8 +25,14 @@ type Subscription struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   *SubscriptionSpec `json:"spec"`
-	Status metav1.Status     `json:"status"`
+	Spec   *SubscriptionSpec  `json:"spec"`
+	Status SubscriptionStatus `json:"status"`
+}
+
+type SubscriptionStatus struct {
+	metav1.Status `json:",inline"`
+
+	CurrentVersion string `json:"currentVersion"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
