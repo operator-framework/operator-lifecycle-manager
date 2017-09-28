@@ -467,7 +467,7 @@ etcd      AppType-v1.v1alpha1.app.coreos.com
 ### Install an OperatorVersion
 
 ```sh
-kubectl create -f <<EOF
+kubectl create -f - <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -490,7 +490,7 @@ kubectl apply -f ../design/resources/samples/etcd
 ```
 
 ```sh
-kubectl create -f <<EOF
+kubectl create -f - <<EOF
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -499,7 +499,7 @@ EOF
 kubectl apply -f ../design/resources/samples/vault
 ```
 
-Get all EtcClusters associated with the Etcd AppType
+Get all EtcdClusters associated with the Etcd AppType
 
 ```sh
 $ kubectl get --namespace=alm-etcd-example  etcdclusters -l $(kubectl get apptype-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
@@ -512,19 +512,19 @@ $ kubectl get --namespace=alm-etcd-example  customresourcedefinitions -l $(kubec
 
 For each CRD associated with an AppType, find all instances:
 ```sh
-sel=$(kubectl get --namespace=alm apptype-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
-crds=$(kubectl get customresourcedefinitions -l $sel -o json | jq -r '.items[].spec.names.plural')
+sel=$(kubectl get --namespace=alm-etcd-example apptype-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
+crds=$(kubectl get --namespace=alm-etcd-example customresourcedefinitions -l $sel -o json | jq -r '.items[].spec.names.plural')
 
 echo $crds | while read crd; do
     echo "$crd"
-    kubectl get $crd -l $sel
+    kubectl get --namespace=alm-etcd-example $crd -l $sel
 done
 ```
 
 Find the outputs for a CRD:
 
 ```sh
-$ kubectl get customresourcedefinitions etcdclusters.etcd.database.coreos.com -o jsonpath='{.metadata.annotations.outputs}' | jq
+$ kubectl get --namespace=alm-etcd-example customresourcedefinitions etcdclusters.database.coreos.com -o jsonpath='{.metadata.annotations.outputs}' | jq
 ```
 ```json
 {

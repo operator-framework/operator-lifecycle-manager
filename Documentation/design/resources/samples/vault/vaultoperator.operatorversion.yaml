@@ -1,7 +1,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion-v1
 metadata:
-  namespace: default 
+  namespace: alm-vault-example
   name: vault-operator.0.0.2
   labels:
     alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 

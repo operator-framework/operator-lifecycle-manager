@@ -2,7 +2,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion-v1
 metadata:
-  namespace: default
+  namespace: alm-etcd-example
   name: etcdoperator.v0.5.1
   labels:
     alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 

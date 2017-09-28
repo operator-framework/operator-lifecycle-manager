@@ -1,8 +1,8 @@
 #! validate-crd: samples/vault/vaultservice.crd.yaml
-apiVersion: security.coreos.com/v1alpha1
+apiVersion: vault.security.coreos.com/v1alpha1
 kind: VaultService
 metadata:
-  namespace: default
+  namespace: alm-vault-example
   name: my-vault-service
   labels:
     operated-by: vaultoperator.0.0.2

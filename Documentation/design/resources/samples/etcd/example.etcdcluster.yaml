@@ -2,7 +2,7 @@
 apiVersion: database.coreos.com/v1beta2
 kind: EtcdCluster
 metadata:
-  namespace: default
+  namespace: alm-etcd-example
   name: demo-etcd-cluster
   labels:
     operated-by: etcdoperator.v0.5.1
