@@ -13,6 +13,6 @@ import (
 
 type AppCache interface {
 	FindCloudServiceVersionByName(name string) (v1alpha1.OperatorVersion, error)
-	FindCRDDefinitionForCRD(name string) (apiextensions.CustomResourceDefinition, error)
+	FindCRDByName(name string) (apiextensions.CustomResourceDefinition, error)
 	FindCloudServiceVersionForCRD(crdname string) (v1alpha1.OperatorVersion, error)
 }
