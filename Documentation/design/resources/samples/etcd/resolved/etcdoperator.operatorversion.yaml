@@ -1,5 +1,5 @@
 #! validate-crd: operatorversion.crd.yaml
-apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: OperatorVersion
 metadata:
   namespace: staging-environment
@@ -26,6 +26,15 @@ spec:
               containers:
               - name: etcd-operator
                 image: quay.io/coreos/etcd-operator:v0.5.1
+                env:
+                - name: MY_POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MY_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
   version: 0.5.1
   replaces: etcdoperator.v0.5.0  
   maturity: beta
