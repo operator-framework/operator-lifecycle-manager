@@ -16,6 +16,6 @@ for group in ${api_groups[@]}; do
     codegen::generate-groups deepcopy \
         github.com/coreos-inc/alm/generated \
         github.com/coreos-inc/alm/apis \
-        apptype:v1alpha1 \
+        $group \
         --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
 done

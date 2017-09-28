@@ -25,11 +25,11 @@ func Resource(resource string) schema.GroupResource {
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypeWithName(
 		SchemeGroupVersion.WithKind("InstallPlan-v1"),
-		&OperatorVersion{},
+		&InstallPlan{},
 	)
 	scheme.AddKnownTypeWithName(
 		SchemeGroupVersion.WithKind("InstallPlanList-v1"),
-		&OperatorVersionList{},
+		&InstallPlanList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

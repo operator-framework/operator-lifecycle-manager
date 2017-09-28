@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	installdeclarationv1alpha1 "github.com/coreos-inc/alm/apis/installdeclaration/v1alpha1"
+	installplanv1alpha1 "github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 
 	"github.com/coreos/go-semver/semver"
 )
@@ -12,7 +12,7 @@ import (
 // memCatalog is a rough mock catalog that holds apps and declarations in a map
 type memCatalog struct {
 	versions     map[string]semver.Versions
-	declarations map[string]map[string]installdeclarationv1alpha1.InstallDeclaration
+	declarations map[string]map[string]installplanv1alpha1.InstallPlan
 }
 
 func latest(verlist semver.Versions) (*semver.Version, bool) {
@@ -35,7 +35,7 @@ func (cat *memCatalog) FetchLatestVersion(apptype string) (*semver.Version, erro
 	return ver, nil
 }
 
-func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype, version string) (*installdeclarationv1alpha1.InstallDeclaration, error) {
+func (cat *memCatalog) FetchInstallPlanForAppVersion(apptype, version string) (*installplanv1alpha1.InstallPlan, error) {
 	appversions, ok := cat.declarations[apptype]
 	if !ok {
 		return nil, fmt.Errorf("unknown apptype: %s", apptype)
@@ -47,7 +47,7 @@ func (cat *memCatalog) FetchInstallDeclarationForAppVersion(apptype, version str
 	return &decl, nil
 }
 
-func (cat *memCatalog) ResolveDependencies(decl *installdeclarationv1alpha1.InstallDeclaration) error {
+func (cat *memCatalog) ResolveDependencies(decl *installplanv1alpha1.InstallPlan) error {
 	// you don't get no dependencies!
 	return nil
 }
