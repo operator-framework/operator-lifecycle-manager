@@ -8,32 +8,14 @@ set -o pipefail
 
 source ./$(dirname "$0")/codegen.sh
 
-codegen::generate-groups deepcopy \
-  github.com/coreos-inc/alm/generated \
-  github.com/coreos-inc/alm/apis \
-  opver:v1alpha1 \
-  --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
+api_groups=("apptype:v1alpha1" "opver:v1alpha1" "installplan:v1alpha1"
+            "subscription:v1alpha1")
 
-codegen::generate-groups deepcopy \
-  github.com/coreos-inc/alm/generated \
-  github.com/coreos-inc/alm/apis \
-  apptype:v1alpha1 \
-  --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
-
-codegen::generate-groups deepcopy \
-  github.com/coreos-inc/alm/generated \
-  github.com/coreos-inc/alm/apis \
-  subscription:v1alpha1 \
-  --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
-
-codegen::generate-groups deepcopy \
-  github.com/coreos-inc/alm/generated \
-  github.com/coreos-inc/alm/apis \
-  catalogsource:v1alpha1 \
-  --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
-
-codegen::generate-groups deepcopy \
-  github.com/coreos-inc/alm/generated \
-  github.com/coreos-inc/alm/apis \
-  installdeclaration:v1alpha1 \
-  --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
+for group in ${api_groups[@]}; do
+    echo -n "[$group] "
+    codegen::generate-groups deepcopy \
+        github.com/coreos-inc/alm/generated \
+        github.com/coreos-inc/alm/apis \
+        apptype:v1alpha1 \
+        --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
+done
