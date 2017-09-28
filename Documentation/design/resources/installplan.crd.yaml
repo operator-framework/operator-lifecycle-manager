@@ -1,0 +1,28 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: installplan-v1s.app.coreos.com
+  annotations:
+    displayName: Install Plan
+    description: Represents a plan to install and resolve dependencies for Cloud Services
+spec:
+  group: app.coreos.com
+  version: v1alpha1
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      type: object
+      description: Document which defines the desire and current state of an installation of a Cloud Service
+      required:
+      - desiredCloudServices
+      properties:
+        desiredCloudServices:
+          type: array
+          description: A list of the names of the Cloud Services
+          items:
+            type: string
+  names:
+    plural: installplan-v1s
+    singular: installplan-v1
+    kind: InstallPlan-v1
+    listKind: InstallPlanList-v1
