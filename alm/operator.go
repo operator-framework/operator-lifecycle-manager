@@ -10,7 +10,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/rest"
 
-	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
@@ -25,19 +25,19 @@ type ALMOperator struct {
 }
 
 func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
-	opVerClient, err := client.NewOperatorVersionClient(kubeconfig)
+	clusterServiceVersionClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
-	operatorVersionWatcher := cache.NewListWatchFromClient(
-		opVerClient,
-		"operatorversion-v1s",
+	clusterServiceVersionWatcher := cache.NewListWatchFromClient(
+		clusterServiceVersionClient,
+		"clusterserviceversion-v1s",
 		metav1.NamespaceAll,
 		fields.Everything(),
 	)
-	operatorVersionInformer := cache.NewSharedIndexInformer(
-		operatorVersionWatcher,
-		&v1alpha1.OperatorVersion{},
+	clusterServiceVersionInformer := cache.NewSharedIndexInformer(
+		clusterServiceVersionWatcher,
+		&v1alpha1.ClusterServiceVersion{},
 		15*time.Minute,
 		cache.Indexers{},
 	)
@@ -48,39 +48,39 @@ func NewALMOperator(kubeconfig string) (*ALMOperator, error) {
 	}
 	op := &ALMOperator{
 		queueOperator,
-		opVerClient,
+		clusterServiceVersionClient,
 	}
 
-	opVerQueueInformer := queueinformer.New("operatorversions", operatorVersionInformer, op.syncOperatorVersion, nil)
-	op.RegisterQueueInformer(opVerQueueInformer)
+	clusterServiceVersionQueueInformer := queueinformer.New("clusterserviceversions", clusterServiceVersionInformer, op.syncClusterServiceVersion, nil)
+	op.RegisterQueueInformer(clusterServiceVersionQueueInformer)
 
 	return op, nil
 }
 
-func (a *ALMOperator) syncOperatorVersion(obj interface{}) error {
-	operatorVersion, ok := obj.(*v1alpha1.OperatorVersion)
+func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
+	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
-		return fmt.Errorf("casting OperatorVersion failed")
+		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
 
-	log.Infof("syncing OperatorVersion: %s", operatorVersion.SelfLink)
+	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	resolver := install.NewStrategyResolver(a.OpClient, operatorVersion.ObjectMeta)
-	ok, err := requirementsMet(operatorVersion.Spec.Requirements, a.restClient)
+	resolver := install.NewStrategyResolver(a.OpClient, clusterServiceVersion.ObjectMeta)
+	ok, err := requirementsMet(clusterServiceVersion.Spec.Requirements, a.restClient)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		log.Info("requirements were not met: %v", operatorVersion.Spec.Requirements)
+		log.Info("requirements were not met: %v", clusterServiceVersion.Spec.Requirements)
 		return ErrRequirementsNotMet
 	}
-	err = resolver.ApplyStrategy(&operatorVersion.Spec.InstallStrategy)
+	err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
 	if err != nil {
 		return err
 	}
 
-	log.Infof("%s install strategy successful for %s", operatorVersion.Spec.InstallStrategy.StrategyName, operatorVersion.SelfLink)
+	log.Infof("%s install strategy successful for %s", clusterServiceVersion.Spec.InstallStrategy.StrategyName, clusterServiceVersion.SelfLink)
 	return nil
 }
 

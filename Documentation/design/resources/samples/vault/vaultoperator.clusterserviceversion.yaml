@@ -1,6 +1,6 @@
-#! validate-crd: operatorversion.crd.yaml
+#! validate-crd: clusterserviceversion.crd.yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion-v1
+kind: ClusterServiceVersion-v1
 metadata:
   namespace: alm-vault-example
   name: vault-operator.0.0.2

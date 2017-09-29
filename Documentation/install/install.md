@@ -161,14 +161,14 @@ spec:
 EOF
 ```
 
-### Install OperatorVersion
+### Install ClusterServiceVersion
 
 ```sh
 kubectl create -f - <<EOF
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: operatorversion-v1s.app.coreos.com
+  name: clusterserviceversion-v1s.app.coreos.com
   annotations:
     displayName: Operator Version
     description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
@@ -194,7 +194,7 @@ spec:
 
         replaces:
           type: string
-          description: Name of the OperatorVersion custom resource that this version replaces
+          description: Name of the ClusterServiceVersion custom resource that this version replaces
 
         maturity:
           type: string
@@ -246,11 +246,11 @@ spec:
 
         requirements:
           type: array
-          description: What requirements that we have before this OperatorVersion can run, may include CRD objects and k8s features
+          description: What requirements that we have before this ClusterServiceVersion can run, may include CRD objects and k8s features
           items:
             anyOf:
             - type: object
-              description: Single requirement that must be satisfied for the OperatorVersion to be installed and to work correctly
+              description: Single requirement that must be satisfied for the ClusterServiceVersion to be installed and to work correctly
               required:
               - kind
               - apiVersion
@@ -376,10 +376,10 @@ spec:
                       description: A deployment to create in the cluster
 
   names:
-    plural: operatorversion-v1s
-    singular: operatorversion-v1
-    kind: OperatorVersion-v1
-    listKind: OperatorVersionList-v1
+    plural: clusterserviceversion-v1s
+    singular: clusterserviceversion-v1
+    kind: ClusterServiceVersion-v1
+    listKind: ClusterServiceVersionList-v1
 EOF
 
 ```
@@ -464,7 +464,7 @@ NAME      KIND
 etcd      AppType-v1.v1alpha1.app.coreos.com
 ```
 
-### Install an OperatorVersion
+### Install an ClusterServiceVersion
 
 ```sh
 kubectl create -f - <<EOF
@@ -474,13 +474,13 @@ metadata:
   name: alm-etcd-example
 EOF
 
-kubectl create -f ../design/resources/samples/etcd/etcdoperator.operatorversion.yaml
+kubectl create -f ../design/resources/samples/etcd/etcdoperator.clusterserviceversion.yaml
 
 ```
 ```
-kubectl --namespace=alm-etcd-example get operatorversion-v1s
+kubectl --namespace=alm-etcd-example get clusterserviceversion-v1s
 NAME                   KIND
-etcd-operator.v0.5.1   OperatorVersion-v1.v1alpha1.app.coreos.com
+etcd-operator.v0.5.1   ClusterServiceVersion-v1.v1alpha1.app.coreos.com
 ```
 
 ### Install samples and query for related resources

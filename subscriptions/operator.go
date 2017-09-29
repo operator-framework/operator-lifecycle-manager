@@ -26,11 +26,11 @@ type SubscriptionController struct {
 // HandleSubscription is the handler in the subscriptionv1alpha1.Subscription controller that checks if an
 // Installplan object exists in the namespace for a given Subscription and creates one if not
 func (ctl *SubscriptionController) HandleNewSubscription(sub subscriptionv1alpha1.Subscription) error {
-	return errors.new("Method not implemented")
+	return errors.New("Method not implemented")
 }
 
 // CheckCatalogForUpdate polls catalog for most recent version of an app and creates a new
 // Installplan is a more recent version exists
 func (ctl *SubscriptionController) CheckCatalogForUpdate(sub subscriptionv1alpha1.Subscription) error {
-	return errors.new("Method not implemented")
+	return errors.New("Method not implemented")
 }

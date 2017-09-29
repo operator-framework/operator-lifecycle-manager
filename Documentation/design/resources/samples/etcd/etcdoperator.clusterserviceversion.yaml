@@ -1,27 +1,23 @@
-#! validate-crd: operatorversion.crd.yaml
+#! validate-crd: clusterserviceversion.crd.yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion
+kind: ClusterServiceVersion-v1
 metadata:
-  namespace: staging-environment
-  name: etcd-operator
-  uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
+  namespace: alm-etcd-example
+  name: etcdoperator.v0.5.1
   labels:
     alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
-  ownerReferences:
-  - apiVersion: app.coreos.com/v1alpha1
-    kind: AppType-v1
-    name: etcd
-    uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
 spec:
   install:
     strategy: deployment
     spec:
+      serviceAccountName: alm-operator-serviceaccount
       deployments:
         - replicas: 1
           template:
             metadata:
+              name: etcd-operator-alm-owned
               labels:
-                name: etcd-operator
+                name: etcd-operator-alm-owned
             spec:
               containers:
               - name: etcd-operator
@@ -36,13 +32,13 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
   version: 0.5.1
-  replaces: etcdoperator.v0.5.0  
+  replaces: etcdoperator.v0.5.0
   maturity: beta
+  labels:
+    operated-by: etcdoperator.v0.5.1
   selector:
     matchLabels:
       operated-by: etcdoperator.v0.5.1
-  labels:
-    operated-by: etcdoperator.v0.5.1
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1
@@ -50,7 +46,6 @@ spec:
   - kind: ServiceAccount
     apiVersion: v1
     name: etcd-operator
-    namespace: kube-system
     rules:
     - apiGroups:
       - etcd.database.coreos.com
@@ -70,7 +65,7 @@ spec:
       - storageclasses
       verbs:
       - "*"
-    - apiGroups:
+    - apiGroups: 
       - ""
       resources:
       - pods
@@ -86,11 +81,3 @@ spec:
       - deployments
       verbs:
       - "*"
-status:
-  conditions:
-    - type: Available
-      status: 'True'
-      lastUpdateTime: '2017-08-30T13:51:53Z'
-      lastTransitionTime: '2017-08-30T13:51:53Z'
-      reason: OperatorRunningAndHealthy
-      message: Operator is running and healthy
