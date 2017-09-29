@@ -1,4 +1,4 @@
-package appcache
+package catalog
 
 import (
 	"fmt"

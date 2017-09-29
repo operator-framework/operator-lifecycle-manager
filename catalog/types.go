@@ -1,13 +1,18 @@
 package catalog
 
 import (
-	appcache "github.com/coreos-inc/alm/appcache"
-	"github.com/coreos-inc/operator-client/pkg/client"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
-// InstallPlanController watches InstallPlanResolver resources and resolves it into a set of
-// a set of installable resources
-type InstallPlanController struct {
-	client   client.Interface
-	AppCache appcache.AppCache
+// Catalog Source
+//    - Map name to AppTypeClusterServiceVersion
+//    - Map CRD name to CRD definition
+//    - Map CRD name to AppTypeClusterServiceVersion that manages it
+
+type Source interface {
+	FindClusterServiceVersionByName(name string) (*v1alpha1.ClusterServiceVersion, error)
+	FindCRDByName(name string) (*apiextensions.CustomResourceDefinition, error)
+	FindClusterServiceVersionForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error)
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/coreos-inc/operator-client/pkg/client"
 
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/apis/subscription/v1alpha1"
-	"github.com/coreos-inc/alm/appcache"
+	"github.com/coreos-inc/alm/catalog"
 )
 
 // Subscription loop
@@ -19,7 +19,7 @@ import (
 
 // SubscriptionController to use for handling subscriptionv1alpha1.Subscription resource events
 type SubscriptionController struct {
-	catalog appcache.AppCache
+	catalog catalog.Source
 	client  client.Interface
 }
 
