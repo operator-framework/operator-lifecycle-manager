@@ -12,7 +12,7 @@ import (
 //    - Map CRD name to AppTypeOperatorVersion that manages it
 
 type AppCache interface {
-	FindCloudServiceVersionByName(name string) (v1alpha1.OperatorVersion, error)
-	FindCRDByName(name string) (apiextensions.CustomResourceDefinition, error)
-	FindCloudServiceVersionForCRD(crdname string) (v1alpha1.OperatorVersion, error)
+	FindCloudServiceVersionByName(name string) (*v1alpha1.OperatorVersion, error)
+	FindCRDByName(name string) (*apiextensions.CustomResourceDefinition, error)
+	FindCloudServiceVersionForCRD(crdname string) (*v1alpha1.OperatorVersion, error)
 }
