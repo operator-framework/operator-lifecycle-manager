@@ -7,7 +7,7 @@ import (
 	"github.com/coreos-inc/operator-client/pkg/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
 type Strategy interface {

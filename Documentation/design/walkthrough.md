@@ -5,12 +5,12 @@ In order to reason about the upgradability of Kubernetes applications, ALM stand
 ALM manages three types of resources:
 
 * AppType
-* OperatorVersion
+* ClusterServiceVersion
 * Custom Resource Definition
 
 Instances of **AppType** are an immutable, top-level representation of the application that is going to be managed.
 
-Instances of **OperatorVersion** are metadata about deployments of an operator at a particular version such that upgrades can be orchestrated.
+Instances of **ClusterServiceVersion** are metadata about deployments of an operator at a particular version such that upgrades can be orchestrated.
 
 Instances of **Custom Resource Definition** are the custom resources that are managed by operators, but also some are used as the point of user interaction.
 
@@ -261,18 +261,18 @@ spec:
     owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
 ```
 
-## OperatorVersion
+## ClusterServiceVersion
 
-When applied to the cluster, OperatorVersions install and manage operator deployments.
+When applied to the cluster, ClusterServiceVersions install and manage operator deployments.
 They are labelled by `apptype` and have [ownerReferences] to their AppType.
-OperatorVersions have a requirements field that will leave the OperatorVersion in a PENDING state until they resolved.
+ClusterServiceVersions have a requirements field that will leave the ClusterServiceVersion in a PENDING state until they resolved.
 The contents of the requirements field contains the Custom Defined Resources required for the operator to function.
 
-To add an OperatorVersion `kubectl apply` the following YAML:
+To add an ClusterServiceVersion `kubectl apply` the following YAML:
 
 ```yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion-v1
+kind: ClusterServiceVersion-v1
 metadata:
   namespace: default
   name: etcdoperator.v0.5.1
@@ -335,11 +335,11 @@ spec:
       - "*"
 ```
 
-Now we can `kubectl describe operatorversion operator.etcd.database.coreos.com`:
+Now we can `kubectl describe clusterserviceversion operator.etcd.database.coreos.com`:
 
 ```yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion
+kind: ClusterServiceVersion
 metadata:
   namespace: staging-environment
   name: etcd-operator
@@ -418,10 +418,10 @@ status:
 
 ## Service Catalog
 
-A service catalog can be thought of as an OperatorVersion operator, in that it performs the proper `kubectl apply` based on the state of the Kubernetes cluster.
-A service catalog indexes two types of resources: OperatorVersion and Custom Resource Definitions.
-Given the existence of an AppType, the service catalog can resolve the OperatorVersion and `kubectl apply` it.
-Any OperatorVersions in a PENDING state will be watched by the Service Catalog and have the Custom Resource Definitions defined in their `requirements` block `kubectl apply`ed.
+A service catalog can be thought of as an ClusterServiceVersion operator, in that it performs the proper `kubectl apply` based on the state of the Kubernetes cluster.
+A service catalog indexes two types of resources: ClusterServiceVersion and Custom Resource Definitions.
+Given the existence of an AppType, the service catalog can resolve the ClusterServiceVersion and `kubectl apply` it.
+Any ClusterServiceVersions in a PENDING state will be watched by the Service Catalog and have the Custom Resource Definitions defined in their `requirements` block `kubectl apply`ed.
 
 If you're interested in learning more about the control loops used by the ALM operator and the Service Catalog Operator, see [this document].
 

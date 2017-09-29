@@ -1,5 +1,5 @@
 // Package v1alpha1 implements all the required types and methods for parsing
-// resources for v1alpha1 versioned OperatorVersions.
+// resources for v1alpha1 versioned ClusterServiceVersions.
 package v1alpha1
 
 import (
@@ -9,10 +9,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GroupVersion is the version used in the Scheme for OperatorVersions.
+// GroupVersion is the version used in the Scheme for ClusterServiceVersions.
 const GroupVersion = "v1alpha1"
 
-// NamedInstallStrategy represents the block of an OperatorVersion resource
+// NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
 	StrategyName    string          `json:"strategy"`
@@ -30,9 +30,9 @@ type Requirements struct {
 	MatchExpressions []metav1.LabelSelector `json:"matchExpressions"`
 }
 
-// OperatorVersionSpec declarations tell the ALM how to install an operator
+// ClusterServiceVersionSpec declarations tell the ALM how to install an operator
 // that can manage apps for given version and AppType.
-type OperatorVersionSpec struct {
+type ClusterServiceVersionSpec struct {
 	InstallStrategy NamedInstallStrategy `json:"install"`
 	Version         semver.Version       `json:"version"`
 	Maturity        string               `json:"maturity"`
@@ -41,20 +41,20 @@ type OperatorVersionSpec struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// OperatorVersion is a Custom Resource of type `OperatorVersionSpec`.
-type OperatorVersion struct {
+// ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.
+type ClusterServiceVersion struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   OperatorVersionSpec `json:"spec"`
+	Spec   ClusterServiceVersionSpec `json:"spec"`
 	Status metav1.Status       `json:"status"`
 }
 
-// OperatorVersionList represents a list of OperatorVersions.
+// ClusterServiceVersionList represents a list of ClusterServiceVersions.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type OperatorVersionList struct {
+type ClusterServiceVersionList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Items []OperatorVersion `json:"items"`
+	Items []ClusterServiceVersion `json:"items"`
 }

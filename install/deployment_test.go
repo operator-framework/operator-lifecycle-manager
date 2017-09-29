@@ -19,7 +19,7 @@ func TestKubeDeployment(t *testing.T) {
 	testDeploymentLabels := map[string]string{"app": "alm", "env": "test"}
 
 	mockOwner := metav1.ObjectMeta{
-		Name:         "operatorversion-owner",
+		Name:         "clusterserviceversion-owner",
 		Namespace:    testDeploymentNamespace,
 		GenerateName: fmt.Sprintf("%s-", testDeploymentNamespace),
 	}

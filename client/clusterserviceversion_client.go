@@ -5,11 +5,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 
-	"github.com/coreos-inc/alm/apis/opver/v1alpha1"
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
-// NewOperatorVersionClient creates a client that can interact with the OperatorVersion resource in k8s api
-func NewOperatorVersionClient(kubeconfig string) (client *rest.RESTClient, err error) {
+// NewClusterServiceVersionClient creates a client that can interact with the ClusterServiceVersion resource in k8s api
+func NewClusterServiceVersionClient(kubeconfig string) (client *rest.RESTClient, err error) {
 	config, err := getConfig(kubeconfig)
 	if err != nil {
 		return

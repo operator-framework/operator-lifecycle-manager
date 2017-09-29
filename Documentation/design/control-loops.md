@@ -19,10 +19,10 @@ declare:
 approval: manual/automatic
 resolved:
   - Vault AppType 1.0.0
-  - Vault OpVer
+  - Vault ClusterServiceVersion
   - VaultService CRD
   - Etcd AppType
-  - Etcd OpVer
+  - Etcd ClusterServiceVersion
   - EtcdCluster CRD
 status: resolved
 ```
@@ -61,21 +61,21 @@ name: quay
 
 ## ALM
 
-### `OperatorVersion` Install loop
-1. Watches for new (no older versions exist) `OperatorVersion` definitions in a namespace
+### `ClusterServiceVersion` Install loop
+1. Watches for new (no older versions exist) `ClusterServiceVersion` definitions in a namespace
     1. Checks that requirements are met
     1. If requirements are met:
         1. Follows `installStrategy` to install operator into the namespace
-    1. Writes status back to `OperatorVersion` about missing requirements or successful deployment
+    1. Writes status back to `ClusterServiceVersion` about missing requirements or successful deployment
 
 
-### `OperatorVersion` Upgrade loop
+### `ClusterServiceVersion` Upgrade loop
 
 `ownerReference` array docs:
 > List of objects depended by this object. If ALL objects in the list have been deleted, this object will be garbage collected. If this object is managed by a controller, then an entry in this list will point to this controller, with the controller field set to true. There cannot be more than one managing controller.
 
-1. Watches for new `OperatorVersion` definitions in a namespace that have a `replaces` field that matches a current running `OperatorVersion`
-    1. Follows the normal `install` loop from above to create the new `OperatorVersion`
+1. Watches for new `ClusterServiceVersion` definitions in a namespace that have a `replaces` field that matches a current running `ClusterServiceVersion`
+    1. Follows the normal `install` loop from above to create the new `ClusterServiceVersion`
     1. The new operator should have its own "adoption" loop:
         1. Finds all resources owned by the old operator
         1. Performs any necessary domain-specific handoff, if any
@@ -83,7 +83,7 @@ name: quay
         1. Sets the `controller` flag to `true` on the `ownerReference` pointing to the new operator
         1. Removes the `ownerReference` pointing to the the old operator
 
-### `OperatorVersion` GC loop
+### `ClusterServiceVersion` GC loop
 
-1. Watches for any `OperatorVersion` which owns no resources (via label query) and for which there exists another `OperatorVersion` with a `replaces` field that describes it.
+1. Watches for any `ClusterServiceVersion` which owns no resources (via label query) and for which there exists another `ClusterServiceVersion` with a `replaces` field that describes it.
     1. Deletes it

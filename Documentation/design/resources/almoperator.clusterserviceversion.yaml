@@ -1,6 +1,6 @@
-#! validate-crd: operatorversion.crd.yaml
+#! validate-crd: clusterserviceversion.crd.yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: OperatorVersion-v1
+kind: ClusterServiceVersion-v1
 metadata:
   name: alm-operator.0.0.1
 spec:

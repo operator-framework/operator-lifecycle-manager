@@ -6,7 +6,7 @@ metadata:
   name: my-etcd-cluster
   ownerReferences:
     - apiVersion: app.coreos.com/v1alpha1
-      kind: OperatorVersion
+      kind: ClusterServiceVersion
       name: etcd-operator
       uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
