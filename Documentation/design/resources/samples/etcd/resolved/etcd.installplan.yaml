@@ -7,6 +7,79 @@ spec:
   desiredClusterService:
   - etcd-operator
 status:
-  status: Pending
+  status: Complete
   # etcd-operator has no dependencies
-  plan: []
+  plan:
+  - resolving: etcd-operator
+    resource:
+      group: apiextensions.k8s.io
+      verison: v1beta1
+      kind: CustomResourceDefinition
+      name: EtcdCluster
+      status: Created
+      manifest: |
+        apiVersion: apiextensions.k8s.io/v1beta1
+        kind: CustomResourceDefinition
+        metadata:
+          name: etcdclusters.etcd.database.coreos.com
+          uid: 11111111-bbbb-cccc-dddd-eeeeeeeeeeee
+          ownerReferences:
+            - apiVersion: app.coreos.com/v1alpha1
+              kind: AppType-v1
+              name: etcd
+              uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
+          labels:
+            alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+          annotations:
+            displayName: Etcd Cluster
+            description: Represents a cluster of etc nodes as one unit.
+            outputs: '{
+              "etcd-cluster-service-name": {
+                "displayName":"Service Name",
+                "description":"The service name for the running etcd cluster.",
+                "x-alm-capabilities":["urn:alm:capability:com.coreos.etcd:api.v3.grpc","urn:alm:capability:com.coreos.etcd:api.v2.rest"]
+              },
+              "etcd-dashboard": {
+                "displayName":"Dashboard",
+                "description":"URL of a Grafana dashboard for the etcd cluster.",
+                "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:important.link","urn:alm:capability:org.w3:link"]
+              },
+              "etcd-prometheus": {
+                "displayName":"Prometheus Endpoint",
+                "description":"Endpoint of the prometheus instance for the etcd cluster.",
+                "x-alm-capabilities":["urn:alm:capability:io.prometheus:prometheus.v1","urn:alm:capability:org.w3:link"]
+              },
+              "etcd-important-metrics": {
+                "displayName":"Important Metrics",
+                "description":"Important prometheus metrics for the etcd cluster.",
+                "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:metrics"]
+              }}'
+        spec:
+          group: etcd.database.coreos.com
+          version: v1alpha1
+          scope: Namespaced
+          validation:
+            openAPIv3:
+              type: object
+              description: Represents a single instance of etcd
+              additionalProperties: false
+              required:
+              - version
+              properties:
+                version:
+                  type: string
+                  description: Version string
+                  pattern: ^(0|[1-9]d*).(0|[1-9]d*).(0|[1-9]d*)(-(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*)(.(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(+[0-9a-zA-Z-]+(.[0-9a-zA-Z-]+)*)?$
+                size:
+                  type: number
+                  description: The size of the etcd cluster
+                  min: 1
+                  max: 9
+                labels:
+                  type: object
+                  description: labels to apply to associated objects
+          names:
+            plural: etcdclusters
+            singular: etcdcluster
+            kind: EtcdCluster
+            listKind: EtcdClusterList

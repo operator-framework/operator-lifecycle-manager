@@ -30,19 +30,45 @@ spec:
 # properties:
 #   status:
 #     type: string
+#     enum:
+#     - Pending
+#     - Complete
 #   plan:
 #     type: array
 #     items:
 #       type: object
 #       required:
 #       - resolving
+#       - resource
 #       properties:
 #         resolving:
 #           type: string
 #         resource:
-#           type: string
-#         satisfiedBy:
-#           type: string
+#           type: object
+#           required:
+#           - group
+#           - version
+#           - kind
+#           - name
+#           - status
+#           - manifest
+#           properties:
+#             group:
+#               type: string
+#             version:
+#               type: string
+#             kind:
+#               type: string
+#             name:
+#               type: string
+#             status:
+#               type: string
+#               enum:
+#               - Not Present
+#               - Present
+#               - Created
+#             manifest:
+#               type: string
 
   names:
     plural: installplan-v1s
