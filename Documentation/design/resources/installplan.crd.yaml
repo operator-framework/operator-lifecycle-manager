@@ -14,13 +14,32 @@ spec:
       type: object
       description: Document which defines the desire and current state of an installation of a Cloud Service
       required:
-      - desiredCloudServices
+      - desiredClusterServices
       properties:
         desiredCloudServices:
           type: array
           description: A list of the names of the Cloud Services
           items:
             type: string
+
+# Schema for status key written by the operator:
+#status:
+# type: object
+# properties:
+#   plan:
+#     type: array
+#     items:
+#       type: object
+#       required:
+#       - resolving
+#       properties:
+#         resolving:
+#           type: string
+#         resource:
+#           type: string
+#         satisfiedBy:
+#           type: string
+
   names:
     plural: installplan-v1s
     singular: installplan-v1

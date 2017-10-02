@@ -1,0 +1,11 @@
+apiVersion: installplans-v1s.app.coreos.com/v1alpha1
+kind: InstallPlan-v1
+metadata:
+  namespace: staging-environment
+  name: etcd-operator-v1
+spec:
+  desiredClusterService:
+  - etcd-operator
+status:
+  # etcd-operator has no dependencies
+  plan: []
