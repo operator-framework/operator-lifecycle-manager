@@ -11,6 +11,7 @@ const (
 
 // InstallPlanSpec defines a set of Application resources to be installed
 type InstallPlanSpec struct {
+	DesiredClusterServiceVersion `json:"desiredClusterServiceVersion"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
