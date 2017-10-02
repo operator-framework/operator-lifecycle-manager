@@ -38,6 +38,46 @@ type ClusterServiceVersionSpec struct {
 	Maturity        string               `json:"maturity"`
 	Requirements    []Requirements       `json:"requirements"`
 	Permissions     []string             `json:"permissions"`
+	DisplayName     string               `json:"displayName"`
+	Description     string               `json:"description"`
+	Keywords        []string             `json:"keywords"`
+	Maintainers     []Maintainer         `json:"maintainers"`
+	Links           []AppLink            `json:"links"`
+	Icon            Icon                 `json:"iconURL"`
+
+	// Map of string keys and values that can be used to organize and categorize
+	// (scope and select) objects. May match selectors of replication controllers
+	// and services.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+	// +optional
+	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
+
+	// Annotations is an unstructured key value map stored with a resource that may be
+	// set by external tools to store and retrieve arbitrary metadata. They are not
+	// queryable and should be preserved when modifying objects.
+	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
+
+	// Label selector for pods. Existing ReplicaSets whose pods are
+	// selected by this will be the ones affected by this deployment.
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,2,opt,name=selector"`
+}
+
+type Maintainer struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
+type AppLink struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+}
+
+type Icon struct {
+	Data      string `json:"base64data"`
+	MediaType string `json:"mediatype"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -47,7 +87,7 @@ type ClusterServiceVersion struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   ClusterServiceVersionSpec `json:"spec"`
-	Status metav1.Status       `json:"status"`
+	Status metav1.Status             `json:"status"`
 }
 
 // ClusterServiceVersionList represents a list of ClusterServiceVersions.

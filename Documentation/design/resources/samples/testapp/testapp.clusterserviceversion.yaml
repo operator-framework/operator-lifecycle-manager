@@ -1,7 +1,7 @@
-#! validate-crd: apptype.crd.yaml
+#! validate-crd: clusterserviceversion.crd.yaml
 # Fields intentionally left null to test UI empty states
 apiVersion: app.coreos.com/v1alpha1
-kind: AppType-v1
+kind: ClusterServiceVersion-v1
 metadata:
   namespace: default 
   name: testapp
@@ -15,4 +15,14 @@ spec:
     alm-owner-testapp: testapp.apptypev1s.app.coreos.com.v1alpha1 
   selector:
     matchLabels:
-      alm-owner-testapp: testapp.apptypev1s.app.coreos.com.v1alpha1 
+      alm-owner-testapp: testapp.apptypev1s.app.coreos.com.v1alpha1
+  install:
+    strategy: image
+    spec:
+      image: test
+  version: 0.0.1
+  maturity: alpha
+  requirements:
+    - kind: CustomResourceDefinition
+      apiVersion: v1beta1
+      name: etcdclusters-v1.etcd.database.coreos.com
