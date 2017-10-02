@@ -25,7 +25,11 @@ spec:
 # Schema for status key written by the operator:
 #status:
 # type: object
+# required:
+# - status
 # properties:
+#   status:
+#     type: string
 #   plan:
 #     type: array
 #     items:

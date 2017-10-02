@@ -7,5 +7,6 @@ spec:
   desiredClusterService:
   - etcd-operator
 status:
+  status: Pending
   # etcd-operator has no dependencies
   plan: []
