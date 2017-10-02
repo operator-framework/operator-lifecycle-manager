@@ -1,0 +1,40 @@
+apiVersion: operatorversion-v1s.app.coreos.com/v1alpha1
+kind: OperatorVersion
+
+metadata:
+  namespace: storage
+  name: rook-operator
+
+spec:
+  version: 0.0.1
+  maturity: alpha
+
+  installStrategy:
+    type: deployment
+    image: rook/rook:master
+
+  requirements:
+    # TODO(jzelinskie): somehow check to ensure that Kubernetes storage is enabled
+
+    permissions:
+    - type: RBAC
+      serviceAccountName: minio
+      rules:
+      - apiGroups: [""]
+        resources: ["namespaces", "serviceaccounts", "secrets", "pods", "services", "nodes", "configmaps", "events", "persistentvolumes", "persistentvolumeclaims"]
+        verbs: ["get", "list", "watch", "patch", "create", "update", "delete"]
+      - apiGroups: ["extensions"]
+        resources: ["thirdpartyresources", "deployments", "daemonsets", "replicasets"]
+        verbs: ["get", "list", "watch", "create", "delete"]
+      - apiGroups: ["apiextensions.k8s.io"]
+        resources: ["customresourcedefinitions"]
+        verbs: ["get", "list", "watch", "create", "delete"]
+      - apiGroups: ["rbac.authorization.k8s.io"]
+        resources: ["clusterroles", "clusterrolebindings"]
+        verbs: ["get", "list", "watch", "create", "update", "delete"]
+      - apiGroups: ["storage.k8s.io"]
+        resources: ["storageclasses"]
+        verbs: ["get", "list", "watch", "delete"]
+      - apiGroups: ["rook.io"]
+        resources: ["*"]
+        verbs: ["*"]
