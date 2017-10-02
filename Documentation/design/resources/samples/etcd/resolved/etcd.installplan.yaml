@@ -1,5 +1,5 @@
 #! validate-crd: installplan.crd.yaml
-apiVersion: installplans-v1s.app.coreos.com/v1alpha1
+apiVersion: app.coreos.com/v1alpha1
 kind: InstallPlan-v1
 metadata:
   namespace: staging-environment
