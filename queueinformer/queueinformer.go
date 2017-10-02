@@ -84,17 +84,22 @@ func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventH
 
 // New creates a new queueinformer given a name, an informer, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func New(queuename string, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *QueueInformer {
-	queueInformer := &QueueInformer{
-		queue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queuename),
-		informer:    informer,
-		syncHandler: handler,
+func New(queuename string, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) []*QueueInformer {
+	queueInformers := []*QueueInformer{}
+	for _, informer := range (informers) {
+		queueInformer := &QueueInformer{
+			queue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queuename),
+			informer:    informer,
+			syncHandler: handler,
+		}
+		if funcs == nil {
+			queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
+		} else {
+			queueInformer.resourceEventHandlerFuncs = funcs
+		}
+		queueInformer.informer.AddEventHandler(queueInformer.resourceEventHandlerFuncs)
+		queueInformers = append(queueInformers,queueInformer)
 	}
-	if funcs == nil {
-		queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
-	} else {
-		queueInformer.resourceEventHandlerFuncs = funcs
-	}
-	queueInformer.informer.AddEventHandler(queueInformer.resourceEventHandlerFuncs)
-	return queueInformer
+
+	return queueInformers
 }
