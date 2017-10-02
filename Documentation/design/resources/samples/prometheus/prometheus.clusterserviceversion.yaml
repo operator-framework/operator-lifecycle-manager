@@ -41,7 +41,6 @@ spec:
   - kind: ServiceAccount
     apiVersion: v1
     name: prometheus-operator
-    namespace: default
     rules:
     - apiGroups:
       - extensions

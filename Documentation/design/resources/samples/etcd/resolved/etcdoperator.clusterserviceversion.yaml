@@ -41,7 +41,6 @@ spec:
   - kind: ServiceAccount
     apiVersion: v1
     name: etcd-operator
-    namespace: kube-system
     rules:
     - apiGroups:
       - etcd.database.coreos.com

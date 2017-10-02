@@ -3,6 +3,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
   name: alm-operator.0.0.1
+  namespace: alm
 spec:
   version: 0.0.1
   maturity: pre-alpha
@@ -17,18 +18,15 @@ spec:
   - kind: CustomResourceDefinition 
     apiVersion: v1beta1
     name: apptypes.app.coreos.com
-    namespace: my-namespace
     sha256: a916282c05b74d39076e223ebde312f6de2346f1fbb87c75bb315cad9cc6eab7
   - kind: ConfigMap
     apiVersion: v1
     name: cluster-features
-    namespace: kube-system
     matchExpressions:
       - {key: features.apiextension, operator: In, values: [true]}
   - kind: ServiceAccount
     apiVersion: v1
     name: alm-service
-    namespace: kube-system
     rules:
     # This is a list of permissions that are required for the operator compenent (using the above serviceAccount)
     # to do its job. A user with appropriate permissions will need to create it (automated in tectonic UI) 
@@ -45,7 +43,6 @@ spec:
   - kind: ServiceAccount
     apiVersion: v1
     name: alm-cluster-aware-service
-    namespace: kube-system
     optional: true
     rules:
     - apiGroups: [""]
