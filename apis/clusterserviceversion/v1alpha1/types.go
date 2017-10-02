@@ -9,8 +9,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// GroupVersion is the version used in the Scheme for ClusterServiceVersions.
-const GroupVersion = "v1alpha1"
+const (
+	GroupVersion = "v1alpha1" // used in registering ClusterServiceVersion scheme
+
+	ClusterServiceVersionCRDName       = "clusterserviceversion-v1s.app.coreos.com"
+	ClusterServiceVersionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
+
+)
 
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
@@ -47,7 +52,7 @@ type ClusterServiceVersion struct {
 	metav1.ObjectMeta `json:"metadata"`
 
 	Spec   ClusterServiceVersionSpec `json:"spec"`
-	Status metav1.Status       `json:"status"`
+	Status metav1.Status             `json:"status"`
 }
 
 // ClusterServiceVersionList represents a list of ClusterServiceVersions.
