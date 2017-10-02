@@ -30,7 +30,7 @@ status:
               name: etcd
               uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
           labels:
-            alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+            alm-owner-etcd: etcd.clusterserviceversion-v1s.app.coreos.com.v1alpha1
           annotations:
             displayName: Etcd Cluster
             description: Represents a cluster of etc nodes as one unit.

@@ -5,7 +5,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 const (
 	GroupVersion = "v1alpha1" // GroupVersion is the version used in the Scheme for subscriptions
 
-	SubscriptionCRDName       = "subscriptionv1.app.coreos.com"
+	SubscriptionCRDName       = "subscription-v1s.app.coreos.com"
 	SubscriptionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 
 	ApprovalAutomatic  Approval = "Automatic"

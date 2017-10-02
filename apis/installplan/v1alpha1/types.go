@@ -9,7 +9,7 @@ import (
 const (
 	GroupVersion = "v1alpha1" // used in registering InstallPlan scheme
 
-	InstallPlanCRDName       = "apptype-v1s.app.coreos.com"
+	InstallPlanCRDName       = "installplan-v1s.app.coreos.com"
 	InstallPlanCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 )
 
