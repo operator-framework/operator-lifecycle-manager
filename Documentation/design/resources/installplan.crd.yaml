@@ -27,7 +27,7 @@ spec:
           enum:
           - automatic
           - manual
-          - update only
+          - update-only
 
 # Schema for status key written by the operator:
 #status:
