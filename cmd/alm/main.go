@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/coreos-inc/alm/alm"
+	log "github.com/sirupsen/logrus"
 )
 
 func handler(w http.ResponseWriter, r *http.Request) {
@@ -16,18 +17,22 @@ func handler(w http.ResponseWriter, r *http.Request) {
 func main() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	flag.Parse()
+	almConfigPath := flag.String("almConfig", "", "absolute path to the almConfig file")
+	cfg, err := alm.LoadConfig(*almConfigPath)
+	if err != nil {
+		log.Fatal(err)
+	}
 
+	flag.Parse()
 	http.HandleFunc("/healthz", handler)
 	go http.ListenAndServe(":8080", nil)
-
-	almOperator, err := alm.NewALMOperator(*kubeConfigPath)
+	almOperator, err := alm.NewALMOperator(*kubeConfigPath, cfg)
 	if err != nil {
 		panic(fmt.Errorf("error configuring operator: %s", err))
 	}
+
 	stop := make(chan struct{})
 	almOperator.Run(stop)
 	close(stop)
-
 	panic("unreachable")
 }
