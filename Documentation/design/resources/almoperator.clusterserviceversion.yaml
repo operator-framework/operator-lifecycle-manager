@@ -5,6 +5,25 @@ metadata:
   name: alm-operator.0.0.1
   namespace: alm
 spec:
+  displayName: ALM
+  description: ALM manages the Open Cloud Services in your cluster.
+  keywords: ['ALM', 'operator', 'coreos', 'coreos']
+  maintainers:
+  - name: CoreOS
+    email: team-apps@coreos.com
+  provider:
+    name: CoreOS, Inc
+  labels:
+    alm-owner-etcd: alm.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-catalog: Open Cloud Services
+    operated-by: alm-operator.0.0.1
+  selector:
+    matchLabels:
+      alm-owner-etcd: alm.clusterserviceversionv1s.app.coreos.com.v1alpha1
+      operated-by: alm-operator.0.0.1
+  links:
+  - name: Blog
+    url: https://coreos.com/alm
   version: 0.0.1
   maturity: pre-alpha
   labels:
