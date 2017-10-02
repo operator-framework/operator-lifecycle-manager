@@ -1,26 +1,24 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	installplanv1 "github.com/coreos-inc/alm/apis/installplan/v1alpha1"
+)
 
 const (
 	GroupVersion = "v1alpha1" // GroupVersion is the version used in the Scheme for subscriptions
 
 	SubscriptionCRDName       = "subscription-v1s.app.coreos.com"
 	SubscriptionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
-
-	ApprovalAutomatic  Approval = "Automatic"
-	ApprovalUpdateOnly Approval = "Update-Only"
-	ApprovalManual     Approval = "Manual"
 )
-
-type Approval string
 
 // SubscriptionSpec defines an Application that can be installed
 type SubscriptionSpec struct {
-	Source                string   `json:"source"`
-	ClusterServiceVersion string   `json:"clusterServiceVersion"`
-	Channel               string   `json:"channel"`
-	Approval              Approval `json:"approval"`
+	Source                string                 `json:"source"`
+	ClusterServiceVersion string                 `json:"clusterServiceVersion"`
+	Channel               string                 `json:"channel"`
+	Approval              installplanv1.Approval `json:"approval"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
