@@ -5,10 +5,9 @@ metadata:
   name: etcd-operator-v1
 spec:
   desiredClusterService:
-  - etcd-operator
+  - etcd-operator-v1
 status:
   status: Complete
-  # etcd-operator has no dependencies
   plan:
   - resolving: etcd-operator
     resource:

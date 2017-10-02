@@ -14,9 +14,9 @@ spec:
       type: object
       description: Document which defines the desire and current state of an installation of a Cloud Service
       required:
-      - desiredClusterServices
+      - desiredClusterServiceVersions
       properties:
-        desiredCloudServices:
+        desiredCloudServiceVersions:
           type: array
           description: A list of the names of the Cloud Services
           items:
