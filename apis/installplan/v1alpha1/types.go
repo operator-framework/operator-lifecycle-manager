@@ -1,6 +1,10 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	subv1 "github.com/coreos-inc/alm/apis/subscription/v1alpha1"
+)
 
 const (
 	GroupVersion = "v1alpha1" // used in registering InstallPlan scheme
@@ -11,7 +15,8 @@ const (
 
 // InstallPlanSpec defines a set of Application resources to be installed
 type InstallPlanSpec struct {
-	DesiredClusterServiceVersion `json:"desiredClusterServiceVersion"`
+	DesiredClusterServiceVersion string         `json:"desiredClusterServiceVersion"`
+	Approval                     subv1.Approval `json:"approval"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

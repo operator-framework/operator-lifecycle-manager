@@ -6,6 +6,7 @@ metadata:
 spec:
   desiredClusterService:
   - etcd-operator-v1
+  approval: automatic
 status:
   status: Complete
   plan:

@@ -8,17 +8,19 @@ const (
 	SubscriptionCRDName       = "apptype-v1s.app.coreos.com"
 	SubscriptionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 
-	ApprovalAutomatic  = "automatic"
-	ApprovalUpdateOnly = "update-only"
-	ApprovalManual     = "manual"
+	ApprovalAutomatic  Approval = "automatic"
+	ApprovalUpdateOnly Approval = "update-only"
+	ApprovalManual     Approval = "manual"
 )
+
+type Approval string
 
 // SubscriptionSpec defines an Application that can be installed
 type SubscriptionSpec struct {
-	Source   string `json:"source"`
-	AppType  string `json:"apptype"`
-	Channel  string `json:"channel"`
-	Approval string `json:"approval"`
+	Source   string   `json:"source"`
+	AppType  string   `json:"apptype"`
+	Channel  string   `json:"channel"`
+	Approval Approval `json:"approval"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

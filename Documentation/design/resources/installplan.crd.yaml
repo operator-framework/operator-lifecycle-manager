@@ -15,12 +15,19 @@ spec:
       description: Document which defines the desire and current state of an installation of a Cloud Service
       required:
       - desiredClusterServiceVersions
+      - approval
       properties:
         desiredCloudServiceVersions:
           type: array
           description: A list of the names of the Cloud Services
           items:
             type: string
+        approval:
+          type: string
+          enum:
+          - automatic
+          - manual
+          - update only
 
 # Schema for status key written by the operator:
 #status:
@@ -31,8 +38,9 @@ spec:
 #   status:
 #     type: string
 #     enum:
-#     - Requires Review
-#     - Pending
+#     - Planning
+#     - Requires Approval
+#     - Installing
 #     - Complete
 #   plan:
 #     type: array
@@ -47,13 +55,20 @@ spec:
 #         resource:
 #           type: object
 #           required:
+#           - status
 #           - group
 #           - version
 #           - kind
 #           - name
-#           - status
 #           - manifest
 #           properties:
+#             status:
+#               type: string
+#               enum:
+#               - Unknown
+#               - Not Present
+#               - Present
+#               - Created
 #             group:
 #               type: string
 #             version:
@@ -62,12 +77,6 @@ spec:
 #               type: string
 #             name:
 #               type: string
-#             status:
-#               type: string
-#               enum:
-#               - Not Present
-#               - Present
-#               - Created
 #             manifest:
 #               type: string
 
