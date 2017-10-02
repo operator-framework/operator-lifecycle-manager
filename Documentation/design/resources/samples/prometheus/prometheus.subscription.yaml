@@ -8,4 +8,4 @@ spec:
   source: quay
   apptype: prometheus
   channel: stable
-  approval: automatic
+  approval: Automatic

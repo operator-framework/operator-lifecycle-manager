@@ -8,9 +8,9 @@ const (
 	SubscriptionCRDName       = "apptype-v1s.app.coreos.com"
 	SubscriptionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 
-	ApprovalAutomatic  Approval = "automatic"
-	ApprovalUpdateOnly Approval = "update-only"
-	ApprovalManual     Approval = "manual"
+	ApprovalAutomatic  Approval = "Automatic"
+	ApprovalUpdateOnly Approval = "Update-Only"
+	ApprovalManual     Approval = "Manual"
 )
 
 type Approval string

@@ -8,4 +8,4 @@ spec:
   source: quay
   apptype: etcd
   channel: stable
-  approval: automatic
+  approval: Automatic

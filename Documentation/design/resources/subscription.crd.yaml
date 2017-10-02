@@ -40,7 +40,6 @@ spec:
           type: string
           description: Approval setting determines behavior when a new version is available.
           enum:
-            - automatic
-            # Will only apply an update if it updates existing packages only and doesn't add any new ones
-            - update-only
-            - manual
+            - Automatic
+            - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
+            - Manual

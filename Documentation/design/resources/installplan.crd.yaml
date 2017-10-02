@@ -9,6 +9,11 @@ spec:
   group: app.coreos.com
   version: v1alpha1
   scope: Namespaced
+  names:
+    plural: installplan-v1s
+    singular: installplan-v1
+    kind: InstallPlan-v1
+    listKind: InstallPlanList-v1
   validation:
     openAPIV3Schema:
       type: object
@@ -25,9 +30,9 @@ spec:
         approval:
           type: string
           enum:
-          - automatic
-          - manual
-          - update-only
+          - Automatic
+          - Manual
+          - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
 
 # Schema for status key written by the operator:
 #status:
@@ -79,9 +84,3 @@ spec:
 #               type: string
 #             manifest:
 #               type: string
-
-  names:
-    plural: installplan-v1s
-    singular: installplan-v1
-    kind: InstallPlan-v1
-    listKind: InstallPlanList-v1
