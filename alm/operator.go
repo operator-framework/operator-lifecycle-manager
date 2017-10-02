@@ -28,31 +28,31 @@ type ALMOperator struct {
 }
 
 func NewALMOperator(kubeconfig string, cfg *Config) (*ALMOperator, error) {
-	opVerClient, err := client.NewOperatorVersionClient(kubeconfig)
+	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
-	operatorVersionWatchers := []*cache.ListWatch{}
+	csvWatchers := []*cache.ListWatch{}
 	for _, namespace := range cfg.Namespaces {
-		operatorVersionWatcher := cache.NewListWatchFromClient(
-			opVerClient,
-			"operatorversion-v1s",
+		csvWatcher := cache.NewListWatchFromClient(
+			csvClient,
+			"clusterserviceversion-v1s",
 			namespace,
 			fields.Everything(),
 		)
-		operatorVersionWatchers = append(operatorVersionWatchers, operatorVersionWatcher)
+		csvWatchers = append(csvWatchers, csvWatcher)
 	}
 
 	sharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, operatorVersionWatcher := range operatorVersionWatchers {
-		operatorVersionInformer := cache.NewSharedIndexInformer(
-			operatorVersionWatcher,
-			&v1alpha1.OperatorVersion{},
+	for _, csvWatcher := range csvWatchers {
+		csvInformer := cache.NewSharedIndexInformer(
+			csvWatcher,
+			&v1alpha1.ClusterServiceVersion{},
 			cfg.Interval,
 			cache.Indexers{},
 		)
-		sharedIndexInformers = append(sharedIndexInformers, operatorVersionInformer)
+		sharedIndexInformers = append(sharedIndexInformers, csvInformer)
 	}
 
 	queueOperator, err := queueinformer.NewOperator(kubeconfig)
@@ -62,15 +62,15 @@ func NewALMOperator(kubeconfig string, cfg *Config) (*ALMOperator, error) {
 
 	op := &ALMOperator{
 		queueOperator,
-		clusterServiceVersionClient,
+		csvClient,
 	}
-	opVerQueueInformers := queueinformer.New(
+	csvQueueInformers := queueinformer.New(
 		"operatorversions",
 		sharedIndexInformers,
-		op.syncOperatorVersion,
+		op.syncClusterServiceVersion,
 		nil,
 	)
-	for _, opVerQueueInformer := range opVerQueueInformers {
+	for _, opVerQueueInformer := range csvQueueInformers {
 		op.RegisterQueueInformer(opVerQueueInformer)
 	}
 
@@ -102,8 +102,8 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof(
 		"%s install strategy successful for %s",
-		operatorVersion.Spec.InstallStrategy.StrategyName,
-		operatorVersion.SelfLink,
+		clusterServiceVersion.Spec.InstallStrategy.StrategyName,
+		clusterServiceVersion.SelfLink,
 	)
 	return nil
 }
