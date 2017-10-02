@@ -4,7 +4,7 @@ metadata:
   name: installplan-v1s.app.coreos.com
   annotations:
     displayName: Install Plan
-    description: Represents a plan to install and resolve dependencies for Cloud Services
+    description: Represents a plan to install and resolve dependencies for Cluster Services
 spec:
   group: app.coreos.com
   version: v1alpha1
@@ -12,14 +12,14 @@ spec:
   validation:
     openAPIV3Schema:
       type: object
-      description: Document which defines the desire and current state of an installation of a Cloud Service
+      description: Document which defines the desire and current state of an installation of a Cluster Service
       required:
-      - desiredClusterServiceVersions
+      - clusterServiceVersions
       - approval
       properties:
-        desiredCloudServiceVersions:
+        clusterServiceVersions:
           type: array
-          description: A list of the names of the Cloud Services
+          description: A list of the names of the Cluster Services
           items:
             type: string
         approval:
