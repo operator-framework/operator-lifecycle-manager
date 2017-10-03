@@ -7,7 +7,7 @@ metadata:
 spec:
   clusterServiceVersions:
   - etcd-operator-v1
-  approval: automatic
+  approval: Automatic
 status:
   status: Complete
   plan:

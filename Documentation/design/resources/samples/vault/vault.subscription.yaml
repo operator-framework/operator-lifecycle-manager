@@ -8,4 +8,4 @@ spec:
   source: quay
   apptype: vault
   channel: stable
-  approval: automatic
+  approval: Automatic
