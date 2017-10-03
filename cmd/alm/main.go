@@ -18,12 +18,12 @@ func main() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	almConfigPath := flag.String("almConfig", "", "absolute path to the almConfig file")
+	flag.Parse()
 	cfg, err := alm.LoadConfig(*almConfigPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	flag.Parse()
 	http.HandleFunc("/healthz", handler)
 	go http.ListenAndServe(":8080", nil)
 	almOperator, err := alm.NewALMOperator(*kubeConfigPath, cfg)
