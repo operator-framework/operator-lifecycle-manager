@@ -2,7 +2,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  namespace: default 
+  namespace: default
   name: prometheusoperator.0.13.0
   labels:
     alm-owner-prometheus: prometheus.apptypev1s.app.coreos.com.v1alpha1
@@ -55,6 +55,10 @@ spec:
   version: 0.13.0
   maturity: beta
   replaces: prometheusoperator.0.12.0
+  ownedCRDs:
+  - prometheuses.monitoring.coreos.com
+  - servicemonitors.monitoring.coreos.com
+  - alertmanagers.monitoring.coreos.com
   requirements:
   - kind: CustomResourceDefinition
     apiVersion: v1beta1

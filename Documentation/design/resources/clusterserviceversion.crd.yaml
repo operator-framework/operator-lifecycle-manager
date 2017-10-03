@@ -150,7 +150,12 @@ spec:
                       values:
                         type: array
                         description: set of values for the expression
-
+        ownedCRDs:
+          type: array
+          description: What resources this operator is responsible for managing. No two running operators should manage the same resource.
+          items:
+            type: string
+            description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
         requirements:
           type: array
           description: What requirements that we have before this ClusterServiceVersion can run, may include CRD objects and k8s features
@@ -281,8 +286,8 @@ spec:
                     items:
                       type: object
                       description: A deployment to create in the cluster
-        
-  names: 
+
+  names:
     plural: clusterserviceversion-v1s
     singular: clusterserviceversion-v1
     kind: ClusterServiceVersion-v1
