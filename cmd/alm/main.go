@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/coreos-inc/alm/alm"
+	"github.com/coreos-inc/alm/config"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -19,7 +20,7 @@ func main() {
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	almConfigPath := flag.String("almConfig", "", "absolute path to the almConfig file")
 	flag.Parse()
-	cfg, err := alm.LoadConfig(*almConfigPath)
+	cfg, err := config.LoadConfig(*almConfigPath)
 	if err != nil {
 		log.Fatal(err)
 	}
