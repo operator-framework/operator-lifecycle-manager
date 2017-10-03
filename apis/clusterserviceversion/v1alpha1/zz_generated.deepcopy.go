@@ -136,6 +136,11 @@ func (in *ClusterServiceVersionSpec) DeepCopyInto(out *ClusterServiceVersionSpec
 	*out = *in
 	in.InstallStrategy.DeepCopyInto(&out.InstallStrategy)
 	out.Version = in.Version
+	if in.OwnedCRDs != nil {
+		in, out := &in.OwnedCRDs, &out.OwnedCRDs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Requirements != nil {
 		in, out := &in.Requirements, &out.Requirements
 		*out = make([]Requirements, len(*in))
