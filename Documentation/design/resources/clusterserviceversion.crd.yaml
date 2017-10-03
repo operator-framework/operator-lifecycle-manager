@@ -17,7 +17,6 @@ spec:
       - displayName
       - version
       - maturity
-      - requirements
       - labels
       - selector
       - install
@@ -150,105 +149,22 @@ spec:
                       values:
                         type: array
                         description: set of values for the expression
-        ownedCRDs:
-          type: array
-          description: What resources this operator is responsible for managing. No two running operators should manage the same resource.
-          items:
-            type: string
-            description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
-        requirements:
-          type: array
-          description: What requirements that we have before this ClusterServiceVersion can run, may include CRD objects and k8s features
-          items:
-            anyOf:
-            - type: object
-              description: Single requirement that must be satisfied for the ClusterServiceVersion to be installed and to work correctly
-              required:
-              - kind
-              - apiVersion
-              - name
-              properties:
-                kind:
-                  type: string
-                  description: The kind of resource we are modeling.
-                apiVersion:
-                  type: string
-                  description: The apiVersion of the resource
-                name:
-                  type: string
-                  description: The name of the resource
-                sha256:
-                  type: string
-                  description: Optional SHA-256 hash of the resource we consume, if we want to be extra-strict
-                  pattern: ^[a-f0-9]{64}$
-                optional:
-                  type: boolean
-                  description: If true, this requirement will not block install of the operator.
-                matchExpressions:
-                  type: array
-                  descriptions: A set of expressions to match against the resource. Requirement will not be considered 'met' if these evaluate to false.
-                  items:
-                    allOf:
-                      - type: object
-                        required:
-                        - key
-                        - operator
-                        - values
-                        properties:
-                          key:
-                            type: string
-                            description: the key to match
-                          operator:
-                            type: string
-                            description: the operator for the expression
-                            enum:
-                            - In
-                            - NotIn
-                            - Exists
-                            - DoesNotExist
-                          values:
-                            type: array
-                            description: set of values for the expression
-            - type: object
-              required:
-              - rules
-              - kind
-              properties:
-                kind:
-                  type: string
-                  value: ServiceAccount
-                rules:
-                  type: array
-                  items:
-                    allOf:
-                      - type: object
-                        description: a rule required by the service account
-                        properties:
-                          apiGroups:
-                            type: array
-                            description: apiGroups the rule applies to
-                            items:
-                              type: string
-                          resources:
-                            type: array
-                            items:
-                              type: string
-                          resourceNames:
-                            type: array
-                            items:
-                              type: string
-                          verbs:
-                            type: array
-                            items:
-                              type: string
-                              enum:
-                                - get
-                                - list
-                                - watch
-                                - create
-                                - update
-                                - patch
-                                - delete
+        customresourcedefinitions:
+          type: object
+          properties:
+            owned:
+              type: array
+              description: What resources this operator is responsible for managing. No two running operators should manage the same resource.
+              items:
+                type: string
+                description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
+            required:
+              type: array
+              description: The CustomResourceDefinitions that are required before this ClusterServiceVersion can run
+              items:
+                type: string
+                description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
+
         install:
           type: object
           description: Information required to install this specific version of the operator software

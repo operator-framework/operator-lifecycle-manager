@@ -19,32 +19,29 @@ type NamedInstallStrategy struct {
 	StrategySpecRaw json.RawMessage `json:"spec"`
 }
 
-// Kind, ApiVersion, Name, Namespace uniquely identify a requirement
-type Requirements struct {
-	Kind             string                 `json:"kind"`
-	ApiVersion       string                 `json:"apiVersion"`
-	Name             string                 `json:"name"`
-	Namespace        string                 `json:"namespace"`
-	SHA256           string                 `json:"sha256"`
-	Optional         bool                   `json:"optional"`
-	MatchExpressions []metav1.LabelSelector `json:"matchExpressions"`
+// CustomResourceDefinitions declares all of the CRDs managed or required by
+// an operator being ran by ClusterServiceVersion.
+//
+// If the CRD is present in the Owned list, it is implicitly required.
+type CustomResourceDefinitions struct {
+	Owned    []string
+	Required []string
 }
 
 // ClusterServiceVersionSpec declarations tell the ALM how to install an operator
 // that can manage apps for given version and AppType.
 type ClusterServiceVersionSpec struct {
-	InstallStrategy NamedInstallStrategy `json:"install"`
-	Version         semver.Version       `json:"version"`
-	Maturity        string               `json:"maturity"`
-	OwnedCRDs       []string             `json:"ownedCRDs"`
-	Requirements    []Requirements       `json:"requirements"`
-	Permissions     []string             `json:"permissions"`
-	DisplayName     string               `json:"displayName"`
-	Description     string               `json:"description"`
-	Keywords        []string             `json:"keywords"`
-	Maintainers     []Maintainer         `json:"maintainers"`
-	Links           []AppLink            `json:"links"`
-	Icon            Icon                 `json:"iconURL"`
+	InstallStrategy           NamedInstallStrategy      `json:"install"`
+	Version                   semver.Version            `json:"version"`
+	Maturity                  string                    `json:"maturity"`
+	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions"`
+	Permissions               []string                  `json:"permissions"`
+	DisplayName               string                    `json:"displayName"`
+	Description               string                    `json:"description"`
+	Keywords                  []string                  `json:"keywords"`
+	Maintainers               []Maintainer              `json:"maintainers"`
+	Links                     []AppLink                 `json:"links"`
+	Icon                      Icon                      `json:"iconURL"`
 
 	// Map of string keys and values that can be used to organize and categorize
 	// (scope and select) objects. May match selectors of replication controllers
