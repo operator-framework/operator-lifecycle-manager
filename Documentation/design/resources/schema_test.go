@@ -1,39 +1,41 @@
 package resources
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"bufio"
-	"fmt"
+	"path/filepath"
 	"strings"
-
-	"encoding/json"
+	"testing"
 
 	"github.com/ghodss/yaml"
 	openapispec "github.com/go-openapi/spec"
+	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/validate"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
 	apiservervalidation "k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
+	apiValidation "k8s.io/apimachinery/pkg/api/validation"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
-	"path/filepath"
+	"bytes"
 
-	"io"
-
-	"github.com/go-openapi/strfmt"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-func ReadPragmas(fileReader *bufio.Reader) (pragmas []string, err error) {
+func ReadPragmas(fileBytes []byte) (pragmas []string, err error) {
+	fileReader := bytes.NewReader(fileBytes)
+	fileBufReader := bufio.NewReader(fileReader)
 	for {
-		maybePragma, err := fileReader.ReadString('\n')
+		maybePragma, err := fileBufReader.ReadString('\n')
 		if err != nil {
 			return nil, err
 		}
@@ -47,16 +49,74 @@ func ReadPragmas(fileReader *bufio.Reader) (pragmas []string, err error) {
 	return
 }
 
-func ValidateUsingPragma(t *testing.T, pragma string, fileReader io.Reader) error {
-	const ValidateCRDPrefix = "validate-crd:"
-	switch {
-	case strings.HasPrefix(pragma, ValidateCRDPrefix):
-		return ValidateCRD(t, strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileReader)
+type Meta struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata"`
+}
+
+func (m *Meta) GetObjectKind() schema.ObjectKind {
+	return m
+}
+func (in *Meta) DeepCopyInto(out *Meta) {
+	*out = *in
+	out.TypeMeta = in.TypeMeta
+	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	return
+}
+
+func (in *Meta) DeepCopy() *Meta {
+	if in == nil {
+		return nil
+	}
+	out := new(Meta)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *Meta) DeepCopyObject() runtime.Object {
+	if c := in.DeepCopy(); c != nil {
+		return c
+	} else {
+		return nil
+	}
+}
+
+func ValidateKubectlable(t *testing.T, fileBytes []byte) error {
+	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
+	if err != nil {
+		return err
+	}
+	parsedMeta := &Meta{}
+	err = json.Unmarshal(exampleFileBytesJson, parsedMeta)
+	if err != nil {
+		return err
+	}
+	requiresNamespace := parsedMeta.Kind != "CustomResourceDefinition"
+	errs := apiValidation.ValidateObjectMeta(
+		&parsedMeta.ObjectMeta,
+		requiresNamespace,
+		func(s string, prefix bool) []string {
+			return nil
+		},
+		field.NewPath("metadata"),
+	)
+
+	if len(errs) > 0 {
+		return fmt.Errorf("error validating object metadata: %s. %v. %s", errs, parsedMeta, string(exampleFileBytesJson))
 	}
 	return nil
 }
 
-func ValidateCRD(t *testing.T, schemaFileName string, fileReader io.Reader) error {
+func ValidateUsingPragma(t *testing.T, pragma string, fileBytes []byte) error {
+	const ValidateCRDPrefix = "validate-crd:"
+	switch {
+	case strings.HasPrefix(pragma, ValidateCRDPrefix):
+		return ValidateCRD(t, strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
+	}
+	return nil
+}
+
+func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	schemaBytes, err := ioutil.ReadFile(schemaFileName)
 	require.NoError(t, err)
 
@@ -69,9 +129,7 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileReader io.Reader) erro
 	crd := v1beta1.CustomResourceDefinition{}
 	json.Unmarshal(schemaBytesJson, &crd)
 
-	exampleFileBytes, err := ioutil.ReadAll(fileReader)
-	require.NoError(t, err)
-	exampleFileBytesJson, err := yaml.YAMLToJSON(exampleFileBytes)
+	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
 	unstructured := unstructured.Unstructured{}
 	err = json.Unmarshal(exampleFileBytesJson, &unstructured)
 	require.NoError(t, err)
@@ -116,13 +174,20 @@ func ValidateResource(t *testing.T, path string, f os.FileInfo, err error) error
 	defer exampleFileReader.Close()
 
 	fileReader := bufio.NewReader(exampleFileReader)
-	pragmas, err := ReadPragmas(fileReader)
+	fileBytes, err := ioutil.ReadAll(fileReader)
+	require.NoError(t, err)
+	pragmas, err := ReadPragmas(fileBytes)
 	require.NoError(t, err)
 	for _, pragma := range pragmas {
-		err := ValidateUsingPragma(t, pragma, fileReader)
+		fileReader.Reset(exampleFileReader)
+		err := ValidateUsingPragma(t, pragma, fileBytes)
 		if err != nil {
 			t.Errorf("validating %s: %v", path, err)
 		}
+	}
+	err = ValidateKubectlable(t, fileBytes)
+	if err != nil {
+		t.Errorf("validating %s: %v", path, err)
 	}
 	return nil
 }
