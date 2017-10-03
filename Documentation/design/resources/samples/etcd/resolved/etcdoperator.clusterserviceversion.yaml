@@ -6,7 +6,7 @@ metadata:
   name: etcd-operator
   uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1 
   ownerReferences:
   - apiVersion: app.coreos.com/v1alpha1
     kind: AppType-v1
@@ -27,12 +27,12 @@ spec:
     url: https://coreos.com/etcd
 
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
     operated-by: etcdoperator.v0.5.1
 
   selector:
     matchLabels:
-      alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+      alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
       operated-by: etcdoperator.v0.5.1
 
   icon:

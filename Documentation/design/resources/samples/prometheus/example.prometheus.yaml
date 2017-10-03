@@ -19,3 +19,30 @@ spec:
   resources:
     requests:
       memory: 400Mi
+outputs: 
+  prometheus-important-metrics: '{
+    "metrics": [
+      {
+        "query": "has_leader", 
+        "name": "Prometheus Status", 
+        "type": "Status", 
+        "subtype": "boolean"
+      },
+      {
+        "query": "leader_changes_seen_total", 
+        "name": "CPU Usage", 
+        "type": "Gauge"
+      },
+      {
+        "query": "leader_changes_seen_total", 
+        "name": "Memory Usage", 
+        "type": "Gauge"
+      },
+      {
+        "query": "leader_changes_seen_total", 
+        "name": "Filesystem Usage", 
+        "type": "Gauge"
+      }
+    ], 
+    "endpoint": "https://prometheus-prometheus"
+  }'

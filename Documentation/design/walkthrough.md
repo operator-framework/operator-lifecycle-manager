@@ -41,11 +41,11 @@ spec:
     name: CoreOS, Inc
 
   labels:
-    alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversion-v1s.app.coreos.com.v1alpha1
 
   selector:
     matchLabels:
-      alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+      alm-owner-etcd: etcd.clusterserviceversion-v1s.app.coreos.com.v1alpha1
 
   links:
   - name: Blog
@@ -78,11 +78,11 @@ spec:
     name: CoreOS, Inc
 
   labels:
-    alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversion-v1s.app.coreos.com.v1alpha1
 
   selector:
     matchLabels:
-      alm-owner-etcd: etcd.apptype-v1s.app.coreos.com.v1alpha1
+      alm-owner-etcd: etcd.clusterserviceversion-v1s.app.coreos.com.v1alpha1
 
   links:
   - name: Blog
@@ -116,7 +116,7 @@ kind: CustomResourceDefinition
 metadata:
   name: etcdclusters.etcd.database.coreos.com
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
   annotations:
     displayName: Etcd Cluster
     description: Represents a cluster of etc nodes as one unit.
@@ -186,7 +186,7 @@ metadata:
       name: etcd
       uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
   annotations:
     displayName: Etcd Cluster
     description: Represents a cluster of etc nodes as one unit.
@@ -252,13 +252,13 @@ metadata:
   name: my-etcd-cluster
   labels:
     operated-by: etcdoperator.v0.5.1
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   version: 0.5.1
   size: 3
   labels:
-    owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
 ```
 
 ## ClusterServiceVersion
@@ -277,7 +277,7 @@ metadata:
   namespace: default
   name: etcdoperator.v0.5.1
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   installStrategy:
     type: image
@@ -345,7 +345,7 @@ metadata:
   name: etcd-operator
   uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
   ownerReferences:
   - apiVersion: app.coreos.com/v1alpha1
     kind: AppType-v1

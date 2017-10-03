@@ -11,11 +11,11 @@ metadata:
       uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
     operated-by: etcdoperator.v0.5.1
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   labels:
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1 
   version: 0.5.1
   size: 3
 outputs:

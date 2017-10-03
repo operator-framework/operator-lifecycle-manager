@@ -5,7 +5,7 @@ metadata:
   namespace: alm-vault-example
   name: vault-operator.0.0.2
   labels:
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1 
 spec:
   displayName: Vault
   description: An encrypted, multi-tentant secure secret store
@@ -26,13 +26,13 @@ spec:
     url: https://www.vaultproject.io/
 
   labels:
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
     alm-catalog: Open Cloud Services
     operated-by: vaultoperator.0.0.2
 
   selector:
     matchLabels:
-      alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+      alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
       operated-by: vaultoperator.0.0.2
 
   icon:
