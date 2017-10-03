@@ -2,7 +2,7 @@
 
 ## Service Catalog
 
-### `InstallDeclaration` loop
+### `InstallPlan` loop
 
 Strawpeople:
 
@@ -29,8 +29,8 @@ status: resolved
 
 States: `Unresolved`, `Resolved`, `Approved`, `Complete`
 
-1. Watches for new `InstallDeclarations` in a namespace
-    1. If `Unresolved`, attempt to resolve those resources and write them back to the `InstallDeclaration`
+1. Watches for new `InstallPlans` in a namespace
+    1. If `Unresolved`, attempt to resolve those resources and write them back to the `InstallPlan`
     1. If `Resolved`, wait for state to be `Approved`
       1. If `approval` is set to `automatic`, state is transitioned to `Approved`
     1. If `Approved`, creates all resolved resources, reports back status
@@ -55,7 +55,7 @@ name: quay
 ```
 
 1. Watches for `Subscription` objects
-   1. If no `InstallDeclaration` exists for the `Subscription`, creates it
+   1. If no `InstallPlan` exists for the `Subscription`, creates it
    1. Checks `CatalogSource` for updates
      1. If newer version is available in the channel and is greater than `current`, creates an `InstallDeclaration` for it.
 
