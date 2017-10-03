@@ -12,10 +12,10 @@ spec:
   - name: John Doe
     email: john.doe@example.com
   labels:
-    alm-owner-testapp: testapp.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-testapp: testapp.clusterserviceversionv1s.app.coreos.com.v1alpha1 
   selector:
     matchLabels:
-      alm-owner-testapp: testapp.apptypev1s.app.coreos.com.v1alpha1
+      alm-owner-testapp: testapp.clusterserviceversionv1s.app.coreos.com.v1alpha1
   install:
     strategy: image
     spec:

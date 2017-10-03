@@ -6,10 +6,10 @@ metadata:
   name: demo-etcd-cluster
   labels:
     operated-by: etcdoperator.v0.5.1
-    alm-owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   version: v3.2.7
   size: 3
   labels:
-    owner-etcd: etcd.apptypev1s.app.coreos.com.v1alpha1
+    owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1

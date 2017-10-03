@@ -3,7 +3,7 @@ kind: CustomResourceDefinition
 metadata: 
   name: vaultservices.vault.security.coreos.com
   labels:
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
   annotations:
     displayName: Vault Service
     description: A running Vault instance, backed by an Etcd Cluster
