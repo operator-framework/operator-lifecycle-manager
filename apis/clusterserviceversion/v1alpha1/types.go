@@ -36,6 +36,7 @@ type ClusterServiceVersionSpec struct {
 	InstallStrategy NamedInstallStrategy `json:"install"`
 	Version         semver.Version       `json:"version"`
 	Maturity        string               `json:"maturity"`
+	OwnedCRDs       []string             `json:"ownedCRDs"`
 	Requirements    []Requirements       `json:"requirements"`
 	Permissions     []string             `json:"permissions"`
 	DisplayName     string               `json:"displayName"`
