@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
@@ -92,17 +94,18 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	}
 
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhasePending {
-		ok, err := a.requirementsMet(clusterServiceVersion.Namespace, clusterServiceVersion.Spec.Requirements)
-		if err != nil {
-			return err
-		}
-		if !ok {
+		met, statuses := a.requirementStatus(clusterServiceVersion.Spec.Requirements)
+
+		if !met {
 			log.Info("requirements were not met: %v", clusterServiceVersion.Spec.Requirements)
+			if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhasePending, statuses); err != nil {
+				return err
+			}
 			return ErrRequirementsNotMet
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseInstalling); err != nil {
+		if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhaseInstalling, statuses); err != nil {
 			return err
 		}
 		return nil
@@ -134,19 +137,55 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	return nil
 }
 
-func (a *ALMOperator) requirementsMet(namespace string, requirements []v1alpha1.Requirements) (bool, error) {
-	for _, element := range requirements {
-		_, err := a.OpClient.GetCustomResourceDefinitionKind(element.Name)
-		if err != nil {
-			log.Infof("Couldn't find CRD: %s", err)
-			return false, nil
+func (a *ALMOperator) requirementStatus(requirements []v1alpha1.Requirements) (met bool, statuses []v1alpha1.RequirementStatus) {
+	emptyCRD := v1beta1.CustomResourceDefinition{}
+	met = true
+	for _, r := range requirements {
+		status := v1alpha1.RequirementStatus{
+			Group:   emptyCRD.GroupVersionKind().Group,
+			Version: emptyCRD.GroupVersionKind().Version,
+			Kind:    emptyCRD.GroupVersionKind().Kind,
+			Name:    r.Name,
 		}
+		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r.Name)
+		if err != nil {
+			status.Status = "Not Present"
+			met = false
+		} else {
+			status.Status = "Present"
+			status.UUID = string(crd.GetUID())
+		}
+		statuses = append(statuses, status)
 	}
-	log.Info("Successfully met all requirements")
-	return true, nil
+	return
 }
 
 func (a *ALMOperator) CSVTransitionPhase(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase) (result *v1alpha1.ClusterServiceVersion, err error) {
+	csv.Status.Phase = phase
+	csv.Status.LastTransitionTime = metav1.Now()
+	csv.Status.LastUpdateTime = metav1.Now()
+	result = &v1alpha1.ClusterServiceVersion{}
+	err = a.restClient.Put().Context(context.TODO()).
+		Namespace(csv.Namespace).
+		Resource("clusterserviceversion-v1s").
+		Name(csv.Name).
+		Body(csv).
+		Do().
+		Into(result)
+	if err != nil {
+		err = fmt.Errorf("failed to update CR status: %v", err)
+	}
+	return
+}
+
+func (a *ALMOperator) CSVUpdateRequirementStatus(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, statuses []v1alpha1.RequirementStatus) (result *v1alpha1.ClusterServiceVersion, err error) {
+	csv.Status.RequirementStatus = statuses
+	csv.Status.LastUpdateTime = metav1.Now()
+	if csv.Status.Phase != phase {
+		csv.Status.Phase = phase
+		csv.Status.LastTransitionTime = metav1.Now()
+	}
+	result = &v1alpha1.ClusterServiceVersion{}
 	err = a.restClient.Put().Context(context.TODO()).
 		Namespace(csv.Namespace).
 		Resource("clusterserviceversion-v1s").
