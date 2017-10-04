@@ -7,7 +7,9 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 )
 
-// MemoryMap - implements github.com/coreos-inc/alm/catalog.Source interface
+// MemoryMap - catalog source implementation that stores the data in memory in golang maps
+var _ Source = &MemoryMap{}
+
 type MemoryMap struct {
 	// map ClusterServiceVersion name to it's full resource definition
 	clusterservices map[string]v1alpha1.ClusterServiceVersion
