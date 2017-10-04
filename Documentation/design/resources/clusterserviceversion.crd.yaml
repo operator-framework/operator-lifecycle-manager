@@ -237,10 +237,11 @@ spec:
 #    reason:
 #      type: string
 #      enum:
+#        - RequirementsUnknown
 #        - RequirementsNotMet
 #        - AllRequirementsMet
-#        - InstallCompenentFailed
-#        - InstallSuceeded
+#        - InstallComponentFailed
+#        - InstallSucceeded
 #    message:
 #      type: string
 #
@@ -271,10 +272,11 @@ spec:
 #          reason:
 #            type: string
 #            enum:
+#              - RequirementsUnknown
 #              - RequirementsNotMet
 #              - AllRequirementsMet
-#              - InstallCompenentFailed
-#              - InstallSuceeded
+#              - InstallComponentFailed
+#              - InstallSucceeded
 #          message:
 #            type: string
 #    requirementStatus:

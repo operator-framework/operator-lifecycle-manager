@@ -97,6 +97,17 @@ const (
 	CSVPhaseUnknown ClusterServiceVersionPhase = "Unknown"
 )
 
+// ConditionReason is a camelcased reason for the state transition
+type ConditionReason string
+
+const (
+	CSVReasonRequirementsUnkown ConditionReason = "RequirementsUnknown"
+	CSVReasonRequirementsNotMet ConditionReason = "RequirementsNotMet"
+	CSVReasonRequirementsMet    ConditionReason = "AllRequirementsMet"
+	CSVReasonComponentFailed    ConditionReason = "InstallComponentFailed"
+	CSVReasonInstallSuccessful  ConditionReason = "InstallSucceeded"
+)
+
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
 type ClusterServiceVersionCondition struct {
 	// Condition of the ClusterServiceVersion
@@ -107,7 +118,7 @@ type ClusterServiceVersionCondition struct {
 	// A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state.
 	// e.g. 'RequirementsNotMet'
 	// +optional
-	Reason string `json:"reason,omitempty"`
+	Reason ConditionReason `json:"reason,omitempty"`
 	// Last time we updated the status
 	// +optional
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
@@ -136,7 +147,7 @@ type ClusterServiceVersionStatus struct {
 	// A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state.
 	// e.g. 'RequirementsNotMet'
 	// +optional
-	Reason string `json:"reason,omitempty"`
+	Reason ConditionReason `json:"reason,omitempty"`
 	// Last time we updated the status
 	// +optional
 	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`

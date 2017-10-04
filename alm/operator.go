@@ -87,7 +87,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseNone {
 		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhasePending); err != nil {
+		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnkown, "requirements not yet checked"); err != nil {
 			return err
 		}
 		return nil
@@ -98,14 +98,14 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 		if !met {
 			log.Info("requirements were not met")
-			if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhasePending, statuses); err != nil {
+			if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhasePending, statuses, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found"); err != nil {
 				return err
 			}
 			return ErrRequirementsNotMet
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhaseInstalling, statuses); err != nil {
+		if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhaseInstalling, statuses, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting intstall"); err != nil {
 			return err
 		}
 		return nil
@@ -119,7 +119,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 		)
 		err := resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
 		if err != nil {
-			if _, transitionErr := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseFailed); err != nil {
+			if _, transitionErr := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err)); err != nil {
 				return transitionErr
 			}
 			return err
@@ -129,7 +129,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 			clusterServiceVersion.Spec.InstallStrategy.StrategyName,
 			clusterServiceVersion.SelfLink,
 		)
-		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded); err != nil {
+		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors"); err != nil {
 			return err
 		}
 	}
@@ -161,10 +161,20 @@ func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions)
 	return
 }
 
-func (a *ALMOperator) CSVTransitionPhase(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase) (result *v1alpha1.ClusterServiceVersion, err error) {
+func (a *ALMOperator) CSVTransitionPhase(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, reason v1alpha1.ConditionReason, message string) (result *v1alpha1.ClusterServiceVersion, err error) {
 	csv.Status.Phase = phase
 	csv.Status.LastTransitionTime = metav1.Now()
 	csv.Status.LastUpdateTime = metav1.Now()
+	csv.Status.Message = message
+	csv.Status.Reason = reason
+
+	csv.Status.Conditions = append(csv.Status.Conditions, v1alpha1.ClusterServiceVersionCondition{
+		Phase:              csv.Status.Phase,
+		LastTransitionTime: csv.Status.LastTransitionTime,
+		LastUpdateTime:     csv.Status.LastUpdateTime,
+		Message:            message,
+		Reason:             reason,
+	})
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = a.restClient.Put().Context(context.TODO()).
 		Namespace(csv.Namespace).
@@ -179,13 +189,22 @@ func (a *ALMOperator) CSVTransitionPhase(csv *v1alpha1.ClusterServiceVersion, ph
 	return
 }
 
-func (a *ALMOperator) CSVUpdateRequirementStatus(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, statuses []v1alpha1.RequirementStatus) (result *v1alpha1.ClusterServiceVersion, err error) {
+func (a *ALMOperator) CSVUpdateRequirementStatus(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, statuses []v1alpha1.RequirementStatus, reason v1alpha1.ConditionReason, message string) (result *v1alpha1.ClusterServiceVersion, err error) {
 	csv.Status.RequirementStatus = statuses
 	csv.Status.LastUpdateTime = metav1.Now()
 	if csv.Status.Phase != phase {
 		csv.Status.Phase = phase
 		csv.Status.LastTransitionTime = metav1.Now()
 	}
+	csv.Status.Message = message
+	csv.Status.Reason = reason
+	csv.Status.Conditions = append(csv.Status.Conditions, v1alpha1.ClusterServiceVersionCondition{
+		Phase:              csv.Status.Phase,
+		LastTransitionTime: csv.Status.LastTransitionTime,
+		LastUpdateTime:     csv.Status.LastUpdateTime,
+		Message:            message,
+		Reason:             reason,
+	})
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = a.restClient.Put().Context(context.TODO()).
 		Namespace(csv.Namespace).
