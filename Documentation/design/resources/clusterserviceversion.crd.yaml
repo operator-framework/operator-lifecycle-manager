@@ -219,6 +219,7 @@ spec:
 #  - reason
 #  - lastUpdateTime
 #  - lastTransitionTime
+#  - conditions
 #  - requirementStatus
 #  properties:
 #    phase:
@@ -242,6 +243,40 @@ spec:
 #        - InstallSuceeded
 #    message:
 #      type: string
+#
+#    conditions:
+#      type: array
+#      description: A history of the condition of the cluster service.
+#      items:
+#      - type: object
+#        required:
+#        - phase
+#        - message
+#        - reason
+#        - lastUpdateTime
+#        - lastTransitionTime
+#        properties:
+#          phase:
+#            type: string
+#            enum:
+#            - Pending
+#            - Installing
+#            - Succeeded
+#            - Failed
+#            - Unknown
+#          lastUpdateTime:
+#            type: string
+#          lastTransitionTime:
+#            type: string
+#          reason:
+#            type: string
+#            enum:
+#              - RequirementsNotMet
+#              - AllRequirementsMet
+#              - InstallCompenentFailed
+#              - InstallSuceeded
+#          message:
+#            type: string
 #    requirementStatus:
 #      type: array
 #      description: A list of requirements and their status.
@@ -263,7 +298,7 @@ spec:
 #                 type: string
 #                 enum:
 #                 - Unknown
-#                 - Not Present
+#                 - NotPresent
 #                 - Present
 #                 - Created
 #                group:

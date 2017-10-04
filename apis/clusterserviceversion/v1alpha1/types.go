@@ -97,6 +97,25 @@ const (
 	CSVPhaseUnknown ClusterServiceVersionPhase = "Unknown"
 )
 
+// Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
+type ClusterServiceVersionCondition struct {
+	// Condition of the ClusterServiceVersion
+	Phase ClusterServiceVersionPhase `json:"phase,omitempty"`
+	// A human readable message indicating details about why the ClusterServiceVersion is in this condition.
+	// +optional
+	Message string `json:"message,omitempty"`
+	// A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state.
+	// e.g. 'RequirementsNotMet'
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Last time we updated the status
+	// +optional
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// Last time the status transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+}
+
 type RequirementStatus struct {
 	Group   string `json:"group"`
 	Version string `json:"version"`
@@ -124,6 +143,8 @@ type ClusterServiceVersionStatus struct {
 	// Last time the status transitioned from one status to another.
 	// +optional
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// List of conditions, a history of state transitions
+	Conditions []ClusterServiceVersionCondition `json:"conditions,omitempty"`
 	// The status of each requirement for this CSV
 	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
 }

@@ -150,7 +150,7 @@ func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions)
 		}
 		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r)
 		if err != nil {
-			status.Status = "Not Present"
+			status.Status = "NotPresent"
 			met = false
 		} else {
 			status.Status = "Present"
