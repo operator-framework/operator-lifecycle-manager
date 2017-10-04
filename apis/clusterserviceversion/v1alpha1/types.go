@@ -24,8 +24,8 @@ type NamedInstallStrategy struct {
 //
 // If the CRD is present in the Owned list, it is implicitly required.
 type CustomResourceDefinitions struct {
-	Owned    []string
-	Required []string
+	Owned    []string `json:"owned"`
+	Required []string `json:"required"`
 }
 
 // ClusterServiceVersionSpec declarations tell the ALM how to install an operator
