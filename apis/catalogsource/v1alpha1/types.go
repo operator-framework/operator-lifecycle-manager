@@ -19,11 +19,11 @@ type CatalogSourceSpec struct {
 	Name       string `json:"name"`       // short name, should be unique to source
 
 	// Display information - used in console on catalog source page
-	DisplayName string  `json:"displayName"`
-	Description string  `json:"description"`
-	Sources     []Links `json:"sources"`  // e.g. quay.io/applications/coreos, github.com/k8s/charts
-	Provider    string  `json:"provider"` // catalog publishers, e.g. "Salesforce", "BigCo Internal"
-	Icon        Icon    `json:"icon"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
+	SourceURL   string `json:"source"`   // e.g. quay.io/applications/coreos, github.com/k8s/charts
+	Provider    string `json:"provider"` // catalog publishers, e.g. "Salesforce", "BigCo Internal"
+	Icon        Icon   `json:"icon"`
 
 	// SourceType-specific configuration
 
@@ -34,11 +34,6 @@ type CatalogSourceSpec struct {
 type Icon struct {
 	Data      string `json:"base64data"`
 	MediaType string `json:"mediatype"`
-}
-
-type Links struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
 }
 
 type CatalogConfigMaps struct {
