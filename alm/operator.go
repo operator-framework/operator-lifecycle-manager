@@ -94,10 +94,10 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	}
 
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhasePending {
-		met, statuses := a.requirementStatus(clusterServiceVersion.Spec.Requirements)
+		met, statuses := a.requirementStatus(clusterServiceVersion.Spec.CustomResourceDefinitions)
 
 		if !met {
-			log.Info("requirements were not met: %v", clusterServiceVersion.Spec.Requirements)
+			log.Info("requirements were not met")
 			if _, err := a.CSVUpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhasePending, statuses); err != nil {
 				return err
 			}
@@ -137,17 +137,18 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	return nil
 }
 
-func (a *ALMOperator) requirementStatus(requirements []v1alpha1.Requirements) (met bool, statuses []v1alpha1.RequirementStatus) {
+func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions) (met bool, statuses []v1alpha1.RequirementStatus) {
 	emptyCRD := v1beta1.CustomResourceDefinition{}
 	met = true
+	requirements := append(crds.Owned, crds.Required...)
 	for _, r := range requirements {
 		status := v1alpha1.RequirementStatus{
 			Group:   emptyCRD.GroupVersionKind().Group,
 			Version: emptyCRD.GroupVersionKind().Version,
 			Kind:    emptyCRD.GroupVersionKind().Kind,
-			Name:    r.Name,
+			Name:    r,
 		}
-		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r.Name)
+		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r)
 		if err != nil {
 			status.Status = "Not Present"
 			met = false
