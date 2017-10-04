@@ -6,7 +6,7 @@ metadata:
   name: etcd-operator
   uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1 
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
   ownerReferences:
   - apiVersion: app.coreos.com/v1alpha1
     kind: AppType-v1
@@ -52,50 +52,11 @@ spec:
               - name: etcd-operator
                 image: quay.io/coreos/etcd-operator:v0.5.1
   version: 0.5.1
-  replaces: etcdoperator.v0.5.0  
+  replaces: etcdoperator.v0.5.0
   maturity: beta
-  requirements:
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: etcdclusters-v1.etcd.database.coreos.com
-  - kind: ServiceAccount
-    apiVersion: v1
-    name: etcd-operator
-    rules:
-    - apiGroups:
-      - etcd.database.coreos.com
-      resources:
-      - etcdclusters
-      verbs:
-      - "*"
-    - apiGroups:
-      - apiextensions.k8s.io
-      resources:
-      - customresourcedefinitions
-      verbs:
-      - "*"
-    - apiGroups:
-      - storage.k8s.io
-      resources:
-      - storageclasses
-      verbs:
-      - "*"
-    - apiGroups:
-      - ""
-      resources:
-      - pods
-      - services
-      - endpoints
-      - persistentvolumeclaims
-      - events
-      verbs:
-      - "*"
-    - apiGroups:
-      - apps
-      resources:
-      - deployments
-      verbs:
-      - "*"
+  customresourcedefinitions:
+    owned:
+    - etcdclusters-v1.etcd.database.coreos.com
 status:
   conditions:
     - type: Available

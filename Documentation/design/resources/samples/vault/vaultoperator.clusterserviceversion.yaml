@@ -5,7 +5,7 @@ metadata:
   namespace: alm-vault-example
   name: vault-operator.0.0.2
   labels:
-    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1 
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   displayName: Vault
   description: An encrypted, multi-tentant secure secret store
@@ -55,48 +55,8 @@ spec:
   version: 0.0.2
   maturity: beta
   replaces: vaultoperator.0.0.1
-  requirements:
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: etcdclusters-v1.etcd.database.coreos.com
-  - kind: CustomResourceDefinition
-    apiVersion: v1alpha1
-    name: vaultclusters-v1.vault.security.coreos.com
-  - kind: ServiceAccount
-    apiVersion: v1
-    name: etcd-operator
-    rules:
-    - apiGroups:
-      - etcd.database.coreos.com
-      resources:
-      - etcdclusters
-      verbs:
-      - "*"
-    - apiGroups:
-      - vault.security.coreos.com
-      resources:
-      - vaultclusters
-      verbs:
-      - "*"
-    - apiGroups:
-      - storage.k8s.io
-      resources:
-      - storageclasses
-      verbs:
-      - "*"
-    - apiGroups: 
-      - ""
-      resources:
-      - pods
-      - services
-      - endpoints
-      - persistentvolumeclaims
-      - events
-      verbs:
-      - "*"
-    - apiGroups:
-      - apps
-      resources:
-      - deployments
-      verbs:
-      - "*"
+  customresourcedefinitions:
+    owned:
+    - vaultclusters-v1.vault.security.coreos.com
+    required:
+    - etcdclusters-v1.etcd.database.coreos.com

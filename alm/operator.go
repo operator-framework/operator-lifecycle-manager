@@ -87,12 +87,12 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
 	resolver := install.NewStrategyResolver(a.OpClient, clusterServiceVersion.ObjectMeta)
-	ok, err := requirementsMet(clusterServiceVersion.Spec.Requirements, a.restClient)
+	ok, err := requirementsMet(clusterServiceVersion.Spec.CustomResourceDefinitions, a.restClient)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		log.Info("requirements were not met: %v", clusterServiceVersion.Spec.Requirements)
+		log.Info("requirements were not met: %v", clusterServiceVersion.Spec.CustomResourceDefinitions)
 		return ErrRequirementsNotMet
 	}
 	err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
@@ -108,24 +108,20 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	return nil
 }
 
-func requirementsMet(requirements []v1alpha1.Requirements, kubeClient *rest.RESTClient) (bool, error) {
-	for _, element := range requirements {
-		if element.Optional {
-			log.Info("Requirement was optional")
-			continue
-		}
-		result := kubeClient.Get().Namespace(element.Namespace).Name(element.Name).Resource(element.Kind).Do()
+func requirementsMet(crds v1alpha1.CustomResourceDefinitions, kubeClient *rest.RESTClient) (bool, error) {
+	// Build a set of the required CRDs.
+	requiredCRDSet := map[string]struct{}{}
+	for _, crd := range crds.Owned {
+		requiredCRDSet[crd] = struct{}{}
+	}
+	for _, crd := range crds.Required {
+		requiredCRDSet[crd] = struct{}{}
+	}
+
+	for crd := range requiredCRDSet {
+		result := kubeClient.Get().Namespace("").Name(crd).Resource("customresourcedefinition").Do()
 		if result.Error() != nil {
 			log.Info("Namespace, name, or kind was not met")
-			return false, nil
-		}
-		runtimeObj, err := result.Get()
-		if err != nil {
-			log.Info("Error retrieving runtimeOBj")
-			return false, err
-		}
-		if runtimeObj.GetObjectKind().GroupVersionKind().Version != element.ApiVersion {
-			log.Info("GroupVersionKind was not met")
 			return false, nil
 		}
 	}

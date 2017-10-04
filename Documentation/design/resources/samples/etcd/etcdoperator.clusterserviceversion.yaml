@@ -5,7 +5,7 @@ metadata:
   namespace: alm-etcd-example
   name: etcdoperator.v0.5.1
   labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1 
+    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   displayName: Etcd
   description: Etcd is a distributed key value store that provides a reliable way to store data across a cluster of machines. It’s open-source and available on GitHub. etcd gracefully handles leader elections during network partitions and will tolerate machine failure, including the leader. Your applications can read and write data into etcd. A simple use-case is to store database connection details or feature flags in etcd as key value pairs. These values can be watched, allowing your app to reconfigure itself when they change. Advanced uses take advantage of the consistency guarantees to implement database leader elections or do distributed locking across a cluster of workers.
@@ -58,47 +58,6 @@ spec:
   version: 0.5.1
   replaces: etcdoperator.v0.5.0
   maturity: beta
-  ownedCRDs:
-  - etcdclusters-v1.etcd.database.coreos.com
-  requirements:
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: etcdclusters-v1.etcd.database.coreos.com
-  - kind: ServiceAccount
-    apiVersion: v1
-    name: etcd-operator
-    rules:
-    - apiGroups:
-      - etcd.database.coreos.com
-      resources:
-      - etcdclusters
-      verbs:
-      - "*"
-    - apiGroups:
-      - apiextensions.k8s.io
-      resources:
-      - customresourcedefinitions
-      verbs:
-      - "*"
-    - apiGroups:
-      - storage.k8s.io
-      resources:
-      - storageclasses
-      verbs:
-      - "*"
-    - apiGroups:
-      - ""
-      resources:
-      - pods
-      - services
-      - endpoints
-      - persistentvolumeclaims
-      - events
-      verbs:
-      - "*"
-    - apiGroups:
-      - apps
-      resources:
-      - deployments
-      verbs:
-      - "*"
+  customresourcedefinitions:
+    owned:
+    - etcdclusters-v1.etcd.database.coreos.com

@@ -55,69 +55,8 @@ spec:
   version: 0.13.0
   maturity: beta
   replaces: prometheusoperator.0.12.0
-  ownedCRDs:
-  - prometheuses.monitoring.coreos.com
-  - servicemonitors.monitoring.coreos.com
-  - alertmanagers.monitoring.coreos.com
-  requirements:
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: prometheuses.monitoring.coreos.com
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: servicemonitors.monitoring.coreos.com
-  - kind: CustomResourceDefinition
-    apiVersion: v1beta1
-    name: alertmanagers.monitoring.coreos.com
-  - kind: ServiceAccount
-    apiVersion: v1
-    name: prometheus-operator
-    rules:
-    - apiGroups:
-      - extensions
-      resources:
-      - thirdpartyresources
-      verbs:
-      - "*"
-    - apiGroups:
-      - apiextensions.k8s.io
-      resources:
-      - customresourcedefinitions
-      verbs:
-      - "*"
-    - apiGroups:
-      - monitoring.coreos.com
-      resources:
-      - alertmanagers
-      - prometheuses
-      - servicemonitors
-      verbs:
-      - "*"
-    - apiGroups:
-      - apps
-      resources:
-      - statefulsets
-      verbs: ["*"]
-    - apiGroups: [""]
-      resources:
-      - configmaps
-      - secrets
-      verbs: ["*"]
-    - apiGroups: [""]
-      resources:
-      - pods
-      verbs: ["list", "delete"]
-    - apiGroups: [""]
-      resources:
-      - services
-      - endpoints
-      verbs: ["get", "create", "update"]
-    - apiGroups: [""]
-      resources:
-      - nodes
-      verbs: ["list", "watch"]
-    - apiGroups: [""]
-      resources:
-      - namespaces
-      verbs: ["list"]
-
+  customresourcedefinitions:
+    owned:
+    - prometheuses.monitoring.coreos.com
+    - servicemonitors.monitoring.coreos.com
+    - alertmanagers.monitoring.coreos.com
