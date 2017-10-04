@@ -24,8 +24,11 @@ type MemoryMap struct {
 // NewMemoryMap returns a ptr to a new MemoryMap instance
 // currently a no-op wrapper
 func NewMemoryMap() *MemoryMap {
-	return &MemoryMap{map[string]v1alpha1.ClusterServiceVersion{},
-		map[string]string{}, map[string]apiextensions.CustomResourceDefinition{}}
+	return &MemoryMap{
+		clusterservices: map[string]v1alpha1.ClusterServiceVersion{},
+		crdToCSV:        map[string]string{},
+		crds:            map[string]apiextensions.CustomResourceDefinition{},
+	}
 }
 
 // addService is a helper fn to register a new service into the catalog
