@@ -1,7 +1,7 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata: 
-  name: etcdclusters.database.coreos.com
+  name: etcdclusters-v1.etcd.database.coreos.com
   labels:
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
   annotations:
@@ -49,7 +49,7 @@ metadata:
         "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:metrics"]
       }}'
 spec:
-  group: database.coreos.com
+  group: etcd.database.coreos.com
   version: v1beta2
   scope: Namespaced
   validation:
@@ -73,7 +73,7 @@ spec:
           type: object
           description: labels to apply to associated objects
   names:
-    plural: etcdclusters
-    singular: etcdcluster
-    kind: EtcdCluster
-    listKind: EtcdClusterList
+    plural: etcdclusters-v1
+    singular: etcdcluster-v1
+    kind: EtcdCluster-v1
+    listKind: EtcdClusterList-v1
