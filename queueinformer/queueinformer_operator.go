@@ -31,6 +31,9 @@ func NewOperator(kubeconfig string, queueInformers ...*QueueInformer) (*Operator
 
 // RegisterQueueInformer adds a QueueInformer to this operator
 func (o *Operator) RegisterQueueInformer(queueInformer *QueueInformer) {
+	if o.queueInformers == nil {
+		o.queueInformers = []*QueueInformer{}
+	}
 	o.queueInformers = append(o.queueInformers, queueInformer)
 }
 

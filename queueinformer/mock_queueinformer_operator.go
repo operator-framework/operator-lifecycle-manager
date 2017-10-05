@@ -12,7 +12,7 @@ type MockOperator struct {
 }
 
 // NewMockOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
-func NewMockOperator(kubeconfig string, gomockCtrl *gomock.Controller, testQueueInformers ...*TestQueueInformer) (*MockOperator, error) {
+func NewMockOperator(gomockCtrl *gomock.Controller, testQueueInformers ...*TestQueueInformer) *MockOperator {
 	mockClient := opClient.NewMockInterface(gomockCtrl)
 
 	if testQueueInformers == nil {
@@ -29,7 +29,7 @@ func NewMockOperator(kubeconfig string, gomockCtrl *gomock.Controller, testQueue
 		},
 		testQueueInformers: testQueueInformers,
 	}
-	return operator, nil
+	return operator
 }
 
 // RegisterQueueInformer adds a QueueInformer to this operator
