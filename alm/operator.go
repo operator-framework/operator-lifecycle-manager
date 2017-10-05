@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
@@ -135,14 +134,13 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 }
 
 func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions) (met bool, statuses []v1alpha1.RequirementStatus) {
-	emptyCRD := v1beta1.CustomResourceDefinition{}
 	met = true
 	requirements := append(crds.Owned, crds.Required...)
 	for _, r := range requirements {
 		status := v1alpha1.RequirementStatus{
-			Group:   emptyCRD.GroupVersionKind().Group,
-			Version: emptyCRD.GroupVersionKind().Version,
-			Kind:    emptyCRD.GroupVersionKind().Kind,
+			Group:   "apiextensions.k8s.io",
+			Version: "v1beta1",
+			Kind:    "CustomResourceDefinition",
 			Name:    r,
 		}
 		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r)

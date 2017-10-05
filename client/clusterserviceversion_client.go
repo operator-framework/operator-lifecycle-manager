@@ -64,6 +64,14 @@ func (c *ClusterServiceVersionClient) TransitionPhase(csv *v1alpha1.ClusterServi
 				Reason:             reason,
 			})
 		}
+	} else {
+		csv.Status.Conditions = append(csv.Status.Conditions, v1alpha1.ClusterServiceVersionCondition{
+			Phase:              csv.Status.Phase,
+			LastTransitionTime: csv.Status.LastTransitionTime,
+			LastUpdateTime:     csv.Status.LastUpdateTime,
+			Message:            message,
+			Reason:             reason,
+		})
 	}
 
 	result = &v1alpha1.ClusterServiceVersion{}
@@ -100,6 +108,14 @@ func (c *ClusterServiceVersionClient) UpdateRequirementStatus(csv *v1alpha1.Clus
 				Reason:             reason,
 			})
 		}
+	} else {
+		csv.Status.Conditions = append(csv.Status.Conditions, v1alpha1.ClusterServiceVersionCondition{
+			Phase:              csv.Status.Phase,
+			LastTransitionTime: csv.Status.LastTransitionTime,
+			LastUpdateTime:     csv.Status.LastUpdateTime,
+			Message:            message,
+			Reason:             reason,
+		})
 	}
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.RESTClient.Put().Context(context.TODO()).

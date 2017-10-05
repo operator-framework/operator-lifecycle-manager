@@ -28,6 +28,7 @@ func (l *MockListWatcher) Watch(options v1.ListOptions) (watch.Interface, error)
 
 type MockALMOperator struct {
 	ALMOperator
+	MockCSVClient     *client.MockClusterServiceVersionInterface
 	TestQueueInformer queueinformer.TestQueueInformer
 }
 
@@ -50,13 +51,28 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 
 	return &MockALMOperator{
 		ALMOperator:       almOperator,
+		MockCSVClient:     mockCSVClient,
 		TestQueueInformer: *csvQueueInformer,
 	}
 }
 
-func TestStateTransitions(t *testing.T) {
+func TestTransitionNoneToPending(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockOp := NewMockALMOperator(ctrl)
-	mockOp.TestQueueInformer.Enqueue("test")
+
+	csv := v1alpha1.ClusterServiceVersion{
+		ObjectMeta: v1.ObjectMeta{
+			Name:     "test-csv",
+			SelfLink: "/link/test-csv",
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			DisplayName: "Test",
+		},
+	}
+
+	mockOp.MockCSVClient.EXPECT().
+		TransitionPhase(&csv, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnkown, "requirements not yet checked").
+		Return(&csv, nil)
+	mockOp.syncClusterServiceVersion(&csv)
 }
