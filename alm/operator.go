@@ -86,7 +86,11 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	resolver := install.NewStrategyResolver(a.OpClient, clusterServiceVersion.ObjectMeta)
+	resolver := install.NewStrategyResolver(
+		a.OpClient,
+		clusterServiceVersion.ObjectMeta,
+		clusterServiceVersion.TypeMeta,
+	)
 	ok, err := requirementsMet(clusterServiceVersion.Spec.CustomResourceDefinitions, a.restClient)
 	if err != nil {
 		return err

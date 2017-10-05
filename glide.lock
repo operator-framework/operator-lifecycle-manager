@@ -1,5 +1,5 @@
-hash: 55300240e2699e96ef22b12376550d9231b7564204f01901e96b2ae019ddb263
-updated: 2017-09-25T11:18:06.261298109-04:00
+hash: 0c70a7ca7df74df9caade409c50f2fc059c5cebca9b0c94f8c934de40d9d2c96
+updated: 2017-10-06T10:33:21.441368833-04:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
@@ -53,7 +53,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -94,6 +94,8 @@ imports:
   - buffer
   - jlexer
   - jwriter
+- name: github.com/pborman/uuid
+  version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/PuerkitoBio/purell
@@ -115,10 +117,13 @@ imports:
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
+  - html
+  - html/atom
   - http2
   - http2/hpack
   - idna
   - lex/httplex
+  - websocket
 - name: golang.org/x/sys
   version: 8f0908ab3b2457e2e15403d3697c9ef5cb4b57a9
   subpackages:
@@ -142,7 +147,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/api
-  version: c0bcfdc3597be1a899c9f0b4e3d1b2e023b5148f
+  version: e012d1a19ed30848135c78dca93b6d6a0f82d9e0
   subpackages:
   - admissionregistration/v1alpha1
   - apps/v1beta1
@@ -217,6 +222,7 @@ imports:
   - pkg/util/runtime
   - pkg/util/sets
   - pkg/util/strategicpatch
+  - pkg/util/uuid
   - pkg/util/validation
   - pkg/util/validation/field
   - pkg/util/wait
@@ -226,7 +232,7 @@ imports:
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
 - name: k8s.io/apiserver
-  version: ab57ed5a72c3b67058f665d660e23bae18339fc2
+  version: f9b476d61dbdf6474e3d42cc5e854d0d8b7f759e
   subpackages:
   - pkg/util/feature
 - name: k8s.io/client-go

@@ -36,9 +36,12 @@ import:
   - pkg/apis/meta/v1/unstructured
   - pkg/fields
   - pkg/openapi
+  - pkg/util/uuid
 - package: github.com/pkg/errors
   version: ~0.8.0
 - package: k8s.io/apiserver
+- package: github.com/pborman/uuid
+  version: ~1.1.0
 testImport:
 - package: github.com/golang/mock
   version: v1.0.0
