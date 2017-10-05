@@ -45,3 +45,6 @@ gen-ci: fmt-ci
 
 codegen:
 	hack/k8s/codegen/update-generated.sh
+
+generate-mock-client:
+	@mockgen -package=client -source=client/clusterserviceversion_client.go > client/mock_client.go
