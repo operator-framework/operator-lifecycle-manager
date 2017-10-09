@@ -33,7 +33,7 @@ func NewInMem() *InMem {
 }
 
 // addService is a helper fn to register a new service into the catalog
-func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, managedcrds []apiextensions.CustomResourceDefinition) error {
+func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, managedCRDs []apiextensions.CustomResourceDefinition) error {
 	name := csv.GetName()
 
 	// validate csv doesn't already exist and no other csv manages the same crds
@@ -42,7 +42,7 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, managedcrds []api
 	}
 	// validate crd's not already managed by another service
 	invalidCRDs := []string{}
-	for _, crdef := range managedcrds {
+	for _, crdef := range managedCRDs {
 		crd := crdef.GetName()
 		if _, exists := m.crdToCSV[crd]; exists {
 			invalidCRDs = append(invalidCRDs, crd)
@@ -54,7 +54,7 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, managedcrds []api
 	// add service
 	m.clusterservices[name] = csv
 	// register it's crds
-	for _, crd := range managedcrds {
+	for _, crd := range managedCRDs {
 		m.crdToCSV[crd.GetName()] = name
 		m.crds[crd.GetName()] = crd
 	}
