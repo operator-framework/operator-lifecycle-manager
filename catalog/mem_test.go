@@ -3,10 +3,11 @@ package catalog
 import (
 	"testing"
 
-	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
 func TestFindClusterServiceVersionByName(t *testing.T) {
