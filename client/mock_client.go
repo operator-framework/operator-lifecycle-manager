@@ -29,24 +29,13 @@ func (_m *MockClusterServiceVersionInterface) EXPECT() *_MockClusterServiceVersi
 	return _m.recorder
 }
 
-func (_m *MockClusterServiceVersionInterface) TransitionPhase(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, reason v1alpha1.ConditionReason, message string) (*v1alpha1.ClusterServiceVersion, error) {
-	ret := _m.ctrl.Call(_m, "TransitionPhase", csv, phase, reason, message)
+func (_m *MockClusterServiceVersionInterface) UpdateCSV(csv *v1alpha1.ClusterServiceVersion) (*v1alpha1.ClusterServiceVersion, error) {
+	ret := _m.ctrl.Call(_m, "UpdateCSV", csv)
 	ret0, _ := ret[0].(*v1alpha1.ClusterServiceVersion)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockClusterServiceVersionInterfaceRecorder) TransitionPhase(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TransitionPhase", arg0, arg1, arg2, arg3)
-}
-
-func (_m *MockClusterServiceVersionInterface) UpdateRequirementStatus(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, statuses []v1alpha1.RequirementStatus, reason v1alpha1.ConditionReason, message string) (*v1alpha1.ClusterServiceVersion, error) {
-	ret := _m.ctrl.Call(_m, "UpdateRequirementStatus", csv, phase, statuses, reason, message)
-	ret0, _ := ret[0].(*v1alpha1.ClusterServiceVersion)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockClusterServiceVersionInterfaceRecorder) UpdateRequirementStatus(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "UpdateRequirementStatus", arg0, arg1, arg2, arg3, arg4)
+func (_mr *_MockClusterServiceVersionInterfaceRecorder) UpdateCSV(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "UpdateCSV", arg0)
 }

@@ -72,7 +72,8 @@ func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error)
 	return op, nil
 }
 
-func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
+// syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
+func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -81,58 +82,61 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	switch clusterServiceVersion.Status.Phase {
+	syncError = a.transitionCSVState(clusterServiceVersion)
+	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
+		return err
+	}
+	return
+}
+
+// transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
+// state.
+func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
+	switch csv.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
-		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked"); err != nil {
-			return err
-		}
-		return nil
+		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", csv.SelfLink)
+		csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
 	case v1alpha1.CSVPhasePending:
-		met, statuses := a.requirementStatus(clusterServiceVersion.Spec.CustomResourceDefinitions)
+		met, statuses := a.requirementStatus(csv.Spec.CustomResourceDefinitions)
 
 		if !met {
 			log.Info("requirements were not met")
-			if _, err := a.csvClient.UpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhasePending, statuses, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found"); err != nil {
-				return err
-			}
-			return ErrRequirementsNotMet
+			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
+			csv.SetRequirementStatus(statuses)
+			break
 		}
 
-		log.Infof("scheduling ClusterServiceVersion for install: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.csvClient.UpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhaseInstalling, statuses, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install"); err != nil {
-			return err
-		}
-		return nil
+		log.Infof("scheduling ClusterServiceVersion for install: %s", csv.SelfLink)
+		csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
+		csv.SetRequirementStatus(statuses)
+		syncError = ErrRequirementsNotMet
 	case v1alpha1.CSVPhaseInstalling:
-		resolver := install.NewStrategyResolver(a.OpClient, clusterServiceVersion.ObjectMeta)
-		installed, err := resolver.CheckInstalled(&clusterServiceVersion.Spec.InstallStrategy)
+		resolver := install.NewStrategyResolver(a.OpClient, csv.ObjectMeta)
+		installed, err := resolver.CheckInstalled(&csv.Spec.InstallStrategy)
 		if err != nil {
-			if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err)); err != nil {
-				return err
-			}
+			// TODO: add a retry count, don't give up on first failure
+			csv.SetPhase(v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
+			break
 		}
 		if installed {
 			log.Infof(
 				"%s install strategy successful for %s",
-				clusterServiceVersion.Spec.InstallStrategy.StrategyName,
-				clusterServiceVersion.SelfLink,
+				csv.Spec.InstallStrategy.StrategyName,
+				csv.SelfLink,
 			)
-			if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors"); err != nil {
-				return err
-			}
-			return nil
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+			break
 		}
-		err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
-		if err != nil {
-			if _, transitionErr := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err)); err != nil {
-				return transitionErr
-			}
-			return err
+		// We transition to ComponentFailed if install failed, but we don't transition to succeeded here. Instead we let
+		// this queue pick the object back up, and transition to Succeeded once we verify the install
+		// with the install strategy's `CheckInstall`
+		syncError = resolver.ApplyStrategy(&csv.Spec.InstallStrategy)
+		if syncError != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
+			break
 		}
 	}
-
-	return nil
+	return
 }
 
 func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions) (met bool, statuses []v1alpha1.RequirementStatus) {
