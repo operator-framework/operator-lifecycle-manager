@@ -35,13 +35,12 @@ type ClusterServiceVersionSpec struct {
 	Version                   semver.Version            `json:"version"`
 	Maturity                  string                    `json:"maturity"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions"`
-	Permissions               []string                  `json:"permissions"`
 	DisplayName               string                    `json:"displayName"`
 	Description               string                    `json:"description"`
 	Keywords                  []string                  `json:"keywords"`
 	Maintainers               []Maintainer              `json:"maintainers"`
 	Links                     []AppLink                 `json:"links"`
-	Icon                      Icon                      `json:"iconURL"`
+	Icon                      Icon                      `json:"icon"`
 
 	// Map of string keys and values that can be used to organize and categorize
 	// (scope and select) objects. May match selectors of replication controllers
