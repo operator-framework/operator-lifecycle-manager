@@ -3,8 +3,9 @@ package catalog
 import (
 	"fmt"
 
-	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
 // MemoryMap - catalog source implementation that stores the data in memory in golang maps
