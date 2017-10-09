@@ -28,7 +28,7 @@ func TestFindClusterServiceVersionByName(t *testing.T) {
 	crds := []apiextensions.CustomResourceDefinition{crd1}
 	catalog.addService(csv1, crds)
 
-	foundCSV, err := catalog.FindClusterServiceVersionByName("MockCSV")
+	foundCSV, err := catalog.FindClusterServiceVersionByServiceName("MockCSV")
 	assert.NoError(t, err)
 	assert.Equal(t, "MockCSV", foundCSV.GetName())
 }

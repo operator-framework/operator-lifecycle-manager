@@ -77,7 +77,7 @@ func (m *MemoryMap) removeService(name string) error {
 	return nil
 }
 
-func (m *MemoryMap) FindClusterServiceVersionByName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+func (m *MemoryMap) FindClusterServiceVersionByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csv, ok := m.clusterservices[name]
 	if !ok {
 		return nil, fmt.Errorf("Not found: ClusterServiceVersion %s", name)
