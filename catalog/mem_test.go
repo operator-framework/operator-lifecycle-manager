@@ -10,8 +10,8 @@ import (
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
-func TestFindClusterServiceVersionByName(t *testing.T) {
-	catalog := NewMemoryMap()
+func TestFindClusterServiceVersionByServiceName(t *testing.T) {
+	catalog := NewInMem()
 	csv1 := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionCRDName,
