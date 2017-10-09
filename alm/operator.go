@@ -84,7 +84,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	switch clusterServiceVersion.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
 		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnkown, "requirements not yet checked"); err != nil {
+		if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked"); err != nil {
 			return err
 		}
 		return nil
@@ -100,7 +100,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", clusterServiceVersion.SelfLink)
-		if _, err := a.csvClient.UpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhaseInstalling, statuses, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting intstall"); err != nil {
+		if _, err := a.csvClient.UpdateRequirementStatus(clusterServiceVersion, v1alpha1.CSVPhaseInstalling, statuses, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install"); err != nil {
 			return err
 		}
 		return nil

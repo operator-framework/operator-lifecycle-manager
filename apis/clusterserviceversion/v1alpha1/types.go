@@ -100,12 +100,12 @@ const (
 type ConditionReason string
 
 const (
-	CSVReasonRequirementsUnkown ConditionReason = "RequirementsUnknown"
-	CSVReasonRequirementsNotMet ConditionReason = "RequirementsNotMet"
-	CSVReasonRequirementsMet    ConditionReason = "AllRequirementsMet"
-	CSVReasonComponentFailed    ConditionReason = "InstallComponentFailed"
-	CSVReasonInstallSuccessful  ConditionReason = "InstallSucceeded"
-	CSVReasonInstallCheckFailed ConditionReason = "InstallCheckFailed"
+	CSVReasonRequirementsUnknown ConditionReason = "RequirementsUnknown"
+	CSVReasonRequirementsNotMet  ConditionReason = "RequirementsNotMet"
+	CSVReasonRequirementsMet     ConditionReason = "AllRequirementsMet"
+	CSVReasonComponentFailed     ConditionReason = "InstallComponentFailed"
+	CSVReasonInstallSuccessful   ConditionReason = "InstallSucceeded"
+	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion

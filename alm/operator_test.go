@@ -72,7 +72,7 @@ func TestTransitionNoneToPending(t *testing.T) {
 	}
 
 	mockOp.MockCSVClient.EXPECT().
-		TransitionPhase(&csv, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnkown, "requirements not yet checked").
+		TransitionPhase(&csv, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked").
 		Return(&csv, nil)
 	mockOp.syncClusterServiceVersion(&csv)
 }
