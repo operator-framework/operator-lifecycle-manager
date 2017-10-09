@@ -121,6 +121,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 			if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors"); err != nil {
 				return err
 			}
+			return nil
 		}
 		err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
 		if err != nil {
