@@ -8,10 +8,10 @@ import (
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
-// MemoryMap - catalog source implementation that stores the data in memory in golang maps
-var _ Source = &MemoryMap{}
+// InMem - catalog source implementation that stores the data in memory in golang maps
+var _ Source = &InMem{}
 
-type MemoryMap struct {
+type InMem struct {
 	// map ClusterServiceVersion name to it's full resource definition
 	clusterservices map[string]v1alpha1.ClusterServiceVersion
 
@@ -22,10 +22,10 @@ type MemoryMap struct {
 	crds map[string]apiextensions.CustomResourceDefinition
 }
 
-// NewMemoryMap returns a ptr to a new MemoryMap instance
+// NewInMem returns a ptr to a new InMem instance
 // currently a no-op wrapper
-func NewMemoryMap() *MemoryMap {
-	return &MemoryMap{
+func NewInMem() *InMem {
+	return &InMem{
 		clusterservices: map[string]v1alpha1.ClusterServiceVersion{},
 		crdToCSV:        map[string]string{},
 		crds:            map[string]apiextensions.CustomResourceDefinition{},
@@ -33,7 +33,7 @@ func NewMemoryMap() *MemoryMap {
 }
 
 // addService is a helper fn to register a new service into the catalog
-func (m *MemoryMap) addService(csv v1alpha1.ClusterServiceVersion, managedcrds []apiextensions.CustomResourceDefinition) error {
+func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, managedcrds []apiextensions.CustomResourceDefinition) error {
 	name := csv.GetName()
 
 	// validate csv doesn't already exist and no other csv manages the same crds
@@ -62,7 +62,7 @@ func (m *MemoryMap) addService(csv v1alpha1.ClusterServiceVersion, managedcrds [
 }
 
 // removeService is a helper fn to delete a service from the catalog
-func (m *MemoryMap) removeService(name string) error {
+func (m *InMem) removeService(name string) error {
 	if _, exists := m.clusterservices[name]; !exists {
 		return fmt.Errorf("Not found: ClusterServiceVersion %s", name)
 	}
@@ -77,7 +77,7 @@ func (m *MemoryMap) removeService(name string) error {
 	return nil
 }
 
-func (m *MemoryMap) FindClusterServiceVersionByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+func (m *InMem) FindClusterServiceVersionByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csv, ok := m.clusterservices[name]
 	if !ok {
 		return nil, fmt.Errorf("Not found: ClusterServiceVersion %s", name)
@@ -85,7 +85,7 @@ func (m *MemoryMap) FindClusterServiceVersionByServiceName(name string) (*v1alph
 	return &csv, nil
 }
 
-func (m *MemoryMap) FindClusterServiceVersionForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error) {
+func (m *InMem) FindClusterServiceVersionForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error) {
 	name, ok := m.crdToCSV[crdname]
 	if !ok {
 		return nil, fmt.Errorf("Not found: CRD %s", crdname)
@@ -93,7 +93,7 @@ func (m *MemoryMap) FindClusterServiceVersionForCRD(crdname string) (*v1alpha1.C
 	return m.FindClusterServiceVersionForCRD(name)
 }
 
-func (m *MemoryMap) FindCRDByName(crdname string) (*apiextensions.CustomResourceDefinition, error) {
+func (m *InMem) FindCRDByName(crdname string) (*apiextensions.CustomResourceDefinition, error) {
 	crd, ok := m.crds[crdname]
 	if !ok {
 		return nil, fmt.Errorf("Not found: CRD %s", crdname)
