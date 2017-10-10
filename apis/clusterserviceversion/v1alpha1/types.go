@@ -40,7 +40,7 @@ type ClusterServiceVersionSpec struct {
 	Keywords                  []string                  `json:"keywords"`
 	Maintainers               []Maintainer              `json:"maintainers"`
 	Links                     []AppLink                 `json:"links"`
-	Icon                      Icon                      `json:"icon"`
+	Icon                      []Icon                    `json:"icon"`
 
 	// Map of string keys and values that can be used to organize and categorize
 	// (scope and select) objects. May match selectors of replication controllers

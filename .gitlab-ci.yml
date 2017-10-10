@@ -121,7 +121,7 @@ e2e_example:
     name: python:2.7
   script:
   - sleep 10
-  - curl localhost:8080
+  - ls
   services:
   - alias: alm
     name: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre

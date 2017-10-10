@@ -274,8 +274,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						"test",
-						[]byte(`"test":"spec"`),
+						StrategyName:    "test",
+						StrategySpecRaw: []byte(`"test":"spec"`),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -294,8 +294,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						"test",
-						[]byte(`"test":"spec"`),
+						StrategyName:    "test",
+						StrategySpecRaw: []byte(`"test":"spec"`),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -314,8 +314,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						"test",
-						[]byte(`"test":"spec"`),
+						StrategyName:    "test",
+						StrategySpecRaw: []byte(`"test":"spec"`),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{

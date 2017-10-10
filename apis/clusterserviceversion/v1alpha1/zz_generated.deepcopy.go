@@ -182,7 +182,11 @@ func (in *ClusterServiceVersionSpec) DeepCopyInto(out *ClusterServiceVersionSpec
 		*out = make([]AppLink, len(*in))
 		copy(*out, *in)
 	}
-	out.Icon = in.Icon
+	if in.Icon != nil {
+		in, out := &in.Icon, &out.Icon
+		*out = make([]Icon, len(*in))
+		copy(*out, *in)
+	}
 	if in.Labels != nil {
 		in, out := &in.Labels, &out.Labels
 		*out = make(map[string]string, len(*in))
