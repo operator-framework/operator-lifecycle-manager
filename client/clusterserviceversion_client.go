@@ -26,3 +26,4 @@ func NewClusterServiceVersionClient(kubeconfig string) (client *rest.RESTClient,
 	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
 	return rest.RESTClientFor(config)
 }
+

@@ -1,6 +1,7 @@
 package alm
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -61,7 +62,7 @@ func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error)
 		csvClient,
 	}
 	csvQueueInformers := queueinformer.New(
-		"operatorversions",
+		"clusterserviceversions",
 		sharedIndexInformers,
 		op.syncClusterServiceVersion,
 		nil,
@@ -82,34 +83,80 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	if clusterServiceVersion.Status.Phase != v1alpha1.CSVPending {
-		log.Infof("ClusterServiceVersion already created: %s", clusterServiceVersion.SelfLink)
+	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseNone {
+		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", clusterServiceVersion.SelfLink)
+		clusterServiceVersion.Status.Phase = v1alpha1.CSVPhasePending
+		result := &v1alpha1.ClusterServiceVersion{}
+		err := a.restClient.Put().Context(context.TODO()).
+			Namespace(clusterServiceVersion.Namespace).
+			Resource("clusterserviceversion-v1s").
+			Name(clusterServiceVersion.Name).
+			Body(clusterServiceVersion).
+			Do().
+			Into(result)
+		if err != nil {
+			return fmt.Errorf("failed to update CR status: %v", err)
+		}
 		return nil
 	}
-	resolver := install.NewStrategyResolver(
-		a.OpClient,
-		clusterServiceVersion.ObjectMeta,
-		clusterServiceVersion.TypeMeta,
-	)
-	ok, err := requirementsMet(clusterServiceVersion.Spec.CustomResourceDefinitions, a.restClient)
 
-	if err != nil {
-		return err
+	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhasePending {
+		ok, err := requirementsMet(clusterServiceVersion.Spec.CustomResourceDefinitions, a.restClient)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			log.Info("requirements were not met: %v", clusterServiceVersion.Spec.Requirements)
+			return ErrRequirementsNotMet
+		}
+
+		log.Infof("scheduling ClusterServiceVersion for install: %s", clusterServiceVersion.SelfLink)
+		clusterServiceVersion.Status.Phase = v1alpha1.CSVPhaseInstalling
+		result := &v1alpha1.ClusterServiceVersion{}
+		err = a.restClient.Put().Context(context.TODO()).
+			Namespace(clusterServiceVersion.Namespace).
+			Resource("clusterserviceversion-v1s").
+			Name(clusterServiceVersion.Name).
+			Body(clusterServiceVersion).
+			Do().
+			Into(result)
+		if err != nil {
+			return fmt.Errorf("failed to update CR status: %v", err)
+		}
+		return nil
 	}
-	if !ok {
-		log.Info("requirements were not met: %v", clusterServiceVersion.Spec.CustomResourceDefinitions)
-		return ErrRequirementsNotMet
-	}
-	err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
-	if err != nil {
+	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseInstalling {
+		resolver := install.NewStrategyResolver(
+			a.OpClient,
+			clusterServiceVersion.ObjectMeta,
+			clusterServiceVersion.TypeMeta,
+		)
+		err := resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
+		if err != nil {
+			clusterServiceVersion.Status.Phase = v1alpha1.CSVPhaseFailed
+		} else {
+			log.Infof(
+				"%s install strategy successful for %s",
+				clusterServiceVersion.Spec.InstallStrategy.StrategyName,
+				clusterServiceVersion.SelfLink,
+			)
+			clusterServiceVersion.Status.Phase = v1alpha1.CSVPhaseSucceeded
+		}
+		result := &v1alpha1.ClusterServiceVersion{}
+		err = a.restClient.Put().Context(context.TODO()).
+			Namespace(clusterServiceVersion.Namespace).
+			Resource("clusterserviceversion-v1s").
+			Name(clusterServiceVersion.Name).
+			Body(clusterServiceVersion).
+			Do().
+			Into(result)
+		if err != nil {
+			return fmt.Errorf("failed to update CR status: %v", err)
+		}
 		return err
+
 	}
 
-	log.Infof(
-		"%s install strategy successful for %s",
-		clusterServiceVersion.Spec.InstallStrategy.StrategyName,
-		clusterServiceVersion.SelfLink,
-	)
 	return nil
 }
 

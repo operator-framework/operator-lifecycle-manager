@@ -83,80 +83,49 @@ type ClusterServiceVersionPhase string
 
 // These are the valid phases of ClusterServiceVersion
 const (
+	CSVPhaseNone = ""
 	// CSVPending means the csv has been accepted by the system, but the install strategy has not been attempted.
 	// This is likely because there are unmet requirements.
-	CSVPending ClusterServiceVersionPhase = "Pending"
-	// CSVRunning means that the install strategy was successful and the Cloud Service is now available in namespace.
-	CSVRunning ClusterServiceVersionPhase = "Running"
+	CSVPhasePending ClusterServiceVersionPhase = "Pending"
+	// CSVRunning means that the requirements are met but the install strategy has not been run.
+	CSVPhaseInstalling ClusterServiceVersionPhase = "Installing"
 	// CSVSucceeded means that the resources in the CSV were created successfully.
-	CSVSucceeded ClusterServiceVersionPhase = "Succeeded"
+	CSVPhaseSucceeded ClusterServiceVersionPhase = "Succeeded"
 	// CSVFailed means that the install strategy could not be successfully completed.
-	CSVFailed ClusterServiceVersionPhase = "Failed"
+	CSVPhaseFailed ClusterServiceVersionPhase = "Failed"
 	// CSVUnknown means that for some reason the state of the csv could not be obtained.
-	CSVUnknown ClusterServiceVersionPhase = "Unknown"
+	CSVPhaseUnknown ClusterServiceVersionPhase = "Unknown"
 )
 
-type ConditionStatus string
-
-// These are valid condition statuses. "ConditionTrue" means a resource is in the condition.
-// "ConditionFalse" means a resource is not in the condition. "ConditionUnknown" means kubernetes
-// can't decide if a resource is in the condition or not. In the future, we could add other
-// intermediate conditions, e.g. ConditionDegraded.
-const (
-	ConditionTrue    ConditionStatus = "True"
-	ConditionFalse   ConditionStatus = "False"
-	ConditionUnknown ConditionStatus = "Unknown"
-)
-
-// CSVConditionType is a valid value for ClusterServiceVersionCondition.Type
-type CSVConditionType string
-
-// These are valid conditions of ClusterServiceVersion.
-const (
-	// CSVAvailable means the service is running and available in the namespace.
-	CSVAvailable CSVConditionType = "Available"
-	// CSVUnavailable means the service is not available.
-	CSVUnavailable CSVConditionType = "Unavailable"
-)
-
-// PodCondition contains details for the current condition of this pod.
-type ClusterServiceVersionCondition struct {
-	// Type is the type of the condition.
-	Type CSVConditionType `json:"type" protobuf:"bytes,1,opt,name=type,casttype=PodConditionType"`
-	// Status is the status of the condition.
-	// Can be True, False, Unknown.
-	Status ConditionStatus `json:"status" protobuf:"bytes,2,opt,name=status,casttype=ConditionStatus"`
-	// Last time we probed the condition.
-	// +optional
-	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty" protobuf:"bytes,3,opt,name=lastProbeTime"`
-	// Last time the condition transitioned from one status to another.
-	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,4,opt,name=lastTransitionTime"`
-	// Unique, one-word, CamelCase reason for the condition's last transition.
-	// +optional
-	Reason string `json:"reason,omitempty" protobuf:"bytes,5,opt,name=reason"`
-	// Human-readable message indicating details about last transition.
-	// +optional
-	Message string `json:"message,omitempty" protobuf:"bytes,6,opt,name=message"`
+type RequirementStatus struct {
+	Group   string `json:"group"`
+	Version string `json:"version"`
+	Kind    string `json:"kind"`
+	Name    string `json:"name"`
+	Status  string `json:"status"`
+	UUID    string `json:"uuid,omitempty"`
 }
 
 // ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual
 // state of a system.
 type ClusterServiceVersionStatus struct {
 	// Current condition of the ClusterServiceVersion
-	Phase ClusterServiceVersionPhase `json:"phase,omitempty" protobuf:"bytes,1,opt,name=phase,casttype=PodPhase"`
-	// Current service state of the the ClusterServiceVersion.
-	// +optional
-	// +patchMergeKey=type
-	// +patchStrategy=merge
-	Conditions []ClusterServiceVersionCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,2,rep,name=conditions"`
+	Phase ClusterServiceVersionPhase `json:"phase,omitempty"`
 	// A human readable message indicating details about why the ClusterServiceVersion is in this condition.
 	// +optional
-	Message string `json:"message,omitempty" protobuf:"bytes,3,opt,name=message"`
+	Message string `json:"message,omitempty"`
 	// A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state.
-	// e.g. 'Evicted'
+	// e.g. 'RequirementsNotMet'
 	// +optional
-	Reason string `json:"reason,omitempty" protobuf:"bytes,4,opt,name=reason"`
+	Reason string `json:"reason,omitempty"`
+	// Last time we updated the status
+	// +optional
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	// Last time the status transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// The status of each requirement for this CSV
+	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

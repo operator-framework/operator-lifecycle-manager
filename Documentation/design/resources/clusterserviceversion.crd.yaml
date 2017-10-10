@@ -209,109 +209,71 @@ spec:
     kind: ClusterServiceVersion-v1
     listKind: ClusterServiceVersionList-v1
 
-      conditions:
-        - type: Available
-          status: 'True'
-          lastUpdateTime: '2017-08-30T13:51:53Z'
-          lastTransitionTime: '2017-08-30T13:51:53Z'
-          reason: OperatorRunningAndHealthy
-          message: Operator is running and healthy
-
 
 # Schema for status key written by the operator:
-status:
-  type: object
-  required:
-  - phase
-  - conditions
-  - message
-  - reason
-  - lastUpdateTime
-  - lastTransitionTime
-  - requirementStatus
-  properties:
-    phase:
-      type: string
-      enum:
-      - Pending
-      - Running
-      - Succeeded
-      - Failed
-      - Unknown
-    lastUpdateTime:
-      type: string
-    lastTransitionTime:
-      type: string
-    reason:
-      type: string
-      enum:
-        - RequirementsNotMet
-        - Creating
-        - Running
-    message:
-      type: string
-    conditions:
-      type: array
-      items:
-        - type: object
-          required:
-            - type
-            - status
-            - lastUpdateTime
-            - lastTransitionTime
-            - reason
-          properties:
-            type:
-              type: string
-              enum:
-              - Available
-              - Unavailable
-            status:
-              type: string
-            lastUpdateTime:
-              type: string
-            lastTransitionTime:
-              type: string
-            reason:
-              type: string
-              enum:
-              - RequirementsNotMet
-              - Creating
-              - Running
-            message:
-              type: string
-    requirementStatus:
-      type: array
-      description: A list of requirements and their status.
-      items:
-        - type: object
-          required:
-          - resource
-          properties:
-            resource:
-              type: object
-              required:
-              - group
-              - version
-              - kind
-              - name
-              - status
-              properties:
-               status:
-                 type: string
-                 enum:
-                 - Unknown
-                 - Not Present
-                 - Present
-                 - Created
-                group:
-                  type: string
-                version:
-                  type: string
-                kind:
-                  type: string
-                name:
-                  type: string
-            uuid:
-              type: string
-              description: the uuid of the resource found that meets the requirement
+#status:
+#  type: object
+#  required:
+#  - phase
+#  - message
+#  - reason
+#  - lastUpdateTime
+#  - lastTransitionTime
+#  - requirementStatus
+#  properties:
+#    phase:
+#      type: string
+#      enum:
+#      - Pending
+#      - Installing
+#      - Succeeded
+#      - Failed
+#      - Unknown
+#    lastUpdateTime:
+#      type: string
+#    lastTransitionTime:
+#      type: string
+#    reason:
+#      type: string
+#      enum:
+#        - RequirementsNotMet
+#        - AllRequirementsMet
+#        - InstallCompenentFailed
+#        - InstallSuceeded
+#    message:
+#      type: string
+#    requirementStatus:
+#      type: array
+#      description: A list of requirements and their status.
+#      items:
+#        - type: object
+#          required:
+#          - resource
+#          properties:
+#            resource:
+#              type: object
+#              required:
+#              - group
+#              - version
+#              - kind
+#              - name
+#              - status
+#              properties:
+#               status:
+#                 type: string
+#                 enum:
+#                 - Unknown
+#                 - Not Present
+#                 - Present
+#                 - Created
+#                group:
+#                  type: string
+#                version:
+#                  type: string
+#                kind:
+#                  type: string
+#                name:
+#                  type: string
+#            uuid:
+#              type: string
+#              description: the uuid of the resource found that meets the requirement
