@@ -1,6 +1,10 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	CSVv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+)
 
 const (
 	AlphaCatalogEntryCRDName       = "alphacatalogentry-v1s.app.coreos.com"
@@ -9,31 +13,7 @@ const (
 
 // AlphaCatalogEntrySpec defines an Application that can be installed
 type AlphaCatalogEntrySpec struct {
-	Name    string `json:"name"` // must match ClusterServiceVersion for now
-	Version string `json:"version"`
-
-	DisplayName string       `json:"displayName"`
-	Description string       `json:"description"`
-	Keywords    []string     `json:"keywords"`
-	Maintainers []Maintainer `json:"maintainers"`
-	Links       []AppLink    `json:"links"`
-	Icon        Icon         `json:"iconURL"`
-	Provider    string       `json:"provider"`
-}
-
-type Maintainer struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-
-type AppLink struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-}
-
-type Icon struct {
-	Data      string `json:"base64data"`
-	MediaType string `json:"mediatype"`
+	CSVv1alpha1.ClusterServiceVersionSpec
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
