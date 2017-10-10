@@ -56,7 +56,7 @@ local appr = utils.appr;
             namespace: "ci-alm-%s" % "${CI_COMMIT_REF_SLUG}",
             image: vars.images.prerelease,
             channel: null,
-            helm_opts: [],
+            helm_opts: [if !utils.inArray(this.only, "master") then "--nameOverride ${SHA8}"],
             params: {
                 "image.repository": _vars.image.repo,
                 "image.tag": _vars.image.tag,

@@ -20,6 +20,10 @@
         visible
     ),
 
+    inArray(array, x):: (
+        x in self.set(array)
+    ),
+
     compact(array):: (
         [x for x in array if x != null]
     ),
@@ -38,13 +42,16 @@
         std.char(std.codepoint(str[0]) - 32) + str[1:]
     ),
 
-    test: [
-        self.capitalize("test"),
-    ],
-
-
     set(array)::
         { [key]: key for key in array },
+
+    tests: {
+        inArray: (assert topSelf.inArray(["a", "foo"], "foo") == true;
+                  assert topSelf.inArray([], "af") == false;
+                  assert topSelf.inArray(["a", "foo"], "bad") == false;
+                  true),
+    },
+
 
     containerName(repo, tag):: "%s:%s" % [repo, tag],
 
