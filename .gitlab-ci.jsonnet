@@ -46,7 +46,10 @@ local jobs = {
         before_script+: ["mkdir -p $PWD/bin"],
         script: docker.build_and_push(images.ci.name,
                                       cache=false,
-                                      extra_opts=["-f alm-ci.Dockerfile"]) +
+                                      extra_opts=[
+                                          "-f alm-ci.Dockerfile",
+                                          "--build-arg BASE_TAG=base-{$SHA8}",
+                                      ]) +
                 docker.cp(images.ci.name, src="/bin/alm", dest="bin/alm") +
                 docker.build_and_push(images.prerelease.name,
                                       cache=false),
