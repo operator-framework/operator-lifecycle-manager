@@ -47,22 +47,21 @@ type ClusterServiceVersionSpec struct {
 	Links                     []AppLink                 `json:"links"`
 	Icon                      []Icon                    `json:"icon"`
 
+	// The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.
+	// +optional
+	Replaces string `json:"replaces,omitempty"`
+
 	// Map of string keys and values that can be used to organize and categorize
-	// (scope and select) objects. May match selectors of replication controllers
-	// and services.
-	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+	// (scope and select) objects.
 	// +optional
 	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
 
 	// Annotations is an unstructured key value map stored with a resource that may be
-	// set by external tools to store and retrieve arbitrary metadata. They are not
-	// queryable and should be preserved when modifying objects.
-	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+	// set by external tools to store and retrieve arbitrary metadata.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
 
-	// Label selector for pods. Existing ReplicaSets whose pods are
-	// selected by this will be the ones affected by this deployment.
+	// Label selector for related resources.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,2,opt,name=selector"`
 }
