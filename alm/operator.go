@@ -88,6 +88,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 		clusterServiceVersion.TypeMeta,
 	)
 	ok, err := requirementsMet(clusterServiceVersion.Spec.CustomResourceDefinitions, a.restClient)
+
 	if err != nil {
 		return err
 	}
@@ -108,22 +109,18 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	return nil
 }
 
-func requirementsMet(crds v1alpha1.CustomResourceDefinitions, kubeClient *rest.RESTClient) (bool, error) {
-	// Build a set of the required CRDs.
-	requiredCRDSet := map[string]struct{}{}
-	for _, crd := range crds.Owned {
-		requiredCRDSet[crd] = struct{}{}
-	}
-	for _, crd := range crds.Required {
-		requiredCRDSet[crd] = struct{}{}
-	}
-
-	for crd := range requiredCRDSet {
-		result := kubeClient.Get().Namespace("").Name(crd).Resource("customresourcedefinition").Do()
+func requirementsMet(namespace string, requirements []v1alpha1.Requirements, kubeClient *rest.RESTClient) (bool, error) {
+	for _, element := range requirements {
+		if element.Optional {
+			log.Info("Requirement was optional")
+			continue
+		}
+		result := kubeClient.Get().Namespace(namespace).Name(element.Name).Resource(element.Kind).Do()
 		if result.Error() != nil {
-			log.Info("Namespace, name, or kind was not met")
+			log.Infof("Namespace, name, or kind was not met: %s", result.Error())
 			return false, nil
 		}
+
 	}
 	log.Info("Successfully met all requirements")
 	return true, nil
