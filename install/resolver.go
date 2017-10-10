@@ -11,18 +11,20 @@ import (
 )
 
 type Strategy interface {
-	Install(client client.Interface, owner metav1.ObjectMeta) error
+	Install(client client.Interface, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) error
 }
 
 type StrategyResolver struct {
-	client client.Interface
-	owner  metav1.ObjectMeta
+	client    client.Interface
+	owner     metav1.ObjectMeta
+	ownerType metav1.TypeMeta
 }
 
-func NewStrategyResolver(client client.Interface, owner metav1.ObjectMeta) *StrategyResolver {
+func NewStrategyResolver(client client.Interface, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) *StrategyResolver {
 	return &StrategyResolver{
 		client: client,
 		owner:  owner,
+		ownerType: ownerType,
 	}
 }
 
@@ -31,7 +33,7 @@ func (r *StrategyResolver) ApplyStrategy(s *v1alpha1.NamedInstallStrategy) error
 	if err != nil {
 		return err
 	}
-	return strategy.Install(r.client, r.owner)
+	return strategy.Install(r.client, r.owner, r.ownerType)
 }
 
 func (r *StrategyResolver) UnmarshalStrategy(s *v1alpha1.NamedInstallStrategy) (strategy Strategy, err error) {

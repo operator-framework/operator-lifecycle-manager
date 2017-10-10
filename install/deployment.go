@@ -8,7 +8,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const InstallStrategyNameDeployment = "deployment"
+const (
+	InstallStrategyNameDeployment = "deployment"
+)
+var BlockOwnerDeletion = true
+var Controller = false
 
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
@@ -16,16 +20,31 @@ type StrategyDetailsDeployment struct {
 	DeploymentSpecs []v1beta1.DeploymentSpec `json:"deployments"`
 }
 
-func (d *StrategyDetailsDeployment) Install(client client.Interface, owner metav1.ObjectMeta) error {
+func (d *StrategyDetailsDeployment) Install(
+	client client.Interface,
+	owner metav1.ObjectMeta,
+	ownerType metav1.TypeMeta,
+) error {
 	if err := checkInstalled(client, owner, len(d.DeploymentSpecs)); err != nil {
 		return err
 	}
 	for _, spec := range d.DeploymentSpecs {
+		ownerReferences := []metav1.OwnerReference{
+			{
+				APIVersion:         ownerType.APIVersion,
+				Kind:               ownerType.Kind,
+				Name:               owner.GetName(),
+				UID:                owner.UID,
+				Controller:         &Controller,
+				BlockOwnerDeletion: &BlockOwnerDeletion,
+			},
+		}
 		dep := v1beta1.Deployment{Spec: spec}
-		dep.Namespace = owner.Namespace
-		dep.GenerateName = fmt.Sprintf("%s-", owner.Name)
+		dep.SetNamespace(owner.Namespace)
+		dep.SetOwnerReferences(ownerReferences)
+		dep.SetGenerateName(fmt.Sprintf("%s-", owner.Name))
 		if dep.Labels == nil {
-			dep.Labels = map[string]string{}
+			dep.SetLabels(map[string]string{})
 		}
 		dep.Labels["alm-owned"] = "true"
 		dep.Labels["alm-owner-name"] = owner.Name
