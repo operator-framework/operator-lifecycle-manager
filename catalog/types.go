@@ -12,7 +12,7 @@ import (
 //    - Map CRD name to AppTypeClusterServiceVersion that manages it
 
 type Source interface {
-	FindClusterServiceVersionByName(name string) (*v1alpha1.ClusterServiceVersion, error)
+	FindClusterServiceVersionByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error)
 	FindCRDByName(name string) (*apiextensions.CustomResourceDefinition, error)
 	FindClusterServiceVersionForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error)
 }
