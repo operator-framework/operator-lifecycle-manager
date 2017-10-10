@@ -9,14 +9,16 @@ const (
 
 // AlphaCatalogEntrySpec defines an Application that can be installed
 type AlphaCatalogEntrySpec struct {
+	Name    string `json:"name"` // must match ClusterServiceVersion for now
+	Version string `json:"version"`
+
 	DisplayName string       `json:"displayName"`
 	Description string       `json:"description"`
 	Keywords    []string     `json:"keywords"`
 	Maintainers []Maintainer `json:"maintainers"`
 	Links       []AppLink    `json:"links"`
 	Icon        Icon         `json:"iconURL"`
-
-	Version string `json:"version"`
+	Provider    string       `json:"provider"`
 }
 
 type Maintainer struct {
