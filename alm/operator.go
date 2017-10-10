@@ -160,18 +160,13 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	return nil
 }
 
-func requirementsMet(namespace string, requirements []v1alpha1.Requirements, kubeClient *rest.RESTClient) (bool, error) {
+func (a *ALMOperator) requirementsMet(namespace string, requirements []v1alpha1.Requirements) (bool, error) {
 	for _, element := range requirements {
-		if element.Optional {
-			log.Info("Requirement was optional")
-			continue
-		}
-		result := kubeClient.Get().Namespace(namespace).Name(element.Name).Resource(element.Kind).Do()
-		if result.Error() != nil {
-			log.Infof("Namespace, name, or kind was not met: %s", result.Error())
+		_, err := a.OpClient.GetCustomResourceDefinitionKind(element.Name)
+		if err != nil {
+			log.Infof("Couldn't find CRD: %s", err)
 			return false, nil
 		}
-
 	}
 	log.Info("Successfully met all requirements")
 	return true, nil
