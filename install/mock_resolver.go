@@ -31,25 +31,25 @@ func (_m *MockResolver) EXPECT() *_MockResolverRecorder {
 	return _m.recorder
 }
 
-func (_m *MockResolver) CheckInstalled(s v1alpha1.NamedInstallStrategy, owner v1.ObjectMeta) (bool, error) {
-	ret := _m.ctrl.Call(_m, "CheckInstalled", s, owner)
+func (_m *MockResolver) CheckInstalled(s v1alpha1.NamedInstallStrategy, owner v1.ObjectMeta, ownerType v1.TypeMeta) (bool, error) {
+	ret := _m.ctrl.Call(_m, "CheckInstalled", s, owner, ownerType)
 	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockResolverRecorder) CheckInstalled(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckInstalled", arg0, arg1)
+func (_mr *_MockResolverRecorder) CheckInstalled(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckInstalled", arg0, arg1, arg2)
 }
 
-func (_m *MockResolver) ApplyStrategy(s v1alpha1.NamedInstallStrategy, owner v1.ObjectMeta) error {
-	ret := _m.ctrl.Call(_m, "ApplyStrategy", s, owner)
+func (_m *MockResolver) ApplyStrategy(s v1alpha1.NamedInstallStrategy, owner v1.ObjectMeta, ownerType v1.TypeMeta) error {
+	ret := _m.ctrl.Call(_m, "ApplyStrategy", s, owner, ownerType)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockResolverRecorder) ApplyStrategy(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ApplyStrategy", arg0, arg1)
+func (_mr *_MockResolverRecorder) ApplyStrategy(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ApplyStrategy", arg0, arg1, arg2)
 }
 
 func (_m *MockResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (Strategy, error) {
@@ -84,14 +84,14 @@ func (_m *MockStrategy) EXPECT() *_MockStrategyRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStrategy) Install(client client.Interface, owner v1.ObjectMeta) error {
-	ret := _m.ctrl.Call(_m, "Install", client, owner)
+func (_m *MockStrategy) Install(client client.Interface, owner v1.ObjectMeta, ownerType v1.TypeMeta) error {
+	ret := _m.ctrl.Call(_m, "Install", client, owner, ownerType)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockStrategyRecorder) Install(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Install", arg0, arg1)
+func (_mr *_MockStrategyRecorder) Install(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Install", arg0, arg1, arg2)
 }
 
 func (_m *MockStrategy) CheckInstalled(client client.Interface, owner v1.ObjectMeta) (bool, error) {

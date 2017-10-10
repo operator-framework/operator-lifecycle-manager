@@ -343,12 +343,12 @@ func TestCSVStateTransitions(t *testing.T) {
 
 		// Mock install check and install strategy if needed
 		if tt.mockInstall {
-			mockOp.MockStrategyResolver.EXPECT().CheckInstalled(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta).Return(tt.checkInstall, tt.checkInstallErr)
+			mockOp.MockStrategyResolver.EXPECT().CheckInstalled(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(tt.checkInstall, tt.checkInstallErr)
 			if !tt.checkInstall && tt.checkInstallErr == nil {
 				if tt.installAppllySuccess {
-					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta).Return(nil)
+					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(nil)
 				} else {
-					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta).Return(fmt.Errorf(tt.errString))
+					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(fmt.Errorf(tt.errString))
 				}
 			}
 		}

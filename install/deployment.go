@@ -26,9 +26,6 @@ func (d *StrategyDetailsDeployment) Install(
 	owner metav1.ObjectMeta,
 	ownerType metav1.TypeMeta,
 ) error {
-	if err := checkInstalled(client, owner, len(d.DeploymentSpecs)); err != nil {
-		return err
-	}
 	for _, spec := range d.DeploymentSpecs {
 		ownerReferences := []metav1.OwnerReference{
 			{
