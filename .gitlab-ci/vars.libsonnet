@@ -13,7 +13,7 @@ local utils = import "utils.libsonnet";
         // Quay initial image, used in the Dockerfile FROM clause
         base: {
             repo: "quay.io/coreos/alm-ci",
-            tag: "base-${SHA8}",
+            tag: "base",
             name: utils.containerName(self.repo, self.tag),
         },
 
