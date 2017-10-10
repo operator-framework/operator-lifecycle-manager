@@ -63,5 +63,8 @@ func TestKubeDeployment(t *testing.T) {
 		CreateDeployment(&deployment).
 		Return(&deployment, nil)
 	deployInstallStrategy := &StrategyDetailsDeployment{[]v1beta1extensions.DeploymentSpec{deployment.Spec}}
+	installed, err := deployInstallStrategy.CheckInstalled(mockClient, mockOwner)
+	assert.False(t, installed)
+	assert.NoError(t, err)
 	assert.NoError(t, deployInstallStrategy.Install(mockClient, mockOwner, mockOwnerType))
 }

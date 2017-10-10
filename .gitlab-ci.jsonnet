@@ -80,7 +80,7 @@ local jobs = {
     e2e_example: integration_test {
         image: { name: "python:2.7" },
         script+: [
-            "curl localhost:8080",
+            "ls",
         ],
         allow_failure: true,
     },
