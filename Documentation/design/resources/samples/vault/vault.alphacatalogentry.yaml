@@ -3,7 +3,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: AlphaCatalogEntry-v1
 metadata:
   namespace: default
-  name: Vault Open Cloud Service
+  name: vault-operator.0.0.2
 spec:
   name: vault-operator.0.0.2
   version: 0.0.2
