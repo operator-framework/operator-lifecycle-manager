@@ -85,23 +85,14 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseNone {
 		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", clusterServiceVersion.SelfLink)
-		clusterServiceVersion.Status.Phase = v1alpha1.CSVPhasePending
-		result := &v1alpha1.ClusterServiceVersion{}
-		err := a.restClient.Put().Context(context.TODO()).
-			Namespace(clusterServiceVersion.Namespace).
-			Resource("clusterserviceversion-v1s").
-			Name(clusterServiceVersion.Name).
-			Body(clusterServiceVersion).
-			Do().
-			Into(result)
-		if err != nil {
-			return fmt.Errorf("failed to update CR status: %v", err)
+		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhasePending); err != nil {
+			return err
 		}
 		return nil
 	}
 
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhasePending {
-		ok, err := requirementsMet(clusterServiceVersion.Spec.CustomResourceDefinitions, a.restClient)
+		ok, err := a.requirementsMet(clusterServiceVersion.Namespace, clusterServiceVersion.Spec.Requirements)
 		if err != nil {
 			return err
 		}
@@ -111,20 +102,12 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", clusterServiceVersion.SelfLink)
-		clusterServiceVersion.Status.Phase = v1alpha1.CSVPhaseInstalling
-		result := &v1alpha1.ClusterServiceVersion{}
-		err = a.restClient.Put().Context(context.TODO()).
-			Namespace(clusterServiceVersion.Namespace).
-			Resource("clusterserviceversion-v1s").
-			Name(clusterServiceVersion.Name).
-			Body(clusterServiceVersion).
-			Do().
-			Into(result)
-		if err != nil {
-			return fmt.Errorf("failed to update CR status: %v", err)
+		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseInstalling); err != nil {
+			return err
 		}
 		return nil
 	}
+
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseInstalling {
 		resolver := install.NewStrategyResolver(
 			a.OpClient,
@@ -133,28 +116,19 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 		)
 		err := resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
 		if err != nil {
-			clusterServiceVersion.Status.Phase = v1alpha1.CSVPhaseFailed
-		} else {
-			log.Infof(
-				"%s install strategy successful for %s",
-				clusterServiceVersion.Spec.InstallStrategy.StrategyName,
-				clusterServiceVersion.SelfLink,
-			)
-			clusterServiceVersion.Status.Phase = v1alpha1.CSVPhaseSucceeded
+			if _, transitionErr := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseFailed); err != nil {
+				return transitionErr
+			}
+			return err
 		}
-		result := &v1alpha1.ClusterServiceVersion{}
-		err = a.restClient.Put().Context(context.TODO()).
-			Namespace(clusterServiceVersion.Namespace).
-			Resource("clusterserviceversion-v1s").
-			Name(clusterServiceVersion.Name).
-			Body(clusterServiceVersion).
-			Do().
-			Into(result)
-		if err != nil {
-			return fmt.Errorf("failed to update CR status: %v", err)
+		log.Infof(
+			"%s install strategy successful for %s",
+			clusterServiceVersion.Spec.InstallStrategy.StrategyName,
+			clusterServiceVersion.SelfLink,
+		)
+		if _, err := a.CSVTransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded); err != nil {
+			return err
 		}
-		return err
-
 	}
 
 	return nil
@@ -170,4 +144,18 @@ func (a *ALMOperator) requirementsMet(namespace string, requirements []v1alpha1.
 	}
 	log.Info("Successfully met all requirements")
 	return true, nil
+}
+
+func (a *ALMOperator) CSVTransitionPhase(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase) (result *v1alpha1.ClusterServiceVersion, err error) {
+	err = a.restClient.Put().Context(context.TODO()).
+		Namespace(csv.Namespace).
+		Resource("clusterserviceversion-v1s").
+		Name(csv.Name).
+		Body(csv).
+		Do().
+		Into(result)
+	if err != nil {
+		err = fmt.Errorf("failed to update CR status: %v", err)
+	}
+	return
 }
