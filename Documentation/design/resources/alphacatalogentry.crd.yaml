@@ -103,3 +103,9 @@ spec:
         provider:
           type: string
           description: Publishing organization or individual
+
+  names:
+    plural: alphacatalogentry-v1s
+    singular: alphacatalogentry-v1
+    kind: AlphaCatalogEntry-v1
+    listKind: AlphaCatalogEntryList-v1
