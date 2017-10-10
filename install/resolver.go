@@ -12,6 +12,7 @@ import (
 
 type Strategy interface {
 	Install(client client.Interface, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) error
+	CheckInstalled(client client.Interface, owner metav1.ObjectMeta) (bool, error)
 }
 
 type StrategyResolver struct {
@@ -22,10 +23,18 @@ type StrategyResolver struct {
 
 func NewStrategyResolver(client client.Interface, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) *StrategyResolver {
 	return &StrategyResolver{
-		client: client,
-		owner:  owner,
+		client:    client,
+		owner:     owner,
 		ownerType: ownerType,
 	}
+}
+
+func (r *StrategyResolver) CheckInstalled(s *v1alpha1.NamedInstallStrategy) (bool, error) {
+	strategy, err := r.UnmarshalStrategy(s)
+	if err != nil {
+		return false, err
+	}
+	return strategy.CheckInstalled(r.client, r.owner)
 }
 
 func (r *StrategyResolver) ApplyStrategy(s *v1alpha1.NamedInstallStrategy) error {

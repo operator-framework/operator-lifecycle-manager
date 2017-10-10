@@ -108,24 +108,28 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	}
 
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseInstalling {
-		resolver := install.NewStrategyResolver(
-			a.OpClient,
-			clusterServiceVersion.ObjectMeta,
-			clusterServiceVersion.TypeMeta,
-		)
-		err := resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
+		resolver := install.NewStrategyResolver(a.OpClient, clusterServiceVersion.ObjectMeta)
+		installed, err := resolver.CheckInstalled(&clusterServiceVersion.Spec.InstallStrategy)
+		if err != nil {
+			if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err)); err != nil {
+				return err
+			}
+		}
+		if installed {
+			log.Infof(
+				"%s install strategy successful for %s",
+				clusterServiceVersion.Spec.InstallStrategy.StrategyName,
+				clusterServiceVersion.SelfLink,
+			)
+			if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors"); err != nil {
+				return err
+			}
+		}
+		err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
 		if err != nil {
 			if _, transitionErr := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err)); err != nil {
 				return transitionErr
 			}
-			return err
-		}
-		log.Infof(
-			"%s install strategy successful for %s",
-			clusterServiceVersion.Spec.InstallStrategy.StrategyName,
-			clusterServiceVersion.SelfLink,
-		)
-		if _, err := a.csvClient.TransitionPhase(clusterServiceVersion, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors"); err != nil {
 			return err
 		}
 	}

@@ -11,6 +11,7 @@ import (
 const (
 	InstallStrategyNameDeployment = "deployment"
 )
+
 var BlockOwnerDeletion = true
 var Controller = false
 
@@ -55,7 +56,7 @@ func (d *StrategyDetailsDeployment) Install(
 	return nil
 }
 
-func checkInstalled(client client.Interface, owner metav1.ObjectMeta, expected int) error {
+func (d *StrategyDetailsDeployment) CheckInstalled(client client.Interface, owner metav1.ObjectMeta) (bool, error) {
 	existingDeployments, err := client.ListDeploymentsWithLabels(
 		owner.Namespace,
 		map[string]string{
@@ -65,10 +66,10 @@ func checkInstalled(client client.Interface, owner metav1.ObjectMeta, expected i
 		},
 	)
 	if err != nil {
-		return fmt.Errorf("couldn't query for existing deployments: %s", err)
+		return false, fmt.Errorf("couldn't query for existing deployments: %s", err)
 	}
-	if len(existingDeployments.Items) == expected {
-		return fmt.Errorf("deployments found for %s, skipping install: %v", owner.Name, existingDeployments)
+	if len(existingDeployments.Items) == len(d.DeploymentSpecs) {
+		return true, nil
 	}
-	return nil
+	return false, nil
 }
