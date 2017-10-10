@@ -26,19 +26,11 @@ type CatalogSourceSpec struct {
 	Icon        Icon   `json:"icon"`
 
 	// SourceType-specific configuration
-
-	// SourceTypeConfigMap specific fields
-	ConfigMaps []CatalogConfigMaps `json:"configMaps,omitempty"`
 }
 
 type Icon struct {
 	Data      string `json:"base64data"`
 	MediaType string `json:"mediatype"`
-}
-
-type CatalogConfigMaps struct {
-	LabelSelectors []metav1.LabelSelector `json:"labelSelectors"`
-	Namespace      string                 `json:"namespace"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
