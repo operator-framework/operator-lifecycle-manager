@@ -82,6 +82,10 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
+	if clusterServiceVersion.Status.Phase != v1alpha1.CSVPending {
+		log.Infof("ClusterServiceVersion already created: %s", clusterServiceVersion.SelfLink)
+		return nil
+	}
 	resolver := install.NewStrategyResolver(
 		a.OpClient,
 		clusterServiceVersion.ObjectMeta,
