@@ -24,8 +24,6 @@ type CatalogSourceSpec struct {
 	SourceURL   string `json:"source"`   // e.g. quay.io/applications/coreos, github.com/k8s/charts
 	Provider    string `json:"provider"` // catalog publishers, e.g. "Salesforce", "BigCo Internal"
 	Icon        Icon   `json:"icon"`
-
-	// SourceType-specific configuration
 }
 
 type Icon struct {
