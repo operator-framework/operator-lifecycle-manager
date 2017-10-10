@@ -106,7 +106,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
 			csv.SetRequirementStatus(statuses)
 			syncError = ErrRequirementsNotMet
-			break
+			return
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", csv.SelfLink)
@@ -117,7 +117,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		if err != nil {
 			// TODO: add a retry count, don't give up on first failure
 			csv.SetPhase(v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
-			break
+			return
 		}
 		if installed {
 			log.Infof(
@@ -126,7 +126,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 				csv.SelfLink,
 			)
 			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
-			break
+			return
 		}
 		// We transition to ComponentFailed if install failed, but we don't transition to succeeded here. Instead we let
 		// this queue pick the object back up, and transition to Succeeded once we verify the install
@@ -134,7 +134,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		syncError = a.resolver.ApplyStrategy(csv.Spec.InstallStrategy, csv.ObjectMeta)
 		if syncError != nil {
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
-			break
+			return
 		}
 	}
 	return
