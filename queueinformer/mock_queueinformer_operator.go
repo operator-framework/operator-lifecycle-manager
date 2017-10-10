@@ -9,6 +9,7 @@ import (
 type MockOperator struct {
 	Operator
 	testQueueInformers []*TestQueueInformer
+	MockClient         *opClient.MockInterface
 }
 
 // NewMockOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
@@ -28,6 +29,7 @@ func NewMockOperator(gomockCtrl *gomock.Controller, testQueueInformers ...*TestQ
 			OpClient:       mockClient,
 		},
 		testQueueInformers: testQueueInformers,
+		MockClient:         mockClient,
 	}
 	return operator
 }

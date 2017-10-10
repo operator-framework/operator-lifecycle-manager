@@ -48,3 +48,4 @@ codegen:
 
 generate-mock-client:
 	@mockgen -package=client -source=client/clusterserviceversion_client.go > client/mock_client.go
+	@mockgen -package=install -source=install/resolver.go > install/mock_resolver.go
