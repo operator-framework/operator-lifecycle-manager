@@ -3,30 +3,37 @@ package v1alpha1
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/go-semver/semver"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRegisterAlphaCatalogEntry(t *testing.T) {
+	version, err := semver.NewVersion("0.0.0-pre")
+	require.NoError(t, err)
+
 	testApp := &AlphaCatalogEntrySpec{
-		DisplayName: "TestAlphaCatalogEntry",
-		Description: "This is a test app type",
-		Keywords:    []string{"mock", "dev", "alm"},
-		Maintainers: []Maintainer{{
-			Name:  "testbot",
-			Email: "testbot@coreos.com",
-		}},
-		Links: []AppLink{{
-			Name: "ALM Homepage",
-			URL:  "https://github.com/coreos-inc/alm",
-		}},
-		Icon: Icon{
-			Data:      "dGhpcyBpcyBhIHRlc3Q=",
-			MediaType: "image/gif",
+		v1alpha1.ClusterServiceVersionSpec{
+			DisplayName: "TestAlphaCatalogEntry",
+			Description: "This is a test app type",
+			Keywords:    []string{"mock", "dev", "alm"},
+			Maintainers: []v1alpha1.Maintainer{{
+				Name:  "testbot",
+				Email: "testbot@coreos.com",
+			}},
+			Links: []v1alpha1.AppLink{{
+				Name: "ALM Homepage",
+				URL:  "https://github.com/coreos-inc/alm",
+			}},
+			Icon: []v1alpha1.Icon{{
+				Data:      "dGhpcyBpcyBhIHRlc3Q=",
+				MediaType: "image/gif",
+			}},
+			Version: *version,
 		},
-		Version: "myversion",
 	}
 
 	rsrc := NewAlphaCatalogEntryResource(testApp)
 
-	assert.Equal(t, AlphaCatalogEntryCRDName, rsrc.Kind)
+	require.Equal(t, AlphaCatalogEntryCRDName, rsrc.Kind)
 }
