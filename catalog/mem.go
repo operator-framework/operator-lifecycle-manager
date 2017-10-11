@@ -112,6 +112,13 @@ func (m *InMem) FindClusterServiceVersionByServiceName(name string) (*v1alpha1.C
 	}
 	return &csv, nil
 }
+func (m *InMem) FindClusterServiceVersionForServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error) {
+	csv, ok := m.clusterservices[name]
+	if !ok {
+		return nil, fmt.Errorf("not found: ClusterServiceVersion %s", name)
+	}
+	return &csv, nil
+}
 
 func (m *InMem) FindClusterServiceByReplaces(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csv, ok := m.replaces[name]
