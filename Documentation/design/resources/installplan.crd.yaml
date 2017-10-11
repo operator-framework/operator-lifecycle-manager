@@ -19,10 +19,10 @@ spec:
       type: object
       description: Document which defines the desire and current state of an installation of a Cluster Service
       required:
-      - clusterServiceVersions
+      - clusterServiceVersionNames
       - approval
       properties:
-        clusterServiceVersions:
+        clusterServiceVersionNames:
           type: array
           description: A list of the names of the Cluster Services
           items:
@@ -54,26 +54,26 @@ spec:
 #       required:
 #       - resolving
 #       - resource
+#       - status
 #       properties:
 #         resolving:
 #           type: string
+#         status:
+#           type: string
+#           enum:
+#           - Unknown
+#           - Not Present
+#           - Present
+#           - Created
 #         resource:
 #           type: object
 #           required:
-#           - status
 #           - group
 #           - version
 #           - kind
 #           - name
 #           - manifest
 #           properties:
-#             status:
-#               type: string
-#               enum:
-#               - Unknown
-#               - Not Present
-#               - Present
-#               - Created
 #             group:
 #               type: string
 #             version:
