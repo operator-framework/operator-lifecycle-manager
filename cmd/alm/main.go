@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/coreos-inc/alm/alm"
+	"github.com/coreos-inc/alm/config"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -18,12 +19,12 @@ func main() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	almConfigPath := flag.String("almConfig", "", "absolute path to the almConfig file")
-	cfg, err := alm.LoadConfig(*almConfigPath)
+	flag.Parse()
+	cfg, err := config.LoadConfig(*almConfigPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	flag.Parse()
 	http.HandleFunc("/healthz", handler)
 	go http.ListenAndServe(":8080", nil)
 	almOperator, err := alm.NewALMOperator(*kubeConfigPath, cfg)

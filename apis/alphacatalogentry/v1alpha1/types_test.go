@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRegisterAppType(t *testing.T) {
-	testApp := &AppTypeSpec{
-		DisplayName: "TestAppType",
+func TestRegisterAlphaCatalogEntry(t *testing.T) {
+	testApp := &AlphaCatalogEntrySpec{
+		DisplayName: "TestAlphaCatalogEntry",
 		Description: "This is a test app type",
 		Keywords:    []string{"mock", "dev", "alm"},
 		Maintainers: []Maintainer{{
@@ -23,9 +23,10 @@ func TestRegisterAppType(t *testing.T) {
 			Data:      "dGhpcyBpcyBhIHRlc3Q=",
 			MediaType: "image/gif",
 		},
+		Version: "myversion",
 	}
 
-	rsrc := NewAppTypeResource(testApp)
+	rsrc := NewAlphaCatalogEntryResource(testApp)
 
-	assert.Equal(t, AppTypeCRDName, rsrc.Kind)
+	assert.Equal(t, AlphaCatalogEntryCRDName, rsrc.Kind)
 }

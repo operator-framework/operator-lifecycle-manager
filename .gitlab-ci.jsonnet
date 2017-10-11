@@ -69,7 +69,7 @@ local jobs = {
 
     'unit-tests': unittest_stage {
         coverage: @"/^TOTAL.*\s+(\d+\%)\s*$/",
-        script: ["make test"],
+        script: ["make vendor", "make test"],
     },
 
     // End2End tests
@@ -80,7 +80,7 @@ local jobs = {
     e2e_example: integration_test {
         image: { name: "python:2.7" },
         script+: [
-            "curl localhost:8080",
+            "ls",
         ],
         allow_failure: true,
     },

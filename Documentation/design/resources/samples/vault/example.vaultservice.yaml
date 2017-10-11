@@ -6,7 +6,7 @@ metadata:
   name: my-vault-service
   labels:
     operated-by: vaultoperator.0.0.2
-    alm-owner-vault: vault.apptypev1s.app.coreos.com.v1alpha1 
+    alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1 
 spec:
   version: "0.8.0-0"
   nodes: 1

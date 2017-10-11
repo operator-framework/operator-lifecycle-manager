@@ -8,6 +8,6 @@ spec:
   source: quay
   apptype: vault
   channel: stable
-  approval: automatic
+  approval: Automatic
 status:
   currentVersion: 0.5.1

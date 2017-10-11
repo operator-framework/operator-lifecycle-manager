@@ -26,7 +26,7 @@ kubectl create -f - <<EOF
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: apptype-v1s.app.coreos.com
+  name: clusterserviceversion-v1s.app.coreos.com
   annotations:
     displayName: App Type
     description: Represents an App Type that has been registered with ALM.
@@ -154,7 +154,7 @@ spec:
                         description: set of values for the expression
 
   names:
-    plural: apptype-v1s
+    plural: clusterserviceversion-v1s
     singular: apptype-v1
     kind: AppType-v1
     listKind: AppTypeList-v1
@@ -459,7 +459,7 @@ EOF
 kubectl create -f ../design/resources/samples/etcd/etcd.apptype.yaml
 ```
 ```sh
-kubectl --namespace=alm get apptype-v1s
+kubectl --namespace=alm get clusterserviceversion-v1s
 NAME      KIND
 etcd      AppType-v1.v1alpha1.app.coreos.com
 ```
@@ -502,17 +502,17 @@ kubectl apply -f ../design/resources/samples/vault
 Get all EtcdClusters associated with the Etcd AppType
 
 ```sh
-$ kubectl get --namespace=alm-etcd-example  etcdclusters -l $(kubectl get apptype-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
+$ kubectl get --namespace=alm-etcd-example  etcdclusters -l $(kubectl get clusterserviceversion-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
 ``` 
 
 Find all CRDs associated with an AppType:
 ```sh
-$ kubectl get --namespace=alm-etcd-example  customresourcedefinitions -l $(kubectl get apptype-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
+$ kubectl get --namespace=alm-etcd-example  customresourcedefinitions -l $(kubectl get clusterserviceversion-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
 ```
 
 For each CRD associated with an AppType, find all instances:
 ```sh
-sel=$(kubectl get --namespace=alm-etcd-example apptype-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
+sel=$(kubectl get --namespace=alm-etcd-example clusterserviceversion-v1s etcd -o=json | jq -j '.spec.selector.matchLabels | to_entries | .[] | "\(.key)=\(.value),"' | rev | cut -c 2- | rev)
 crds=$(kubectl get --namespace=alm-etcd-example customresourcedefinitions -l $sel -o json | jq -r '.items[].spec.names.plural')
 
 echo $crds | while read crd; do

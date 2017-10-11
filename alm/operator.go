@@ -3,31 +3,27 @@ package alm
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"time"
 
 	log "github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
+	"github.com/coreos-inc/alm/config"
 	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
-	"gopkg.in/yaml.v2"
 )
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 
 type ALMOperator struct {
 	*queueinformer.Operator
-	restClient *rest.RESTClient
+	csvClient client.ClusterServiceVersionInterface
+	resolver  install.Resolver
 }
 
-func NewALMOperator(kubeconfig string, cfg *Config) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error) {
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -63,9 +59,10 @@ func NewALMOperator(kubeconfig string, cfg *Config) (*ALMOperator, error) {
 	op := &ALMOperator{
 		queueOperator,
 		csvClient,
+		install.NewStrategyResolver(queueOperator.OpClient),
 	}
 	csvQueueInformers := queueinformer.New(
-		"operatorversions",
+		"clusterserviceversions",
 		sharedIndexInformers,
 		op.syncClusterServiceVersion,
 		nil,
@@ -77,7 +74,8 @@ func NewALMOperator(kubeconfig string, cfg *Config) (*ALMOperator, error) {
 	return op, nil
 }
 
-func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
+// syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
+func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -86,88 +84,81 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	resolver := install.NewStrategyResolver(a.OpClient, clusterServiceVersion.ObjectMeta)
-	ok, err := requirementsMet(clusterServiceVersion.Spec.Requirements, a.restClient)
-	if err != nil {
+	syncError = a.transitionCSVState(clusterServiceVersion)
+	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
 		return err
 	}
-	if !ok {
-		log.Info("requirements were not met: %v", clusterServiceVersion.Spec.Requirements)
-		return ErrRequirementsNotMet
-	}
-	err = resolver.ApplyStrategy(&clusterServiceVersion.Spec.InstallStrategy)
-	if err != nil {
-		return err
-	}
-
-	log.Infof(
-		"%s install strategy successful for %s",
-		clusterServiceVersion.Spec.InstallStrategy.StrategyName,
-		clusterServiceVersion.SelfLink,
-	)
-	return nil
+	return
 }
 
-func requirementsMet(requirements []v1alpha1.Requirements, kubeClient *rest.RESTClient) (bool, error) {
-	for _, element := range requirements {
-		if element.Optional {
-			log.Info("Requirement was optional")
-			continue
+// transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
+// state.
+func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
+	switch csv.Status.Phase {
+	case v1alpha1.CSVPhaseNone:
+		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", csv.SelfLink)
+		csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
+	case v1alpha1.CSVPhasePending:
+		met, statuses := a.requirementStatus(csv.Spec.CustomResourceDefinitions)
+
+		if !met {
+			log.Info("requirements were not met")
+			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
+			csv.SetRequirementStatus(statuses)
+			syncError = ErrRequirementsNotMet
+			return
 		}
-		result := kubeClient.Get().Namespace(element.Namespace).Name(element.Name).Resource(element.Kind).Do()
-		if result.Error() != nil {
-			log.Info("Namespace, name, or kind was not met")
-			return false, nil
-		}
-		runtimeObj, err := result.Get()
+
+		log.Infof("scheduling ClusterServiceVersion for install: %s", csv.SelfLink)
+		csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
+		csv.SetRequirementStatus(statuses)
+	case v1alpha1.CSVPhaseInstalling:
+		installed, err := a.resolver.CheckInstalled(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
 		if err != nil {
-			log.Info("Error retrieving runtimeOBj")
-			return false, err
+			// TODO: add a retry count, don't give up on first failure
+			csv.SetPhase(v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
+			return
 		}
-		if runtimeObj.GetObjectKind().GroupVersionKind().Version != element.ApiVersion {
-			log.Info("GroupVersionKind was not met")
-			return false, nil
+		if installed {
+			log.Infof(
+				"%s install strategy successful for %s",
+				csv.Spec.InstallStrategy.StrategyName,
+				csv.SelfLink,
+			)
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+			return
+		}
+		// We transition to ComponentFailed if install failed, but we don't transition to succeeded here. Instead we let
+		// this queue pick the object back up, and transition to Succeeded once we verify the install
+		// with the install strategy's `CheckInstall`
+		syncError = a.resolver.ApplyStrategy(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
+		if syncError != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
+			return
 		}
 	}
-	log.Info("Successfully met all requirements")
-	return true, nil
+	return
 }
 
-type File struct {
-	ALMOperator Config `yaml:"almOperator"`
-}
-
-type Config struct {
-	Namespaces []string      `yaml:"namespaces"`
-	Interval   time.Duration `yaml:"interval"`
-}
-
-func LoadConfig(cfgPath string) (*Config, error) {
-	f, err := os.Open(os.ExpandEnv(cfgPath))
-	defer f.Close()
-	if err != nil {
-		return nil, err
+func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions) (met bool, statuses []v1alpha1.RequirementStatus) {
+	met = true
+	requirements := append(crds.Owned, crds.Required...)
+	for _, r := range requirements {
+		status := v1alpha1.RequirementStatus{
+			Group:   "apiextensions.k8s.io",
+			Version: "v1beta1",
+			Kind:    "CustomResourceDefinition",
+			Name:    r,
+		}
+		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r)
+		if err != nil {
+			status.Status = "NotPresent"
+			met = false
+		} else {
+			status.Status = "Present"
+			status.UUID = string(crd.GetUID())
+		}
+		statuses = append(statuses, status)
 	}
-
-	d, err := ioutil.ReadAll(f)
-	if err != nil {
-		return nil, err
-	}
-
-	var cfgFile File
-	err = yaml.Unmarshal(d, &cfgFile)
-	if err != nil {
-		return nil, err
-	}
-
-	config := &cfgFile.ALMOperator
-	if config.Namespaces == nil {
-		config.Namespaces = []string{metav1.NamespaceAll}
-	}
-
-	if config.Interval < 0 {
-		config.Interval = 15 * time.Minute
-	}
-
-	return config, nil
+	return
 }
