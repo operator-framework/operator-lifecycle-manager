@@ -105,14 +105,14 @@ func (m *InMem) removeService(name string) error {
 	return nil
 }
 
-func (m *InMem) FindClusterServiceVersionByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+func (m *InMem) FindLatestSVByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csv, ok := m.clusterservices[name]
 	if !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion %s", name)
 	}
 	return &csv, nil
 }
-func (m *InMem) FindClusterServiceVersionForServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error) {
+func (m *InMem) FindCSVForServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error) {
 	csv, ok := m.clusterservices[name]
 	if !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion %s", name)
@@ -128,12 +128,12 @@ func (m *InMem) FindClusterServiceByReplaces(name string) (*v1alpha1.ClusterServ
 	return &csv, nil
 }
 
-func (m *InMem) FindClusterServiceVersionForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error) {
+func (m *InMem) FindCSVForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error) {
 	name, ok := m.crdToCSV[crdname]
 	if !ok {
 		return nil, fmt.Errorf("not found: CRD %s", crdname)
 	}
-	return m.FindClusterServiceVersionForCRD(name)
+	return m.FindCSVForCRD(name)
 }
 
 func (m *InMem) FindCRDByName(crdname string) (*apiextensions.CustomResourceDefinition, error) {
