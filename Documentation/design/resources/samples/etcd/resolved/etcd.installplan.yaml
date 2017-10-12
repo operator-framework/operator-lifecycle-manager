@@ -5,7 +5,7 @@ metadata:
   namespace: staging-environment
   name: etcd-operator-v1
 spec:
-  clusterServiceVersions:
+  clusterServiceVersionNames:
   - etcd-operator-v1
   approval: Automatic
 status:

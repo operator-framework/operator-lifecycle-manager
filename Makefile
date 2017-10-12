@@ -1,6 +1,8 @@
 SHELL := /bin/sh
-PKG := github.com/coreos-inc/alm/cmd/alm
-EXECUTABLE := ./bin/alm
+ALM_PKG := github.com/coreos-inc/alm/cmd/alm
+ALM_EXECUTABLE := ./bin/alm
+CATALOG_PKG := github.com/coreos-inc/alm/cmd/catalog
+CATALOG_EXECUTABLE := ./bin/catalog
 IMAGE_REPO := quay.io/coreos/alm
 
 .PHONY: test run clean vendor vendor-update
@@ -12,7 +14,8 @@ test:
 	go test -v -race `glide novendor`
 
 build:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(EXECUTABLE) $(PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
 run: build
 	./bin/$(EXECUTABLE)

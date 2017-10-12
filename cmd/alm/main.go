@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/coreos-inc/alm/alm"
 	"github.com/coreos-inc/alm/config"
+	"github.com/coreos-inc/alm/operators/alm"
 	log "github.com/sirupsen/logrus"
 )
 
