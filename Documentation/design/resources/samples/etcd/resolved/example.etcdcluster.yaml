@@ -14,8 +14,9 @@ metadata:
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
     alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
-  labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1 
+  template:
+    labels:
+      alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
   version: 0.5.1
   size: 3
 status:

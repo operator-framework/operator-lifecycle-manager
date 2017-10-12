@@ -36,9 +36,12 @@ spec:
           x-descriptors:
           - urn:alm:capability:pod:count
           - urn:alm:capability:number:integer
-        labels:
+        template:
           type: object
-          description: labels to apply to associated objects
+          description: Template for fields of subresources
+          labels:
+            type: object
+            description: Labels to apply to associated resources
   names:
     plural: etcdclusters
     singular: etcdcluster
