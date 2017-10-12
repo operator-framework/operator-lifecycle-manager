@@ -63,7 +63,7 @@ spec:
         - path: name
           displayName: ServiceName
           description: The service name for the running vault cluster.
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:io.vaultproject:api.v1
     required:
     - name: etcdclusters-v1.etcd.database.coreos.com
@@ -73,7 +73,7 @@ spec:
         - path: importantMetrics
           displayName: Important Metrics
           description: Important prometheus metrics for the etcd cluster.
-          x-alm-capabilities:
+          x-descriptors:
             - urn:alm:capability:com.tectonic.ui:metrics
           value:
             queries:
@@ -87,18 +87,18 @@ spec:
         - path: prometheus
           displayName: Prometheus Endpoint
           description: Endpoint of the prometheus instance for the etcd cluster.
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:io.prometheus:prometheus.v1
           - urn:alm:capability:org.w3:link
         - path: dashboard
           displayName: Dashboard
           description: URL of a Grafana dashboard for the etcd cluster.
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:com.tectonic.ui:important.link
           - urn:alm:capability:org.w3:link
         - path: serviceName
           displayName: Service Name
           description: The service name for the running etcd cluster.
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:com.coreos.etcd:api.v3.grpc
           - urn:alm:capability:com.coreos.etcd:api.v2.rest

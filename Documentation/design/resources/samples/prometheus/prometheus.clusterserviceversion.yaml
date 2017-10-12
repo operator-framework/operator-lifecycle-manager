@@ -64,13 +64,13 @@ spec:
         - path: prometheus
           displayName: Prometheus Endpoint
           description: Endpoint of the prometheus instance for the etcd cluster.
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:io.prometheus:prometheus.v1
           - urn:alm:capability:org.w3:link
         - path: importantMetrics
           displayName: Important metrics
           description: Important metrics for the cluster.
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:com.tectonic.ui:metrics
           value:
             queries:

@@ -190,7 +190,7 @@ spec:
                         description:
                           type: string
                           description: A description of the status entry.
-                        x-alm-capabilities:
+                        x-descriptors:
                           type: array
                           description: A list of descriptors for the status entry that indicate the meaning of the field.
                           items:

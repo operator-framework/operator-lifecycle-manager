@@ -41,7 +41,7 @@ properties:
         name:
           type: string
           pattern: ^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$
-        x-alm-capabilities:
+        x-descriptors:
           type: array
           description: List of capabilities in URN format that this output satisfies, e.g. postgres compatible db connection string
           items:

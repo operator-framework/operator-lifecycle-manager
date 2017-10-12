@@ -26,14 +26,14 @@ spec:
           type: string
           description: Version string
           pattern: ^(0|[1-9]d*).(0|[1-9]d*).(0|[1-9]d*)(-(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*)(.(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(+[0-9a-zA-Z-]+(.[0-9a-zA-Z-]+)*)?$
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:versioning:semver
         size:
           type: number
           description: The size of the etcd cluster
           min: 1
           max: 9
-          x-alm-capabilities:
+          x-descriptors:
           - urn:alm:capability:pod:count
           - urn:alm:capability:number:integer
         labels:
