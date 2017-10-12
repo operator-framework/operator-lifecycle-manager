@@ -12,5 +12,5 @@ spec:
   nodes: 1
   labels:
      vault-service: my-vault-service
-outputs:
+status:
   vault-service-name: my-vault-cluster

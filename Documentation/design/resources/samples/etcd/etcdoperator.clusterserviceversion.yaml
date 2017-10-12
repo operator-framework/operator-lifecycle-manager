@@ -60,4 +60,39 @@ spec:
   maturity: beta
   customresourcedefinitions:
     owned:
-    - etcdclusters-v1.etcd.database.coreos.com
+    - name: etcdclusters-v1.etcd.database.coreos.com
+      displayName: Etcd Cluster
+      description: Represents a cluster of etcd nodes.
+      statusDescriptors:
+        - path: importantMetrics
+          displayName: Important Metrics
+          description: Important prometheus metrics for the etcd cluster.
+          x-alm-capabilities:
+            - urn:alm:capability:com.tectonic.ui:metrics
+          value:
+            queries:
+            - query: has_leader
+              name: Has Active Leader
+              type: Gauge
+              subtype: boolean
+            - query: leader_changes_seen_total
+              name: Leader Changes
+              type: Counter
+        - path: prometheus
+          displayName: Prometheus Endpoint
+          description: Endpoint of the prometheus instance for the etcd cluster.
+          x-alm-capabilities:
+          - urn:alm:capability:io.prometheus:prometheus.v1
+          - urn:alm:capability:org.w3:link
+        - path: dashboard
+          displayName: Dashboard
+          description: URL of a Grafana dashboard for the etcd cluster.
+          x-alm-capabilities:
+          - urn:alm:capability:com.tectonic.ui:important.link
+          - urn:alm:capability:org.w3:link
+        - path: serviceName
+          displayName: Service Name
+          description: The service name for the running etcd cluster.
+          x-alm-capabilities:
+          - urn:alm:capability:com.coreos.etcd:api.v3.grpc
+          - urn:alm:capability:com.coreos.etcd:api.v2.rest

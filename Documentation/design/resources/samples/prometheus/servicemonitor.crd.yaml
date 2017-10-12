@@ -5,9 +5,6 @@ metadata:
   labels:
     alm-owner-prometheus: prometheus.clusterserviceversionv1s.app.coreos.com.v1alpha1
     operated-by: prometheusoperator.0.12.0
-  annotations:
-    displayName: Service Monitor
-    description: Configures prometheus to monitr a particular k8s service
 spec:
   group: monitoring.coreos.com
   version: v1

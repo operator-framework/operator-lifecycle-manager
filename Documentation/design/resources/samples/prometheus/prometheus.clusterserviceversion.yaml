@@ -57,6 +57,39 @@ spec:
   replaces: prometheusoperator.0.12.0
   customresourcedefinitions:
     owned:
-    - prometheuses.monitoring.coreos.com
-    - servicemonitors.monitoring.coreos.com
-    - alertmanagers.monitoring.coreos.com
+    - name: prometheuses.monitoring.coreos.com
+      displayName: Prometheus
+      description: A running Prometheus instance
+      statusDescriptors:
+        - path: prometheus
+          displayName: Prometheus Endpoint
+          description: Endpoint of the prometheus instance for the etcd cluster.
+          x-alm-capabilities:
+          - urn:alm:capability:io.prometheus:prometheus.v1
+          - urn:alm:capability:org.w3:link
+        - path: importantMetrics
+          displayName: Important metrics
+          description: Important metrics for the cluster.
+          x-alm-capabilities:
+          - urn:alm:capability:com.tectonic.ui:metrics
+          value:
+            queries:
+            - query: "has_leader"
+              name: "Prometheus Status"
+              type: "Status"
+              subtype: "boolean"
+            - query: "leader_changes_seen_total"
+              name: "CPU Usage"
+              type: "Gauge"
+            - query: "leader_changes_seen_total"
+              name: "Memory Usage"
+              type: "Gauge"
+            - query: "leader_changes_seen_total"
+              name: "Filesystem Usage"
+              type: "Gauge"
+    - name: servicemonitors.monitoring.coreos.com
+      displayName: Service Monitor
+      description: Configures prometheus to monitr a particular k8s service
+    - name: alertmanagers.monitoring.coreos.com
+      displayName: Alert Manager
+      description: Configures an Alert Manager for the namespace

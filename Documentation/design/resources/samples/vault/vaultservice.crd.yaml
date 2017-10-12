@@ -4,17 +4,7 @@ metadata:
   name: vaultservices.vault.security.coreos.com
   labels:
     alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
-  annotations:
-    displayName: Vault Service
-    description: A running Vault instance, backed by an Etcd Cluster
-    outputs: '{
-      "name": {
-        "displayName": "ServiceName",
-        "description": "The service name for the running vault cluster",
-        "x-alm-capabilities": ["urn:alm:capability:io.vaultproject:api.v1"]
-      }
-    }'
-spec: 
+spec:
   group: vault.security.coreos.com
   version: v1alpha1
   scope: Namespaced
@@ -30,11 +20,16 @@ spec:
           type: string
           description: Version string
           pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
+          x-alm-capabilities:
+          - urn:alm:capability:versioning:semver
         nodes:
           type: number
           description: The number of nodes in the Vault cluster
           min: 1
           max: 9
+          x-alm-capabilities:
+          - urn:alm:capability:pod:count
+          - urn:alm:capability:number:integer
         labels:
           type: object
           description: Labels to apply to associated resources

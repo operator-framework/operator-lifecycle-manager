@@ -18,16 +18,14 @@ spec:
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1 
   version: 0.5.1
   size: 3
-outputs:
-  etcd-cluster-service-name: my-etcd-cluster
-  etcd-dashboard: https://internal-grafana/dashboards/my-etcd-cluster
-  etcd-backup-count: 23
-  etcd-last-backup: '2009-06-15T13:45:30'
-  etcd-first-backup: '2009-06-15T13:45:29'
-  etcd-active-connections: 1001 
-  etcd-prometheus: https://my-etcd-cluster-prometheus
-  etcd-important-metrics: "{\"metrics\": [{\"query\": \"has_leader\", \"name\": \"Has Active Leader\", \"type\": \"Gauge\", \"subtype\": \"boolean\"},{\"query\": \"leader_changes_seen_total\", \"name\": \"Leader Changes\", \"type\": \"Counter\"}], \"endpoint\": \"https://my-etcd-cluster-prometheus\"}"
 status:
+  serviceName: my-etcd-cluster
+  dashboard: https://internal-grafana/dashboards/my-etcd-cluster
+  backupCount: 23
+  lastBackup: '2009-06-15T13:45:30'
+  firstBackup: '2009-06-15T13:45:29'
+  activeConnections: 1001
+  prometheus: https://my-etcd-cluster-prometheus
   observedGeneration: 1
   replicas: 1
   updatedReplicas: 1

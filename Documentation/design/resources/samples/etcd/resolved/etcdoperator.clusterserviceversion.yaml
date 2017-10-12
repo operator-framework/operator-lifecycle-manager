@@ -1,17 +1,12 @@
 #! validate-crd: clusterserviceversion.crd.yaml
 apiVersion: clusterserviceversion-v1s.app.coreos.com/v1alpha1
-kind: ClusterServiceVersion
+kind: ClusterServiceVersion-v1
 metadata:
   namespace: staging-environment
   name: etcd-operator
   uid: bbbbbbbb-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
-  ownerReferences:
-  - apiVersion: app.coreos.com/v1alpha1
-    kind: AppType-v1
-    name: etcd
-    uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
 spec:
   displayName: Etcd
   description: A highly available, consistent key-value store with automatic backups
@@ -56,12 +51,73 @@ spec:
   maturity: beta
   customresourcedefinitions:
     owned:
-    - etcdclusters-v1.etcd.database.coreos.com
+      - name: etcdclusters-v1.etcd.database.coreos.com
+        displayName: Etcd Cluster
+        description: Represents a cluster of etcd nodes.
+        statusDescriptors:
+          - path: importantMetrics
+            displayName: Important Metrics
+            description: Important prometheus metrics for the etcd cluster.
+            x-descriptors:
+              - urn:alm:capability:com.tectonic.ui:metrics
+            value:
+              queries:
+                - query: has_leader
+                  name: Has Active Leader
+                  type: Gauge
+                  subtype: boolean
+                - query: leader_changes_seen_total
+                  name: Leader Changes
+                  type: Counter
+          - path: prometheus
+            displayName: Prometheus Endpoint
+            description: Endpoint of the prometheus instance for the etcd cluster.
+            x-descriptors:
+            - urn:alm:capability:io.prometheus:prometheus.v1
+            - urn:alm:capability:org.w3:link
+          - path: dashboard
+            displayName: Dashboard
+            description: URL of a Grafana dashboard for the etcd cluster.
+            x-descriptors:
+            - urn:alm:capability:com.tectonic.ui:important.link
+            - urn:alm:capability:org.w3:link
+          - path: serviceName
+            displayName: Service Name
+            description: The service name for the running etcd cluster.
+            x-descriptors:
+            - urn:alm:capability:com.coreos.etcd:api.v3.grpc
+            - urn:alm:capability:com.coreos.etcd:api.v2.rest
 status:
   conditions:
-    - type: Available
-      status: 'True'
-      lastUpdateTime: '2017-08-30T13:51:53Z'
-      lastTransitionTime: '2017-08-30T13:51:53Z'
-      reason: OperatorRunningAndHealthy
-      message: Operator is running and healthy
+  - lastTransitionTime: 2017-10-05T21:23:23Z
+    lastUpdateTime: 2017-10-05T21:23:23Z
+    message: requirements not yet checked
+    phase: Pending
+    reason: RequirementsUnknown
+  - lastTransitionTime: 2017-10-05T21:23:23Z
+    lastUpdateTime: 2017-10-05T21:23:23Z
+    message: one or more requirements couldn't be found
+    phase: Pending
+    reason: RequirementsNotMet
+  - lastTransitionTime: 2017-10-05T21:23:32Z
+    lastUpdateTime: 2017-10-05T21:23:32Z
+    message: all requirements found, attempting intstall
+    phase: Installing
+    reason: AllRequirementsMet
+  - lastTransitionTime: 2017-10-05T21:23:32Z
+    lastUpdateTime: 2017-10-05T21:23:32Z
+    message: install strategy completed with no errors
+    phase: Succeeded
+    reason: InstallSucceeded
+  lastTransitionTime: 2017-10-05T21:23:32Z
+  lastUpdateTime: 2017-10-05T21:23:32Z
+  message: install strategy completed with no errors
+  phase: Succeeded
+  reason: InstallSucceeded
+  requirementStatus:
+  - group: apiextensions.k8s.io
+    kind: CustomResourceDefinition
+    name: etcdclusters-v1.etcd.database.coreos.com
+    status: Present
+    uuid: 6f4162b8-aa13-11e7-bee7-0eb774f2814a
+    version: v1beta1

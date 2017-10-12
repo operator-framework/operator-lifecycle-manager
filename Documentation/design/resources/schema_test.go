@@ -152,7 +152,7 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 		for _, ferr := range errList {
 			fmt.Println(ferr)
 		}
-		t.Errorf("CRD failed validation: %s", schemaFileName)
+		t.Errorf("CRD failed validation: %s. Errors: %s", schemaFileName, errList)
 	}
 
 	// Validate CR against CRD schema

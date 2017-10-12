@@ -5,17 +5,7 @@ metadata:
   labels:
     alm-owner-prometheus: prometheus.clusterserviceversionv1s.app.coreos.com.v1alpha1
     operated-by: prometheusoperator.0.12.0
-  annotations:
-    displayName: Prometheus
-    description: A running Prometheus instance
-    outputs: '{
-       "prometheus-important-metrics": {
-        "displayName":"Important metrics",
-        "description":"Important metrics for the cluster.",
-        "x-alm-capabilities":["urn:alm:capability:com.tectonic.ui:metrics"] 
-      }
-    }'
-spec: 
+spec:
   group: monitoring.coreos.com
   version: v1
   scope: Namespaced
