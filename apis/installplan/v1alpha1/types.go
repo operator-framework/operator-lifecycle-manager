@@ -61,13 +61,9 @@ type InstallPlanSpec struct {
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	Phase              InstallPlanPhase           `json:"phase,omitempty"`
-	Message            string                     `json:"message,omitempty"`
-	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
-	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
-	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
-	Conditions         []InstallPlanCondition     `json:"conditions,omitempty"`
-	Plan               []Step                     `json:"plan,omitempty"`
+	InstallPlanPhase `json:",inline"`
+	Conditions       []InstallPlanCondition `json:"conditions,omitempty"`
+	Plan             []Step                 `json:"plan,omitempty"`
 }
 
 // InstallPlanConditions represents the overall status of the execution of
@@ -103,8 +99,8 @@ type InstallPlan struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   *InstallPlanSpec `json:"spec"`
-	Status metav1.Status    `json:"status"`
+	Spec   *InstallPlanSpec  `json:"spec"`
+	Status InstallPlanStatus `json:"status"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
