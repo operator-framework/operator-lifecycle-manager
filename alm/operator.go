@@ -133,7 +133,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		// with the install strategy's `CheckInstall`
 		syncError = a.resolver.ApplyStrategy(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
 		if syncError != nil {
-			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError.Error()))
 			return
 		}
 	}

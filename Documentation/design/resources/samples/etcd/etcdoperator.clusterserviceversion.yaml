@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  namespace: ci-alm-pr-94-move-outputs-to-csv
+  namespace: staging-environment
   name: etcdoperator.v0.5.1
   labels:
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
