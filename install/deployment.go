@@ -4,11 +4,13 @@ import (
 	"fmt"
 
 	"github.com/coreos-inc/operator-client/pkg/client"
+	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/api/core/v1"
+	"github.com/coreos-inc/alm/apis"
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
 const (
@@ -42,7 +44,7 @@ func (d *StrategyDetailsDeployment) Install(
 			Rules: permission.Rules,
 		}
 		role.SetGenerateName(fmt.Sprintf("%s-role-", owner.Name))
-		role, err := client.KubernetesInterface().RbacV1beta1().Roles(owner.Namespace).Create(role)
+		createdRole, err := client.KubernetesInterface().RbacV1beta1().Roles(owner.Namespace).Create(role)
 		if err != nil {
 			return err
 		}
@@ -57,17 +59,18 @@ func (d *StrategyDetailsDeployment) Install(
 
 		// create rolebinding
 		roleBinding := &rbac.RoleBinding{
-			Subjects: []rbac.Subject{{
-				Kind:      serviceAccount.Kind,
-				Name:      serviceAccount.Name,
-				Namespace: owner.Namespace,
-			}},
 			RoleRef: rbac.RoleRef{
-				APIGroup: role.GroupVersionKind().Group,
-				Kind:     role.Kind,
-				Name:     role.Name,
-			},
+				Kind:     "Role",
+				Name:     createdRole.GetName(),
+				APIGroup: rbac.GroupName},
+			Subjects: []rbac.Subject{{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccount.Name,
+				Namespace: serviceAccount.Namespace,
+			}},
 		}
+		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
+
 		if _, err = client.KubernetesInterface().RbacV1beta1().RoleBindings(owner.Namespace).Create(roleBinding); err != nil {
 			return err
 		}
@@ -76,8 +79,8 @@ func (d *StrategyDetailsDeployment) Install(
 	for _, spec := range d.DeploymentSpecs {
 		ownerReferences := []metav1.OwnerReference{
 			{
-				APIVersion:         ownerType.APIVersion,
-				Kind:               ownerType.Kind,
+				APIVersion:         apis.GroupName,
+				Kind:               v1alpha1.ClusterServiceVersionKind,
 				Name:               owner.GetName(),
 				UID:                owner.UID,
 				Controller:         &Controller,

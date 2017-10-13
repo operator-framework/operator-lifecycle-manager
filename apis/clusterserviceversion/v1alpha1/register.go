@@ -24,7 +24,7 @@ func Resource(resource string) schema.GroupResource {
 // addKnownTypes adds the set of types defined in this package to the supplied scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypeWithName(
-		SchemeGroupVersion.WithKind("ClusterServiceVersion-v1"),
+		SchemeGroupVersion.WithKind(ClusterServiceVersionKind),
 		&ClusterServiceVersion{},
 	)
 	scheme.AddKnownTypeWithName(

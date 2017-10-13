@@ -13,6 +13,7 @@ const (
 	GroupVersion = "v1alpha1" // used in registering ClusterServiceVersion scheme
 
 	ClusterServiceVersionCRDName       = "clusterserviceversion-v1s.app.coreos.com"
+	ClusterServiceVersionKind          = "ClusterServiceVersion-v1"
 	ClusterServiceVersionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 
 )

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coreos-inc/alm/apis"
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -43,8 +45,8 @@ func TestKubeDeployment(t *testing.T) {
 			Labels:       almLabels,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         mockOwnerType.APIVersion,
-					Kind:               mockOwnerType.Kind,
+					APIVersion:         apis.GroupName,
+					Kind:               v1alpha1.ClusterServiceVersionKind,
 					Name:               mockOwner.GetName(),
 					UID:                mockOwner.UID,
 					Controller:         &Controller,
