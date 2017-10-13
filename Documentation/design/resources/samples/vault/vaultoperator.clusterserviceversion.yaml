@@ -1,4 +1,5 @@
 #! validate-crd: clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:

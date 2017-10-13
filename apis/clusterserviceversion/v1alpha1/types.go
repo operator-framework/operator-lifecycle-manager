@@ -7,7 +7,6 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -27,11 +26,11 @@ type NamedInstallStrategy struct {
 
 // StatusDescriptor describes a field in a status block of a CRD so that ALM can consume it
 type StatusDescriptor struct {
-	Path         string                    `json:"path"`
-	DisplayName  string                    `json:"displayName"`
-	Description  string                    `json:"description"`
-	XDescriptors string                    `json:"x-descriptors"`
-	Value        unstructured.Unstructured `json:"value"`
+	Path         string          `json:"path"`
+	DisplayName  string          `json:"displayName"`
+	Description  string          `json:"description"`
+	XDescriptors []string        `json:"x-descriptors"`
+	Value        json.RawMessage `json:"value"`
 }
 
 // CRDDescription provides details to ALM about the CRDs

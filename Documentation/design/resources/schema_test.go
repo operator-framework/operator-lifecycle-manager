@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -108,9 +109,12 @@ func ValidateKubectlable(t *testing.T, fileBytes []byte) error {
 
 func ValidateUsingPragma(t *testing.T, pragma string, fileBytes []byte) error {
 	const ValidateCRDPrefix = "validate-crd:"
+	const ParseAsKindPrefix = "parse-kind:"
 	switch {
 	case strings.HasPrefix(pragma, ValidateCRDPrefix):
 		return ValidateCRD(t, strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
+	case strings.HasPrefix(pragma, ParseAsKindPrefix):
+		return ValidateKind(t, strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
 	}
 	return nil
 }
@@ -164,6 +168,20 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	require.NoError(t, err)
 	validator := validate.NewSchemaValidator(openapiSchema, nil, "", strfmt.Default)
 	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent()["spec"], validator)
+}
+
+func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {
+	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
+	require.NoError(t, err)
+
+	switch kind {
+	case "ClusterServiceVersion":
+		csv := v1alpha1.ClusterServiceVersion{}
+		err = json.Unmarshal(exampleFileBytesJson, &csv)
+		require.NoError(t, err)
+		return err
+	}
+	return nil
 }
 
 func ValidateResource(t *testing.T, path string, f os.FileInfo, err error) error {

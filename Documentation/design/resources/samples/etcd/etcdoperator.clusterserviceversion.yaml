@@ -1,8 +1,9 @@
 #! validate-crd: clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  namespace: alm-etcd-example
+  namespace: ci-alm-pr-94-move-outputs-to-csv
   name: etcdoperator.v0.5.1
   labels:
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
@@ -102,13 +103,13 @@ spec:
             - urn:alm:descriptor:com.tectonic.ui:metrics
           value:
             queries:
-            - query: has_leader
-              name: Has Active Leader
-              type: Gauge
-              subtype: boolean
-            - query: leader_changes_seen_total
-              name: Leader Changes
-              type: Counter
+              - query: has_leader
+                name: Has Active Leader
+                type: Gauge
+                subtype: boolean
+              - query: leader_changes_seen_total
+                name: Leader Changes
+                type: Counter
         - path: prometheus
           displayName: Prometheus Endpoint
           description: Endpoint of the prometheus instance for the etcd cluster.
