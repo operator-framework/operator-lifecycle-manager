@@ -44,11 +44,17 @@ local jobs = {
         // Docker Tag is the branch/tag name
         stage: stages.docker_build,
         before_script+: ["mkdir -p $PWD/bin"],
-        script: docker.build_and_push(images.ci.name,
+        script: docker.build_and_push(images.ci.alm.name,
                                       cache=false,
                                       extra_opts=["-f alm-ci.Dockerfile"]) +
-                docker.cp(images.ci.name, src="/bin/alm", dest="bin/alm") +
-                docker.build_and_push(images.prerelease.name,
+                docker.build_and_push(images.ci.catalog.name,
+                                      cache=false,
+                                      extra_opts=["-f catalog-ci.Dockerfile"]) +
+                docker.cp(images.ci.alm.name, src="/bin/alm", dest="bin/alm") +
+                docker.cp(images.ci.catalog.name, src="/bin/catalog", dest="bin/catalog") +
+                docker.build_and_push(images.prerelease.alm.name,
+                                      cache=false) +
+                docker.build_and_push(images.prerelease.catalog.name,
                                       cache=false),
     },
 
@@ -58,7 +64,8 @@ local jobs = {
         stage: stages.docker_release,
         before_script+: ["mkdir -p $PWD/bin"],
         script:
-            docker.rename(images.prerelease.name, images.release.name),
+            docker.rename(images.prerelease.alm.name, images.release.alm.name) +
+            docker.rename(images.prerelease.catalog.name, images.release.catalog.name),
 
     } + onlyMaster,
 
@@ -115,7 +122,6 @@ local jobs = {
         },
         only: ['master'],
     },
-
 };
 
 {

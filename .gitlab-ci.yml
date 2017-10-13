@@ -25,9 +25,14 @@ container-build:
   script:
   - 'docker build  --no-cache -f alm-ci.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
+  - 'docker build  --no-cache -f catalog-ci.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} . '
+  - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}
   - docker create quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/alm bin/alm
+  - docker create quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/catalog bin/catalog
   - 'docker build  --no-cache -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - 'docker build  --no-cache -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
+  - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   stage: docker_build
   tags:
   - kubernetes
@@ -46,6 +51,9 @@ container-release:
   - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: docker_release
   tags:
   - kubernetes
@@ -57,7 +65,8 @@ deploy-preview:
   - appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io
   - cd deploy/alm-app
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> Chart.yaml'
-  - 'echo "{\"image.repository\": \"quay.io/coreos/alm-ci\", \"image.tag\": \"${CI_COMMIT_REF_SLUG}-pre\", \"namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
+  - 'echo "{\"alm.image.repository\": \"quay.io/coreos/alm-ci\", \"alm.image.tag\": \"${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.repository\": \"quay.io/coreos/catalog-ci\", \"catalog.image.tag\": \"${CI_COMMIT_REF_SLUG}-pre\",
+    \"namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
   - cat params.json
   environment:
     name: review/ci-alm-${CI_COMMIT_REF_SLUG}
@@ -75,8 +84,8 @@ deploy-preview:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
     || true
   - kubectl apply -f ../../Documentation/design/resources/clusterserviceversion.crd.yaml
-  - helm registry upgrade quay.io/coreos/alm-ci-app@1.0.0-${CI_COMMIT_REF_SLUG}-pre -- --install ci-alm-${CI_COMMIT_REF_SLUG} --namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set image.repository=quay.io/coreos/alm-ci
-    --set image.tag=${CI_COMMIT_REF_SLUG}-pre --set namespace=ci-alm-${CI_COMMIT_REF_SLUG}
+  - helm registry upgrade quay.io/coreos/alm-ci-app@1.0.0-${CI_COMMIT_REF_SLUG}-pre -- --install ci-alm-${CI_COMMIT_REF_SLUG} --namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set alm.image.repository=quay.io/coreos/alm-ci
+    --set alm.image.tag=${CI_COMMIT_REF_SLUG}-pre --set catalog.image.repository=quay.io/coreos/catalog-ci --set catalog.image.tag=${CI_COMMIT_REF_SLUG}-pre --set namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl get ingresses -n ci-alm-${CI_COMMIT_REF_SLUG} -o wide
   stage: deploy_preview
   tags:
@@ -90,7 +99,8 @@ deploy-staging:
   - appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io
   - cd deploy/alm-app
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-${SHA8}" >> Chart.yaml'
-  - 'echo "{\"image.repository\": \"quay.io/coreos/alm\", \"image.tag\": \"${CI_COMMIT_REF_SLUG}-${SHA8}\", \"namespace\": \"ci-alm-staging\"}" > params.json'
+  - 'echo "{\"alm.image.repository\": \"quay.io/coreos/alm\", \"alm.image.tag\": \"${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.repository\": \"quay.io/coreos/catalog\", \"catalog.image.tag\": \"${CI_COMMIT_REF_SLUG}-${SHA8}\",
+    \"namespace\": \"ci-alm-staging\"}" > params.json'
   - cat params.json
   environment:
     name: staging
@@ -104,8 +114,8 @@ deploy-staging:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
     || true
   - kubectl apply -f ../../Documentation/design/resources/clusterserviceversion.crd.yaml
-  - helm registry upgrade quay.io/coreos/alm-ci-app@1.0.0-${CI_COMMIT_REF_SLUG}-${SHA8} -- --install ci-alm-staging --namespace=ci-alm-staging --set image.repository=quay.io/coreos/alm --set image.tag=${CI_COMMIT_REF_SLUG}-${SHA8}
-    --set namespace=ci-alm-staging --force
+  - helm registry upgrade quay.io/coreos/alm-ci-app@1.0.0-${CI_COMMIT_REF_SLUG}-${SHA8} -- --install ci-alm-staging --namespace=ci-alm-staging --set alm.image.repository=quay.io/coreos/alm --set alm.image.tag=${CI_COMMIT_REF_SLUG}-${SHA8}
+    --set catalog.image.repository=quay.io/coreos/catalog --set catalog.image.tag=${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=ci-alm-staging --force
   - kubectl get ingresses -n ci-alm-staging -o wide
   stage: deploy_staging
   tags:

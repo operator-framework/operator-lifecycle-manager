@@ -19,22 +19,42 @@ local utils = import "utils.libsonnet";
 
         // release is a copy of the quayci image to the 'prod' repository
         release: {
-            repo: "quay.io/coreos/alm",
-            tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            name: utils.containerName(self.repo, self.tag),
+            alm: {
+                repo: "quay.io/coreos/alm",
+                tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            catalog: {
+                repo: "quay.io/coreos/catalog",
+                tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
+                name: utils.containerName(self.repo, self.tag),
+            },
         },
 
         ci: {
-            repo: "quay.io/coreos/alm-ci",
-            tag: "${CI_COMMIT_REF_SLUG}",
-            name: utils.containerName(self.repo, self.tag),
+            alm: {
+                repo: "quay.io/coreos/alm-ci",
+                tag: "${CI_COMMIT_REF_SLUG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            catalog: {
+                repo: "quay.io/coreos/catalog-ci",
+                tag: "${CI_COMMIT_REF_SLUG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
         },
 
         prerelease: {
-            repo: "quay.io/coreos/alm-ci",
-            tag: "${CI_COMMIT_REF_SLUG}-pre",
-            name: utils.containerName(self.repo, self.tag),
+            alm: {
+                repo: "quay.io/coreos/alm-ci",
+                tag: "${CI_COMMIT_REF_SLUG}-pre",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            catalog: {
+                repo: "quay.io/coreos/catalog-ci",
+                tag: "${CI_COMMIT_REF_SLUG}-pre",
+                name: utils.containerName(self.repo, self.tag),
+            },
         },
-
     },
 }

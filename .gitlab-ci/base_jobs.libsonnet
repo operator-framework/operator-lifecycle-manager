@@ -27,14 +27,14 @@ local appr = utils.appr;
             "cd $GOPATH/src/%s" % vars.alm_repo,
         ],
         // base job to test the container
-        image: vars.images.ci.name,
+        image: vars.images.ci.alm.name,
     } + job_tags,
 
 
     EndToEndTest: {
         image: "python:2.7",
         services: [
-            { name: vars.images.prerelease.name, alias: 'alm' },
+            { name: vars.images.prerelease.alm.name, alias: 'alm' },
         ],
         before_script: ["cd /"],
         script: ['sleep 10'],
@@ -48,7 +48,7 @@ local appr = utils.appr;
         local this = self,
         local _vars = self.localvars,
         localvars:: {
-            appversion: "1.0.0-%s" % self.image.tag,
+            appversion: "1.0.0-%s" % self.image.alm.tag,
             apprepo: "quay.io/coreos/alm-ci-app",
             appname: self.namespace,
             app: "%s@%s" % [self.apprepo, self.appversion],
@@ -58,8 +58,10 @@ local appr = utils.appr;
             channel: null,
             helm_opts: [],
             params: {
-                "image.repository": _vars.image.repo,
-                "image.tag": _vars.image.tag,
+                "alm.image.repository": _vars.image.alm.repo,
+                "alm.image.tag": _vars.image.alm.tag,
+                "catalog.image.repository": _vars.image.catalog.repo,
+                "catalog.image.tag": _vars.image.catalog.tag,
                 namespace: _vars.namespace,
             },
         },

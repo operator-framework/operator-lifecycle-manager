@@ -11,7 +11,7 @@ metadata:
 spec:
   strategy:
     type: RollingUpdate
-  replicas: {{ .Values.replicaCount }}
+  replicas: {{ .Values.catalog.replicaCount }}
   template:
     metadata:
       labels:
@@ -19,33 +19,32 @@ spec:
         release: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ template "fullname" . }}-serviceaccount
-      volumes:
-        - name: config-volume
-          configMap:
-            name: alm-config
       containers:
         - name: {{ .Chart.Name }}
-          command: ["/bin/alm", "--almConfig", "/etc/config/alm.config.file"]
+          command:
+          - "/bin/catalog"
+          - "-namespaces"
+          - {{ .Values.namespace }}
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
+          imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.service.internalPort }}
+            - containerPort: {{ .Values.catalog.service.internalPort }}
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.catalog.service.internalPort }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.service.internalPort }}
+              port: {{ .Values.catalog.service.internalPort }}
           resources:
-{{ toYaml .Values.resources | indent 12 }}
-    {{- if .Values.nodeSelector }}
+{{ toYaml .Values.catalog.resources | indent 12 }}
+    {{- if .Values.catalog.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.nodeSelector | indent 8 }}
+{{ toYaml .Values.catalog.nodeSelector | indent 8 }}
     {{- end }}
       imagePullSecrets:
         - name: coreos-pull-secret

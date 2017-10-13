@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
@@ -24,6 +25,10 @@ type Operator struct {
 
 // NewOperator creates a new Catalog Operator.
 func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []catlib.Source, namespaces ...string) (*Operator, error) {
+	if namespaces == nil {
+		namespaces = []string{metav1.NamespaceAll}
+	}
+
 	// Create an instance of the client.
 	ipClient, err := client.NewInstallPlanClient(kubeconfigPath)
 	if err != nil {

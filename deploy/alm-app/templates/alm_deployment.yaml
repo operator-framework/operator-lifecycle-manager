@@ -1,0 +1,51 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.alm.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ template "fullname" . }}-serviceaccount
+      volumes:
+        - name: config-volume
+          configMap:
+            name: alm-config
+      containers:
+        - name: {{ .Chart.Name }}
+          command: ["/bin/alm", "--almConfig", "/etc/config/alm.config.file"]
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          image: "{{ .Values.alm.image.repository }}:{{ .Values.alm.image.tag }}"
+          imagePullPolicy: {{ .Values.alm.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.alm.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.alm.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.alm.service.internalPort }}
+          resources:
+{{ toYaml .Values.alm.resources | indent 12 }}
+    {{- if .Values.alm.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.alm.nodeSelector | indent 8 }}
+    {{- end }}
+      imagePullSecrets:
+        - name: coreos-pull-secret
