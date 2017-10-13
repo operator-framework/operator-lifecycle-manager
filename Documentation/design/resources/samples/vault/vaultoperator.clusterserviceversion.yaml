@@ -26,6 +26,7 @@ spec:
     url: https://www.vaultproject.io/
 
   labels:
+    alm-status-descriptors: vault-operator.0.1.2
     alm-owner-vault: vault-operator.0.1.2
     alm-catalog: Open Cloud Services
     operated-by: vaultoperator.0.1.2

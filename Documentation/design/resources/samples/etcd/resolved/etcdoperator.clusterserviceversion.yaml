@@ -22,7 +22,8 @@ spec:
     url: https://coreos.com/etcd
 
   labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-status-descriptors: etcdoperator.v0.5.1
+    alm-owner-etcd: etcdoperator.v0.5.1
     operated-by: etcdoperator.v0.5.1
 
   selector:
@@ -36,16 +37,58 @@ spec:
   install:
     strategy: deployment
     spec:
+      permissions:
+      - serviceAccountName: etcd-operator
+        rules:
+        - apiGroups:
+          - etcd.database.coreos.com
+          resources:
+          - etcdclusters
+          verbs:
+          - "*"
+        - apiGroups:
+          - storage.k8s.io
+          resources:
+          - storageclasses
+          verbs:
+          - "*"
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - endpoints
+          - persistentvolumeclaims
+          - events
+          verbs:
+          - "*"
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          verbs:
+          - "*"
       deployments:
         - replicas: 1
           template:
             metadata:
+              name: etcd-operator-alm-owned
               labels:
-                name: etcd-operator
+                name: etcd-operator-alm-owned
             spec:
+              serviceAccountName: etcd-operator
               containers:
               - name: etcd-operator
                 image: quay.io/coreos/etcd-operator:v0.5.1
+                env:
+                - name: MY_POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MY_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
   version: 0.5.1
   replaces: etcdoperator.v0.5.0
   maturity: beta

@@ -9,7 +9,8 @@ metadata:
       name: etcd
       uid: cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee
   labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-status-descriptors: etcdoperator.v0.5.1
+    alm-owner-etcd: etcdoperator.v0.5.1
 spec:
   group: etcd.database.coreos.com
   version: v1alpha1

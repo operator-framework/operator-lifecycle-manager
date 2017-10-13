@@ -10,6 +10,8 @@ spec:
   displayName: Etcd
   description: Etcd is a distributed key value store that provides a reliable way to store data across a cluster of machines. It’s open-source and available on GitHub. etcd gracefully handles leader elections during network partitions and will tolerate machine failure, including the leader. Your applications can read and write data into etcd. A simple use-case is to store database connection details or feature flags in etcd as key value pairs. These values can be watched, allowing your app to reconfigure itself when they change. Advanced uses take advantage of the consistency guarantees to implement database leader elections or do distributed locking across a cluster of workers.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
+  version: 0.5.1
+  maturity: beta
   maintainers:
   - name: Xiang Li
     email: xiang.li@coreos.com
@@ -18,7 +20,8 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-status-descriptors: etcdoperator.v0.5.1
+    alm-owner-etcd: etcdoperator.v0.5.1
     alm-catalog: Open Cloud Services
     operated-by: etcdoperator.v0.5.1
   selector:
@@ -34,30 +37,58 @@ spec:
   install:
     strategy: deployment
     spec:
-      serviceAccountName: alm-operator-serviceaccount
+      permissions:
+      - serviceAccountName: etcd-operator
+        rules:
+        - apiGroups:
+          - etcd.database.coreos.com
+          resources:
+          - etcdclusters
+          verbs:
+          - "*"
+        - apiGroups:
+          - storage.k8s.io
+          resources:
+          - storageclasses
+          verbs:
+          - "*"
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - endpoints
+          - persistentvolumeclaims
+          - events
+          verbs:
+          - "*"
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          verbs:
+          - "*"
       deployments:
-        - replicas: 1
-          template:
-            metadata:
+      - replicas: 1
+        template:
+          metadata:
+            name: etcd-operator-alm-owned
+            labels:
               name: etcd-operator-alm-owned
-              labels:
-                name: etcd-operator-alm-owned
-            spec:
-              containers:
-              - name: etcd-operator
-                image: quay.io/coreos/etcd-operator:v0.5.1
-                env:
-                - name: MY_POD_NAMESPACE
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.namespace
-                - name: MY_POD_NAME
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.name
-  version: 0.5.1
-  replaces: etcdoperator.v0.5.0
-  maturity: beta
+          spec:
+            serviceAccountName: etcd-operator
+            containers:
+            - name: etcd-operator
+              image: quay.io/coreos/etcd-operator:v0.5.1
+              env:
+              - name: MY_POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: MY_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
   customresourcedefinitions:
     owned:
     - name: etcdclusters-v1.etcd.database.coreos.com

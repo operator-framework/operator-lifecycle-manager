@@ -3,6 +3,7 @@ kind: CustomResourceDefinition
 metadata: 
   name: vaultservices.vault.security.coreos.com
   labels:
+    alm-status-descriptors: vault-operator.0.1.2
     alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
 spec:
   group: vault.security.coreos.com
