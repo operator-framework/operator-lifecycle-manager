@@ -129,6 +129,7 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	json.Unmarshal(schemaBytesJson, &crd)
 
 	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
+	require.NoError(t, err)
 	unstructured := unstructured.Unstructured{}
 	err = json.Unmarshal(exampleFileBytesJson, &unstructured)
 	require.NoError(t, err)

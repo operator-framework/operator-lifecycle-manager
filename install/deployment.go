@@ -5,7 +5,10 @@ import (
 
 	"github.com/coreos-inc/operator-client/pkg/client"
 	"k8s.io/api/extensions/v1beta1"
+	rbac "k8s.io/api/rbac/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/api/core/v1"
 )
 
 const (
@@ -15,10 +18,17 @@ const (
 var BlockOwnerDeletion = true
 var Controller = false
 
+// StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy
+type StrategyDeploymentPermissions struct {
+	ServiceAccountName string            `json:"serviceAccountName"`
+	Rules              []rbac.PolicyRule `json:"rules"`
+}
+
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
 type StrategyDetailsDeployment struct {
-	DeploymentSpecs []v1beta1.DeploymentSpec `json:"deployments"`
+	DeploymentSpecs []v1beta1.DeploymentSpec        `json:"deployments"`
+	Permissions     []StrategyDeploymentPermissions `json:"permissions"`
 }
 
 func (d *StrategyDetailsDeployment) Install(
@@ -26,6 +36,43 @@ func (d *StrategyDetailsDeployment) Install(
 	owner metav1.ObjectMeta,
 	ownerType metav1.TypeMeta,
 ) error {
+	for _, permission := range d.Permissions {
+		// create role
+		role := &rbac.Role{
+			Rules: permission.Rules,
+		}
+		role.SetGenerateName(fmt.Sprintf("%s-role-", owner.Name))
+		role, err := client.KubernetesInterface().RbacV1beta1().Roles(owner.Namespace).Create(role)
+		if err != nil {
+			return err
+		}
+
+		// create serviceaccount
+		serviceAccount := &v1.ServiceAccount{}
+		serviceAccount.SetName(permission.ServiceAccountName)
+		serviceAccount, err = client.KubernetesInterface().CoreV1().ServiceAccounts(owner.Namespace).Create(serviceAccount)
+		if err != nil {
+			return err
+		}
+
+		// create rolebinding
+		roleBinding := &rbac.RoleBinding{
+			Subjects: []rbac.Subject{{
+				Kind:      serviceAccount.Kind,
+				Name:      serviceAccount.Name,
+				Namespace: owner.Namespace,
+			}},
+			RoleRef: rbac.RoleRef{
+				APIGroup: role.GroupVersionKind().Group,
+				Kind:     role.Kind,
+				Name:     role.Name,
+			},
+		}
+		if _, err = client.KubernetesInterface().RbacV1beta1().RoleBindings(owner.Namespace).Create(roleBinding); err != nil {
+			return err
+		}
+	}
+
 	for _, spec := range d.DeploymentSpecs {
 		ownerReferences := []metav1.OwnerReference{
 			{
