@@ -114,17 +114,16 @@ spec:
       displayName: Prometheus
       description: A running Prometheus instance
       statusDescriptors:
-        - path: prometheus
-          displayName: Prometheus Endpoint
-          description: Endpoint of the prometheus instance for the etcd cluster.
+        - path: prometheusSelector
+          displayName: Prometheus Service Selector
+          description: Label selector to find the service that routes to this prometheus
           x-descriptors:
-          - urn:alm:capability:io.prometheus:prometheus.v1
-          - urn:alm:capability:org.w3:link
+          - urn:alm:descriptor:label:selector
         - path: importantMetrics
           displayName: Important metrics
           description: Important metrics for the cluster.
           x-descriptors:
-          - urn:alm:capability:com.tectonic.ui:metrics
+          - urn:alm:descriptor:com.tectonic.ui:metrics
           value:
             queries:
             - query: "has_leader"

@@ -46,7 +46,7 @@ properties:
           description: List of capabilities in URN format that this output satisfies, e.g. postgres compatible db connection string
           items:
             type: string
-            pattern: ^urn:alm:capability:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$
+            pattern: ^urn:alm:descriptor:[a-z0-9()+,\-.:=@;$_!*'%/?#]+$
         description:
           type: string
           description: Human readable description of what the output signifies

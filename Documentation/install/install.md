@@ -532,31 +532,31 @@ $ kubectl get --namespace=alm-etcd-example customresourcedefinitions etcdcluster
     "displayName": "Service Name",
     "description": "The service name for the running etcd cluster.",
     "x-descriptors": [
-      "urn:alm:capability:com.coreos.etcd:api.v3.grpc",
-      "urn:alm:capability:com.coreos.etcd:api.v2.rest"
+      "urn:alm:descriptor:com.coreos.etcd:api.v3.grpc",
+      "urn:alm:descriptor:com.coreos.etcd:api.v2.rest"
     ]
   },
   "etcd-dashboard": {
     "displayName": "Dashboard",
     "description": "URL of a Grafana dashboard for the etcd cluster.",
     "x-descriptors": [
-      "urn:alm:capability:com.tectonic.ui:important.link",
-      "urn:alm:capability:org.w3:link"
+      "urn:alm:descriptor:com.tectonic.ui:important.link",
+      "urn:alm:descriptor:org.w3:link"
     ]
   },
   "etcd-prometheus": {
     "displayName": "Prometheus Endpoint",
     "description": "Endpoint of the prometheus instance for the etcd cluster.",
     "x-descriptors": [
-      "urn:alm:capability:io.prometheus:prometheus.v1",
-      "urn:alm:capability:org.w3:link"
+      "urn:alm:descriptor:io.prometheus:prometheus.v1",
+      "urn:alm:descriptor:org.w3:link"
     ]
   },
   "etcd-important-metrics": {
     "displayName": "Important Metrics",
     "description": "Important prometheus metrics for the etcd cluster.",
     "x-descriptors": [
-      "urn:alm:capability:com.tectonic.ui:metrics"
+      "urn:alm:descriptor:com.tectonic.ui:metrics"
     ]
   }
 }
