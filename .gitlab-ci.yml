@@ -29,9 +29,9 @@ container-build:
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}
   - docker create quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/alm bin/alm
   - docker create quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/catalog bin/catalog
-  - 'docker build  --no-cache -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre . '
+  - 'docker build  --no-cache -f alm-pre.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - 'docker build  --no-cache -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
+  - 'docker build  --no-cache -f catalog-pre.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   stage: docker_build
   tags:

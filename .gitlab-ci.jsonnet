@@ -53,9 +53,11 @@ local jobs = {
                 docker.cp(images.ci.alm.name, src="/bin/alm", dest="bin/alm") +
                 docker.cp(images.ci.catalog.name, src="/bin/catalog", dest="bin/catalog") +
                 docker.build_and_push(images.prerelease.alm.name,
-                                      cache=false) +
+                                      cache=false,
+                                      extra_opts=["-f alm-pre.Dockerfile"]) +
                 docker.build_and_push(images.prerelease.catalog.name,
-                                      cache=false),
+                                      cache=false,
+                                      extra_opts=["-f catalog-pre.Dockerfile"]),
     },
 
     'container-release': baseJob.dockerBuild {
