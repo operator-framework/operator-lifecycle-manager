@@ -20,8 +20,7 @@ spec:
         version:
           type: string
           description: Version string
-          pattern: ^(0|[1-9]d*).(0|[1-9]d*).(0|[1-9]d*)(-(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*)(.(0|[1-9]d*|d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(+[0-9a-zA-Z-]+(.[0-9a-zA-Z-]+)*)?$
-          x-descriptors:
+          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$         x-descriptors:
           - urn:alm:descriptor:versioning:semver
         size:
           type: number

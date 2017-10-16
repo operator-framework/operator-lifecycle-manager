@@ -17,6 +17,8 @@ import (
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 
+const FallbackWakeupInterval = 30 * time.Second
+
 type ALMOperator struct {
 	*queueinformer.Operator
 	csvClient client.ClusterServiceVersionInterface
@@ -24,6 +26,10 @@ type ALMOperator struct {
 }
 
 func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces ...string) (*ALMOperator, error) {
+	if wakeupInterval < 0 {
+		wakeupInterval = FallbackWakeupInterval
+	}
+
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -85,9 +91,16 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
 	syncError = a.transitionCSVState(clusterServiceVersion)
+
+	// Update CSV with status of transition. Log errors if we can't write them to the status.
 	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
-		log.Infof("error updating ClusterServiceVersion status: %s", err.Error())
-		return err
+		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
+		if syncError == nil {
+			log.Info(updateErr)
+			return updateErr
+		}
+		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
+		log.Info(syncError)
 	}
 	return
 }
@@ -135,6 +148,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		syncError = a.resolver.ApplyStrategy(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
 		if syncError != nil {
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
+			return
+		} else {
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
 			return
 		}
 	}

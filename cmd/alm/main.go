@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"time"
+
 	"github.com/coreos-inc/alm/operators/alm"
 )
 
@@ -13,7 +15,7 @@ func main() {
 	// Parse the command-line flags.
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	wakeupInterval := flag.Duration("interval", 0, "wake up interval")
+	wakeupInterval := flag.Duration("interval", 5*time.Minute, "wake up interval")
 	namespaces := flag.String("namespaces", "", "comma separated list of namespaces")
 	flag.Parse()
 
