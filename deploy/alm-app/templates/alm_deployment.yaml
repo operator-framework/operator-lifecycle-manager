@@ -25,7 +25,10 @@ spec:
             name: alm-config
       containers:
         - name: {{ .Chart.Name }}
-          command: ["/bin/alm", "--almConfig", "/etc/config/alm.config.file"]
+          command:
+          - /bin/alm
+          - -namespaces
+          - {{ .Values.namespace }}
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config

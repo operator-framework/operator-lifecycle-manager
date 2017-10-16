@@ -3,6 +3,7 @@ package alm
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
-	"github.com/coreos-inc/alm/config"
 	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
 )
@@ -23,14 +23,14 @@ type ALMOperator struct {
 	resolver  install.Resolver
 }
 
-func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces ...string) (*ALMOperator, error) {
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
 	csvWatchers := []*cache.ListWatch{}
-	for _, namespace := range cfg.Namespaces {
+	for _, namespace := range namespaces {
 		csvWatcher := cache.NewListWatchFromClient(
 			csvClient,
 			"clusterserviceversion-v1s",
@@ -45,7 +45,7 @@ func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error)
 		csvInformer := cache.NewSharedIndexInformer(
 			csvWatcher,
 			&v1alpha1.ClusterServiceVersion{},
-			cfg.Interval,
+			wakeupInterval,
 			cache.Indexers{},
 		)
 		sharedIndexInformers = append(sharedIndexInformers, csvInformer)

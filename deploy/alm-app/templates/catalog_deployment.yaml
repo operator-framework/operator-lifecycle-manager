@@ -22,8 +22,8 @@ spec:
       containers:
         - name: {{ .Chart.Name }}
           command:
-          - "/bin/catalog"
-          - "-namespaces"
+          - /bin/catalog
+          - -namespaces
           - {{ .Values.namespace }}
           volumeMounts:
           - name: config-volume
