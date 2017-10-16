@@ -1,7 +1,7 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}
+  name: {{ template "fullname" . }}-catalog
   namespace: {{ .Values.namespace }}
   labels:
     app: {{ template "name" . }}
@@ -15,7 +15,7 @@ spec:
   template:
     metadata:
       labels:
-        app: {{ template "name" . }}
+        app: {{ template "name" . }}-catalog
         release: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ template "fullname" . }}-serviceaccount
@@ -25,9 +25,6 @@ spec:
           - /bin/catalog
           - -namespaces
           - {{ .Values.namespace }}
-          volumeMounts:
-          - name: config-volume
-            mountPath: /etc/config
           image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

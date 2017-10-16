@@ -75,7 +75,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces 
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
-func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
+func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -84,12 +84,12 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	if err := a.transitionCSVState(clusterServiceVersion); err != nil {
+	syncError = a.transitionCSVState(clusterServiceVersion)
+	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
+		log.Infof("error updating ClusterServiceVersion status: %s", err.Error())
 		return err
 	}
-
-	_, err := a.csvClient.UpdateCSV(clusterServiceVersion)
-	return err
+	return
 }
 
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
