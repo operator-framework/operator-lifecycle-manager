@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos-inc/alm/operators/alm"
+	"github.com/coreos-inc/alm/operators/catalog"
 )
 
 func main() {
@@ -25,14 +25,14 @@ func main() {
 	go http.ListenAndServe(":8080", nil)
 
 	// Create a new instance of the operator.
-	almOperator, err := alm.NewALMOperator(*kubeConfigPath, *wakeupInterval, strings.Split(*namespaces, ",")...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, nil, strings.Split(*namespaces, ",")...)
 	if err != nil {
 		panic("error configuring operator: " + err.Error())
 	}
 
 	// TODO: Handle any signals to shutdown cleanly.
 	stop := make(chan struct{})
-	almOperator.Run(stop)
+	catalogOperator.Run(stop)
 	close(stop)
 
 	panic("unreachable")

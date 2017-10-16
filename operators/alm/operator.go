@@ -3,6 +3,7 @@ package alm
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/fields"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
-	"github.com/coreos-inc/alm/config"
 	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
 )
@@ -23,14 +23,14 @@ type ALMOperator struct {
 	resolver  install.Resolver
 }
 
-func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces ...string) (*ALMOperator, error) {
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
 	csvWatchers := []*cache.ListWatch{}
-	for _, namespace := range cfg.Namespaces {
+	for _, namespace := range namespaces {
 		csvWatcher := cache.NewListWatchFromClient(
 			csvClient,
 			"clusterserviceversion-v1s",
@@ -45,7 +45,7 @@ func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error)
 		csvInformer := cache.NewSharedIndexInformer(
 			csvWatcher,
 			&v1alpha1.ClusterServiceVersion{},
-			cfg.Interval,
+			wakeupInterval,
 			cache.Indexers{},
 		)
 		sharedIndexInformers = append(sharedIndexInformers, csvInformer)
@@ -75,7 +75,7 @@ func NewALMOperator(kubeconfig string, cfg *config.Config) (*ALMOperator, error)
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
-func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError error) {
+func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -84,11 +84,12 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	syncError = a.transitionCSVState(clusterServiceVersion)
-	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
+	if err := a.transitionCSVState(clusterServiceVersion); err != nil {
 		return err
 	}
-	return
+
+	_, err := a.csvClient.UpdateCSV(clusterServiceVersion)
+	return err
 }
 
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
