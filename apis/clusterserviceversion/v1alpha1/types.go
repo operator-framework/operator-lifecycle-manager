@@ -7,6 +7,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 const (
@@ -24,13 +25,30 @@ type NamedInstallStrategy struct {
 	StrategySpecRaw json.RawMessage `json:"spec"`
 }
 
+// StatusDescriptor describes a field in a status block of a CRD so that ALM can consume it
+type StatusDescriptor struct {
+	Path         string                    `json:"path"`
+	DisplayName  string                    `json:"displayName"`
+	Description  string                    `json:"description"`
+	XDescriptors string                    `json:"x-descriptors"`
+	Value        unstructured.Unstructured `json:"value"`
+}
+
+// CRDDescription provides details to ALM about the CRDs
+type CRDDescription struct {
+	Name              string             `json:"name"`
+	DisplayName       string             `json:"displayName"`
+	Description       string             `json:"description"`
+	StatusDescriptors []StatusDescriptor `json:"statusDescriptors"`
+}
+
 // CustomResourceDefinitions declares all of the CRDs managed or required by
 // an operator being ran by ClusterServiceVersion.
 //
 // If the CRD is present in the Owned list, it is implicitly required.
 type CustomResourceDefinitions struct {
-	Owned    []string `json:"owned"`
-	Required []string `json:"required"`
+	Owned    []CRDDescription `json:"owned"`
+	Required []CRDDescription `json:"required"`
 }
 
 // ClusterServiceVersionSpec declarations tell the ALM how to install an operator
