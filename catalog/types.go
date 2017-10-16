@@ -20,3 +20,9 @@ type Source interface {
 	FindLatestCSVForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error)
 	ListCSVsForCRD(crdname string) ([]v1alpha1.ClusterServiceVersion, error)
 }
+
+// CSVMetadata holds the necessary information to locate a particular CSV in the catalog
+type CSVMetadata struct {
+	Name    string
+	Version string
+}
