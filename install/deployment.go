@@ -7,6 +7,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/apis"
@@ -49,11 +50,11 @@ func (d *StrategyDetailsDeployment) Install(
 			return err
 		}
 
-		// create serviceaccount
+		// create serviceaccount if necessary
 		serviceAccount := &v1.ServiceAccount{}
 		serviceAccount.SetName(permission.ServiceAccountName)
 		serviceAccount, err = client.KubernetesInterface().CoreV1().ServiceAccounts(owner.Namespace).Create(serviceAccount)
-		if err != nil {
+		if err != nil && !errors.IsAlreadyExists(err) {
 			return err
 		}
 
@@ -65,8 +66,8 @@ func (d *StrategyDetailsDeployment) Install(
 				APIGroup: rbac.GroupName},
 			Subjects: []rbac.Subject{{
 				Kind:      "ServiceAccount",
-				Name:      serviceAccount.Name,
-				Namespace: serviceAccount.Namespace,
+				Name:      permission.ServiceAccountName,
+				Namespace: owner.Namespace,
 			}},
 		}
 		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
