@@ -149,9 +149,9 @@ func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions)
 			Group:   "apiextensions.k8s.io",
 			Version: "v1beta1",
 			Kind:    "CustomResourceDefinition",
-			Name:    r,
+			Name:    r.Name,
 		}
-		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r)
+		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r.Name)
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false

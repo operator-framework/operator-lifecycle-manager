@@ -38,14 +38,14 @@ type MockALMOperator struct {
 	MockStrategyResolver install.MockResolver
 }
 
-func mockCRDExistence(mockClient opClient.MockInterface, crdNames []string) {
-	for _, crdName := range crdNames {
-		if crdName == "nonExistent" {
+func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alpha1.CRDDescription) {
+	for _, crd := range crdDescriptions {
+		if crd.Name == "nonExistent" {
 			mockClient.EXPECT().
 				GetCustomResourceDefinitionKind("nonExistent").
 				Return(nil, fmt.Errorf("Requirement not found"))
 		}
-		if crdName == "found" {
+		if crd.Name == "found" {
 			mockClient.EXPECT().
 				GetCustomResourceDefinitionKind("found").
 				Return(&v1beta1.CustomResourceDefinition{}, nil)
@@ -63,6 +63,16 @@ func testCSV() *v1alpha1.ClusterServiceVersion {
 			DisplayName: "Test",
 		},
 	}
+}
+
+func makeCRDDescriptions(names ...string) []v1alpha1.CRDDescription {
+	crds := []v1alpha1.CRDDescription{}
+	for _, name := range names {
+		crds = append(crds, v1alpha1.CRDDescription{
+			Name: name,
+		})
+	}
+	return crds
 }
 
 func withStatus(csv *v1alpha1.ClusterServiceVersion, status *v1alpha1.ClusterServiceVersionStatus) *v1alpha1.ClusterServiceVersion {
@@ -129,7 +139,7 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: []string{"nonExistent"},
+						Owned: makeCRDDescriptions("nonExistent"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -147,7 +157,7 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Required: []string{"nonExistent"},
+						Required: makeCRDDescriptions("nonExistent"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -165,8 +175,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    []string{"nonExistent", "found"},
-						Required: []string{"nonExistent", "found"},
+						Owned:    makeCRDDescriptions("nonExistent", "found"),
+						Required: makeCRDDescriptions("nonExistent", "found"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -184,8 +194,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    []string{"found"},
-						Required: []string{"nonExistent"},
+						Owned:    makeCRDDescriptions("found"),
+						Required: makeCRDDescriptions("nonExistent"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -203,8 +213,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    []string{"nonExistent"},
-						Required: []string{"found"},
+						Owned:    makeCRDDescriptions("nonExistent"),
+						Required: makeCRDDescriptions("found"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -222,8 +232,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    []string{"found", "found"},
-						Required: []string{"found", "found"},
+						Owned:    makeCRDDescriptions("found", "found"),
+						Required: makeCRDDescriptions("found", "found"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -240,7 +250,7 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: []string{"found"},
+						Owned: makeCRDDescriptions("found"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -257,7 +267,7 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Required: []string{"found"},
+						Required: makeCRDDescriptions("found"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
