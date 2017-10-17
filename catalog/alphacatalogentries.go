@@ -19,9 +19,9 @@ type CustomResourceCatalogStore struct {
 // Store creates a new AlphaCatalogEntry custom resource for the given service definition, csv
 func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.AlphaCatalogEntry, error) {
 	spec := &v1alpha1.AlphaCatalogEntrySpec{csv.Spec}
-	resource := &v1alpha1.NewAlphaCatalogEntryResource(spec)
+	resource := v1alpha1.NewAlphaCatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
-	return store.client.UpdateEntry(resource)
+	return store.client.UpdateEntry(&resource)
 }
 
 // Sync creates AlphaCatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
