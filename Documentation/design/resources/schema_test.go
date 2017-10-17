@@ -215,7 +215,7 @@ type DirectoryResourceValidator struct {
 }
 
 func (d *DirectoryResourceValidator) ValidateResources(directory string) {
-	err := filepath.Walk(".", d.ValidateResource)
+	err := filepath.Walk(directory, d.ValidateResource)
 	require.NoError(d.t, err)
 }
 
@@ -237,4 +237,9 @@ func (d *DirectoryResourceValidator) ValidateResource(path string, f os.FileInfo
 func TestResourceExamples(t *testing.T) {
 	directoryTester := DirectoryResourceValidator{t}
 	directoryTester.ValidateResources(".")
+}
+
+func TestCatalogResources(t *testing.T) {
+	directoryTester := DirectoryResourceValidator{t}
+	directoryTester.ValidateResources("../../../catalog_resources")
 }
