@@ -15,6 +15,7 @@ type Source interface {
 	FindLatestCSVByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error)
 	FindCSVByServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error)
 	ListCSVsForServiceName(name string) ([]v1alpha1.ClusterServiceVersion, error)
+	ListServices() ([]v1alpha1.ClusterServiceVersion, error)
 
 	FindCRDByName(name string) (*v1beta1.CustomResourceDefinition, error)
 	FindLatestCSVForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error)
