@@ -22,20 +22,27 @@ func compareResources(t *testing.T, expected, actual interface{}) {
 }
 
 func createCSV(name, version, replaces string, owned []string) v1alpha1.ClusterServiceVersion {
+	ownedResources := []v1alpha1.CRDDescription{}
+	for _, ownedCRD := range owned {
+		ownedResources = append(ownedResources, v1alpha1.CRDDescription{
+			Name: ownedCRD,
+		})
+	}
 	return v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionCRDName,
 			APIVersion: v1alpha1.GroupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: "alm-coreos-tests",
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Version:  *semver.New(version),
 			Replaces: replaces,
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-				Owned:    owned,
-				Required: []string{},
+				Owned:    ownedResources,
+				Required: []v1alpha1.CRDDescription{},
 			},
 		},
 	}

@@ -80,20 +80,20 @@ func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error
 	// validate required CRDs
 	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Required {
 		// validate CRD definition stored
-		if _, ok := m.crds[crdReq]; !ok {
-			errs = append(errs, fmt.Errorf("missing definition for required CRD %s", crdReq))
+		if _, ok := m.crds[crdReq.Name]; !ok {
+			errs = append(errs, fmt.Errorf("missing definition for required CRD %s", crdReq.Name))
 		}
 	}
 
 	// validate owned CRDs
 	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Owned {
 		// validate crds have definitions stored
-		if _, ok := m.crds[crdReq]; !ok {
-			errs = append(errs, fmt.Errorf("missing definition for owned CRD %s", crdReq))
+		if _, ok := m.crds[crdReq.Name]; !ok {
+			errs = append(errs, fmt.Errorf("missing definition for owned CRD %s", crdReq.Name))
 		}
 		// validate crds not already managed by another service
-		if manager, ok := m.crdToCSV[crdReq]; ok && manager != crdReq {
-			errs = append(errs, fmt.Errorf("CRD %s already managed by %s", crdReq, manager))
+		if manager, ok := m.crdToCSV[crdReq.Name]; ok && manager != crdReq.Name {
+			errs = append(errs, fmt.Errorf("CRD %s already managed by %s", crdReq.Name, manager))
 		}
 	}
 
@@ -126,7 +126,7 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 
 	// register its crds
 	for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
-		m.crdToCSV[crd] = name
+		m.crdToCSV[crd.Name] = name
 	}
 	return nil
 }
