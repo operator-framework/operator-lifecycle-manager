@@ -26,10 +26,6 @@ func LoadCRDFromFile(m *InMem, filepath string) (*v1beta1.CustomResourceDefiniti
 	return &crd, nil
 }
 
-func LoadCRDsInDir(m *InMem, dirname string) error {
-	return nil
-}
-
 // LoadCSVFromFile is a utility function for loading CSV definitions
 func LoadCSVFromFile(m *InMem, filepath string) (*v1alpha1.ClusterServiceVersion, error) {
 	data, err := ioutil.ReadFile(filepath)
