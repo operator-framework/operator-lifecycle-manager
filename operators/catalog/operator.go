@@ -11,13 +11,15 @@ import (
 
 	"bytes"
 
-	v1alpha12 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	v1alpha1csv "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/catalog"
 	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/queueinformer"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
+
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 )
 
@@ -120,7 +122,11 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	names := installPlan.Spec.ClusterServiceVersionNames
 
 	crdSerializer := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
-	crdSerializer.Encode()
+	scheme := runtime.NewScheme()
+	if err := v1alpha1csv.AddToScheme(scheme); err != nil {
+		return err
+	}
+	csvSerializer := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme, scheme)
 
 	for len(names) > 0 {
 		// looping here like this because we are adding names to the list from dependencies
@@ -138,8 +144,8 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 			}
 
 			if checkIfOwned(*csv, crd.OwnerReferences) {
-				manifest := bytes.NewBufferString("")
-				if err := crdSerializer.Encode(crd, manifest); err != nil {
+				var manifest bytes.Buffer
+				if err := crdSerializer.Encode(crd, &manifest); err != nil {
 					return err
 				}
 				step := v1alpha1.Step{
@@ -161,14 +167,32 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 				}
 				names = append(names, csvForCRD.Name)
 			}
+
 		}
+
+		var manifestCSV bytes.Buffer
+		if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
+			return err
+		}
+		stepCSV := v1alpha1.Step{
+			Resolving: name,
+			Resource: v1alpha1.StepResource{
+				Group:    csv.GroupVersionKind().Group,
+				Version:  csv.GroupVersionKind().Group,
+				Kind:     csv.Kind,
+				Name:     csv.Name,
+				Manifest: manifestCSV.String(),
+			},
+			Status: v1alpha1.StepStatusUnknown,
+		}
+		steps = append(steps, stepCSV)
 	}
 	installPlan.Status.Plan = steps
 	installPlan.Status.InstallPlanPhase = v1alpha1.InstallPlanPhaseInstalling
 	return nil
 }
 
-func checkIfOwned(csv v1alpha12.ClusterServiceVersion, ownerRefs []v1.OwnerReference) bool {
+func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, ownerRefs []v1.OwnerReference) bool {
 	for _, ownerRef := range ownerRefs {
 		if csv.Name != "" && csv.Name == ownerRef.Name && csv.Kind != "" && csv.Kind == ownerRef.Kind {
 			return true
