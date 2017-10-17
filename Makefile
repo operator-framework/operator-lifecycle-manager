@@ -50,7 +50,8 @@ codegen:
 	hack/k8s/codegen/update-generated.sh
 
 generate-mock-client:
-	@mockgen -package=client -source=client/clusterserviceversion_client.go > client/mock_client.go
-	@mockgen -package=install -source=install/resolver.go > install/mock_resolver.go
+	@mockgen -package=client -source=client/clusterserviceversion_client.go > client/zz_generated.mock_clusterserviceversion_client.go
+	@mockgen -package=client -source=client/installplan_client.go > client/zz_generated.mock_installplan_client.go
+	@mockgen -package=install -source=install/resolver.go > install/zz_generated.mock_resolver.go
 
 make gen-all: gen-ci codegen generate-mock-client
