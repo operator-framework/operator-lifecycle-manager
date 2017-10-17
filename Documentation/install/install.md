@@ -19,7 +19,7 @@ metadata:
 EOF
 ```
 
-### Install AppType
+### Install ClusterServiceVersion
 
 ```sh
 kubectl create -f - <<EOF
@@ -28,8 +28,8 @@ kind: CustomResourceDefinition
 metadata:
   name: clusterserviceversion-v1s.app.coreos.com
   annotations:
-    displayName: App Type
-    description: Represents an App Type that has been registered with ALM.
+    displayName: Operator Version
+    description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
 spec:
   group: app.coreos.com
   version: v1alpha1
@@ -37,11 +37,14 @@ spec:
   validation:
     openAPIV3Schema:
       type: object
-      description: Document which defines how to model an App as a CRD in an ALM compatible way
+      description: Represents a single version of the operator software
       required:
       - displayName
+      - version
+      - maturity
       - labels
       - selector
+      - install
       properties:
         displayName:
           type: string
@@ -51,14 +54,12 @@ spec:
           type: string
           description: Human readable description of what the application does
 
-        # Open question: do these belong as k8s annotations? Should ALM do that?
         keywords:
           type: array
           description: List of keywords which will be used to discover and categorize app types
           items:
             type: string
 
-        # Open question: do these belong as k8s annotations? Should ALM do that?
         maintainers:
           type: array
           description: Those responsible for the creation of this specific app type
@@ -117,76 +118,6 @@ spec:
               - image/jpeg
               - image/png
               - image/svg+xml
-        labels:
-          type: object
-          description: Labels that will be applies to associated resources
-        selector:
-          type: object
-          description: Label selector to find resources associated with this AppType
-          properties:
-            matchLabels:
-              type: object
-              description: Label key:value pairs to match directly
-            matchExpressions:
-              type: array
-              descriptions: A set of expressions to match against the resource.
-              items:
-                allOf:
-                  - type: object
-                    required:
-                    - key
-                    - operator
-                    - values
-                    properties:
-                      key:
-                        type: string
-                        description: the key to match
-                      operator:
-                        type: string
-                        description: the operator for the expression
-                        enum:
-                        - In
-                        - NotIn
-                        - Exists
-                        - DoesNotExist
-                      values:
-                        type: array
-                        description: set of values for the expression
-
-  names:
-    plural: clusterserviceversion-v1s
-    singular: apptype-v1
-    kind: AppType-v1
-    listKind: AppTypeList-v1
-EOF
-```
-
-### Install ClusterServiceVersion
-
-```sh
-kubectl create -f - <<EOF
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  name: clusterserviceversion-v1s.app.coreos.com
-  annotations:
-    displayName: Operator Version
-    description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
-spec:
-  group: app.coreos.com
-  version: v1alpha1
-  scope: Namespaced
-  validation:
-    openAPIV3Schema:
-      type: object
-      description: Represents a single version of the operator software
-      required:
-      - version
-      - maturity
-      - requirements
-      - selector
-      - install
-      properties:
         version:
           type: string
           description: Version string, recommended that users use semantic versioning
@@ -243,100 +174,22 @@ spec:
                       values:
                         type: array
                         description: set of values for the expression
+        customresourcedefinitions:
+          type: object
+          properties:
+            owned:
+              type: array
+              description: What resources this operator is responsible for managing. No two running operators should manage the same resource.
+              items:
+                type: string
+                description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
+            required:
+              type: array
+              description: The CustomResourceDefinitions that are required before this ClusterServiceVersion can run
+              items:
+                type: string
+                description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
 
-        requirements:
-          type: array
-          description: What requirements that we have before this ClusterServiceVersion can run, may include CRD objects and k8s features
-          items:
-            anyOf:
-            - type: object
-              description: Single requirement that must be satisfied for the ClusterServiceVersion to be installed and to work correctly
-              required:
-              - kind
-              - apiVersion
-              - name
-              properties:
-                kind:
-                  type: string
-                  description: The kind of resource we are modeling.
-                apiVersion:
-                  type: string
-                  description: The apiVersion of the resource
-                name:
-                  type: string
-                  description: The name of the resource
-                sha256:
-                  type: string
-                  description: Optional SHA-256 hash of the resource we consume, if we want to be extra-strict
-                  pattern: ^[a-f0-9]{64}$
-                optional:
-                  type: boolean
-                  description: If true, this requirement will not block install of the operator.
-                matchExpressions:
-                  type: array
-                  descriptions: A set of expressions to match against the resource. Requirement will not be considered 'met' if these evaluate to false.
-                  items:
-                    allOf:
-                      - type: object
-                        required:
-                        - key
-                        - operator
-                        - values
-                        properties:
-                          key:
-                            type: string
-                            description: the key to match
-                          operator:
-                            type: string
-                            description: the operator for the expression
-                            enum:
-                            - In
-                            - NotIn
-                            - Exists
-                            - DoesNotExist
-                          values:
-                            type: array
-                            description: set of values for the expression
-            - type: object
-              required:
-              - rules
-              - kind
-              properties:
-                kind:
-                  type: string
-                  value: ServiceAccount
-                rules:
-                  type: array
-                  items:
-                    allOf:
-                      - type: object
-                        description: a rule required by the service account
-                        properties:
-                          apiGroups:
-                            type: array
-                            description: apiGroups the rule applies to
-                            items:
-                              type: string
-                          resources:
-                            type: array
-                            items:
-                              type: string
-                          resourceNames:
-                            type: array
-                            items:
-                              type: string
-                          verbs:
-                            type: array
-                            items:
-                              type: string
-                              enum:
-                                - get
-                                - list
-                                - watch
-                                - create
-                                - update
-                                - patch
-                                - delete
         install:
           type: object
           description: Information required to install this specific version of the operator software
@@ -381,7 +234,6 @@ spec:
     kind: ClusterServiceVersion-v1
     listKind: ClusterServiceVersionList-v1
 EOF
-
 ```
 
 ### Install ALM Operator
