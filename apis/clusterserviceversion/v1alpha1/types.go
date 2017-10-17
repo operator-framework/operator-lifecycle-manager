@@ -62,6 +62,7 @@ type ClusterServiceVersionSpec struct {
 	Description               string                    `json:"description"`
 	Keywords                  []string                  `json:"keywords"`
 	Maintainers               []Maintainer              `json:"maintainers"`
+	Provider                  AppLink                   `json:"provider"`
 	Links                     []AppLink                 `json:"links"`
 	Icon                      []Icon                    `json:"icon"`
 
