@@ -1,0 +1,148 @@
+#! validate-crd: clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
+apiVersion: app.coreos.com/v1alpha1
+kind: ClusterServiceVersion-v1
+metadata:
+  name: prometheusoperator.0.13.0
+  namespace: placeholder
+spec:
+  displayName: Prometheus
+  description: An open-source monitoring system with a dimensional data model, flexible query language, efficient time series database and modern alerting approach.
+
+  keywords: ['prometheus', 'monitoring', 'tsdb', 'alerting']
+
+  maintainers:
+  - name: Frederic Branczyk
+    email: frederic.branczyk@coreos.com
+  - name: Fabian Reinartz
+    email: fabian.reinartz@coreos.com
+
+  provider:
+    name: CoreOS, Inc
+
+  links:
+  - name: Prometheus
+    url: https://www.prometheus.io/
+
+  labels:
+    alm-owner-prometheus: prometheusoperator.0.13.0
+    alm-catalog: Open Cloud Services
+    operated-by: prometheusoperator.0.13.0
+
+  selector:
+    matchLabels:
+      alm-owner-prometheus: prometheusoperator.0.13.0
+      operated-by: prometheusoperator.0.13.0
+
+  icon:
+  - base64data: PHN2ZyB3aWR0aD0iMjQ5MCIgaGVpZ2h0PSIyNTAwIiB2aWV3Qm94PSIwIDAgMjU2IDI1NyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEyOC4wMDEuNjY3QzU3LjMxMS42NjcgMCA1Ny45NzEgMCAxMjguNjY0YzAgNzAuNjkgNTcuMzExIDEyNy45OTggMTI4LjAwMSAxMjcuOTk4UzI1NiAxOTkuMzU0IDI1NiAxMjguNjY0QzI1NiA1Ny45NyAxOTguNjg5LjY2NyAxMjguMDAxLjY2N3ptMCAyMzkuNTZjLTIwLjExMiAwLTM2LjQxOS0xMy40MzUtMzYuNDE5LTMwLjAwNGg3Mi44MzhjMCAxNi41NjYtMTYuMzA2IDMwLjAwNC0zNi40MTkgMzAuMDA0em02MC4xNTMtMzkuOTRINjcuODQyVjE3OC40N2gxMjAuMzE0djIxLjgxNmgtLjAwMnptLS40MzItMzMuMDQ1SDY4LjE4NWMtLjM5OC0uNDU4LS44MDQtLjkxLTEuMTg4LTEuMzc1LTEyLjMxNS0xNC45NTQtMTUuMjE2LTIyLjc2LTE4LjAzMi0zMC43MTYtLjA0OC0uMjYyIDE0LjkzMyAzLjA2IDI1LjU1NiA1LjQ1IDAgMCA1LjQ2NiAxLjI2NSAxMy40NTggMi43MjItNy42NzMtOC45OTQtMTIuMjMtMjAuNDI4LTEyLjIzLTMyLjExNiAwLTI1LjY1OCAxOS42OC00OC4wNzkgMTIuNTgtNjYuMjAxIDYuOTEuNTYyIDE0LjMgMTQuNTgzIDE0LjggMzYuNTA1IDcuMzQ2LTEwLjE1MiAxMC40Mi0yOC42OSAxMC40Mi00MC4wNTYgMC0xMS43NjkgNy43NTUtMjUuNDQgMTUuNTEyLTI1LjkwNy02LjkxNSAxMS4zOTYgMS43OSAyMS4xNjUgOS41MyA0NS40IDIuOTAyIDkuMTAzIDIuNTMyIDI0LjQyMyA0Ljc3MiAzNC4xMzguNzQ0LTIwLjE3OCA0LjIxMy00OS42MiAxNy4wMTQtNTkuNzg0LTUuNjQ3IDEyLjguODM2IDI4LjgxOCA1LjI3IDM2LjUxOCA3LjE1NCAxMi40MjQgMTEuNDkgMjEuODM2IDExLjQ5IDM5LjYzOCAwIDExLjkzNi00LjQwNyAyMy4xNzMtMTEuODQgMzEuOTU4IDguNDUyLTEuNTg2IDE0LjI4OS0zLjAxNiAxNC4yODktMy4wMTZsMjcuNDUtNS4zNTVjLjAwMi0uMDAyLTMuOTg3IDE2LjQwMS0xOS4zMTQgMzIuMTk3eiIgZmlsbD0iI0RBNEUzMSIvPjwvc3ZnPg==
+    mediatype: image/svg+xml
+
+  install:
+    strategy: deployment
+    spec:
+      permissions:
+      - serviceAccountName: prometheus-operator
+        rules:
+        - apiGroups:
+          - apiextensions.k8s.io
+          resources:
+          - customresourcedefinitions
+          verbs: ["get", "list"]
+        - apiGroups:
+          - alm.monitoring.coreos.com
+          resources:
+          - alertmanagers
+          - prometheuses
+          - servicemonitors
+          verbs:
+          - "*"
+        - apiGroups:
+          - apps
+          resources:
+          - statefulsets
+          verbs: ["*"]
+        - apiGroups: [""]
+          resources:
+          - configmaps
+          - secrets
+          verbs: ["*"]
+        - apiGroups: [""]
+          resources:
+          - pods
+          verbs: ["list", "delete"]
+        - apiGroups: [""]
+          resources:
+          - services
+          - endpoints
+          verbs: ["get", "create", "update"]
+        - apiGroups: [""]
+          resources:
+          - nodes
+          verbs: ["list", "watch"]
+        - apiGroups: [""]
+          resources:
+          - namespaces
+          verbs: ['list']
+      deployments:
+      - replicas: 1
+        template:
+          metadata:
+            labels:
+              name: prometheus-operator
+          spec:
+            serviceAccount: prometheus-operator-0-13-0
+            containers:
+            - name: prometheus-operator
+              image: quay.io/ant31/prometheus-operator:a8fe96a-3
+              command:
+                - sh
+                - -c
+                - >
+                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup alm.monitoring.coreos.com
+                  --labels alm-status-descriptors=prometheusoperator.0.13.0,alm-owner-prometheus=prometheusoperator.0.13.0,operated-by=prometheusoperator.0.13.0
+              env:
+                - name: K8S_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+
+  version: 0.13.0
+  maturity: beta
+  replaces: prometheusoperator.0.12.0
+  customresourcedefinitions:
+    owned:
+    - name: prometheuses.alm.monitoring.coreos.com
+      displayName: Prometheus
+      description: A running Prometheus instance
+      statusDescriptors:
+        - path: prometheusSelector
+          displayName: Prometheus Service Selector
+          description: Label selector to find the service that routes to this prometheus
+          x-descriptors:
+          - urn:alm:descriptor:label:selector
+        - path: importantMetrics
+          displayName: Important metrics
+          description: Important metrics for the cluster.
+          x-descriptors:
+          - urn:alm:descriptor:com.tectonic.ui:metrics
+          value:
+            queries:
+            - query: "has_leader"
+              name: "Prometheus Status"
+              type: "Status"
+            - query: "leader_changes_seen_total"
+              name: "CPU Usage"
+              type: "Gauge"
+            - query: "leader_changes_seen_total"
+              name: "Memory Usage"
+              type: "Gauge"
+            - query: "leader_changes_seen_total"
+              name: "Filesystem Usage"
+              type: "Gauge"
+    - name: servicemonitors.alm.monitoring.coreos.com
+      displayName: Service Monitor
+      description: Configures prometheus to monitr a particular k8s service
+    - name: alertmanagers.alm.monitoring.coreos.com
+      displayName: Alert Manager
+      description: Configures an Alert Manager for the namespace
