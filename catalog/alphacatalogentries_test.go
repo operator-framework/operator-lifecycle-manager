@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
@@ -16,6 +17,7 @@ import (
 func TestCustomCatalogStore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
+	defer ctrl.Finish()
 
 	store := CustomResourceCatalogStore{client: mockClient}
 
@@ -42,7 +44,7 @@ func TestCustomCatalogStore(t *testing.T) {
 	expectedEntry := v1alpha1.AlphaCatalogEntry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.AlphaCatalogEntryCRDName,
-			APIVersion: v1alpha1.GroupVersion,
+			APIVersion: v1alpha1.AlphaCatalogEntryCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,
@@ -58,7 +60,11 @@ func TestCustomCatalogStore(t *testing.T) {
 			},
 		},
 	}
-	actualEntry, err := store.Store(csv)
-	assert.NoError(t, err)
-	compareResources(t, expectedEntry, actualEntry)
+	returnEntry := v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
+	returnErr := errors.New("test error")
+	mockClient.EXPECT().UpdateEntry(&expectedEntry).Return(&returnEntry, returnErr)
+
+	actualEntry, err := store.Store(&csv)
+	assert.Equal(t, returnErr, err)
+	compareResources(t, &returnEntry, actualEntry)
 }

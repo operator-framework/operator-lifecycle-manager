@@ -21,12 +21,12 @@ func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVe
 	spec := &v1alpha1.AlphaCatalogEntrySpec{csv.Spec}
 	resource := v1alpha1.NewAlphaCatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
-	return store.client.UpdateEntry(&resource)
+	return store.client.UpdateEntry(resource)
 }
 
 // Sync creates AlphaCatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
 func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.AlphaCatalogEntry, error) {
-	entries := []v1alpha1.AlphaCatalogEntry{}
+	entries := []*v1alpha1.AlphaCatalogEntry{}
 	csvs, err := catalog.ListServices()
 	if err != nil {
 		return entries, fmt.Errorf("catalog sync failed: catalog ListServices error: %v", err)
