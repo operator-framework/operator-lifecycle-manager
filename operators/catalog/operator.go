@@ -123,9 +123,10 @@ func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error 
 	switch plan.Status.Phase {
 	case v1alpha1.InstallPlanPhasePlanning:
 		for _, source := range o.sources {
-			if err := createInstallPlan(source, plan); err != nil {
-				return err
-			}
+			err := createInstallPlan(source, plan)
+			// Intentionally return after the first source only.
+			// TODO(jzelinskie): update to check all sources.
+			return err
 		}
 	case v1alpha1.InstallPlanPhaseInstalling:
 		if err := o.installInstallPlan(plan); err != nil {
