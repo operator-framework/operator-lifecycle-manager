@@ -13,6 +13,7 @@ import (
 
 type ClusterServiceVersionInterface interface {
 	UpdateCSV(csv *v1alpha1.ClusterServiceVersion) (result *v1alpha1.ClusterServiceVersion, err error)
+	CreateCSV(csv *v1alpha1.ClusterServiceVersion) (err error)
 }
 
 type ClusterServiceVersionClient struct {
@@ -60,4 +61,17 @@ func (c *ClusterServiceVersionClient) UpdateCSV(in *v1alpha1.ClusterServiceVersi
 		err = errors.New("failed to update CR status: " + err.Error())
 	}
 	return
+}
+
+func (c *ClusterServiceVersionClient) CreateCSV(csv *v1alpha1.ClusterServiceVersion) error {
+	out := &v1alpha1.ClusterServiceVersion{}
+	return c.RESTClient.
+		Post().
+		Context(context.TODO()).
+		Namespace(csv.Namespace).
+		Resource("clusterserviceversion-v1s").
+		Name(csv.Name).
+		Body(csv).
+		Do().
+		Into(out)
 }

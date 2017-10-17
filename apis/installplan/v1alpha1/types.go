@@ -1,6 +1,10 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"errors"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 const (
 	GroupVersion = "v1alpha1" // used in registering InstallPlan scheme
@@ -50,6 +54,10 @@ const (
 	InstallPlanReasonInstallCheckFailed InstallPlanConditionReason = "InstallCheckFailed"
 )
 
+// ErrInvalidInstallPlan is the error returned by functions that operate on
+// InstallPlans when the InstallPlan does not contain totally valid data.
+var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
+
 // InstallPlanSpec defines a set of Application resources to be installed
 type InstallPlanSpec struct {
 	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
@@ -61,12 +69,12 @@ type InstallPlanSpec struct {
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	InstallPlanPhase `json:",inline"`
-	Conditions       []InstallPlanCondition `json:"conditions,omitempty"`
-	Plan             []Step                 `json:"plan,omitempty"`
+	InstallPlanCondition `json:",inline"`
+	Conditions           []InstallPlanCondition `json:"conditions,omitempty"`
+	Plan                 []Step                 `json:"plan,omitempty"`
 }
 
-// InstallPlanConditions represents the overall status of the execution of
+// InstallPlanCondition represents the overall status of the execution of
 // an InstallPlan.
 type InstallPlanCondition struct {
 	Phase              InstallPlanPhase           `json:"phase,omitempty"`

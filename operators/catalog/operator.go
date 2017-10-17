@@ -1,34 +1,38 @@
 package catalog
 
 import (
-	"errors"
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"time"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	log "github.com/sirupsen/logrus"
+	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/client-go/tools/cache"
 
-	"bytes"
-
+	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	v1alpha1csv "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/catalog"
 	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/queueinformer"
-	log "github.com/sirupsen/logrus"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
-
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 )
+
+const crdKind = "CustomResourceDefinition"
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	ipClient client.InstallPlanInterface
-	sources  []catlib.Source
+	ipClient  client.InstallPlanInterface
+	csvClient client.ClusterServiceVersionInterface
+	sources   []catlib.Source
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -37,8 +41,14 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []
 		namespaces = []string{metav1.NamespaceAll}
 	}
 
-	// Create an instance of the client.
+	// Create an instance of an InstallPlan client.
 	ipClient, err := client.NewInstallPlanClient(kubeconfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create an instance of a CSV client.
+	csvClient, err := client.NewClusterServiceVersionClient(kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +84,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []
 	op := &Operator{
 		queueOperator,
 		ipClient,
+		csvClient,
 		sources,
 	}
 
@@ -95,7 +106,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) error {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
-		return errors.New("casting InstallPlan failed")
+		return fmt.Errorf("casting InstallPlan failed")
 	}
 
 	log.Infof("syncing InstallPlan: %s", plan.SelfLink)
@@ -121,12 +132,12 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	steps := installPlan.Status.Plan
 	names := installPlan.Spec.ClusterServiceVersionNames
 
-	crdSerializer := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
+	crdSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
 	scheme := runtime.NewScheme()
 	if err := v1alpha1csv.AddToScheme(scheme); err != nil {
 		return err
 	}
-	csvSerializer := json.NewYAMLSerializer(json.DefaultMetaFactory, scheme, scheme)
+	csvSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme, scheme)
 
 	for len(names) > 0 {
 		// looping here like this because we are adding names to the list from dependencies
@@ -188,15 +199,89 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 		steps = append(steps, stepCSV)
 	}
 	installPlan.Status.Plan = steps
-	installPlan.Status.InstallPlanPhase = v1alpha1.InstallPlanPhaseInstalling
+	installPlan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 	return nil
 }
 
-func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, ownerRefs []v1.OwnerReference) bool {
+func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, ownerRefs []metav1.OwnerReference) bool {
 	for _, ownerRef := range ownerRefs {
 		if csv.Name != "" && csv.Name == ownerRef.Name && csv.Kind != "" && csv.Kind == ownerRef.Kind {
 			return true
 		}
 	}
 	return false
+}
+
+func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
+	if plan.Status.Phase != v1alpha1.InstallPlanPhaseInstalling {
+		panic("attempted to install a plan that wasn't in the installing phase")
+	}
+
+	for i, step := range plan.Status.Plan {
+		switch step.Status {
+		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
+			continue
+		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
+			switch step.Resource.Kind {
+			case crdKind:
+				// Marshal the manifest into a CRD instance.
+				var crd v1beta1ext.CustomResourceDefinition
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &crd)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the CRD.
+				err = o.OpClient.CreateCustomResourceDefinitionKind(&crd)
+				if errors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+					continue
+				} else if err != nil {
+					return err
+				} else {
+					// If it no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+					continue
+				}
+
+			case csvv1alpha1.ClusterServiceVersionKind:
+				// Marshal the manifest into a CRD instance.
+				var csv csvv1alpha1.ClusterServiceVersion
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &csv)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the CSV.
+				err = o.csvClient.CreateCSV(&csv)
+				if errors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If it no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
+			default:
+				return v1alpha1.ErrInvalidInstallPlan
+			}
+
+		default:
+			return v1alpha1.ErrInvalidInstallPlan
+		}
+	}
+
+	// Loop over one final time to check and see if everything is good.
+	for _, step := range plan.Status.Plan {
+		switch step.Status {
+		case v1alpha1.StepStatusCreated, v1alpha1.StepStatusPresent:
+		default:
+			return nil
+		}
+	}
+	plan.Status.Phase = v1alpha1.InstallPlanPhaseComplete
+	return nil
 }
