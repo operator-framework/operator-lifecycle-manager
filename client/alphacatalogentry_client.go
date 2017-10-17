@@ -12,7 +12,7 @@ import (
 )
 
 type AlphaCatalogEntryInterface interface {
-	UpdateEntry(csv *v1alpha1.AlphaCatalogEntry) (result *v1alpha1.AlphaCatalogEntry, err error)
+	UpdateEntry(csv *v1alpha1.AlphaCatalogEntry) (*v1alpha1.AlphaCatalogEntry, error)
 }
 
 type AlphaCatalogEntryClient struct {

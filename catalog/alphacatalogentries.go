@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
@@ -15,28 +17,28 @@ type CustomResourceCatalogStore struct {
 }
 
 // Store creates a new AlphaCatalogEntry custom resource for the given service definition, csv
-func (store *v1alpha1.CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.AlphaCatalogEntry, error) {
-	spec := csv.Spec.(v1alpha1.AlphaCatalogEntrySpec)
-	resource := v1alpha1.NewAlphaCatalogEntryResource(&spec)
-
-	return store.client.UpdateEntry(*resource)
+func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.AlphaCatalogEntry, error) {
+	spec := &v1alpha1.AlphaCatalogEntrySpec{csv.Spec}
+	resource := &v1alpha1.NewAlphaCatalogEntryResource(spec)
+	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
+	return store.client.UpdateEntry(resource)
 }
 
 // Sync creates AlphaCatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
-func (store *v1alpha1.CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.AlphaCatalogEntry, error) {
-	entries := []*v1alpha1.AlphaCatalogEntry{}
+func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.AlphaCatalogEntry, error) {
+	entries := []v1alpha1.AlphaCatalogEntry{}
 	csvs, err := catalog.ListServices()
 	if err != nil {
 		return entries, fmt.Errorf("catalog sync failed: catalog ListServices error: %v", err)
 	}
 	for _, csv := range csvs {
-		resource, err := catalog.Store(csv)
+		resource, err := store.Store(&csv)
 		if err != nil {
 			return entries, fmt.Errorf("catalog sync failed: error storing service %s v%s: %v",
 				csv.GetName(), csv.Spec.Version, err)
 		}
 		entries = append(entries, resource)
 	}
-	store.syncedTime = time.Now().UTC()
+	store.syncedTime = metav1.Now()
 	return entries, nil
 }
