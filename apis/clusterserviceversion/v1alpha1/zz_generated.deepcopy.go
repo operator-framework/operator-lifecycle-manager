@@ -208,6 +208,7 @@ func (in *ClusterServiceVersionSpec) DeepCopyInto(out *ClusterServiceVersionSpec
 		*out = make([]Maintainer, len(*in))
 		copy(*out, *in)
 	}
+	out.Provider = in.Provider
 	if in.Links != nil {
 		in, out := &in.Links, &out.Links
 		*out = make([]AppLink, len(*in))
