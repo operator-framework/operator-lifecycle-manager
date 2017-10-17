@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"reflect"
+	"sort"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -165,19 +166,37 @@ func (m *InMem) removeService(name string) error {
 	return nil
 }
 
+// Implement sort on list of ClusterServiceVersions
+type csvList []v1alpha1.ClusterServiceVersion
+
+func (s csvList) Len() int {
+	return len(s)
+}
+
+func (s csvList) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+func (s csvList) Less(i, j int) bool {
+	return s[i].Spec.Version.LessThan(s[j].Spec.Version)
+}
+
+// SortCSVsByVersion is a convenience function for sorting CSVs
+func SortCSVsByVersion(csvs []v1alpha1.ClusterServiceVersion) []v1alpha1.ClusterServiceVersion {
+	sort.Sort(csvList(csvs))
+	return csvs
+}
+
 // FindLatestCSVByServiceName looks up the latest version (using semver) for the given service
 func (m *InMem) FindLatestCSVByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
-	csvs, ok := m.clusterservices[name]
-	if !ok || len(csvs) < 1 {
+	csvs, err := m.ListCSVsForServiceName(name)
+	if err != nil {
+		return nil, err
+	}
+	if len(csvs) < 1 {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion %s", name)
 	}
-	var latest *v1alpha1.ClusterServiceVersion
-	for _, csv := range csvs {
-		if latest == nil || latest.Spec.Version.LessThan(csv.Spec.Version) {
-			latest = &csv
-		}
-	}
-	return latest, nil
+	return &csvs[len(csvs)-1], nil
 }
 
 // FindCSVByServiceNameAndVersion looks up a particular version of a service in the catalog
@@ -200,11 +219,10 @@ func (m *InMem) ListCSVsForServiceName(name string) ([]v1alpha1.ClusterServiceVe
 	if !ok {
 		return csvs, nil
 	}
-
-	for _, ver := range versions {
-		csvs = append(csvs, ver)
+	for _, service := range versions {
+		csvs = append(csvs, service)
 	}
-	return csvs, nil
+	return SortCSVsByVersion(csvs), nil
 }
 
 // FindReplacementForServiceName looks up any CSV in the catalog that replaces the given xservice

@@ -137,8 +137,8 @@ func TestFindReplacementByServiceName(t *testing.T) {
 func TestListCSVsForServiceName(t *testing.T) {
 	var (
 		testCSVName     = "MockServiceName-v1"
-		testCSVVersion2 = "0.2.4+alpha"
-		testCSVVersion1 = "1.0.1"
+		testCSVVersion1 = "0.2.4+alpha"
+		testCSVVersion2 = "1.0.1"
 
 		testCRDName = "MockServiceResource-v2"
 	)
@@ -165,6 +165,7 @@ func TestListCSVsForServiceName(t *testing.T) {
 
 	assert.Equal(t, testCSVName, csvs[0].GetName())
 	assert.Equal(t, testCSVName, csvs[1].GetName())
+
 	assert.Equal(t, testCSVVersion1, csvs[0].Spec.Version.String())
 	assert.Equal(t, testCSVVersion2, csvs[1].Spec.Version.String())
 	compareResources(t, testCSVResource1, csvs[0])
