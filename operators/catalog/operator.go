@@ -120,8 +120,15 @@ func (o *Operator) syncInstallPlans(obj interface{}) error {
 }
 
 func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error {
-	for _, source := range o.sources {
-		if err := createInstallPlan(source, plan); err != nil {
+	switch plan.Status.Phase {
+	case v1alpha1.InstallPlanPhasePlanning:
+		for _, source := range o.sources {
+			if err := createInstallPlan(source, plan); err != nil {
+				return err
+			}
+		}
+	case v1alpha1.InstallPlanPhaseInstalling:
+		if err := o.installInstallPlan(plan); err != nil {
 			return err
 		}
 	}
