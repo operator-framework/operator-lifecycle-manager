@@ -1,4 +1,5 @@
 #! validate-crd: clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
@@ -26,7 +27,8 @@ spec:
     url: https://www.prometheus.io/
 
   labels:
-    alm-owner-prometheus: prometheus.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-status-descriptors: prometheusoperator.0.13.0
+    alm-owner-prometheus: prometheusoperator.0.13.0
     alm-catalog: Open Cloud Services
     operated-by: prometheusoperator.0.12.0
 
@@ -42,21 +44,105 @@ spec:
   install:
     strategy: deployment
     spec:
+      permissions:
+      - serviceAccountName: prometheus-operator
+        rules:
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - alertmanagers
+          - prometheuses
+          - servicemonitors
+          verbs:
+          - "*"
+        - apiGroups:
+          - apps
+          resources:
+          - statefulsets
+          verbs: ["*"]
+        - apiGroups: [""]
+          resources:
+          - configmaps
+          - secrets
+          verbs: ["*"]
+        - apiGroups: [""]
+          resources:
+          - pods
+          verbs: ["list", "delete"]
+        - apiGroups: [""]
+          resources:
+          - services
+          - endpoints
+          verbs: ["get", "create", "update"]
+        - apiGroups: [""]
+          resources:
+          - nodes
+          verbs: ["list", "watch"]
+        - apiGroups: [""]
+          resources:
+          - namespaces
+          verbs: ["list"]
       deployments:
       - replicas: 1
         template:
           metadata:
             labels:
-              name: prometheus-operator
+              k8s-app: prometheus-operator
           spec:
             containers:
-            - name: prometheus-operator
-              image: quay.io/coreos/prometheus-operator:0.13.0
-  version: 0.13.0
+            - args:
+              - --kubelet-service=kube-system/kubelet
+              - --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
+              image: quay.io/coreos/prometheus-operator:v0.13.0
+              name: prometheus-operator
+              ports:
+              - containerPort: 8080
+                name: http
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 100Mi
+                requests:
+                  cpu: 100m
+                  memory: 50Mi
+            serviceAccountName: prometheus-operator
   maturity: beta
+  version: 0.13.0
   replaces: prometheusoperator.0.12.0
   customresourcedefinitions:
     owned:
-    - prometheuses.monitoring.coreos.com
-    - servicemonitors.monitoring.coreos.com
-    - alertmanagers.monitoring.coreos.com
+    - name: prometheuses.monitoring.coreos.com
+      displayName: Prometheus
+      description: A running Prometheus instance
+      statusDescriptors:
+        - path: prometheusSelector
+          displayName: Prometheus Service Selector
+          description: Label selector to find the service that routes to this prometheus
+          x-descriptors:
+          - urn:alm:descriptor:label:selector
+        - path: importantMetrics
+          displayName: Important metrics
+          description: Important metrics for the cluster.
+          x-descriptors:
+          - urn:alm:descriptor:com.tectonic.ui:metrics
+          value:
+            queries:
+            - query: "has_leader"
+              name: "Prometheus Status"
+              type: "Status"
+              subtype: "boolean"
+            - query: "leader_changes_seen_total"
+              name: "CPU Usage"
+              type: "Gauge"
+            - query: "leader_changes_seen_total"
+              name: "Memory Usage"
+              type: "Gauge"
+            - query: "leader_changes_seen_total"
+              name: "Filesystem Usage"
+              type: "Gauge"
+    - name: servicemonitors.monitoring.coreos.com
+      displayName: Service Monitor
+      description: Configures prometheus to monitr a particular k8s service
+    - name: alertmanagers.monitoring.coreos.com
+      displayName: Alert Manager
+      description: Configures an Alert Manager for the namespace

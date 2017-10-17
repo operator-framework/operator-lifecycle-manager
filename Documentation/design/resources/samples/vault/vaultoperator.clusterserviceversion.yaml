@@ -1,4 +1,5 @@
 #! validate-crd: clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
@@ -26,6 +27,7 @@ spec:
     url: https://www.vaultproject.io/
 
   labels:
+    alm-status-descriptors: vault-operator.0.1.2
     alm-owner-vault: vault-operator.0.1.2
     alm-catalog: Open Cloud Services
     operated-by: vaultoperator.0.1.2
@@ -56,6 +58,49 @@ spec:
   maturity: alpha
   customresourcedefinitions:
     owned:
-    - vaultservices-v1.vault.security.coreos.com
+    - name: vaultservices-v1.vault.security.coreos.com
+      displayName: Vault Service
+      description: A running Vault instance, backed by an Etcd Cluster
+      statusDescriptors:
+        - path: name
+          displayName: ServiceName
+          description: The service name for the running vault cluster.
+          x-descriptors:
+          - urn:alm:descriptor:io.vaultproject:api.v1
     required:
-    - etcdclusters-v1.etcd.database.coreos.com
+    - name: etcdclusters-v1.etcd.database.coreos.com
+      displayName: Etcd Cluster
+      description: Represents a cluster of etcd nodes.
+      statusDescriptors:
+        - path: importantMetrics
+          displayName: Important Metrics
+          description: Important prometheus metrics for the etcd cluster.
+          x-descriptors:
+            - urn:alm:descriptor:com.tectonic.ui:metrics
+          value:
+            queries:
+            - query: has_leader
+              name: Has Active Leader
+              type: Gauge
+              subtype: boolean
+            - query: leader_changes_seen_total
+              name: Leader Changes
+              type: Counter
+        - path: prometheus
+          displayName: Prometheus Endpoint
+          description: Endpoint of the prometheus instance for the etcd cluster.
+          x-descriptors:
+          - urn:alm:descriptor:io.prometheus:prometheus.v1
+          - urn:alm:descriptor:org.w3:link
+        - path: dashboard
+          displayName: Dashboard
+          description: URL of a Grafana dashboard for the etcd cluster.
+          x-descriptors:
+          - urn:alm:descriptor:com.tectonic.ui:important.link
+          - urn:alm:descriptor:org.w3:link
+        - path: serviceName
+          displayName: Service Name
+          description: The service name for the running etcd cluster.
+          x-descriptors:
+          - urn:alm:descriptor:com.coreos.etcd:api.v3.grpc
+          - urn:alm:descriptor:com.coreos.etcd:api.v2.rest

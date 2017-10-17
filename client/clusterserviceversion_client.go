@@ -44,23 +44,20 @@ func NewClusterServiceVersionClient(kubeconfig string) (client *ClusterServiceVe
 	if err != nil {
 		return
 	}
-
 	return &ClusterServiceVersionClient{restClient}, nil
 }
 
-func (c *ClusterServiceVersionClient) UpdateCSV(in *v1alpha1.ClusterServiceVersion) (out *v1alpha1.ClusterServiceVersion, err error) {
-	out = &v1alpha1.ClusterServiceVersion{}
-	if err = c.RESTClient.
-		Put().
-		Context(context.TODO()).
+func (c *ClusterServiceVersionClient) UpdateCSV(in *v1alpha1.ClusterServiceVersion) (result *v1alpha1.ClusterServiceVersion, err error) {
+	result = &v1alpha1.ClusterServiceVersion{}
+	err = c.RESTClient.Put().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource("clusterserviceversion-v1s").
 		Name(in.Name).
 		Body(in).
 		Do().
-		Into(out); err != nil {
+		Into(result)
+	if err != nil {
 		err = errors.New("failed to update CR status: " + err.Error())
 	}
-
 	return
 }

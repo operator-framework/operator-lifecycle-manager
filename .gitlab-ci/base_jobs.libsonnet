@@ -94,6 +94,7 @@ local appr = utils.appr;
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
             k8s.apply("../../Documentation/design/resources/clusterserviceversion.crd.yaml") +
+            k8s.apply("../../Documentation/design/resources/installplan.crd.yaml") +
             helm.upgrade(_vars.app,
                          _vars.appname,
                          _vars.namespace,

@@ -17,6 +17,8 @@ import (
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 
+const FallbackWakeupInterval = 30 * time.Second
+
 type ALMOperator struct {
 	*queueinformer.Operator
 	csvClient client.ClusterServiceVersionInterface
@@ -24,6 +26,10 @@ type ALMOperator struct {
 }
 
 func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces ...string) (*ALMOperator, error) {
+	if wakeupInterval < 0 {
+		wakeupInterval = FallbackWakeupInterval
+	}
+
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -75,7 +81,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces 
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
-func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
+func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -84,12 +90,19 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) error {
 
 	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
 
-	if err := a.transitionCSVState(clusterServiceVersion); err != nil {
-		return err
-	}
+	syncError = a.transitionCSVState(clusterServiceVersion)
 
-	_, err := a.csvClient.UpdateCSV(clusterServiceVersion)
-	return err
+	// Update CSV with status of transition. Log errors if we can't write them to the status.
+	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
+		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
+		if syncError == nil {
+			log.Info(updateErr)
+			return updateErr
+		}
+		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
+		log.Info(syncError)
+	}
+	return
 }
 
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
@@ -136,6 +149,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		if syncError != nil {
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
 			return
+		} else {
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+			return
 		}
 	}
 	return
@@ -149,9 +165,9 @@ func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions)
 			Group:   "apiextensions.k8s.io",
 			Version: "v1beta1",
 			Kind:    "CustomResourceDefinition",
-			Name:    r,
+			Name:    r.Name,
 		}
-		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r)
+		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r.Name)
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false

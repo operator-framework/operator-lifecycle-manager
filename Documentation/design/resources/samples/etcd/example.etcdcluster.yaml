@@ -11,5 +11,6 @@ metadata:
 spec:
   version: v3.2.7
   size: 3
-  labels:
-    owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+  template:
+    labels:
+      owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
