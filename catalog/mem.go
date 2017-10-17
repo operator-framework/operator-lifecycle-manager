@@ -28,6 +28,15 @@ type InMem struct {
 	crds map[string]v1beta1.CustomResourceDefinition
 }
 
+func NewInMemoryFromDirectory(directory string) (*InMem, error) {
+	inMem := NewInMem()
+	loader := DirectoryCatalogResourceLoader{inMem}
+	if err := loader.LoadCatalogResources(directory); err != nil {
+		return nil, err
+	}
+	return loader.Catalog, nil
+}
+
 // NewInMem returns a ptr to a new InMem instance
 func NewInMem() *InMem {
 	return &InMem{
