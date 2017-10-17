@@ -159,7 +159,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 
 func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
-	requirements := append(crds.Owned, crds.Required...)
+	requirements := crds.GetAllCrds()
 	for _, r := range requirements {
 		status := v1alpha1.RequirementStatus{
 			Group:   "apiextensions.k8s.io",

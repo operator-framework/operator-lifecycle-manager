@@ -201,3 +201,21 @@ type ClusterServiceVersionList struct {
 
 	Items []ClusterServiceVersion `json:"items"`
 }
+
+func (crd CustomResourceDefinitions) GetAllCrds() []CRDDescription {
+	setOfCrds := map[string]CRDDescription{}
+	for _, requiredCrd := range crd.Required {
+		setOfCrds[requiredCrd.Name] = requiredCrd
+	}
+
+	for _, ownedCrd := range crd.Owned {
+		setOfCrds[ownedCrd.Name] = ownedCrd
+	}
+
+	allCrds := []CRDDescription{}
+	for _, value := range setOfCrds {
+		allCrds = append(allCrds, value)
+	}
+
+	return allCrds
+}

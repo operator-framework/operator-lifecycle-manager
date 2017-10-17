@@ -13,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
 
+	"strings"
+
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/install"
@@ -40,14 +42,14 @@ type MockALMOperator struct {
 
 func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alpha1.CRDDescription) {
 	for _, crd := range crdDescriptions {
-		if crd.Name == "nonExistent" {
+		if strings.HasPrefix(crd.Name, "nonExistent") {
 			mockClient.EXPECT().
-				GetCustomResourceDefinitionKind("nonExistent").
+				GetCustomResourceDefinitionKind(crd.Name).
 				Return(nil, fmt.Errorf("Requirement not found"))
 		}
-		if crd.Name == "found" {
+		if strings.HasPrefix(crd.Name, "found") {
 			mockClient.EXPECT().
-				GetCustomResourceDefinitionKind("found").
+				GetCustomResourceDefinitionKind(crd.Name).
 				Return(&v1beta1.CustomResourceDefinition{}, nil)
 		}
 	}
@@ -175,8 +177,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("nonExistent", "found"),
-						Required: makeCRDDescriptions("nonExistent", "found"),
+						Owned:    makeCRDDescriptions("nonExistent1", "found1"),
+						Required: makeCRDDescriptions("nonExistent2", "found2"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
@@ -232,8 +234,8 @@ func TestCSVStateTransitions(t *testing.T) {
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
 					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("found", "found"),
-						Required: makeCRDDescriptions("found", "found"),
+						Owned:    makeCRDDescriptions("found1", "found2"),
+						Required: makeCRDDescriptions("found3", "found4"),
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
