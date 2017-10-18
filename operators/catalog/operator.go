@@ -161,26 +161,40 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	}
 	csvSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme, scheme)
 
+	log.Info("reolving names")
+
 	for len(names) > 0 {
 		// looping here like this because we are adding names to the list from dependencies
 		name := names[0]
 		names = names[1:]
+
+		log.Infof("resolving %s", name)
+
 		csv, err := source.FindLatestCSVByServiceName(name)
 		if err != nil {
 			return err
 		}
 
+		log.Info("resolving CRDs for CSV: %v", csv)
 		for _, crdDescription := range csv.Spec.CustomResourceDefinitions.GetAllCrds() {
+			log.Info("resolving crd: %v", crdDescription)
+
 			crd, err := source.FindCRDByName(crdDescription.Name)
 			if err != nil {
 				return err
 			}
 
+			log.Info("found crd: %v", crd)
+
 			if checkIfOwned(*csv, crd.OwnerReferences) {
+				log.Infof("crd is owned: %s", crd.Name)
+
 				var manifest bytes.Buffer
 				if err := crdSerializer.Encode(crd, &manifest); err != nil {
 					return err
 				}
+
+				log.Infof("encoded crd as manifest: %s", manifest.String())
 				step := v1alpha1.Step{
 					Resolving: name,
 					Resource: v1alpha1.StepResource{
@@ -192,12 +206,16 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 					},
 					Status: v1alpha1.StepStatusUnknown,
 				}
+
+				log.Infof("finished step: %v", step)
 				steps = append(steps, step)
 			} else {
+				log.Infof("crd is not owned: %s", crd.Name)
 				csvForCRD, err := source.FindLatestCSVForCRD(crdDescription.Name)
 				if err != nil {
 					return err
 				}
+				log.Infof("found csv for crd: %s", csv.Name)
 				names = append(names, csvForCRD.Name)
 			}
 
@@ -207,6 +225,9 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 		if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
 			return err
 		}
+
+		log.Infof("encoded crd as manifest: %s", manifestCSV.String())
+
 		stepCSV := v1alpha1.Step{
 			Resolving: name,
 			Resource: v1alpha1.StepResource{
@@ -218,8 +239,10 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 			},
 			Status: v1alpha1.StepStatusUnknown,
 		}
+		log.Infof("finished step: %v", stepCSV)
 		steps = append(steps, stepCSV)
 	}
+	log.Infof("finished install plan resolution")
 	installPlan.Status.Plan = steps
 	installPlan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 	return nil
