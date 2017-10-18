@@ -221,6 +221,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 
 		}
 
+		csv.SetNamespace(installPlan.Namespace)
 		var manifestCSV bytes.Buffer
 		if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
 			return err
