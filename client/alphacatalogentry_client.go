@@ -3,13 +3,12 @@ package client
 import (
 	"context"
 
-	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 
-	"errors"
+	"fmt"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
 )
@@ -52,7 +51,6 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 
 func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (result *v1alpha1.AlphaCatalogEntry, err error) {
 	result = &v1alpha1.AlphaCatalogEntry{}
-	log.Infof("%#v", in)
 	err = c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
@@ -60,34 +58,21 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (r
 		Body(in).
 		Do().
 		Into(result)
-	if err == nil {
-		return
-	}
 	if k8serrors.IsAlreadyExists(err) {
-		err = c.RESTClient.Delete().Context(context.TODO()).
+		result = &v1alpha1.AlphaCatalogEntry{}
+		if err = c.RESTClient.
+			Put().
+			Context(context.TODO()).
 			Namespace(in.Namespace).
 			Resource(v1alpha1.AlphaCatalogEntryCRDName).
 			Name(in.Name).
 			Body(in).
 			Do().
-			Into(result)
-		if err != nil {
-			return
-		}
-
-		err = c.RESTClient.Post().Context(context.TODO()).
-			Namespace(in.Namespace).
-			Resource(v1alpha1.AlphaCatalogEntryCRDName).
-			Name(in.Name).
-			Body(in).
-			Do().
-			Into(result)
-
-		if err != nil {
-			err = errors.New("failed to update CR status: " + err.Error())
+			Into(result); err != nil {
+			err = fmt.Errorf("failed to update CR status: %s", err.Error())
 		}
 	} else {
-		log.Infof("error creating alphacatalogentries %s", err.Error())
+		err = fmt.Errorf("error creating alphacatalogentries: %s", err.Error())
 	}
 	return
 }
