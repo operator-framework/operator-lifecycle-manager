@@ -2,13 +2,13 @@ package client
 
 import (
 	"context"
+	"fmt"
 
+	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
-
-	"fmt"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
 )
@@ -59,18 +59,8 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (r
 		Do().
 		Into(result)
 	if k8serrors.IsAlreadyExists(err) {
-		result = &v1alpha1.AlphaCatalogEntry{}
-		if err = c.RESTClient.
-			Put().
-			Context(context.TODO()).
-			Namespace(in.Namespace).
-			Resource(v1alpha1.AlphaCatalogEntryCRDName).
-			Name(in.Name).
-			Body(in).
-			Do().
-			Into(result); err != nil {
-			err = fmt.Errorf("failed to update CR status: %s", err.Error())
-		}
+		log.Infof("AlphaCatalogEntry %s already exists", in.Name)
+		err = nil
 	} else {
 		err = fmt.Errorf("error creating alphacatalogentries: %s", err.Error())
 	}
