@@ -132,6 +132,8 @@ func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error 
 		if err := o.installInstallPlan(plan); err != nil {
 			return err
 		}
+	default:
+		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 	}
 	return nil
 }
