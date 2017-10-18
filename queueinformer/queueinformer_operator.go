@@ -83,6 +83,8 @@ func (o *Operator) worker(loop *QueueInformer) {
 func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 	queue := loop.queue
 	key, quit := queue.Get()
+	log.Infof("processing %s", key)
+
 	if quit {
 		return false
 	}
@@ -98,6 +100,7 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 }
 
 func (o *Operator) sync(loop *QueueInformer, key string) error {
+	log.Infof("getting %s from queue", key)
 	obj, exists, err := loop.informer.GetIndexer().GetByKey(key)
 	if err != nil {
 		return err
@@ -105,6 +108,7 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 
 	if !exists {
 		// For now, we ignore the case where an object used to exist but no longer does
+		log.Infof("couldn't get %s from queue", key)
 		return nil
 	}
 	return loop.syncHandler(obj)

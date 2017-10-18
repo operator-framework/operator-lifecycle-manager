@@ -139,6 +139,7 @@ func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error 
 			return err
 		}
 	case v1alpha1.InstallPlanPhaseInstalling:
+		log.Info("plan phase Installing, attempting to install")
 		if err := o.installInstallPlan(plan); err != nil {
 			return err
 		}
