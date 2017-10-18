@@ -12,7 +12,7 @@ import (
 
 // CustomResourceCatalogStore stores service Catalog entries as CRDs in the cluster
 type CustomResourceCatalogStore struct {
-	client     client.AlphaCatalogEntryInterface
+	Client     client.AlphaCatalogEntryInterface
 	syncedTime metav1.Time
 }
 
@@ -21,7 +21,7 @@ func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVe
 	spec := &v1alpha1.AlphaCatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
 	resource := v1alpha1.NewAlphaCatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
-	return store.client.UpdateEntry(resource)
+	return store.Client.UpdateEntry(resource)
 }
 
 // Sync creates AlphaCatalogEntry CRDs for each entry in the catalog. Fails immediately on error.

@@ -7,7 +7,10 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	source "github.com/coreos-inc/alm/catalog"
+	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/operators/catalog"
 )
 
@@ -23,6 +26,21 @@ func main() {
 	inMemoryCatalog, err := source.NewInMemoryFromDirectory(*catalogDirectory)
 	if err != nil {
 		panic("Error loading in memory catalog from " + *catalogDirectory)
+	}
+
+	alphaCatalogClient, err := client.NewAlphaCatalogEntryClient(*kubeConfigPath)
+	if err != nil {
+		panic("Couldn't create alpha catalog entry client")
+	}
+	catalogStore := source.CustomResourceCatalogStore{
+		Client: alphaCatalogClient,
+	}
+	entries, err := catalogStore.Sync(inMemoryCatalog)
+	if err != nil {
+		panic("couldn't sync entries from catalog to AlphaCatalogEntries in cluster")
+	}
+	for _, entry := range entries {
+		log.Infof("created AlphaCatalogEntry: %s", entry.Name)
 	}
 
 	// Serve a health check.

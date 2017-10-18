@@ -19,7 +19,7 @@ func TestCustomCatalogStore(t *testing.T) {
 	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
 
-	store := CustomResourceCatalogStore{client: mockClient}
+	store := CustomResourceCatalogStore{Client: mockClient}
 
 	testCSVName := "MockServiceName-v1"
 	testCSVVersion := "0.2.4+alpha"
