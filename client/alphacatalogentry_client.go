@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
@@ -49,15 +51,24 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 
 func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (result *v1alpha1.AlphaCatalogEntry, err error) {
 	result = &v1alpha1.AlphaCatalogEntry{}
-	err = c.RESTClient.Put().Context(context.TODO()).
+	err = c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
 		Name(in.Name).
 		Body(in).
 		Do().
 		Into(result)
-	if err != nil {
-		err = errors.New("failed to update CR status: " + err.Error())
+	if k8serrors.IsAlreadyExists(err) {
+		err = c.RESTClient.Put().Context(context.TODO()).
+			Namespace(in.Namespace).
+			Resource(v1alpha1.AlphaCatalogEntryCRDName).
+			Name(in.Name).
+			Body(in).
+			Do().
+			Into(result)
+		if err != nil {
+			err = errors.New("failed to update CR status: " + err.Error())
+		}
 	}
 	return
 }
