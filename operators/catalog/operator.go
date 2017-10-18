@@ -130,7 +130,9 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error {
 	switch plan.Status.Phase {
 	case v1alpha1.InstallPlanPhasePlanning:
+		log.Info("plan phase Planning, attempting to resolve")
 		for _, source := range o.sources {
+			log.Infof("resolving against source %v", source)
 			err := createInstallPlan(source, plan)
 			// Intentionally return after the first source only.
 			// TODO(jzelinskie): update to check all sources.
@@ -141,6 +143,7 @@ func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error 
 			return err
 		}
 	default:
+		log.Info("plan phase unrecognized, setting to Planning")
 		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 	}
 	return nil
