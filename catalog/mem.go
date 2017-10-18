@@ -29,8 +29,8 @@ type InMem struct {
 }
 
 func NewInMemoryFromDirectory(directory string) (*InMem, error) {
-	inMem := NewInMem()
-	loader := DirectoryCatalogResourceLoader{inMem}
+	log.Infof("loading alpha entries from directory: %s", directory)
+	loader := DirectoryCatalogResourceLoader{NewInMem()}
 	if err := loader.LoadCatalogResources(directory); err != nil {
 		return nil, err
 	}

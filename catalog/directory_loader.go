@@ -17,6 +17,7 @@ func (d *DirectoryCatalogResourceLoader) LoadCatalogResources(directory string) 
 }
 
 func (d *DirectoryCatalogResourceLoader) LoadCatalogResource(path string, f os.FileInfo, err error) error {
+	log.Infof("checking %s", path)
 	if f.IsDir() {
 		return nil
 	}
@@ -24,6 +25,8 @@ func (d *DirectoryCatalogResourceLoader) LoadCatalogResource(path string, f os.F
 	if !strings.HasSuffix(path, ".yaml") {
 		return nil
 	}
+
+	log.Infof("loading %s", path)
 
 	if strings.HasSuffix(path, ".clusterserviceversion.yaml") {
 		csv, err := LoadCSVFromFile(d.Catalog, path)
