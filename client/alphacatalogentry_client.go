@@ -11,6 +11,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type AlphaCatalogEntryInterface interface {
@@ -63,7 +64,8 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (r
 		return
 	}
 	if k8serrors.IsAlreadyExists(err) {
-		err = c.RESTClient.Put().Context(context.TODO()).
+		in.SetResourceVersion("")
+		err = c.RESTClient.Patch(types.StrategicMergePatchType).Context(context.TODO()).
 			Namespace(in.Namespace).
 			Resource(v1alpha1.AlphaCatalogEntryCRDName).
 			Name(in.Name).
