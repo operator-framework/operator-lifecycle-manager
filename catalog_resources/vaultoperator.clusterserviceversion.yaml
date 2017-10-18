@@ -53,7 +53,18 @@ spec:
           spec:
             containers:
             - name: vault-operator
-              image: quay.io/coreos/vault-operator:0.0.2
+              image: quay.io/coreos/vault-operator:0.1.2
+              env:
+              - name: MY_POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: MY_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+            imagePullSecrets:
+            - name: coreos-pull-secret
   version: 0.1.2
   maturity: alpha
   customresourcedefinitions:
