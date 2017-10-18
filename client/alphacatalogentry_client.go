@@ -51,7 +51,7 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 
 func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (result *v1alpha1.AlphaCatalogEntry, err error) {
 	result = &v1alpha1.AlphaCatalogEntry{}
-	log.Info(in)
+	log.Infof("%#v", in)
 	err = c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
