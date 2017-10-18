@@ -58,6 +58,9 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (r
 		Body(in).
 		Do().
 		Into(result)
+	if err == nil {
+		return
+	}
 	if k8serrors.IsAlreadyExists(err) {
 		err = c.RESTClient.Put().Context(context.TODO()).
 			Namespace(in.Namespace).
