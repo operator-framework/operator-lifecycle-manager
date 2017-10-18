@@ -186,7 +186,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 
 			log.Info("found crd: %v", crd)
 
-			if checkIfOwned(*csv, crd.OwnerReferences) {
+			if checkIfOwned(*csv, crd.Name) {
 				log.Infof("crd is owned: %s", crd.Name)
 
 				var manifest bytes.Buffer
@@ -248,9 +248,9 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	return nil
 }
 
-func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, ownerRefs []metav1.OwnerReference) bool {
-	for _, ownerRef := range ownerRefs {
-		if csv.Name != "" && csv.Name == ownerRef.Name && csv.Kind != "" && csv.Kind == ownerRef.Kind {
+func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, crdName string) bool {
+	for _, crdDescription := range csv.Spec.CustomResourceDefinitions.Owned {
+		if crdDescription.Name == crdName {
 			return true
 		}
 	}
