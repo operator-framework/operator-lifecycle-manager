@@ -107,7 +107,7 @@ type InstallPlan struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   *InstallPlanSpec  `json:"spec"`
+	Spec   InstallPlanSpec   `json:"spec"`
 	Status InstallPlanStatus `json:"status"`
 }
 
@@ -116,5 +116,5 @@ type InstallPlanList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Items []*InstallPlanSpec `json:"items"`
+	Items []InstallPlanSpec `json:"items"`
 }
