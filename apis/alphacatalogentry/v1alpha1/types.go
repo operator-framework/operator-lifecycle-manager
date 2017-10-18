@@ -9,6 +9,9 @@ import (
 const (
 	AlphaCatalogEntryCRDName       = "alphacatalogentry-v1s.app.coreos.com"
 	AlphaCatalogEntryCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
+	AlphaCatalogEntryKind          = "AlphaCatalogEntry-v1"
+	AlphaCatalogEntryListKind      = "AlphaCatalogEntryList-v1"
+	GroupVersion                   = "v1alpha1"
 )
 
 // AlphaCatalogEntrySpec defines an Application that can be installed

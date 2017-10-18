@@ -243,6 +243,17 @@ func (m *InMem) FindReplacementForServiceName(name string) (*v1alpha1.ClusterSer
 	return m.FindCSVByServiceNameAndVersion(csv.Name, csv.Version)
 }
 
+// ListCSVsForServiceName lists all versions of the service in the catalog
+func (m *InMem) ListServices() ([]v1alpha1.ClusterServiceVersion, error) {
+	services := []v1alpha1.ClusterServiceVersion{}
+	for _, versions := range m.clusterservices {
+		for _, csv := range versions {
+			services = append(services, csv)
+		}
+	}
+	return services, nil
+}
+
 // FindLatestCSVForCRD looks up the latest service version (by semver) that manages a given CRD
 func (m *InMem) FindLatestCSVForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error) {
 	name, ok := m.crdToCSV[crdname]

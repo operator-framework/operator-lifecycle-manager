@@ -87,6 +87,9 @@ func (ts TestSource) FindCSVByServiceNameAndVersion(name, version string) (*v1al
 func (ts TestSource) ListCSVsForServiceName(name string) ([]v1alpha1csv.ClusterServiceVersion, error) {
 	return nil, nil
 }
+func (ts TestSource) ListServices() ([]v1alpha1csv.ClusterServiceVersion, error) {
+	return nil, nil
+}
 
 func (ts TestSource) FindCRDByName(name string) (*v1beta1.CustomResourceDefinition, error) {
 	if name == "error" {
