@@ -19,7 +19,8 @@ func main() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	wakeupInterval := flag.Duration("interval", 15*time.Minute, "wake up interval")
-	namespaces := flag.String("namespaces", "", "comma separated list of namespaces")
+	namespaces := flag.String("namespaces", "", "comma separated list of namespaces that catalog watches")
+	almNamespace := flag.String("almNamespace", "", "namespace where catalog will run and install catalog resources")
 	catalogDirectory := flag.String("directory", "/var/catalog_resources", "path to directory with resources to load into the in-memory catalog")
 	flag.Parse()
 
@@ -33,7 +34,8 @@ func main() {
 		panic("Couldn't create alpha catalog entry client: " + err.Error())
 	}
 	catalogStore := source.CustomResourceCatalogStore{
-		Client: alphaCatalogClient,
+		Client:    alphaCatalogClient,
+		Namespace: *almNamespace,
 	}
 	entries, err := catalogStore.Sync(inMemoryCatalog)
 	if err != nil {

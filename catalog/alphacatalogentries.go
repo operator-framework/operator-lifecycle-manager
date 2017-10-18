@@ -13,6 +13,7 @@ import (
 // CustomResourceCatalogStore stores service Catalog entries as CRDs in the cluster
 type CustomResourceCatalogStore struct {
 	Client     client.AlphaCatalogEntryInterface
+	Namespace  string
 	syncedTime metav1.Time
 }
 
@@ -21,6 +22,7 @@ func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVe
 	spec := &v1alpha1.AlphaCatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
 	resource := v1alpha1.NewAlphaCatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
+	resource.SetNamespace(store.Namespace)
 	return store.Client.UpdateEntry(resource)
 }
 
