@@ -9,6 +9,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 
+	"errors"
+
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
 )
 
@@ -62,18 +64,28 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (r
 		return
 	}
 	if k8serrors.IsAlreadyExists(err) {
-		return nil, nil
-		//in.SetResourceVersion("")
-		//err = c.RESTClient.Patch(types.StrategicMergePatchType).Context(context.TODO()).
-		//	Namespace(in.Namespace).
-		//	Resource(v1alpha1.AlphaCatalogEntryCRDName).
-		//	Name(in.Name).
-		//	Body(in).
-		//	Do().
-		//	Into(result)
-		//if err != nil {
-		//	err = errors.New("failed to update CR status: " + err.Error())
-		//}
+		err = c.RESTClient.Delete().Context(context.TODO()).
+			Namespace(in.Namespace).
+			Resource(v1alpha1.AlphaCatalogEntryCRDName).
+			Name(in.Name).
+			Body(in).
+			Do().
+			Into(result)
+		if err != nil {
+			return
+		}
+
+		err = c.RESTClient.Post().Context(context.TODO()).
+			Namespace(in.Namespace).
+			Resource(v1alpha1.AlphaCatalogEntryCRDName).
+			Name(in.Name).
+			Body(in).
+			Do().
+			Into(result)
+
+		if err != nil {
+			err = errors.New("failed to update CR status: " + err.Error())
+		}
 	}
 	return
 }
