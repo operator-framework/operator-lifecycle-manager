@@ -42,7 +42,9 @@ func main() {
 		panic("couldn't sync entries from catalog to AlphaCatalogEntries in cluster: " + err.Error())
 	}
 	for _, entry := range entries {
-		log.Infof("created AlphaCatalogEntry: %s", entry.Name)
+		if entry != nil {
+			log.Infof("created AlphaCatalogEntry: %s", entry.Name)
+		}
 	}
 
 	// Serve a health check.
