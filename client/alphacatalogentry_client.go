@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
@@ -51,6 +51,7 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 
 func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (result *v1alpha1.AlphaCatalogEntry, err error) {
 	result = &v1alpha1.AlphaCatalogEntry{}
+	log.Info(in)
 	err = c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
