@@ -26,6 +26,7 @@ const (
 type InstallPlanPhase string
 
 const (
+	InstallPlanPhaseNone             InstallPlanPhase = ""
 	InstallPlanPhasePlanning         InstallPlanPhase = "Planning"
 	InstallPlanPhaseRequiresApproval InstallPlanPhase = "RequiresApproval"
 	InstallPlanPhaseInstalling       InstallPlanPhase = "Installing"

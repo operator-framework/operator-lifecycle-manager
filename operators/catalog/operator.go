@@ -129,6 +129,9 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error {
 	switch plan.Status.Phase {
+	case v1alpha1.InstallPlanPhaseNone:
+		log.Info("plan phase unrecognized, setting to Planning")
+		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 	case v1alpha1.InstallPlanPhasePlanning:
 		log.Info("plan phase Planning, attempting to resolve")
 		for _, source := range o.sources {
@@ -143,9 +146,6 @@ func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error 
 		if err := o.installInstallPlan(plan); err != nil {
 			return err
 		}
-	default:
-		log.Info("plan phase unrecognized, setting to Planning")
-		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 	}
 	return nil
 }
@@ -154,14 +154,14 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	steps := installPlan.Status.Plan
 	names := installPlan.Spec.ClusterServiceVersionNames
 
-	crdSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
+	crdSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
 	scheme := runtime.NewScheme()
 	if err := v1alpha1csv.AddToScheme(scheme); err != nil {
 		return err
 	}
-	csvSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme, scheme)
+	csvSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, true)
 
-	log.Info("reolving names")
+	log.Info("resolving names")
 
 	for len(names) > 0 {
 		// looping here like this because we are adding names to the list from dependencies
@@ -267,6 +267,7 @@ func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
 			continue
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
+			log.Infof("resource kind: %s", step.Resource.Kind)
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.
