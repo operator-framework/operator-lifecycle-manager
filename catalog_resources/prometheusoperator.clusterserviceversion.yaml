@@ -112,7 +112,7 @@ spec:
   replaces: prometheusoperator.0.12.0
   customresourcedefinitions:
     owned:
-    - name: prometheuses.alm.monitoring.coreos.com
+    - name: prometheuses.monitoring.coreos.com
       displayName: Prometheus
       description: A running Prometheus instance
       statusDescriptors:
