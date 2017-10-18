@@ -3,13 +3,15 @@ package catalog
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/coreos-inc/alm/queueinformer"
 	log "github.com/sirupsen/logrus"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +23,6 @@ import (
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/catalog"
 	"github.com/coreos-inc/alm/client"
-	"github.com/coreos-inc/alm/queueinformer"
 )
 
 const crdKind = "CustomResourceDefinition"
@@ -102,7 +103,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []
 	return op, nil
 }
 
-func (o *Operator) syncInstallPlans(obj interface{}) error {
+func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -111,12 +112,19 @@ func (o *Operator) syncInstallPlans(obj interface{}) error {
 
 	log.Infof("syncing InstallPlan: %s", plan.SelfLink)
 
-	if err := o.transitionInstallPlanState(plan); err != nil {
-		return err
-	}
+	syncError = o.transitionInstallPlanState(plan)
 
-	_, err := o.ipClient.UpdateInstallPlan(plan)
-	return err
+	// Update CSV with status of transition. Log errors if we can't write them to the status.
+	if _, err := o.ipClient.UpdateInstallPlan(plan); err != nil {
+		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
+		if syncError == nil {
+			log.Info(updateErr)
+			return updateErr
+		}
+		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
+		log.Info(syncError)
+	}
+	return
 }
 
 func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error {
@@ -243,7 +251,7 @@ func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the CRD.
 				err = o.OpClient.CreateCustomResourceDefinitionKind(&crd)
-				if errors.IsAlreadyExists(err) {
+				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 					continue
@@ -265,7 +273,7 @@ func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the CSV.
 				err = o.csvClient.CreateCSV(&csv)
-				if errors.IsAlreadyExists(err) {
+				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 				} else if err != nil {

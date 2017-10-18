@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 
 	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -11,7 +10,6 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 type AlphaCatalogEntryInterface interface {
@@ -64,17 +62,18 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (r
 		return
 	}
 	if k8serrors.IsAlreadyExists(err) {
-		in.SetResourceVersion("")
-		err = c.RESTClient.Patch(types.StrategicMergePatchType).Context(context.TODO()).
-			Namespace(in.Namespace).
-			Resource(v1alpha1.AlphaCatalogEntryCRDName).
-			Name(in.Name).
-			Body(in).
-			Do().
-			Into(result)
-		if err != nil {
-			err = errors.New("failed to update CR status: " + err.Error())
-		}
+		return nil, nil
+		//in.SetResourceVersion("")
+		//err = c.RESTClient.Patch(types.StrategicMergePatchType).Context(context.TODO()).
+		//	Namespace(in.Namespace).
+		//	Resource(v1alpha1.AlphaCatalogEntryCRDName).
+		//	Name(in.Name).
+		//	Body(in).
+		//	Do().
+		//	Into(result)
+		//if err != nil {
+		//	err = errors.New("failed to update CR status: " + err.Error())
+		//}
 	}
 	return
 }
