@@ -25,8 +25,6 @@ spec:
           - /bin/catalog
           - -namespaces
           - {{ .Values.namespace }}
-          - -directory
-          - /var/catalog_resources
           image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

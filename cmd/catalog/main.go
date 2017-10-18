@@ -20,24 +20,24 @@ func main() {
 	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 	wakeupInterval := flag.Duration("interval", 15*time.Minute, "wake up interval")
 	namespaces := flag.String("namespaces", "", "comma separated list of namespaces")
-	catalogDirectory := flag.String("directory", "catalog_resources", "path to directory with resources to load into the in-memory catalog")
+	catalogDirectory := flag.String("directory", "/var/catalog_resources", "path to directory with resources to load into the in-memory catalog")
 	flag.Parse()
 
 	inMemoryCatalog, err := source.NewInMemoryFromDirectory(*catalogDirectory)
 	if err != nil {
-		panic("Error loading in memory catalog from " + *catalogDirectory)
+		panic("Error loading in memory catalog from " + *catalogDirectory + " " + err.Error())
 	}
 
 	alphaCatalogClient, err := client.NewAlphaCatalogEntryClient(*kubeConfigPath)
 	if err != nil {
-		panic("Couldn't create alpha catalog entry client")
+		panic("Couldn't create alpha catalog entry client: " + err.Error())
 	}
 	catalogStore := source.CustomResourceCatalogStore{
 		Client: alphaCatalogClient,
 	}
 	entries, err := catalogStore.Sync(inMemoryCatalog)
 	if err != nil {
-		panic("couldn't sync entries from catalog to AlphaCatalogEntries in cluster")
+		panic("couldn't sync entries from catalog to AlphaCatalogEntries in cluster: " + err.Error())
 	}
 	for _, entry := range entries {
 		log.Infof("created AlphaCatalogEntry: %s", entry.Name)
