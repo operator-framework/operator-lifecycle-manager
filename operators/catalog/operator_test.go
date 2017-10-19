@@ -12,17 +12,44 @@ import (
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 )
 
-func TestCheckIfOwned(t *testing.T) {
-	crdName := "ownedCRD"
-	csv := v1alpha1csv.ClusterServiceVersion{}
-	owned := csvOwnsCRD(csv, crdName)
-	require.False(t, owned)
-	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "notownedCRD"}}
-	owned = csvOwnsCRD(csv, crdName)
-	require.False(t, owned)
-	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "ownedCRD"}}
-	owned = csvOwnsCRD(csv, crdName)
-	require.True(t, owned)
+func TestCSVOwnsCRD(t *testing.T) {
+	var table = []struct {
+		ownedCRDNames []string
+		crdName       string
+		expected      bool
+	}{
+		{nil, "", false},
+		{nil, "querty", false},
+		{[]string{}, "", false},
+		{[]string{}, "querty", false},
+		{[]string{"owned"}, "owned", true},
+		{[]string{"owned"}, "notOwned", false},
+		{[]string{"first", "second"}, "first", true},
+		{[]string{"first", "second"}, "second", true},
+		{[]string{"first", "second"}, "third", false},
+	}
+
+	for _, tt := range table {
+		// Build a list of CRDDescription used in the CSV.
+		var ownedDescriptions []v1alpha1csv.CRDDescription
+		for _, crdName := range tt.ownedCRDNames {
+			ownedDescriptions = append(ownedDescriptions, v1alpha1csv.CRDDescription{
+				Name: crdName,
+			})
+		}
+
+		// Create a blank CSV with the owned descriptions.
+		csv := v1alpha1csv.ClusterServiceVersion{
+			Spec: v1alpha1csv.ClusterServiceVersionSpec{
+				CustomResourceDefinitions: v1alpha1csv.CustomResourceDefinitions{
+					Owned: ownedDescriptions,
+				},
+			},
+		}
+
+		// Call csvOwnsCRD and ensure the result is as expected.
+		require.Equal(t, tt.expected, csvOwnsCRD(csv, tt.crdName))
+	}
 }
 
 func TestCreateInstallPlan(t *testing.T) {
