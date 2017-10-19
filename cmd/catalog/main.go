@@ -26,12 +26,12 @@ func main() {
 
 	inMemoryCatalog, err := source.NewInMemoryFromDirectory(*catalogDirectory)
 	if err != nil {
-		panic("Error loading in memory catalog from " + *catalogDirectory + " " + err.Error())
+		log.Fatalf("Error loading in memory catalog from %s: %s", *catalogDirectory, err.Error())
 	}
 
 	alphaCatalogClient, err := client.NewAlphaCatalogEntryClient(*kubeConfigPath)
 	if err != nil {
-		panic("Couldn't create alpha catalog entry client: " + err.Error())
+		log.Fatalf("Couldn't create alpha catalog entry client: %s", err.Error())
 	}
 	catalogStore := source.CustomResourceCatalogStore{
 		Client:    alphaCatalogClient,
@@ -39,7 +39,7 @@ func main() {
 	}
 	entries, err := catalogStore.Sync(inMemoryCatalog)
 	if err != nil {
-		panic("couldn't sync entries from catalog to AlphaCatalogEntries in cluster: " + err.Error())
+		log.Fatalf("couldn't sync entries from catalog to AlphaCatalogEntries in cluster: %s", err.Error())
 	}
 	for _, entry := range entries {
 		if entry != nil {
@@ -56,7 +56,7 @@ func main() {
 	// Create a new instance of the operator.
 	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, []source.Source{inMemoryCatalog}, strings.Split(*namespaces, ",")...)
 	if err != nil {
-		panic("error configuring operator: " + err.Error())
+		log.Fatalf("error configuring operator: %s", err.Error())
 	}
 
 	// TODO: Handle any signals to shutdown cleanly.
