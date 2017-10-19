@@ -5,14 +5,23 @@ CATALOG_PKG := github.com/coreos-inc/alm/cmd/catalog
 CATALOG_EXECUTABLE := ./bin/catalog
 IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
+TOP_LEVEL := $(dir $(shell glide novendor))
+PACKAGES := $(shell find $(TOP_LEVEL) -type d -not -path '*/\.*')
 
-.PHONY: test run clean vendor vendor-update
+.PHONY: test run clean vendor vendor-update coverage
 
 all: test build
 
 test:
 	go vet `glide novendor`
 	go test -v -race `glide novendor`
+
+coverage:
+	echo "mode: count" > coverage-all.out
+	$(foreach pkg,$(PACKAGES),\
+		go test -coverprofile=coverage.out -covermode=count $(pkg);\
+		tail -n +2 coverage.out >> coverage-all.out;)
+	go tool cover -html=coverage-all.out
 
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
