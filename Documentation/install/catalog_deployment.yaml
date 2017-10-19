@@ -1,24 +1,31 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: alm-operator
-  namespace: default
+  name: catalog-operator
+  namespace: tectonic-system
   labels:
-    app: alm-operator
+    app:  catalog-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: 1
+  selector:
+    matchLabels:
+      app: catalog-operator
   template:
     metadata:
       labels:
-        app: alm-operator
+        app: catalog-operator
     spec:
       serviceAccountName: alm-operator-serviceaccount
       containers:
-        - name: alm
-          image: quay.io/coreos/alm:latest
-          imagePullPolicy: Always
+        - name: catalog-operator
+          command:
+          - /bin/catalog
+          - '-namespace'
+          - tectonic-system
+          image: quay.io/coreos/catalog@sha256:c9ad7180c8f498047c2ab4d0dd23b390debeaa5228c99d322a332ac95f3744c8
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           livenessProbe:
@@ -32,3 +39,4 @@ spec:
           resources:
       imagePullSecrets:
         - name: coreos-pull-secret
+
