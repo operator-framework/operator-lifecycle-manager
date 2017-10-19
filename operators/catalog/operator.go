@@ -130,19 +130,19 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error {
 	switch plan.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
-		log.Info("plan phase unrecognized, setting to Planning")
+		log.Debug("plan phase unrecognized, setting to Planning")
 		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 	case v1alpha1.InstallPlanPhasePlanning:
-		log.Info("plan phase Planning, attempting to resolve")
+		log.Debug("plan phase Planning, attempting to resolve")
 		for _, source := range o.sources {
-			log.Infof("resolving against source %v", source)
+			log.Debugf("resolving against source %v", source)
 			err := createInstallPlan(source, plan)
 			// Intentionally return after the first source only.
 			// TODO(jzelinskie): update to check all sources.
 			return err
 		}
 	case v1alpha1.InstallPlanPhaseInstalling:
-		log.Info("plan phase Installing, attempting to install")
+		log.Debug("plan phase Installing, attempting to install")
 		if err := o.installInstallPlan(plan); err != nil {
 			return err
 		}
@@ -186,7 +186,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 
 			log.Info("found crd: %v", crd)
 
-			if checkIfOwned(*csv, crd.Name) {
+			if csvOwnsCRD(*csv, crd.Name) {
 				log.Infof("crd is owned: %s", crd.Name)
 
 				var manifest bytes.Buffer
@@ -249,7 +249,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	return nil
 }
 
-func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, crdName string) bool {
+func csvOwnsCRD(csv v1alpha1csv.ClusterServiceVersion, crdName string) bool {
 	for _, crdDescription := range csv.Spec.CustomResourceDefinitions.Owned {
 		if crdDescription.Name == crdName {
 			return true

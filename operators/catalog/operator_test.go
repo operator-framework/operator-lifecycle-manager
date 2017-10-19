@@ -15,13 +15,13 @@ import (
 func TestCheckIfOwned(t *testing.T) {
 	crdName := "ownedCRD"
 	csv := v1alpha1csv.ClusterServiceVersion{}
-	owned := checkIfOwned(csv, crdName)
+	owned := csvOwnsCRD(csv, crdName)
 	require.False(t, owned)
 	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "notownedCRD"}}
-	owned = checkIfOwned(csv, crdName)
+	owned = csvOwnsCRD(csv, crdName)
 	require.False(t, owned)
 	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "ownedCRD"}}
-	owned = checkIfOwned(csv, crdName)
+	owned = csvOwnsCRD(csv, crdName)
 	require.True(t, owned)
 }
 
