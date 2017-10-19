@@ -2,35 +2,21 @@ package alm
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/watch"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
-
-	"strings"
 
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
 )
-
-type MockListWatcher struct {
-}
-
-func (l *MockListWatcher) List(options v1.ListOptions) (runtime.Object, error) {
-	return nil, nil
-}
-
-func (l *MockListWatcher) Watch(options v1.ListOptions) (watch.Interface, error) {
-	return nil, nil
-}
 
 type MockALMOperator struct {
 	ALMOperator
@@ -57,7 +43,7 @@ func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alp
 
 func testCSV() *v1alpha1.ClusterServiceVersion {
 	return &v1alpha1.ClusterServiceVersion{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:     "test-csv",
 			SelfLink: "/link/test-csv",
 		},
@@ -98,7 +84,7 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 
 	csvQueueInformer := queueinformer.NewTestQueueInformer(
 		"test-clusterserviceversions",
-		cache.NewSharedIndexInformer(&MockListWatcher{}, &v1alpha1.ClusterServiceVersion{}, 0, nil),
+		cache.NewSharedIndexInformer(&queueinformer.MockListWatcher{}, &v1alpha1.ClusterServiceVersion{}, 0, nil),
 		almOperator.syncClusterServiceVersion,
 		nil,
 	)
