@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/cache"
 )
 
 // An Operator is a collection of QueueInformers
@@ -53,6 +54,15 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 		log.Infof("connection established. cluster-version: %v", v)
 		errChan <- nil
 	}()
+
+	var hasSyncedCheckFns []cache.InformerSynced
+	for _, queueInformer := range o.queueInformers {
+		hasSyncedCheckFns = append(hasSyncedCheckFns, queueInformer.informer.HasSynced)
+	}
+
+	if ok := cache.WaitForCacheSync(stopc, hasSyncedCheckFns...); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
 
 	select {
 	case err := <-errChan:
