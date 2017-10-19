@@ -99,7 +99,7 @@ spec:
                 - sh
                 - -c
                 - >
-                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup alm.monitoring.coreos.com
+                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.alm.coreos.com
                   --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator.0.14.0,operated-by=prometheusoperator.0.14.0
               env:
                 - name: K8S_NAMESPACE
