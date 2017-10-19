@@ -26,7 +26,7 @@ spec:
           - -watchedNamespaces
           - {{ .Values.namespace }}
           - -namespace
-          - {{ .Values.namespace }}
+          - tectonic-system
           image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
