@@ -6,7 +6,7 @@ metadata:
   namespace: default
   name: prometheusoperator.0.13.0
   labels:
-    alm-owner-prometheus: prometheus.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-owner-prometheus: prometheusoperator.0.13.0
 spec:
   displayName: Prometheus
   description: An open-source monitoring system with a dimensional data model, flexible query language, efficient time series database and modern alerting approach.

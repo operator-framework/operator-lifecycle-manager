@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/tools/cache"
 )
 
 // An Operator is a collection of QueueInformers
@@ -54,6 +55,11 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 		errChan <- nil
 	}()
 
+	var hasSyncedCheckFns []cache.InformerSynced
+	for _, queueInformer := range o.queueInformers {
+		hasSyncedCheckFns = append(hasSyncedCheckFns, queueInformer.informer.HasSynced)
+	}
+
 	select {
 	case err := <-errChan:
 		if err != nil {
@@ -64,11 +70,20 @@ func (o *Operator) Run(stopc <-chan struct{}) error {
 		return nil
 	}
 
+	log.Info("starting informers...")
 	for _, queueInformer := range o.queueInformers {
-		go o.worker(queueInformer)
 		go queueInformer.informer.Run(stopc)
 	}
 
+	log.Info("waiting for caches to sync...")
+	if ok := cache.WaitForCacheSync(stopc, hasSyncedCheckFns...); !ok {
+		return fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	log.Info("starting workers...")
+	for _, queueInformer := range o.queueInformers {
+		go o.worker(queueInformer)
+	}
 	<-stopc
 	return nil
 }
@@ -83,6 +98,8 @@ func (o *Operator) worker(loop *QueueInformer) {
 func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 	queue := loop.queue
 	key, quit := queue.Get()
+	log.Infof("processing %s", key)
+
 	if quit {
 		return false
 	}
@@ -98,6 +115,7 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 }
 
 func (o *Operator) sync(loop *QueueInformer, key string) error {
+	log.Infof("getting %s from queue", key)
 	obj, exists, err := loop.informer.GetIndexer().GetByKey(key)
 	if err != nil {
 		return err
@@ -105,6 +123,7 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 
 	if !exists {
 		// For now, we ignore the case where an object used to exist but no longer does
+		log.Infof("couldn't get %s from queue", key)
 		return nil
 	}
 	return loop.syncHandler(obj)

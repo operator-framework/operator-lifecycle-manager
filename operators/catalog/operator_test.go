@@ -1,37 +1,34 @@
 package catalog
 
 import (
+	"errors"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	v1alpha1csv "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCheckIfOwned(t *testing.T) {
-	ownerRefs := []v1.OwnerReference{{}}
+	crdName := "ownedCRD"
 	csv := v1alpha1csv.ClusterServiceVersion{}
-	owned := checkIfOwned(csv, ownerRefs)
+	owned := csvOwnsCRD(csv, crdName)
 	require.False(t, owned)
-	ownerRefs[0].Name = "name"
-	csv.Name = "name"
-	owned = checkIfOwned(csv, ownerRefs)
+	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "notownedCRD"}}
+	owned = csvOwnsCRD(csv, crdName)
 	require.False(t, owned)
-	ownerRefs[0].Kind = "kind"
-	csv.Kind = "kind"
-	owned = checkIfOwned(csv, ownerRefs)
+	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "ownedCRD"}}
+	owned = csvOwnsCRD(csv, crdName)
 	require.True(t, owned)
 }
 
 func TestCreateInstallPlan(t *testing.T) {
 	installPlan := &v1alpha1.InstallPlan{
 		Status: v1alpha1.InstallPlanStatus{Plan: []v1alpha1.Step{}},
-		Spec:   &v1alpha1.InstallPlanSpec{},
+		Spec:   v1alpha1.InstallPlanSpec{},
 	}
 	installPlan.Spec.ClusterServiceVersionNames = []string{"error"}
 	testSource := TestSource{}
@@ -51,18 +48,15 @@ func TestCreateInstallPlan(t *testing.T) {
 	installPlan.Spec.ClusterServiceVersionNames = []string{"name"}
 	testSource.csv.Spec.CustomResourceDefinitions.Required = []v1alpha1csv.CRDDescription{{Name: "name"}}
 	crd := &v1beta1.CustomResourceDefinition{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name: "name",
-			OwnerReferences: []v1.OwnerReference{
-				{
-					Kind: "kind", Name: "name",
-				},
-			},
 		},
 	}
 	testSource.crd = crd
 	testSource.csv.Name = "name"
 	testSource.csv.Kind = "kind"
+	testSource.csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "name"}}
+
 	err = createInstallPlan(testSource, installPlan)
 	require.NotEmpty(t, installPlan.Status.Plan)
 	require.Equal(t, 2, len(installPlan.Status.Plan))

@@ -23,7 +23,9 @@ spec:
         - name: {{ .Chart.Name }}
           command:
           - /bin/catalog
-          - -namespaces
+          - -watchedNamespaces
+          - {{ .Values.namespace }}
+          - -namespace
           - {{ .Values.namespace }}
           image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}

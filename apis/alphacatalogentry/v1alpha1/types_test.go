@@ -34,6 +34,5 @@ func TestRegisterAlphaCatalogEntry(t *testing.T) {
 	}
 
 	rsrc := NewAlphaCatalogEntryResource(testApp)
-
-	require.Equal(t, AlphaCatalogEntryCRDName, rsrc.Kind)
+	require.NotNil(t, rsrc)
 }

@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	AlphaCatalogEntryCRDName       = "alphacatalogentry-v1s.app.coreos.com"
-	AlphaCatalogEntryCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
+	AlphaCatalogEntryCRDName       = "alphacatalogentry-v1s"
+	AlphaCatalogEntryCRDAPIVersion = "app.coreos.com/v1alpha1" // API version w/ CRD support
 	AlphaCatalogEntryKind          = "AlphaCatalogEntry-v1"
 	AlphaCatalogEntryListKind      = "AlphaCatalogEntryList-v1"
 	GroupVersion                   = "v1alpha1"
@@ -30,11 +30,7 @@ type AlphaCatalogEntry struct {
 }
 
 func NewAlphaCatalogEntryResource(app *AlphaCatalogEntrySpec) *AlphaCatalogEntry {
-	resource := AlphaCatalogEntry{}
-	resource.Kind = AlphaCatalogEntryCRDName
-	resource.APIVersion = AlphaCatalogEntryCRDAPIVersion
-	resource.Spec = app
-	return &resource
+	return &AlphaCatalogEntry{Spec: app}
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
