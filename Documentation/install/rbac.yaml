@@ -1,6 +1,7 @@
 kind: ServiceAccount
 apiVersion: v1
 metadata:
+  namespace: tectonic-system
   name: alm-operator-serviceaccount
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
@@ -14,4 +15,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: alm-operator-serviceaccount
-  namespace: default
+  namespace: tectonic-system
