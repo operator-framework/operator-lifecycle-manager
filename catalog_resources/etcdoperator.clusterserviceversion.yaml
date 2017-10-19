@@ -20,13 +20,12 @@ spec:
     name: CoreOS, Inc
   labels:
     alm-status-descriptors: etcdoperator.v0.6.0
-    alm-owner-etcd: etcdoperator.v0.6.0
-    alm-catalog: Open Cloud Services
-    operated-by: etcdoperator.v0.6.0
+    alm-owner-etcd: etcdoperator
+    operated-by: etcdoperator
   selector:
     matchLabels:
-      alm-owner-etcd: etcdoperator.v0.6.0
-      operated-by: etcdoperator.v0.6.0
+      alm-owner-etcd: etcdoperator
+      operated-by: etcdoperator
   links:
   - name: Blog
     url: https://coreos.com/etcd
