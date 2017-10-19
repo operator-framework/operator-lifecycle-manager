@@ -91,7 +91,7 @@ spec:
             labels:
               name: prometheus-operator
           spec:
-            serviceAccount: prometheus-operator-0-13-0
+            serviceAccount: prometheus-operator
             containers:
             - name: prometheus-operator
               image: quay.io/ant31/prometheus-operator:a8fe96a-3
