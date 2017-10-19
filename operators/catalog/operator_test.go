@@ -52,6 +52,49 @@ func TestCSVOwnsCRD(t *testing.T) {
 	}
 }
 
+type mockTransitioner struct {
+	err error
+}
+
+var _ installPlanTransitioner = &mockTransitioner{}
+
+func (m *mockTransitioner) CreatePlan(plan *v1alpha1.InstallPlan) error {
+	return m.err
+}
+
+func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
+	return m.err
+}
+
+func TestTransitionInstallPlan(t *testing.T) {
+	var table = []struct {
+		initial    v1alpha1.InstallPlanPhase
+		transError error
+		expected   v1alpha1.InstallPlanPhase
+	}{
+		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.InstallPlanPhasePlanning},
+		{v1alpha1.InstallPlanPhaseNone, errors.New(""), v1alpha1.InstallPlanPhasePlanning},
+		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.InstallPlanPhaseInstalling},
+		{v1alpha1.InstallPlanPhasePlanning, errors.New(""), v1alpha1.InstallPlanPhasePlanning},
+		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.InstallPlanPhaseComplete},
+		{v1alpha1.InstallPlanPhaseInstalling, errors.New(""), v1alpha1.InstallPlanPhaseInstalling},
+	}
+
+	for _, tt := range table {
+		plan := &v1alpha1.InstallPlan{
+			Status: v1alpha1.InstallPlanStatus{
+				InstallPlanCondition: v1alpha1.InstallPlanCondition{
+					Phase: tt.initial,
+				},
+			},
+		}
+
+		transitioner := &mockTransitioner{tt.transError}
+		transitionInstallPlanState(transitioner, plan)
+		require.Equal(t, tt.expected, plan.Status.Phase)
+	}
+}
+
 func TestCreateInstallPlan(t *testing.T) {
 	installPlan := &v1alpha1.InstallPlan{
 		Status: v1alpha1.InstallPlanStatus{Plan: []v1alpha1.Step{}},
