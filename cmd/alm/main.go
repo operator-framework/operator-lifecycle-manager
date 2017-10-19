@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"os"
 	"strings"
-
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/coreos-inc/alm/operators/alm"
 )
@@ -28,7 +29,7 @@ func main() {
 	// Create a new instance of the operator.
 	almOperator, err := alm.NewALMOperator(*kubeConfigPath, *wakeupInterval, strings.Split(*namespaces, ",")...)
 	if err != nil {
-		panic("error configuring operator: " + err.Error())
+		log.Fatalf("error configuring operator: %s", err.Error())
 	}
 
 	// TODO: Handle any signals to shutdown cleanly.

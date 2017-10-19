@@ -25,6 +25,8 @@ spec:
           - /bin/catalog
           - -namespaces
           - {{ .Values.namespace }}
+          - -almNamespace
+          - {{ .Values.namespace }}
           image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

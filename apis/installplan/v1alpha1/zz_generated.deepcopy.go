@@ -51,15 +51,7 @@ func (in *InstallPlan) DeepCopyInto(out *InstallPlan) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	if in.Spec != nil {
-		in, out := &in.Spec, &out.Spec
-		if *in == nil {
-			*out = nil
-		} else {
-			*out = new(InstallPlanSpec)
-			(*in).DeepCopyInto(*out)
-		}
-	}
+	in.Spec.DeepCopyInto(&out.Spec)
 	in.Status.DeepCopyInto(&out.Status)
 	return
 }
@@ -108,14 +100,9 @@ func (in *InstallPlanList) DeepCopyInto(out *InstallPlanList) {
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]*InstallPlanSpec, len(*in))
+		*out = make([]InstallPlanSpec, len(*in))
 		for i := range *in {
-			if (*in)[i] == nil {
-				(*out)[i] = nil
-			} else {
-				(*out)[i] = new(InstallPlanSpec)
-				(*in)[i].DeepCopyInto((*out)[i])
-			}
+			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 	return

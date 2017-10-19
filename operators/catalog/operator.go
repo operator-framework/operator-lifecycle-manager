@@ -3,13 +3,15 @@ package catalog
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
+	"github.com/coreos-inc/alm/queueinformer"
 	log "github.com/sirupsen/logrus"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -21,7 +23,6 @@ import (
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/catalog"
 	"github.com/coreos-inc/alm/client"
-	"github.com/coreos-inc/alm/queueinformer"
 )
 
 const crdKind = "CustomResourceDefinition"
@@ -102,7 +103,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []
 	return op, nil
 }
 
-func (o *Operator) syncInstallPlans(obj interface{}) error {
+func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
@@ -111,24 +112,37 @@ func (o *Operator) syncInstallPlans(obj interface{}) error {
 
 	log.Infof("syncing InstallPlan: %s", plan.SelfLink)
 
-	if err := o.transitionInstallPlanState(plan); err != nil {
-		return err
-	}
+	syncError = o.transitionInstallPlanState(plan)
 
-	_, err := o.ipClient.UpdateInstallPlan(plan)
-	return err
+	// Update CSV with status of transition. Log errors if we can't write them to the status.
+	if _, err := o.ipClient.UpdateInstallPlan(plan); err != nil {
+		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
+		if syncError == nil {
+			log.Info(updateErr)
+			return updateErr
+		}
+		syncError = fmt.Errorf("error transitioning InstallPlan: %s and error updating InstallPlan status: %s", syncError, updateErr)
+		log.Info(syncError)
+	}
+	return
 }
 
 func (o *Operator) transitionInstallPlanState(plan *v1alpha1.InstallPlan) error {
 	switch plan.Status.Phase {
+	case v1alpha1.InstallPlanPhaseNone:
+		log.Info("plan phase unrecognized, setting to Planning")
+		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 	case v1alpha1.InstallPlanPhasePlanning:
+		log.Info("plan phase Planning, attempting to resolve")
 		for _, source := range o.sources {
+			log.Infof("resolving against source %v", source)
 			err := createInstallPlan(source, plan)
 			// Intentionally return after the first source only.
 			// TODO(jzelinskie): update to check all sources.
 			return err
 		}
 	case v1alpha1.InstallPlanPhaseInstalling:
+		log.Info("plan phase Installing, attempting to install")
 		if err := o.installInstallPlan(plan); err != nil {
 			return err
 		}
@@ -140,33 +154,47 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	steps := installPlan.Status.Plan
 	names := installPlan.Spec.ClusterServiceVersionNames
 
-	crdSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme)
+	crdSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
 	scheme := runtime.NewScheme()
 	if err := v1alpha1csv.AddToScheme(scheme); err != nil {
 		return err
 	}
-	csvSerializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme, scheme)
+	csvSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, true)
+
+	log.Info("resolving names")
 
 	for len(names) > 0 {
 		// looping here like this because we are adding names to the list from dependencies
 		name := names[0]
 		names = names[1:]
+
+		log.Infof("resolving %s", name)
+
 		csv, err := source.FindLatestCSVByServiceName(name)
 		if err != nil {
 			return err
 		}
 
+		log.Info("resolving CRDs for CSV: %v", csv)
 		for _, crdDescription := range csv.Spec.CustomResourceDefinitions.GetAllCrds() {
+			log.Info("resolving crd: %v", crdDescription)
+
 			crd, err := source.FindCRDByName(crdDescription.Name)
 			if err != nil {
 				return err
 			}
 
-			if checkIfOwned(*csv, crd.OwnerReferences) {
+			log.Info("found crd: %v", crd)
+
+			if checkIfOwned(*csv, crd.Name) {
+				log.Infof("crd is owned: %s", crd.Name)
+
 				var manifest bytes.Buffer
 				if err := crdSerializer.Encode(crd, &manifest); err != nil {
 					return err
 				}
+
+				log.Infof("encoded crd as manifest: %s", manifest.String())
 				step := v1alpha1.Step{
 					Resolving: name,
 					Resource: v1alpha1.StepResource{
@@ -178,21 +206,29 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 					},
 					Status: v1alpha1.StepStatusUnknown,
 				}
+
+				log.Infof("finished step: %v", step)
 				steps = append(steps, step)
 			} else {
+				log.Infof("crd is not owned: %s", crd.Name)
 				csvForCRD, err := source.FindLatestCSVForCRD(crdDescription.Name)
 				if err != nil {
 					return err
 				}
+				log.Infof("found csv for crd: %s", csv.Name)
 				names = append(names, csvForCRD.Name)
 			}
 
 		}
 
+		csv.SetNamespace(installPlan.Namespace)
 		var manifestCSV bytes.Buffer
 		if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
 			return err
 		}
+
+		log.Infof("encoded crd as manifest: %s", manifestCSV.String())
+
 		stepCSV := v1alpha1.Step{
 			Resolving: name,
 			Resource: v1alpha1.StepResource{
@@ -204,16 +240,18 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 			},
 			Status: v1alpha1.StepStatusUnknown,
 		}
+		log.Infof("finished step: %v", stepCSV)
 		steps = append(steps, stepCSV)
 	}
+	log.Infof("finished install plan resolution")
 	installPlan.Status.Plan = steps
 	installPlan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 	return nil
 }
 
-func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, ownerRefs []metav1.OwnerReference) bool {
-	for _, ownerRef := range ownerRefs {
-		if csv.Name != "" && csv.Name == ownerRef.Name && csv.Kind != "" && csv.Kind == ownerRef.Kind {
+func checkIfOwned(csv v1alpha1csv.ClusterServiceVersion, crdName string) bool {
+	for _, crdDescription := range csv.Spec.CustomResourceDefinitions.Owned {
+		if crdDescription.Name == crdName {
 			return true
 		}
 	}
@@ -230,6 +268,7 @@ func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
 			continue
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
+			log.Infof("resource kind: %s", step.Resource.Kind)
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.
@@ -241,7 +280,7 @@ func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the CRD.
 				err = o.OpClient.CreateCustomResourceDefinitionKind(&crd)
-				if errors.IsAlreadyExists(err) {
+				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 					continue
@@ -263,7 +302,7 @@ func (o *Operator) installInstallPlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the CSV.
 				err = o.csvClient.CreateCSV(&csv)
-				if errors.IsAlreadyExists(err) {
+				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 				} else if err != nil {

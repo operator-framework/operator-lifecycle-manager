@@ -53,12 +53,23 @@ spec:
           spec:
             containers:
             - name: vault-operator
-              image: quay.io/coreos/vault-operator:0.0.2
+              image: quay.io/coreos/vault-operator:0.1.2
+              env:
+              - name: MY_POD_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: MY_POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
+            imagePullSecrets:
+            - name: coreos-pull-secret
   version: 0.1.2
   maturity: alpha
   customresourcedefinitions:
     owned:
-    - name: vaultservices-v1.vault.security.coreos.com
+    - name: vaultservices.vault.security.coreos.com
       displayName: Vault Service
       description: A running Vault instance, backed by an Etcd Cluster
       statusDescriptors:
@@ -68,7 +79,7 @@ spec:
           x-descriptors:
           - urn:alm:descriptor:io.vaultproject:api.v1
     required:
-    - name: etcdclusters-v1.etcd.database.coreos.com
+    - name: etcdclusters.etcd.database.coreos.com
       displayName: Etcd Cluster
       description: Represents a cluster of etcd nodes.
       statusDescriptors:

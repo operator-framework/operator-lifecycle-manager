@@ -9,17 +9,37 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"reflect"
+
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
 )
+
+type EntryMatcher struct{ entry v1alpha1.AlphaCatalogEntry }
+
+func MatchesEntry(entry v1alpha1.AlphaCatalogEntry) gomock.Matcher {
+	return &EntryMatcher{entry}
+}
+
+func (e *EntryMatcher) Matches(x interface{}) bool {
+	entry, ok := x.(*v1alpha1.AlphaCatalogEntry)
+	if !ok {
+		return false
+	}
+	return reflect.DeepEqual(entry.Spec, e.entry.Spec)
+}
+
+func (e *EntryMatcher) String() string {
+	return "matches expected entry"
+}
 
 func TestCustomCatalogStore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
 
-	store := CustomResourceCatalogStore{client: mockClient}
+	store := CustomResourceCatalogStore{Client: mockClient}
 
 	testCSVName := "MockServiceName-v1"
 	testCSVVersion := "0.2.4+alpha"
@@ -43,7 +63,7 @@ func TestCustomCatalogStore(t *testing.T) {
 	}
 	expectedEntry := v1alpha1.AlphaCatalogEntry{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.AlphaCatalogEntryCRDName,
+			Kind:       v1alpha1.AlphaCatalogEntryKind,
 			APIVersion: v1alpha1.AlphaCatalogEntryCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -62,7 +82,7 @@ func TestCustomCatalogStore(t *testing.T) {
 	}
 	returnEntry := v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
 	returnErr := errors.New("test error")
-	mockClient.EXPECT().UpdateEntry(&expectedEntry).Return(&returnEntry, returnErr)
+	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
 
 	actualEntry, err := store.Store(&csv)
 	assert.Equal(t, returnErr, err)
