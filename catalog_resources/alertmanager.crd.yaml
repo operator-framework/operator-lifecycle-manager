@@ -6,9 +6,6 @@ metadata:
     alm-status-descriptors: prometheusoperator.0.14.0
     alm-owner-prometheus: prometheusoperator.0.14.0
     operated-by: prometheusoperator.0.14.0
-  annotations:
-    displayName: Alert Manager
-    description: Configures an Alert Manager for the namespace
 spec:
   group: monitoring.alm.coreos.com
   version: v1
