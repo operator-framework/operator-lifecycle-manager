@@ -100,7 +100,7 @@ func (in *InstallPlanList) DeepCopyInto(out *InstallPlanList) {
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]InstallPlanSpec, len(*in))
+		*out = make([]InstallPlan, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

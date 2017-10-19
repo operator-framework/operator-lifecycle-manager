@@ -117,5 +117,5 @@ type InstallPlanList struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Items []InstallPlanSpec `json:"items"`
+	Items []InstallPlan `json:"items"`
 }
