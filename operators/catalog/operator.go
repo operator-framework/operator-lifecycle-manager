@@ -116,12 +116,12 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	// Update CSV with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.ipClient.UpdateInstallPlan(plan); err != nil {
-		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
+		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
 			log.Info(updateErr)
 			return updateErr
 		}
-		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
+		syncError = fmt.Errorf("error transitioning InstallPlan: %s and error updating InstallPlan status: %s", syncError, updateErr)
 		log.Info(syncError)
 	}
 	return
