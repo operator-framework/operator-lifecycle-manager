@@ -7,21 +7,21 @@
 Strawpeople:
 
 ```
-declare: 
- - Vault AppType 1.0.0 (ref by sha?)
+declare:
+ - Vault ClusterServiceVersion 1.0.0 (ref by sha?)
 approval: manual/automatic
 status: Unresolved
 ```
 
 ```
-declare: 
- - Vault AppType (ref by sha?)
+declare:
+ - Vault ClusterServiceVersion (ref by sha?)
 approval: manual/automatic
 resolved:
-  - Vault AppType 1.0.0
+  - Vault ClusterServiceVersion 1.0.0
   - Vault ClusterServiceVersion
   - VaultService CRD
-  - Etcd AppType
+  - Etcd ClusterServiceVersion
   - Etcd ClusterServiceVersion
   - EtcdCluster CRD
 status: resolved
@@ -40,8 +40,8 @@ States: `Unresolved`, `Resolved`, `Approved`, `Complete`
 
 ```
 type: Subscription
-declare: 
- - Vault Apptype 
+declare:
+ - Vault ClusterServiceVersion
 source: quay
 package: vault
 channel: stable
@@ -57,7 +57,7 @@ name: quay
 1. Watches for `Subscription` objects
    1. If no `InstallPlan` exists for the `Subscription`, creates it
    1. Checks `CatalogSource` for updates
-     1. If newer version is available in the channel and is greater than `current`, creates an `InstallDeclaration` for it.
+     1. If newer version is available in the channel and is greater than `current`, creates an `InstallPlan` for it.
 
 ## ALM
 
