@@ -62,3 +62,7 @@ generate-mock-client: $(MOCKGEN)
 	@$(MOCKGEN) -package=install -source=install/resolver.go > install/zz_generated.mock_resolver.go
 
 make gen-all: gen-ci codegen generate-mock-client
+
+
+clean-cluster:
+	./clean_cluster.sh
