@@ -10,11 +10,23 @@ import (
 	"github.com/coreos-inc/alm/client"
 )
 
+// CatalogSync tracks information about the last time the catalog was synced to the cluster
+type CatalogSync struct {
+	StartTime      metav1.Time
+	EndTime        metav1.Time
+	Status         string
+	ServicesFound  int
+	ServicesSynced int
+	ServicesFailed int
+	Errors         []error
+}
+
 // CustomResourceCatalogStore stores service Catalog entries as CRDs in the cluster
 type CustomResourceCatalogStore struct {
-	Client     client.AlphaCatalogEntryInterface
-	Namespace  string
-	syncedTime metav1.Time
+	Client             client.AlphaCatalogEntryInterface
+	Namespace          string
+	LastSuccessfulSync CatalogSync
+	LastAttemptedSync  CatalogSync
 }
 
 // Store creates a new AlphaCatalogEntry custom resource for the given service definition, csv
@@ -26,21 +38,38 @@ func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVe
 	return store.Client.UpdateEntry(resource)
 }
 
+func (c *CatalogSync) Error() string {
+	return fmt.Errorf("catalog sync failed: %d/%d services synced, %d/%d failures -- %v",
+		c.ServicesFound, c.ServicesSynced, c.ServicesFailed, c.ServicesFound, c.Errors)
+}
+
 // Sync creates AlphaCatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
 func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.AlphaCatalogEntry, error) {
+	status := CatalogSync{
+		StartTime: metav1.Now(),
+		Status:    "syncing",
+	}
 	entries := []*v1alpha1.AlphaCatalogEntry{}
 	csvs, err := catalog.ListServices()
 	if err != nil {
-		return entries, fmt.Errorf("catalog sync failed: catalog ListServices error: %v", err)
+		status.EndTime = metav1.Now()
+		status.Errors = []error{fmt.Errorf("catalog ListServices error: %v", err)}
+		status.Status = "error"
+		return entries, status
 	}
+	status.ServicesFound = len(csvs)
 	for _, csv := range csvs {
 		resource, err := store.Store(&csv)
 		if err != nil {
-			return entries, fmt.Errorf("catalog sync failed: error storing service %s v%s: %v",
-				csv.GetName(), csv.Spec.Version, err)
+			status.Errors = append(status.Errors, fmt.Errorf("error storing service %s v%s: %v",
+				csv.GetName(), csv.Spec.Version, err))
+			status.ServicesFailed = status.ServicesFailed + 1
+			continue
 		}
+		status.ServicesSynced = status.ServicesSynced + 1
 		entries = append(entries, resource)
 	}
+	status.EndTime = metav1.Now()
 	store.syncedTime = metav1.Now()
 	return entries, nil
 }
