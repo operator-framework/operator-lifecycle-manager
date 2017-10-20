@@ -1,0 +1,40 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: alm-operator
+  namespace: tectonic-system
+  labels:
+    app:  alm-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alm-operator
+  template:
+    metadata:
+      labels:
+        app:  alm-operator
+    spec:
+      serviceAccountName: alm-operator-serviceaccount
+      containers:
+        - name: alm-operator
+          command:
+          - /bin/alm
+          image: quay.io/coreos/alm@sha256:d1df5bf573de923eec0850475c153b44e38518215674eb4be5b4d9e9bd0a2c3a
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          resources:
+      imagePullSecrets:
+        - name: coreos-pull-secret
+

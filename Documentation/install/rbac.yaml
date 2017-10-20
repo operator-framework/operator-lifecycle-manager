@@ -1,12 +1,13 @@
 kind: ServiceAccount
 apiVersion: v1
 metadata:
+  namespace: tectonic-system
   name: alm-operator-serviceaccount
 ---
 apiVersion: rbac.authorization.k8s.io/v1beta1
 kind: ClusterRoleBinding
 metadata:
-  name: alm-operator
+  name: alm-operator-binding
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -14,4 +15,4 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: alm-operator-serviceaccount
-  namespace: default
+  namespace: tectonic-system
