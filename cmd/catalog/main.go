@@ -14,22 +14,48 @@ import (
 	"github.com/coreos-inc/alm/operators/catalog"
 )
 
+const (
+	defaultWakeupInterval   = 15 * time.Minute
+	defaultCatalogNamespace = "tectonic-system"
+	defaultCatalogDirectory = "/var/catalog_resources"
+)
+
+var (
+	kubeConfigPath    string
+	wakeupInterval    time.Duration
+	watchedNamespaces string
+	catalogNamespace  string
+	catalogDirectory  string
+)
+
+func init() {
+	flag.StringVar(&kubeConfigPath,
+		"kubeconfig", "", "absolute path to the kubeconfig file")
+
+	flag.DurationVar(&wakeupInterval,
+		"interval", defaultWakeupInterval, "wakeup interval")
+
+	flag.StringVar(&watchedNamespaces,
+		"watchedNamespaces", "", "comma separated list of namespaces that catalog watches, leave empty to watch all namespaces")
+
+	flag.StringVar(&catalogNamespace,
+		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
+
+	flag.StringVar(&catalogDirectory,
+		"directory", defaultCatalogDirectory, "path to directory with resources to load into the in-memory catalog")
+}
+
 func main() {
 	// Parse the command-line flags.
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	kubeConfigPath := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	wakeupInterval := flag.Duration("interval", 15*time.Minute, "wake up interval")
-	watchedNamespaces := flag.String("watchedNamespaces", "", "comma separated list of namespaces that catalog watches")
-	namespace := flag.String("namespace", "", "namespace where catalog will run and install catalog resources")
-	catalogDirectory := flag.String("directory", "/var/catalog_resources", "path to directory with resources to load into the in-memory catalog")
 	flag.Parse()
 
-	inMemoryCatalog, err := source.NewInMemoryFromDirectory(*catalogDirectory)
+	inMemoryCatalog, err := source.NewInMemoryFromDirectory(catalogDirectory)
 	if err != nil {
-		log.Fatalf("Error loading in memory catalog from %s: %s", *catalogDirectory, err.Error())
+		log.Fatalf("Error loading in memory catalog from %s: %s", catalogDirectory, err.Error())
 	}
 
-	alphaCatalogClient, err := client.NewAlphaCatalogEntryClient(*kubeConfigPath)
+	alphaCatalogClient, err := client.NewAlphaCatalogEntryClient(kubeConfigPath)
 	if err != nil {
 		log.Fatalf("Couldn't create alpha catalog entry client: %s", err.Error())
 	}
@@ -41,11 +67,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("couldn't sync entries from catalog to AlphaCatalogEntries in cluster: %s", err.Error())
 	}
-	for _, entry := range entries {
-		if entry != nil {
-			log.Infof("created AlphaCatalogEntry: %s", entry.Name)
-		}
-	}
+	log.Infof("created %d AlphaCatalogEntry resources", len(entries))
 
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +76,8 @@ func main() {
 	go http.ListenAndServe(":8080", nil)
 
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, []source.Source{inMemoryCatalog}, strings.Split(*watchedNamespaces, ",")...)
+	catalogOperator, err := catalog.NewOperator(kubeConfigPath, wakeupInterval,
+		[]source.Source{inMemoryCatalog}, strings.Split(watchedNamespaces, ",")...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
