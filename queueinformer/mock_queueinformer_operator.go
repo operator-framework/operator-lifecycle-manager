@@ -1,9 +1,28 @@
 package queueinformer
 
 import (
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/watch"
+
+	opClient "github.com/coreos-inc/operator-client/pkg/client"
 )
+
+// MockListWatcher mocks k8s.io/client-go/tools/cache.ListerWatcher.
+//
+// This is type is useful for mocking Informers.
+type MockListWatcher struct{}
+
+// List always returns (nil, nil).
+func (l *MockListWatcher) List(options metav1.ListOptions) (runtime.Object, error) {
+	return nil, nil
+}
+
+// Watch always returns (nil, nil).
+func (l *MockListWatcher) Watch(options metav1.ListOptions) (watch.Interface, error) {
+	return nil, nil
+}
 
 // MockOperator uses TestQueueinformers and a Mock operator client
 type MockOperator struct {

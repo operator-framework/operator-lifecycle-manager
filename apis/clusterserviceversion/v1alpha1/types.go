@@ -150,6 +150,17 @@ type ClusterServiceVersionCondition struct {
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
+// OwnsCRD determines whether the current CSV owns a paritcular CRD.
+func (csv ClusterServiceVersion) OwnsCRD(name string) bool {
+	for _, crdDescription := range csv.Spec.CustomResourceDefinitions.Owned {
+		if crdDescription.Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
 type RequirementStatus struct {
 	Group   string `json:"group"`
 	Version string `json:"version"`
