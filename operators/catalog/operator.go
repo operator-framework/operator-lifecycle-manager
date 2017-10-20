@@ -19,7 +19,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
-	v1alpha1csv "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/catalog"
 	"github.com/coreos-inc/alm/client"
@@ -185,7 +184,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 
 	crdSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
 	scheme := runtime.NewScheme()
-	if err := v1alpha1csv.AddToScheme(scheme); err != nil {
+	if err := csvv1alpha1.AddToScheme(scheme); err != nil {
 		return err
 	}
 	csvSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, true)
@@ -215,7 +214,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 
 			log.Info("found crd: %v", crd)
 
-			if csvOwnsCRD(*csv, crd.Name) {
+			if csv.OwnsCRD(crd.Name) {
 				log.Infof("crd is owned: %s", crd.Name)
 
 				var manifest bytes.Buffer
@@ -276,15 +275,6 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 	log.Infof("finished install plan resolution")
 	installPlan.Status.Plan = steps
 	return nil
-}
-
-func csvOwnsCRD(csv v1alpha1csv.ClusterServiceVersion, crdName string) bool {
-	for _, crdDescription := range csv.Spec.CustomResourceDefinitions.Owned {
-		if crdDescription.Name == crdName {
-			return true
-		}
-	}
-	return false
 }
 
 // ExecutePlan applies a planned InstallPlan to a namespace.
