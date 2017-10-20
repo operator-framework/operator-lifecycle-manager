@@ -83,7 +83,10 @@ spec:
             serviceAccountName: etcd-operator
             containers:
             - name: etcd-operator
-              image: quay.io/coreos/etcd-operator:v0.6.0
+              command:
+              - etcd-operator
+              - --create-crd=false
+              image: quay.io/coreos/etcd-operator:dev
               env:
               - name: MY_POD_NAMESPACE
                 valueFrom:

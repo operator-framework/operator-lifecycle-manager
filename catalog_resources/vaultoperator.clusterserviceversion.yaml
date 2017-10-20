@@ -50,7 +50,7 @@ spec:
           spec:
             containers:
             - name: vault-operator
-              image: quay.io/coreos/vault-operator:0.1.2
+              image: quay.io/coreos/vault-operator:dev
               env:
               - name: MY_POD_NAMESPACE
                 valueFrom:
