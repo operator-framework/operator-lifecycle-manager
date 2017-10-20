@@ -204,7 +204,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 		}
 
 		log.Debugf("resolving CRDs for CSV: %v", csv)
-		for _, crdDescription := range csv.Spec.CustomResourceDefinitions.GetAllCrds() {
+		for _, crdDescription := range csv.GetAllCRDDescriptions() {
 			log.Debugf("resolving crd: %v", crdDescription)
 
 			crd, err := source.FindCRDByName(crdDescription.Name)

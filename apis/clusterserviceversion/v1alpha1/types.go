@@ -213,20 +213,24 @@ type ClusterServiceVersionList struct {
 	Items []ClusterServiceVersion `json:"items"`
 }
 
-func (crd CustomResourceDefinitions) GetAllCrds() []CRDDescription {
-	setOfCrds := map[string]CRDDescription{}
-	for _, requiredCrd := range crd.Required {
-		setOfCrds[requiredCrd.Name] = requiredCrd
+// GetAllCRDDescriptions returns a deduplicated set of CRDDescriptions that is
+// the union of the owned and required CRDDescriptions.
+//
+// Descriptions with the same name prefer the value in Owned.
+func (csv ClusterServiceVersion) GetAllCRDDescriptions() []CRDDescription {
+	set := make(map[string]CRDDescription)
+	for _, required := range csv.Spec.CustomResourceDefinitions.Required {
+		set[required.Name] = required
 	}
 
-	for _, ownedCrd := range crd.Owned {
-		setOfCrds[ownedCrd.Name] = ownedCrd
+	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
+		set[owned.Name] = owned
 	}
 
-	allCrds := []CRDDescription{}
-	for _, value := range setOfCrds {
-		allCrds = append(allCrds, value)
+	slice := make([]CRDDescription, 0)
+	for _, description := range set {
+		slice = append(slice, description)
 	}
 
-	return allCrds
+	return slice
 }

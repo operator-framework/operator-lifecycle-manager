@@ -6,18 +6,58 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestGetAllCrds(t *testing.T) {
-	crd := CustomResourceDefinitions{
-		Owned:    []CRDDescription{{Name: "first"}, {Name: "second"}, {Name: "second"}, {Name: "second"}},
-		Required: []CRDDescription{{Name: "third"}, {Name: "second"}},
+func TestGetAllCRDDescriptions(t *testing.T) {
+	var table = []struct {
+		owned    []string
+		required []string
+		expected []string
+	}{
+		{nil, nil, nil},
+		{[]string{}, []string{}, []string{}},
+		{[]string{"owned"}, []string{}, []string{"owned"}},
+		{[]string{}, []string{"required"}, []string{"required"}},
+		{[]string{"owned"}, []string{"required"}, []string{"required", "owned"}},
+		{[]string{"first", "second"}, []string{"first", "second"}, []string{"first", "second"}},
 	}
 
-	allCrds := crd.GetAllCrds()
-	require.NotNil(t, allCrds)
-	require.Equal(t, 3, len(allCrds))
-	require.Contains(t, allCrds, CRDDescription{Name: "first"})
-	require.Contains(t, allCrds, CRDDescription{Name: "second"})
-	require.Contains(t, allCrds, CRDDescription{Name: "third"})
+	for _, tt := range table {
+		// Build a list of owned CRDDescription used in the CSV.
+		ownedDescriptions := make([]CRDDescription, 0)
+		for _, crdName := range tt.owned {
+			ownedDescriptions = append(ownedDescriptions, CRDDescription{
+				Name: crdName,
+			})
+		}
+
+		// Build a list of owned CRDDescription used in the CSV.
+		requiredDescriptions := make([]CRDDescription, 0)
+		for _, crdName := range tt.required {
+			requiredDescriptions = append(requiredDescriptions, CRDDescription{
+				Name: crdName,
+			})
+		}
+
+		// Build a list of expected CRDDescriptions.
+		expectedDescriptions := make([]CRDDescription, 0)
+		for _, expectedName := range tt.expected {
+			expectedDescriptions = append(expectedDescriptions, CRDDescription{
+				Name: expectedName,
+			})
+		}
+
+		// Create a blank CSV with the owned descriptions.
+		csv := ClusterServiceVersion{
+			Spec: ClusterServiceVersionSpec{
+				CustomResourceDefinitions: CustomResourceDefinitions{
+					Owned:    ownedDescriptions,
+					Required: requiredDescriptions,
+				},
+			},
+		}
+
+		// Call GetAllCRDDescriptions and ensure the result is as expected.
+		require.Equal(t, expectedDescriptions, csv.GetAllCRDDescriptions())
+	}
 }
 
 func TestOwnsCRD(t *testing.T) {
