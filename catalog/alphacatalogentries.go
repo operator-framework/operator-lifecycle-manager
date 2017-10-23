@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
@@ -49,24 +50,32 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.Alpha
 		StartTime: metav1.Now(),
 		Status:    "syncing",
 	}
+	log.Debug("Catalog Sync       -- BEGIN")
 	entries := []*v1alpha1.AlphaCatalogEntry{}
 	csvs, err := catalog.ListServices()
 	if err != nil {
 		status.EndTime = metav1.Now()
 		status.Errors = []error{fmt.Errorf("catalog ListServices error: %v", err)}
 		status.Status = "error"
+		log.Debugf("Catalog Sync -- ERROR %v", status.Errors)
 		return entries, status
 	}
 	status.ServicesFound = len(csvs)
-	for _, csv := range csvs {
+	for i, csv := range csvs {
+		log.Debugf("Catalog Sync [%2d/%d] -- BEGIN store service %s v%s -- ", i+1, len(csvs),
+			csv.GetName(), csv.Spec.Version)
 		resource, err := store.Store(&csv)
 		if err != nil {
 			status.Errors = append(status.Errors, fmt.Errorf("error storing service %s v%s: %v",
 				csv.GetName(), csv.Spec.Version, err))
+			log.Debugf("Catalog Sync [%2d/%d] -- ERROR storing service %s -- %s", i+1, len(csvs),
+				csv.GetName(), err)
 			status.ServicesFailed = status.ServicesFailed + 1
 			continue
 		}
 		status.ServicesSynced = status.ServicesSynced + 1
+		log.Debugf("Catalog Sync [%2d/%d] -- OK    storing service %s v%s", i+1, len(csvs),
+			csv.GetName(), csv.Spec.Version)
 		entries = append(entries, resource)
 	}
 	status.EndTime = metav1.Now()
@@ -75,5 +84,7 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.Alpha
 		status.Status = "success"
 		store.LastSuccessfulSync = status
 	}
+	log.Debugf("Catalog Sync -- END %d/%d services synced",
+		status.ServicesSynced, status.ServicesFound)
 	return entries, nil
 }
