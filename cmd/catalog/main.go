@@ -39,8 +39,13 @@ func main() {
 	catalogDirectory := flag.String(
 		"directory", defaultCatalogDirectory, "path to directory with resources to load into the in-memory catalog")
 
+	debug := flag.Bool(
+		"debug", false, "use debug log level")
 	flag.Parse()
-	log.SetLevel(log.DebugLevel)
+
+	if *debug {
+		log.SetLevel(log.DebugLevel)
+	}
 	inMemoryCatalog, err := source.NewInMemoryFromDirectory(*catalogDirectory)
 	if err != nil {
 		log.Fatalf("Error loading in memory catalog from %s: %s", *catalogDirectory, err.Error())
