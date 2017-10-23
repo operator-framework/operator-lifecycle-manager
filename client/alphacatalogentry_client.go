@@ -57,22 +57,27 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*
 		Name(in.Name).
 		Do().
 		Into(result)
-	if err != nil {
-		if !k8serrors.IsAlreadyExists(err) {
-			return nil, errors.New("failed to create AlphaCatalogEntry: " + err.Error())
-		}
 
-		err = c.RESTClient.Patch(types.JSONPatchType).Context(context.TODO()).
-			Namespace(in.Namespace).
-			Resource(v1alpha1.AlphaCatalogEntryCRDName).
-			Name(in.Name).
-			Body(in).
-			Do().
-			Into(result)
-		if err != nil {
-			return nil, errors.New("failed to update AlphaCatalogEntry: " + err.Error())
-		}
+	if err == nil {
+		return result, nil
 	}
+
+	if !k8serrors.IsAlreadyExists(err) {
+		return nil, errors.New("failed to create or update AlphaCatalogEntry: " + err.Error())
+	}
+
+	err = c.RESTClient.Patch(types.JSONPatchType).Context(context.TODO()).
+		Namespace(in.Namespace).
+		Resource(v1alpha1.AlphaCatalogEntryCRDName).
+		Name(in.Name).
+		Body(in).
+		Do().
+		Into(result)
+
+	if err != nil {
+		return nil, errors.New("failed to update AlphaCatalogEntry: " + err.Error())
+	}
+
 	return result, nil
 }
 
