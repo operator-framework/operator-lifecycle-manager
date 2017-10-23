@@ -38,8 +38,8 @@ func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVe
 	return store.Client.UpdateEntry(resource)
 }
 
-func (c *CatalogSync) Error() string {
-	return fmt.Errorf("catalog sync failed: %d/%d services synced, %d/%d failures -- %v",
+func (c CatalogSync) Error() string {
+	return fmt.Sprintf("catalog sync failed: %d/%d services synced, %d/%d failures -- %v",
 		c.ServicesFound, c.ServicesSynced, c.ServicesFailed, c.ServicesFound, c.Errors)
 }
 
@@ -70,6 +70,10 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.Alpha
 		entries = append(entries, resource)
 	}
 	status.EndTime = metav1.Now()
-	store.syncedTime = metav1.Now()
+	store.LastAttemptedSync = status
+	if status.Status != "error" {
+		status.Status = "success"
+		store.LastSuccessfulSync = status
+	}
 	return entries, nil
 }
