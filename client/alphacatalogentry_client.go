@@ -3,11 +3,12 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 
+	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
@@ -50,23 +51,33 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 }
 
 func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*v1alpha1.AlphaCatalogEntry, error) {
+	log.Debugf("UpdateEntry -- BEGIN %s", in.Name)
 	result := &v1alpha1.AlphaCatalogEntry{}
+
 	err := c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
 		Name(in.Name).
+		Body(in).
 		Do().
 		Into(result)
 
 	if err == nil {
+		log.Debugf("UpdateEntry -- OK    %s -- created entry", in.Name)
 		return result, nil
 	}
 
 	if !k8serrors.IsAlreadyExists(err) {
-		return nil, errors.New("failed to create or update AlphaCatalogEntry: " + err.Error())
+		log.Errorf("UpdateEntry -- ERROR %s -- error attempting to create entry: %s", in.Name, err)
+		return nil, fmt.Errorf("failed to create or update AlphaCatalogEntry: %s", err)
 	}
-
-	err = c.RESTClient.Patch(types.JSONPatchType).Context(context.TODO()).
+	curr, err := c.getEntry(in.Namespace, in.Name)
+	if err != nil {
+		log.Errorf("UpdateEntry -- ERROR %s -- error fetching current entry: %s", in.Name, err)
+		return nil, fmt.Errorf("failed to find then update AlphaCatalogEntry: %s", err)
+	}
+	in.SetResourceVersion(curr.GetResourceVersion())
+	err = c.RESTClient.Put().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
 		Name(in.Name).
@@ -75,9 +86,11 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*
 		Into(result)
 
 	if err != nil {
+		log.Errorf("UpdateEntry -- ERROR %s -- error attempting to update entry: %s", in.Name, err)
 		return nil, errors.New("failed to update AlphaCatalogEntry: " + err.Error())
 	}
 
+	log.Debugf("UpdateEntry -- OK    %s -- updated exisiting entry", in.Name)
 	return result, nil
 }
 
