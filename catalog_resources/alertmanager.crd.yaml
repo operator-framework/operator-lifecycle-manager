@@ -2,10 +2,6 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   name: alertmanagers.monitoring.alm.coreos.com
-  labels:
-    alm-status-descriptors: prometheusoperator.0.14.0
-    alm-owner-prometheus: prometheusoperator.0.14.0
-    operated-by: prometheusoperator.0.14.0
 spec:
   group: monitoring.alm.coreos.com
   version: v1

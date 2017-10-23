@@ -196,33 +196,33 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 		name := names[0]
 		names = names[1:]
 
-		log.Infof("resolving %s", name)
+		log.Debugf("resolving %s", name)
 
 		csv, err := source.FindLatestCSVByServiceName(name)
 		if err != nil {
 			return err
 		}
 
-		log.Info("resolving CRDs for CSV: %v", csv)
+		log.Debugf("resolving CRDs for CSV: %v", csv)
 		for _, crdDescription := range csv.Spec.CustomResourceDefinitions.GetAllCrds() {
-			log.Info("resolving crd: %v", crdDescription)
+			log.Debugf("resolving crd: %v", crdDescription)
 
 			crd, err := source.FindCRDByName(crdDescription.Name)
 			if err != nil {
 				return err
 			}
 
-			log.Info("found crd: %v", crd)
+			log.Debugf("found crd: %v", crd)
 
 			if csv.OwnsCRD(crd.Name) {
-				log.Infof("crd is owned: %s", crd.Name)
+				log.Debugf("crd is owned: %s", crd.Name)
 
 				var manifest bytes.Buffer
 				if err := crdSerializer.Encode(crd, &manifest); err != nil {
 					return err
 				}
 
-				log.Infof("encoded crd as manifest: %s", manifest.String())
+				log.Debugf("encoded crd as manifest: %s", manifest.String())
 				step := v1alpha1.Step{
 					Resolving: name,
 					Resource: v1alpha1.StepResource{
@@ -235,15 +235,15 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 					Status: v1alpha1.StepStatusUnknown,
 				}
 
-				log.Infof("finished step: %v", step)
+				log.Debugf("finished step: %v", step)
 				steps = append(steps, step)
 			} else {
-				log.Infof("crd is not owned: %s", crd.Name)
+				log.Debugf("crd is not owned: %s", crd.Name)
 				csvForCRD, err := source.FindLatestCSVForCRD(crdDescription.Name)
 				if err != nil {
 					return err
 				}
-				log.Infof("found csv for crd: %s", csv.Name)
+				log.Debugf("found csv for crd: %s", csv.Name)
 				names = append(names, csvForCRD.Name)
 			}
 
@@ -255,7 +255,7 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 			return err
 		}
 
-		log.Infof("encoded crd as manifest: %s", manifestCSV.String())
+		log.Debugf("encoded crd as manifest: %s", manifestCSV.String())
 
 		stepCSV := v1alpha1.Step{
 			Resolving: name,
@@ -268,11 +268,10 @@ func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) 
 			},
 			Status: v1alpha1.StepStatusUnknown,
 		}
-		log.Infof("finished step: %v", stepCSV)
+		log.Debugf("finished step: %v", stepCSV)
 		steps = append(steps, stepCSV)
 	}
-
-	log.Infof("finished install plan resolution")
+	log.Debugf("finished install plan resolution")
 	installPlan.Status.Plan = steps
 	return nil
 }
@@ -289,7 +288,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			continue
 
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			log.Infof("resource kind: %s", step.Resource.Kind)
+			log.Debugf("resource kind: %s", step.Resource.Kind)
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.
