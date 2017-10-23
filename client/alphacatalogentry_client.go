@@ -2,12 +2,12 @@ package client
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
-	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
@@ -49,20 +49,44 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 	return &AlphaCatalogEntryClient{restClient}, nil
 }
 
-func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (result *v1alpha1.AlphaCatalogEntry, err error) {
-	result = &v1alpha1.AlphaCatalogEntry{}
-	err = c.RESTClient.Post().Context(context.TODO()).
+func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*v1alpha1.AlphaCatalogEntry, error) {
+	result := &v1alpha1.AlphaCatalogEntry{}
+	err := c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
 		Resource(v1alpha1.AlphaCatalogEntryCRDName).
 		Name(in.Name).
-		Body(in).
 		Do().
 		Into(result)
-	if k8serrors.IsAlreadyExists(err) {
-		log.Infof("AlphaCatalogEntry %s already exists", in.Name)
-		err = nil
-	} else {
-		err = fmt.Errorf("error creating alphacatalogentries: %s", err.Error())
+	if err != nil {
+		if !k8serrors.IsAlreadyExists(err) {
+			return nil, errors.New("failed to create AlphaCatalogEntry: " + err.Error())
+		}
+
+		err = c.RESTClient.Patch(types.JSONPatchType).Context(context.TODO()).
+			Namespace(in.Namespace).
+			Resource(v1alpha1.AlphaCatalogEntryCRDName).
+			Name(in.Name).
+			Body(in).
+			Do().
+			Into(result)
+		if err != nil {
+			return nil, errors.New("failed to update AlphaCatalogEntry: " + err.Error())
+		}
 	}
-	return
+	return result, nil
+}
+
+func (c *AlphaCatalogEntryClient) getEntry(namespace, serviceName string) (*v1alpha1.AlphaCatalogEntry, error) {
+	result := &v1alpha1.AlphaCatalogEntry{}
+	err := c.RESTClient.Get().Context(context.TODO()).
+		Namespace(namespace).
+		Resource(v1alpha1.AlphaCatalogEntryCRDName).
+		Name(serviceName).
+		Do().
+		Into(result)
+	if err != nil {
+		return nil, errors.New("failed to update CR status: " + err.Error())
+	}
+	return result, nil
+
 }

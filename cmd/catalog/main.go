@@ -61,7 +61,7 @@ func main() {
 	}
 	catalogStore := source.CustomResourceCatalogStore{
 		Client:    alphaCatalogClient,
-		Namespace: *namespace,
+		Namespace: catalogNamespace,
 	}
 	entries, err := catalogStore.Sync(inMemoryCatalog)
 	if err != nil {
