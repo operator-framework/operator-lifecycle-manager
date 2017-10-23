@@ -21,7 +21,7 @@ If not using minikube, you will need a Tectonic cluster >= 1.7
   * `quay.io/coreos/etcd-operator`
 
 ```bash
-kubectl apply ./alm_resources
+kubectl apply -f ./alm_resources
 ```
 
 ## Install a service manually
