@@ -34,6 +34,10 @@ func (e *EntryMatcher) String() string {
 	return "matches expected entry"
 }
 
+func MatchesService(service csvv1alpha1.ClusterServiceVersion) gomock.Matcher {
+	return &EntryMatcher{v1alpha1.AlphaCatalogEntry{Spec: &v1alpha1.AlphaCatalogEntrySpec{ClusterServiceVersionSpec: service.Spec}}}
+}
+
 func TestCustomCatalogStore(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
@@ -87,4 +91,72 @@ func TestCustomCatalogStore(t *testing.T) {
 	actualEntry, err := store.Store(&csv)
 	assert.Equal(t, returnErr, err)
 	compareResources(t, &returnEntry, actualEntry)
+}
+
+func TestCustomResourceCatalogStoreSync(t *testing.T) {
+
+	ctrl := gomock.NewController(t)
+	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
+	defer ctrl.Finish()
+
+	store := CustomResourceCatalogStore{Client: mockClient, Namespace: "alm-coreos-tests"}
+	src := NewInMem()
+
+	testCSVNameA := "MockServiceNameA-v1"
+	testCSVVersionA1 := "0.2.4+alpha"
+
+	testCSVNameB := "MockServiceNameB-v1"
+	testCSVVersionB1 := "1.0.1"
+	testCSVVersionB2 := "2.1.4"
+
+	testCSVA1 := createCSV(testCSVNameA, testCSVVersionA1, "", []string{})
+	testCSVB1 := createCSV(testCSVNameB, testCSVVersionB1, "", []string{})
+	testCSVB2 := createCSV(testCSVNameB, testCSVVersionB2, "", []string{})
+	src.AddOrReplaceService(testCSVA1)
+	src.AddOrReplaceService(testCSVB1)
+	src.AddOrReplaceService(testCSVB2)
+
+	storeResults := []struct {
+		ResultA1 *v1alpha1.AlphaCatalogEntry
+		ErrorA1  error
+
+		ResultB1 *v1alpha1.AlphaCatalogEntry
+		ErrorB1  error
+
+		ResultB2 *v1alpha1.AlphaCatalogEntry
+		ErrorB2  error
+
+		ExpectedStatus         string
+		ExpectedServicesSynced int
+	}{
+		{
+			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
+			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			"success", 3,
+		},
+		{
+			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
+			nil, errors.New("test error"),
+			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			"error", 2,
+		},
+		{
+			nil, errors.New("test error1"),
+			nil, errors.New("test error2"),
+			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			"error", 1,
+		},
+	}
+
+	for _, res := range storeResults {
+		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVA1)).Return(res.ResultA1, res.ErrorA1)
+		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVB1)).Return(res.ResultB1, res.ErrorB1)
+		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVB2)).Return(res.ResultB2, res.ErrorB2)
+		entries, err := store.Sync(src)
+		assert.Equal(t, res.ExpectedServicesSynced, len(entries))
+		assert.Equal(t, res.ExpectedStatus, store.LastAttemptedSync.Status)
+		assert.NoError(t, err)
+	}
+
 }
