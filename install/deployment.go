@@ -39,11 +39,22 @@ func (d *StrategyDetailsDeployment) Install(
 	owner metav1.ObjectMeta,
 	ownerType metav1.TypeMeta,
 ) error {
+	ownerReferences := []metav1.OwnerReference{
+		{
+			APIVersion:         apis.GroupName,
+			Kind:               v1alpha1.ClusterServiceVersionKind,
+			Name:               owner.GetName(),
+			UID:                owner.UID,
+			Controller:         &Controller,
+			BlockOwnerDeletion: &BlockOwnerDeletion,
+		},
+	}
 	for _, permission := range d.Permissions {
 		// create role
 		role := &rbac.Role{
 			Rules: permission.Rules,
 		}
+		role.SetOwnerReferences(ownerReferences)
 		role.SetGenerateName(fmt.Sprintf("%s-role-", owner.Name))
 		createdRole, err := client.KubernetesInterface().RbacV1beta1().Roles(owner.Namespace).Create(role)
 		if err != nil {
@@ -52,6 +63,7 @@ func (d *StrategyDetailsDeployment) Install(
 
 		// create serviceaccount if necessary
 		serviceAccount := &v1.ServiceAccount{}
+		serviceAccount.SetOwnerReferences(ownerReferences)
 		serviceAccount.SetName(permission.ServiceAccountName)
 		serviceAccount, err = client.KubernetesInterface().CoreV1().ServiceAccounts(owner.Namespace).Create(serviceAccount)
 		if err != nil && !errors.IsAlreadyExists(err) {
@@ -70,6 +82,7 @@ func (d *StrategyDetailsDeployment) Install(
 				Namespace: owner.Namespace,
 			}},
 		}
+		roleBinding.SetOwnerReferences(ownerReferences)
 		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
 
 		if _, err = client.KubernetesInterface().RbacV1beta1().RoleBindings(owner.Namespace).Create(roleBinding); err != nil {
@@ -78,16 +91,6 @@ func (d *StrategyDetailsDeployment) Install(
 	}
 
 	for _, spec := range d.DeploymentSpecs {
-		ownerReferences := []metav1.OwnerReference{
-			{
-				APIVersion:         apis.GroupName,
-				Kind:               v1alpha1.ClusterServiceVersionKind,
-				Name:               owner.GetName(),
-				UID:                owner.UID,
-				Controller:         &Controller,
-				BlockOwnerDeletion: &BlockOwnerDeletion,
-			},
-		}
 		dep := v1beta1.Deployment{Spec: spec}
 		dep.SetNamespace(owner.Namespace)
 		dep.SetOwnerReferences(ownerReferences)
