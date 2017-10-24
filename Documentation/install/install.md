@@ -40,15 +40,15 @@ metadata:
   name: etcd-installplan
 spec:
   clusterServiceVersionNames:
-  - etcdoperator.v0.6.0
+  - etcdoperator.v0.6.1
   approval: Automatic
 ```
 
 Current valid clusterServiceVersionNames:
 
- * etcdoperator.v0.6.0
+ * etcdoperator.v0.6.1
  * prometheusoperator.0.14.0
- * vault-operator.0.1.2
+ * vault-operator.0.1.3
  
 ## View OCS Dashboards
 
