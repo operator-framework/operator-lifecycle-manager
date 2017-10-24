@@ -3,13 +3,13 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  name: etcdoperator.v0.6.0
+  name: etcdoperator.v0.6.1
   namespace: placeholder
 spec:
   displayName: Etcd
   description: Etcd is a distributed key value store that provides a reliable way to store data across a cluster of machines. It’s open-source and available on GitHub. etcd gracefully handles leader elections during network partitions and will tolerate machine failure, including the leader. Your applications can read and write data into etcd. A simple use-case is to store database connection details or feature flags in etcd as key value pairs. These values can be watched, allowing your app to reconfigure itself when they change. Advanced uses take advantage of the consistency guarantees to implement database leader elections or do distributed locking across a cluster of workers.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-  version: 0.6.0
+  version: 0.6.1
   maturity: beta
   maintainers:
   - name: Xiang Li
@@ -19,7 +19,7 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-status-descriptors: etcdoperator.v0.6.0
+    alm-status-descriptors: etcdoperator.v0.6.1
     alm-owner-etcd: etcdoperator
     operated-by: etcdoperator
   selector:
@@ -86,7 +86,7 @@ spec:
               command:
               - etcd-operator
               - --create-crd=false
-              image: quay.io/coreos/etcd-operator:dev
+              image: quay.io/coreos/etcd-operator:sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
               env:
               - name: MY_POD_NAMESPACE
                 valueFrom:
