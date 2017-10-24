@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/coreos-inc/operator-client/pkg/client"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
@@ -108,6 +109,18 @@ func (d *StrategyDetailsDeployment) Install(
 }
 
 func (d *StrategyDetailsDeployment) CheckInstalled(client client.Interface, owner metav1.ObjectMeta) (bool, error) {
+	// check service accounts
+	for _, perm := range d.Permissions {
+		_, err := client.KubernetesInterface().CoreV1().ServiceAccounts(owner.Namespace).Get(perm.ServiceAccountName, metav1.GetOptions{})
+		if errors.IsAlreadyExists(err) {
+			continue
+		}
+		if err != nil {
+			log.Debugf("serviceaccount % not found", perm.ServiceAccountName)
+			return false, nil
+		}
+	}
+
 	existingDeployments, err := client.ListDeploymentsWithLabels(
 		owner.Namespace,
 		map[string]string{
@@ -122,5 +135,6 @@ func (d *StrategyDetailsDeployment) CheckInstalled(client client.Interface, owne
 	if len(existingDeployments.Items) == len(d.DeploymentSpecs) {
 		return true, nil
 	}
+	log.Debugf("wrong number of deployments found. want %d, got %d", len(d.DeploymentSpecs), len(existingDeployments.Items))
 	return false, nil
 }

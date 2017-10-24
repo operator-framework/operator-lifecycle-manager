@@ -129,6 +129,7 @@ const (
 	CSVReasonComponentFailed     ConditionReason = "InstallComponentFailed"
 	CSVReasonInstallSuccessful   ConditionReason = "InstallSucceeded"
 	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
+	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
