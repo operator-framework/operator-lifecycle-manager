@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,12 +9,9 @@ import (
 	"github.com/coreos-inc/alm/queueinformer"
 	log "github.com/sirupsen/logrus"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
-	"k8s.io/apimachinery/pkg/runtime"
-	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/client-go/tools/cache"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
@@ -178,101 +174,125 @@ func (o *Operator) CreatePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-func createInstallPlan(source catlib.Source, installPlan *v1alpha1.InstallPlan) error {
-	steps := installPlan.Status.Plan
-	names := installPlan.Spec.ClusterServiceVersionNames
+func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source catlib.Source, owned bool) (v1alpha1.StepResource, string, error) {
+	log.Debugf("resolving %#v", crdDesc)
 
-	crdSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
-	scheme := runtime.NewScheme()
-	if err := csvv1alpha1.AddToScheme(scheme); err != nil {
-		return err
+	crd, err := source.FindCRDByName(crdDesc.Name)
+	if err != nil {
+		return v1alpha1.StepResource{}, "", err
 	}
-	csvSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, true)
+	log.Debugf("found %#v", crd)
 
-	log.Info("resolving names")
+	if owned {
+		step, err := v1alpha1.NewStepResourceFromCRD(crd)
+		return step, "", err
+	}
 
-	for len(names) > 0 {
-		// looping here like this because we are adding names to the list from dependencies
-		name := names[0]
-		names = names[1:]
+	csv, err := source.FindLatestCSVForCRD(crdDesc.Name)
+	if err != nil {
+		return v1alpha1.StepResource{}, "", err
+	}
+	log.Infof("found %s owner %s", crd.Name, csv.Name)
 
-		log.Debugf("resolving %s", name)
+	return v1alpha1.StepResource{}, csv.Name, nil
+}
 
-		csv, err := source.FindLatestCSVByServiceName(name)
+type stepResourceMap map[string][]v1alpha1.StepResource
+
+func (srm stepResourceMap) Plan() []v1alpha1.Step {
+	steps := make([]v1alpha1.Step, 0)
+	for csvName, stepResSlice := range srm {
+		for _, stepRes := range stepResSlice {
+			steps = append(steps, v1alpha1.Step{
+				Resolving: csvName,
+				Resource:  stepRes,
+				Status:    v1alpha1.StepStatusUnknown,
+			})
+		}
+	}
+
+	return steps
+}
+
+func (srm stepResourceMap) Combine(y stepResourceMap) {
+	for csvName, stepResSlice := range y {
+		// Skip any redundant steps.
+		if _, alreadyExists := srm[csvName]; alreadyExists {
+			continue
+		}
+
+		srm[csvName] = stepResSlice
+	}
+}
+
+func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMap, error) {
+	log.Debugf("resolving CSV with name: %s", csvName)
+
+	steps := make(stepResourceMap)
+	csvNamesToBeResolved := []string{csvName}
+
+	for len(csvNamesToBeResolved) != 0 {
+		// Pop off a CSV name.
+		currentName := csvNamesToBeResolved[0]
+		csvNamesToBeResolved = csvNamesToBeResolved[1:]
+
+		// If this CSV is already resolved, continue.
+		if _, exists := steps[currentName]; exists {
+			continue
+		}
+
+		// Get the full CSV object for the name.
+		csv, err := source.FindLatestCSVByServiceName(currentName)
+		if err != nil {
+			return nil, err
+		}
+		log.Debugf("found %#v", csv)
+
+		// Resolve each owned or required CRD for the CSV.
+		for _, crdDesc := range csv.GetAllCRDDescriptions() {
+			step, owner, err := resolveCRDDescription(crdDesc, source, csv.OwnsCRD(crdDesc.Name))
+			if err != nil {
+				return nil, err
+			}
+
+			// If a different owner was resolved, add it to the list.
+			if owner != "" && owner != currentName {
+				csvNamesToBeResolved = append(csvNamesToBeResolved, owner)
+				continue
+			}
+
+			// Add the resolved step to the plan.
+			steps[currentName] = append(steps[currentName], step)
+		}
+
+		// Manually override the namespace and create the final step for the CSV,
+		// which is for the CSV itself.
+		csv.SetNamespace(namespace)
+		step, err := v1alpha1.NewStepResourceFromCSV(csv)
+		if err != nil {
+			return nil, err
+		}
+
+		// Add the final step for the CSV to the plan.
+		log.Infof("finished step: %v", step)
+		steps[currentName] = append(steps[currentName], step)
+	}
+
+	return steps, nil
+}
+
+func createInstallPlan(source catlib.Source, plan *v1alpha1.InstallPlan) error {
+	srm := make(stepResourceMap)
+	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
+		csvSRM, err := resolveCSV(csvName, plan.Namespace, source)
 		if err != nil {
 			return err
 		}
 
-		log.Debugf("resolving CRDs for CSV: %v", csv)
-		for _, crdDescription := range csv.GetAllCRDDescriptions() {
-			log.Debugf("resolving crd: %v", crdDescription)
-
-			crd, err := source.FindCRDByName(crdDescription.Name)
-			if err != nil {
-				return err
-			}
-
-			log.Debugf("found crd: %v", crd)
-
-			if csv.OwnsCRD(crd.Name) {
-				log.Debugf("crd is owned: %s", crd.Name)
-
-				var manifest bytes.Buffer
-				if err := crdSerializer.Encode(crd, &manifest); err != nil {
-					return err
-				}
-
-				log.Debugf("encoded crd as manifest: %s", manifest.String())
-				step := v1alpha1.Step{
-					Resolving: name,
-					Resource: v1alpha1.StepResource{
-						Group:    crd.Spec.Group,
-						Version:  crd.Spec.Version,
-						Kind:     crd.Kind,
-						Name:     crd.Name,
-						Manifest: manifest.String(),
-					},
-					Status: v1alpha1.StepStatusUnknown,
-				}
-
-				log.Debugf("finished step: %v", step)
-				steps = append(steps, step)
-			} else {
-				log.Debugf("crd is not owned: %s", crd.Name)
-				csvForCRD, err := source.FindLatestCSVForCRD(crdDescription.Name)
-				if err != nil {
-					return err
-				}
-				log.Debugf("found csv for crd: %s", csv.Name)
-				names = append(names, csvForCRD.Name)
-			}
-
-		}
-
-		csv.SetNamespace(installPlan.Namespace)
-		var manifestCSV bytes.Buffer
-		if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
-			return err
-		}
-
-		log.Debugf("encoded crd as manifest: %s", manifestCSV.String())
-
-		stepCSV := v1alpha1.Step{
-			Resolving: name,
-			Resource: v1alpha1.StepResource{
-				Group:    csv.GroupVersionKind().Group,
-				Version:  csv.GroupVersionKind().Group,
-				Kind:     csv.Kind,
-				Name:     csv.Name,
-				Manifest: manifestCSV.String(),
-			},
-			Status: v1alpha1.StepStatusUnknown,
-		}
-		log.Debugf("finished step: %v", stepCSV)
-		steps = append(steps, stepCSV)
+		srm.Combine(csvSRM)
 	}
-	log.Debugf("finished install plan resolution")
-	installPlan.Status.Plan = steps
+
+	plan.Status.Plan = srm.Plan()
 	return nil
 }
 

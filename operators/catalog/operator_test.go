@@ -8,8 +8,9 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1alpha1csv "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
+	catlib "github.com/coreos-inc/alm/catalog"
 )
 
 type mockTransitioner struct {
@@ -56,79 +57,95 @@ func TestTransitionInstallPlan(t *testing.T) {
 }
 
 func TestCreateInstallPlan(t *testing.T) {
-	installPlan := &v1alpha1.InstallPlan{
-		Status: v1alpha1.InstallPlanStatus{Plan: []v1alpha1.Step{}},
-		Spec:   v1alpha1.InstallPlanSpec{},
+	var table = []struct {
+		plan            v1alpha1.InstallPlan
+		source          catlib.Source
+		expectedErr     error
+		expectedPlanLen int
+	}{
+		{installPlan("error"), TestSource{findCSVErr: errors.New("")}, errors.New(""), 0},
+		{installPlan("name"), TestSource{csv: csv("", "", []string{"error"}, nil), findCRDErr: errors.New("")}, errors.New(""), 0},
+		{installPlan("name"), TestSource{csv: csv("", "", []string{"crdName"}, nil)}, nil, 2},
 	}
-	installPlan.Spec.ClusterServiceVersionNames = []string{"error"}
-	testSource := TestSource{}
-	err := createInstallPlan(testSource, installPlan)
-	require.Error(t, err)
 
-	installPlan.Spec.ClusterServiceVersionNames = []string{"name"}
-	testSource.csv = &v1alpha1csv.ClusterServiceVersion{
-		Spec: v1alpha1csv.ClusterServiceVersionSpec{
-			CustomResourceDefinitions: v1alpha1csv.CustomResourceDefinitions{
-				Required: []v1alpha1csv.CRDDescription{{Name: "error"}}},
+	for _, tt := range table {
+		err := createInstallPlan(tt.source, &tt.plan)
+		require.Equal(t, tt.expectedErr, err)
+		require.Equal(t, tt.expectedPlanLen, len(tt.plan.Status.Plan))
+	}
+}
+
+func installPlan(names ...string) v1alpha1.InstallPlan {
+	return v1alpha1.InstallPlan{
+		Spec: v1alpha1.InstallPlanSpec{
+			ClusterServiceVersionNames: names,
+		},
+		Status: v1alpha1.InstallPlanStatus{
+			Plan: []v1alpha1.Step{},
 		},
 	}
-	err = createInstallPlan(testSource, installPlan)
-	require.Error(t, err)
+}
 
-	installPlan.Spec.ClusterServiceVersionNames = []string{"name"}
-	testSource.csv.Spec.CustomResourceDefinitions.Required = []v1alpha1csv.CRDDescription{{Name: "name"}}
-	crd := &v1beta1.CustomResourceDefinition{
+func csv(name, kind string, required, owned []string) csvv1alpha1.ClusterServiceVersion {
+	requiredCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+	for _, name := range required {
+		requiredCRDDescs = append(requiredCRDDescs, csvv1alpha1.CRDDescription{Name: name})
+	}
+
+	ownedCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+	for _, name := range owned {
+		ownedCRDDescs = append(ownedCRDDescs, csvv1alpha1.CRDDescription{Name: name})
+	}
+
+	return csvv1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "name",
+			Name: name,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: kind,
+		},
+		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
+				Required: requiredCRDDescs,
+				Owned:    ownedCRDDescs,
+			},
 		},
 	}
-	testSource.crd = crd
-	testSource.csv.Name = "name"
-	testSource.csv.Kind = "kind"
-	testSource.csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "name"}}
-
-	err = createInstallPlan(testSource, installPlan)
-	require.NotEmpty(t, installPlan.Status.Plan)
-	require.Equal(t, 2, len(installPlan.Status.Plan))
 }
 
 type TestSource struct {
-	csv *v1alpha1csv.ClusterServiceVersion
-	crd *v1beta1.CustomResourceDefinition
+	findCSVErr       error
+	findCRDErr       error
+	findCSVForCRDErr error
+	csv              csvv1alpha1.ClusterServiceVersion
+	crd              v1beta1.CustomResourceDefinition
 }
 
-func (ts TestSource) FindLatestCSVByServiceName(name string) (*v1alpha1csv.ClusterServiceVersion, error) {
-	if name == "error" {
-		return nil, errors.New("FindLatestCSVByServiceName error")
-	}
-	return ts.csv, nil
+var _ catlib.Source = TestSource{}
+
+func (ts TestSource) FindLatestCSVByServiceName(name string) (*csvv1alpha1.ClusterServiceVersion, error) {
+	return &ts.csv, ts.findCSVErr
 }
 
-func (ts TestSource) FindCSVByServiceNameAndVersion(name, version string) (*v1alpha1csv.ClusterServiceVersion, error) {
+func (ts TestSource) FindCSVByServiceNameAndVersion(name, version string) (*csvv1alpha1.ClusterServiceVersion, error) {
 	return nil, nil
 }
 
-func (ts TestSource) ListCSVsForServiceName(name string) ([]v1alpha1csv.ClusterServiceVersion, error) {
+func (ts TestSource) ListCSVsForServiceName(name string) ([]csvv1alpha1.ClusterServiceVersion, error) {
 	return nil, nil
 }
-func (ts TestSource) ListServices() ([]v1alpha1csv.ClusterServiceVersion, error) {
+func (ts TestSource) ListServices() ([]csvv1alpha1.ClusterServiceVersion, error) {
 	return nil, nil
 }
 
 func (ts TestSource) FindCRDByName(name string) (*v1beta1.CustomResourceDefinition, error) {
-	if name == "error" {
-		return nil, errors.New("FindCRDByName error")
-	}
-	return ts.crd, nil
+	return &ts.crd, ts.findCRDErr
 }
 
-func (ts TestSource) FindLatestCSVForCRD(crdname string) (*v1alpha1csv.ClusterServiceVersion, error) {
-	if crdname == "error" {
-		return nil, errors.New("FindLatestCSVForCRD error")
-	}
-	return ts.csv, nil
+func (ts TestSource) FindLatestCSVForCRD(crdname string) (*csvv1alpha1.ClusterServiceVersion, error) {
+	return &ts.csv, ts.findCSVForCRDErr
 }
 
-func (ts TestSource) ListCSVsForCRD(crdname string) ([]v1alpha1csv.ClusterServiceVersion, error) {
+func (ts TestSource) ListCSVsForCRD(crdname string) ([]csvv1alpha1.ClusterServiceVersion, error) {
 	return nil, nil
 }
