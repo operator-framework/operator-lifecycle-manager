@@ -79,11 +79,13 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.Alpha
 		entries = append(entries, resource)
 	}
 	status.EndTime = metav1.Now()
-	store.LastAttemptedSync = status
-	if status.Status != "error" {
+	if status.ServicesFound == status.ServicesSynced {
 		status.Status = "success"
 		store.LastSuccessfulSync = status
+	} else {
+		status.Status = "error"
 	}
+	store.LastAttemptedSync = status
 	log.Debugf("Catalog Sync -- END %d/%d services synced",
 		status.ServicesSynced, status.ServicesFound)
 	return entries, nil
