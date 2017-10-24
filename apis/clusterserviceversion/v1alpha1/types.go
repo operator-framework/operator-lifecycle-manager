@@ -28,18 +28,18 @@ type NamedInstallStrategy struct {
 // StatusDescriptor describes a field in a status block of a CRD so that ALM can consume it
 type StatusDescriptor struct {
 	Path         string          `json:"path"`
-	DisplayName  string          `json:"displayName"`
-	Description  string          `json:"description"`
-	XDescriptors []string        `json:"x-descriptors"`
-	Value        json.RawMessage `json:"value"`
+	DisplayName  string          `json:"displayName,omitempty"`
+	Description  string          `json:"description,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // CRDDescription provides details to ALM about the CRDs
 type CRDDescription struct {
 	Name              string             `json:"name"`
-	DisplayName       string             `json:"displayName"`
-	Description       string             `json:"description"`
-	StatusDescriptors []StatusDescriptor `json:"statusDescriptors"`
+	DisplayName       string             `json:"displayName,omitempty"`
+	Description       string             `json:"description,omitempty"`
+	StatusDescriptors []StatusDescriptor `json:"statusDescriptors,omitempty"`
 }
 
 // CustomResourceDefinitions declares all of the CRDs managed or required by
@@ -48,7 +48,7 @@ type CRDDescription struct {
 // If the CRD is present in the Owned list, it is implicitly required.
 type CustomResourceDefinitions struct {
 	Owned    []CRDDescription `json:"owned"`
-	Required []CRDDescription `json:"required"`
+	Required []CRDDescription `json:"required,omitempty"`
 }
 
 // ClusterServiceVersionSpec declarations tell the ALM how to install an operator
