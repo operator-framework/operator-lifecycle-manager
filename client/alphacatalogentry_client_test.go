@@ -17,6 +17,30 @@ import (
 	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
+func mockClient(t *testing.T, ts *httptest.Server) *AlphaCatalogEntryClient {
+	config := rest.Config{
+		Host: ts.URL,
+	}
+
+	scheme := runtime.NewScheme()
+	assert.NoError(t, v1alpha1.AddToScheme(scheme))
+
+	config.GroupVersion = &v1alpha1.SchemeGroupVersion
+	config.APIPath = "/apis"
+	config.ContentType = runtime.ContentTypeJSON
+	config.NegotiatedSerializer = serializer.DirectCodecFactory{
+		CodecFactory: serializer.NewCodecFactory(scheme),
+	}
+
+	restClient, err := rest.RESTClientFor(&config)
+	assert.NoError(t, err)
+	assert.NotNil(t, restClient)
+
+	return &AlphaCatalogEntryClient{
+		RESTClient: restClient,
+	}
+}
+
 func TestUpdateEntry(t *testing.T) {
 
 	testCSVName := "MockServiceName-v1"
@@ -41,37 +65,36 @@ func TestUpdateEntry(t *testing.T) {
 			},
 		},
 	}
+
 	rawResp, err := json.Marshal(testEntry)
 	assert.NoError(t, err)
 	testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(rawResp)
 	})
-
 	ts := httptest.NewServer(testHandler)
 	defer ts.Close()
-	config := rest.Config{
-		Host: ts.URL,
-	}
 
-	scheme := runtime.NewScheme()
-	assert.NoError(t, v1alpha1.AddToScheme(scheme))
-
-	config.GroupVersion = &v1alpha1.SchemeGroupVersion
-	config.APIPath = "/apis"
-	config.ContentType = runtime.ContentTypeJSON
-	config.NegotiatedSerializer = serializer.DirectCodecFactory{
-		CodecFactory: serializer.NewCodecFactory(scheme),
-	}
-
-	restClient, err := rest.RESTClientFor(&config)
-	assert.NoError(t, err)
-	assert.NotNil(t, restClient)
-
-	aceClient := &AlphaCatalogEntryClient{
-		RESTClient: restClient,
-	}
-	entry, err := aceClient.UpdateEntry(&testEntry)
+	entry, err := mockClient(t, ts).UpdateEntry(&testEntry)
 	assert.NoError(t, err)
 	assert.NotNil(t, entry)
+
+	testHandler2 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			w.WriteHeader(http.StatusConflict)
+		case http.MethodGet:
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(rawResp)
+		case http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(rawResp)
+		}
+	})
+	ts2 := httptest.NewServer(testHandler2)
+	defer ts2.Close()
+
+	entry2, err := mockClient(t, ts2).UpdateEntry(&testEntry)
+	assert.NoError(t, err)
+	assert.NotNil(t, entry2)
 }
