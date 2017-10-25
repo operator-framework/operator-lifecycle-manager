@@ -103,16 +103,17 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 
 func TestCSVStateTransitions(t *testing.T) {
 	tests := []struct {
-		in                   *v1alpha1.ClusterServiceVersion
-		out                  *v1alpha1.ClusterServiceVersion
-		mockCRDs             bool
-		mockInstall          bool
-		checkInstall         bool
-		checkInstallErr      error
-		installAppllySuccess bool
-		installErrString     string
-		description          string
-		errString            string
+		in                  *v1alpha1.ClusterServiceVersion
+		out                 *v1alpha1.ClusterServiceVersion
+		mockCRDs            bool
+		mockCheckInstall    bool
+		checkInstall        bool
+		checkInstallErr     error
+		mockApplyStrategy   bool
+		installApplySuccess bool
+		installErrString    string
+		description         string
+		errString           string
 	}{
 		{
 			in: testCSV(),
@@ -283,10 +284,10 @@ func TestCSVStateTransitions(t *testing.T) {
 				Phase:  v1alpha1.CSVPhaseUnknown,
 				Reason: v1alpha1.CSVReasonInstallCheckFailed,
 			}),
-			mockInstall:     true,
-			checkInstall:    false,
-			checkInstallErr: fmt.Errorf("check failed"),
-			description:     "TransitionInstallingToUnknown/InstallCheckFailed",
+			mockCheckInstall: true,
+			checkInstall:     false,
+			checkInstallErr:  fmt.Errorf("check failed"),
+			description:      "TransitionInstallingToUnknown/InstallCheckFailed",
 		},
 		{
 			in: withStatus(withSpec(testCSV(),
@@ -303,10 +304,11 @@ func TestCSVStateTransitions(t *testing.T) {
 				Phase:  v1alpha1.CSVPhaseFailed,
 				Reason: v1alpha1.CSVReasonComponentFailed,
 			}),
-			mockInstall:  true,
-			checkInstall: false,
-			errString:    "install failed",
-			description:  "TransitionInstallingToFailed/InstallComponentFailed",
+			mockCheckInstall:  true,
+			checkInstall:      false,
+			mockApplyStrategy: true,
+			errString:         "install failed",
+			description:       "TransitionInstallingToFailed/InstallComponentFailed",
 		},
 		{
 			in: withStatus(withSpec(testCSV(),
@@ -323,9 +325,29 @@ func TestCSVStateTransitions(t *testing.T) {
 				Phase:  v1alpha1.CSVPhaseSucceeded,
 				Reason: v1alpha1.CSVReasonInstallSuccessful,
 			}),
-			mockInstall:  true,
-			checkInstall: true,
-			description:  "TransitionInstallingToSucceeded/InstallSucceeded",
+			mockCheckInstall: true,
+			checkInstall:     true,
+			description:      "TransitionInstallingToSucceeded/InstallSucceeded",
+		},
+		{
+			in: withStatus(withSpec(testCSV(),
+				&v1alpha1.ClusterServiceVersionSpec{
+					InstallStrategy: v1alpha1.NamedInstallStrategy{
+						StrategyName:    "test",
+						StrategySpecRaw: []byte(`"test":"spec"`),
+					},
+				}),
+				&v1alpha1.ClusterServiceVersionStatus{
+					Phase:  v1alpha1.CSVPhaseSucceeded,
+					Reason: v1alpha1.CSVReasonInstallSuccessful,
+				}),
+			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
+				Phase:  v1alpha1.CSVPhasePending,
+				Reason: v1alpha1.CSVReasonComponentUnhealthy,
+			}),
+			mockCheckInstall: true,
+			checkInstall:     false,
+			description:      "TransitionSucceededToPending/ComponentUnhealthy",
 		},
 	}
 
@@ -340,10 +362,10 @@ func TestCSVStateTransitions(t *testing.T) {
 		}
 
 		// Mock install check and install strategy if needed
-		if tt.mockInstall {
+		if tt.mockCheckInstall {
 			mockOp.MockStrategyResolver.EXPECT().CheckInstalled(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(tt.checkInstall, tt.checkInstallErr)
-			if !tt.checkInstall && tt.checkInstallErr == nil {
-				if tt.installAppllySuccess {
+			if tt.mockApplyStrategy {
+				if tt.installApplySuccess {
 					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(nil)
 				} else {
 					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(fmt.Errorf(tt.errString))

@@ -90,7 +90,7 @@ spec:
             serviceAccountName: vault-operator
             containers:
             - name: vault-operator
-              image: quay.io/coreos/vault-operator:sha256:74036811bc5d6cc1a136d8cc6d5577db67f29ba95eba02fbf0c3a8d2357dc8fe
+              image: quay.io/coreos/vault-operator@sha256:74036811bc5d6cc1a136d8cc6d5577db67f29ba95eba02fbf0c3a8d2357dc8fe
               env:
               - name: MY_POD_NAMESPACE
                 valueFrom:

@@ -153,6 +153,19 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
 			return
 		}
+	case v1alpha1.CSVPhaseSucceeded:
+		installed, err := a.resolver.CheckInstalled(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
+
+		// if already installed, don't transition to pending if we can't query
+		if err != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
+			return
+		}
+		// transition back to pending
+		if !installed {
+			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonComponentUnhealthy, "component unhealthy, rechecking and re-installing")
+			return
+		}
 	}
 	return
 }
