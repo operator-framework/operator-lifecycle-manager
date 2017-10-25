@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,8 +17,9 @@ func TestGetAllCRDDescriptions(t *testing.T) {
 		{[]string{}, []string{}, []string{}},
 		{[]string{"owned"}, []string{}, []string{"owned"}},
 		{[]string{}, []string{"required"}, []string{"required"}},
-		{[]string{"owned"}, []string{"required"}, []string{"required", "owned"}},
+		{[]string{"owned"}, []string{"required"}, []string{"owned", "required"}},
 		{[]string{"first", "second"}, []string{"first", "second"}, []string{"first", "second"}},
+		{[]string{"first", "second", "third"}, []string{"second", "third", "fourth"}, []string{"first", "second", "third", "fourth"}},
 	}
 
 	for _, tt := range table {
@@ -39,6 +41,7 @@ func TestGetAllCRDDescriptions(t *testing.T) {
 
 		// Build a list of expected CRDDescriptions.
 		expectedDescriptions := make([]CRDDescription, 0)
+		sort.StringSlice(tt.expected).Sort()
 		for _, expectedName := range tt.expected {
 			expectedDescriptions = append(expectedDescriptions, CRDDescription{
 				Name: expectedName,
