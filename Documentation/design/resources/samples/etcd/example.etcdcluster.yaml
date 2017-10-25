@@ -1,6 +1,6 @@
 #! validate-crd: samples/etcd/etcdcluster.crd.yaml
-apiVersion: database.coreos.com/v1beta2
-kind: EtcdCluster
+apiVersion: etcd.database.coreos.com/v1beta2
+kind: EtcdCluster-v1
 metadata:
   namespace: alm-etcd-example
   name: demo-etcd-cluster
@@ -8,6 +8,7 @@ metadata:
     operated-by: etcdoperator.v0.5.1
     alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
     alm-owner-vault: vault.clusterserviceversionv1s.app.coreos.com.v1alpha1
+    alm-status-descriptors: etcdoperator.v0.5.1
 spec:
   version: v3.2.7
   size: 3
