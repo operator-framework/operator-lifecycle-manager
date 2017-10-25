@@ -97,4 +97,23 @@ func TestUpdateEntry(t *testing.T) {
 	entry2, err := mockClient(t, ts2).UpdateEntry(&testEntry)
 	assert.NoError(t, err)
 	assert.NotNil(t, entry2)
+
+	testHandler3 := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			w.WriteHeader(http.StatusConflict)
+		case http.MethodGet:
+			w.WriteHeader(http.StatusInternalServerError)
+		case http.MethodPut:
+			w.Header().Set("Content-Type", "application/json")
+			w.Write(rawResp)
+		}
+	})
+	ts3 := httptest.NewServer(testHandler3)
+	defer ts3.Close()
+
+	entry3, err := mockClient(t, ts3).UpdateEntry(&testEntry)
+	assert.Error(t, err)
+	assert.Nil(t, entry3)
+
 }
