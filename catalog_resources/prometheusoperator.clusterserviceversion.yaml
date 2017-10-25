@@ -92,7 +92,7 @@ spec:
             serviceAccount: prometheus-operator-0-14-0
             containers:
             - name: prometheus-operator
-              image: quay.io/coreos/prometheus-operator:v0.14.0
+              image: quay.io/coreos/prometheus-operator@sha256:5037b4e90dbb03ebdefaa547ddf6a1f748c8eeebeedf6b9d9f0913ad662b5731
               command:
                 - sh
                 - -c

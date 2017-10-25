@@ -86,7 +86,7 @@ spec:
               command:
               - etcd-operator
               - --create-crd=false
-              image: quay.io/coreos/etcd-operator:sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
+              image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
               env:
               - name: MY_POD_NAMESPACE
                 valueFrom:
