@@ -123,7 +123,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 }
 
 type installPlanTransitioner interface {
-	CreatePlan(*v1alpha1.InstallPlan) error
+	ResolvePlan(*v1alpha1.InstallPlan) error
 	ExecutePlan(*v1alpha1.InstallPlan) error
 }
 
@@ -138,7 +138,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 
 	case v1alpha1.InstallPlanPhasePlanning:
 		log.Debug("plan phase Planning, attempting to resolve")
-		err := transitioner.CreatePlan(plan)
+		err := transitioner.ResolvePlan(plan)
 		if err == nil {
 			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		}
@@ -157,15 +157,15 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 	}
 }
 
-// CreatePlan modifies an InstallPlan to contain a Plan in its Status field.
-func (o *Operator) CreatePlan(plan *v1alpha1.InstallPlan) error {
+// ResolvePlan modifies an InstallPlan to contain a Plan in its Status field.
+func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhasePlanning {
 		panic("attempted to create a plan that wasn't in the planning phase")
 	}
 
 	for _, source := range o.sources {
 		log.Debugf("resolving against source %v", source)
-		err := createInstallPlan(source, plan)
+		err := resolveInstallPlan(source, plan)
 		// Intentionally return after the first source only.
 		// TODO(jzelinskie): update to check all sources.
 		return err
@@ -281,7 +281,7 @@ func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMa
 	return steps, nil
 }
 
-func createInstallPlan(source catlib.Source, plan *v1alpha1.InstallPlan) error {
+func resolveInstallPlan(source catlib.Source, plan *v1alpha1.InstallPlan) error {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
 		csvSRM, err := resolveCSV(csvName, plan.Namespace, source)

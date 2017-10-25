@@ -19,7 +19,7 @@ type mockTransitioner struct {
 
 var _ installPlanTransitioner = &mockTransitioner{}
 
-func (m *mockTransitioner) CreatePlan(plan *v1alpha1.InstallPlan) error {
+func (m *mockTransitioner) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return m.err
 }
 
@@ -56,7 +56,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 	}
 }
 
-func TestCreateInstallPlan(t *testing.T) {
+func TestResolveInstallPlan(t *testing.T) {
 	var table = []struct {
 		plan            v1alpha1.InstallPlan
 		source          catlib.Source
@@ -69,7 +69,7 @@ func TestCreateInstallPlan(t *testing.T) {
 	}
 
 	for _, tt := range table {
-		err := createInstallPlan(tt.source, &tt.plan)
+		err := resolveInstallPlan(tt.source, &tt.plan)
 		require.Equal(t, tt.expectedErr, err)
 		require.Equal(t, tt.expectedPlanLen, len(tt.plan.Status.Plan))
 	}
