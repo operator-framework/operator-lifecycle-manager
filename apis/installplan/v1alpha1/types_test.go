@@ -1,12 +1,16 @@
 package v1alpha1
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
@@ -61,12 +65,20 @@ func TestNewStepResourceFromCRD(t *testing.T) {
 	}
 
 	for _, tt := range table {
+		crdSerializer := json.NewSerializer(json.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
+
+		var expectedManifest bytes.Buffer
+		if err := crdSerializer.Encode(&tt.crd, &expectedManifest); err != nil {
+			require.Nil(t, err)
+		}
+
 		stepRes, err := NewStepResourceFromCRD(&tt.crd)
 		require.Equal(t, tt.expectedError, err)
 		require.Equal(t, tt.expectedStepRes.Name, stepRes.Name)
 		require.Equal(t, tt.expectedStepRes.Kind, stepRes.Kind)
 		require.Equal(t, tt.expectedStepRes.Group, stepRes.Group)
 		require.Equal(t, tt.expectedStepRes.Version, stepRes.Version)
+		require.JSONEq(t, expectedManifest.String(), stepRes.Manifest)
 	}
 }
 
@@ -84,11 +96,23 @@ func TestNewStepResourceFromCSV(t *testing.T) {
 	}
 
 	for _, tt := range table {
+		csvScheme := runtime.NewScheme()
+		if err := csvv1alpha1.AddToScheme(csvScheme); err != nil {
+			require.Nil(t, err)
+		}
+		csvSerializer := json.NewSerializer(json.DefaultMetaFactory, csvScheme, csvScheme, true)
+
+		var expectedManifest bytes.Buffer
+		if err := csvSerializer.Encode(&tt.csv, &expectedManifest); err != nil {
+			require.Nil(t, err)
+		}
+
 		stepRes, err := NewStepResourceFromCSV(&tt.csv)
 		require.Equal(t, tt.expectedError, err)
 		require.Equal(t, tt.expectedStepRes.Name, stepRes.Name)
 		require.Equal(t, tt.expectedStepRes.Kind, stepRes.Kind)
 		require.Equal(t, tt.expectedStepRes.Group, stepRes.Group)
 		require.Equal(t, tt.expectedStepRes.Version, stepRes.Version)
+		require.JSONEq(t, expectedManifest.String(), stepRes.Manifest)
 	}
 }
