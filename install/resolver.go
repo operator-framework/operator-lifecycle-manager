@@ -10,44 +10,21 @@ import (
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
-type Resolver interface {
-	CheckInstalled(s v1alpha1.NamedInstallStrategy, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) (bool, error)
-	ApplyStrategy(s v1alpha1.NamedInstallStrategy, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) error
-	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
-}
-
 type Strategy interface {
-	Install(client client.Interface, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) error
-	CheckInstalled(client client.Interface, owner metav1.ObjectMeta) (bool, error)
+	GetStrategyName() string
 }
 
-type StrategyResolver struct {
-	client client.Interface
+type StrategyInstaller interface {
+	Install(strategy Strategy) error
+	CheckInstalled(strategy Strategy) (bool, error)
 }
 
-var _ Resolver = &StrategyResolver{}
-
-func NewStrategyResolver(client client.Interface) *StrategyResolver {
-	return &StrategyResolver{
-		client: client,
-	}
+type StrategyResolverInterface interface {
+	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
+	InstallerForStrategy(strategyName string, opClient client.Interface, ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) StrategyInstaller
 }
 
-func (r *StrategyResolver) CheckInstalled(s v1alpha1.NamedInstallStrategy, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) (bool, error) {
-	strategy, err := r.UnmarshalStrategy(s)
-	if err != nil {
-		return false, err
-	}
-	return strategy.CheckInstalled(r.client, owner)
-}
-
-func (r *StrategyResolver) ApplyStrategy(s v1alpha1.NamedInstallStrategy, owner metav1.ObjectMeta, ownerType metav1.TypeMeta) error {
-	strategy, err := r.UnmarshalStrategy(s)
-	if err != nil {
-		return err
-	}
-	return strategy.Install(r.client, owner, ownerType)
-}
+type StrategyResolver struct{}
 
 func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error) {
 	switch s.StrategyName {
@@ -60,4 +37,26 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 	}
 	err = fmt.Errorf("unrecognized install strategy")
 	return
+}
+
+func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient client.Interface, ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) StrategyInstaller {
+	switch strategyName {
+	case InstallStrategyNameDeployment:
+		return NewStrategyDeploymentInstaller(opClient, ownerMeta, ownerType)
+	}
+
+	// Insurance against these functions being called incorrectly (unmarshal strategy will return a valid strategy name)
+	return &NullStrategyInstaller{}
+}
+
+type NullStrategyInstaller struct{}
+
+var _ StrategyInstaller = &NullStrategyInstaller{}
+
+func (i *NullStrategyInstaller) Install(s Strategy) error {
+	return fmt.Errorf("null InstallStrategy used")
+}
+
+func (i *NullStrategyInstaller) CheckInstalled(s Strategy) (bool, error) {
+	return false, fmt.Errorf("null InstallStrategy used")
 }

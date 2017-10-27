@@ -23,7 +23,7 @@ type MockALMOperator struct {
 	MockQueueOperator    *queueinformer.MockOperator
 	MockCSVClient        *client.MockClusterServiceVersionInterface
 	TestQueueInformer    queueinformer.TestQueueInformer
-	MockStrategyResolver install.MockResolver
+	MockStrategyResolver *install.MockStrategyResolverInterface
 }
 
 func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alpha1.CRDDescription) {
@@ -39,6 +39,33 @@ func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alp
 				Return(&v1beta1.CustomResourceDefinition{}, nil)
 		}
 	}
+}
+
+type TestStrategy struct{}
+
+func (t *TestStrategy) GetStrategyName() string {
+	return "teststrategy"
+}
+
+type TestInstaller struct {
+	state StateTransitionTestState
+}
+
+func NewTestInstaller(state StateTransitionTestState) install.StrategyInstaller {
+	return &TestInstaller{
+		state: state,
+	}
+}
+
+func (i *TestInstaller) Install(s install.Strategy) error {
+	if i.state.installApplySuccess {
+		return nil
+	}
+	return fmt.Errorf(i.state.errString)
+}
+
+func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
+	return i.state.checkInstall, i.state.checkInstallErr
 }
 
 func testCSV() *v1alpha1.ClusterServiceVersion {
@@ -75,7 +102,7 @@ func withSpec(csv *v1alpha1.ClusterServiceVersion, spec *v1alpha1.ClusterService
 
 func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 	mockCSVClient := client.NewMockClusterServiceVersionInterface(gomockCtrl)
-	mockInstallResolver := install.NewMockResolver(gomockCtrl)
+	mockInstallResolver := install.NewMockStrategyResolverInterface(gomockCtrl)
 
 	almOperator := ALMOperator{
 		csvClient: mockCSVClient,
@@ -97,24 +124,27 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 		MockCSVClient:        mockCSVClient,
 		MockQueueOperator:    qOp,
 		TestQueueInformer:    *csvQueueInformer,
-		MockStrategyResolver: *mockInstallResolver,
+		MockStrategyResolver: mockInstallResolver,
 	}
 }
 
+type StateTransitionTestState struct {
+	in                  *v1alpha1.ClusterServiceVersion
+	out                 *v1alpha1.ClusterServiceVersion
+	mockCRDs            bool
+	mockCheckInstall    bool
+	checkInstall        bool
+	checkInstallErr     error
+	mockApplyStrategy   bool
+	installApplySuccess bool
+	installErrString    string
+	description         string
+	errString           string
+}
+
 func TestCSVStateTransitions(t *testing.T) {
-	tests := []struct {
-		in                  *v1alpha1.ClusterServiceVersion
-		out                 *v1alpha1.ClusterServiceVersion
-		mockCRDs            bool
-		mockCheckInstall    bool
-		checkInstall        bool
-		checkInstallErr     error
-		mockApplyStrategy   bool
-		installApplySuccess bool
-		installErrString    string
-		description         string
-		errString           string
-	}{
+	testInstallStrategy := TestStrategy{}
+	tests := []StateTransitionTestState{
 		{
 			in: testCSV(),
 			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
@@ -362,15 +392,11 @@ func TestCSVStateTransitions(t *testing.T) {
 		}
 
 		// Mock install check and install strategy if needed
-		if tt.mockCheckInstall {
-			mockOp.MockStrategyResolver.EXPECT().CheckInstalled(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(tt.checkInstall, tt.checkInstallErr)
-			if tt.mockApplyStrategy {
-				if tt.installApplySuccess {
-					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(nil)
-				} else {
-					mockOp.MockStrategyResolver.EXPECT().ApplyStrategy(tt.in.Spec.InstallStrategy, tt.in.ObjectMeta, tt.in.TypeMeta).Return(fmt.Errorf(tt.errString))
-				}
-			}
+		if tt.in.Spec.InstallStrategy.StrategyName != "" {
+			mockOp.MockStrategyResolver.EXPECT().UnmarshalStrategy(tt.in.Spec.InstallStrategy).Return(&testInstallStrategy, nil)
+			mockOp.MockStrategyResolver.EXPECT().
+				InstallerForStrategy((&testInstallStrategy).GetStrategyName(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(NewTestInstaller(tt))
 		}
 
 		// Test the transition

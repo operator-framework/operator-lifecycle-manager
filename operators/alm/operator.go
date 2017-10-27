@@ -22,7 +22,7 @@ const FallbackWakeupInterval = 30 * time.Second
 type ALMOperator struct {
 	*queueinformer.Operator
 	csvClient client.ClusterServiceVersionInterface
-	resolver  install.Resolver
+	resolver  install.StrategyResolverInterface
 }
 
 func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces ...string) (*ALMOperator, error) {
@@ -65,7 +65,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces 
 	op := &ALMOperator{
 		queueOperator,
 		csvClient,
-		install.NewStrategyResolver(queueOperator.OpClient),
+		&install.StrategyResolver{},
 	}
 	csvQueueInformers := queueinformer.New(
 		"clusterserviceversions",
@@ -127,7 +127,13 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
 		csv.SetRequirementStatus(statuses)
 	case v1alpha1.CSVPhaseInstalling:
-		installed, err := a.resolver.CheckInstalled(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
+		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+		if err != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
+			return
+		}
+		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), a.OpClient, csv.ObjectMeta, csv.TypeMeta)
+		installed, err := installer.CheckInstalled(strategy)
 		if err != nil {
 			// TODO: add a retry count, don't give up on first failure
 			csv.SetPhase(v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
@@ -145,7 +151,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		// We transition to ComponentFailed if install failed, but we don't transition to succeeded here. Instead we let
 		// this queue pick the object back up, and transition to Succeeded once we verify the install
 		// with the install strategy's `CheckInstall`
-		syncError = a.resolver.ApplyStrategy(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
+		syncError = installer.Install(strategy)
 		if syncError != nil {
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", err))
 			return
@@ -154,7 +160,13 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			return
 		}
 	case v1alpha1.CSVPhaseSucceeded:
-		installed, err := a.resolver.CheckInstalled(csv.Spec.InstallStrategy, csv.ObjectMeta, csv.TypeMeta)
+		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+		if err != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
+			return
+		}
+		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), a.OpClient, csv.ObjectMeta, csv.TypeMeta)
+		installed, err := installer.CheckInstalled(strategy)
 
 		// if already installed, don't transition to pending if we can't query
 		if err != nil {
