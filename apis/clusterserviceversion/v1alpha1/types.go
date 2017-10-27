@@ -22,7 +22,7 @@ const (
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
 	StrategyName    string          `json:"strategy"`
-	StrategySpecRaw json.RawMessage `json:"spec"`
+	StrategySpecRaw json.RawMessage `json:"spec,omitempty"`
 }
 
 // StatusDescriptor describes a field in a status block of a CRD so that ALM can consume it
