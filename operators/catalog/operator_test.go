@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +43,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 	}
 
 	for _, tt := range table {
+		// Create a plan in the provided initial phase.
 		plan := &v1alpha1.InstallPlan{
 			Status: v1alpha1.InstallPlanStatus{
 				InstallPlanCondition: v1alpha1.InstallPlanCondition{
@@ -50,28 +52,67 @@ func TestTransitionInstallPlan(t *testing.T) {
 			},
 		}
 
+		// Create a transitioner that returns the provided error.
 		transitioner := &mockTransitioner{tt.transError}
+
+		// Attempt to transition phases.
 		transitionInstallPlanState(transitioner, plan)
+
+		// Assert that the final phase is as expected.
 		require.Equal(t, tt.expected, plan.Status.Phase)
 	}
 }
 
 func TestResolveInstallPlan(t *testing.T) {
+	type csvNames struct {
+		name     string
+		owned    []string
+		required []string
+	}
 	var table = []struct {
-		plan            v1alpha1.InstallPlan
-		source          catlib.Source
+		planCSVName     string
+		csv             []csvNames
+		crdNames        []string
 		expectedErr     error
 		expectedPlanLen int
 	}{
-		{installPlan("error"), TestSource{findCSVErr: errors.New("")}, errors.New(""), 0},
-		{installPlan("name"), TestSource{csv: csv("", "", []string{"error"}, nil), findCRDErr: errors.New("")}, errors.New(""), 0},
-		{installPlan("name"), TestSource{csv: csv("", "", []string{"crdName"}, nil)}, nil, 2},
+		{"name", []csvNames{{"", nil, nil}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"name", []csvNames{{"missingName", nil, nil}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"name", []csvNames{{"name", nil, nil}}, nil, nil, 1},
+		{"name", []csvNames{{"name", []string{"missingCRD"}, nil}}, nil, errors.New("not found: CRD missingCRD"), 0},
+		{"name", []csvNames{{"name", nil, []string{"missingCRD"}}}, nil, errors.New("not found: CRD missingCRD"), 0},
+		{"name", []csvNames{{"name", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 2},
+		{"name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 3},
 	}
 
 	for _, tt := range table {
-		err := resolveInstallPlan(tt.source, &tt.plan)
-		require.Equal(t, tt.expectedErr, err)
-		require.Equal(t, tt.expectedPlanLen, len(tt.plan.Status.Plan))
+		log.Info("NEW TEST")
+		log.SetLevel(log.DebugLevel)
+		// Create a plan that is attempting to install the planCSVName.
+		plan := installPlan(tt.planCSVName)
+
+		// Create a catalog source containing a CSVs and CRDs with the provided
+		// names.
+		src := catlib.NewInMem()
+		for _, names := range tt.csv {
+			src.SetCSVDefinition(csv(names.name, names.owned, names.required))
+		}
+		for _, name := range tt.crdNames {
+			src.SetCRDDefinition(crd(name))
+		}
+
+		// Resolve the plan.
+		err := resolveInstallPlan(src, &plan)
+
+		// Assert the error is as expected.
+		if tt.expectedErr == nil {
+			require.Nil(t, err)
+		} else {
+			require.Equal(t, tt.expectedErr, err)
+		}
+
+		// Assert the number of items in the plan are equal.
+		require.Equal(t, tt.expectedPlanLen, len(plan.Status.Plan))
 	}
 }
 
@@ -86,7 +127,7 @@ func installPlan(names ...string) v1alpha1.InstallPlan {
 	}
 }
 
-func csv(name, kind string, required, owned []string) csvv1alpha1.ClusterServiceVersion {
+func csv(name string, owned, required []string) csvv1alpha1.ClusterServiceVersion {
 	requiredCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
 	for _, name := range required {
 		requiredCRDDescs = append(requiredCRDDescs, csvv1alpha1.CRDDescription{Name: name})
@@ -101,51 +142,19 @@ func csv(name, kind string, required, owned []string) csvv1alpha1.ClusterService
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: kind,
-		},
 		Spec: csvv1alpha1.ClusterServiceVersionSpec{
 			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
-				Required: requiredCRDDescs,
 				Owned:    ownedCRDDescs,
+				Required: requiredCRDDescs,
 			},
 		},
 	}
 }
 
-type TestSource struct {
-	findCSVErr       error
-	findCRDErr       error
-	findCSVForCRDErr error
-	csv              csvv1alpha1.ClusterServiceVersion
-	crd              v1beta1.CustomResourceDefinition
-}
-
-var _ catlib.Source = TestSource{}
-
-func (ts TestSource) FindLatestCSVByServiceName(name string) (*csvv1alpha1.ClusterServiceVersion, error) {
-	return &ts.csv, ts.findCSVErr
-}
-
-func (ts TestSource) FindCSVByServiceNameAndVersion(name, version string) (*csvv1alpha1.ClusterServiceVersion, error) {
-	return nil, nil
-}
-
-func (ts TestSource) ListCSVsForServiceName(name string) ([]csvv1alpha1.ClusterServiceVersion, error) {
-	return nil, nil
-}
-func (ts TestSource) ListServices() ([]csvv1alpha1.ClusterServiceVersion, error) {
-	return nil, nil
-}
-
-func (ts TestSource) FindCRDByName(name string) (*v1beta1.CustomResourceDefinition, error) {
-	return &ts.crd, ts.findCRDErr
-}
-
-func (ts TestSource) FindLatestCSVForCRD(crdname string) (*csvv1alpha1.ClusterServiceVersion, error) {
-	return &ts.csv, ts.findCSVForCRDErr
-}
-
-func (ts TestSource) ListCSVsForCRD(crdname string) ([]csvv1alpha1.ClusterServiceVersion, error) {
-	return nil, nil
+func crd(name string) v1beta1.CustomResourceDefinition {
+	return v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
 }
