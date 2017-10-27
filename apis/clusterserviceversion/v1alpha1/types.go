@@ -37,6 +37,8 @@ type StatusDescriptor struct {
 // CRDDescription provides details to ALM about the CRDs
 type CRDDescription struct {
 	Name              string             `json:"name"`
+	Version           string             `json:"version"`
+	Kind              string             `json:"kind"`
 	DisplayName       string             `json:"displayName,omitempty"`
 	Description       string             `json:"description,omitempty"`
 	StatusDescriptors []StatusDescriptor `json:"statusDescriptors,omitempty"`
