@@ -1,9 +1,17 @@
 package v1alpha1
 
 import (
+	"bytes"
 	"errors"
 
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+
+	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 )
 
 const (
@@ -100,6 +108,50 @@ type StepResource struct {
 	Kind     string `json:"kind"`
 	Name     string `json:"name"`
 	Manifest string `json:"manifest"`
+}
+
+// NewStepResourceFromCSV creates an unresolved Step for the provided CSV.
+func NewStepResourceFromCSV(csv *csvv1alpha1.ClusterServiceVersion) (StepResource, error) {
+	csvScheme := runtime.NewScheme()
+	if err := csvv1alpha1.AddToScheme(csvScheme); err != nil {
+		return StepResource{}, err
+	}
+	csvSerializer := json.NewSerializer(json.DefaultMetaFactory, csvScheme, csvScheme, true)
+
+	var manifestCSV bytes.Buffer
+	if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
+		return StepResource{}, err
+	}
+
+	step := StepResource{
+		Name:     csv.Name,
+		Kind:     csv.Kind,
+		Group:    csv.GroupVersionKind().Group,
+		Version:  csv.GroupVersionKind().Version,
+		Manifest: manifestCSV.String(),
+	}
+
+	return step, nil
+}
+
+// NewStepResourceFromCRD creates an unresolved Step for the provided CRD.
+func NewStepResourceFromCRD(crd *v1beta1.CustomResourceDefinition) (StepResource, error) {
+	crdSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
+
+	var manifest bytes.Buffer
+	if err := crdSerializer.Encode(crd, &manifest); err != nil {
+		return StepResource{}, err
+	}
+
+	step := StepResource{
+		Name:     crd.Name,
+		Kind:     crd.Kind,
+		Group:    crd.Spec.Group,
+		Version:  crd.Spec.Version,
+		Manifest: manifest.String(),
+	}
+
+	return step, nil
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

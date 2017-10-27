@@ -113,7 +113,7 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", csv.SelfLink)
 		csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
 	case v1alpha1.CSVPhasePending:
-		met, statuses := a.requirementStatus(csv.Spec.CustomResourceDefinitions)
+		met, statuses := a.requirementStatus(csv)
 
 		if !met {
 			log.Info("requirements were not met")
@@ -170,10 +170,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 	return
 }
 
-func (a *ALMOperator) requirementStatus(crds v1alpha1.CustomResourceDefinitions) (met bool, statuses []v1alpha1.RequirementStatus) {
+func (a *ALMOperator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
-	requirements := crds.GetAllCrds()
-	for _, r := range requirements {
+	for _, r := range csv.GetAllCRDDescriptions() {
 		status := v1alpha1.RequirementStatus{
 			Group:   "apiextensions.k8s.io",
 			Version: "v1beta1",

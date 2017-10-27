@@ -4,12 +4,14 @@ import (
 	"errors"
 	"testing"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	v1alpha1csv "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/apis/installplan/v1alpha1"
+	catlib "github.com/coreos-inc/alm/catalog"
 )
 
 type mockTransitioner struct {
@@ -18,7 +20,7 @@ type mockTransitioner struct {
 
 var _ installPlanTransitioner = &mockTransitioner{}
 
-func (m *mockTransitioner) CreatePlan(plan *v1alpha1.InstallPlan) error {
+func (m *mockTransitioner) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return m.err
 }
 
@@ -41,6 +43,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 	}
 
 	for _, tt := range table {
+		// Create a plan in the provided initial phase.
 		plan := &v1alpha1.InstallPlan{
 			Status: v1alpha1.InstallPlanStatus{
 				InstallPlanCondition: v1alpha1.InstallPlanCondition{
@@ -49,86 +52,109 @@ func TestTransitionInstallPlan(t *testing.T) {
 			},
 		}
 
+		// Create a transitioner that returns the provided error.
 		transitioner := &mockTransitioner{tt.transError}
+
+		// Attempt to transition phases.
 		transitionInstallPlanState(transitioner, plan)
+
+		// Assert that the final phase is as expected.
 		require.Equal(t, tt.expected, plan.Status.Phase)
 	}
 }
 
-func TestCreateInstallPlan(t *testing.T) {
-	installPlan := &v1alpha1.InstallPlan{
-		Status: v1alpha1.InstallPlanStatus{Plan: []v1alpha1.Step{}},
-		Spec:   v1alpha1.InstallPlanSpec{},
+func TestResolveInstallPlan(t *testing.T) {
+	type csvNames struct {
+		name     string
+		owned    []string
+		required []string
 	}
-	installPlan.Spec.ClusterServiceVersionNames = []string{"error"}
-	testSource := TestSource{}
-	err := createInstallPlan(testSource, installPlan)
-	require.Error(t, err)
+	var table = []struct {
+		planCSVName     string
+		csv             []csvNames
+		crdNames        []string
+		expectedErr     error
+		expectedPlanLen int
+	}{
+		{"name", []csvNames{{"", nil, nil}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"name", []csvNames{{"missingName", nil, nil}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"name", []csvNames{{"name", nil, nil}}, nil, nil, 1},
+		{"name", []csvNames{{"name", []string{"missingCRD"}, nil}}, nil, errors.New("not found: CRD missingCRD"), 0},
+		{"name", []csvNames{{"name", nil, []string{"missingCRD"}}}, nil, errors.New("not found: CRD missingCRD"), 0},
+		{"name", []csvNames{{"name", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 2},
+		{"name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 3},
+	}
 
-	installPlan.Spec.ClusterServiceVersionNames = []string{"name"}
-	testSource.csv = &v1alpha1csv.ClusterServiceVersion{
-		Spec: v1alpha1csv.ClusterServiceVersionSpec{
-			CustomResourceDefinitions: v1alpha1csv.CustomResourceDefinitions{
-				Required: []v1alpha1csv.CRDDescription{{Name: "error"}}},
+	for _, tt := range table {
+		log.Info("NEW TEST")
+		log.SetLevel(log.DebugLevel)
+		// Create a plan that is attempting to install the planCSVName.
+		plan := installPlan(tt.planCSVName)
+
+		// Create a catalog source containing a CSVs and CRDs with the provided
+		// names.
+		src := catlib.NewInMem()
+		for _, names := range tt.csv {
+			src.SetCSVDefinition(csv(names.name, names.owned, names.required))
+		}
+		for _, name := range tt.crdNames {
+			src.SetCRDDefinition(crd(name))
+		}
+
+		// Resolve the plan.
+		err := resolveInstallPlan(src, &plan)
+
+		// Assert the error is as expected.
+		if tt.expectedErr == nil {
+			require.Nil(t, err)
+		} else {
+			require.Equal(t, tt.expectedErr, err)
+		}
+
+		// Assert the number of items in the plan are equal.
+		require.Equal(t, tt.expectedPlanLen, len(plan.Status.Plan))
+	}
+}
+
+func installPlan(names ...string) v1alpha1.InstallPlan {
+	return v1alpha1.InstallPlan{
+		Spec: v1alpha1.InstallPlanSpec{
+			ClusterServiceVersionNames: names,
+		},
+		Status: v1alpha1.InstallPlanStatus{
+			Plan: []v1alpha1.Step{},
 		},
 	}
-	err = createInstallPlan(testSource, installPlan)
-	require.Error(t, err)
+}
 
-	installPlan.Spec.ClusterServiceVersionNames = []string{"name"}
-	testSource.csv.Spec.CustomResourceDefinitions.Required = []v1alpha1csv.CRDDescription{{Name: "name"}}
-	crd := &v1beta1.CustomResourceDefinition{
+func csv(name string, owned, required []string) csvv1alpha1.ClusterServiceVersion {
+	requiredCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+	for _, name := range required {
+		requiredCRDDescs = append(requiredCRDDescs, csvv1alpha1.CRDDescription{Name: name})
+	}
+
+	ownedCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+	for _, name := range owned {
+		ownedCRDDescs = append(ownedCRDDescs, csvv1alpha1.CRDDescription{Name: name})
+	}
+
+	return csvv1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "name",
+			Name: name,
+		},
+		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
+				Owned:    ownedCRDDescs,
+				Required: requiredCRDDescs,
+			},
 		},
 	}
-	testSource.crd = crd
-	testSource.csv.Name = "name"
-	testSource.csv.Kind = "kind"
-	testSource.csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1csv.CRDDescription{{Name: "name"}}
-
-	err = createInstallPlan(testSource, installPlan)
-	require.NotEmpty(t, installPlan.Status.Plan)
-	require.Equal(t, 2, len(installPlan.Status.Plan))
 }
 
-type TestSource struct {
-	csv *v1alpha1csv.ClusterServiceVersion
-	crd *v1beta1.CustomResourceDefinition
-}
-
-func (ts TestSource) FindLatestCSVByServiceName(name string) (*v1alpha1csv.ClusterServiceVersion, error) {
-	if name == "error" {
-		return nil, errors.New("FindLatestCSVByServiceName error")
+func crd(name string) v1beta1.CustomResourceDefinition {
+	return v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
 	}
-	return ts.csv, nil
-}
-
-func (ts TestSource) FindCSVByServiceNameAndVersion(name, version string) (*v1alpha1csv.ClusterServiceVersion, error) {
-	return nil, nil
-}
-
-func (ts TestSource) ListCSVsForServiceName(name string) ([]v1alpha1csv.ClusterServiceVersion, error) {
-	return nil, nil
-}
-func (ts TestSource) ListServices() ([]v1alpha1csv.ClusterServiceVersion, error) {
-	return nil, nil
-}
-
-func (ts TestSource) FindCRDByName(name string) (*v1beta1.CustomResourceDefinition, error) {
-	if name == "error" {
-		return nil, errors.New("FindCRDByName error")
-	}
-	return ts.crd, nil
-}
-
-func (ts TestSource) FindLatestCSVForCRD(crdname string) (*v1alpha1csv.ClusterServiceVersion, error) {
-	if crdname == "error" {
-		return nil, errors.New("FindLatestCSVForCRD error")
-	}
-	return ts.csv, nil
-}
-
-func (ts TestSource) ListCSVsForCRD(crdname string) ([]v1alpha1csv.ClusterServiceVersion, error) {
-	return nil, nil
 }
