@@ -99,7 +99,9 @@ spec:
   customresourcedefinitions:
     owned:
     - name: etcdclusters.etcd.database.coreos.com
-      displayName: Etcd Cluster
+      version: v1beta2
+      kind: EtcdCluster
+      displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
       statusDescriptors:
         - path: importantMetrics

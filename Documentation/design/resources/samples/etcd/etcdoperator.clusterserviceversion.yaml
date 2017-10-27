@@ -3,15 +3,13 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  namespace: staging-environment
-  name: etcdoperator.v0.5.1
-  labels:
-    alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
+  name: etcdoperator.v0.6.1
+  namespace: placeholder
 spec:
   displayName: Etcd
   description: Etcd is a distributed key value store that provides a reliable way to store data across a cluster of machines. It’s open-source and available on GitHub. etcd gracefully handles leader elections during network partitions and will tolerate machine failure, including the leader. Your applications can read and write data into etcd. A simple use-case is to store database connection details or feature flags in etcd as key value pairs. These values can be watched, allowing your app to reconfigure itself when they change. Advanced uses take advantage of the consistency guarantees to implement database leader elections or do distributed locking across a cluster of workers.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-  version: 0.5.1
+  version: 0.6.1
   maturity: beta
   maintainers:
   - name: Xiang Li
@@ -21,14 +19,13 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-status-descriptors: etcdoperator.v0.5.1
-    alm-owner-etcd: etcdoperator.v0.5.1
-    alm-catalog: Open Cloud Services
-    operated-by: etcdoperator.v0.5.1
+    alm-status-descriptors: etcdoperator.v0.6.1
+    alm-owner-etcd: etcdoperator
+    operated-by: etcdoperator
   selector:
     matchLabels:
-      alm-owner-etcd: etcd.clusterserviceversionv1s.app.coreos.com.v1alpha1
-      operated-by: etcdoperator.v0.5.1
+      alm-owner-etcd: etcdoperator
+      operated-by: etcdoperator
   links:
   - name: Blog
     url: https://coreos.com/etcd
@@ -86,7 +83,10 @@ spec:
             serviceAccountName: etcd-operator
             containers:
             - name: etcd-operator
-              image: quay.io/coreos/etcd-operator:v0.5.1
+              command:
+              - etcd-operator
+              - --create-crd=false
+              image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
               env:
               - name: MY_POD_NAMESPACE
                 valueFrom:
@@ -98,8 +98,10 @@ spec:
                     fieldPath: metadata.name
   customresourcedefinitions:
     owned:
-    - name: etcdclusters-v1.etcd.database.coreos.com
-      displayName: Etcd Cluster
+    - name: etcdclusters.etcd.database.coreos.com
+      version: v1beta2
+      kind: EtcdCluster
+      displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
       statusDescriptors:
         - path: importantMetrics

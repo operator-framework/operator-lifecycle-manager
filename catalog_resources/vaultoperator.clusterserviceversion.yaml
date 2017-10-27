@@ -107,6 +107,8 @@ spec:
   customresourcedefinitions:
     owned:
     - name: vaultservices.vault.security.coreos.com
+      version: v1alpha1
+      kind: VaultService
       displayName: Vault Service
       description: A running Vault instance, backed by an Etcd Cluster
       statusDescriptors:
@@ -117,7 +119,9 @@ spec:
           - urn:alm:descriptor:io.vaultproject:api.v1
     required:
     - name: etcdclusters.etcd.database.coreos.com
-      displayName: Etcd Cluster
+      version: v1beta2
+      kind: EtcdCluster
+      displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
       statusDescriptors:
         - path: importantMetrics

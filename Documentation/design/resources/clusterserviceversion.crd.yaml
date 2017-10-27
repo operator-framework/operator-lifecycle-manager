@@ -159,12 +159,20 @@ spec:
                 type: object
                 required:
                   - name
+                  - version
+                  - kind
                   - displayName
                   - description
                 properties:
                   name:
                     type: string
                     description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
+                  version:
+                    type: string
+                    description: The version field of the CustomResourceDefinition
+                  kind:
+                    type: string
+                    description: The kind field of the CustomResourceDefinition
                   displayName:
                     type: string
                     description: A human-readable name for the CRD.
@@ -205,12 +213,20 @@ spec:
                 type: object
                 required:
                   - name
+                  - version
+                  - kind
                   - displayName
                   - description
                 properties:
                   name:
                     type: string
                     description: Fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
+                  version:
+                    type: string
+                    description: The version field of the CustomResourceDefinition
+                  kind:
+                    type: string
+                    description: The kind field of the CustomResourceDefinition
                   displayName:
                     type: string
                     description: A human-readable name for the CRD.

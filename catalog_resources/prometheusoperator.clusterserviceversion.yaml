@@ -122,6 +122,8 @@ spec:
   customresourcedefinitions:
     owned:
     - name: prometheuses.monitoring.alm.coreos.com
+      version: v1
+      kind: Prometheus
       displayName: Prometheus
       description: A running Prometheus instance
       statusDescriptors:
@@ -147,8 +149,12 @@ spec:
               name: "Filesystem Usage"
               type: "Gauge"
     - name: servicemonitors.monitoring.alm.coreos.com
+      version: v1
+      kind: ServiceMonitor
       displayName: Service Monitor
       description: Configures prometheus to monitr a particular k8s service
     - name: alertmanagers.monitoring.alm.coreos.com
+      version: v1
+      kind: AlertManager
       displayName: Alertmanager
       description: Configures an Alert Manager for the namespace
