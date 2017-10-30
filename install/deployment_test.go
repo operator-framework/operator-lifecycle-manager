@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/core/v1"
@@ -203,6 +204,154 @@ func TestInstallStrategyDeployment(t *testing.T) {
 			assert.NoError(t, installer.Install(strategy))
 
 			ctrl.Finish()
+		})
+	}
+}
+
+type BadStrategy struct{}
+
+func (b *BadStrategy) GetStrategyName() string {
+	return "bad"
+}
+
+func TestNewStrategyDeploymentInstaller(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := opClient.NewMockInterface(ctrl)
+	mockOwnerMeta := metav1.ObjectMeta{
+		Name:         "clusterserviceversion-owner",
+		Namespace:    "ns",
+		GenerateName: fmt.Sprintf("%s-", "ns"),
+	}
+	mockOwnerType := metav1.TypeMeta{
+		Kind:       "kind",
+		APIVersion: "APIString",
+	}
+	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, mockOwnerType)
+	require.Implements(t, (*StrategyInstaller)(nil), strategy)
+	require.Error(t, strategy.Install(&BadStrategy{}))
+	_, err := strategy.CheckInstalled(&BadStrategy{})
+	require.Error(t, err)
+}
+
+func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
+	namespace := "alm-test-deployment"
+	mockOwnerMeta := metav1.ObjectMeta{
+		Name:         "clusterserviceversion-owner",
+		Namespace:    namespace,
+		GenerateName: fmt.Sprintf("%s-", namespace),
+	}
+	mockOwnerType := metav1.TypeMeta{
+		Kind:       "kind",
+		APIVersion: "APIString",
+	}
+
+	tests := []struct {
+		createRoleErr           error
+		createRoleBindingErr    error
+		createServiceAccountErr error
+		createDeploymentErr     error
+		checkServiceAccountErr  error
+		checkDeploymentErr      error
+		description             string
+	}{
+		{
+			checkServiceAccountErr: fmt.Errorf("couldn't query serviceaccount"),
+			description:            "ErrorCheckingForServiceAccount",
+		},
+		{
+			checkDeploymentErr: fmt.Errorf("couldn't query deployments"),
+			description:        "ErrorCheckingForDeployments",
+		},
+		{
+			createRoleErr: fmt.Errorf("error creating role"),
+			description:   "ErrorCreatingRole",
+		},
+		{
+			createServiceAccountErr: fmt.Errorf("error creating serviceaccount"),
+			description:             "ErrorCreateingServiceAccount",
+		},
+		{
+			createRoleBindingErr: fmt.Errorf("error creating rolebinding"),
+			description:          "ErrorCreatingRoleBinding",
+		},
+		{
+			createDeploymentErr: fmt.Errorf("error creating deployment"),
+			description:         "ErrorCreatingDeployment",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
+			strategy := strategy(1, namespace, mockOwnerMeta)
+			installer := &StrategyDeploymentInstaller{
+				strategyClient: mockClient,
+				ownerMeta:      mockOwnerMeta,
+				ownerType:      mockOwnerType,
+			}
+
+			skipInstall := tt.checkDeploymentErr != nil || tt.checkServiceAccountErr != nil
+
+			mockClient.EXPECT().
+				CheckServiceAccount(strategy.Permissions[0].ServiceAccountName).
+				Return(tt.checkServiceAccountErr == nil, tt.checkServiceAccountErr)
+			if tt.checkServiceAccountErr == nil {
+				mockClient.EXPECT().CheckOwnedDeployments(mockOwnerMeta, strategy.DeploymentSpecs).Return(tt.checkDeploymentErr == nil, tt.checkDeploymentErr)
+			}
+
+			installed, err := installer.CheckInstalled(strategy)
+
+			if skipInstall {
+				require.False(t, installed)
+				require.Error(t, err)
+				return
+			} else {
+				require.True(t, installed)
+				require.NoError(t, err)
+			}
+
+			mockClient.EXPECT().
+				CreateRole(MatchesRoleRules(strategy.Permissions[0].Rules)).
+				Return(&v1beta1rbac.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
+
+			if tt.createRoleErr != nil {
+				err := installer.Install(strategy)
+				require.Error(t, err)
+				return
+			}
+
+			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta)
+			mockClient.EXPECT().GetOrCreateServiceAccount(serviceAccount).Return(serviceAccount, tt.createServiceAccountErr)
+
+			if tt.createServiceAccountErr != nil {
+				err := installer.Install(strategy)
+				require.Error(t, err)
+				return
+			}
+
+			mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, tt.createRoleBindingErr)
+
+			if tt.createRoleBindingErr != nil {
+				err := installer.Install(strategy)
+				require.Error(t, err)
+				return
+			}
+
+			deployment := testDepoyment("alm-dep", namespace, mockOwnerMeta)
+			mockClient.EXPECT().
+				CreateDeployment(&deployment).
+				Return(&deployment, tt.createDeploymentErr)
+
+			if tt.createDeploymentErr != nil {
+				err := installer.Install(strategy)
+				require.Error(t, err)
+				return
+			}
 		})
 	}
 }
