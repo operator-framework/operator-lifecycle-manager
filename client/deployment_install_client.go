@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	opClient "github.com/coreos-inc/operator-client/pkg/client"
-	"github.com/coreos/dex/pkg/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/pkg/errors"
 	"k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"

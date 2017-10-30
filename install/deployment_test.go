@@ -11,9 +11,12 @@ import (
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"reflect"
+
 	"github.com/coreos-inc/alm/apis"
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
+	"github.com/stretchr/testify/require"
 )
 
 func testDepoyment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1beta1extensions.Deployment {
@@ -55,17 +58,48 @@ func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *v1.Servic
 	return serviceAccount
 }
 
+type RoleMatcher struct{ rules []v1beta1rbac.PolicyRule }
+
+func MatchesRoleRules(rules []v1beta1rbac.PolicyRule) gomock.Matcher {
+	return &RoleMatcher{rules}
+}
+
+func (e *RoleMatcher) Matches(x interface{}) bool {
+	role, ok := x.(*v1beta1rbac.Role)
+	if !ok {
+		return false
+	}
+	return reflect.DeepEqual(role.Rules, e.rules)
+}
+
+func (e *RoleMatcher) String() string {
+	return "matches expected rules"
+}
+
+func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *StrategyDetailsDeployment {
+	var deploymentSpecs = []v1beta1extensions.DeploymentSpec{}
+	var permissions = []StrategyDeploymentPermissions{}
+	for i := 1; i <= n; i++ {
+		deploymentSpecs = append(deploymentSpecs, testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta).Spec)
+		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwnerMeta)
+		permissions = append(permissions, StrategyDeploymentPermissions{
+			ServiceAccountName: serviceAccount.Name,
+			Rules: []v1beta1rbac.PolicyRule{
+				{
+					Verbs:     []string{"list", "delete"},
+					APIGroups: []string{""},
+					Resources: []string{"pods"},
+				},
+			},
+		})
+	}
+	return &StrategyDetailsDeployment{
+		DeploymentSpecs: deploymentSpecs,
+		Permissions:     permissions,
+	}
+}
+
 func TestInstallStrategyDeployment(t *testing.T) {
-
-	// Cases to test:
-	// no service account, no deployment, expect 1
-	// no service account, deployment, expect 1
-	// service account, deployment, expect 1
-	// < n service accounts, deployments
-	// service accounts, <n deployments
-	// < n service accounts, <n deployments
-	// n service accounts, n deployments
-
 	namespace := "alm-test-deployment"
 	mockOwnerMeta := metav1.ObjectMeta{
 		Name:         "clusterserviceversion-owner",
@@ -77,45 +111,98 @@ func TestInstallStrategyDeployment(t *testing.T) {
 		APIVersion: "APIString",
 	}
 
-	deployment := testDepoyment("alm-test", namespace, mockOwnerMeta)
-	serviceAccount := testServiceAccount("test-sa", mockOwnerMeta)
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
-
-	mockClient.EXPECT().
-		CheckServiceAccount(serviceAccount.Name).
-		Return(false, nil)
-	mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, nil)
-	mockClient.EXPECT().CreateRole(gomock.Any()).Return(&v1beta1rbac.Role{}, nil)
-	mockClient.EXPECT().GetOrCreateServiceAccount(serviceAccount).Return(serviceAccount, nil)
-	mockClient.EXPECT().
-		CreateDeployment(&deployment).
-		Return(&deployment, nil)
-
-	deployInstallStrategy := &StrategyDetailsDeployment{
-		DeploymentSpecs: []v1beta1extensions.DeploymentSpec{deployment.Spec},
-		Permissions: []StrategyDeploymentPermissions{
-			{
-				ServiceAccountName: serviceAccount.Name,
-				Rules: []v1beta1rbac.PolicyRule{
-					{
-						Verbs:     []string{"list", "delete"},
-						APIGroups: []string{""},
-						Resources: []string{"pods"},
-					},
-				},
-			},
+	tests := []struct {
+		numMockServiceAccounts int
+		numMockDeployments     int
+		numExpected            int
+		description            string
+	}{
+		{
+			numMockServiceAccounts: 0,
+			numMockDeployments:     0,
+			numExpected:            1,
+			description:            "NoServiceAccount/NoDeployment/Require1,1",
+		},
+		{
+			numMockServiceAccounts: 1,
+			numMockDeployments:     1,
+			numExpected:            1,
+			description:            "1ServiceAccount/1Deployment/Require1,1",
+		},
+		{
+			numMockServiceAccounts: 0,
+			numMockDeployments:     1,
+			numExpected:            1,
+			description:            "0ServiceAccount/1Deployment/Require1,1",
+		},
+		{
+			numMockServiceAccounts: 1,
+			numMockDeployments:     0,
+			numExpected:            1,
+			description:            "1ServiceAccount/0Deployment/Require1,1",
+		},
+		{
+			numMockServiceAccounts: 3,
+			numMockDeployments:     3,
+			numExpected:            3,
+			description:            "3ServiceAccount/3Deployment/Require3,3",
 		},
 	}
 
-	installer := &StrategyDeploymentInstaller{
-		strategyClient: mockClient,
-		ownerMeta:      mockOwnerMeta,
-		ownerType:      mockOwnerType,
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
+			strategy := strategy(tt.numExpected, namespace, mockOwnerMeta)
+			for i, p := range strategy.Permissions {
+				if i < tt.numMockServiceAccounts {
+					t.Logf("mocking %s true", p.ServiceAccountName)
+					mockClient.EXPECT().
+						CheckServiceAccount(p.ServiceAccountName).
+						Return(true, nil)
+				}
+				if i == tt.numMockServiceAccounts {
+					t.Logf("mocking %s false", p.ServiceAccountName)
+					mockClient.EXPECT().
+						CheckServiceAccount(p.ServiceAccountName).
+						Return(false, nil)
+				}
+
+				serviceAccount := testServiceAccount(p.ServiceAccountName, mockOwnerMeta)
+				mockClient.EXPECT().GetOrCreateServiceAccount(serviceAccount).Return(serviceAccount, nil)
+				mockClient.EXPECT().
+					CreateRole(MatchesRoleRules(p.Rules)).
+					Return(&v1beta1rbac.Role{Rules: p.Rules}, nil)
+				mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, nil)
+			}
+			if tt.numMockServiceAccounts == tt.numExpected {
+				t.Log("mocking dep check")
+				// if all serviceaccounts exist then we check if deployments exist
+				mockClient.EXPECT().CheckOwnedDeployments(mockOwnerMeta, strategy.DeploymentSpecs).Return(tt.numMockDeployments == len(strategy.DeploymentSpecs), nil)
+			}
+
+			for i := range make([]int, len(strategy.DeploymentSpecs)) {
+				deployment := testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+				mockClient.EXPECT().
+					CreateDeployment(&deployment).
+					Return(&deployment, nil)
+			}
+
+			installer := &StrategyDeploymentInstaller{
+				strategyClient: mockClient,
+				ownerMeta:      mockOwnerMeta,
+				ownerType:      mockOwnerType,
+			}
+			installed, err := installer.CheckInstalled(strategy)
+			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
+				require.True(t, installed)
+			} else {
+				require.False(t, installed)
+			}
+			assert.NoError(t, err)
+			assert.NoError(t, installer.Install(strategy))
+
+			ctrl.Finish()
+		})
 	}
-	installed, err := installer.CheckInstalled(deployInstallStrategy)
-	assert.False(t, installed)
-	assert.NoError(t, err)
-	assert.NoError(t, installer.Install(deployInstallStrategy))
 }
