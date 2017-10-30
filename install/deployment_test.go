@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"reflect"
@@ -18,6 +18,7 @@ import (
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/client"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func testDepoyment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1beta1extensions.Deployment {
@@ -107,10 +108,6 @@ func TestInstallStrategyDeployment(t *testing.T) {
 		Namespace:    namespace,
 		GenerateName: fmt.Sprintf("%s-", namespace),
 	}
-	mockOwnerType := metav1.TypeMeta{
-		Kind:       "kind",
-		APIVersion: "APIString",
-	}
 
 	tests := []struct {
 		numMockServiceAccounts int
@@ -159,18 +156,18 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				if i < tt.numMockServiceAccounts {
 					t.Logf("mocking %s true", p.ServiceAccountName)
 					mockClient.EXPECT().
-						CheckServiceAccount(p.ServiceAccountName).
-						Return(true, nil)
+						GetServiceAccountByName(p.ServiceAccountName).
+						Return(testServiceAccount(p.ServiceAccountName, mockOwnerMeta), nil)
 				}
 				if i == tt.numMockServiceAccounts {
 					t.Logf("mocking %s false", p.ServiceAccountName)
 					mockClient.EXPECT().
-						CheckServiceAccount(p.ServiceAccountName).
-						Return(false, nil)
+						GetServiceAccountByName(p.ServiceAccountName).
+						Return(nil, apierrors.NewNotFound(schema.GroupResource{}, p.ServiceAccountName))
 				}
 
 				serviceAccount := testServiceAccount(p.ServiceAccountName, mockOwnerMeta)
-				mockClient.EXPECT().GetOrCreateServiceAccount(serviceAccount).Return(serviceAccount, nil)
+				mockClient.EXPECT().EnsureServiceAccount(serviceAccount).Return(serviceAccount, nil)
 				mockClient.EXPECT().
 					CreateRole(MatchesRoleRules(p.Rules)).
 					Return(&v1beta1rbac.Role{Rules: p.Rules}, nil)
@@ -179,7 +176,11 @@ func TestInstallStrategyDeployment(t *testing.T) {
 			if tt.numMockServiceAccounts == tt.numExpected {
 				t.Log("mocking dep check")
 				// if all serviceaccounts exist then we check if deployments exist
-				mockClient.EXPECT().CheckOwnedDeployments(mockOwnerMeta, strategy.DeploymentSpecs).Return(tt.numMockDeployments == len(strategy.DeploymentSpecs), nil)
+				mockedDeps := []v1beta1extensions.Deployment{}
+				for i := 1; i <= tt.numMockDeployments; i++ {
+					mockedDeps = append(mockedDeps, testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta))
+				}
+				mockClient.EXPECT().GetOwnedDeployments(mockOwnerMeta).Return(&v1beta1extensions.DeploymentList{Items: mockedDeps}, nil)
 			}
 
 			for i := range make([]int, len(strategy.DeploymentSpecs)) {
@@ -192,7 +193,6 @@ func TestInstallStrategyDeployment(t *testing.T) {
 			installer := &StrategyDeploymentInstaller{
 				strategyClient: mockClient,
 				ownerMeta:      mockOwnerMeta,
-				ownerType:      mockOwnerType,
 			}
 			installed, err := installer.CheckInstalled(strategy)
 			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
@@ -218,17 +218,13 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := opClient.NewMockInterface(ctrl)
 	mockOwnerMeta := metav1.ObjectMeta{
 		Name:         "clusterserviceversion-owner",
 		Namespace:    "ns",
 		GenerateName: fmt.Sprintf("%s-", "ns"),
 	}
-	mockOwnerType := metav1.TypeMeta{
-		Kind:       "kind",
-		APIVersion: "APIString",
-	}
-	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, mockOwnerType)
+	mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
+	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
 	_, err := strategy.CheckInstalled(&BadStrategy{})
@@ -241,10 +237,6 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		Name:         "clusterserviceversion-owner",
 		Namespace:    namespace,
 		GenerateName: fmt.Sprintf("%s-", namespace),
-	}
-	mockOwnerType := metav1.TypeMeta{
-		Kind:       "kind",
-		APIVersion: "APIString",
 	}
 
 	tests := []struct {
@@ -292,16 +284,22 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			installer := &StrategyDeploymentInstaller{
 				strategyClient: mockClient,
 				ownerMeta:      mockOwnerMeta,
-				ownerType:      mockOwnerType,
 			}
 
 			skipInstall := tt.checkDeploymentErr != nil || tt.checkServiceAccountErr != nil
 
 			mockClient.EXPECT().
-				CheckServiceAccount(strategy.Permissions[0].ServiceAccountName).
-				Return(tt.checkServiceAccountErr == nil, tt.checkServiceAccountErr)
+				GetServiceAccountByName(strategy.Permissions[0].ServiceAccountName).
+				Return(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
 			if tt.checkServiceAccountErr == nil {
-				mockClient.EXPECT().CheckOwnedDeployments(mockOwnerMeta, strategy.DeploymentSpecs).Return(tt.checkDeploymentErr == nil, tt.checkDeploymentErr)
+				mockClient.EXPECT().
+					GetOwnedDeployments(mockOwnerMeta).
+					Return(
+						&v1beta1extensions.DeploymentList{
+							Items: []v1beta1extensions.Deployment{
+								testDepoyment("alm-dep", namespace, mockOwnerMeta),
+							},
+						}, tt.checkDeploymentErr)
 			}
 
 			installed, err := installer.CheckInstalled(strategy)
@@ -326,7 +324,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			}
 
 			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta)
-			mockClient.EXPECT().GetOrCreateServiceAccount(serviceAccount).Return(serviceAccount, tt.createServiceAccountErr)
+			mockClient.EXPECT().EnsureServiceAccount(serviceAccount).Return(serviceAccount, tt.createServiceAccountErr)
 
 			if tt.createServiceAccountErr != nil {
 				err := installer.Install(strategy)

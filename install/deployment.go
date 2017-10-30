@@ -3,10 +3,11 @@ package install
 import (
 	"fmt"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/apis"
@@ -37,7 +38,6 @@ type StrategyDetailsDeployment struct {
 type StrategyDeploymentInstaller struct {
 	strategyClient client.InstallStrategyDeploymentInterface
 	ownerMeta      metav1.ObjectMeta
-	ownerType      metav1.TypeMeta
 }
 
 func (d *StrategyDetailsDeployment) GetStrategyName() string {
@@ -47,11 +47,10 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(opClient opClient.Interface, ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
-		strategyClient: client.NewInstallStrategyDeploymentClient(opClient, ownerMeta.Namespace),
+		strategyClient: strategyClient,
 		ownerMeta:      ownerMeta,
-		ownerType:      ownerType,
 	}
 }
 
@@ -86,7 +85,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		serviceAccount := &v1.ServiceAccount{}
 		serviceAccount.SetOwnerReferences(ownerReferences)
 		serviceAccount.SetName(permission.ServiceAccountName)
-		serviceAccount, err = i.strategyClient.GetOrCreateServiceAccount(serviceAccount)
+		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount)
 		if err != nil {
 			return err
 		}
@@ -136,14 +135,39 @@ func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {
 
 	// Check service accounts
 	for _, perm := range strategy.Permissions {
-		if found, err := i.strategyClient.CheckServiceAccount(perm.ServiceAccountName); !found {
+		if found, err := i.checkForServiceAccount(perm.ServiceAccountName); !found {
+			log.Debugf("service account not found: %s", perm.ServiceAccountName)
 			return false, err
 		}
 	}
 
 	// Check deployments
-	if found, err := i.strategyClient.CheckOwnedDeployments(i.ownerMeta, strategy.DeploymentSpecs); !found {
+	if found, err := i.checkForOwnedDeployments(i.ownerMeta, strategy.DeploymentSpecs); !found {
+		log.Debug("deployments not found")
 		return false, err
+	}
+	return true, nil
+}
+
+func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName string) (bool, error) {
+	if _, err := i.strategyClient.GetServiceAccountByName(serviceAccountName); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("query for service account %s failed: %s", serviceAccountName, err.Error())
+	}
+	// TODO: use a SelfSubjectRulesReview (or a sync version) to verify ServiceAccount has correct access
+	return true, nil
+}
+
+func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []v1beta1.DeploymentSpec) (bool, error) {
+	existingDeployments, err := i.strategyClient.GetOwnedDeployments(owner)
+	if err != nil {
+		return false, fmt.Errorf("query for existing deployments failed: %s", err)
+	}
+	if len(existingDeployments.Items) != len(deploymentSpecs) {
+		log.Debugf("wrong number of deployments found. want %d, got %d", len(deploymentSpecs), len(existingDeployments.Items))
+		return false, nil
 	}
 	return true, nil
 }

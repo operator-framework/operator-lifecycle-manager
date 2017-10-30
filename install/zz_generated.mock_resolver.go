@@ -115,12 +115,12 @@ func (_mr *_MockStrategyResolverInterfaceRecorder) UnmarshalStrategy(arg0 interf
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "UnmarshalStrategy", arg0)
 }
 
-func (_m *MockStrategyResolverInterface) InstallerForStrategy(strategyName string, opClient client.Interface, ownerMeta v1.ObjectMeta, ownerType v1.TypeMeta) StrategyInstaller {
-	ret := _m.ctrl.Call(_m, "InstallerForStrategy", strategyName, opClient, ownerMeta, ownerType)
+func (_m *MockStrategyResolverInterface) InstallerForStrategy(strategyName string, opClient client.Interface, ownerMeta v1.ObjectMeta) StrategyInstaller {
+	ret := _m.ctrl.Call(_m, "InstallerForStrategy", strategyName, opClient, ownerMeta)
 	ret0, _ := ret[0].(StrategyInstaller)
 	return ret0
 }
 
-func (_mr *_MockStrategyResolverInterfaceRecorder) InstallerForStrategy(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstallerForStrategy", arg0, arg1, arg2, arg3)
+func (_mr *_MockStrategyResolverInterfaceRecorder) InstallerForStrategy(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstallerForStrategy", arg0, arg1, arg2)
 }

@@ -130,7 +130,7 @@ const (
 	CSVReasonRequirementsNotMet  ConditionReason = "RequirementsNotMet"
 	CSVReasonRequirementsMet     ConditionReason = "AllRequirementsMet"
 	CSVReasonComponentFailed     ConditionReason = "InstallComponentFailed"
-	CSVReasonInvalidStrategy     ConditionReason = "InstallStrategyInvalid"
+	CSVReasonInvalidStrategy     ConditionReason = "InvalidInstallStrategy"
 	CSVReasonInstallSuccessful   ConditionReason = "InstallSucceeded"
 	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
 	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"

@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/client"
 )
 
 type Strategy interface {
@@ -21,7 +22,7 @@ type StrategyInstaller interface {
 
 type StrategyResolverInterface interface {
 	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
-	InstallerForStrategy(strategyName string, opClient client.Interface, ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) StrategyInstaller
+	InstallerForStrategy(strategyName string, opClient opClient.Interface, ownerMeta metav1.ObjectMeta) StrategyInstaller
 }
 
 type StrategyResolver struct{}
@@ -39,10 +40,11 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 	return
 }
 
-func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient client.Interface, ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) StrategyInstaller {
+func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient opClient.Interface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
 	switch strategyName {
 	case InstallStrategyNameDeployment:
-		return NewStrategyDeploymentInstaller(opClient, ownerMeta, ownerType)
+		strategyClient := client.NewInstallStrategyDeploymentClient(opClient, ownerMeta.Namespace)
+		return NewStrategyDeploymentInstaller(strategyClient, ownerMeta)
 	}
 
 	// Insurance against these functions being called incorrectly (unmarshal strategy will return a valid strategy name)

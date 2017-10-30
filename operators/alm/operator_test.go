@@ -395,7 +395,7 @@ func TestCSVStateTransitions(t *testing.T) {
 		if tt.in.Spec.InstallStrategy.StrategyName != "" {
 			mockOp.MockStrategyResolver.EXPECT().UnmarshalStrategy(tt.in.Spec.InstallStrategy).Return(&testInstallStrategy, nil)
 			mockOp.MockStrategyResolver.EXPECT().
-				InstallerForStrategy((&testInstallStrategy).GetStrategyName(), gomock.Any(), gomock.Any(), gomock.Any()).
+				InstallerForStrategy((&testInstallStrategy).GetStrategyName(), gomock.Any(), gomock.Any()).
 				Return(NewTestInstaller(tt))
 		}
 
