@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +43,7 @@ const (
 )
 
 // StepStatus is the current status of a particular resource an in
-// InstallPlan.
+// InstallPlan
 type StepStatus string
 
 const (
@@ -52,6 +53,15 @@ const (
 	StepStatusCreated    StepStatus = "Created"
 )
 
+// InstallPlanConditionType describes the state of an InstallPlan at a certain point as a whole.
+type InstallPlanConditionType string
+
+const (
+	InstallPlanResolved  InstallPlanConditionType = "Resolved"
+	InstallPlanApproved  InstallPlanConditionType = "Approved"
+	InstallPlanInstalled InstallPlanConditionType = "Installed"
+)
+
 // ConditionReason is a camelcased reason for the state transition.
 type InstallPlanConditionReason string
 
@@ -59,7 +69,6 @@ const (
 	InstallPlanReasonPlanUnknown        InstallPlanConditionReason = "PlanUnknown"
 	InstallPlanReasonDependencyConflict InstallPlanConditionReason = "DependenciesConflict"
 	InstallPlanReasonComponentFailed    InstallPlanConditionReason = "InstallComponentFailed"
-	InstallPlanReasonInstallSuccessful  InstallPlanConditionReason = "InstallSucceeded"
 	InstallPlanReasonInstallCheckFailed InstallPlanConditionReason = "InstallCheckFailed"
 )
 
@@ -78,19 +87,59 @@ type InstallPlanSpec struct {
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	InstallPlanCondition `json:",inline"`
-	Conditions           []InstallPlanCondition `json:"conditions,omitempty"`
-	Plan                 []Step                 `json:"plan,omitempty"`
+	Phase      InstallPlanPhase       `json:"phase"`
+	Conditions []InstallPlanCondition `json:"conditions,omitempty"`
+	Plan       []Step                 `json:"plan,omitempty"`
 }
 
 // InstallPlanCondition represents the overall status of the execution of
 // an InstallPlan.
 type InstallPlanCondition struct {
-	Phase              InstallPlanPhase           `json:"phase,omitempty"`
-	Message            string                     `json:"message,omitempty"`
-	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
+	Type               InstallPlanConditionType   `json:"type,omitempty"`
+	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True False or Unknown
 	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
 	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
+	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
+	Message            string                     `json:"message,omitempty"`
+}
+
+func findCondition(condList []InstallPlanCondition, condType InstallPlanConditionType) (int, InstallPlanCondition, []InstallPlanCondition) {
+	for i, cond := range condList {
+		if cond.Type == condType {
+			return i, cond, condList
+		}
+	}
+	cond := InstallPlanCondition{
+		Type:   condType,
+		Status: corev1.ConditionUnknown,
+	}
+	conditions := append(condList, cond)
+	return len(condList), cond, conditions
+}
+func UpdateConditionIn(condList []InstallPlanCondition, update InstallPlanCondition) []InstallPlanCondition {
+	i, cond, condList := findCondition(condList, update.Type)
+	now := metav1.Now()
+	update.LastUpdateTime = now
+	if cond.Status != update.Status {
+		update.LastTransitionTime = now
+	}
+	condList[i] = update
+	return condList
+}
+func ConditionIfErr(condType InstallPlanConditionType,
+	failReason InstallPlanConditionReason, err error) InstallPlanCondition {
+	if err != nil {
+		return InstallPlanCondition{
+			Type:    condType,
+			Status:  corev1.ConditionFalse,
+			Reason:  failReason,
+			Message: err.Error(),
+		}
+	}
+	return InstallPlanCondition{
+		Type:   condType,
+		Status: corev1.ConditionTrue,
+	}
 }
 
 // Step represents the status of an individual step in an InstallPlan.

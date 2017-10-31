@@ -135,13 +135,15 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		log.Debug("plan phase unrecognized, setting to Planning")
 		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 		return nil
-
 	case v1alpha1.InstallPlanPhasePlanning:
 		log.Debug("plan phase Planning, attempting to resolve")
 		err := transitioner.ResolvePlan(plan)
 		if err == nil {
 			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		}
+		cond := v1alpha1.ConditionIfErr(v1alpha1.InstallPlanResolved,
+			v1alpha1.InstallPlanReasonDependencyConflict, err)
+		plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
 		return err
 
 	case v1alpha1.InstallPlanPhaseInstalling:
@@ -150,6 +152,9 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		if err == nil {
 			plan.Status.Phase = v1alpha1.InstallPlanPhaseComplete
 		}
+		cond := v1alpha1.ConditionIfErr(v1alpha1.InstallPlanInstalled,
+			v1alpha1.InstallPlanReasonComponentFailed, err)
+		plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
 		return err
 
 	default:
