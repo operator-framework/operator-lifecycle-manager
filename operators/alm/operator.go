@@ -17,7 +17,9 @@ import (
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 
-const FallbackWakeupInterval = 30 * time.Second
+const (
+	FallbackWakeupInterval = 30 * time.Second
+)
 
 type ALMOperator struct {
 	*queueinformer.Operator
@@ -25,7 +27,7 @@ type ALMOperator struct {
 	resolver  install.Resolver
 }
 
-func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, namespaces ...string) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespace, podName string, namespaces ...string) (*ALMOperator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
