@@ -65,9 +65,10 @@ $(MOCKGEN):
 	go get github.com/golang/mock/mockgen
 
 generate-mock-client: $(MOCKGEN)
-	@$(MOCKGEN) -package=client -source=client/clusterserviceversion_client.go > client/zz_generated.mock_clusterserviceversion_client.go
-	@$(MOCKGEN) -package=client -source=client/installplan_client.go > client/zz_generated.mock_installplan_client.go
-	@$(MOCKGEN) -package=client -source=client/alphacatalogentry_client.go > client/zz_generated.mock_alphacatalogentry_client.go
-	@$(MOCKGEN) -package=install -source=install/resolver.go > install/zz_generated.mock_resolver.go
+	mockgen -package=client -source=client/clusterserviceversion_client.go > client/zz_generated.mock_clusterserviceversion_client.go
+	mockgen -package=client -source=client/installplan_client.go > client/zz_generated.mock_installplan_client.go
+	mockgen -package=client -source=client/alphacatalogentry_client.go > client/zz_generated.mock_alphacatalogentry_client.go
+	mockgen -package=client -source=client/deployment_install_client.go > client/zz_generated.mock_deployment_install_client.go
+	mockgen -package=install -source=install/resolver.go > install/zz_generated.mock_resolver.go
 
 make gen-all: gen-ci codegen generate-mock-client

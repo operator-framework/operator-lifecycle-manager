@@ -3,16 +3,16 @@ package install
 import (
 	"fmt"
 
-	"github.com/coreos-inc/operator-client/pkg/client"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/apis"
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/client"
 )
 
 const (
@@ -35,29 +35,48 @@ type StrategyDetailsDeployment struct {
 	Permissions     []StrategyDeploymentPermissions `json:"permissions"`
 }
 
-func (d *StrategyDetailsDeployment) Install(
-	client client.Interface,
-	owner metav1.ObjectMeta,
-	ownerType metav1.TypeMeta,
-) error {
+type StrategyDeploymentInstaller struct {
+	strategyClient client.InstallStrategyDeploymentInterface
+	ownerMeta      metav1.ObjectMeta
+}
+
+func (d *StrategyDetailsDeployment) GetStrategyName() string {
+	return InstallStrategyNameDeployment
+}
+
+var _ Strategy = &StrategyDetailsDeployment{}
+var _ StrategyInstaller = &StrategyDeploymentInstaller{}
+
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
+	return &StrategyDeploymentInstaller{
+		strategyClient: strategyClient,
+		ownerMeta:      ownerMeta,
+	}
+}
+
+func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
+	strategy, ok := s.(*StrategyDetailsDeployment)
+	if !ok {
+		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
+	}
 	ownerReferences := []metav1.OwnerReference{
 		{
 			APIVersion:         apis.GroupName,
 			Kind:               v1alpha1.ClusterServiceVersionKind,
-			Name:               owner.GetName(),
-			UID:                owner.UID,
+			Name:               i.ownerMeta.GetName(),
+			UID:                i.ownerMeta.UID,
 			Controller:         &Controller,
 			BlockOwnerDeletion: &BlockOwnerDeletion,
 		},
 	}
-	for _, permission := range d.Permissions {
+	for _, permission := range strategy.Permissions {
 		// create role
 		role := &rbac.Role{
 			Rules: permission.Rules,
 		}
 		role.SetOwnerReferences(ownerReferences)
-		role.SetGenerateName(fmt.Sprintf("%s-role-", owner.Name))
-		createdRole, err := client.KubernetesInterface().RbacV1beta1().Roles(owner.Namespace).Create(role)
+		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.Name))
+		createdRole, err := i.strategyClient.CreateRole(role)
 		if err != nil {
 			return err
 		}
@@ -66,8 +85,8 @@ func (d *StrategyDetailsDeployment) Install(
 		serviceAccount := &v1.ServiceAccount{}
 		serviceAccount.SetOwnerReferences(ownerReferences)
 		serviceAccount.SetName(permission.ServiceAccountName)
-		serviceAccount, err = client.KubernetesInterface().CoreV1().ServiceAccounts(owner.Namespace).Create(serviceAccount)
-		if err != nil && !errors.IsAlreadyExists(err) {
+		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount)
+		if err != nil {
 			return err
 		}
 
@@ -80,61 +99,75 @@ func (d *StrategyDetailsDeployment) Install(
 			Subjects: []rbac.Subject{{
 				Kind:      "ServiceAccount",
 				Name:      permission.ServiceAccountName,
-				Namespace: owner.Namespace,
+				Namespace: i.ownerMeta.Namespace,
 			}},
 		}
 		roleBinding.SetOwnerReferences(ownerReferences)
 		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
 
-		if _, err = client.KubernetesInterface().RbacV1beta1().RoleBindings(owner.Namespace).Create(roleBinding); err != nil {
+		if _, err = i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
 			return err
 		}
 	}
 
-	for _, spec := range d.DeploymentSpecs {
+	for _, spec := range strategy.DeploymentSpecs {
 		dep := v1beta1.Deployment{Spec: spec}
-		dep.SetNamespace(owner.Namespace)
+		dep.SetNamespace(i.ownerMeta.Namespace)
 		dep.SetOwnerReferences(ownerReferences)
-		dep.SetGenerateName(fmt.Sprintf("%s-", owner.Name))
+		dep.SetGenerateName(fmt.Sprintf("%s-", i.ownerMeta.Name))
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})
 		}
-		dep.Labels["alm-owned"] = "true"
-		dep.Labels["alm-owner-name"] = owner.Name
-		dep.Labels["alm-owner-namespace"] = owner.Namespace
-		_, err := client.CreateDeployment(&dep)
-		return err
+		dep.Labels["alm-owner-name"] = i.ownerMeta.Name
+		dep.Labels["alm-owner-namespace"] = i.ownerMeta.Namespace
+		if _, err := i.strategyClient.CreateDeployment(&dep); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func (d *StrategyDetailsDeployment) CheckInstalled(client client.Interface, owner metav1.ObjectMeta) (bool, error) {
-	// check service accounts
-	for _, perm := range d.Permissions {
-		_, err := client.KubernetesInterface().CoreV1().ServiceAccounts(owner.Namespace).Get(perm.ServiceAccountName, metav1.GetOptions{})
-		if errors.IsAlreadyExists(err) {
-			continue
-		}
-		if err != nil {
-			log.Debugf("serviceaccount % not found", perm.ServiceAccountName)
-			return false, nil
+func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {
+	strategy, ok := s.(*StrategyDetailsDeployment)
+	if !ok {
+		return false, fmt.Errorf("attempted to check %s strategy with deployment installer", strategy.GetStrategyName())
+	}
+
+	// Check service accounts
+	for _, perm := range strategy.Permissions {
+		if found, err := i.checkForServiceAccount(perm.ServiceAccountName); !found {
+			log.Debugf("service account not found: %s", perm.ServiceAccountName)
+			return false, err
 		}
 	}
 
-	existingDeployments, err := client.ListDeploymentsWithLabels(
-		owner.Namespace,
-		map[string]string{
-			"alm-owned":           "true",
-			"alm-owner-name":      owner.Name,
-			"alm-owner-namespace": owner.Namespace,
-		},
-	)
+	// Check deployments
+	if found, err := i.checkForOwnedDeployments(i.ownerMeta, strategy.DeploymentSpecs); !found {
+		log.Debug("deployments not found")
+		return false, err
+	}
+	return true, nil
+}
+
+func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName string) (bool, error) {
+	if _, err := i.strategyClient.GetServiceAccountByName(serviceAccountName); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("query for service account %s failed: %s", serviceAccountName, err.Error())
+	}
+	// TODO: use a SelfSubjectRulesReview (or a sync version) to verify ServiceAccount has correct access
+	return true, nil
+}
+
+func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []v1beta1.DeploymentSpec) (bool, error) {
+	existingDeployments, err := i.strategyClient.GetOwnedDeployments(owner)
 	if err != nil {
-		return false, fmt.Errorf("couldn't query for existing deployments: %s", err)
+		return false, fmt.Errorf("query for existing deployments failed: %s", err)
 	}
-	if len(existingDeployments.Items) == len(d.DeploymentSpecs) {
-		return true, nil
+	if len(existingDeployments.Items) != len(deploymentSpecs) {
+		log.Debugf("wrong number of deployments found. want %d, got %d", len(deploymentSpecs), len(existingDeployments.Items))
+		return false, nil
 	}
-	log.Debugf("wrong number of deployments found. want %d, got %d", len(d.DeploymentSpecs), len(existingDeployments.Items))
-	return false, nil
+	return true, nil
 }
