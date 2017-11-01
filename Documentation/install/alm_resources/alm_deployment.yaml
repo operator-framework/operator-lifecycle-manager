@@ -34,7 +34,15 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
-          resources:
+          env:
+          - name: MY_POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: MY_POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
       imagePullSecrets:
         - name: coreos-pull-secret
 
