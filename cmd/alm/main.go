@@ -18,6 +18,7 @@ import (
 const (
 	EnvOperatorPodName      = "MY_POD_NAME"
 	EnvOperatorPodNamespace = "MY_POD_NAMESPACE"
+	ALMManagedAnnotationKey = "alm-manager"
 )
 
 func main() {
@@ -52,7 +53,7 @@ func main() {
 
 	namespaceAnnotater := annotater.NewAnnotator(almOperator.OpClient)
 	annotations := map[string]string{
-		"alm-manager": fmt.Sprintf("%s.%s", namespace, name),
+		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", namespace, name),
 	}
 	if err := namespaceAnnotater.AnnotateNamespaces(namespaces, annotations); err != nil {
 		log.Fatalf("error annotating namespaces: %s", err.Error())

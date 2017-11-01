@@ -48,7 +48,7 @@ spec:
           - customresourcedefinitions
           verbs: ["get", "list"]
         - apiGroups:
-          - monitoring.alm.coreos.com
+          - monitoring.coreos.com
           resources:
           - alertmanagers
           - prometheuses
@@ -97,7 +97,7 @@ spec:
                 - sh
                 - -c
                 - >
-                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.alm.coreos.com
+                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.coreos.com
                   --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator
                   --kubelet-service=kube-system/kubelet
                   --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
@@ -121,7 +121,7 @@ spec:
   replaces: prometheusoperator.0.13.0
   customresourcedefinitions:
     owned:
-    - name: prometheuses.monitoring.alm.coreos.com
+    - name: prometheuses.monitoring.coreos.com
       version: v1
       kind: Prometheus
       displayName: Prometheus
@@ -148,12 +148,12 @@ spec:
             - query: "leader_changes_seen_total"
               name: "Filesystem Usage"
               type: "Gauge"
-    - name: servicemonitors.monitoring.alm.coreos.com
+    - name: servicemonitors.monitoring.coreos.com
       version: v1
       kind: ServiceMonitor
       displayName: Service Monitor
       description: Configures prometheus to monitr a particular k8s service
-    - name: alertmanagers.monitoring.alm.coreos.com
+    - name: alertmanagers.monitoring.coreos.com
       version: v1
       kind: AlertManager
       displayName: Alertmanager

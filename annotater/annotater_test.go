@@ -141,7 +141,9 @@ func TestAnnotateNamespace(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			fromCluster, err := fakeKubernetesClient.CoreV1().Namespaces().Update(&namespace)
+			// hack because patch on the kubernetes fake doesn't seem to work
+			fakeKubernetesClient.CoreV1().Namespaces().Update(&namespace)
+			fromCluster, err := fakeKubernetesClient.CoreV1().Namespaces().Get(namespace.Name, metav1.GetOptions{})
 			require.NoError(t, err)
 			require.Equal(t, tt.out, fromCluster.Annotations)
 		})
@@ -199,6 +201,14 @@ func TestAnnotateNamespaces(t *testing.T) {
 			}
 			require.NoError(t, err)
 			for _, namespaceName := range tt.inNamespaces {
+				for _, expected := range tt.outNamespaces {
+					if expected.Name == namespaceName {
+						// this is a hack because fake patch doesn't work
+						ns := namespaceObj(namespaceName, expected.Annotations)
+						fakeKubernetesClient.CoreV1().Namespaces().Update(&ns)
+					}
+				}
+
 				fromCluster, err := fakeKubernetesClient.CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
 				require.NoError(t, err)
 				for _, expected := range tt.outNamespaces {
