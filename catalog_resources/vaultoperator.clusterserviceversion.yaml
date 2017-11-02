@@ -12,10 +12,8 @@ spec:
   keywords: ['vault', 'secret', 'encryption']
 
   maintainers:
-  - name: Xiang Li
-    email: xiang.li@coreos.com
-  - name: Hongchao Deng
-    email: hongchao.deng@coreos.com
+  - name: CoreOS, Inc
+    email: support@coreos.com
 
   provider:
     name: CoreOS, Inc
