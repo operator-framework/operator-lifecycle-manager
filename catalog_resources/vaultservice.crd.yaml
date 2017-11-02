@@ -39,3 +39,7 @@ spec:
     singular: vaultservice
     kind: VaultService
     listKind: VaultServiceList
+    shortNames:
+      - vault
+      - vaultserv
+      - vaultsrv

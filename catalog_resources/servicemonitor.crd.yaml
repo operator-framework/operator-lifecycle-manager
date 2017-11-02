@@ -11,3 +11,7 @@ spec:
     singular: servicemonitor
     kind: ServiceMonitor
     listKind: ServiceMonitorList
+    shortNames:
+      - servicemon
+      - svcmon
+      - svcmonitor

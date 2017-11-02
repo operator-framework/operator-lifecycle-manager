@@ -9,5 +9,8 @@ spec:
   names:
     plural: alertmanagers
     singular: alertmanager
-    kind: AlertManager
-    listKind: AlertManagerList
+    kind: Alertmanager
+    listKind: AlertmanagerList
+    shortNames:
+      - alertman
+      - alrtman

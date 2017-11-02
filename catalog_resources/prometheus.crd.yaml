@@ -11,3 +11,6 @@ spec:
     singular: prometheus
     kind: Prometheus
     listKind: PrometheusList
+    shortNames:
+      - prom
+      - prm

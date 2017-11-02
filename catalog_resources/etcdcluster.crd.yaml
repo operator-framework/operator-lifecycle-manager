@@ -39,3 +39,6 @@ spec:
     singular: etcdcluster
     kind: EtcdCluster
     listKind: EtcdClusterList
+    shortNames:
+      - etcdclus
+      - etcd
