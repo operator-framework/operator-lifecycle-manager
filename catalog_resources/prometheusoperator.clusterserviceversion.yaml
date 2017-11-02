@@ -155,6 +155,6 @@ spec:
       description: Configures prometheus to monitr a particular k8s service
     - name: alertmanagers.monitoring.coreos.com
       version: v1
-      kind: AlertManager
-      displayName: Alertmanager
+      kind: Alertmanager
+      displayName: Alert Manager
       description: Configures an Alert Manager for the namespace
