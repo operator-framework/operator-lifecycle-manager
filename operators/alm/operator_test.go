@@ -13,7 +13,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/client"
 	"github.com/coreos-inc/alm/install"
 	"github.com/coreos-inc/alm/queueinformer"
 )
@@ -21,9 +20,9 @@ import (
 type MockALMOperator struct {
 	ALMOperator
 	MockQueueOperator    *queueinformer.MockOperator
-	MockCSVClient        *client.MockClusterServiceVersionInterface
+	MockCSVClient        *MockClusterServiceVersionInterface
 	TestQueueInformer    queueinformer.TestQueueInformer
-	MockStrategyResolver *install.MockStrategyResolverInterface
+	MockStrategyResolver *MockStrategyResolverInterface
 }
 
 func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alpha1.CRDDescription) {
@@ -101,8 +100,8 @@ func withSpec(csv *v1alpha1.ClusterServiceVersion, spec *v1alpha1.ClusterService
 }
 
 func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
-	mockCSVClient := client.NewMockClusterServiceVersionInterface(gomockCtrl)
-	mockInstallResolver := install.NewMockStrategyResolverInterface(gomockCtrl)
+	mockCSVClient := NewMockClusterServiceVersionInterface(gomockCtrl)
+	mockInstallResolver := NewMockStrategyResolverInterface(gomockCtrl)
 
 	almOperator := ALMOperator{
 		csvClient: mockCSVClient,

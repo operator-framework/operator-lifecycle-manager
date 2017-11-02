@@ -13,7 +13,6 @@ import (
 
 	"github.com/coreos-inc/alm/apis/alphacatalogentry/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/client"
 )
 
 type EntryMatcher struct{ entry v1alpha1.AlphaCatalogEntry }
@@ -40,7 +39,7 @@ func MatchesService(service csvv1alpha1.ClusterServiceVersion) gomock.Matcher {
 
 func TestCustomCatalogStore(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
+	mockClient := NewMockAlphaCatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
 
 	store := CustomResourceCatalogStore{Client: mockClient}
@@ -96,7 +95,7 @@ func TestCustomCatalogStore(t *testing.T) {
 func TestCustomResourceCatalogStoreSync(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
-	mockClient := client.NewMockAlphaCatalogEntryInterface(ctrl)
+	mockClient := NewMockAlphaCatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
 
 	store := CustomResourceCatalogStore{Client: mockClient, Namespace: "alm-coreos-tests"}

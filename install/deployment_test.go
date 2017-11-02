@@ -2,6 +2,7 @@ package install
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -12,11 +13,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"reflect"
-
 	"github.com/coreos-inc/alm/apis"
 	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/client"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -150,7 +148,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
+			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 			strategy := strategy(tt.numExpected, namespace, mockOwnerMeta)
 			for i, p := range strategy.Permissions {
 				if i < tt.numMockServiceAccounts {
@@ -223,7 +221,7 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 		Namespace:    "ns",
 		GenerateName: fmt.Sprintf("%s-", "ns"),
 	}
-	mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
+	mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
@@ -279,7 +277,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockClient := client.NewMockInstallStrategyDeploymentInterface(ctrl)
+			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 			strategy := strategy(1, namespace, mockOwnerMeta)
 			installer := &StrategyDeploymentInstaller{
 				strategyClient: mockClient,
