@@ -12,10 +12,8 @@ spec:
   keywords: ['prometheus', 'monitoring', 'tsdb', 'alerting']
 
   maintainers:
-  - name: Frederic Branczyk
-    email: frederic.branczyk@coreos.com
-  - name: Fabian Reinartz
-    email: fabian.reinartz@coreos.com
+  - name: CoreOS, Inc
+    email: support@coreos.com
 
   provider:
     name: CoreOS, Inc
@@ -23,6 +21,10 @@ spec:
   links:
   - name: Prometheus
     url: https://www.prometheus.io/
+  - name: Documentation
+    url: https://coreos.com/operators/prometheus/docs/latest/
+  - name: Prometheus Operator Source Code
+    url: https://github.com/coreos/prometheus-operator
 
   labels:
     alm-status-descriptors: prometheusoperator.0.14.0
