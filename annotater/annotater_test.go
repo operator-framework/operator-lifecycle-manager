@@ -3,14 +3,19 @@ package annotater
 import (
 	"testing"
 
+	"fmt"
+
 	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
+	fakeCoreV1 "k8s.io/client-go/kubernetes/typed/core/v1/fake"
+	clientgoTesting "k8s.io/client-go/testing"
 )
 
 func NewMockNamespaceClient(ctrl *gomock.Controller, currentNamespaces []v1.Namespace) (*opClient.MockInterface, kubernetes.Interface) {
@@ -97,6 +102,23 @@ func TestGetNamespaces(t *testing.T) {
 	}
 }
 
+func TestGetNamespacesErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := opClient.NewMockInterface(ctrl)
+	fakeKubernetesClient := fake.NewSimpleClientset()
+	fakeNamespaces := fakeKubernetesClient.CoreV1().Namespaces().(*fakeCoreV1.FakeNamespaces)
+	reactionFunc := func(action clientgoTesting.Action) (handled bool, ret runtime.Object, err error) {
+		return true, nil, fmt.Errorf("error listing")
+	}
+	fakeNamespaces.Fake.PrependReactor("list", "namespaces", reactionFunc)
+	mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
+	annotator := NewAnnotator(mockClient)
+	_, err := annotator.getNamespaces([]string{""})
+	require.Error(t, err)
+}
+
 func TestAnnotateNamespace(t *testing.T) {
 	tests := []struct {
 		in          map[string]string
@@ -120,7 +142,7 @@ func TestAnnotateNamespace(t *testing.T) {
 		{
 			in:          map[string]string{"my": "already-set"},
 			annotations: map[string]string{"my": "annotation"},
-			errString:   "attempted to annotate namespace ns, but already annotated by my:already-set",
+			errString:   "attempted to annotate namespace ns with my:annotation, but already annotated by my:already-set",
 			description: "AlreadyAnnotated",
 		},
 	}
@@ -177,7 +199,7 @@ func TestAnnotateNamespaces(t *testing.T) {
 			inNamespaces:       []string{"ns1"},
 			inAnnotations:      map[string]string{"my": "annotation"},
 			existingNamespaces: []v1.Namespace{namespaceObj("ns1", map[string]string{"my": "already-set"})},
-			errString:          "attempted to annotate namespace ns1, but already annotated by my:already-set",
+			errString:          "attempted to annotate namespace ns1 with my:annotation, but already annotated by my:already-set",
 			description:        "AlreadyAnnotated",
 		},
 	}
@@ -219,4 +241,20 @@ func TestAnnotateNamespaces(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAnnotateNamespaceErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, nil)
+
+	// no annotations returns nil
+	annotator := NewAnnotator(mockClient)
+	err := annotator.AnnotateNamespaces([]string{"test"}, nil)
+	require.NoError(t, err)
+
+	// no namespaces returns err
+	mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
+	err = annotator.AnnotateNamespaces([]string{"test"}, map[string]string{"test": "note"})
+	require.Error(t, err)
 }

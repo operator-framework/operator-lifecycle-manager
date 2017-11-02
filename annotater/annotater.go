@@ -81,7 +81,7 @@ func (a *Annotator) annotateNamespace(namespace *v1.Namespace, annotations map[s
 
 	for key, value := range annotations {
 		if existing, ok := namespace.Annotations[key]; ok && existing != value {
-			return fmt.Errorf("attempted to annotate namespace %s, but already annotated by %s:%s", namespace.Name, key, existing)
+			return fmt.Errorf("attempted to annotate namespace %s with %s:%s, but already annotated by %s:%s", namespace.Name, key, value, key, existing)
 		}
 		namespace.Annotations[key] = value
 	}
