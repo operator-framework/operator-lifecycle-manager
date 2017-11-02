@@ -104,35 +104,32 @@ spec:
       displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
       statusDescriptors:
-        - path: importantMetrics
-          displayName: Important Metrics
-          description: Important prometheus metrics for the etcd cluster.
+        - description: The status of each of the member Pods for the etcd cluster.
+          displayName: Member Status
+          path: members
           x-descriptors:
-            - urn:alm:descriptor:com.tectonic.ui:metrics
-          value:
-            queries:
-              - query: has_leader
-                name: Has Active Leader
-                type: Gauge
-                subtype: boolean
-              - query: leader_changes_seen_total
-                name: Leader Changes
-                type: Counter
-        - path: prometheus
-          displayName: Prometheus Endpoint
-          description: Endpoint of the prometheus instance for the etcd cluster.
+            - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+        - description: The service at which the running etcd cluster can be accessed.
+          displayName: Service
+          path: service
           x-descriptors:
-          - urn:alm:descriptor:io.prometheus:prometheus.v1
-          - urn:alm:descriptor:org.w3:link
-        - path: dashboard
-          displayName: Dashboard
-          description: URL of a Grafana dashboard for the etcd cluster.
+            - 'urn:alm:descriptor:io.kubernetes:Service'
+        - description: The current size of the etcd cluster.
+          displayName: Cluster Size
+          path: size
+        - description: The current version of the etcd cluster.
+          displayName: Current Version
+          path: currentVersion
+        - description: 'The target version of the etcd cluster, after upgrading.'
+          displayName: Target Version
+          path: targetVersion
+        - description: The current status of the etcd cluster.
+          displayName: Status
+          path: phase
           x-descriptors:
-          - urn:alm:descriptor:com.tectonic.ui:important.link
-          - urn:alm:descriptor:org.w3:link
-        - path: serviceName
-          displayName: Service Name
-          description: The service name for the running etcd cluster.
+            - 'urn:alm:descriptor:io.kubernetes.phase'
+        - description: Explanation for the current status of the cluster.
+          displayName: Status Details
+          path: reason
           x-descriptors:
-          - urn:alm:descriptor:com.coreos.etcd:api.v3.grpc
-          - urn:alm:descriptor:com.coreos.etcd:api.v2.rest
+            - 'urn:alm:descriptor:io.kubernetes.phase:reason'
