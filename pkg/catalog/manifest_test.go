@@ -45,7 +45,11 @@ spec:
 	assert.NoError(t, err)
 	assert.Equal(t, testCRDName, loadedCRD.GetName())
 
-	crd, err := catalog.FindCRDByName(testCRDName)
+	crd, err := catalog.FindCRDByKey(CRDKey{
+		Name:    testCRDName,
+		Kind:    "MyCoolApp",
+		Version: "v1alpha1",
+	})
 
 	assert.NoError(t, err)
 	assert.Equal(t, testCRDName, crd.GetName())

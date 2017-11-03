@@ -7,12 +7,23 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 )
 
 // InMem - catalog source implementation that stores the data in memory in golang maps
 var _ Source = &InMem{}
+
+type CRDKey struct {
+	Kind    string
+	Name    string
+	Version string
+}
+
+func (k CRDKey) String() string {
+	return fmt.Sprintf("%s/%s/%s", k.Kind, k.Name, k.Version)
+}
 
 type InMem struct {
 	// map ClusterServiceVersion name to a nested mapping of versions to their resource definition
@@ -21,11 +32,11 @@ type InMem struct {
 	// map ClusterServiceVersions by name to metadata for the CSV that replaces it
 	replaces map[string]CSVMetadata
 
-	// map CRDs by name to the name of the ClusterServiceVersion that manages it
-	crdToCSV map[string]string
+	// map CRDs to the name of the ClusterServiceVersion that manages it
+	crdToCSV map[CRDKey]string
 
-	// map CRD names to their full definition
-	crds map[string]v1beta1.CustomResourceDefinition
+	// map CRD to their full definition
+	crds map[CRDKey]v1beta1.CustomResourceDefinition
 }
 
 func NewInMemoryFromDirectory(directory string) (*InMem, error) {
@@ -42,24 +53,33 @@ func NewInMem() *InMem {
 	return &InMem{
 		clusterservices: map[string]map[string]v1alpha1.ClusterServiceVersion{},
 		replaces:        map[string]CSVMetadata{},
-		crdToCSV:        map[string]string{},
-		crds:            map[string]v1beta1.CustomResourceDefinition{},
+		crdToCSV:        map[CRDKey]string{},
+		crds:            map[CRDKey]v1beta1.CustomResourceDefinition{},
 	}
 }
 
 // SetCRDDefinition sets the full resource definition of a CRD in the stored map
 // only sets a new definition if one is not already set
 func (m *InMem) SetCRDDefinition(crd v1beta1.CustomResourceDefinition) error {
-	if old, exists := m.crds[crd.GetName()]; exists && !reflect.DeepEqual(crd, old) {
+	key := CRDKey{
+		Kind:    crd.Spec.Names.Kind,
+		Name:    crd.GetName(),
+		Version: crd.Spec.Version,
+	}
+	if old, exists := m.crds[key]; exists && !equality.Semantic.DeepEqual(crd, old) {
 		return fmt.Errorf("invalid CRD : definition for CRD %s already set", crd.GetName())
 	}
-	m.crds[crd.GetName()] = crd
+	m.crds[key] = crd
 	return nil
 }
 
 // SetOrReplaceCRDDefinition overwrites any existing definition with the same name
 func (m *InMem) SetOrReplaceCRDDefinition(crd v1beta1.CustomResourceDefinition) {
-	m.crds[crd.GetName()] = crd
+	m.crds[CRDKey{
+		Kind:    crd.Spec.Names.Kind,
+		Name:    crd.GetName(),
+		Version: crd.Spec.Version,
+	}] = crd
 }
 
 // findServiceConflicts collates a list of errors from conflicting catalog entries
@@ -89,24 +109,33 @@ func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error
 	}
 	// validate required CRDs
 	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Required {
+		key := CRDKey{
+			Kind:    crdReq.Kind,
+			Name:    crdReq.Name,
+			Version: crdReq.Version,
+		}
 		// validate CRD definition stored
-		if _, ok := m.crds[crdReq.Name]; !ok {
-			errs = append(errs, fmt.Errorf("missing definition for required CRD %s", crdReq.Name))
+		if _, ok := m.crds[key]; !ok {
+			errs = append(errs, fmt.Errorf("missing definition for required CRD %v", key))
 		}
 	}
 
 	// validate owned CRDs
 	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Owned {
+		key := CRDKey{
+			Kind:    crdReq.Kind,
+			Name:    crdReq.Name,
+			Version: crdReq.Version,
+		}
 		// validate crds have definitions stored
-		if _, ok := m.crds[crdReq.Name]; !ok {
-			errs = append(errs, fmt.Errorf("missing definition for owned CRD %s", crdReq.Name))
+		if _, ok := m.crds[key]; !ok {
+			errs = append(errs, fmt.Errorf("missing definition for owned CRD %v", key))
 		}
 		// validate crds not already managed by another service
-		if manager, ok := m.crdToCSV[crdReq.Name]; ok && manager != crdReq.Name {
+		if manager, ok := m.crdToCSV[key]; ok && manager != crdReq.Name {
 			errs = append(errs, fmt.Errorf("CRD %s already managed by %s", crdReq.Name, manager))
 		}
 	}
-
 	return errs
 }
 
@@ -116,7 +145,7 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 	name := csv.GetName()
 	version := csv.Spec.Version.String()
 	// find and log any conflicts; return with error if in `safe` mode
-	if conflicts := m.findServiceConflicts(csv); len(conflicts) > 1 {
+	if conflicts := m.findServiceConflicts(csv); len(conflicts) > 0 {
 		log.Debugf("found conflicts for CSV %s: %v", name, conflicts)
 		if safe {
 			return fmt.Errorf("cannot add CSV %s safely: %v", name, conflicts)
@@ -136,7 +165,12 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 
 	// register its crds
 	for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
-		m.crdToCSV[crd.Name] = name
+		key := CRDKey{
+			Name:    crd.Name,
+			Version: crd.Version,
+			Kind:    crd.Kind,
+		}
+		m.crdToCSV[key] = name
 	}
 	return nil
 }
@@ -255,17 +289,17 @@ func (m *InMem) ListServices() ([]v1alpha1.ClusterServiceVersion, error) {
 }
 
 // FindLatestCSVForCRD looks up the latest service version (by semver) that manages a given CRD
-func (m *InMem) FindLatestCSVForCRD(crdname string) (*v1alpha1.ClusterServiceVersion, error) {
-	name, ok := m.crdToCSV[crdname]
+func (m *InMem) FindLatestCSVForCRD(key CRDKey) (*v1alpha1.ClusterServiceVersion, error) {
+	name, ok := m.crdToCSV[key]
 	if !ok {
-		return nil, fmt.Errorf("not found: CRD %s", crdname)
+		return nil, fmt.Errorf("not found: CRD %s", key)
 	}
 	return m.FindLatestCSVByServiceName(name)
 }
 
 // ListCSVsForCRD lists all versions of the service that manages the given CRD
-func (m *InMem) ListCSVsForCRD(crdname string) ([]v1alpha1.ClusterServiceVersion, error) {
-	csv, _ := m.FindLatestCSVForCRD(crdname)
+func (m *InMem) ListCSVsForCRD(key CRDKey) ([]v1alpha1.ClusterServiceVersion, error) {
+	csv, _ := m.FindLatestCSVForCRD(key)
 	if csv == nil {
 		return []v1alpha1.ClusterServiceVersion{}, nil
 	}
@@ -273,10 +307,10 @@ func (m *InMem) ListCSVsForCRD(crdname string) ([]v1alpha1.ClusterServiceVersion
 }
 
 // FindCRDByName looks up the full CustomResourceDefinition for the resource with the given name
-func (m *InMem) FindCRDByName(crdname string) (*v1beta1.CustomResourceDefinition, error) {
-	crd, ok := m.crds[crdname]
+func (m *InMem) FindCRDByKey(key CRDKey) (*v1beta1.CustomResourceDefinition, error) {
+	crd, ok := m.crds[key]
 	if !ok {
-		return nil, fmt.Errorf("not found: CRD %s", crdname)
+		return nil, fmt.Errorf("not found: CRD %s", key)
 	}
 	return &crd, nil
 }

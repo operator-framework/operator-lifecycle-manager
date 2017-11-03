@@ -177,7 +177,13 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source catlib.Source, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
-	crd, err := source.FindCRDByName(crdDesc.Name)
+	crdKey := catlib.CRDKey{
+		Kind:    crdDesc.Kind,
+		Name:    crdDesc.Name,
+		Version: crdDesc.Version,
+	}
+
+	crd, err := source.FindCRDByKey(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
@@ -188,11 +194,11 @@ func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source catlib.Sou
 		return step, "", err
 	}
 
-	csv, err := source.FindLatestCSVForCRD(crdDesc.Name)
+	csv, err := source.FindLatestCSVForCRD(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
-	log.Infof("found %s owner %s", crd.Name, csv.Name)
+	log.Infof("found %v owner %s", crdKey, csv.Name)
 
 	return v1alpha1.StepResource{}, csv.Name, nil
 }
