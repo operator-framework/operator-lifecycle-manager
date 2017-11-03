@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -114,5 +115,159 @@ func TestNewStepResourceFromCSV(t *testing.T) {
 		require.Equal(t, tt.expectedStepRes.Group, stepRes.Group)
 		require.Equal(t, tt.expectedStepRes.Version, stepRes.Version)
 		require.JSONEq(t, expectedManifest.String(), stepRes.Manifest)
+	}
+}
+
+type mockTime struct {
+	testTime metav1.Time
+}
+
+func (m *mockTime) Copy() metav1.Time {
+	wrapped := m.testTime.DeepCopy()
+	return *wrapped
+}
+
+func TestUpdateConditionIn(t *testing.T) {
+	var (
+		installPlanTestConditionType1 InstallPlanConditionType = "test1"
+		installPlanTestConditionType2 InstallPlanConditionType = "test2"
+		installPlanTestConditionType3 InstallPlanConditionType = "test3"
+
+		before  = metav1.Unix(1257800000, 0)
+		recent  = metav1.Unix(1257894000, 0)
+		nowtime = &mockTime{testTime: recent}
+	)
+	now = nowtime.Copy // set `now` function to mock
+	table := []struct {
+		Title    string
+		Initial  []InstallPlanCondition
+		Update   InstallPlanCondition
+		Expected []InstallPlanCondition
+	}{
+		{
+			Title: "Appends condition if list is empty",
+
+			Initial: []InstallPlanCondition{},
+			Update: InstallPlanCondition{
+				Type:   installPlanTestConditionType1,
+				Status: corev1.ConditionTrue,
+			},
+			Expected: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:               installPlanTestConditionType1,
+					Status:             corev1.ConditionTrue,
+					LastUpdateTime:     recent,
+					LastTransitionTime: recent,
+				},
+			},
+		},
+		{
+			Title: "Appends condition if condition type not in list",
+
+			Initial: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType1,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			Update: InstallPlanCondition{
+				Type:   installPlanTestConditionType2,
+				Status: corev1.ConditionTrue,
+			},
+			Expected: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType1,
+					Status: corev1.ConditionTrue,
+				},
+				InstallPlanCondition{
+					Type:               installPlanTestConditionType2,
+					Status:             corev1.ConditionTrue,
+					LastUpdateTime:     recent,
+					LastTransitionTime: recent,
+				},
+			},
+		},
+		{
+			Title: "updates condition in list to new state",
+
+			Initial: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType1,
+					Status: corev1.ConditionFalse,
+				},
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType2,
+					Status: corev1.ConditionUnknown,
+				},
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType3,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			Update: InstallPlanCondition{
+				Type:   installPlanTestConditionType2,
+				Status: corev1.ConditionTrue,
+			},
+			Expected: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType1,
+					Status: corev1.ConditionFalse,
+				},
+				InstallPlanCondition{
+					Type:               installPlanTestConditionType2,
+					Status:             corev1.ConditionTrue,
+					LastUpdateTime:     recent,
+					LastTransitionTime: recent,
+				},
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType3,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+		{
+			Title: "updates lastupdatetime in list when status of condition didn't change",
+
+			Initial: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType1,
+					Status: corev1.ConditionFalse,
+				},
+				InstallPlanCondition{
+					Type:               installPlanTestConditionType2,
+					Status:             corev1.ConditionTrue,
+					LastUpdateTime:     before,
+					LastTransitionTime: before,
+				},
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType3,
+					Status: corev1.ConditionTrue,
+				},
+			},
+			Update: InstallPlanCondition{
+				Type:   installPlanTestConditionType2,
+				Status: corev1.ConditionTrue,
+			},
+			Expected: []InstallPlanCondition{
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType1,
+					Status: corev1.ConditionFalse,
+				},
+				InstallPlanCondition{
+					Type:               installPlanTestConditionType2,
+					Status:             corev1.ConditionTrue,
+					LastUpdateTime:     recent,
+					LastTransitionTime: before,
+				},
+				InstallPlanCondition{
+					Type:   installPlanTestConditionType3,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	}
+	for _, tt := range table {
+		actual := UpdateConditionIn(tt.Initial, tt.Update)
+		require.EqualValues(t, tt.Expected, actual, tt.Title)
 	}
 }

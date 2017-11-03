@@ -34,21 +34,21 @@ func TestTransitionInstallPlan(t *testing.T) {
 		errMsg = "transition test error"
 		err    = errors.New(errMsg)
 
-		resolved = v1alpha1.InstallPlanCondition{
+		resolved = &v1alpha1.InstallPlanCondition{
 			Type:   v1alpha1.InstallPlanResolved,
 			Status: corev1.ConditionTrue,
 		}
-		unresolved = v1alpha1.InstallPlanCondition{
+		unresolved = &v1alpha1.InstallPlanCondition{
 			Type:    v1alpha1.InstallPlanResolved,
 			Status:  corev1.ConditionFalse,
 			Reason:  v1alpha1.InstallPlanReasonDependencyConflict,
 			Message: errMsg,
 		}
-		installed = v1alpha1.InstallPlanCondition{
+		installed = &v1alpha1.InstallPlanCondition{
 			Type:   v1alpha1.InstallPlanInstalled,
 			Status: corev1.ConditionTrue,
 		}
-		failed = v1alpha1.InstallPlanCondition{
+		failed = &v1alpha1.InstallPlanCondition{
 			Type:    v1alpha1.InstallPlanInstalled,
 			Status:  corev1.ConditionFalse,
 			Reason:  v1alpha1.InstallPlanReasonComponentFailed,
@@ -59,10 +59,10 @@ func TestTransitionInstallPlan(t *testing.T) {
 		initial    v1alpha1.InstallPlanPhase
 		transError error
 		expected   v1alpha1.InstallPlanPhase
-		condition  v1alpha1.InstallPlanCondition
+		condition  *v1alpha1.InstallPlanCondition
 	}{
-		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.InstallPlanPhasePlanning, resolved},
-		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.InstallPlanPhasePlanning, resolved},
+		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.InstallPlanPhasePlanning, nil},
+		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.InstallPlanPhasePlanning, nil},
 
 		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.InstallPlanPhaseInstalling, resolved},
 		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.InstallPlanPhasePlanning, unresolved},
@@ -74,7 +74,8 @@ func TestTransitionInstallPlan(t *testing.T) {
 		// Create a plan in the provided initial phase.
 		plan := &v1alpha1.InstallPlan{
 			Status: v1alpha1.InstallPlanStatus{
-				Phase: tt.initial,
+				Phase:      tt.initial,
+				Conditions: []v1alpha1.InstallPlanCondition{},
 			},
 		}
 
@@ -88,10 +89,15 @@ func TestTransitionInstallPlan(t *testing.T) {
 		require.Equal(t, tt.expected, plan.Status.Phase)
 
 		// Assert that the condition set is as expected
-		require.Equal(t, tt.condition.Type, plan.Status.Condition[0].Type)
-		require.Equal(t, tt.condition.Status, plan.Status.Condition[0].Status)
-		require.Equal(t, tt.condition.Reason, plan.Status.Condition[0].Reason)
-		require.Equal(t, tt.condition.Message, plan.Status.Condition[0].Message)
+		if tt.condition == nil {
+			require.Equal(t, 0, len(plan.Status.Conditions))
+		} else {
+			require.Equal(t, 1, len(plan.Status.Conditions))
+			require.Equal(t, tt.condition.Type, plan.Status.Conditions[0].Type)
+			require.Equal(t, tt.condition.Status, plan.Status.Conditions[0].Status)
+			require.Equal(t, tt.condition.Reason, plan.Status.Conditions[0].Reason)
+			require.Equal(t, tt.condition.Message, plan.Status.Conditions[0].Message)
+		}
 	}
 }
 

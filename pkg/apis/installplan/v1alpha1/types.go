@@ -116,12 +116,16 @@ func findCondition(condList []InstallPlanCondition, condType InstallPlanConditio
 	conditions := append(condList, cond)
 	return len(condList), cond, conditions
 }
+
+var now = metav1.Now
+
 func UpdateConditionIn(condList []InstallPlanCondition, update InstallPlanCondition) []InstallPlanCondition {
 	i, cond, condList := findCondition(condList, update.Type)
-	now := metav1.Now()
-	update.LastUpdateTime = now
-	if cond.Status != update.Status {
-		update.LastTransitionTime = now
+	n := now()
+	update.LastUpdateTime = n
+	update.LastTransitionTime = n
+	if cond.Status == update.Status {
+		update.LastTransitionTime = cond.LastTransitionTime
 	}
 	condList[i] = update
 	return condList
@@ -134,7 +138,7 @@ func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionR
 		Message: err.Error(),
 	}
 }
-func CondititionMet(cond InstallPlanConditionType) InstallPlanCondition {
+func ConditionMet(cond InstallPlanConditionType) InstallPlanCondition {
 	return InstallPlanCondition{
 		Type:   cond,
 		Status: corev1.ConditionTrue,

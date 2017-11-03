@@ -144,7 +144,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 			return err
 		}
 		cond := v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved)
-		plan.Status.Conditions = v1alpha1.UpdateConditionAsMet(plan.Status.Conditions, cond)
+		plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
 		plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		return nil
 	case v1alpha1.InstallPlanPhaseInstalling:
