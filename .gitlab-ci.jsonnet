@@ -78,7 +78,7 @@ local jobs = {
 
     'unit-tests': unittest_stage {
         coverage: @"/\d\d\.\d.$/",
-        script: ["make vendor", "make test", "make cover"],
+        script: ["make vendor", "make test-cover"],
     },
 
     // End2End tests

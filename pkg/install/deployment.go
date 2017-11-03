@@ -110,10 +110,6 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		}
 	}
 
-	//existingDeployments, err := i.strategyClient.GetOwnedDeployments(i.ownerMeta)
-	//if err != nil {
-	//	return fmt.Errorf("query for existing deployments failed: %s", err)
-	//}
 	for _, spec := range strategy.DeploymentSpecs {
 		dep := v1beta1.Deployment{Spec: spec}
 		dep.SetNamespace(i.ownerMeta.Namespace)

@@ -187,8 +187,7 @@ unit-tests:
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
   - make vendor
-  - make test
-  - make cover
+  - make test-cover
   stage: tests
   tags:
   - kubernetes
