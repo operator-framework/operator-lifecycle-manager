@@ -13,8 +13,8 @@ import (
 
 	"fmt"
 
-	"github.com/coreos-inc/alm/annotater"
-	"github.com/coreos-inc/alm/operators/alm"
+	"github.com/coreos-inc/alm/pkg/annotater"
+	"github.com/coreos-inc/alm/pkg/operators/alm"
 )
 
 const (

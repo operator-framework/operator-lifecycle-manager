@@ -183,11 +183,12 @@ unit-tests:
   - mkdir -p $GOPATH/src/github.com/coreos-inc/alm
   - cp -a $CI_PROJECT_DIR/* $GOPATH/src/github.com/coreos-inc/alm
   - cd $GOPATH/src/github.com/coreos-inc/alm
-  coverage: /^TOTAL.*\s+(\d+\%)\s*$/
+  coverage: /\d\d\.\d.$/
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
   - make vendor
   - make test
+  - make cover
   stage: tests
   tags:
   - kubernetes

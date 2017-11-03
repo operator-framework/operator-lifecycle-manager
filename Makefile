@@ -5,26 +5,27 @@ CATALOG_PKG := github.com/coreos-inc/alm/cmd/catalog
 CATALOG_EXECUTABLE := ./bin/catalog
 IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
-TOP_LEVEL := $(dir $(shell glide novendor))
-PACKAGES := $(shell find $(TOP_LEVEL) -type d -not -path '*/\.*')
 
 .PHONY: test run clean vendor vendor-update coverage
 
 all: test build
 
 test:
-	go vet `glide novendor`
-	go test -v -race `glide novendor`
+	go vet ./pkg/...
+	go test -v -race ./pkg/...
+	go test -v ./Documentation/...
 
-cover:
-	go test -cover -tags test `glide novendor`
+COVERUTIL := $(GOPATH)/bin/gocoverutil
 
-coverage-html:
-	echo "mode: count" > coverage-all.out
-	$(foreach pkg,$(PACKAGES),\
-		go test -coverprofile=coverage.out -covermode=count -tags test $(pkg);\
-		tail -n +2 coverage.out >> coverage-all.out;)
-	go tool cover -html=coverage-all.out
+$(COVERUTIL):
+	go get -u github.com/AlekSi/gocoverutil
+
+cover: $(COVERUTIL)
+	$(COVERUTIL) -coverprofile=cover.out test -covermode=count ./pkg/...
+	go tool cover -func=cover.out
+
+coverage-html: cover
+	go tool cover -html=cover.out
 
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
@@ -73,9 +74,9 @@ generate-mock-client: $(MOCKGEN)
 	mockgen -source=client/alphacatalogentry_client.go  -package=catalog > catalog/zz_generated.mock_alphacatalogentry_client_test.go
 	mockgen -source=client/deployment_install_client.go -package=install > install/zz_generated.mock_deployment_install_client_test.go
 	# can't use "source" mockgen, see: https://github.com/golang/mock/issues/11#issuecomment-294380653
-	mockgen -package=alm -imports client=github.com/coreos-inc/alm/vendor/github.com/coreos-inc/operator-client/pkg/client,v1=github.com/coreos-inc/alm/vendor/k8s.io/apimachinery/pkg/apis/meta/v1 github.com/coreos-inc/alm/install StrategyResolverInterface > operators/alm/zz_generated.mock_resolver_test.go
+	mockgen -package=alm -imports client=github.com/coreos-inc/alm/pkg/vendor/github.com/coreos-inc/operator-client/pkg/client,v1=github.com/coreos-inc/alm/pkg/vendor/k8s.io/apimachinery/pkg/apis/meta/v1 github.com/coreos-inc/alm/pkg/install StrategyResolverInterface > operators/alm/zz_generated.mock_resolver_test.go
 	# mockgen doesn't handle vendored dependencies well: https://github.com/golang/mock/issues/30
-	sed -i '' s,github.com/coreos-inc/alm/vendor/,, operators/alm/zz_generated.mock_resolver_test.go
+	sed -i '' s,github.com/coreos-inc/alm/pkg/vendor/,, operators/alm/zz_generated.mock_resolver_test.go
 	goimports -w operators/alm/zz_generated.mock_resolver_test.go
 
 make gen-all: gen-ci codegen generate-mock-client
