@@ -1,0 +1,21 @@
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: alm-bootstrap-serviceaccount
+  namespace: tectonic-system
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1beta1
+kind: ClusterRoleBinding
+metadata:
+  name: alm-bootstrap-binding
+  namespace: tectonic-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: alm-bootstrap-serviceaccount
+  namespace: tectonic-system

@@ -1,5 +1,5 @@
 # ALM
-
+![coverage](https://gitlab.devtable.com/quay/coreos-inc__alm/badges/master/coverage.svg?job=unit-tests)
 **Note**: The `master` branch may be in an *unstable or even broken state* during development.
 Please use [releases] instead of the `master` branch in order to get stable binaries.
 
