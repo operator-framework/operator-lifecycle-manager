@@ -126,18 +126,17 @@ func UpdateConditionIn(condList []InstallPlanCondition, update InstallPlanCondit
 	condList[i] = update
 	return condList
 }
-func ConditionIfErr(condType InstallPlanConditionType,
-	failReason InstallPlanConditionReason, err error) InstallPlanCondition {
-	if err != nil {
-		return InstallPlanCondition{
-			Type:    condType,
-			Status:  corev1.ConditionFalse,
-			Reason:  failReason,
-			Message: err.Error(),
-		}
-	}
+func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionReason, err error) InstallPlanCondition {
 	return InstallPlanCondition{
-		Type:   condType,
+		Type:    cond,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: err.Error(),
+	}
+}
+func CondititionMet(cond InstallPlanConditionType) InstallPlanCondition {
+	return InstallPlanCondition{
+		Type:   cond,
 		Status: corev1.ConditionTrue,
 	}
 }
