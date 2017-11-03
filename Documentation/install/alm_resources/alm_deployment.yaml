@@ -35,14 +35,12 @@ spec:
               path: /healthz
               port: 8080
           env:
-          - name: MY_POD_NAMESPACE
+          - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          - name: MY_POD_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
+          - name: OPERATOR_NAME
+            value: alm-operator
       imagePullSecrets:
         - name: coreos-pull-secret
 

@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
-	"github.com/coreos-inc/alm/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )

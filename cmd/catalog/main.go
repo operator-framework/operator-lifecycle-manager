@@ -1,3 +1,5 @@
+//+build !test
+
 package main
 
 import (
@@ -9,9 +11,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	source "github.com/coreos-inc/alm/catalog"
-	"github.com/coreos-inc/alm/client"
-	"github.com/coreos-inc/alm/operators/catalog"
+	source "github.com/coreos-inc/alm/pkg/catalog"
+	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/operators/catalog"
 )
 
 const (

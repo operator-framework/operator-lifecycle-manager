@@ -1,3 +1,5 @@
+//+build !test
+
 package main
 
 import (
@@ -11,13 +13,13 @@ import (
 
 	"fmt"
 
-	"github.com/coreos-inc/alm/annotater"
-	"github.com/coreos-inc/alm/operators/alm"
+	"github.com/coreos-inc/alm/pkg/annotater"
+	"github.com/coreos-inc/alm/pkg/operators/alm"
 )
 
 const (
-	EnvOperatorPodName      = "MY_POD_NAME"
-	EnvOperatorPodNamespace = "MY_POD_NAMESPACE"
+	EnvOperatorName         = "OPERATOR_NAME"
+	EnvOperatorNamespace    = "OPERATOR_NAMESPACE"
 	ALMManagedAnnotationKey = "alm-manager"
 )
 
@@ -29,13 +31,13 @@ func main() {
 	watchedNamespaces := flag.String("watchedNamespaces", "", "comma separated list of namespaces that alm operator will watch")
 	flag.Parse()
 
-	namespace := os.Getenv(EnvOperatorPodNamespace)
+	namespace := os.Getenv(EnvOperatorNamespace)
 	if len(namespace) == 0 {
-		log.Fatalf("must set env %s", EnvOperatorPodNamespace)
+		log.Fatalf("must set env %s", EnvOperatorNamespace)
 	}
-	name := os.Getenv(EnvOperatorPodName)
+	name := os.Getenv(EnvOperatorName)
 	if len(name) == 0 {
-		log.Fatalf("must set env %s", EnvOperatorPodName)
+		log.Fatalf("must set env %s", EnvOperatorName)
 	}
 
 	// Serve a health check.
