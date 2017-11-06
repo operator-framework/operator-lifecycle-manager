@@ -31,6 +31,12 @@ const (
 	ApprovalManual     Approval = "Manual"
 )
 
+// InstallPlanSpec defines a set of Application resources to be installed
+type InstallPlanSpec struct {
+	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
+	Approval                   Approval `json:"approval"`
+}
+
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
 type InstallPlanPhase string
 
@@ -40,17 +46,6 @@ const (
 	InstallPlanPhaseRequiresApproval InstallPlanPhase = "RequiresApproval"
 	InstallPlanPhaseInstalling       InstallPlanPhase = "Installing"
 	InstallPlanPhaseComplete         InstallPlanPhase = "Complete"
-)
-
-// StepStatus is the current status of a particular resource an in
-// InstallPlan
-type StepStatus string
-
-const (
-	StepStatusUnknown    StepStatus = "Unknown"
-	StepStatusNotPresent StepStatus = "NotPresent"
-	StepStatusPresent    StepStatus = "Present"
-	StepStatusCreated    StepStatus = "Created"
 )
 
 // InstallPlanConditionType describes the state of an InstallPlan at a certain point as a whole.
@@ -72,15 +67,20 @@ const (
 	InstallPlanReasonInstallCheckFailed InstallPlanConditionReason = "InstallCheckFailed"
 )
 
+// StepStatus is the current status of a particular resource an in
+// InstallPlan
+type StepStatus string
+
+const (
+	StepStatusUnknown    StepStatus = "Unknown"
+	StepStatusNotPresent StepStatus = "NotPresent"
+	StepStatusPresent    StepStatus = "Present"
+	StepStatusCreated    StepStatus = "Created"
+)
+
 // ErrInvalidInstallPlan is the error returned by functions that operate on
 // InstallPlans when the InstallPlan does not contain totally valid data.
 var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
-
-// InstallPlanSpec defines a set of Application resources to be installed
-type InstallPlanSpec struct {
-	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
-	Approval                   Approval `json:"approval"`
-}
 
 // InstallPlanStatus represents the information about the status of
 // steps required to complete installation.
@@ -103,33 +103,29 @@ type InstallPlanCondition struct {
 	Message            string                     `json:"message,omitempty"`
 }
 
-func findCondition(condList []InstallPlanCondition, condType InstallPlanConditionType) (int, InstallPlanCondition, []InstallPlanCondition) {
-	for i, cond := range condList {
-		if cond.Type == condType {
-			return i, cond, condList
-		}
-	}
-	cond := InstallPlanCondition{
-		Type:   condType,
-		Status: v1.ConditionUnknown,
-	}
-	conditions := append(condList, cond)
-	return len(condList), cond, conditions
-}
-
+// allow overwriting `now` function for deterministic tests
 var now = metav1.Now
 
-func UpdateConditionIn(condList []InstallPlanCondition, update InstallPlanCondition) []InstallPlanCondition {
-	i, cond, condList := findCondition(condList, update.Type)
-	n := now()
-	update.LastUpdateTime = n
-	update.LastTransitionTime = n
-	if cond.Status == update.Status {
-		update.LastTransitionTime = cond.LastTransitionTime
+// SetCondition adds or updates a condition, using `Type` as merge key
+func (s *InstallPlanStatus) SetCondition(cond InstallPlanCondition) InstallPlanCondition {
+	updated := now()
+	cond.LastUpdateTime = updated
+	cond.LastTransitionTime = updated
+
+	for i, existing := range s.Conditions {
+		if existing.Type != cond.Type {
+			continue
+		}
+		if existing.Status == cond.Status {
+			cond.LastTransitionTime = existing.LastTransitionTime
+		}
+		s.Conditions[i] = cond
+		return cond
 	}
-	condList[i] = update
-	return condList
+	s.Conditions = append(s.Conditions, cond)
+	return cond
 }
+
 func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionReason, err error) InstallPlanCondition {
 	return InstallPlanCondition{
 		Type:    cond,

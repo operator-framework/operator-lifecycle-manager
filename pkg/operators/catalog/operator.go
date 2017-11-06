@@ -138,25 +138,21 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 	case v1alpha1.InstallPlanPhasePlanning:
 		log.Debug("plan phase Planning, attempting to resolve")
 		if err := transitioner.ResolvePlan(plan); err != nil {
-			cond := v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
-				v1alpha1.InstallPlanReasonDependencyConflict, err)
-			plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
+			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
+				v1alpha1.InstallPlanReasonDependencyConflict, err))
 			return err
 		}
-		cond := v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved)
-		plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
+		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
 		plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		return nil
 	case v1alpha1.InstallPlanPhaseInstalling:
 		log.Debug("plan phase Installing, attempting to install")
 		if err := transitioner.ExecutePlan(plan); err != nil {
-			cond := v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
-				v1alpha1.InstallPlanReasonComponentFailed, err)
-			plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
+			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+				v1alpha1.InstallPlanReasonComponentFailed, err))
 			return err
 		}
-		cond := v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled)
-		plan.Status.Conditions = v1alpha1.UpdateConditionIn(plan.Status.Conditions, cond)
+		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
 		plan.Status.Phase = v1alpha1.InstallPlanPhaseComplete
 		return nil
 

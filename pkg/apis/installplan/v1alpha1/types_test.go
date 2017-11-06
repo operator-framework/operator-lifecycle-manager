@@ -139,10 +139,11 @@ func TestUpdateConditionIn(t *testing.T) {
 	)
 	now = nowtime.Copy // set `now` function to mock
 	table := []struct {
-		Title    string
-		Initial  []InstallPlanCondition
-		Update   InstallPlanCondition
-		Expected []InstallPlanCondition
+		Title      string
+		Initial    []InstallPlanCondition
+		Update     InstallPlanCondition
+		Expected   InstallPlanCondition
+		Conditions []InstallPlanCondition
 	}{
 		{
 			Title: "Appends condition if list is empty",
@@ -152,7 +153,13 @@ func TestUpdateConditionIn(t *testing.T) {
 				Type:   installPlanTestConditionType1,
 				Status: v1.ConditionTrue,
 			},
-			Expected: []InstallPlanCondition{
+			Expected: InstallPlanCondition{
+				Type:               installPlanTestConditionType1,
+				Status:             v1.ConditionTrue,
+				LastUpdateTime:     recent,
+				LastTransitionTime: recent,
+			},
+			Conditions: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:               installPlanTestConditionType1,
 					Status:             v1.ConditionTrue,
@@ -174,7 +181,13 @@ func TestUpdateConditionIn(t *testing.T) {
 				Type:   installPlanTestConditionType2,
 				Status: v1.ConditionTrue,
 			},
-			Expected: []InstallPlanCondition{
+			Expected: InstallPlanCondition{
+				Type:               installPlanTestConditionType2,
+				Status:             v1.ConditionTrue,
+				LastUpdateTime:     recent,
+				LastTransitionTime: recent,
+			},
+			Conditions: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
 					Status: v1.ConditionTrue,
@@ -208,7 +221,14 @@ func TestUpdateConditionIn(t *testing.T) {
 				Type:   installPlanTestConditionType2,
 				Status: v1.ConditionTrue,
 			},
-			Expected: []InstallPlanCondition{
+			Expected: InstallPlanCondition{
+				Type:               installPlanTestConditionType2,
+				Status:             v1.ConditionTrue,
+				LastUpdateTime:     recent,
+				LastTransitionTime: recent,
+			},
+
+			Conditions: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
 					Status: v1.ConditionFalse,
@@ -248,7 +268,13 @@ func TestUpdateConditionIn(t *testing.T) {
 				Type:   installPlanTestConditionType2,
 				Status: v1.ConditionTrue,
 			},
-			Expected: []InstallPlanCondition{
+			Expected: InstallPlanCondition{
+				Type:               installPlanTestConditionType2,
+				Status:             v1.ConditionTrue,
+				LastUpdateTime:     recent,
+				LastTransitionTime: before,
+			},
+			Conditions: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
 					Status: v1.ConditionFalse,
@@ -267,7 +293,9 @@ func TestUpdateConditionIn(t *testing.T) {
 		},
 	}
 	for _, tt := range table {
-		actual := UpdateConditionIn(tt.Initial, tt.Update)
+		status := &InstallPlanStatus{Conditions: tt.Initial}
+		actual := status.SetCondition(tt.Update)
 		require.EqualValues(t, tt.Expected, actual, tt.Title)
+		require.EqualValues(t, tt.Conditions, status.Conditions, tt.Title)
 	}
 }
