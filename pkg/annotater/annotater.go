@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	opClient "github.com/coreos-inc/operator-client/pkg/client"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -45,8 +45,8 @@ func (a *Annotator) AnnotateNamespaces(namespaceNames []string, annotations map[
 
 // getNamespaces gets the set of Namespace API objects given a list of names
 // if NamespaceAll is passed (""), all namespaces will be returned
-func (a *Annotator) getNamespaces(namespaceNames []string) (namespaces []v1.Namespace, err error) {
-	if len(namespaceNames) == 1 && namespaceNames[0] == v1.NamespaceAll {
+func (a *Annotator) getNamespaces(namespaceNames []string) (namespaces []corev1.Namespace, err error) {
+	if len(namespaceNames) == 1 && namespaceNames[0] == corev1.NamespaceAll {
 		namespaceList, err := a.OpClient.KubernetesInterface().CoreV1().Namespaces().List(metav1.ListOptions{})
 		if err != nil {
 			return nil, err
@@ -64,13 +64,13 @@ func (a *Annotator) getNamespaces(namespaceNames []string) (namespaces []v1.Name
 	return namespaces, nil
 }
 
-func (a *Annotator) annotateNamespace(namespace *v1.Namespace, annotations map[string]string) error {
+func (a *Annotator) annotateNamespace(namespace *corev1.Namespace, annotations map[string]string) error {
 	// Clone the object since it will be modified.
 	obj, err := runtime.NewScheme().Copy(namespace)
 	if err != nil {
 		return err
 	}
-	original, ok := obj.(*v1.Namespace)
+	original, ok := obj.(*corev1.Namespace)
 	if !ok {
 		return fmt.Errorf("couldn't cast copy to namespace")
 	}
@@ -94,7 +94,7 @@ func (a *Annotator) annotateNamespace(namespace *v1.Namespace, annotations map[s
 	if err != nil {
 		return err
 	}
-	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, v1.Namespace{})
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, corev1.Namespace{})
 	if err != nil {
 		return fmt.Errorf("error creating patch for Namespace: %v", err)
 	}

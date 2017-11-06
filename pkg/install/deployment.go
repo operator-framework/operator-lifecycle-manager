@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -82,7 +82,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		}
 
 		// create serviceaccount if necessary
-		serviceAccount := &v1.ServiceAccount{}
+		serviceAccount := &corev1.ServiceAccount{}
 		serviceAccount.SetOwnerReferences(ownerReferences)
 		serviceAccount.SetName(permission.ServiceAccountName)
 		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount)

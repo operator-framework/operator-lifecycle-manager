@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -96,7 +96,7 @@ type InstallPlanStatus struct {
 // an InstallPlan.
 type InstallPlanCondition struct {
 	Type               InstallPlanConditionType   `json:"type,omitempty"`
-	Status             v1.ConditionStatus         `json:"status,omitempty"` // True False or Unknown
+	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True False or Unknown
 	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
 	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
 	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
@@ -129,7 +129,7 @@ func (s *InstallPlanStatus) SetCondition(cond InstallPlanCondition) InstallPlanC
 func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionReason, err error) InstallPlanCondition {
 	return InstallPlanCondition{
 		Type:    cond,
-		Status:  v1.ConditionFalse,
+		Status:  corev1.ConditionFalse,
 		Reason:  reason,
 		Message: err.Error(),
 	}
@@ -137,7 +137,7 @@ func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionR
 func ConditionMet(cond InstallPlanConditionType) InstallPlanCondition {
 	return InstallPlanCondition{
 		Type:   cond,
-		Status: v1.ConditionTrue,
+		Status: corev1.ConditionTrue,
 	}
 }
 
