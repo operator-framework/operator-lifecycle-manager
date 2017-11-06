@@ -6,7 +6,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -36,21 +36,21 @@ func TestTransitionInstallPlan(t *testing.T) {
 
 		resolved = &v1alpha1.InstallPlanCondition{
 			Type:   v1alpha1.InstallPlanResolved,
-			Status: corev1.ConditionTrue,
+			Status: v1.ConditionTrue,
 		}
 		unresolved = &v1alpha1.InstallPlanCondition{
 			Type:    v1alpha1.InstallPlanResolved,
-			Status:  corev1.ConditionFalse,
+			Status:  v1.ConditionFalse,
 			Reason:  v1alpha1.InstallPlanReasonDependencyConflict,
 			Message: errMsg,
 		}
 		installed = &v1alpha1.InstallPlanCondition{
 			Type:   v1alpha1.InstallPlanInstalled,
-			Status: corev1.ConditionTrue,
+			Status: v1.ConditionTrue,
 		}
 		failed = &v1alpha1.InstallPlanCondition{
 			Type:    v1alpha1.InstallPlanInstalled,
-			Status:  corev1.ConditionFalse,
+			Status:  v1.ConditionFalse,
 			Reason:  v1alpha1.InstallPlanReasonComponentFailed,
 			Message: errMsg,
 		}

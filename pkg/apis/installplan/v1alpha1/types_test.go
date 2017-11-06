@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -150,12 +150,12 @@ func TestUpdateConditionIn(t *testing.T) {
 			Initial: []InstallPlanCondition{},
 			Update: InstallPlanCondition{
 				Type:   installPlanTestConditionType1,
-				Status: corev1.ConditionTrue,
+				Status: v1.ConditionTrue,
 			},
 			Expected: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:               installPlanTestConditionType1,
-					Status:             corev1.ConditionTrue,
+					Status:             v1.ConditionTrue,
 					LastUpdateTime:     recent,
 					LastTransitionTime: recent,
 				},
@@ -167,21 +167,21 @@ func TestUpdateConditionIn(t *testing.T) {
 			Initial: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
-					Status: corev1.ConditionTrue,
+					Status: v1.ConditionTrue,
 				},
 			},
 			Update: InstallPlanCondition{
 				Type:   installPlanTestConditionType2,
-				Status: corev1.ConditionTrue,
+				Status: v1.ConditionTrue,
 			},
 			Expected: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
-					Status: corev1.ConditionTrue,
+					Status: v1.ConditionTrue,
 				},
 				InstallPlanCondition{
 					Type:               installPlanTestConditionType2,
-					Status:             corev1.ConditionTrue,
+					Status:             v1.ConditionTrue,
 					LastUpdateTime:     recent,
 					LastTransitionTime: recent,
 				},
@@ -193,35 +193,35 @@ func TestUpdateConditionIn(t *testing.T) {
 			Initial: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
-					Status: corev1.ConditionFalse,
+					Status: v1.ConditionFalse,
 				},
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType2,
-					Status: corev1.ConditionUnknown,
+					Status: v1.ConditionUnknown,
 				},
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType3,
-					Status: corev1.ConditionTrue,
+					Status: v1.ConditionTrue,
 				},
 			},
 			Update: InstallPlanCondition{
 				Type:   installPlanTestConditionType2,
-				Status: corev1.ConditionTrue,
+				Status: v1.ConditionTrue,
 			},
 			Expected: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
-					Status: corev1.ConditionFalse,
+					Status: v1.ConditionFalse,
 				},
 				InstallPlanCondition{
 					Type:               installPlanTestConditionType2,
-					Status:             corev1.ConditionTrue,
+					Status:             v1.ConditionTrue,
 					LastUpdateTime:     recent,
 					LastTransitionTime: recent,
 				},
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType3,
-					Status: corev1.ConditionTrue,
+					Status: v1.ConditionTrue,
 				},
 			},
 		},
@@ -231,37 +231,37 @@ func TestUpdateConditionIn(t *testing.T) {
 			Initial: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
-					Status: corev1.ConditionFalse,
+					Status: v1.ConditionFalse,
 				},
 				InstallPlanCondition{
 					Type:               installPlanTestConditionType2,
-					Status:             corev1.ConditionTrue,
+					Status:             v1.ConditionTrue,
 					LastUpdateTime:     before,
 					LastTransitionTime: before,
 				},
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType3,
-					Status: corev1.ConditionTrue,
+					Status: v1.ConditionTrue,
 				},
 			},
 			Update: InstallPlanCondition{
 				Type:   installPlanTestConditionType2,
-				Status: corev1.ConditionTrue,
+				Status: v1.ConditionTrue,
 			},
 			Expected: []InstallPlanCondition{
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType1,
-					Status: corev1.ConditionFalse,
+					Status: v1.ConditionFalse,
 				},
 				InstallPlanCondition{
 					Type:               installPlanTestConditionType2,
-					Status:             corev1.ConditionTrue,
+					Status:             v1.ConditionTrue,
 					LastUpdateTime:     recent,
 					LastTransitionTime: before,
 				},
 				InstallPlanCondition{
 					Type:   installPlanTestConditionType3,
-					Status: corev1.ConditionTrue,
+					Status: v1.ConditionTrue,
 				},
 			},
 		},
