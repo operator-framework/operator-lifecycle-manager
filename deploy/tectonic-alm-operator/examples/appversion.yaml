@@ -1,0 +1,11 @@
+apiVersion: tco.coreos.com/v1
+kind: AppVersion
+metadata:
+  name: tectonic-alm-operator
+  namespace: tectonic-system
+  labels:
+    managed-by-channel-operator: "true"
+  annotations:
+    tectonic-operators.coreos.com/upgrade-behaviour: "CreateOrUpgrade"
+spec:
+  desiredVersion: 0.1.0

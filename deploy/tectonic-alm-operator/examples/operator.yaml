@@ -1,0 +1,31 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: tectonic-alm-operator
+  namespace: tectonic-system
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: tectonic-alm-operator
+  template:
+    metadata:
+      labels:
+        app: tectonic-alm-operator
+    spec:
+      serviceAccountName: alm-bootstrap-serviceaccount
+      imagePullSecrets:
+        - name: coreos-pull-secret
+      containers:
+      - name: tectonic-alm-operator
+        image: quay.io/coreos/tectonic-alm-operator:latest
+        imagePullPolicy: Always
+        command:
+        - /tectonic-x-operator
+        - --operator-name=tectonic-alm-operator
+        - --appversion-name=tectonic-alm-operator
+        - --v=2
