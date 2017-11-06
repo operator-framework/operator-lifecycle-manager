@@ -23,7 +23,7 @@ This enables Tectonic users to do the following in a Kubernetes-native way:
 * Review the developing YAML resources for the [ALM itself]
 * Review some YAML resources for [sample operators] using ALM
 
-[installation guide]: /Documentation/install.md
+[installation guide]: /Documentation/install/install.md
 [original design proposal]: /Documentation/design/original-proposal.md
 [Tectonic Console integration]: /Documentation/design/mocks
 [ALM itself]: /Documentation/design/resources
@@ -32,4 +32,4 @@ This enables Tectonic users to do the following in a Kubernetes-native way:
 ## Contact
 
 - Slack: #team-apps
-- Bugs: [JIRA](https://coreosdev.atlassian.net/projects/ALM/summary)
+- Bugs: [JIRA](https://jira.prod.coreos.systems/projects/ALM/summary)
