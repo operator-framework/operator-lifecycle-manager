@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,12 @@ const (
 	ApprovalManual     Approval = "Manual"
 )
 
+// InstallPlanSpec defines a set of Application resources to be installed
+type InstallPlanSpec struct {
+	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
+	Approval                   Approval `json:"approval"`
+}
+
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
 type InstallPlanPhase string
 
@@ -41,15 +48,13 @@ const (
 	InstallPlanPhaseComplete         InstallPlanPhase = "Complete"
 )
 
-// StepStatus is the current status of a particular resource an in
-// InstallPlan.
-type StepStatus string
+// InstallPlanConditionType describes the state of an InstallPlan at a certain point as a whole.
+type InstallPlanConditionType string
 
 const (
-	StepStatusUnknown    StepStatus = "Unknown"
-	StepStatusNotPresent StepStatus = "NotPresent"
-	StepStatusPresent    StepStatus = "Present"
-	StepStatusCreated    StepStatus = "Created"
+	InstallPlanResolved  InstallPlanConditionType = "Resolved"
+	InstallPlanApproved  InstallPlanConditionType = "Approved"
+	InstallPlanInstalled InstallPlanConditionType = "Installed"
 )
 
 // ConditionReason is a camelcased reason for the state transition.
@@ -59,38 +64,81 @@ const (
 	InstallPlanReasonPlanUnknown        InstallPlanConditionReason = "PlanUnknown"
 	InstallPlanReasonDependencyConflict InstallPlanConditionReason = "DependenciesConflict"
 	InstallPlanReasonComponentFailed    InstallPlanConditionReason = "InstallComponentFailed"
-	InstallPlanReasonInstallSuccessful  InstallPlanConditionReason = "InstallSucceeded"
 	InstallPlanReasonInstallCheckFailed InstallPlanConditionReason = "InstallCheckFailed"
+)
+
+// StepStatus is the current status of a particular resource an in
+// InstallPlan
+type StepStatus string
+
+const (
+	StepStatusUnknown    StepStatus = "Unknown"
+	StepStatusNotPresent StepStatus = "NotPresent"
+	StepStatusPresent    StepStatus = "Present"
+	StepStatusCreated    StepStatus = "Created"
 )
 
 // ErrInvalidInstallPlan is the error returned by functions that operate on
 // InstallPlans when the InstallPlan does not contain totally valid data.
 var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
 
-// InstallPlanSpec defines a set of Application resources to be installed
-type InstallPlanSpec struct {
-	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
-	Approval                   Approval `json:"approval"`
-}
-
 // InstallPlanStatus represents the information about the status of
 // steps required to complete installation.
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	InstallPlanCondition `json:",inline"`
-	Conditions           []InstallPlanCondition `json:"conditions,omitempty"`
-	Plan                 []Step                 `json:"plan,omitempty"`
+	Phase      InstallPlanPhase       `json:"phase"`
+	Conditions []InstallPlanCondition `json:"conditions,omitempty"`
+	Plan       []Step                 `json:"plan,omitempty"`
 }
 
 // InstallPlanCondition represents the overall status of the execution of
 // an InstallPlan.
 type InstallPlanCondition struct {
-	Phase              InstallPlanPhase           `json:"phase,omitempty"`
-	Message            string                     `json:"message,omitempty"`
-	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
+	Type               InstallPlanConditionType   `json:"type,omitempty"`
+	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True False or Unknown
 	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
 	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
+	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
+	Message            string                     `json:"message,omitempty"`
+}
+
+// allow overwriting `now` function for deterministic tests
+var now = metav1.Now
+
+// SetCondition adds or updates a condition, using `Type` as merge key
+func (s *InstallPlanStatus) SetCondition(cond InstallPlanCondition) InstallPlanCondition {
+	updated := now()
+	cond.LastUpdateTime = updated
+	cond.LastTransitionTime = updated
+
+	for i, existing := range s.Conditions {
+		if existing.Type != cond.Type {
+			continue
+		}
+		if existing.Status == cond.Status {
+			cond.LastTransitionTime = existing.LastTransitionTime
+		}
+		s.Conditions[i] = cond
+		return cond
+	}
+	s.Conditions = append(s.Conditions, cond)
+	return cond
+}
+
+func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionReason, err error) InstallPlanCondition {
+	return InstallPlanCondition{
+		Type:    cond,
+		Status:  corev1.ConditionFalse,
+		Reason:  reason,
+		Message: err.Error(),
+	}
+}
+func ConditionMet(cond InstallPlanConditionType) InstallPlanCondition {
+	return InstallPlanCondition{
+		Type:   cond,
+		Status: corev1.ConditionTrue,
+	}
 }
 
 // Step represents the status of an individual step in an InstallPlan.

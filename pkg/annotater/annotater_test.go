@@ -8,7 +8,7 @@ import (
 	opClient "github.com/coreos-inc/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -18,9 +18,9 @@ import (
 	clientgoTesting "k8s.io/client-go/testing"
 )
 
-func NewMockNamespaceClient(ctrl *gomock.Controller, currentNamespaces []v1.Namespace) (*opClient.MockInterface, kubernetes.Interface) {
+func NewMockNamespaceClient(ctrl *gomock.Controller, currentNamespaces []corev1.Namespace) (*opClient.MockInterface, kubernetes.Interface) {
 	mockClient := opClient.NewMockInterface(ctrl)
-	fakeKubernetesInterface := fake.NewSimpleClientset(&v1.NamespaceList{Items: currentNamespaces})
+	fakeKubernetesInterface := fake.NewSimpleClientset(&corev1.NamespaceList{Items: currentNamespaces})
 	return mockClient, fakeKubernetesInterface
 }
 
@@ -33,8 +33,8 @@ func TestNewAnnotator(t *testing.T) {
 	require.IsType(t, &Annotator{}, annotator)
 }
 
-func namespaceObj(name string, annotations map[string]string) v1.Namespace {
-	return v1.Namespace{
+func namespaceObj(name string, annotations map[string]string) corev1.Namespace {
+	return corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        name,
 			Annotations: annotations,
@@ -42,7 +42,7 @@ func namespaceObj(name string, annotations map[string]string) v1.Namespace {
 	}
 }
 
-func namespaceObjs(names ...string) (namespaces []v1.Namespace) {
+func namespaceObjs(names ...string) (namespaces []corev1.Namespace) {
 	for _, n := range names {
 		namespaces = append(namespaces, namespaceObj(n, nil))
 	}
@@ -52,7 +52,7 @@ func namespaceObjs(names ...string) (namespaces []v1.Namespace) {
 func TestGetNamespaces(t *testing.T) {
 	tests := []struct {
 		in              []string
-		out             []v1.Namespace
+		out             []corev1.Namespace
 		onCluster       []string
 		expectedErrFunc func(error) bool
 		description     string
@@ -152,7 +152,7 @@ func TestAnnotateNamespace(t *testing.T) {
 			defer ctrl.Finish()
 
 			namespace := namespaceObj("ns", tt.in)
-			mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, []v1.Namespace{namespace})
+			mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, []corev1.Namespace{namespace})
 			if tt.errString == "" {
 				mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
 			}
@@ -176,29 +176,29 @@ func TestAnnotateNamespaces(t *testing.T) {
 	tests := []struct {
 		inNamespaces       []string
 		inAnnotations      map[string]string
-		outNamespaces      []v1.Namespace
-		existingNamespaces []v1.Namespace
+		outNamespaces      []corev1.Namespace
+		existingNamespaces []corev1.Namespace
 		errString          string
 		description        string
 	}{
 		{
 			inNamespaces:       []string{"ns1"},
 			inAnnotations:      map[string]string{"my": "annotation"},
-			existingNamespaces: []v1.Namespace{namespaceObj("ns1", map[string]string{"existing": "note"})},
-			outNamespaces:      []v1.Namespace{namespaceObj("ns1", map[string]string{"my": "annotation", "existing": "note"})},
+			existingNamespaces: []corev1.Namespace{namespaceObj("ns1", map[string]string{"existing": "note"})},
+			outNamespaces:      []corev1.Namespace{namespaceObj("ns1", map[string]string{"my": "annotation", "existing": "note"})},
 			description:        "AddAnnotation",
 		},
 		{
 			inNamespaces:       []string{"ns1"},
 			inAnnotations:      map[string]string{"my": "annotation"},
-			existingNamespaces: []v1.Namespace{namespaceObj("ns1", nil)},
-			outNamespaces:      []v1.Namespace{namespaceObj("ns1", map[string]string{"my": "annotation"})},
+			existingNamespaces: []corev1.Namespace{namespaceObj("ns1", nil)},
+			outNamespaces:      []corev1.Namespace{namespaceObj("ns1", map[string]string{"my": "annotation"})},
 			description:        "AddAnnotationWhenNone",
 		},
 		{
 			inNamespaces:       []string{"ns1"},
 			inAnnotations:      map[string]string{"my": "annotation"},
-			existingNamespaces: []v1.Namespace{namespaceObj("ns1", map[string]string{"my": "already-set"})},
+			existingNamespaces: []corev1.Namespace{namespaceObj("ns1", map[string]string{"my": "already-set"})},
 			errString:          "attempted to annotate namespace ns1 with my:annotation, but already annotated by my:already-set",
 			description:        "AlreadyAnnotated",
 		},

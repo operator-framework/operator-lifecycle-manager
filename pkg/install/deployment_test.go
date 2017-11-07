@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,8 +42,8 @@ func testDepoyment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1be
 	return deployment
 }
 
-func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *v1.ServiceAccount {
-	serviceAccount := &v1.ServiceAccount{}
+func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *corev1.ServiceAccount {
+	serviceAccount := &corev1.ServiceAccount{}
 	serviceAccount.SetName(name)
 	serviceAccount.SetOwnerReferences([]metav1.OwnerReference{
 		{
