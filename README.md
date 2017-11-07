@@ -1,4 +1,5 @@
 # ALM
+[![Docker Repository on Quay](https://quay.io/repository/coreos/tectonic-alm-operator/status?token=2659a703-bf11-411a-aa63-d1b99f800988 "Docker Repository on Quay")](https://quay.io/repository/coreos/tectonic-alm-operator)
 
 **Note**: The `master` branch may be in an *unstable or even broken state* during development.
 Please use [releases] instead of the `master` branch in order to get stable binaries.
