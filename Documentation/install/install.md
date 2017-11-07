@@ -1,5 +1,14 @@
 # Install Guide
 
+
+## Tectonic Sandbox
+
+1. Install and run tectonic sandbox.
+
+2. Ensure kubectl is configured to talk to the tectonic cluster.
+
+3. 
+
 ## Minikube
 
 If you want to use minikube to run ALM, use the provided script:
