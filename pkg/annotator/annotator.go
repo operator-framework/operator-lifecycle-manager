@@ -14,18 +14,20 @@ import (
 
 // Annotator talks to kubernetes and adds annotations to objects.
 type Annotator struct {
-	OpClient opClient.Interface
+	OpClient    opClient.Interface
+	Annotations map[string]string
 }
 
-func NewAnnotator(opClient opClient.Interface) *Annotator {
+func NewAnnotator(opClient opClient.Interface, annotations map[string]string) *Annotator {
 	return &Annotator{
-		OpClient: opClient,
+		OpClient:    opClient,
+		Annotations: annotations,
 	}
 }
 
 // AnnotateNamespaces takes a list of namespace names and a list of annotations to add to them
-func (a *Annotator) AnnotateNamespaces(namespaceNames []string, annotations map[string]string) error {
-	if annotations == nil {
+func (a *Annotator) AnnotateNamespaces(namespaceNames []string) error {
+	if a.Annotations == nil {
 		return nil
 	}
 
@@ -35,7 +37,7 @@ func (a *Annotator) AnnotateNamespaces(namespaceNames []string, annotations map[
 	}
 
 	for _, n := range namespaces {
-		if err := a.annotateNamespace(&n, annotations); err != nil {
+		if err := a.AnnotateNamespace(&n); err != nil {
 			return err
 		}
 	}
@@ -64,7 +66,7 @@ func (a *Annotator) getNamespaces(namespaceNames []string) (namespaces []corev1.
 	return namespaces, nil
 }
 
-func (a *Annotator) annotateNamespace(namespace *corev1.Namespace, annotations map[string]string) error {
+func (a *Annotator) AnnotateNamespace(namespace *corev1.Namespace) error {
 	// Clone the object since it will be modified.
 	obj, err := runtime.NewScheme().Copy(namespace)
 	if err != nil {
@@ -79,7 +81,7 @@ func (a *Annotator) annotateNamespace(namespace *corev1.Namespace, annotations m
 		namespace.Annotations = map[string]string{}
 	}
 
-	for key, value := range annotations {
+	for key, value := range a.Annotations {
 		if existing, ok := namespace.Annotations[key]; ok && existing != value {
 			return fmt.Errorf("attempted to annotate namespace %s with %s:%s, but already annotated by %s:%s", namespace.Name, key, value, key, existing)
 		}

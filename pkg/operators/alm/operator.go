@@ -6,9 +6,11 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/coreos-inc/alm/pkg/annotator"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/install"
@@ -18,13 +20,15 @@ import (
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 
 const (
-	FallbackWakeupInterval = 30 * time.Second
+	FallbackWakeupInterval  = 30 * time.Second
+	ALMManagedAnnotationKey = "alm-manager"
 )
 
 type ALMOperator struct {
 	*queueinformer.Operator
 	csvClient client.ClusterServiceVersionInterface
 	resolver  install.StrategyResolverInterface
+	annotator *annotator.Annotator
 }
 
 func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespace, podName string, namespaces ...string) (*ALMOperator, error) {
@@ -63,11 +67,19 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 	if err != nil {
 		return nil, err
 	}
+	annotations := map[string]string{
+		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", podNamespace, podName),
+	}
+	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
+	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
+		return nil, err
+	}
 
 	op := &ALMOperator{
 		queueOperator,
 		csvClient,
 		&install.StrategyResolver{},
+		namespaceAnnotator,
 	}
 	csvQueueInformers := queueinformer.New(
 		"clusterserviceversions",
@@ -75,7 +87,27 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 		op.syncClusterServiceVersion,
 		nil,
 	)
-	for _, opVerQueueInformer := range csvQueueInformers {
+
+	namespaceWatcher := cache.NewListWatchFromClient(
+		csvClient,
+		"namespaces",
+		podNamespace,
+		fields.Everything(),
+	)
+	namespaceInformer := cache.NewSharedIndexInformer(
+		namespaceWatcher,
+		&corev1.Namespace{},
+		wakeupInterval,
+		cache.Indexers{},
+	)
+	namespaceInformers := queueinformer.New(
+		"namespaces",
+		[]cache.SharedIndexInformer{namespaceInformer},
+		op.annotateNamespace,
+		nil,
+	)
+	queueInformers := append(csvQueueInformers, namespaceInformers...)
+	for _, opVerQueueInformer := range queueInformers {
 		op.RegisterQueueInformer(opVerQueueInformer)
 	}
 
@@ -204,4 +236,20 @@ func (a *ALMOperator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (me
 		statuses = append(statuses, status)
 	}
 	return
+}
+
+// annotateNamespace is the method that gets called when we see a namespace event in the cluster
+func (a *ALMOperator) annotateNamespace(obj interface{}) (syncError error) {
+	namespace, ok := obj.(*corev1.Namespace)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Namespace failed")
+	}
+
+	log.Infof("syncing Namespace: %s", namespace.GetName())
+	if err := a.annotator.AnnotateNamespace(namespace); err != nil {
+		log.Infof("error annotating namespace '%s'", namespace.GetName())
+		return err
+	}
+	return nil
 }

@@ -29,7 +29,7 @@ func TestNewAnnotator(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := opClient.NewMockInterface(ctrl)
-	annotator := NewAnnotator(mockClient)
+	annotator := NewAnnotator(mockClient, map[string]string{})
 	require.IsType(t, &Annotator{}, annotator)
 }
 
@@ -90,7 +90,7 @@ func TestGetNamespaces(t *testing.T) {
 
 			mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, namespaceObjs(tt.onCluster...))
 			mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
-			annotator := NewAnnotator(mockClient)
+			annotator := NewAnnotator(mockClient, map[string]string{})
 			namespaces, err := annotator.getNamespaces(tt.in)
 			require.Equal(t, namespaces, tt.out)
 			if tt.expectedErrFunc != nil {
@@ -114,7 +114,7 @@ func TestGetNamespacesErrors(t *testing.T) {
 	}
 	fakeNamespaces.Fake.PrependReactor("list", "namespaces", reactionFunc)
 	mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
-	annotator := NewAnnotator(mockClient)
+	annotator := NewAnnotator(mockClient, map[string]string{})
 	_, err := annotator.getNamespaces([]string{""})
 	require.Error(t, err)
 }
@@ -156,8 +156,8 @@ func TestAnnotateNamespace(t *testing.T) {
 			if tt.errString == "" {
 				mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
 			}
-			annotator := NewAnnotator(mockClient)
-			err := annotator.annotateNamespace(&namespace, tt.annotations)
+			annotator := NewAnnotator(mockClient, tt.annotations)
+			err := annotator.AnnotateNamespace(&namespace)
 			if tt.errString != "" {
 				require.EqualError(t, err, tt.errString)
 				return
@@ -214,8 +214,8 @@ func TestAnnotateNamespaces(t *testing.T) {
 				mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
 			}
 
-			annotator := NewAnnotator(mockClient)
-			err := annotator.AnnotateNamespaces(tt.inNamespaces, tt.inAnnotations)
+			annotator := NewAnnotator(mockClient, tt.inAnnotations)
+			err := annotator.AnnotateNamespaces(tt.inNamespaces)
 
 			if tt.errString != "" {
 				require.EqualError(t, err, tt.errString)
@@ -249,12 +249,13 @@ func TestAnnotateNamespaceErrors(t *testing.T) {
 	mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, nil)
 
 	// no annotations returns nil
-	annotator := NewAnnotator(mockClient)
-	err := annotator.AnnotateNamespaces([]string{"test"}, nil)
+	annotator := NewAnnotator(mockClient, nil)
+	err := annotator.AnnotateNamespaces([]string{"test"})
 	require.NoError(t, err)
 
 	// no namespaces returns err
 	mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
-	err = annotator.AnnotateNamespaces([]string{"test"}, map[string]string{"test": "note"})
+	annotator.Annotations = map[string]string{"test": "note"}
+	err = annotator.AnnotateNamespaces([]string{"test"})
 	require.Error(t, err)
 }

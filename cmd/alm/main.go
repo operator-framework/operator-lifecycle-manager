@@ -11,16 +11,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"fmt"
-
-	"github.com/coreos-inc/alm/pkg/annotater"
 	"github.com/coreos-inc/alm/pkg/operators/alm"
 )
 
 const (
-	EnvOperatorName         = "OPERATOR_NAME"
-	EnvOperatorNamespace    = "OPERATOR_NAMESPACE"
-	ALMManagedAnnotationKey = "alm-manager"
+	EnvOperatorName      = "OPERATOR_NAME"
+	EnvOperatorNamespace = "OPERATOR_NAMESPACE"
 )
 
 func main() {
@@ -51,14 +47,6 @@ func main() {
 	almOperator, err := alm.NewALMOperator(*kubeConfigPath, *wakeupInterval, namespace, name, namespaces...)
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())
-	}
-
-	namespaceAnnotater := annotater.NewAnnotator(almOperator.OpClient)
-	annotations := map[string]string{
-		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", namespace, name),
-	}
-	if err := namespaceAnnotater.AnnotateNamespaces(namespaces, annotations); err != nil {
-		log.Fatalf("error annotating namespaces: %s", err.Error())
 	}
 
 	// TODO: Handle any signals to shutdown cleanly.
