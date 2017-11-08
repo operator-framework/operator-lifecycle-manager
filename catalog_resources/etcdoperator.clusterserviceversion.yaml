@@ -107,6 +107,12 @@ spec:
       kind: EtcdCluster
       displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
+      specDescriptors:
+        - description: The desired number of member Pods for the etcd cluster.
+          displayName: Size
+          path: size
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       statusDescriptors:
         - description: The status of each of the member Pods for the etcd cluster.
           displayName: Member Status

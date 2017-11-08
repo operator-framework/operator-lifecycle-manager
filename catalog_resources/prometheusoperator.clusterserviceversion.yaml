@@ -128,6 +128,12 @@ spec:
       kind: Prometheus
       displayName: Prometheus
       description: A running Prometheus instance
+      specDescriptors: 
+      - description: Desired number of Pods for the cluster
+        displayName: Size
+        path: replicas
+        x-descriptors: 
+          - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       statusDescriptors:
         - path: status.prometheusSelector
           displayName: Prometheus Service Selector
@@ -154,9 +160,15 @@ spec:
       version: v1
       kind: ServiceMonitor
       displayName: Service Monitor
-      description: Configures prometheus to monitr a particular k8s service
+      description: Configures prometheus to monitor a particular k8s service
     - name: alertmanagers.monitoring.coreos.com
       version: v1
       kind: Alertmanager
       displayName: Alert Manager
       description: Configures an Alert Manager for the namespace
+      specDescriptors: 
+      - description: Desired number of Pods for the cluster
+        displayName: Size
+        path: replicas
+        x-descriptors: 
+        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
