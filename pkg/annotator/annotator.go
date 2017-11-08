@@ -1,4 +1,4 @@
-package annotater
+package annotator
 
 import (
 	"encoding/json"
