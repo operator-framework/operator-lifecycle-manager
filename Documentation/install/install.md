@@ -52,9 +52,19 @@ Current valid clusterServiceVersionNames:
  
 ## View OCS Dashboards
 
-The latest versions of console will show an Open Cloud Service dashboard if ALM is installed.
+### Updating an existing console
 
-1. Get the Console UI if you don't have it: github.com/coreos-inc/bridge
-2. You can set the tectonic license for your local instance by setting `BRIDGE_LICENSE_FILE` before running.
-3. Follow the [instructions](https://github.com/coreos-inc/bridge#configure-the-application) to run console pointing to the cluster with ALM running.
+If you are running an existing Tectonic Cluster, the Console will need to be updated to the `service-catalog-alpha` tag
+to display the OCS.
+
+1. Navigate to the `tectonic-console` Deployment
+2. Click on the `YAML` tab
+3. Under the `image` section, change the image to `quay.io/coreos/tectonic-console:service-catalog-alpha`
+4. Save and wait for Console to reboot
+5. Hard refresh Console to see the OCS
+
+### Installing a new console
+
+The `service-catalog-alpha` tagged version of console will show an Open Cloud Service dashboard if ALM is installed. Follow the [instructions](https://github.com/coreos-inc/bridge#configure-the-application) to run console pointing to the cluster with ALM running, making sure to use
+a deployment with the `quay.io/coreos/tectonic-console:service-catalog-alpha` image.
 
