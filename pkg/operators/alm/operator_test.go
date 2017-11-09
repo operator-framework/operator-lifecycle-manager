@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/coreos-inc/alm/pkg/annotator"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
@@ -117,7 +118,7 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 
 	qOp := queueinformer.NewMockOperator(gomockCtrl, csvQueueInformer)
 	almOperator.Operator = &qOp.Operator
-
+	almOperator.Annotator = annotator.NewAnnotator(qOp, map[string]string{})
 	return &MockALMOperator{
 		ALMOperator:          almOperator,
 		MockCSVClient:        mockCSVClient,

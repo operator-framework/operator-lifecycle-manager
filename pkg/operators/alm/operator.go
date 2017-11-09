@@ -40,8 +40,9 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 	if err != nil {
 		return nil, err
 	}
+	csvSharedIndexInformers := []cache.SharedIndexInformer{}
+	namespaceSharedIndexInformers := []cache.SharedIndexInformer{}
 
-	csvWatchers := []*cache.ListWatch{}
 	for _, namespace := range namespaces {
 		csvWatcher := cache.NewListWatchFromClient(
 			csvClient,
@@ -49,18 +50,27 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 			namespace,
 			fields.Everything(),
 		)
-		csvWatchers = append(csvWatchers, csvWatcher)
-	}
-
-	sharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, csvWatcher := range csvWatchers {
 		csvInformer := cache.NewSharedIndexInformer(
 			csvWatcher,
 			&v1alpha1.ClusterServiceVersion{},
 			wakeupInterval,
 			cache.Indexers{},
 		)
-		sharedIndexInformers = append(sharedIndexInformers, csvInformer)
+		csvSharedIndexInformers = append(csvSharedIndexInformers, csvInformer)
+
+		namespaceWatcher := cache.NewListWatchFromClient(
+			csvClient,
+			"namespaces",
+			podNamespace,
+			fields.OneTermEqualSelector("metadata.namespace", namespace),
+		)
+		namespaceInformer := cache.NewSharedIndexInformer(
+			namespaceWatcher,
+			&corev1.Namespace{},
+			wakeupInterval,
+			cache.Indexers{},
+		)
+		namespaceSharedIndexInformers = append(namespaceSharedIndexInformers, namespaceInformer)
 	}
 
 	queueOperator, err := queueinformer.NewOperator(kubeconfig)
@@ -83,26 +93,13 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 	}
 	csvQueueInformers := queueinformer.New(
 		"clusterserviceversions",
-		sharedIndexInformers,
+		csvSharedIndexInformers,
 		op.syncClusterServiceVersion,
 		nil,
 	)
-
-	namespaceWatcher := cache.NewListWatchFromClient(
-		csvClient,
-		"namespaces",
-		podNamespace,
-		fields.Everything(),
-	)
-	namespaceInformer := cache.NewSharedIndexInformer(
-		namespaceWatcher,
-		&corev1.Namespace{},
-		wakeupInterval,
-		cache.Indexers{},
-	)
 	namespaceInformers := queueinformer.New(
 		"namespaces",
-		[]cache.SharedIndexInformer{namespaceInformer},
+		namespaceSharedIndexInformers,
 		op.annotateNamespace,
 		nil,
 	)
