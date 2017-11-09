@@ -7,6 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
@@ -34,6 +35,9 @@ type ALMOperator struct {
 func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespace, podName string, namespaces ...string) (*ALMOperator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
+	}
+	if namespaces == nil {
+		namespaces = []string{metav1.NamespaceAll}
 	}
 
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
