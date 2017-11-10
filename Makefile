@@ -8,12 +8,13 @@ IMAGE_TAG ?= "dev"
 
 .PHONY: test run clean vendor vendor-update coverage
 
+all: test build
+
 COVERUTIL := $(GOPATH)/bin/gocoverutil
 
 $(COVERUTIL):
 	go get -u github.com/AlekSi/gocoverutil
 
-all: test build
 
 test:
 	go vet ./pkg/...
