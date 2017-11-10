@@ -32,7 +32,7 @@ type ALMOperator struct {
 	annotator *annotator.Annotator
 }
 
-func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespace, podName string, namespaces ...string) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, operatorNamespace, operatorName string, namespaces ...string) (*ALMOperator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
@@ -65,7 +65,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 		namespaceWatcher := cache.NewListWatchFromClient(
 			csvClient,
 			"namespaces",
-			podNamespace,
+			operatorNamespace,
 			fields.OneTermEqualSelector("metadata.namespace", namespace),
 		)
 		namespaceInformer := cache.NewSharedIndexInformer(
@@ -82,7 +82,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespac
 		return nil, err
 	}
 	annotations := map[string]string{
-		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", podNamespace, podName),
+		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", operatorNamespace, operatorName),
 	}
 	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
 	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
