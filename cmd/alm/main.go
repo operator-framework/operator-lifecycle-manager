@@ -4,6 +4,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -15,8 +16,9 @@ import (
 )
 
 const (
-	EnvOperatorName      = "OPERATOR_NAME"
-	EnvOperatorNamespace = "OPERATOR_NAMESPACE"
+	EnvOperatorName         = "OPERATOR_NAME"
+	EnvOperatorNamespace    = "OPERATOR_NAMESPACE"
+	ALMManagedAnnotationKey = "alm-manager"
 )
 
 func main() {
@@ -43,8 +45,12 @@ func main() {
 	go http.ListenAndServe(":8080", nil)
 
 	// Create a new instance of the operator.
+
+	annotations := map[string]string{
+		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", namespace, name),
+	}
 	namespaces := strings.Split(*watchedNamespaces, ",")
-	almOperator, err := alm.NewALMOperator(*kubeConfigPath, *wakeupInterval, namespace, name, namespaces...)
+	almOperator, err := alm.NewALMOperator(*kubeConfigPath, *wakeupInterval, annotations, namespaces...)
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())
 	}

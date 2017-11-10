@@ -21,8 +21,7 @@ import (
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 
 const (
-	FallbackWakeupInterval  = 30 * time.Second
-	ALMManagedAnnotationKey = "alm-manager"
+	FallbackWakeupInterval = 30 * time.Second
 )
 
 type ALMOperator struct {
@@ -32,7 +31,7 @@ type ALMOperator struct {
 	annotator *annotator.Annotator
 }
 
-func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, operatorNamespace, operatorName string, namespaces ...string) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations map[string]string, namespaces ...string) (*ALMOperator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
@@ -65,8 +64,8 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, operatorNam
 		namespaceWatcher := cache.NewListWatchFromClient(
 			csvClient,
 			"namespaces",
-			operatorNamespace,
-			fields.OneTermEqualSelector("metadata.namespace", namespace),
+			metav1.NamespaceAll, // watch all namespaces then filter so it picks up new namespaces
+			fields.OneTermEqualSelector("metadata.name", namespace),
 		)
 		namespaceInformer := cache.NewSharedIndexInformer(
 			namespaceWatcher,
@@ -80,9 +79,6 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, operatorNam
 	queueOperator, err := queueinformer.NewOperator(kubeconfig)
 	if err != nil {
 		return nil, err
-	}
-	annotations := map[string]string{
-		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", operatorNamespace, operatorName),
 	}
 	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
 	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {

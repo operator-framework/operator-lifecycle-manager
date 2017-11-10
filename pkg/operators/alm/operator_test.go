@@ -118,7 +118,7 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 
 	qOp := queueinformer.NewMockOperator(gomockCtrl, csvQueueInformer)
 	almOperator.Operator = &qOp.Operator
-	almOperator.Annotator = annotator.NewAnnotator(qOp, map[string]string{})
+	almOperator.annotator = annotator.NewAnnotator(qOp.OpClient, map[string]string{})
 	return &MockALMOperator{
 		ALMOperator:          almOperator,
 		MockCSVClient:        mockCSVClient,
