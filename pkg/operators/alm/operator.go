@@ -108,8 +108,8 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, operatorNam
 		nil,
 	)
 	queueInformers := append(csvQueueInformers, namespaceInformers...)
-	for _, opVerQueueInformer := range queueInformers {
-		op.RegisterQueueInformer(opVerQueueInformer)
+	for _, queueInformer := range queueInformers {
+		op.RegisterQueueInformer(queueInformer)
 	}
 
 	return op, nil
