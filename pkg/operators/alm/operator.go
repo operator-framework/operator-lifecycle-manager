@@ -35,17 +35,56 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
-	if namespaces == nil {
-		namespaces = []string{metav1.NamespaceAll}
-	}
-
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
-	csvSharedIndexInformers := []cache.SharedIndexInformer{}
-	namespaceSharedIndexInformers := []cache.SharedIndexInformer{}
+	queueOperator, err := queueinformer.NewOperator(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
 
+	op := &ALMOperator{
+		queueOperator,
+		csvClient,
+		&install.StrategyResolver{},
+		namespaceAnnotator,
+	}
+
+	// if watching all namespaces, set up a watch to annotate new namespaces
+	if namespaces == nil || len(namespaces) < 1 || len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
+		namespaces = []string{metav1.NamespaceAll}
+		log.Info("watching all namespaces, setting up queue")
+		namespaceWatcher := cache.NewListWatchFromClient(
+			queueOperator.OpClient.KubernetesInterface().CoreV1().RESTClient(),
+			"namespaces",
+			metav1.NamespaceAll,
+			fields.Everything(),
+		)
+		namespaceInformer := cache.NewSharedIndexInformer(
+			namespaceWatcher,
+			&corev1.Namespace{},
+			wakeupInterval,
+			cache.Indexers{},
+		)
+		queueInformer := queueinformer.NewInformer(
+			"namespaces",
+			namespaceInformer,
+			op.annotateNamespace,
+			nil,
+		)
+		op.RegisterQueueInformer(queueInformer)
+	} else {
+		log.Infof("watching namespace subset: %#v", namespaces)
+	}
+
+	// annotate namespaces with ALM ref
+	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
+		return nil, err
+	}
+
+	// set up watch on CSVs
 	for _, namespace := range namespaces {
 		csvWatcher := cache.NewListWatchFromClient(
 			csvClient,
@@ -59,52 +98,12 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 			wakeupInterval,
 			cache.Indexers{},
 		)
-		csvSharedIndexInformers = append(csvSharedIndexInformers, csvInformer)
-
-		namespaceWatcher := cache.NewListWatchFromClient(
-			csvClient,
-			"namespaces",
-			metav1.NamespaceAll, // watch all namespaces then filter so it picks up new namespaces
-			fields.OneTermEqualSelector("metadata.name", namespace),
+		queueInformer := queueinformer.NewInformer(
+			"clusterserviceversions",
+			csvInformer,
+			op.syncClusterServiceVersion,
+			nil,
 		)
-		namespaceInformer := cache.NewSharedIndexInformer(
-			namespaceWatcher,
-			&corev1.Namespace{},
-			wakeupInterval,
-			cache.Indexers{},
-		)
-		namespaceSharedIndexInformers = append(namespaceSharedIndexInformers, namespaceInformer)
-	}
-
-	queueOperator, err := queueinformer.NewOperator(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
-	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
-		return nil, err
-	}
-
-	op := &ALMOperator{
-		queueOperator,
-		csvClient,
-		&install.StrategyResolver{},
-		namespaceAnnotator,
-	}
-	csvQueueInformers := queueinformer.New(
-		"clusterserviceversions",
-		csvSharedIndexInformers,
-		op.syncClusterServiceVersion,
-		nil,
-	)
-	namespaceInformers := queueinformer.New(
-		"namespaces",
-		namespaceSharedIndexInformers,
-		op.annotateNamespace,
-		nil,
-	)
-	queueInformers := append(csvQueueInformers, namespaceInformers...)
-	for _, queueInformer := range queueInformers {
 		op.RegisterQueueInformer(queueInformer)
 	}
 
