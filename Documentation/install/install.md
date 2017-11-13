@@ -8,19 +8,9 @@ If you want to use minikube to run ALM, use the provided script:
 ./minikube.sh
 ```
 
-## Existing Cluster 
+## Existing Tectonic 1.7+ Cluster 
 
-If not using minikube, you will need a Tectonic cluster >= 1.7
-
-* Create a pull secret `coreos-pull-secret` that can read:
-  * `quay.io/coreos/alm`
-  * `quay.io/coreos/catalog`
-  * `quay.io/coreos/vault-operator`
-  * `quay.io/coreos/vault`
-  * `quay.io/coreos/prometheus-operator`
-  * `quay.io/coreos/etcd-operator`
-
-```bash
+```sh
 kubectl apply -f ./alm_resources
 ```
 
@@ -32,7 +22,7 @@ If not using tectonic console, they can be installed by creating an `InstallPlan
 
 For example:
 
-```bash
+```sh
 apiVersion: app.coreos.com/v1alpha1
 kind: InstallPlan-v1
 metadata:
@@ -67,4 +57,3 @@ to display the OCS.
 
 The `service-catalog-alpha` tagged version of console will show an Open Cloud Service dashboard if ALM is installed. Follow the [instructions](https://github.com/coreos-inc/bridge#configure-the-application) to run console pointing to the cluster with ALM running, making sure to use
 a deployment with the `quay.io/coreos/tectonic-console:service-catalog-alpha` image.
-
