@@ -8,27 +8,30 @@ Please use [releases] instead of the `master` branch in order to get stable bina
 
 ![logo-placeholder](https://user-images.githubusercontent.com/343539/30085003-bc6e757c-9262-11e7-86e3-2433b3a884a5.png)
 
-ALM is a project that creates an opinionated framework for managing the overall lifecycle of applications in Kubernetes.
+ALM is a project that creates an opinionated framework for managing applications in Kubernetes.
 
-This enables Tectonic users to do the following in a Kubernetes-native way:
+This project enables users to do the following:
 
-* leverage a catalog for discovery and installation of applications across their namespaces
-* automatically upgrade between compatible versions of applications and their operators
-* relate application resources together using well defined inputs and outputs
+* Define applications as a single Kubernetes resource that encapsulates requirements and dashboarding metadata
+* Install applications automatically with dependency resolution or manually with nothing but `kubectl`
+* Upgrade applications automatically with different approval policies
+
+This project does not:
+
+* Replace [Helm](https://github.com/kubernetes/helm)
+* Turn Kubernetes into a [PaaS](https://en.wikipedia.org/wiki/Platform_as_a_service)
 
 ## Getting Started
 
+* Learn the ALM project [architecture]
 * Follow the [installation guide]
-* Read the [original design proposal]
-* Checkout some mocks for the [Tectonic Console integration]
-* Review the developing YAML resources for the [ALM itself]
-* Review some YAML resources for [sample operators] using ALM
+* Understand the YAML resources for the [ALM itself]
+* Review the YAML resources for the [existing applications] leveraging the ALM framework
 
+[architecture]: /Documentation/design/architecture.md
 [installation guide]: /Documentation/install/install.md
-[original design proposal]: /Documentation/design/original-proposal.md
-[Tectonic Console integration]: /Documentation/design/mocks
 [ALM itself]: /Documentation/design/resources
-[sample operators]: /Documentation/design/resources/samples
+[existing applications]: /catalog_resources
 
 ## Contact
 
