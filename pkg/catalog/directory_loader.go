@@ -35,6 +35,14 @@ func (d *DirectoryCatalogResourceLoader) LoadCRDsWalkFunc(path string, f os.File
 
 	if f.IsDir() {
 		log.Debugf("Load CRD     -- ISDIR %s", path)
+		if strings.HasPrefix(f.Name(), ".") {
+			log.Debugf("Load CRD     -- SKIPHIDDEN %s", path)
+			return filepath.SkipDir
+		}
+		return nil
+	}
+	if strings.HasPrefix(f.Name(), ".") {
+		log.Debugf("Load CRD     -- SKIPHIDDEN %s", path)
 		return nil
 	}
 	if strings.HasSuffix(path, ".crd.yaml") {
@@ -53,7 +61,15 @@ func (d *DirectoryCatalogResourceLoader) LoadCSVsWalkFunc(path string, f os.File
 	log.Debugf("Load CSV     -- BEGIN %s", path)
 
 	if f.IsDir() {
+		if strings.HasPrefix(f.Name(), ".") {
+			log.Debugf("Load CSV     -- SKIPHIDDEN %s", path)
+			return filepath.SkipDir
+		}
 		log.Debugf("Load CSV     -- ISDIR %s", path)
+		return nil
+	}
+	if strings.HasPrefix(f.Name(), ".") {
+		log.Debugf("Load CSV     -- SKIPHIDDEN %s", path)
 		return nil
 	}
 	if strings.HasSuffix(path, ".clusterserviceversion.yaml") {
