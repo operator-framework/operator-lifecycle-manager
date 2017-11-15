@@ -76,8 +76,8 @@ type ClusterServiceVersionSpec struct {
 	Keywords                  []string                  `json:"keywords"`
 	Maintainers               []Maintainer              `json:"maintainers"`
 	Provider                  AppLink                   `json:"provider"`
-	Links                     []AppLink                 `json:"links"`
-	Icon                      []Icon                    `json:"icon"`
+	Links                     []AppLink                 `json:"links,omitempty"`
+	Icon                      []Icon                    `json:"icon,omitempty"`
 
 	// The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.
 	// +optional
