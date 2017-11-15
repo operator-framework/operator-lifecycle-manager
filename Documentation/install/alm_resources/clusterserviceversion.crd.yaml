@@ -279,7 +279,8 @@ spec:
                 required:
                 - image
                 properties:
-                  image: string
+                  image:
+                    type: string
           - type: object
             required:
             - strategy
