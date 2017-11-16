@@ -6,9 +6,12 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
+	"github.com/coreos-inc/alm/pkg/annotator"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/install"
@@ -25,58 +28,84 @@ type ALMOperator struct {
 	*queueinformer.Operator
 	csvClient client.ClusterServiceVersionInterface
 	resolver  install.StrategyResolverInterface
+	annotator *annotator.Annotator
 }
 
-func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, podNamespace, podName string, namespaces ...string) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*ALMOperator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
-
+	if len(namespaces) < 1 {
+		namespaces = []string{metav1.NamespaceAll}
+	}
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
+	queueOperator, err := queueinformer.NewOperator(kubeconfig)
+	if err != nil {
+		return nil, err
+	}
+	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
 
-	csvWatchers := []*cache.ListWatch{}
+	op := &ALMOperator{
+		queueOperator,
+		csvClient,
+		&install.StrategyResolver{},
+		namespaceAnnotator,
+	}
+
+	// if watching all namespaces, set up a watch to annotate new namespaces
+	if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
+		log.Debug("watching all namespaces, setting up queue")
+		namespaceWatcher := cache.NewListWatchFromClient(
+			queueOperator.OpClient.KubernetesInterface().CoreV1().RESTClient(),
+			"namespaces",
+			metav1.NamespaceAll,
+			fields.Everything(),
+		)
+		namespaceInformer := cache.NewSharedIndexInformer(
+			namespaceWatcher,
+			&corev1.Namespace{},
+			wakeupInterval,
+			cache.Indexers{},
+		)
+		queueInformer := queueinformer.NewInformer(
+			"namespaces",
+			namespaceInformer,
+			op.annotateNamespace,
+			nil,
+		)
+		op.RegisterQueueInformer(queueInformer)
+	}
+
+	// annotate namespaces that ALM operator manages
+	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
+		return nil, err
+	}
+
+	// set up watch on CSVs
 	for _, namespace := range namespaces {
+		log.Debugf("watching for CSVs in namespace %s", namespace)
 		csvWatcher := cache.NewListWatchFromClient(
 			csvClient,
 			"clusterserviceversion-v1s",
 			namespace,
 			fields.Everything(),
 		)
-		csvWatchers = append(csvWatchers, csvWatcher)
-	}
-
-	sharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, csvWatcher := range csvWatchers {
 		csvInformer := cache.NewSharedIndexInformer(
 			csvWatcher,
 			&v1alpha1.ClusterServiceVersion{},
 			wakeupInterval,
 			cache.Indexers{},
 		)
-		sharedIndexInformers = append(sharedIndexInformers, csvInformer)
-	}
-
-	queueOperator, err := queueinformer.NewOperator(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	op := &ALMOperator{
-		queueOperator,
-		csvClient,
-		&install.StrategyResolver{},
-	}
-	csvQueueInformers := queueinformer.New(
-		"clusterserviceversions",
-		sharedIndexInformers,
-		op.syncClusterServiceVersion,
-		nil,
-	)
-	for _, opVerQueueInformer := range csvQueueInformers {
-		op.RegisterQueueInformer(opVerQueueInformer)
+		queueInformer := queueinformer.NewInformer(
+			"clusterserviceversions",
+			csvInformer,
+			op.syncClusterServiceVersion,
+			nil,
+		)
+		op.RegisterQueueInformer(queueInformer)
 	}
 
 	return op, nil
@@ -204,4 +233,20 @@ func (a *ALMOperator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (me
 		statuses = append(statuses, status)
 	}
 	return
+}
+
+// annotateNamespace is the method that gets called when we see a namespace event in the cluster
+func (a *ALMOperator) annotateNamespace(obj interface{}) (syncError error) {
+	namespace, ok := obj.(*corev1.Namespace)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Namespace failed")
+	}
+
+	log.Infof("syncing Namespace: %s", namespace.GetName())
+	if err := a.annotator.AnnotateNamespace(namespace); err != nil {
+		log.Infof("error annotating namespace '%s'", namespace.GetName())
+		return err
+	}
+	return nil
 }
