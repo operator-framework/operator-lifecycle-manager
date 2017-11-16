@@ -45,9 +45,9 @@ func main() {
 		"interval", defaultWakeupInterval, "wake up interval")
 
 	watchedNamespaces := flag.String(
-		"watchedNamespaces", "", "comma separated list of namespaces that alm operator will watch"+
-			"\n***If not set, or value is the empty string (e.g. `-watchedNamespaces=\"\"`), "+
-			"alm operator will watch all namespaces in the cluster***")
+		"watchedNamespaces", "", "comma separated list of namespaces for alm operator to watch. "+
+			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
+			"alm operator will watch all namespaces in the cluster.")
 
 	debug := flag.Bool(
 		"debug", false, "use debug log level")
