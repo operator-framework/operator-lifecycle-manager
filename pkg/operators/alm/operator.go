@@ -31,9 +31,12 @@ type ALMOperator struct {
 	annotator *annotator.Annotator
 }
 
-func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations map[string]string, namespaces ...string) (*ALMOperator, error) {
+func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*ALMOperator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
+	}
+	if len(namespaces) < 1 {
+		namespaces = []string{metav1.NamespaceAll}
 	}
 	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
 	if err != nil {
@@ -53,9 +56,8 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 	}
 
 	// if watching all namespaces, set up a watch to annotate new namespaces
-	if namespaces == nil || len(namespaces) < 1 || len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
-		namespaces = []string{metav1.NamespaceAll}
-		log.Info("watching all namespaces, setting up queue")
+	if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
+		log.Debug("watching all namespaces, setting up queue")
 		namespaceWatcher := cache.NewListWatchFromClient(
 			queueOperator.OpClient.KubernetesInterface().CoreV1().RESTClient(),
 			"namespaces",
@@ -75,17 +77,16 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 			nil,
 		)
 		op.RegisterQueueInformer(queueInformer)
-	} else {
-		log.Infof("watching namespace subset: %#v", namespaces)
 	}
 
-	// annotate namespaces with ALM ref
+	// annotate namespaces that ALM operator manages
 	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
 		return nil, err
 	}
 
 	// set up watch on CSVs
 	for _, namespace := range namespaces {
+		log.Debugf("watching for CSVs in namespace %s", namespace)
 		csvWatcher := cache.NewListWatchFromClient(
 			csvClient,
 			"clusterserviceversion-v1s",
