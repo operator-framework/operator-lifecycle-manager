@@ -33,6 +33,9 @@ spec:
           - Automatic
           - Manual
           - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
+        serviceAccountName:
+          type: string
+          description: The serviceaccount to use to create resources. If not specified, the default serviceaccount for the namespace will be used.
 
 # Schema for status key written by the operator:
 #status:

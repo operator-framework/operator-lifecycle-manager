@@ -20,6 +20,7 @@ type ClusterServiceVersionInterface interface {
 
 type ClusterServiceVersionClient struct {
 	*rest.RESTClient
+	Config *rest.Config
 }
 
 var _ ClusterServiceVersionInterface = &ClusterServiceVersionClient{}
@@ -47,7 +48,7 @@ func NewClusterServiceVersionClient(kubeconfig string) (client *ClusterServiceVe
 	if err != nil {
 		return
 	}
-	return &ClusterServiceVersionClient{restClient}, nil
+	return &ClusterServiceVersionClient{RESTClient: restClient, Config: config}, nil
 }
 
 func (c *ClusterServiceVersionClient) UpdateCSV(in *v1alpha1.ClusterServiceVersion) (result *v1alpha1.ClusterServiceVersion, err error) {

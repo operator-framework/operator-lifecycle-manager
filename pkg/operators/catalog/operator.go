@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/coreos-inc/alm/pkg/queueinformer"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	log "github.com/sirupsen/logrus"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -109,7 +110,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	syncError = transitionInstallPlanState(o, plan)
 
-	// Update CSV with status of transition. Log errors if we can't write them to the status.
+	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.ipClient.UpdateInstallPlan(plan); err != nil {
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
@@ -311,7 +312,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhaseInstalling {
 		panic("attempted to install a plan that wasn't in the installing phase")
 	}
-
+	impersonatedClient, err := o.impersonatedClient(plan)
+	if err != nil {
+		return v1alpha1.ErrInvalidInstallPlan
+	}
+	impersonatedCSVClient, err := o.impersonatedCSVClient(plan)
+	if err != nil {
+		return v1alpha1.ErrInvalidInstallPlan
+	}
 	for i, step := range plan.Status.Plan {
 		switch step.Status {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
@@ -329,7 +337,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				// Attempt to create the CRD.
-				err = o.OpClient.CreateCustomResourceDefinitionKind(&crd)
+				err = impersonatedClient.CreateCustomResourceDefinition(&crd)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
@@ -351,7 +359,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				// Attempt to create the CSV.
-				err = o.csvClient.CreateCSV(&csv)
+				err = impersonatedCSVClient.CreateCSV(&csv)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
@@ -381,4 +389,19 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	return nil
+}
+
+func (o *Operator) impersonatedClient(installPlan *v1alpha1.InstallPlan) (opClient.Interface, error) {
+	if installPlan.Spec.ServiceAccountName == "" {
+		installPlan.Spec.ServiceAccountName = "default"
+	}
+	return o.OpClient.ImpersonatedClientForServiceAccount(installPlan.Spec.ServiceAccountName, installPlan.Namespace)
+}
+
+func (o *Operator) impersonatedCSVClient(installPlan *v1alpha1.InstallPlan) (client.ClusterServiceVersionInterface, error) {
+	if installPlan.Spec.ServiceAccountName == "" {
+		installPlan.Spec.ServiceAccountName = "default"
+	}
+
+	return o.csvClient.ImpersonatedClientForServiceAccount(installPlan.Spec.ServiceAccountName, installPlan.Namespace)
 }

@@ -35,6 +35,7 @@ const (
 type InstallPlanSpec struct {
 	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
 	Approval                   Approval `json:"approval"`
+	ServiceAccountName         string   `json:"serviceAccountName,omitempty"`
 }
 
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
