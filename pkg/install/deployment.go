@@ -33,6 +33,7 @@ type StrategyDeploymentPermissions struct {
 type StrategyDetailsDeployment struct {
 	DeploymentSpecs []v1beta1.DeploymentSpec        `json:"deployments"`
 	Permissions     []StrategyDeploymentPermissions `json:"permissions"`
+	Secrets         []client.SecretReference        `json:"secrets"`
 }
 
 type StrategyDeploymentInstaller struct {
@@ -74,6 +75,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		role := &rbac.Role{
 			Rules: permission.Rules,
 		}
+
 		role.SetOwnerReferences(ownerReferences)
 		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.Name))
 		createdRole, err := i.strategyClient.CreateRole(role)
@@ -110,6 +112,20 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		}
 	}
 
+	for _, secretRef := range strategy.Secrets {
+		secret, err := i.strategyClient.LookupSecret(secretRef, secretRef.Namespace)
+		if err != nil {
+			return err
+		}
+
+		secret.SetOwnerReferences(ownerReferences)
+		secret.SetNamespace(i.ownerMeta.Namespace)
+
+		if _, err := i.strategyClient.CreateSecret(secret); err != nil {
+			return err
+		}
+	}
+
 	for _, spec := range strategy.DeploymentSpecs {
 		dep := v1beta1.Deployment{Spec: spec}
 		dep.SetNamespace(i.ownerMeta.Namespace)
@@ -124,6 +140,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -141,11 +158,20 @@ func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {
 		}
 	}
 
+	// Check secrets
+	for _, secretRef := range strategy.Secrets {
+		if found, err := i.checkForSecret(i.ownerMeta, secretRef); !found {
+			log.Debugf("secret not found: %s", secretRef.Name)
+			return false, err
+		}
+	}
+
 	// Check deployments
 	if found, err := i.checkForOwnedDeployments(i.ownerMeta, strategy.DeploymentSpecs); !found {
 		log.Debug("deployments not found")
 		return false, err
 	}
+
 	return true, nil
 }
 
@@ -168,6 +194,16 @@ func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.Obje
 	if len(existingDeployments.Items) != len(deploymentSpecs) {
 		log.Debugf("wrong number of deployments found. want %d, got %d", len(deploymentSpecs), len(existingDeployments.Items))
 		return false, nil
+	}
+	return true, nil
+}
+
+func (i *StrategyDeploymentInstaller) checkForSecret(owner metav1.ObjectMeta, secretRef client.SecretReference) (bool, error) {
+	if _, err := i.strategyClient.LookupSecret(secretRef, owner.Namespace); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("query for secret %s.%s failed: %s", secretRef.Namespace, secretRef.Name, err.Error())
 	}
 	return true, nil
 }

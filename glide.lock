@@ -1,5 +1,5 @@
 hash: 0c70a7ca7df74df9caade409c50f2fc059c5cebca9b0c94f8c934de40d9d2c96
-updated: 2017-11-01T10:44:31.851269536-04:00
+updated: 2017-11-19T18:58:40.275927555+02:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
@@ -169,7 +169,7 @@ imports:
   - storage/v1
   - storage/v1beta1
 - name: k8s.io/apiextensions-apiserver
-  version: 89b2a556a65053a90552eaed26f810df4a266367
+  version: 5bc0d8f05a92b3a09bcf1a9db442a29c0b7a514d
   subpackages:
   - pkg/apis/apiextensions
   - pkg/apis/apiextensions/v1beta1

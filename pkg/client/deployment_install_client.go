@@ -17,6 +17,8 @@ type InstallStrategyDeploymentInterface interface {
 	CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
 	GetOwnedDeployments(owner metav1.ObjectMeta) (*v1beta1extensions.DeploymentList, error)
+	LookupSecret(secret SecretReference, namespace string) (*corev1.Secret, error)
+	CreateSecret(secret *corev1.Secret) (*corev1.Secret, error)
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
@@ -62,6 +64,14 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
 	return c.opClient.CreateDeployment(deployment)
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) CreateSecret(secret *corev1.Secret) (*corev1.Secret, error) {
+	return c.opClient.KubernetesInterface().CoreV1().Secrets(c.Namespace).Create(secret)
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) LookupSecret(secretref SecretReference, namespace string) (*corev1.Secret, error) {
+	return c.opClient.KubernetesInterface().CoreV1().Secrets(namespace).Get(secretref.Name, metav1.GetOptions{})
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {
