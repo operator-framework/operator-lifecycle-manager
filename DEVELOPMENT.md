@@ -2,11 +2,13 @@
 
 ### Requirements
 
-| Requirement | Purpose               | macOS              |
-|-------------|-----------------------|--------------------|
-| Go          | Compiler              | brew install go    |
-| Glide       | Dependency Management | brew install glide |
-| Docker      | Packaging             | [Docker for Mac]   |
+| Requirement | Purpose               | macOS                |
+|-------------|-----------------------|----------------------|
+| Go          | Compiler              | brew install go      |
+| Glide       | Dependency Management | brew install glide   |
+| Docker      | Packaging             | [Docker for Mac]     |
+| jsonnet     | JSON templating tool  | brew install jsonnet |
+| ffctl       | Gitlab CI format      | pip install ffctl    |
 
 [Docker for Mac]: https://store.docker.com/editions/community/docker-ce-desktop-mac
 
