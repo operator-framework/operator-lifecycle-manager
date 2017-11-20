@@ -76,6 +76,27 @@ func (_mr *_MockInstallStrategyDeploymentInterfaceRecorder) CreateDeployment(arg
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CreateDeployment", arg0)
 }
 
+func (_m *MockInstallStrategyDeploymentInterface) CreateOrUpdateDeployment(deployment *v1beta10.Deployment) (*v1beta10.Deployment, error) {
+	ret := _m.ctrl.Call(_m, "CreateOrUpdateDeployment", deployment)
+	ret0, _ := ret[0].(*v1beta10.Deployment)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockInstallStrategyDeploymentInterfaceRecorder) CreateOrUpdateDeployment(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CreateOrUpdateDeployment", arg0)
+}
+
+func (_m *MockInstallStrategyDeploymentInterface) DeleteDeployment(name string) error {
+	ret := _m.ctrl.Call(_m, "DeleteDeployment", name)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockInstallStrategyDeploymentInterfaceRecorder) DeleteDeployment(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DeleteDeployment", arg0)
+}
+
 func (_m *MockInstallStrategyDeploymentInterface) GetServiceAccountByName(serviceAccountName string) (*v1.ServiceAccount, error) {
 	ret := _m.ctrl.Call(_m, "GetServiceAccountByName", serviceAccountName)
 	ret0, _ := ret[0].(*v1.ServiceAccount)

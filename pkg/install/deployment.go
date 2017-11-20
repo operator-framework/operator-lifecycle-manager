@@ -116,7 +116,31 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		}
 	}
 
+	// Sort Deployments into:
+	//          DeploymentSpec with Name? | Deployment with Name? | Deployment with Spec? |
+	// NO OP  |         YES               |         YES           |         YES           | Found existing deployment with same Name and same Spec
+	// UPDATE |         YES               |         YES           |         NO            | Found existing deployment with same Name but different Spec as DeploymentSpec
+	// CREATE |         YES               |         NO            |         N/A           | No deployment exists with DeploymentSpec's Name
+	// DELETE |         NO                |         NO            |         NO            | Found Deployment that doesn't match any DeploymentSpecs by Name
+
+	existingDeployments, err := i.strategyClient.GetOwnedDeployments(i.ownerMeta)
+	if err != nil {
+		return fmt.Errorf("query for existing deployments failed: %s", err)
+	}
+	// compare deployments to see if any need to be created/updated
+	existingMap := map[string]v1beta1.DeploymentSpec{}
+	for _, d := range existingDeployments.Items {
+		existingMap[d.GetName()] = d.Spec
+	}
 	for _, d := range strategy.DeploymentSpecs {
+		sp, exists := existingMap[d.Name]
+		delete(existingMap, d.Name) // remove ref
+
+		// Check for NO OP
+		if exists && reflect.DeepEqual(d.Spec, sp) {
+			continue
+		}
+		// Otherwise Create or Update Deployment
 		dep := v1beta1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.ownerMeta.Namespace)
@@ -130,6 +154,14 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 			return err
 		}
 	}
+
+	// delete remaining deployments
+	for name, _ := range existingMap {
+		if err := i.strategyClient.DeleteDeployment(name); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
