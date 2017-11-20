@@ -27,10 +27,16 @@ type StrategyDeploymentPermissions struct {
 	Rules              []rbac.PolicyRule `json:"rules"`
 }
 
+// StrategyDeploymentSpec contains the name and spec for the deployment ALM should create
+type StrategyDeploymentSpec struct {
+	Name string                 `json:"name"`
+	Spec v1beta1.DeploymentSpec `json:"spec"`
+}
+
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
 type StrategyDetailsDeployment struct {
-	DeploymentSpecs []v1beta1.DeploymentSpec        `json:"deployments"`
+	DeploymentSpecs []StrategyDeploymentSpec        `json:"deployments"`
 	Permissions     []StrategyDeploymentPermissions `json:"permissions"`
 }
 
@@ -109,11 +115,11 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		}
 	}
 
-	for _, spec := range strategy.DeploymentSpecs {
-		dep := v1beta1.Deployment{Spec: spec}
+	for _, d := range strategy.DeploymentSpecs {
+		dep := v1beta1.Deployment{Spec: d.Spec}
+		dep.SetName(d.Name)
 		dep.SetNamespace(i.ownerMeta.Namespace)
 		dep.SetOwnerReferences(ownerReferences)
-		dep.SetGenerateName(fmt.Sprintf("%s-", i.ownerMeta.Name))
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})
 		}
@@ -159,7 +165,7 @@ func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName 
 	return true, nil
 }
 
-func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []v1beta1.DeploymentSpec) (bool, error) {
+func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []StrategyDeploymentSpec) (bool, error) {
 	existingDeployments, err := i.strategyClient.GetOwnedDeployments(owner)
 	if err != nil {
 		return false, fmt.Errorf("query for existing deployments failed: %s", err)

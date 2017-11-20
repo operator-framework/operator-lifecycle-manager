@@ -22,9 +22,10 @@ func testDeployment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1b
 	testDeploymentLabels := map[string]string{"alm-owner-name": mockOwnerMeta.Name, "alm-owner-namespace": mockOwnerMeta.Namespace}
 
 	deployment := v1beta1extensions.Deployment{
+		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:    namespace,
-			GenerateName: fmt.Sprintf("%s-", mockOwnerMeta.Name),
+			Namespace: namespace,
+			Name:      name,
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					APIVersion:         v1alpha1.SchemeGroupVersion.String(),
@@ -76,7 +77,7 @@ func (e *RoleMatcher) String() string {
 }
 
 func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *StrategyDetailsDeployment {
-	var deploymentSpecs = []v1beta1extensions.DeploymentSpec{}
+	var deploymentSpecs = []StrategyDeploymentSpec{}
 	var permissions = []StrategyDeploymentPermissions{}
 	for i := 1; i <= n; i++ {
 		deploymentSpecs = append(deploymentSpecs, testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta).Spec)
@@ -101,9 +102,8 @@ func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *Strateg
 func TestInstallStrategyDeployment(t *testing.T) {
 	namespace := "alm-test-deployment"
 	mockOwnerMeta := metav1.ObjectMeta{
-		Name:         "clusterserviceversion-owner",
-		Namespace:    namespace,
-		GenerateName: fmt.Sprintf("%s-", namespace),
+		Name:      "clusterserviceversion-owner",
+		Namespace: namespace,
 	}
 
 	tests := []struct {
@@ -216,9 +216,8 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockOwnerMeta := metav1.ObjectMeta{
-		Name:         "clusterserviceversion-owner",
-		Namespace:    "ns",
-		GenerateName: fmt.Sprintf("%s-", "ns"),
+		Name:      "clusterserviceversion-owner",
+		Namespace: "ns",
 	}
 	mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
@@ -231,9 +230,8 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 	namespace := "alm-test-deployment"
 	mockOwnerMeta := metav1.ObjectMeta{
-		Name:         "clusterserviceversion-owner",
-		Namespace:    namespace,
-		GenerateName: fmt.Sprintf("%s-", namespace),
+		Name:      "clusterserviceversion-owner",
+		Namespace: namespace,
 	}
 
 	tests := []struct {

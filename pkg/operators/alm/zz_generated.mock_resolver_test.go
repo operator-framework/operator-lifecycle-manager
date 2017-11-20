@@ -7,8 +7,8 @@ import (
 	v1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	install "github.com/coreos-inc/alm/pkg/install"
 	client "github.com/coreos-inc/operator-client/pkg/client"
-	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of StrategyResolverInterface interface
