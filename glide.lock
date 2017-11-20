@@ -1,16 +1,20 @@
-hash: 0c70a7ca7df74df9caade409c50f2fc059c5cebca9b0c94f8c934de40d9d2c96
-updated: 2017-11-01T10:44:31.851269536-04:00
+hash: 2c7c633dd30b8c4210a5a32784462ffcec5430e0a484da547f117e31cfaf34ff
+updated: 2017-11-16T11:23:07.153354856-05:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
 - name: github.com/coreos-inc/operator-client
-  version: 8970c53bd92cb8ab15e6d656c79df0ee5f316159
-  repo: git@github.com:coreos-inc/operator-client.git
-  vcs: git
+  version: 5d704f99a774e35643b2390e17d86b6bab7d242b
   subpackages:
   - pkg/client
   - pkg/diff
   - pkg/types
+- name: github.com/coreos-inc/tectonic-operators
+  version: 1b5015bd6a0950a07c4484c7f7bca9aad26e9a4d
+  repo: git@github.com:coreos-inc/tectonic-operators.git
+  vcs: git
+  subpackages:
+  - operator-client
 - name: github.com/coreos/go-semver
   version: 8ab6407b697782a06568d4b7f1db25550ec2e4c6
   subpackages:

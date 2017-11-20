@@ -21,6 +21,10 @@ spec:
       - selector
       - install
       properties:
+        serviceAccountName:
+          type: string
+          description: The serviceaccount to use to create install strategy resources. If not specified, the default for the namespace will be used.
+
         displayName:
           type: string
           description: Human readable name of the application that will be displayed in the ALM UI

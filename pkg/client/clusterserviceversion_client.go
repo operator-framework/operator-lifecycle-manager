@@ -9,11 +9,13 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 )
 
 type ClusterServiceVersionInterface interface {
 	UpdateCSV(csv *v1alpha1.ClusterServiceVersion) (result *v1alpha1.ClusterServiceVersion, err error)
 	CreateCSV(csv *v1alpha1.ClusterServiceVersion) (err error)
+	ImpersonatedClientForServiceAccount(serviceAccount string, namespace string) (ClusterServiceVersionInterface, error)
 }
 
 type ClusterServiceVersionClient struct {
@@ -74,4 +76,57 @@ func (c *ClusterServiceVersionClient) CreateCSV(csv *v1alpha1.ClusterServiceVers
 		Body(csv).
 		Do().
 		Into(out)
+}
+
+// ImpersonatedClientForUser creates a client that impersonates a serviceaccount based on the current client
+func (c *ClusterServiceVersionClient) ImpersonatedClientForServiceAccount(serviceAccount string, namespace string) (ClusterServiceVersionInterface, error) {
+	impersonatedConfig := CopyConfig(c.Config)
+	impersonatedConfig.Impersonate = rest.ImpersonationConfig{
+		UserName: serviceaccount.MakeUsername(namespace, serviceAccount),
+		Groups:   serviceaccount.MakeGroupNames(namespace, serviceAccount),
+	}
+
+	var restClient *rest.RESTClient
+	restClient, err := rest.RESTClientFor(impersonatedConfig)
+	if err != nil {
+		return nil, err
+	}
+	return &ClusterServiceVersionClient{RESTClient: restClient, Config: impersonatedConfig}, nil
+}
+
+// CopyConfig makes a copy of a rest.Config
+func CopyConfig(config *rest.Config) *rest.Config {
+	return &rest.Config{
+		Host:          config.Host,
+		APIPath:       config.APIPath,
+		Prefix:        config.Prefix,
+		ContentConfig: config.ContentConfig,
+		Username:      config.Username,
+		Password:      config.Password,
+		BearerToken:   config.BearerToken,
+		Impersonate: rest.ImpersonationConfig{
+			Groups:   config.Impersonate.Groups,
+			Extra:    config.Impersonate.Extra,
+			UserName: config.Impersonate.UserName,
+		},
+		AuthProvider:        config.AuthProvider,
+		AuthConfigPersister: config.AuthConfigPersister,
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure:   config.TLSClientConfig.Insecure,
+			ServerName: config.TLSClientConfig.ServerName,
+			CertFile:   config.TLSClientConfig.CertFile,
+			KeyFile:    config.TLSClientConfig.KeyFile,
+			CAFile:     config.TLSClientConfig.CAFile,
+			CertData:   config.TLSClientConfig.CertData,
+			KeyData:    config.TLSClientConfig.KeyData,
+			CAData:     config.TLSClientConfig.CAData,
+		},
+		UserAgent:     config.UserAgent,
+		Transport:     config.Transport,
+		WrapTransport: config.WrapTransport,
+		QPS:           config.QPS,
+		Burst:         config.Burst,
+		RateLimiter:   config.RateLimiter,
+		Timeout:       config.Timeout,
+	}
 }

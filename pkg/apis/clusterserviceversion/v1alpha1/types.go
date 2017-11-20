@@ -68,6 +68,7 @@ type CustomResourceDefinitions struct {
 // that can manage apps for given version and AppType.
 type ClusterServiceVersionSpec struct {
 	InstallStrategy           NamedInstallStrategy      `json:"install"`
+	ServiceAccountName        string                    `json:"serviceAccountName,omitempty"`
 	Version                   semver.Version            `json:"version"`
 	Maturity                  string                    `json:"maturity"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions"`

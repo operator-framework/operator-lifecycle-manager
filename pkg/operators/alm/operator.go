@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -163,7 +164,13 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
 			return
 		}
-		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), a.OpClient, csv.ObjectMeta)
+
+		impersonatedClient, err := a.impersonatedClient(csv)
+		if err != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("unable to impersonate %s: %s", csv.Spec.ServiceAccountName, err))
+			return
+		}
+		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), impersonatedClient, csv.ObjectMeta)
 		installed, err := installer.CheckInstalled(strategy)
 		if err != nil {
 			// TODO: add a retry count, don't give up on first failure
@@ -196,7 +203,12 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
 			return
 		}
-		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), a.OpClient, csv.ObjectMeta)
+		impersonatedClient, err := a.impersonatedClient(csv)
+		if err != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("unable to impersonate %s: %s", csv.Spec.ServiceAccountName, err))
+			return
+		}
+		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), impersonatedClient, csv.ObjectMeta)
 		installed, err := installer.CheckInstalled(strategy)
 
 		// if already installed, don't transition to pending if we can't query
@@ -222,7 +234,7 @@ func (a *ALMOperator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (me
 			Kind:    "CustomResourceDefinition",
 			Name:    r.Name,
 		}
-		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r.Name)
+		crd, err := a.OpClient.GetCustomResourceDefinition(r.Name)
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false
@@ -249,4 +261,11 @@ func (a *ALMOperator) annotateNamespace(obj interface{}) (syncError error) {
 		return err
 	}
 	return nil
+}
+
+func (a *ALMOperator) impersonatedClient(csv *v1alpha1.ClusterServiceVersion) (opClient.Interface, error) {
+	if csv.Spec.ServiceAccountName == "" {
+		csv.Spec.ServiceAccountName = "default"
+	}
+	return a.OpClient.ImpersonatedClientForServiceAccount(csv.Spec.ServiceAccountName, csv.ObjectMeta.Namespace)
 }
