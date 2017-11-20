@@ -5,18 +5,21 @@ import (
 	"reflect"
 	"testing"
 
+	client "github.com/coreos-inc/alm/pkg/client"
+	opClient "github.com/coreos-inc/operator-client/pkg/client"
+
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 func testDepoyment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1beta1extensions.Deployment {
@@ -76,133 +79,31 @@ func (e *RoleMatcher) String() string {
 	return "matches expected rules"
 }
 
-func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *StrategyDetailsDeployment {
+func strategy(n int, sourceNamespace string, targetNamespace string, mockOwnerMeta metav1.ObjectMeta) *StrategyDetailsDeployment {
 	var deploymentSpecs = []v1beta1extensions.DeploymentSpec{}
 	var permissions = []StrategyDeploymentPermissions{}
-	for i := 1; i <= n; i++ {
-		deploymentSpecs = append(deploymentSpecs, testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta).Spec)
-		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwnerMeta)
-		permissions = append(permissions, StrategyDeploymentPermissions{
-			ServiceAccountName: serviceAccount.Name,
-			Rules: []v1beta1rbac.PolicyRule{
-				{
-					Verbs:     []string{"list", "delete"},
-					APIGroups: []string{""},
-					Resources: []string{"pods"},
-				},
+	var secrets = []client.SecretReference{}
+
+	serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", 1), mockOwnerMeta)
+	permissions = append(permissions, StrategyDeploymentPermissions{
+		ServiceAccountName: serviceAccount.Name,
+		Rules: []v1beta1rbac.PolicyRule{
+			{
+				Verbs:     []string{"list", "delete"},
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
 			},
-		})
+		},
+	})
+
+	for i := 1; i <= n; i++ {
+		deploymentSpecs = append(deploymentSpecs, testDepoyment(fmt.Sprintf("alm-dep-%d", i), targetNamespace, mockOwnerMeta).Spec)
+		secrets = append(secrets, client.SecretReference{fmt.Sprintf("alm-secret-%d", i), sourceNamespace})
 	}
 	return &StrategyDetailsDeployment{
 		DeploymentSpecs: deploymentSpecs,
 		Permissions:     permissions,
-	}
-}
-
-func TestInstallStrategyDeployment(t *testing.T) {
-	namespace := "alm-test-deployment"
-	mockOwnerMeta := metav1.ObjectMeta{
-		Name:         "clusterserviceversion-owner",
-		Namespace:    namespace,
-		GenerateName: fmt.Sprintf("%s-", namespace),
-	}
-
-	tests := []struct {
-		numMockServiceAccounts int
-		numMockDeployments     int
-		numExpected            int
-		description            string
-	}{
-		{
-			numMockServiceAccounts: 0,
-			numMockDeployments:     0,
-			numExpected:            1,
-			description:            "NoServiceAccount/NoDeployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 1,
-			numMockDeployments:     1,
-			numExpected:            1,
-			description:            "1ServiceAccount/1Deployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 0,
-			numMockDeployments:     1,
-			numExpected:            1,
-			description:            "0ServiceAccount/1Deployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 1,
-			numMockDeployments:     0,
-			numExpected:            1,
-			description:            "1ServiceAccount/0Deployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 3,
-			numMockDeployments:     3,
-			numExpected:            3,
-			description:            "3ServiceAccount/3Deployment/Require3,3",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.description, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
-			strategy := strategy(tt.numExpected, namespace, mockOwnerMeta)
-			for i, p := range strategy.Permissions {
-				if i < tt.numMockServiceAccounts {
-					t.Logf("mocking %s true", p.ServiceAccountName)
-					mockClient.EXPECT().
-						GetServiceAccountByName(p.ServiceAccountName).
-						Return(testServiceAccount(p.ServiceAccountName, mockOwnerMeta), nil)
-				}
-				if i == tt.numMockServiceAccounts {
-					t.Logf("mocking %s false", p.ServiceAccountName)
-					mockClient.EXPECT().
-						GetServiceAccountByName(p.ServiceAccountName).
-						Return(nil, apierrors.NewNotFound(schema.GroupResource{}, p.ServiceAccountName))
-				}
-
-				serviceAccount := testServiceAccount(p.ServiceAccountName, mockOwnerMeta)
-				mockClient.EXPECT().EnsureServiceAccount(serviceAccount).Return(serviceAccount, nil)
-				mockClient.EXPECT().
-					CreateRole(MatchesRoleRules(p.Rules)).
-					Return(&v1beta1rbac.Role{Rules: p.Rules}, nil)
-				mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, nil)
-			}
-			if tt.numMockServiceAccounts == tt.numExpected {
-				t.Log("mocking dep check")
-				// if all serviceaccounts exist then we check if deployments exist
-				mockedDeps := []v1beta1extensions.Deployment{}
-				for i := 1; i <= tt.numMockDeployments; i++ {
-					mockedDeps = append(mockedDeps, testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta))
-				}
-				mockClient.EXPECT().GetOwnedDeployments(mockOwnerMeta).Return(&v1beta1extensions.DeploymentList{Items: mockedDeps}, nil)
-			}
-
-			for i := range make([]int, len(strategy.DeploymentSpecs)) {
-				deployment := testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
-				mockClient.EXPECT().
-					CreateDeployment(&deployment).
-					Return(&deployment, nil)
-			}
-
-			installer := &StrategyDeploymentInstaller{
-				strategyClient: mockClient,
-				ownerMeta:      mockOwnerMeta,
-			}
-			installed, err := installer.CheckInstalled(strategy)
-			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
-				require.True(t, installed)
-			} else {
-				require.False(t, installed)
-			}
-			assert.NoError(t, err)
-			assert.NoError(t, installer.Install(strategy))
-
-			ctrl.Finish()
-		})
+		Secrets:         secrets,
 	}
 }
 
@@ -229,125 +130,136 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
-	namespace := "alm-test-deployment"
-	mockOwnerMeta := metav1.ObjectMeta{
-		Name:         "clusterserviceversion-owner",
-		Namespace:    namespace,
-		GenerateName: fmt.Sprintf("%s-", namespace),
+func NewMockNamespaceClient(ctrl *gomock.Controller, currentNamespaces []corev1.Namespace) (*opClient.MockInterface, kubernetes.Interface) {
+	mockClient := opClient.NewMockInterface(ctrl)
+	fakeKubernetesInterface := fake.NewSimpleClientset(&corev1.NamespaceList{Items: currentNamespaces})
+	return mockClient, fakeKubernetesInterface
+}
+
+func namespaceObj(name string) corev1.Namespace {
+	return corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+	}
+}
+
+func TestInstallSuccessfully(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	namespaceName := "somenamespace"
+	targetNamespaceName := "targetnamespace"
+
+	mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, []corev1.Namespace{corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespaceName,
+		},
+	}, corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: targetNamespaceName,
+		},
+	}})
+
+	mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient).MaxTimes(100)
+
+	// Add the secrets.
+	for _, secretName := range []string{"alm-secret-1", "alm-secret-2"} {
+		fakeKubernetesClient.CoreV1().Secrets(namespaceName).Create(&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: namespaceName,
+				Name:      secretName,
+			},
+		})
 	}
 
+	mockOwnerMeta := metav1.ObjectMeta{
+		Name:         "clusterserviceversion-owner",
+		Namespace:    targetNamespaceName,
+		GenerateName: fmt.Sprintf("%s-", targetNamespaceName),
+	}
+
+	client := client.NewInstallStrategyDeploymentClient(mockClient, targetNamespaceName)
+	installer := NewStrategyDeploymentInstaller(client, mockOwnerMeta)
+	strategy := strategy(2, namespaceName, targetNamespaceName, mockOwnerMeta)
+
+	// Expect the deployments are created.
+	mockClient.EXPECT().CreateDeployment(gomock.Any()).MaxTimes(2).Return(&v1beta1extensions.Deployment{}, nil)
+
+	err := installer.Install(strategy)
+	require.Nil(t, err, "Expected no error in success test")
+
+	// Ensure the secrets were created.
+	for _, secretName := range []string{"alm-secret-1", "alm-secret-2"} {
+		found, err := fakeKubernetesClient.CoreV1().Secrets(namespaceName).Get(secretName, metav1.GetOptions{})
+		require.Nil(t, err, "Missing expected secret `%s`", secretName)
+		require.NotNil(t, found, "Missing expected secret `%s`", secretName)
+	}
+}
+
+func TestInstallWithIssue(t *testing.T) {
 	tests := []struct {
-		createRoleErr           error
-		createRoleBindingErr    error
-		createServiceAccountErr error
-		createDeploymentErr     error
-		checkServiceAccountErr  error
-		checkDeploymentErr      error
-		description             string
+		name                  string
+		strategyResourceCount int
+		secrets               []string
+		expectedError         string
 	}{
 		{
-			checkServiceAccountErr: fmt.Errorf("couldn't query serviceaccount"),
-			description:            "ErrorCheckingForServiceAccount",
+			name: "missing secret",
+			strategyResourceCount: 1,
+			secrets:               []string{},
+			expectedError:         `secrets "alm-secret-1" not found`,
 		},
+
 		{
-			checkDeploymentErr: fmt.Errorf("couldn't query deployments"),
-			description:        "ErrorCheckingForDeployments",
-		},
-		{
-			createRoleErr: fmt.Errorf("error creating role"),
-			description:   "ErrorCreatingRole",
-		},
-		{
-			createServiceAccountErr: fmt.Errorf("error creating serviceaccount"),
-			description:             "ErrorCreateingServiceAccount",
-		},
-		{
-			createRoleBindingErr: fmt.Errorf("error creating rolebinding"),
-			description:          "ErrorCreatingRoleBinding",
-		},
-		{
-			createDeploymentErr: fmt.Errorf("error creating deployment"),
-			description:         "ErrorCreatingDeployment",
+			name: "missing second secret",
+			strategyResourceCount: 2,
+			secrets:               []string{"alm-secret-1"},
+			expectedError:         `secrets "alm-secret-2" not found`,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.description, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
 
-			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
-			strategy := strategy(1, namespace, mockOwnerMeta)
-			installer := &StrategyDeploymentInstaller{
-				strategyClient: mockClient,
-				ownerMeta:      mockOwnerMeta,
+			namespaceName := "somenamespace"
+			targetNamespaceName := "targetnamespace"
+
+			mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, []corev1.Namespace{corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespaceName,
+				},
+			}, corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: targetNamespaceName,
+				},
+			}})
+
+			mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient).MaxTimes(100)
+
+			// Add the secrets.
+			for _, secretName := range tt.secrets {
+				fakeKubernetesClient.CoreV1().Secrets(namespaceName).Create(&corev1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: namespaceName,
+						Name:      secretName,
+					},
+				})
 			}
 
-			skipInstall := tt.checkDeploymentErr != nil || tt.checkServiceAccountErr != nil
-
-			mockClient.EXPECT().
-				GetServiceAccountByName(strategy.Permissions[0].ServiceAccountName).
-				Return(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
-			if tt.checkServiceAccountErr == nil {
-				mockClient.EXPECT().
-					GetOwnedDeployments(mockOwnerMeta).
-					Return(
-						&v1beta1extensions.DeploymentList{
-							Items: []v1beta1extensions.Deployment{
-								testDepoyment("alm-dep", namespace, mockOwnerMeta),
-							},
-						}, tt.checkDeploymentErr)
+			mockOwnerMeta := metav1.ObjectMeta{
+				Name:         "clusterserviceversion-owner",
+				Namespace:    targetNamespaceName,
+				GenerateName: fmt.Sprintf("%s-", targetNamespaceName),
 			}
 
-			installed, err := installer.CheckInstalled(strategy)
-
-			if skipInstall {
-				require.False(t, installed)
-				require.Error(t, err)
-				return
-			} else {
-				require.True(t, installed)
-				require.NoError(t, err)
-			}
-
-			mockClient.EXPECT().
-				CreateRole(MatchesRoleRules(strategy.Permissions[0].Rules)).
-				Return(&v1beta1rbac.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
-
-			if tt.createRoleErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
-
-			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta)
-			mockClient.EXPECT().EnsureServiceAccount(serviceAccount).Return(serviceAccount, tt.createServiceAccountErr)
-
-			if tt.createServiceAccountErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
-
-			mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, tt.createRoleBindingErr)
-
-			if tt.createRoleBindingErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
-
-			deployment := testDepoyment("alm-dep", namespace, mockOwnerMeta)
-			mockClient.EXPECT().
-				CreateDeployment(&deployment).
-				Return(&deployment, tt.createDeploymentErr)
-
-			if tt.createDeploymentErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
+			client := client.NewInstallStrategyDeploymentClient(mockClient, targetNamespaceName)
+			installer := NewStrategyDeploymentInstaller(client, mockOwnerMeta)
+			strategy := strategy(tt.strategyResourceCount, namespaceName, targetNamespaceName, mockOwnerMeta)
+			err := installer.Install(strategy)
+			require.Equal(t, tt.expectedError, err.Error(), "Mismatch in expected error in test `%s`", tt.name)
 		})
 	}
 }
