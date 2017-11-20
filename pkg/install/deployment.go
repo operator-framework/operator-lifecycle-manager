@@ -10,7 +10,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
 )
@@ -61,7 +60,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 	ownerReferences := []metav1.OwnerReference{
 		{
-			APIVersion:         apis.GroupName,
+			APIVersion:         v1alpha1.SchemeGroupVersion.String(),
 			Kind:               v1alpha1.ClusterServiceVersionKind,
 			Name:               i.ownerMeta.GetName(),
 			UID:                i.ownerMeta.UID,
