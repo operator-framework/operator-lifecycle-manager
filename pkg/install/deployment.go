@@ -2,6 +2,7 @@ package install
 
 import (
 	"fmt"
+	"reflect"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -170,9 +171,27 @@ func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.Obje
 	if err != nil {
 		return false, fmt.Errorf("query for existing deployments failed: %s", err)
 	}
+	// if number of existing and desired deployments are different, needs to resync
 	if len(existingDeployments.Items) != len(deploymentSpecs) {
-		log.Debugf("wrong number of deployments found. want %d, got %d", len(deploymentSpecs), len(existingDeployments.Items))
+		log.Debugf("wrong number of deployments found. want %d, got %d",
+			len(deploymentSpecs), len(existingDeployments.Items))
 		return false, nil
+	}
+
+	// compare deployments to see if any need to be created/updated
+	existingMap := map[string]v1beta1.DeploymentSpec{}
+	for _, d := range existingDeployments.Items {
+		existingMap[d.GetName()] = d.Spec
+	}
+	for _, spec := range deploymentSpecs {
+		if _, exists := existingMap[spec.Name]; !exists {
+			log.Debugf("missing deployment with name=%s", spec.Name)
+			return false, nil
+		}
+		if !reflect.DeepEqual(spec.Spec, existingMap[spec.Name]) {
+			log.Debugf("deployment spec differs for name=%s", spec.Name)
+			return false, nil
+		}
 	}
 	return true, nil
 }
