@@ -61,7 +61,8 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
-	return c.opClient.CreateDeployment(deployment)
+	_, d, err := c.opClient.CreateOrRollingUpdateDeployment(deployment)
+	return d, err
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {
