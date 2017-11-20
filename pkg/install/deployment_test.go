@@ -13,13 +13,12 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func testDepoyment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1beta1extensions.Deployment {
+func testDeployment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1beta1extensions.Deployment {
 	testDeploymentLabels := map[string]string{"alm-owner-name": mockOwnerMeta.Name, "alm-owner-namespace": mockOwnerMeta.Namespace}
 
 	deployment := v1beta1extensions.Deployment{
@@ -28,7 +27,7 @@ func testDepoyment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1be
 			GenerateName: fmt.Sprintf("%s-", mockOwnerMeta.Name),
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion:         apis.GroupName,
+					APIVersion:         v1alpha1.SchemeGroupVersion.String(),
 					Kind:               v1alpha1.ClusterServiceVersionKind,
 					Name:               mockOwnerMeta.GetName(),
 					UID:                mockOwnerMeta.UID,
@@ -47,7 +46,7 @@ func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *corev1.Se
 	serviceAccount.SetName(name)
 	serviceAccount.SetOwnerReferences([]metav1.OwnerReference{
 		{
-			APIVersion:         apis.GroupName,
+			APIVersion:         v1alpha1.SchemeGroupVersion.String(),
 			Kind:               v1alpha1.ClusterServiceVersionKind,
 			Name:               mockOwnerMeta.GetName(),
 			UID:                mockOwnerMeta.UID,
@@ -80,7 +79,7 @@ func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *Strateg
 	var deploymentSpecs = []v1beta1extensions.DeploymentSpec{}
 	var permissions = []StrategyDeploymentPermissions{}
 	for i := 1; i <= n; i++ {
-		deploymentSpecs = append(deploymentSpecs, testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta).Spec)
+		deploymentSpecs = append(deploymentSpecs, testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta).Spec)
 		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwnerMeta)
 		permissions = append(permissions, StrategyDeploymentPermissions{
 			ServiceAccountName: serviceAccount.Name,
@@ -176,13 +175,13 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				// if all serviceaccounts exist then we check if deployments exist
 				mockedDeps := []v1beta1extensions.Deployment{}
 				for i := 1; i <= tt.numMockDeployments; i++ {
-					mockedDeps = append(mockedDeps, testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta))
+					mockedDeps = append(mockedDeps, testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta))
 				}
 				mockClient.EXPECT().GetOwnedDeployments(mockOwnerMeta).Return(&v1beta1extensions.DeploymentList{Items: mockedDeps}, nil)
 			}
 
 			for i := range make([]int, len(strategy.DeploymentSpecs)) {
-				deployment := testDepoyment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
 				mockClient.EXPECT().
 					CreateDeployment(&deployment).
 					Return(&deployment, nil)
@@ -260,7 +259,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		},
 		{
 			createServiceAccountErr: fmt.Errorf("error creating serviceaccount"),
-			description:             "ErrorCreateingServiceAccount",
+			description:             "ErrorCreatingServiceAccount",
 		},
 		{
 			createRoleBindingErr: fmt.Errorf("error creating rolebinding"),
@@ -295,7 +294,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 					Return(
 						&v1beta1extensions.DeploymentList{
 							Items: []v1beta1extensions.Deployment{
-								testDepoyment("alm-dep", namespace, mockOwnerMeta),
+								testDeployment("alm-dep", namespace, mockOwnerMeta),
 							},
 						}, tt.checkDeploymentErr)
 			}
@@ -338,7 +337,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				return
 			}
 
-			deployment := testDepoyment("alm-dep", namespace, mockOwnerMeta)
+			deployment := testDeployment("alm-dep", namespace, mockOwnerMeta)
 			mockClient.EXPECT().
 				CreateDeployment(&deployment).
 				Return(&deployment, tt.createDeploymentErr)
