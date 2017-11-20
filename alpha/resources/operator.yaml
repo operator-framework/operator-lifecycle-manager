@@ -28,4 +28,5 @@ spec:
         - /tectonic-x-operator
         - --operator-name=tectonic-alm-operator
         - --appversion-name=tectonic-alm-operator
+        - --manifest-dir=/manifests
         - --v=2
