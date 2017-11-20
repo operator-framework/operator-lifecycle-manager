@@ -9,6 +9,7 @@ import (
 	"github.com/coreos-inc/alm/pkg/queueinformer"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,9 +20,15 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/pkg/catalog"
 	"github.com/coreos-inc/alm/pkg/client"
+	rbac "k8s.io/api/rbac/v1beta1"
 )
 
-const crdKind = "CustomResourceDefinition"
+const (
+	crdKind            = "CustomResourceDefinition"
+	roleKind           = "Role"
+	roleBindingKind    = "RoleBinding"
+	serviceAccountKind = "ServiceAccount"
+)
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
@@ -276,6 +283,13 @@ func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMa
 			steps[currentName] = append(steps[currentName], step)
 		}
 
+		// Resolve ServiceAccount for CSV
+		rbacSteps, serviceAccountName, err := resolveRBAC(csv)
+		steps[currentName] = append(steps[currentName], rbacSteps...)
+
+		// Manually set the ServiceAccount for the CSV to the one we created for it
+		csv.Spec.ServiceAccountName = serviceAccountName
+
 		// Manually override the namespace and create the final step for the CSV,
 		// which is for the CSV itself.
 		csv.SetNamespace(namespace)
@@ -290,6 +304,55 @@ func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMa
 	}
 
 	return steps, nil
+}
+
+func resolveRBAC(csv *csvv1alpha1.ClusterServiceVersion, namespace string) ([]v1alpha1.StepResource, string, error) {
+	var steps []v1alpha1.StepResource
+
+	rules, err := csv.GetRoleRules()
+	if err != nil {
+		return nil, "", err
+	}
+
+	// create role
+	role := &rbac.Role{
+		Rules: rules,
+	}
+	role.SetName(fmt.Sprintf("alm-%s-role", csv.Name))
+	step, err := v1alpha1.NewStepResourceFromRuntimeObject(role.Name, role)
+	if err != nil {
+		return nil, "", err
+	}
+	steps = append(steps, step)
+
+	// create serviceaccount
+	serviceAccount := &corev1.ServiceAccount{}
+	serviceAccount.SetName(fmt.Sprintf("alm-%s-serviceaccount", csv.Name))
+	step, err = v1alpha1.NewStepResourceFromRuntimeObject(serviceAccount.Name, serviceAccount)
+	if err != nil {
+		return nil, "", err
+	}
+	steps = append(steps, step)
+
+	// create rolebinding
+	roleBinding := &rbac.RoleBinding{
+		RoleRef: rbac.RoleRef{
+			Kind:     "Role",
+			Name:     role.GetName(),
+			APIGroup: rbac.GroupName},
+		Subjects: []rbac.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      serviceAccount.Name,
+			Namespace: namespace,
+		}},
+	}
+	roleBinding.SetName(fmt.Sprintf("%s-%s-rb", role.Name, serviceAccount.Name))
+	step, err = v1alpha1.NewStepResourceFromRuntimeObject(roleBinding.Name, roleBinding)
+	if err != nil {
+		return nil, "", err
+	}
+	steps = append(steps, step)
+	return steps, serviceAccount.Name, nil
 }
 
 func resolveInstallPlan(source catlib.Source, plan *v1alpha1.InstallPlan) error {
@@ -368,6 +431,71 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				} else {
 					// If it no error occured, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
+			case roleKind:
+				// Marshal the manifest into a role instance.
+				var role rbac.Role
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &role)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the Role
+				_, err = impersonatedClient.KubernetesInterface().RbacV1beta1().Roles(plan.Namespace).Create(&role)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+					continue
+				} else if err != nil {
+					return err
+				} else {
+					// If it no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+					continue
+				}
+
+			case roleBindingKind:
+				// Marshal the manifest into a rolebinding instance.
+				var roleBinding rbac.RoleBinding
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &roleBinding)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the Role
+				_, err = impersonatedClient.KubernetesInterface().RbacV1beta1().RoleBindings(plan.Namespace).Create(&roleBinding)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+					continue
+				} else if err != nil {
+					return err
+				} else {
+					// If it no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+					continue
+				}
+			case serviceAccountKind:
+				// Marshal the manifest into a serviceaccount instance.
+				var serviceAccount corev1.ServiceAccount
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &serviceAccount)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the Role
+				_, err = impersonatedClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&serviceAccount)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+					continue
+				} else if err != nil {
+					return err
+				} else {
+					// If it no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+					continue
 				}
 
 			default:

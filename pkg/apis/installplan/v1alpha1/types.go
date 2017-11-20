@@ -203,6 +203,25 @@ func NewStepResourceFromCRD(crd *v1beta1.CustomResourceDefinition) (StepResource
 	return step, nil
 }
 
+// NewStepResourceFromRuntimeObject creates an unresolved Step for any runtime.Object
+// TODO: replace the other `NewStepResource...` functions with this one
+func NewStepResourceFromRuntimeObject(name string, obj runtime.Object) (StepResource, error) {
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
+
+	var manifest bytes.Buffer
+	if err := serializer.Encode(obj, &manifest); err != nil {
+		return StepResource{}, err
+	}
+
+	return StepResource{
+		Name:     name,
+		Kind:     obj.GetObjectKind().GroupVersionKind().Kind,
+		Group:    obj.GetObjectKind().GroupVersionKind().Group,
+		Version:  obj.GetObjectKind().GroupVersionKind().Version,
+		Manifest: manifest.String(),
+	}, nil
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // Custom Resource of type "InstallPlanSpec"
 type InstallPlan struct {
