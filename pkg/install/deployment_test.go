@@ -80,7 +80,9 @@ func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *Strateg
 	var deploymentSpecs = []StrategyDeploymentSpec{}
 	var permissions = []StrategyDeploymentPermissions{}
 	for i := 1; i <= n; i++ {
-		deploymentSpecs = append(deploymentSpecs, testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta).Spec)
+		dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+		spec := StrategyDeploymentSpec{Name: dep.GetName(), Spec: dep.Spec}
+		deploymentSpecs = append(deploymentSpecs, spec)
 		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwnerMeta)
 		permissions = append(permissions, StrategyDeploymentPermissions{
 			ServiceAccountName: serviceAccount.Name,
