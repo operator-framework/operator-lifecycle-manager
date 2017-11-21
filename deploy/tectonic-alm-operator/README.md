@@ -7,9 +7,7 @@
 Deploy a CoreOS Tectonic cluster with the [Tectonic Installer](https://github.com/coreos/tectonic-installer). Create the `tectonic-alm-operator` Deployment.
 
 ```sh
-kubectl apply -f examples/appversion.yaml
-kubectl apply -f examples/rbac.yaml
-kubectl apply -f examples/operator.yaml
+kubectl apply -f ./examples
 ```
 
 Watch the operator's logs.
@@ -38,6 +36,8 @@ kubectl describe deployment alm-operator -n tectonic-system | grep Image -A 8
 ```
 
 ## Development
+
+The Dockerfile for this component requires that you build the tectonic x-operator found in `github.com/coreos-inc/tectonic-operators/contrib` and set that to be the base image.
 
 Build the container image.
 
