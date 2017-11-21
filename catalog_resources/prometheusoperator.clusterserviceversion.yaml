@@ -140,22 +140,6 @@ spec:
           description: Label selector to find the service that routes to this prometheus
           x-descriptors:
           - urn:alm:descriptor:label:selector
-        - path: importantMetrics
-          displayName: Important metrics
-          description: Important metrics for the cluster.
-          x-descriptors:
-          - urn:alm:descriptor:com.tectonic.ui:metrics
-          value:
-            queries:
-            - query: "leader_changes_seen_total"
-              name: "CPU Usage"
-              type: "Gauge"
-            - query: "leader_changes_seen_total"
-              name: "Memory Usage"
-              type: "Gauge"
-            - query: "leader_changes_seen_total"
-              name: "Filesystem Usage"
-              type: "Gauge"
     - name: servicemonitors.monitoring.coreos.com
       version: v1
       kind: ServiceMonitor
