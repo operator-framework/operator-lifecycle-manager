@@ -56,10 +56,10 @@ func main() {
 
 	// Env Vars
 	operatorNamespace := envOrDie(
-		envOperatorName, "used to set annotation indicating which ALM operator manages a namespace")
+		envOperatorNamespace, "used to set annotation indicating which ALM operator manages a namespace")
 
 	operatorName := envOrDie(
-		envOperatorNamespace, "used to distinguish ALM operators of the same name")
+		envOperatorName, "used to distinguish ALM operators of the same name")
 
 	annotation := map[string]string{
 		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", operatorNamespace, operatorName),
