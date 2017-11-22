@@ -172,18 +172,28 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					Return(&v1beta1rbac.Role{Rules: p.Rules}, nil)
 				mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, nil)
 			}
+			mockedDeps := []v1beta1extensions.Deployment{}
+			for i := 1; i <= tt.numMockDeployments; i++ {
+				dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+				dep.Spec = v1beta1extensions.DeploymentSpec{Paused: true} // arbitrary
+
+				mockedDeps = append(mockedDeps, dep)
+			}
 			if tt.numMockServiceAccounts == tt.numExpected {
 				t.Log("mocking dep check")
 				// if all serviceaccounts exist then we check if deployments exist
-				mockedDeps := []v1beta1extensions.Deployment{}
-				for i := 1; i <= tt.numMockDeployments; i++ {
-					mockedDeps = append(mockedDeps, testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta))
-				}
-				mockClient.EXPECT().GetOwnedDeployments(mockOwnerMeta).Return(&v1beta1extensions.DeploymentList{Items: mockedDeps}, nil)
+				mockClient.EXPECT().
+					GetOwnedDeployments(mockOwnerMeta).
+					Return(&v1beta1extensions.DeploymentList{Items: mockedDeps}, nil)
 			}
 
+			if len(strategy.DeploymentSpecs) > 0 {
+				mockClient.EXPECT().
+					GetOwnedDeployments(mockOwnerMeta).
+					Return(&v1beta1extensions.DeploymentList{Items: mockedDeps}, nil)
+			}
 			for i := range make([]int, len(strategy.DeploymentSpecs)) {
-				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i+1), namespace, mockOwnerMeta)
 				mockClient.EXPECT().
 					CreateDeployment(&deployment).
 					Return(&deployment, nil)
@@ -194,11 +204,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				ownerMeta:      mockOwnerMeta,
 			}
 			installed, err := installer.CheckInstalled(strategy)
-			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
-				require.True(t, installed)
-			} else {
-				require.False(t, installed)
-			}
+			require.False(t, installed)
 			assert.NoError(t, err)
 			assert.NoError(t, installer.Install(strategy))
 
@@ -289,12 +295,14 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				GetServiceAccountByName(strategy.Permissions[0].ServiceAccountName).
 				Return(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
 			if tt.checkServiceAccountErr == nil {
+				dep := testDeployment("alm-dep", namespace, mockOwnerMeta)
+				dep.Spec = v1beta1extensions.DeploymentSpec{Paused: true} // arbitrary
 				mockClient.EXPECT().
 					GetOwnedDeployments(mockOwnerMeta).
 					Return(
 						&v1beta1extensions.DeploymentList{
 							Items: []v1beta1extensions.Deployment{
-								testDeployment("alm-dep", namespace, mockOwnerMeta),
+								dep,
 							},
 						}, tt.checkDeploymentErr)
 			}
@@ -306,7 +314,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.Error(t, err)
 				return
 			} else {
-				require.True(t, installed)
+				require.False(t, installed)
 				require.NoError(t, err)
 			}
 
@@ -337,7 +345,19 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				return
 			}
 
-			deployment := testDeployment("alm-dep", namespace, mockOwnerMeta)
+			deployment := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
+
+			dep := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
+			dep.Spec = v1beta1extensions.DeploymentSpec{Paused: true} // arbitrary
+			mockClient.EXPECT().
+				GetOwnedDeployments(mockOwnerMeta).
+				Return(
+					&v1beta1extensions.DeploymentList{
+						Items: []v1beta1extensions.Deployment{
+							dep,
+						},
+					}, nil)
+
 			mockClient.EXPECT().
 				CreateDeployment(&deployment).
 				Return(&deployment, tt.createDeploymentErr)
