@@ -2,12 +2,12 @@ package install
 
 import (
 	"fmt"
-	"reflect"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -137,7 +137,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		delete(existingMap, d.Name) // remove ref
 
 		// Check for NO OP
-		if exists && reflect.DeepEqual(d.Spec, sp) {
+		if exists && equality.Semantic.DeepEqual(d.Spec, sp) {
 			continue
 		}
 		// Otherwise Create or Update Deployment
@@ -220,7 +220,7 @@ func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.Obje
 			log.Debugf("missing deployment with name=%s", spec.Name)
 			return false, nil
 		}
-		if !reflect.DeepEqual(spec.Spec, existingMap[spec.Name]) {
+		if !equality.Semantic.DeepEqual(spec.Spec, existingMap[spec.Name]) {
 			log.Debugf("deployment spec differs for name=%s", spec.Name)
 			return false, nil
 		}
