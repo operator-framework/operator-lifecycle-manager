@@ -65,6 +65,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
 	return c.opClient.CreateDeployment(deployment)
 }
+
 func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name string) error {
 	return c.opClient.DeleteDeployment(c.Namespace, name, false) // non-cascading delete
 }
