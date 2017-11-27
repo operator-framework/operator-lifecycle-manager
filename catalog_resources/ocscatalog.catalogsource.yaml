@@ -6,7 +6,9 @@ metadata:
   name: tectonic-alm-ocs-catalog
   namespace: tectonic-system
 spec:
-  name: Tectonic Open Cloud Services
+  name: tectonic-ocs
   sourceType: internal
   secrets:
   - coreos-pull-secret
+  displayName: Tectonic Open Cloud Services
+  publisher: CoreOS, Inc.

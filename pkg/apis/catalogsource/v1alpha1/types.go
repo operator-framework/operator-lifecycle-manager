@@ -8,6 +8,17 @@ type CatalogSourceSpec struct {
 	URL        string   `json:"url,omitempty"`
 	ConfigMap  string   `json:"configMap,omitempty"`
 	Secrets    []string `json:"secrets,omitempty"`
+
+	// Metadata
+	DisplayName string `json:"displayName,omitempty"`
+	Description string `json:"description,omitempty"`
+	Publisher   string `json:"publisher,omitempty"`
+	Icon        Icon   `json:"icon,omitempty"`
+}
+
+type Icon struct {
+	MediaType string `json:"mediatype"`
+	Data      string `json:"base64data"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
