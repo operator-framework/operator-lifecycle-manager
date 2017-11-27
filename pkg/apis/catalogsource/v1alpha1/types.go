@@ -3,11 +3,11 @@ package v1alpha1
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 type CatalogSourceSpec struct {
-	SourceType string   `json:"sourceType"`
-	URL        string   `json:"url"`
-	ConfigMap  string   `json:"configMap"`
 	Name       string   `json:"name"`
-	Secrets    []string `json:"secrets"`
+	SourceType string   `json:"sourceType"`
+	URL        string   `json:"url,omitempty"`
+	ConfigMap  string   `json:"configMap,omitempty"`
+	Secrets    []string `json:"secrets,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
