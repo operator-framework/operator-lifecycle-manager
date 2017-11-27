@@ -67,7 +67,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deploymen
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name string) error {
-	return c.opClient.DeleteDeployment(c.Namespace, name, false) // non-cascading delete
+	return c.opClient.DeleteDeployment(c.Namespace, name, true) // cascading delete, e.g. foreground
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
