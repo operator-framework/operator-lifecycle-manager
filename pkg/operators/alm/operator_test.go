@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"

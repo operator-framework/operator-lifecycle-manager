@@ -29,6 +29,10 @@ spec:
           type: string
           description: Human readable description of what the application does
 
+        serviceAccountName:
+          type: string
+          description: The serviceaccount to use to create install strategy resources. If not specified, the default for the namespace will be used.
+
         keywords:
           type: array
           description: List of keywords which will be used to discover and categorize app types

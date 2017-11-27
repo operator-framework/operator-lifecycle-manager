@@ -1,7 +1,7 @@
 package client
 
 import (
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"

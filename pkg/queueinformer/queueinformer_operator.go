@@ -3,7 +3,7 @@ package queueinformer
 import (
 	"fmt"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
