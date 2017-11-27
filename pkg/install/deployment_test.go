@@ -194,7 +194,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 			for i := range make([]int, len(strategy.DeploymentSpecs)) {
 				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i+1), namespace, mockOwnerMeta)
 				mockClient.EXPECT().
-					CreateDeployment(&deployment).
+					CreateOrUpdateDeployment(&deployment).
 					Return(&deployment, nil)
 			}
 
@@ -358,7 +358,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 					}, nil)
 
 			mockClient.EXPECT().
-				CreateDeployment(&deployment).
+				CreateOrUpdateDeployment(&deployment).
 				Return(&deployment, tt.createDeploymentErr)
 
 			if tt.createDeploymentErr != nil {

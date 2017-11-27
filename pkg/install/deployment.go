@@ -150,7 +150,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		}
 		dep.Labels["alm-owner-name"] = i.ownerMeta.Name
 		dep.Labels["alm-owner-namespace"] = i.ownerMeta.Namespace
-		if _, err := i.strategyClient.CreateDeployment(&dep); err != nil {
+		if _, err := i.strategyClient.CreateOrUpdateDeployment(&dep); err != nil {
 			return err
 		}
 	}
