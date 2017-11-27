@@ -158,6 +158,11 @@ func (in *InstallPlanStatus) DeepCopyInto(out *InstallPlanStatus) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.CatalogSources != nil {
+		in, out := &in.CatalogSources, &out.CatalogSources
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Plan != nil {
 		in, out := &in.Plan, &out.Plan
 		*out = make([]Step, len(*in))

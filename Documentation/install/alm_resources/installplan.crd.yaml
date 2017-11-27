@@ -34,53 +34,88 @@ spec:
           - Manual
           - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
 
-# Schema for status key written by the operator:
-#status:
-# type: object
-# required:
-# - status
-# properties:
-#   status:
-#     type: string
-#     enum:
-#     - Planning
-#     - Requires Approval
-#     - Installing
-#     - Complete
-#   plan:
-#     type: array
-#     items:
-#       type: object
-#       required:
-#       - resolving
-#       - resource
-#       - status
-#       properties:
-#         resolving:
-#           type: string
-#         status:
-#           type: string
-#           enum:
-#           - Unknown
-#           - Not Present
-#           - Present
-#           - Created
-#         resource:
-#           type: object
-#           required:
-#           - group
-#           - version
-#           - kind
-#           - name
-#           - manifest
-#           properties:
-#             group:
+# status:
+#   type: object
+#   required:
+#   - phase
+#   - catalogSources
+#   properties:
+#     phase:
+#       type: string
+#       enum:
+#       - ""
+#       - Planning
+#       - RequiresApproval
+#       - Installing
+#       - Complete
+#     conditions:
+#       type: array
+#       items:
+#         type: object
+#         properties:
+#           type:
+#             type: string
+#             enum:
+#             - Resolved
+#             - Approved
+#             - Installed
+#             status:
 #               type: string
-#             version:
+#               enum:
+#               - "True"
+#               - "False"
+#               - Unknown
+#             lastUpdateTime:
 #               type: string
-#             kind:
+#             lastTransitionTime:
 #               type: string
-#             name:
+#             reason:
 #               type: string
-#             manifest:
+#               enum:
+#               - PlanUnknown
+#               - DependenciesConflict
+#               - InstallComponentFailed
+#               - InstallCheckFailed
+#             message:
 #               type: string
+#     catalogSources:
+#       type: array
+#       items:
+#         type: string
+#     plan:
+#       type: array
+#       items:
+#         type: object
+#         required:
+#         - resolving
+#         - resource
+#         - status
+#         properties:
+#           resolving:
+#             type: string
+#           resource:
+#             type: object
+#             required:
+#             - group
+#             - version
+#             - kind
+#             - name
+#             - manifest
+#             properties:
+#               group:
+#                 type: string
+#               version:
+#                 type: string
+#               kind:
+#                 type: string
+#               name:
+#                 type: string
+#               manifest:
+#                 type: string
+#           status:
+#             type: string
+#             enum:
+#             - Unknown
+#             - NotPresent
+#             - Present
+#             - Created
