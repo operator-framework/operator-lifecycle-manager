@@ -22,7 +22,6 @@ func testDeployment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1b
 	testDeploymentLabels := map[string]string{"alm-owner-name": mockOwnerMeta.Name, "alm-owner-namespace": mockOwnerMeta.Namespace}
 
 	deployment := v1beta1extensions.Deployment{
-		TypeMeta: metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
