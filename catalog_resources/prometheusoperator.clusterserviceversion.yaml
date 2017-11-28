@@ -42,6 +42,21 @@ spec:
     strategy: deployment
     spec:
       permissions:
+      - serviceAccountName: prometheus
+        rules:
+        - apiGroups: [""]
+          resources:
+          - nodes
+          - services
+          - endpoints
+          - pods
+          verbs: ["get", "list", "watch"]
+        - apiGroups: [""]
+          resources:
+          - configmaps
+          verbs: ["get"]
+        - nonResourceURLs: ["/metrics"]
+          verbs: ["get"]        
       - serviceAccountName: prometheus-operator-0-14-0
         rules:
         - apiGroups:
