@@ -43,6 +43,7 @@ type StrategyDetailsDeployment struct {
 
 type StrategyDeploymentInstaller struct {
 	strategyClient client.InstallStrategyDeploymentInterface
+	ownerRefs      []metav1.OwnerReference
 	ownerMeta      metav1.ObjectMeta
 }
 
@@ -56,32 +57,28 @@ var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient: strategyClient,
-		ownerMeta:      ownerMeta,
+		ownerRefs: []metav1.OwnerReference{
+			{
+				APIVersion:         v1alpha1.SchemeGroupVersion.String(),
+				Kind:               v1alpha1.ClusterServiceVersionKind,
+				Name:               ownerMeta.GetName(),
+				UID:                ownerMeta.UID,
+				Controller:         &Controller,
+				BlockOwnerDeletion: &BlockOwnerDeletion,
+			},
+		},
+		ownerMeta: ownerMeta,
 	}
 }
 
-func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
-	strategy, ok := s.(*StrategyDetailsDeployment)
-	if !ok {
-		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
-	}
-	ownerReferences := []metav1.OwnerReference{
-		{
-			APIVersion:         v1alpha1.SchemeGroupVersion.String(),
-			Kind:               v1alpha1.ClusterServiceVersionKind,
-			Name:               i.ownerMeta.GetName(),
-			UID:                i.ownerMeta.UID,
-			Controller:         &Controller,
-			BlockOwnerDeletion: &BlockOwnerDeletion,
-		},
-	}
-	for _, permission := range strategy.Permissions {
+func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploymentPermissions) error {
+	for _, permission := range perms {
 		// create role
 		role := &rbac.Role{
 			Rules: permission.Rules,
 		}
-		role.SetOwnerReferences(ownerReferences)
-		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.Name))
+		role.SetOwnerReferences(i.ownerRefs)
+		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.GetName()))
 		createdRole, err := i.strategyClient.CreateRole(role)
 		if err != nil {
 			return err
@@ -89,7 +86,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 
 		// create serviceaccount if necessary
 		serviceAccount := &corev1.ServiceAccount{}
-		serviceAccount.SetOwnerReferences(ownerReferences)
+		serviceAccount.SetOwnerReferences(i.ownerRefs)
 		serviceAccount.SetName(permission.ServiceAccountName)
 		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount)
 		if err != nil {
@@ -108,13 +105,17 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 				Namespace: i.ownerMeta.Namespace,
 			}},
 		}
-		roleBinding.SetOwnerReferences(ownerReferences)
+		roleBinding.SetOwnerReferences(i.ownerRefs)
 		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
 
-		if _, err = i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
+		if _, err := i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
 			return err
 		}
 	}
+	return nil
+}
+
+func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
 
 	// Sort Deployments into:
 	//          DeploymentSpec with Name? | Deployment with Name? | Deployment with Spec? |
@@ -132,7 +133,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	for _, d := range existingDeployments.Items {
 		existingMap[d.GetName()] = d.Spec
 	}
-	for _, d := range strategy.DeploymentSpecs {
+	for _, d := range deps {
 		sp, exists := existingMap[d.Name]
 		delete(existingMap, d.Name) // remove ref
 
@@ -144,7 +145,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		dep := v1beta1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.ownerMeta.Namespace)
-		dep.SetOwnerReferences(ownerReferences)
+		dep.SetOwnerReferences(i.ownerRefs)
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})
 		}
@@ -161,8 +162,20 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 			return err
 		}
 	}
-
 	return nil
+}
+
+func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
+	strategy, ok := s.(*StrategyDetailsDeployment)
+	if !ok {
+		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
+	}
+
+	if err := i.installPermissions(strategy.Permissions); err != nil {
+		return err
+	}
+
+	return i.installDeployments(strategy.DeploymentSpecs)
 }
 
 func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {

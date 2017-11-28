@@ -198,10 +198,8 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					Return(&deployment, nil)
 			}
 
-			installer := &StrategyDeploymentInstaller{
-				strategyClient: mockClient,
-				ownerMeta:      mockOwnerMeta,
-			}
+			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
+
 			installed, err := installer.CheckInstalled(strategy)
 			require.False(t, installed)
 			assert.NoError(t, err)
@@ -283,10 +281,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 			strategy := strategy(1, namespace, mockOwnerMeta)
-			installer := &StrategyDeploymentInstaller{
-				strategyClient: mockClient,
-				ownerMeta:      mockOwnerMeta,
-			}
+			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
 
 			skipInstall := tt.checkDeploymentErr != nil || tt.checkServiceAccountErr != nil
 
