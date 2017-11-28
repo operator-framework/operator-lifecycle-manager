@@ -99,6 +99,162 @@ func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *Strateg
 		Permissions:     permissions,
 	}
 }
+func testPermissions(name string) StrategyDeploymentPermissions {
+	return StrategyDeploymentPermissions{
+		ServiceAccountName: name,
+	}
+}
+func testRules(name string) []v1beta1rbac.PolicyRule {
+	return []v1beta1rbac.PolicyRule{
+		{
+			Verbs:     []string{"list", "delete"},
+			APIGroups: []string{name},
+			Resources: []string{"pods"},
+		},
+	}
+}
+func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
+	namespace := "alm-test-deployment"
+
+	mockOwnerName := "clusterserviceversion-owner"
+	generateRoleName := "clusterserviceversion-owner-role-"
+
+	mockOwnerMeta := metav1.ObjectMeta{
+		Name:      mockOwnerName,
+		Namespace: namespace,
+	}
+	mockOwnerRefs := []metav1.OwnerReference{{
+		Name: mockOwnerName,
+	}}
+
+	serviceAccountName1 := "alm-sa-1"
+	serviceAccountName2 := "alm-sa-2"
+	// serviceAccountName3 := "alm-sa-3"
+
+	ensuredServiceAccountName1 := "ensured-alm-sa-1"
+	// ensuredServiceAccountName2 := "ensured-alm-sa-2"
+	// ensuredServiceAccountName3 := "ensured-alm-sa-3"
+
+	ruleName1 := "alm-rule-1"
+	ruleName2 := "alm-rule-2"
+	// ruleName3 := "alm-rule-3"
+
+	testRules1 := testRules(ruleName1)
+	testRules2 := testRules(ruleName2)
+	// testRules3 := testRules(ruleName3)
+
+	roleName1 := "alm-role-1"
+	// roleName2 := "alm-role-2"
+	// roleName3 := "alm-role-3"
+
+	generateRoleBindingName1 := "ensured-alm-role-1-alm-sa-1-"
+	// generateRoleBindingName2 := "ensured-alm-role-3-alm-sa-2-"
+	// generateRoleBindingName3 := "ensured-alm-role-2-alm-sa-3-"
+
+	type inputs struct {
+		strategyPermissions []StrategyDeploymentPermissions
+	}
+	type mock struct {
+		expectedRole      *v1beta1rbac.Role
+		createdRole       *v1beta1rbac.Role
+		roleCreationError error
+
+		expectedServiceAccount    *corev1.ServiceAccount
+		ensuredServiceAccount     *corev1.ServiceAccount
+		ensureServiceAccountError error
+
+		expectedRoleBinding      *v1beta1rbac.RoleBinding
+		roleBindingCreationError error
+	}
+	tests := []struct {
+		description string
+
+		inputs inputs
+		mocks  []mock
+		output error
+	}{
+		{
+			description: "no permissions is no-op",
+			inputs: inputs{
+				[]StrategyDeploymentPermissions{
+					{serviceAccountName1, testRules1}, {serviceAccountName2, testRules2},
+				},
+			},
+			mocks: []mock{
+				{
+					expectedRole: &v1beta1rbac.Role{
+						ObjectMeta: metav1.ObjectMeta{
+							GenerateName:    generateRoleName,
+							OwnerReferences: mockOwnerRefs,
+						},
+						Rules: testRules1,
+					},
+					createdRole: &v1beta1rbac.Role{ObjectMeta: metav1.ObjectMeta{
+						Name: roleName1,
+					}},
+					roleCreationError: nil,
+
+					expectedServiceAccount: &corev1.ServiceAccount{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            serviceAccountName1,
+							OwnerReferences: mockOwnerRefs,
+						},
+					},
+					ensuredServiceAccount: &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
+						Name: ensuredServiceAccountName1,
+					}},
+					ensureServiceAccountError: nil,
+
+					expectedRoleBinding: &v1beta1rbac.RoleBinding{
+						RoleRef: v1beta1rbac.RoleRef{
+							Kind:     "Role",
+							Name:     roleName1,
+							APIGroup: v1beta1rbac.GroupName},
+						Subjects: []v1beta1rbac.Subject{{
+							Kind:      "ServiceAccount",
+							Name:      serviceAccountName1,
+							Namespace: namespace,
+						}},
+						ObjectMeta: metav1.ObjectMeta{GenerateName: generateRoleBindingName1},
+					},
+					roleBindingCreationError: nil,
+				},
+			},
+			output: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
+
+			for _, m := range tt.mocks {
+				mockClient.EXPECT().
+					CreateRole(m.expectedRole).
+					Return(m.createdRole, m.roleCreationError)
+				if m.expectedServiceAccount != nil {
+					mockClient.EXPECT().
+						EnsureServiceAccount(m.expectedServiceAccount).
+						Return(m.ensuredServiceAccount, m.ensureServiceAccountError)
+				}
+				if m.expectedRoleBinding != nil {
+					mockClient.EXPECT().
+						CreateRoleBinding(m.expectedRoleBinding).
+						Return(nil, m.roleBindingCreationError)
+				}
+			}
+			installer := &StrategyDeploymentInstaller{
+				strategyClient: mockClient,
+				ownerRefs:      mockOwnerRefs,
+				ownerMeta:      mockOwnerMeta,
+			}
+			result := installer.installPermissions(tt.inputs.strategyPermissions)
+			assert.Equal(t, tt.output, result)
+
+			ctrl.Finish()
+		})
+	}
+}
 
 func TestInstallStrategyDeployment(t *testing.T) {
 	namespace := "alm-test-deployment"
