@@ -42,7 +42,7 @@ spec:
     strategy: deployment
     spec:
       permissions:
-      - serviceAccountName: prometheus
+      - serviceAccountName: prometheus-k8s
         rules:
         - apiGroups: [""]
           resources:
@@ -54,9 +54,7 @@ spec:
         - apiGroups: [""]
           resources:
           - configmaps
-          verbs: ["get"]
-        - nonResourceURLs: ["/metrics"]
-          verbs: ["get"]        
+          verbs: ["get"]  
       - serviceAccountName: prometheus-operator-0-14-0
         rules:
         - apiGroups:
