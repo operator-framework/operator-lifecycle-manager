@@ -87,9 +87,10 @@ var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	Phase      InstallPlanPhase       `json:"phase"`
-	Conditions []InstallPlanCondition `json:"conditions,omitempty"`
-	Plan       []Step                 `json:"plan,omitempty"`
+	Phase          InstallPlanPhase       `json:"phase"`
+	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
+	CatalogSources []string               `json:"catalogSources"`
+	Plan           []Step                 `json:"plan,omitempty"`
 }
 
 // InstallPlanCondition represents the overall status of the execution of
