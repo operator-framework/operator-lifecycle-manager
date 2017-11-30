@@ -15,6 +15,8 @@ type InstallStrategyDeploymentInterface interface {
 	CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
 	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error)
 	CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
+	CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
+	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
 	GetOwnedDeployments(owner metav1.ObjectMeta) (*v1beta1extensions.DeploymentList, error)
 }
@@ -62,6 +64,15 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
 	return c.opClient.CreateDeployment(deployment)
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name string) error {
+	return c.opClient.DeleteDeployment(c.Namespace, name, true) // cascading delete, e.g. foreground
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
+	_, d, err := c.opClient.CreateOrRollingUpdateDeployment(deployment)
+	return d, err
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {

@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -27,15 +28,22 @@ type StrategyDeploymentPermissions struct {
 	Rules              []rbac.PolicyRule `json:"rules"`
 }
 
+// StrategyDeploymentSpec contains the name and spec for the deployment ALM should create
+type StrategyDeploymentSpec struct {
+	Name string                 `json:"name"`
+	Spec v1beta1.DeploymentSpec `json:"spec"`
+}
+
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
 type StrategyDetailsDeployment struct {
-	DeploymentSpecs []v1beta1.DeploymentSpec        `json:"deployments"`
+	DeploymentSpecs []StrategyDeploymentSpec        `json:"deployments"`
 	Permissions     []StrategyDeploymentPermissions `json:"permissions"`
 }
 
 type StrategyDeploymentInstaller struct {
 	strategyClient client.InstallStrategyDeploymentInterface
+	ownerRefs      []metav1.OwnerReference
 	ownerMeta      metav1.ObjectMeta
 }
 
@@ -49,32 +57,28 @@ var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient: strategyClient,
-		ownerMeta:      ownerMeta,
+		ownerRefs: []metav1.OwnerReference{
+			{
+				APIVersion:         v1alpha1.SchemeGroupVersion.String(),
+				Kind:               v1alpha1.ClusterServiceVersionKind,
+				Name:               ownerMeta.GetName(),
+				UID:                ownerMeta.UID,
+				Controller:         &Controller,
+				BlockOwnerDeletion: &BlockOwnerDeletion,
+			},
+		},
+		ownerMeta: ownerMeta,
 	}
 }
 
-func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
-	strategy, ok := s.(*StrategyDetailsDeployment)
-	if !ok {
-		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
-	}
-	ownerReferences := []metav1.OwnerReference{
-		{
-			APIVersion:         v1alpha1.SchemeGroupVersion.String(),
-			Kind:               v1alpha1.ClusterServiceVersionKind,
-			Name:               i.ownerMeta.GetName(),
-			UID:                i.ownerMeta.UID,
-			Controller:         &Controller,
-			BlockOwnerDeletion: &BlockOwnerDeletion,
-		},
-	}
-	for _, permission := range strategy.Permissions {
+func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploymentPermissions) error {
+	for _, permission := range perms {
 		// create role
 		role := &rbac.Role{
 			Rules: permission.Rules,
 		}
-		role.SetOwnerReferences(ownerReferences)
-		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.Name))
+		role.SetOwnerReferences(i.ownerRefs)
+		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.GetName()))
 		createdRole, err := i.strategyClient.CreateRole(role)
 		if err != nil {
 			return err
@@ -82,7 +86,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 
 		// create serviceaccount if necessary
 		serviceAccount := &corev1.ServiceAccount{}
-		serviceAccount.SetOwnerReferences(ownerReferences)
+		serviceAccount.SetOwnerReferences(i.ownerRefs)
 		serviceAccount.SetName(permission.ServiceAccountName)
 		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount)
 		if err != nil {
@@ -101,29 +105,77 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 				Namespace: i.ownerMeta.Namespace,
 			}},
 		}
-		roleBinding.SetOwnerReferences(ownerReferences)
+		roleBinding.SetOwnerReferences(i.ownerRefs)
 		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
 
-		if _, err = i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
+		if _, err := i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
 			return err
 		}
 	}
+	return nil
+}
 
-	for _, spec := range strategy.DeploymentSpecs {
-		dep := v1beta1.Deployment{Spec: spec}
+func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
+
+	// Sort Deployments into:
+	//          DeploymentSpec with Name? | Deployment with Name? | Deployment with Spec? |
+	// NO OP  |         YES               |         YES           |         YES           | Found existing deployment with same Name and same Spec
+	// UPDATE |         YES               |         YES           |         NO            | Found existing deployment with same Name but different Spec as DeploymentSpec
+	// CREATE |         YES               |         NO            |         N/A           | No deployment exists with DeploymentSpec's Name
+	// DELETE |         NO                |         NO            |         NO            | Found Deployment that doesn't match any DeploymentSpecs by Name
+
+	existingDeployments, err := i.strategyClient.GetOwnedDeployments(i.ownerMeta)
+	if err != nil {
+		return fmt.Errorf("query for existing deployments failed: %s", err)
+	}
+	// compare deployments to see if any need to be created/updated
+	existingMap := map[string]v1beta1.DeploymentSpec{}
+	for _, d := range existingDeployments.Items {
+		existingMap[d.GetName()] = d.Spec
+	}
+	for _, d := range deps {
+		sp, exists := existingMap[d.Name]
+		delete(existingMap, d.Name) // remove ref
+
+		// Check for NO OP
+		if exists && equality.Semantic.DeepEqual(d.Spec, sp) {
+			continue
+		}
+		// Otherwise Create or Update Deployment
+		dep := v1beta1.Deployment{Spec: d.Spec}
+		dep.SetName(d.Name)
 		dep.SetNamespace(i.ownerMeta.Namespace)
-		dep.SetOwnerReferences(ownerReferences)
-		dep.SetGenerateName(fmt.Sprintf("%s-", i.ownerMeta.Name))
+		dep.SetOwnerReferences(i.ownerRefs)
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})
 		}
 		dep.Labels["alm-owner-name"] = i.ownerMeta.Name
 		dep.Labels["alm-owner-namespace"] = i.ownerMeta.Namespace
-		if _, err := i.strategyClient.CreateDeployment(&dep); err != nil {
+		if _, err := i.strategyClient.CreateOrUpdateDeployment(&dep); err != nil {
+			return err
+		}
+	}
+
+	// delete remaining deployments
+	for name, _ := range existingMap {
+		if err := i.strategyClient.DeleteDeployment(name); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
+	strategy, ok := s.(*StrategyDetailsDeployment)
+	if !ok {
+		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
+	}
+
+	if err := i.installPermissions(strategy.Permissions); err != nil {
+		return err
+	}
+
+	return i.installDeployments(strategy.DeploymentSpecs)
 }
 
 func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {
@@ -159,14 +211,32 @@ func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName 
 	return true, nil
 }
 
-func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []v1beta1.DeploymentSpec) (bool, error) {
+func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []StrategyDeploymentSpec) (bool, error) {
 	existingDeployments, err := i.strategyClient.GetOwnedDeployments(owner)
 	if err != nil {
 		return false, fmt.Errorf("query for existing deployments failed: %s", err)
 	}
+	// if number of existing and desired deployments are different, needs to resync
 	if len(existingDeployments.Items) != len(deploymentSpecs) {
-		log.Debugf("wrong number of deployments found. want %d, got %d", len(deploymentSpecs), len(existingDeployments.Items))
+		log.Debugf("wrong number of deployments found. want %d, got %d",
+			len(deploymentSpecs), len(existingDeployments.Items))
 		return false, nil
+	}
+
+	// compare deployments to see if any need to be created/updated
+	existingMap := map[string]v1beta1.DeploymentSpec{}
+	for _, d := range existingDeployments.Items {
+		existingMap[d.GetName()] = d.Spec
+	}
+	for _, spec := range deploymentSpecs {
+		if _, exists := existingMap[spec.Name]; !exists {
+			log.Debugf("missing deployment with name=%s", spec.Name)
+			return false, nil
+		}
+		if !equality.Semantic.DeepEqual(spec.Spec, existingMap[spec.Name]) {
+			log.Debugf("deployment spec differs for name=%s", spec.Name)
+			return false, nil
+		}
 	}
 	return true, nil
 }
