@@ -7,7 +7,7 @@ IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
 PKG_DIR := pkg
 
-.PHONY: test run clean vendor vendor-update coverage
+.PHONY: test run clean vendor vendor-update coverage e2e
 
 all: test build
 
@@ -34,6 +34,10 @@ cover: $(COVERUTIL)
 
 coverage-html: cover
 	go tool cover -html=cover.out
+
+e2e-local: vendor-update
+	./e2e/build_e2e_local.sh
+	./e2e/run_e2e_local.sh
 
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
