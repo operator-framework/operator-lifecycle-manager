@@ -1,6 +1,8 @@
 package client
 
 import (
+	"fmt"
+
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -51,10 +53,10 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 	}
 
 	foundAccount, err := c.opClient.GetServiceAccount(c.Namespace, serviceAccount.Name)
-	if err == nil {
+	if err == nil && foundAccount != nil {
 		return foundAccount, nil
 	}
-	if !apierrors.IsNotFound(err) {
+	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "checking for existing serviceacccount failed")
 	}
 
