@@ -79,27 +79,29 @@ spec:
           verbs:
           - "*"
       deployments:
-      - replicas: 1
-        template:
-          metadata:
-            labels:
-              name: vault-operator
-          spec:
-            serviceAccountName: vault-operator
-            containers:
-            - name: vault-operator
-              image: quay.io/coreos/vault-operator@sha256:74036811bc5d6cc1a136d8cc6d5577db67f29ba95eba02fbf0c3a8d2357dc8fe
-              env:
-              - name: MY_POD_NAMESPACE
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.namespace
-              - name: MY_POD_NAME
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.name
-            imagePullSecrets:
-            - name: coreos-pull-secret
+      - name: vault-operator
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                name: vault-operator
+            spec:
+              serviceAccountName: vault-operator
+              containers:
+              - name: vault-operator
+                image: quay.io/coreos/vault-operator@sha256:74036811bc5d6cc1a136d8cc6d5577db67f29ba95eba02fbf0c3a8d2357dc8fe
+                env:
+                - name: MY_POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MY_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+              imagePullSecrets:
+              - name: coreos-pull-secret
   version: 0.1.3
   maturity: alpha
   customresourcedefinitions:

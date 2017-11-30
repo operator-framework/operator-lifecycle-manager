@@ -77,29 +77,31 @@ spec:
           verbs:
           - get
       deployments:
-      - replicas: 1
-        template:
-          metadata:
-            name: etcd-operator-alm-owned
-            labels:
+      - name: etcd-operator
+        spec:
+          replicas: 1
+          template:
+            metadata:
               name: etcd-operator-alm-owned
-          spec:
-            serviceAccountName: etcd-operator
-            containers:
-            - name: etcd-operator
-              command:
-              - etcd-operator
-              - --create-crd=false
-              image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
-              env:
-              - name: MY_POD_NAMESPACE
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.namespace
-              - name: MY_POD_NAME
-                valueFrom:
-                  fieldRef:
-                    fieldPath: metadata.name
+              labels:
+                name: etcd-operator-alm-owned
+            spec:
+              serviceAccountName: etcd-operator
+              containers:
+              - name: etcd-operator
+                command:
+                - etcd-operator
+                - --create-crd=false
+                image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
+                env:
+                - name: MY_POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MY_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
   customresourcedefinitions:
     owned:
     - name: etcdclusters.etcd.database.coreos.com

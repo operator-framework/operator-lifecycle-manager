@@ -12,10 +12,8 @@ spec:
   keywords: ['prometheus', 'monitoring', 'tsdb', 'alerting']
 
   maintainers:
-  - name: Frederic Branczyk
-    email: frederic.branczyk@coreos.com
-  - name: Fabian Reinartz
-    email: fabian.reinartz@coreos.com
+  - name: CoreOS, Inc
+    email: support@coreos.com
 
   provider:
     name: CoreOS, Inc
@@ -23,6 +21,10 @@ spec:
   links:
   - name: Prometheus
     url: https://www.prometheus.io/
+  - name: Documentation
+    url: https://coreos.com/operators/prometheus/docs/latest/
+  - name: Prometheus Operator Source Code
+    url: https://github.com/coreos/prometheus-operator
 
   labels:
     alm-status-descriptors: prometheusoperator.0.14.0
@@ -48,7 +50,7 @@ spec:
           - customresourcedefinitions
           verbs: ["get", "list"]
         - apiGroups:
-          - monitoring.alm.coreos.com
+          - monitoring.coreos.com
           resources:
           - alertmanagers
           - prometheuses
@@ -83,78 +85,79 @@ spec:
           - namespaces
           verbs: ['list']
       deployments:
-      - replicas: 1
-        template:
-          metadata:
-            labels:
-              k8s-app: prometheus-operator
-          spec:
-            serviceAccount: prometheus-operator-0-14-0
-            containers:
-            - name: prometheus-operator
-              image: quay.io/coreos/prometheus-operator@sha256:5037b4e90dbb03ebdefaa547ddf6a1f748c8eeebeedf6b9d9f0913ad662b5731
-              command:
-                - sh
-                - -c
-                - >
-                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.alm.coreos.com
-                  --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator
-                  --kubelet-service=kube-system/kubelet
-                  --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
-              env:
-                - name: K8S_NAMESPACE
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.namespace
-              ports:
-              - containerPort: 8080
-                name: http
-              resources:
-                limits:
-                  cpu: 200m
-                  memory: 100Mi
-                requests:
-                  cpu: 100m
-                  memory: 50Mi
+      - name: prometheus-operator
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                k8s-app: prometheus-operator
+            spec:
+              serviceAccount: prometheus-operator-0-14-0
+              containers:
+              - name: prometheus-operator
+                image: quay.io/coreos/prometheus-operator@sha256:5037b4e90dbb03ebdefaa547ddf6a1f748c8eeebeedf6b9d9f0913ad662b5731
+                command:
+                  - sh
+                  - -c
+                  - >
+                    /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.coreos.com
+                    --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator
+                    --kubelet-service=kube-system/kubelet
+                    --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
+                env:
+                  - name: K8S_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                ports:
+                - containerPort: 8080
+                  name: http
+                resources:
+                  limits:
+                    cpu: 200m
+                    memory: 100Mi
+                  requests:
+                    cpu: 100m
+                    memory: 50Mi
   maturity: beta
   version: 0.14.0
   replaces: prometheusoperator.0.13.0
   customresourcedefinitions:
     owned:
-    - name: prometheuses.monitoring.alm.coreos.com
+    - name: prometheuses.monitoring.coreos.com
       version: v1
       kind: Prometheus
       displayName: Prometheus
       description: A running Prometheus instance
+      specDescriptors:
+      - description: Desired number of Pods for the cluster
+        displayName: Size
+        path: replicas
+        x-descriptors:
+          - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       statusDescriptors:
-        - path: status.prometheusSelector
+        - description: The current number of Pods for the cluster
+          displayName: Cluster Size
+          path: replicas
+        - path: prometheusSelector
           displayName: Prometheus Service Selector
           description: Label selector to find the service that routes to this prometheus
           x-descriptors:
           - urn:alm:descriptor:label:selector
-        - path: importantMetrics
-          displayName: Important metrics
-          description: Important metrics for the cluster.
-          x-descriptors:
-          - urn:alm:descriptor:com.tectonic.ui:metrics
-          value:
-            queries:
-            - query: "leader_changes_seen_total"
-              name: "CPU Usage"
-              type: "Gauge"
-            - query: "leader_changes_seen_total"
-              name: "Memory Usage"
-              type: "Gauge"
-            - query: "leader_changes_seen_total"
-              name: "Filesystem Usage"
-              type: "Gauge"
-    - name: servicemonitors.monitoring.alm.coreos.com
+    - name: servicemonitors.monitoring.coreos.com
       version: v1
       kind: ServiceMonitor
       displayName: Service Monitor
-      description: Configures prometheus to monitr a particular k8s service
-    - name: alertmanagers.monitoring.alm.coreos.com
+      description: Configures prometheus to monitor a particular k8s service
+    - name: alertmanagers.monitoring.coreos.com
       version: v1
-      kind: AlertManager
-      displayName: Alertmanager
+      kind: Alertmanager
+      displayName: Alert Manager
       description: Configures an Alert Manager for the namespace
+      specDescriptors:
+      - description: Desired number of Pods for the cluster
+        displayName: Size
+        path: replicas
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
