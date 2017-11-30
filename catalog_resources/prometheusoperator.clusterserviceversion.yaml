@@ -135,7 +135,10 @@ spec:
         x-descriptors: 
           - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       statusDescriptors:
-        - path: status.prometheusSelector
+        - description: The current number of Pods for the cluster
+          displayName: Cluster Size
+          path: replicas
+        - path: prometheusSelector
           displayName: Prometheus Service Selector
           description: Label selector to find the service that routes to this prometheus
           x-descriptors:
