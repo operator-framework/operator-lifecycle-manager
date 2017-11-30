@@ -7,7 +7,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -129,16 +128,16 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 		return fmt.Errorf("query for existing deployments failed: %s", err)
 	}
 	// compare deployments to see if any need to be created/updated
-	existingMap := map[string]v1beta1.DeploymentSpec{}
+	existingMap := map[string]struct{}{}
 	for _, d := range existingDeployments.Items {
-		existingMap[d.GetName()] = d.Spec
+		existingMap[d.GetName()] = struct{}{}
 	}
 	for _, d := range deps {
-		sp, exists := existingMap[d.Name]
+		_, exists := existingMap[d.Name]
 		delete(existingMap, d.Name) // remove ref
 
 		// Check for NO OP
-		if exists && equality.Semantic.DeepEqual(d.Spec, sp) {
+		if exists {
 			continue
 		}
 		// Otherwise Create or Update Deployment
@@ -231,10 +230,6 @@ func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.Obje
 	for _, spec := range deploymentSpecs {
 		if _, exists := existingMap[spec.Name]; !exists {
 			log.Debugf("missing deployment with name=%s", spec.Name)
-			return false, nil
-		}
-		if !equality.Semantic.DeepEqual(spec.Spec, existingMap[spec.Name]) {
-			log.Debugf("deployment spec differs for name=%s", spec.Name)
 			return false, nil
 		}
 	}
