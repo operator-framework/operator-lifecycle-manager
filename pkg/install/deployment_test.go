@@ -278,23 +278,6 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					},
 					returnError: nil,
 				},
-				{
-					expectedDeployment: v1beta1.Deployment{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:            "test-deployment-3",
-							Namespace:       namespace,
-							OwnerReferences: mockOwnerRefs,
-							Labels: map[string]string{
-								"alm-owner-name":      mockOwnerName,
-								"alm-owner-namespace": namespace,
-							},
-						},
-						Spec: v1beta1.DeploymentSpec{
-							Paused: true,
-						},
-					},
-					returnError: nil,
-				},
 			},
 			deleteMocks: []deleteMock{
 				{
@@ -652,8 +635,8 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					GetOwnedDeployments(mockOwnerMeta).
 					Return(&v1beta1.DeploymentList{Items: mockedDeps}, nil)
 			}
-			for i := range make([]int, len(strategy.DeploymentSpecs)) {
-				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i+1), namespace, mockOwnerMeta)
+			for i := tt.numMockDeployments + 1; i <= len(strategy.DeploymentSpecs); i++ {
+				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
 				mockClient.EXPECT().
 					CreateOrUpdateDeployment(&deployment).
 					Return(&deployment, nil)
@@ -662,7 +645,11 @@ func TestInstallStrategyDeployment(t *testing.T) {
 			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
 
 			installed, err := installer.CheckInstalled(strategy)
-			require.False(t, installed)
+			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
+				require.True(t, installed)
+			} else {
+				require.False(t, installed)
+			}
 			assert.NoError(t, err)
 			assert.NoError(t, installer.Install(strategy))
 
@@ -749,9 +736,12 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			mockClient.EXPECT().
 				GetServiceAccountByName(strategy.Permissions[0].ServiceAccountName).
 				Return(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
+
 			if tt.checkServiceAccountErr == nil {
 				dep := testDeployment("alm-dep", namespace, mockOwnerMeta)
-				dep.Spec = v1beta1.DeploymentSpec{Paused: true} // arbitrary
+				if tt.checkDeploymentErr == nil {
+					dep = testDeployment("alm-dep-1", namespace, mockOwnerMeta)
+				}
 				mockClient.EXPECT().
 					GetOwnedDeployments(mockOwnerMeta).
 					Return(
@@ -769,7 +759,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.Error(t, err)
 				return
 			} else {
-				require.False(t, installed)
+				require.True(t, installed)
 				require.NoError(t, err)
 			}
 
@@ -799,20 +789,13 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-
 			deployment := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
-
-			dep := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
-			dep.Spec = v1beta1.DeploymentSpec{Paused: true} // arbitrary
 			mockClient.EXPECT().
 				GetOwnedDeployments(mockOwnerMeta).
 				Return(
 					&v1beta1.DeploymentList{
-						Items: []v1beta1.Deployment{
-							dep,
-						},
+						Items: []v1beta1.Deployment{},
 					}, nil)
-
 			mockClient.EXPECT().
 				CreateOrUpdateDeployment(&deployment).
 				Return(&deployment, tt.createDeploymentErr)
