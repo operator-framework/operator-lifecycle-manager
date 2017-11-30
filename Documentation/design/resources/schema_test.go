@@ -180,6 +180,8 @@ func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {
 		err = json.Unmarshal(exampleFileBytesJson, &csv)
 		require.NoError(t, err)
 		return err
+	default:
+		return fmt.Errorf("didn't recognize validate-kind directive: %s", kind)
 	}
 	return nil
 }
