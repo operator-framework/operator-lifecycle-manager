@@ -139,6 +139,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
 // state.
 func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
+	log.Infof("CSV current phase: %s, %s", csv.Status.Phase, csv.Status.Reason)
 	switch csv.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
 		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", csv.SelfLink)
