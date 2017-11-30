@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var ErrNilObject = errors.New("Bad object supplied: <nil>")
+
 type InstallStrategyDeploymentInterface interface {
 	CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error)
 	CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
@@ -44,7 +46,11 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBind
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error) {
-	foundAccount, err := c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccount.Name, metav1.GetOptions{})
+	if serviceAccount == nil {
+		return nil, ErrNilObject
+	}
+
+	foundAccount, err := c.opClient.GetServiceAccount(c.Namespace, serviceAccount.Name)
 	if err == nil {
 		return foundAccount, nil
 	}
@@ -52,7 +58,8 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 		return nil, errors.Wrap(err, "checking for existing serviceacccount failed")
 	}
 
-	createdAccount, err := c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Create(serviceAccount)
+	serviceAccount.SetNamespace(c.Namespace)
+	createdAccount, err := c.opClient.CreateServiceAccount(serviceAccount)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, errors.Wrap(err, "creating serviceacccount failed")
 	}
