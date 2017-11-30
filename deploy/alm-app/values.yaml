@@ -1,4 +1,5 @@
 namespace: alm-app
+catalog-namespace: tectonic-system
 alm:
   replicaCount: 1
   image:
