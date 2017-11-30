@@ -85,39 +85,41 @@ spec:
           - namespaces
           verbs: ['list']
       deployments:
-      - replicas: 1
-        template:
-          metadata:
-            labels:
-              k8s-app: prometheus-operator
-          spec:
-            serviceAccount: prometheus-operator-0-14-0
-            containers:
-            - name: prometheus-operator
-              image: quay.io/coreos/prometheus-operator@sha256:5037b4e90dbb03ebdefaa547ddf6a1f748c8eeebeedf6b9d9f0913ad662b5731
-              command:
-                - sh
-                - -c
-                - >
-                  /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.coreos.com
-                  --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator
-                  --kubelet-service=kube-system/kubelet
-                  --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
-              env:
-                - name: K8S_NAMESPACE
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.namespace
-              ports:
-              - containerPort: 8080
-                name: http
-              resources:
-                limits:
-                  cpu: 200m
-                  memory: 100Mi
-                requests:
-                  cpu: 100m
-                  memory: 50Mi
+      - name: prometheus-operator
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                k8s-app: prometheus-operator
+            spec:
+              serviceAccount: prometheus-operator-0-14-0
+              containers:
+              - name: prometheus-operator
+                image: quay.io/coreos/prometheus-operator@sha256:5037b4e90dbb03ebdefaa547ddf6a1f748c8eeebeedf6b9d9f0913ad662b5731
+                command:
+                  - sh
+                  - -c
+                  - >
+                    /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.coreos.com
+                    --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator
+                    --kubelet-service=kube-system/kubelet
+                    --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
+                env:
+                  - name: K8S_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                ports:
+                - containerPort: 8080
+                  name: http
+                resources:
+                  limits:
+                    cpu: 200m
+                    memory: 100Mi
+                  requests:
+                    cpu: 100m
+                    memory: 50Mi
   maturity: beta
   version: 0.14.0
   replaces: prometheusoperator.0.13.0

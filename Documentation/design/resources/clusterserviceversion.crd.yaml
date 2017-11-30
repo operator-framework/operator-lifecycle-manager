@@ -325,7 +325,17 @@ spec:
                     description: List of deployments to create
                     items:
                       type: object
-                      description: A deployment to create in the cluster
+                      description: A name and deployment to create in the cluster
+                      required:
+                        - name
+                        - spec
+                      properties:
+                        name:
+                          type: string
+                          description: the consistent name of the deployment
+                        spec:
+                          type: object
+                          description: The deployment spec to create in the cluster
                   permissions:
                     type: array
                     description: Permissions needed by the deployement to run correctly
