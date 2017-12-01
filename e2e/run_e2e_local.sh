@@ -40,11 +40,11 @@ kubectl apply -f ./Documentation/install/alm_resources/installplan.crd.yaml || {
 kubectl apply -f ./Documentation/install/alm_resources/alphacatalogentry.crd.yaml || { echo 'alphacatalogentry crd exists'; }
 
 # copy chart and add version
-cp -R deploy/alm-app ${charttmpdir}/
-echo "version: 1.0.0-${namespace}" >> ${charttmpdir}/alm-app/Chart.yaml
+cp -R deploy/alm-app/kube-1.8/ ${charttmpdir}/
+echo "version: 1.0.0-${namespace}" >> ${charttmpdir}/Chart.yaml
 
 # Install ALM and wait for it to be ready
-helm install --wait --timeout 300 -f e2e/e2e_values.yaml -n ${namespace} --set namespace=${namespace} --set catalog_namespace=${namespace} ${charttmpdir}/alm-app
+helm install --wait --timeout 300 -f e2e/e2e_values.yaml -n ${namespace} --set namespace=${namespace} --set catalog_namespace=${namespace} ${charttmpdir}
 
 # run tests
 KUBECONFIG=~/.kube/config NAMESPACE=${namespace} go test -v ./e2e/...

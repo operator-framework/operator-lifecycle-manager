@@ -1,5 +1,5 @@
-hash: 3c4dee42a9a0bfa64a221449749676ab20df64fd21570842b1c0f240d657ee89
-updated: 2017-12-01T12:51:57.877047085-05:00
+hash: 67b41a9cb013880bc9262800ea5731ecad4fe98a4b5214274421eba93869acb1
+updated: 2017-12-01T14:37:25.973881588-05:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
@@ -163,7 +163,6 @@ imports:
   - authorization/v1
   - authorization/v1beta1
   - autoscaling/v1
-  - autoscaling/v2alpha1
   - autoscaling/v2beta1
   - batch/v1
   - batch/v1beta1

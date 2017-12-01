@@ -79,7 +79,7 @@ local appr = utils.appr;
 
         before_script: [
             "appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io",
-            "cd deploy/alm-app",
+            "cd deploy/alm-app/kube-1.7",
             'echo "version: %s" >> Chart.yaml' % _vars.appversion,
             'echo %s > params.json' % std.escapeStringJson(_vars.params),
             "cat params.json",
@@ -93,9 +93,9 @@ local appr = utils.appr;
                                  "quay.io",
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
-            k8s.apply("../../Documentation/design/resources/clusterserviceversion.crd.yaml") +
-            k8s.apply("../../Documentation/design/resources/installplan.crd.yaml") +
-            k8s.apply("../../Documentation/design/resources/alphacatalogentry.crd.yaml") +
+            k8s.apply("../../../Documentation/design/resources/clusterserviceversion.crd.yaml") +
+            k8s.apply("../../../Documentation/design/resources/installplan.crd.yaml") +
+            k8s.apply("../../../Documentation/design/resources/alphacatalogentry.crd.yaml") +
             helm.upgrade(_vars.app,
                          _vars.appname,
                          _vars.namespace,
