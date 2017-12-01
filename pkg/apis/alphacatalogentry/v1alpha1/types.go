@@ -36,8 +36,8 @@ func NewAlphaCatalogEntryResource(app *AlphaCatalogEntrySpec) *AlphaCatalogEntry
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type AlphaCatalogEntryList struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
 
 	Items []*AlphaCatalogEntrySpec `json:"items"`
 }

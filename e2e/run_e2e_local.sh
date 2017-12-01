@@ -7,6 +7,8 @@ set -e
 timestamp=$(date +%s)
 namespace="e2e-tests-${timestamp}-$RANDOM"
 charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`
+mkdir ${charttmpdir}/alm-app
+charttmpdir=${charttmpdir}/alm-app
 
 function cleanup {
  	kubectl delete namespace ${namespace}
@@ -48,5 +50,3 @@ helm install --wait --timeout 300 -f e2e/e2e_values.yaml -n ${namespace} --set n
 
 # run tests
 KUBECONFIG=~/.kube/config NAMESPACE=${namespace} go test -v ./e2e/...
-
-cleanupAndExit
