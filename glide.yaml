@@ -1,35 +1,17 @@
 package: github.com/coreos-inc/alm
 import:
-- package: k8s.io/client-go
-  version: 45673e060eb921b510677b1123737ad1158e49fa
-  subpackages:
-  - kubernetes
-  - kubernetes/scheme
-  - rest
-  - tools/cache
-  - tools/clientcmd
-  - tools/leaderelection/resourcelock
-  - util/workqueue
-- package: github.com/coreos-inc/operator-client
-  repo: git@github.com:coreos-inc/operator-client.git
+- package: github.com/coreos-inc/tectonic-operators
+  repo: git@github.com:coreos-inc/tectonic-operators.git
   vcs: git
   subpackages:
-  - pkg/client
+  - operator-client
 - package: github.com/coreos/go-semver
   version: ~0.2.0
   subpackages:
   - semver
 - package: github.com/sirupsen/logrus
   version: ~1.0.3
-- package: k8s.io/api
-  subpackages:
-  - extensions/v1beta1
 - package: github.com/go-openapi/spec
-- package: k8s.io/apiextensions-apiserver
-  version: release-1.8
-  subpackages:
-  - pkg/apis/apiextensions/v1beta1
-  - pkg/apiserver/validation
 - package: k8s.io/apimachinery
   subpackages:
   - pkg/apis/meta/v1
@@ -54,7 +36,3 @@ testImport:
   subpackages:
   - assert
   - require
-- package: k8s.io/client-go
-  version: 45673e060eb921b510677b1123737ad1158e49fa
-  subpackages:
-  - util/jsonpath

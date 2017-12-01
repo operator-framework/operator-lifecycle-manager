@@ -222,7 +222,7 @@ func (a *ALMOperator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (me
 			Kind:    "CustomResourceDefinition",
 			Name:    r.Name,
 		}
-		crd, err := a.OpClient.GetCustomResourceDefinitionKind(r.Name)
+		crd, err := a.OpClient.GetCustomResourceDefinition(r.Name)
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false

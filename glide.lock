@@ -1,16 +1,17 @@
-hash: 0c70a7ca7df74df9caade409c50f2fc059c5cebca9b0c94f8c934de40d9d2c96
-updated: 2017-11-29T09:07:33.421133373-05:00
+hash: 3c4dee42a9a0bfa64a221449749676ab20df64fd21570842b1c0f240d657ee89
+updated: 2017-12-01T12:51:57.877047085-05:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
-- name: github.com/coreos-inc/operator-client
-  version: 8970c53bd92cb8ab15e6d656c79df0ee5f316159
-  repo: git@github.com:coreos-inc/operator-client.git
+- name: github.com/coreos-inc/tectonic-operators
+  version: 0d79398170366a423a97e372d7de7a5cbcfd0c59
+  repo: git@github.com:coreos-inc/tectonic-operators.git
   vcs: git
   subpackages:
-  - pkg/client
-  - pkg/diff
-  - pkg/types
+  - operator-client
+  - operator-client/pkg/client
+  - operator-client/pkg/diff
+  - operator-client/pkg/types
 - name: github.com/coreos/go-semver
   version: 8ab6407b697782a06568d4b7f1db25550ec2e4c6
   subpackages:
@@ -53,7 +54,7 @@ imports:
   - proto
   - sortkeys
 - name: github.com/golang/glog
-  version: 23def4e6c14b4da8ac2ed8007337bc5eb5007998
+  version: 44145f04b68cf362d9c4df2182967c2275eaefed
 - name: github.com/golang/groupcache
   version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
   subpackages:
@@ -70,6 +71,8 @@ imports:
   - ptypes/any
   - ptypes/duration
   - ptypes/timestamp
+- name: github.com/google/btree
+  version: 7d79101e329e5a3adf994758c578dab82b90c017
 - name: github.com/google/gofuzz
   version: 44d81051d367757e1c7c6a5a86423ece9afcf63c
 - name: github.com/googleapis/gnostic
@@ -78,6 +81,10 @@ imports:
   - OpenAPIv2
   - compiler
   - extensions
+- name: github.com/gregjones/httpcache
+  version: 787624de3eb7bd915c329cba748687a3b22666a6
+  subpackages:
+  - diskcache
 - name: github.com/hashicorp/golang-lru
   version: a0d98a5f288019575c6d1f4bb1573fef2d1fcdc4
   subpackages:
@@ -86,6 +93,8 @@ imports:
   version: bf9dde6d0d2c004a008c27aaee91170c786f6db8
 - name: github.com/imdario/mergo
   version: 6633656539c1639d9d78127b7d47c622b5d7b6dc
+- name: github.com/json-iterator/go
+  version: 36b14963da70d11297d313183d7e6388c8510e1e
 - name: github.com/juju/ratelimit
   version: 5b9ff866471762aa2ab2dced63c9fb6f53921342
 - name: github.com/mailru/easyjson
@@ -96,6 +105,8 @@ imports:
   - jwriter
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+- name: github.com/peterbourgon/diskv
+  version: 5f041e8faa004a95c88a202771f4cc3e991971e6
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/PuerkitoBio/purell
@@ -106,17 +117,14 @@ imports:
   version: f006c2ac4710855cf0f916dd6b77acf6b048dc6e
 - name: github.com/spf13/pflag
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
-- name: github.com/ugorji/go
-  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
-  subpackages:
-  - codec
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
   - ssh/terminal
 - name: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
+  - context
   - http2
   - http2/hpack
   - idna
@@ -127,9 +135,10 @@ imports:
   - unix
   - windows
 - name: golang.org/x/text
-  version: 2910a502d2bf9e43193af9d68ca516529614eed3
+  version: b19bf474d317b857955b12035d2c5acb57ce8b01
   subpackages:
   - cases
+  - internal
   - internal/tag
   - language
   - runes
@@ -144,7 +153,7 @@ imports:
 - name: gopkg.in/yaml.v2
   version: 53feefa2559fb8dfa8d81baad31be332c97d6c77
 - name: k8s.io/api
-  version: c0bcfdc3597be1a899c9f0b4e3d1b2e023b5148f
+  version: 4df58c811fe2e65feb879227b2b245e4dc26e7ad
   subpackages:
   - admissionregistration/v1alpha1
   - apps/v1beta1
@@ -155,13 +164,16 @@ imports:
   - authorization/v1beta1
   - autoscaling/v1
   - autoscaling/v2alpha1
+  - autoscaling/v2beta1
   - batch/v1
+  - batch/v1beta1
   - batch/v2alpha1
   - certificates/v1beta1
   - core/v1
   - extensions/v1beta1
   - networking/v1
   - policy/v1beta1
+  - rbac/v1
   - rbac/v1alpha1
   - rbac/v1beta1
   - scheduling/v1alpha1
@@ -169,7 +181,7 @@ imports:
   - storage/v1
   - storage/v1beta1
 - name: k8s.io/apiextensions-apiserver
-  version: 5bc0d8f05a92b3a09bcf1a9db442a29c0b7a514d
+  version: e509bb64fe1116e12a32273a2032426aa1a5fd26
   subpackages:
   - pkg/apis/apiextensions
   - pkg/apis/apiextensions/v1beta1
@@ -180,13 +192,14 @@ imports:
   - pkg/client/clientset/clientset/typed/apiextensions/v1beta1
   - pkg/features
 - name: k8s.io/apimachinery
-  version: dc1f89aff9a7509782bde3b68824c8043a3e58cc
+  version: 019ae5ada31de202164b118aee88ee2d14075c31
   subpackages:
   - pkg/api/equality
   - pkg/api/errors
   - pkg/api/meta
   - pkg/api/resource
   - pkg/api/validation
+  - pkg/apis/meta/internalversion
   - pkg/apis/meta/v1
   - pkg/apis/meta/v1/unstructured
   - pkg/apis/meta/v1/validation
@@ -229,11 +242,11 @@ imports:
   - third_party/forked/golang/json
   - third_party/forked/golang/reflect
 - name: k8s.io/apiserver
-  version: ab57ed5a72c3b67058f665d660e23bae18339fc2
+  version: 9707c008294d447053c0e2737c256ee23f99e5b4
   subpackages:
   - pkg/util/feature
 - name: k8s.io/client-go
-  version: 45673e060eb921b510677b1123737ad1158e49fa
+  version: 2ae454230481a7cb5544325e12ad7658ecccd19b
   subpackages:
   - discovery
   - discovery/fake
@@ -256,10 +269,12 @@ imports:
   - kubernetes/typed/authorization/v1beta1/fake
   - kubernetes/typed/autoscaling/v1
   - kubernetes/typed/autoscaling/v1/fake
-  - kubernetes/typed/autoscaling/v2alpha1
-  - kubernetes/typed/autoscaling/v2alpha1/fake
+  - kubernetes/typed/autoscaling/v2beta1
+  - kubernetes/typed/autoscaling/v2beta1/fake
   - kubernetes/typed/batch/v1
   - kubernetes/typed/batch/v1/fake
+  - kubernetes/typed/batch/v1beta1
+  - kubernetes/typed/batch/v1beta1/fake
   - kubernetes/typed/batch/v2alpha1
   - kubernetes/typed/batch/v2alpha1/fake
   - kubernetes/typed/certificates/v1beta1
@@ -272,6 +287,8 @@ imports:
   - kubernetes/typed/networking/v1/fake
   - kubernetes/typed/policy/v1beta1
   - kubernetes/typed/policy/v1beta1/fake
+  - kubernetes/typed/rbac/v1
+  - kubernetes/typed/rbac/v1/fake
   - kubernetes/typed/rbac/v1alpha1
   - kubernetes/typed/rbac/v1alpha1/fake
   - kubernetes/typed/rbac/v1beta1
@@ -297,6 +314,7 @@ imports:
   - tools/leaderelection
   - tools/leaderelection/resourcelock
   - tools/metrics
+  - tools/pager
   - tools/record
   - tools/reference
   - transport
@@ -305,13 +323,11 @@ imports:
   - util/homedir
   - util/integer
   - util/workqueue
-testImports:
-- name: github.com/coreos-inc/tectonic-operators
-  version: e7f798a2575ef56270a7c030f27c33328571cba6
+- name: k8s.io/kube-openapi
+  version: 868f2f29720b192240e18284659231b440f9cda5
   subpackages:
-  - operator-client/pkg/client
-  - operator-client/pkg/diff
-  - operator-client/pkg/types
+  - pkg/common
+testImports:
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:

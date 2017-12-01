@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

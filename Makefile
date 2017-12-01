@@ -86,7 +86,7 @@ generate-mock-client: $(MOCKGEN)
 	mockgen -source=$(PKG_DIR)/client/alphacatalogentry_client.go  -package=catalog > $(PKG_DIR)/catalog/zz_generated.mock_alphacatalogentry_client_test.go
 	mockgen -source=$(PKG_DIR)/client/deployment_install_client.go -package=install > $(PKG_DIR)/install/zz_generated.mock_deployment_install_client_test.go
 	# can't use "source" mockgen, see: https://github.com/golang/mock/issues/11#issuecomment-294380653
-	mockgen -package=alm -imports client=github.com/coreos-inc/alm/pkg/vendor/github.com/coreos-inc/operator-client/pkg/client,v1=github.com/coreos-inc/alm/pkg/vendor/k8s.io/apimachinery/pkg/apis/meta/v1 github.com/coreos-inc/alm/pkg/install StrategyResolverInterface > $(PKG_DIR)/operators/alm/zz_generated.mock_resolver_test.go
+	mockgen -package=alm -imports client=github.com/coreos-inc/alm/pkg/vendor/github.com/coreos-inc/tectonic-operators/operator-client/pkg/client,v1=github.com/coreos-inc/alm/pkg/vendor/k8s.io/apimachinery/pkg/apis/meta/v1 github.com/coreos-inc/alm/pkg/install StrategyResolverInterface > $(PKG_DIR)/operators/alm/zz_generated.mock_resolver_test.go
 	# mockgen doesn't handle vendored dependencies well: https://github.com/golang/mock/issues/30
 	sed -i '' s,github.com/coreos-inc/alm/vendor/,, $(PKG_DIR)/operators/alm/zz_generated.mock_resolver_test.go
 	goimports -w $(PKG_DIR)/operators/alm/zz_generated.mock_resolver_test.go

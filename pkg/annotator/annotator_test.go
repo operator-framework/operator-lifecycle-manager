@@ -5,7 +5,7 @@ import (
 
 	"fmt"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"

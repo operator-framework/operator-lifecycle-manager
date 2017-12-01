@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
+	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -178,6 +179,11 @@ func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {
 	case "ClusterServiceVersion":
 		csv := v1alpha1.ClusterServiceVersion{}
 		err = json.Unmarshal(exampleFileBytesJson, &csv)
+		require.NoError(t, err)
+		return err
+	case "CatalogSource":
+		cs := catalogsourcev1alpha1.CatalogSource{}
+		err = json.Unmarshal(exampleFileBytesJson, &cs)
 		require.NoError(t, err)
 		return err
 	default:

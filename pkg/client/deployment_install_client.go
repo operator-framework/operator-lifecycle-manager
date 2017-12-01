@@ -1,7 +1,7 @@
 package client
 
 import (
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
@@ -67,7 +67,10 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deploymen
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name string) error {
-	return c.opClient.DeleteDeployment(c.Namespace, name, true) // cascading delete, e.g. foreground
+	foregroundDelete := metav1.DeletePropagationForeground // cascading delete
+	immediate := int64(0)
+	immediateForegroundDelete := &metav1.DeleteOptions{GracePeriodSeconds: &immediate, PropagationPolicy: &foregroundDelete}
+	return c.opClient.DeleteDeployment(c.Namespace, name, immediateForegroundDelete)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
