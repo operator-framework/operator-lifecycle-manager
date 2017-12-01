@@ -62,6 +62,7 @@ local appr = utils.appr;
                 "alm.image.tag": _vars.image.alm.tag,
                 "catalog.image.repository": _vars.image.catalog.repo,
                 "catalog.image.tag": _vars.image.catalog.tag,
+                "catalog_namespace": "tectonic-system",
                 namespace: _vars.namespace,
             },
         },
