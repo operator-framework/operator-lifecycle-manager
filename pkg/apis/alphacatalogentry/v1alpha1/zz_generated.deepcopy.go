@@ -71,7 +71,7 @@ func (in *AlphaCatalogEntry) DeepCopyObject() runtime.Object {
 func (in *AlphaCatalogEntryList) DeepCopyInto(out *AlphaCatalogEntryList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	out.ListMeta = in.ListMeta
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]*AlphaCatalogEntrySpec, len(*in))

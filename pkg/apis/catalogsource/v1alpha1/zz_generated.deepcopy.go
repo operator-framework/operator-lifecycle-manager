@@ -66,7 +66,7 @@ func (in *CatalogSource) DeepCopyObject() runtime.Object {
 func (in *CatalogSourceList) DeepCopyInto(out *CatalogSourceList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	out.ListMeta = in.ListMeta
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]CatalogSource, len(*in))

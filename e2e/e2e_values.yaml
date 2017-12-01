@@ -1,0 +1,19 @@
+namespace: e2e-tests
+catalog_namespace: e2e-tests
+alm:
+  replicaCount: 1
+  image:
+    repository: quay.io/coreos/alm
+    tag: local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+
+catalog:
+  replicaCount: 1
+  image:
+    repository: quay.io/coreos/catalog
+    tag: local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080

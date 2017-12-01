@@ -173,7 +173,7 @@ func (in *ClusterServiceVersionCondition) DeepCopy() *ClusterServiceVersionCondi
 func (in *ClusterServiceVersionList) DeepCopyInto(out *ClusterServiceVersionList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
+	out.ListMeta = in.ListMeta
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]ClusterServiceVersion, len(*in))

@@ -1,7 +1,7 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}-catalog
+  name: {{ template "fullname" . }}-alm
   namespace: {{ .Values.namespace }}
   labels:
     app: {{ template "name" . }}
@@ -11,39 +11,44 @@ metadata:
 spec:
   strategy:
     type: RollingUpdate
-  replicas: {{ .Values.catalog.replicaCount }}
+  replicas: {{ .Values.alm.replicaCount }}
   template:
     metadata:
       labels:
-        app: {{ template "name" . }}-catalog
+        app: {{ template "name" . }}-alm
         release: {{ .Release.Name }}
     spec:
       serviceAccountName: {{ template "fullname" . }}-serviceaccount
       containers:
         - name: {{ .Chart.Name }}
           command:
-          - /bin/catalog
+          - /bin/alm
           - -watchedNamespaces
           - {{ .Values.namespace }}
-          - -namespace
-          - tectonic-system
-          image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
-          imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
+          image: "{{ .Values.alm.image.repository }}:{{ .Values.alm.image.tag }}"
+          imagePullPolicy: {{ .Values.alm.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.catalog.service.internalPort }}
+            - containerPort: {{ .Values.alm.service.internalPort }}
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.catalog.service.internalPort }}
+              port: {{ .Values.alm.service.internalPort }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.catalog.service.internalPort }}
+              port: {{ .Values.alm.service.internalPort }}
+          env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            value: {{ template "fullname" . }}-alm
           resources:
-{{ toYaml .Values.catalog.resources | indent 12 }}
-    {{- if .Values.catalog.nodeSelector }}
+{{ toYaml .Values.alm.resources | indent 12 }}
+    {{- if .Values.alm.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.catalog.nodeSelector | indent 8 }}
+{{ toYaml .Values.alm.nodeSelector | indent 8 }}
     {{- end }}
       imagePullSecrets:
         - name: coreos-pull-secret

@@ -1,0 +1,49 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}-catalog
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.catalog.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}-catalog
+        release: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ template "fullname" . }}-serviceaccount
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+          - /bin/catalog
+          - -watchedNamespaces
+          - {{ .Values.namespace }}
+          - -namespace
+          - {{ .Values.catalog_namespace }}
+          image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
+          imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.catalog.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.catalog.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.catalog.service.internalPort }}
+          resources:
+{{ toYaml .Values.catalog.resources | indent 12 }}
+    {{- if .Values.catalog.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.catalog.nodeSelector | indent 8 }}
+    {{- end }}
+      imagePullSecrets:
+        - name: coreos-pull-secret

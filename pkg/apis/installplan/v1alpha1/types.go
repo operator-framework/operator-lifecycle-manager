@@ -16,8 +16,9 @@ import (
 )
 
 const (
-	GroupVersion = "v1alpha1" // used in registering InstallPlan scheme
-
+	GroupVersion             = "v1alpha1" // used in registering InstallPlan scheme
+	InstallPlanKind          = "InstallPlan-v1"
+	InstallPlanListKind      = "InstallPlanList-v1"
 	InstallPlanCRDName       = "installplan-v1s.app.coreos.com"
 	InstallPlanCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
 )
@@ -215,8 +216,8 @@ type InstallPlan struct {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type InstallPlanList struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
 
 	Items []InstallPlan `json:"items"`
 }

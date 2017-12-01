@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	opClient "github.com/coreos-inc/operator-client/pkg/client"
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -30,12 +30,12 @@ func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alp
 	for _, crd := range crdDescriptions {
 		if strings.HasPrefix(crd.Name, "nonExistent") {
 			mockClient.EXPECT().
-				GetCustomResourceDefinitionKind(crd.Name).
+				GetCustomResourceDefinition(crd.Name).
 				Return(nil, fmt.Errorf("Requirement not found"))
 		}
 		if strings.HasPrefix(crd.Name, "found") {
 			mockClient.EXPECT().
-				GetCustomResourceDefinitionKind(crd.Name).
+				GetCustomResourceDefinition(crd.Name).
 				Return(&v1beta1.CustomResourceDefinition{}, nil)
 		}
 	}
