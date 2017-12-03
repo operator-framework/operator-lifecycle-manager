@@ -22,7 +22,7 @@ type StrategyInstaller interface {
 
 type StrategyResolverInterface interface {
 	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
-	InstallerForStrategy(strategyName string, opClient opClient.Interface, ownerMeta metav1.ObjectMeta) StrategyInstaller
+	InstallerForStrategy(strategyName string, opClient opClient.Interface, ownerMeta metav1.ObjectMeta, prevOwner metav1.ObjectMeta) StrategyInstaller
 }
 
 type StrategyResolver struct{}
@@ -40,11 +40,11 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 	return
 }
 
-func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient opClient.Interface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
+func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient opClient.Interface, ownerMeta metav1.ObjectMeta, prevOwner metav1.ObjectMeta) StrategyInstaller {
 	switch strategyName {
 	case InstallStrategyNameDeployment:
 		strategyClient := client.NewInstallStrategyDeploymentClient(opClient, ownerMeta.Namespace)
-		return NewStrategyDeploymentInstaller(strategyClient, ownerMeta)
+		return NewStrategyDeploymentInstaller(strategyClient, ownerMeta, prevOwner)
 	}
 
 	// Insurance against these functions being called incorrectly (unmarshal strategy will return a valid strategy name)

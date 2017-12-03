@@ -163,7 +163,12 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
 			return
 		}
-		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), a.OpClient, csv.ObjectMeta)
+		replaces := metav1.ObjectMeta{
+			Name:      csv.Spec.Replaces,
+			Namespace: csv.GetNamespace(),
+		}
+		strName := strategy.GetStrategyName()
+		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, replaces)
 		installed, err := installer.CheckInstalled(strategy)
 		if err != nil {
 			// TODO: add a retry count, don't give up on first failure
@@ -196,7 +201,13 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
 			return
 		}
-		installer := a.resolver.InstallerForStrategy(strategy.GetStrategyName(), a.OpClient, csv.ObjectMeta)
+
+		replaces := metav1.ObjectMeta{
+			Name:      csv.Spec.Replaces,
+			Namespace: csv.GetNamespace(),
+		}
+		strName := strategy.GetStrategyName()
+		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, replaces)
 		installed, err := installer.CheckInstalled(strategy)
 
 		// if already installed, don't transition to pending if we can't query
