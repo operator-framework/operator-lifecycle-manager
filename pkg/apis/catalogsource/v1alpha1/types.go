@@ -5,7 +5,6 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type CatalogSourceSpec struct {
 	Name       string   `json:"name"`
 	SourceType string   `json:"sourceType"`
-	URL        string   `json:"url,omitempty"`
 	ConfigMap  string   `json:"configMap,omitempty"`
 	Secrets    []string `json:"secrets,omitempty"`
 

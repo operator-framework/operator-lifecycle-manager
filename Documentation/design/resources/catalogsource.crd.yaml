@@ -28,10 +28,6 @@ spec:
           enum:
           - internal
 
-        url:
-          type: string
-          description: Base URL for querying the catalog source
-
         configMap:
           type: string
           string: The name of a ConfigMap that holds the entries for an in-memory catalog.
