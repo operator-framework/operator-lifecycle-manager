@@ -11,15 +11,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	source "github.com/coreos-inc/alm/pkg/catalog"
-	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/operators/catalog"
 )
 
 const (
 	defaultWakeupInterval   = 15 * time.Minute
 	defaultCatalogNamespace = "tectonic-system"
-	defaultCatalogDirectory = "/var/catalog_resources"
 )
 
 func main() {
@@ -38,9 +35,6 @@ func main() {
 	catalogNamespace := flag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
 
-	catalogDirectory := flag.String(
-		"directory", defaultCatalogDirectory, "path to directory with resources to load into the in-memory catalog")
-
 	debug := flag.Bool(
 		"debug", false, "use debug log level")
 	flag.Parse()
@@ -48,24 +42,6 @@ func main() {
 	if *debug {
 		log.SetLevel(log.DebugLevel)
 	}
-	inMemoryCatalog, err := source.NewInMemoryFromDirectory(*catalogDirectory)
-	if err != nil {
-		log.Fatalf("Error loading in memory catalog from %s: %s", *catalogDirectory, err.Error())
-	}
-
-	alphaCatalogClient, err := client.NewAlphaCatalogEntryClient(*kubeConfigPath)
-	if err != nil {
-		log.Fatalf("Couldn't create alpha catalog entry client: %s", err.Error())
-	}
-	catalogStore := source.CustomResourceCatalogStore{
-		Client:    alphaCatalogClient,
-		Namespace: *catalogNamespace,
-	}
-	entries, err := catalogStore.Sync(inMemoryCatalog)
-	if err != nil {
-		log.Fatalf("couldn't sync entries from catalog to AlphaCatalogEntries in cluster: %s", err.Error())
-	}
-	log.Infof("created %d AlphaCatalogEntry resources", len(entries))
 
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -74,8 +50,7 @@ func main() {
 	go http.ListenAndServe(":8080", nil)
 
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval,
-		[]source.Source{inMemoryCatalog}, strings.Split(*watchedNamespaces, ",")...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, *catalogNamespace, strings.Split(*watchedNamespaces, ",")...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

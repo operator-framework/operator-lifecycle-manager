@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
+	catsrcv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/pkg/catalog"
@@ -28,13 +29,43 @@ type Operator struct {
 	*queueinformer.Operator
 	ipClient  client.InstallPlanInterface
 	csvClient client.ClusterServiceVersionInterface
-	sources   []catlib.Source
+	aceClient client.AlphaCatalogEntryInterface
+	namespace string
+	sources   map[string]catlib.Source
 }
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []catlib.Source, namespaces ...string) (*Operator, error) {
-	if namespaces == nil {
-		namespaces = []string{metav1.NamespaceAll}
+func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
+	// Default to watching all namespaces.
+	if watchedNamespaces == nil {
+		watchedNamespaces = []string{metav1.NamespaceAll}
+	}
+
+	// Create an instance of a CatalogSource client.
+	catsrcClient, err := client.NewCatalogSourceClient(kubeconfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create an instance of a CatalogEntry client.
+	aceClient, err := client.NewAlphaCatalogEntryClient(kubeconfigPath)
+	if err != nil {
+		log.Fatalf("Couldn't create alpha catalog entry client: %s", err.Error())
+	}
+
+	// Create an informer for CatalogSources.
+	catsrcSharedIndexInformers := []cache.SharedIndexInformer{
+		cache.NewSharedIndexInformer(
+			cache.NewListWatchFromClient(
+				catsrcClient,
+				"catalogsource-v1s",
+				operatorNamespace,
+				fields.Everything(),
+			),
+			&catsrcv1alpha1.CatalogSource{},
+			wakeupInterval,
+			cache.Indexers{},
+		),
 	}
 
 	// Create an instance of an InstallPlan client.
@@ -51,7 +82,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []
 
 	// Create a watch for each namespace.
 	ipWatchers := []*cache.ListWatch{}
-	for _, namespace := range namespaces {
+	for _, namespace := range watchedNamespaces {
 		ipWatchers = append(ipWatchers, cache.NewListWatchFromClient(
 			ipClient,
 			"installplan-v1s",
@@ -77,25 +108,66 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, sources []
 		return nil, err
 	}
 
+	// Allocate the new instance of an Operator.
 	op := &Operator{
 		queueOperator,
 		ipClient,
 		csvClient,
-		sources,
+		aceClient,
+		operatorNamespace,
+		make(map[string]catlib.Source),
 	}
 
+	// Register CatalogSource informers.
+	catsrcQueueInformer := queueinformer.New(
+		"catalogsources",
+		catsrcSharedIndexInformers,
+		op.syncCatalogSources,
+		nil,
+	)
+	for _, informer := range catsrcQueueInformer {
+		op.RegisterQueueInformer(informer)
+	}
+
+	// Register InstallPlan informers.
 	ipQueueInformers := queueinformer.New(
 		"installplans",
 		sharedIndexInformers,
 		op.syncInstallPlans,
 		nil,
 	)
-
-	for _, opVerQueueInformer := range ipQueueInformers {
-		op.RegisterQueueInformer(opVerQueueInformer)
+	for _, informer := range ipQueueInformers {
+		op.RegisterQueueInformer(informer)
 	}
 
 	return op, nil
+}
+
+func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
+	catsrc, ok := obj.(*catsrcv1alpha1.CatalogSource)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting CatalogSource failed")
+	}
+
+	src, err := catlib.NewInMemoryFromConfigMap(o.OpClient, o.namespace, catsrc.Spec.ConfigMap)
+	if err != nil {
+		return fmt.Errorf("failed to create catalog source from ConfigMap: %s", catsrc.Spec.ConfigMap)
+	}
+
+	log.Infof("syncing CatalogSource: %s", catsrc.SelfLink)
+	store := &catlib.CustomResourceCatalogStore{
+		Client:    o.aceClient,
+		Namespace: o.namespace,
+	}
+	entries, err := store.Sync(src)
+	if err != nil {
+		return fmt.Errorf("failed to created catalog entries for %s: %s", catsrc.Name, err)
+	}
+	log.Infof("created %d AlphaCatalogEntry resources", len(entries))
+
+	o.sources[catsrc.Spec.Name] = src
+	return
 }
 
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
@@ -135,6 +207,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		log.Debug("plan phase unrecognized, setting to Planning")
 		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 		return nil
+
 	case v1alpha1.InstallPlanPhasePlanning:
 		log.Debug("plan phase Planning, attempting to resolve")
 		if err := transitioner.ResolvePlan(plan); err != nil {
@@ -145,6 +218,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
 		plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		return nil
+
 	case v1alpha1.InstallPlanPhaseInstalling:
 		log.Debug("plan phase Installing, attempting to install")
 		if err := transitioner.ExecutePlan(plan); err != nil {
@@ -165,6 +239,10 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhasePlanning {
 		panic("attempted to create a plan that wasn't in the planning phase")
+	}
+
+	if len(o.sources) == 0 {
+		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
 
 	for _, source := range o.sources {
