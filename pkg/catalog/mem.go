@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 )
 
 // InMem - catalog source implementation that stores the data in memory in golang maps
@@ -43,6 +44,15 @@ func NewInMemoryFromDirectory(directory string) (*InMem, error) {
 	log.Infof("loading alpha entries from directory: %s", directory)
 	loader := DirectoryCatalogResourceLoader{NewInMem()}
 	if err := loader.LoadCatalogResources(directory); err != nil {
+		return nil, err
+	}
+	return loader.Catalog, nil
+}
+
+func NewInMemoryFromConfigMap(cmClient client.ConfigMapClient, namespace, cmName string) (*InMem, error) {
+	log.Infof("loading alpha entries from a configmap: %s", cmName)
+	loader := ConfigMapCatalogResourceLoader{NewInMem(), namespace, cmClient}
+	if err := loader.LoadCatalogResources(cmName); err != nil {
 		return nil, err
 	}
 	return loader.Catalog, nil
