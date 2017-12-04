@@ -2,6 +2,14 @@ package v1alpha1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+const (
+	CatalogSourceCRDName       = "catalogsource-v1s"
+	CatalogSourceCRDAPIVersion = "app.coreos.com/v1alpha1" // API version w/ CRD support
+	CatalogSourceKind          = "CatalogSource-v1"
+	CatalogSourceListKind      = "CatalogSourceList-v1"
+	GroupVersion               = "v1alpha1"
+)
+
 type CatalogSourceSpec struct {
 	Name       string   `json:"name"`
 	SourceType string   `json:"sourceType"`
