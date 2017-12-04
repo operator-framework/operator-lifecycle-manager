@@ -147,8 +147,28 @@ spec:
       - description: Desired number of Pods for the cluster
         displayName: Size
         path: replicas
-        x-descriptors: 
+        x-descriptors:
           - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+      - description: A selector for the ConfigMaps from which to load rule files
+        displayName: Rule Config Map Selector
+        path: ruleSelector
+        x-descriptors: 
+          - 'urn:alm:descriptor:com.tectonic.ui:selector'
+      - description: ServiceMonitors to be selected for target discovery
+        displayName: Service Monitor Selector
+        path: serviceMonitorSelector
+        x-descriptors:
+          - 'urn:alm:descriptor:com.tectonic.ui:selector'
+      - description: The ServiceAccount to use to run the Prometheus pods
+        displayName: Service Account
+        path: serviceAccountName
+        x-descriptors:
+          - 'urn:alm:descriptor:io.kubernetes:ServiceAccount'
+      - description: Define resources requests and limits for single Pods
+        displayName: Resource Request
+        path: resources.requests
+        x-descriptors:
+          - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       statusDescriptors:
         - description: The current number of Pods for the cluster
           displayName: Cluster Size
@@ -157,12 +177,28 @@ spec:
           displayName: Prometheus Service Selector
           description: Label selector to find the service that routes to this prometheus
           x-descriptors:
-          - urn:alm:descriptor:label:selector
+          - 'urn:alm:descriptor:label:selector'
     - name: servicemonitors.monitoring.coreos.com
       version: v1
       kind: ServiceMonitor
       displayName: Service Monitor
       description: Configures prometheus to monitor a particular k8s service
+      specDescriptors: 
+      - description: Selector to select which namespaces the Endpoints objects are discovered from
+        displayName: Monitoring Namespaces
+        path: namespaceSelector
+        x-descriptors:
+          - 'urn:alm:descriptor:com.tectonic.ui:namespaceSelector'
+      - description: The label to use to retrieve the job name from
+        displayName: Job Label
+        path: jobLabel
+        x-descriptors: 
+          - 'urn:alm:descriptor:com.tectonic.ui:label'
+      - description: A list of endpoints allowed as part of this ServiceMonitor
+        displayName: Endpoints
+        path: endpoints
+        x-descriptors: 
+          - 'urn:alm:descriptor:com.tectonic.ui:endpointList'
     - name: alertmanagers.monitoring.coreos.com
       version: v1
       kind: Alertmanager
