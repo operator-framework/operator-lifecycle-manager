@@ -13,6 +13,12 @@ spec:
 
     _The etcd Open Cloud Service is Public Alpha. The goal before Beta is to fully implement backup features._
 
+    ### Reading and writing to etcd
+
+    Communicate with etcd though its command line utility `etcdctl` or with the API using the automatically generated Kubernetes Service.
+
+    [Read the complete guide to using the etcd Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/etcd-ocs.html)
+
     ### Supported Features
     **High availability**
     Multiple instances of etcd are networked together and secured. Individual failures or networking issues are transparently handled to keep your cluster up and running.

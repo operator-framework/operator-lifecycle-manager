@@ -12,6 +12,12 @@ spec:
 
     _The Vault Open Cloud Service is Public Alpha. The goal before Beta is for additional user testing and minor bug fixes._
 
+    ### Unsealing and using Vault
+
+    Once a Vault instance is running, it must be initalized and "unsealed". Afterwards, your software can use the automatically created Kubernetes Service and Secret to communicate with it.
+
+    [Read the complete guide to using the Vault Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/vault-ocs.html)
+
     ### Supported Features
 
     **Secure by Default**
