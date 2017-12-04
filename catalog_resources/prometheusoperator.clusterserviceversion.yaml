@@ -12,6 +12,12 @@ spec:
 
     _The Prometheus Open Cloud Service is Public Alpha. The goal before Beta is for additional user testing and minor bug fixes._
 
+    ### Monitoring applications
+
+    Prometheus scrapes your application metrics based on targets maintained in a ServiceMonitor object. When alerts need to be sent, they are processsed by an AlertManager.
+
+    [Read the complete guide to monitoring applications with the Prometheus Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/prometheus-ocs.html)
+
     ## Supported Features
 
     **High availability**
