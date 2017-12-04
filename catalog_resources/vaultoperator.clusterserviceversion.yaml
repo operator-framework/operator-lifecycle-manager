@@ -7,7 +7,19 @@ metadata:
   name: vault-operator.0.1.3
 spec:
   displayName: Vault
-  description: An encrypted, multi-tentant secure secret store
+  description: |
+    An encrypted, multi-tentant secure secret store. Vault handles the lifecycle of your secrets: leasing, key revocation, key rolling, and auditing.
+
+    _The Vault Open Cloud Service is Public Alpha. The goal before Beta is for additional user testing and minor bug fixes._
+
+    ### Supported Features
+
+    **Secure by Default**
+    Hands-free automated creation of TLS certificates between all components ensure all best practices are followed for secret security. Further, the API makes unseal operations easy.
+    **Highly available**
+    Multiple instances of Vault are clustered together via an etcd backend and secured.
+    **Safe Upgrades**
+    Rolling out a new Vault version is as easy as updating the Vault Cluster definition. Everything is automatically handled using Vault best practices while pausing for unseal tokens.
 
   keywords: ['vault', 'secret', 'encryption']
 
