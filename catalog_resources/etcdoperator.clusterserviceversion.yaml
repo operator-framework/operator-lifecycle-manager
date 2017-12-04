@@ -22,7 +22,7 @@ spec:
     Coming soon, the ability to schedule backups to happen on or off cluster.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
   version: 0.6.1
-  maturity: beta
+  maturity: alpha
   maintainers:
   - name: CoreOS, Inc
     email: support@coreos.com

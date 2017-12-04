@@ -145,7 +145,7 @@ spec:
                   requests:
                     cpu: 100m
                     memory: 50Mi
-  maturity: beta
+  maturity: alpha
   version: 0.14.0
   replaces: prometheusoperator.0.13.0
   customresourcedefinitions:
