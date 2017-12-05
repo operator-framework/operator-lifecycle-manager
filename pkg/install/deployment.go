@@ -44,6 +44,7 @@ type StrategyDeploymentInstaller struct {
 	strategyClient client.InstallStrategyDeploymentInterface
 	ownerRefs      []metav1.OwnerReference
 	ownerMeta      metav1.ObjectMeta
+	prevOwnerMeta  metav1.ObjectMeta
 }
 
 func (d *StrategyDetailsDeployment) GetStrategyName() string {
@@ -53,7 +54,7 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta, prevOwner metav1.ObjectMeta) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient: strategyClient,
 		ownerRefs: []metav1.OwnerReference{
@@ -66,7 +67,8 @@ func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploym
 				BlockOwnerDeletion: &BlockOwnerDeletion,
 			},
 		},
-		ownerMeta: ownerMeta,
+		ownerMeta:     ownerMeta,
+		prevOwnerMeta: prevOwner,
 	}
 }
 

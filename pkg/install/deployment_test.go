@@ -550,6 +550,10 @@ func TestInstallStrategyDeployment(t *testing.T) {
 		Name:      "clusterserviceversion-owner",
 		Namespace: namespace,
 	}
+	mockPrevOwnerMeta := metav1.ObjectMeta{
+		Name:      "clusterserviceversion-owner", // self
+		Namespace: namespace,
+	}
 
 	tests := []struct {
 		numMockServiceAccounts int
@@ -642,7 +646,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					Return(&deployment, nil)
 			}
 
-			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
+			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, mockPrevOwnerMeta)
 
 			installed, err := installer.CheckInstalled(strategy)
 			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
@@ -672,8 +676,12 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 		Name:      "clusterserviceversion-owner",
 		Namespace: "ns",
 	}
+	prevMockOwnerMeta := metav1.ObjectMeta{
+		Name:      "clusterserviceversion-owner",
+		Namespace: "ns",
+	}
 	mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
-	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
+	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, prevMockOwnerMeta)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
 	_, err := strategy.CheckInstalled(&BadStrategy{})
@@ -683,6 +691,10 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 	namespace := "alm-test-deployment"
 	mockOwnerMeta := metav1.ObjectMeta{
+		Name:      "clusterserviceversion-owner",
+		Namespace: namespace,
+	}
+	mockPrevOwnerMeta := metav1.ObjectMeta{
 		Name:      "clusterserviceversion-owner",
 		Namespace: namespace,
 	}
@@ -729,7 +741,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 			strategy := strategy(1, namespace, mockOwnerMeta)
-			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta)
+			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, mockPrevOwnerMeta)
 
 			skipInstall := tt.checkDeploymentErr != nil || tt.checkServiceAccountErr != nil
 

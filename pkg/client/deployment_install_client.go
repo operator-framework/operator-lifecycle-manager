@@ -1,8 +1,6 @@
 package client
 
 import (
-	"fmt"
-
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"

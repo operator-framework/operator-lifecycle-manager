@@ -38,15 +38,15 @@ func (m *MockStrategyResolverInterface) EXPECT() *MockStrategyResolverInterfaceM
 }
 
 // InstallerForStrategy mocks base method
-func (m *MockStrategyResolverInterface) InstallerForStrategy(arg0 string, arg1 client.Interface, arg2 v1.ObjectMeta) install.StrategyInstaller {
-	ret := m.ctrl.Call(m, "InstallerForStrategy", arg0, arg1, arg2)
+func (m *MockStrategyResolverInterface) InstallerForStrategy(arg0 string, arg1 client.Interface, arg2, arg3 v1.ObjectMeta) install.StrategyInstaller {
+	ret := m.ctrl.Call(m, "InstallerForStrategy", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(install.StrategyInstaller)
 	return ret0
 }
 
 // InstallerForStrategy indicates an expected call of InstallerForStrategy
-func (mr *MockStrategyResolverInterfaceMockRecorder) InstallerForStrategy(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallerForStrategy", reflect.TypeOf((*MockStrategyResolverInterface)(nil).InstallerForStrategy), arg0, arg1, arg2)
+func (mr *MockStrategyResolverInterfaceMockRecorder) InstallerForStrategy(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InstallerForStrategy", reflect.TypeOf((*MockStrategyResolverInterface)(nil).InstallerForStrategy), arg0, arg1, arg2, arg3)
 }
 
 // UnmarshalStrategy mocks base method
