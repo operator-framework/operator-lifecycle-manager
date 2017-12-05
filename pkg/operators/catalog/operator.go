@@ -456,7 +456,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				} else if err != nil {
 					return err
 				} else {
-					// If it no error occured, mark the step as Created.
+					// If no error occured, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 					continue
 				}
@@ -477,7 +477,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				} else if err != nil {
 					return err
 				} else {
-					// If it no error occured, mark the step as Created.
+					// If no error occured, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 
@@ -500,7 +500,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				} else if err != nil {
 					return err
 				} else {
-					// If it no error occured, mark the step as Created.
+					// If no error occured, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 
