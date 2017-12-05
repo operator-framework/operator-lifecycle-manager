@@ -44,6 +44,7 @@ type StrategyDeploymentInstaller struct {
 	strategyClient client.InstallStrategyDeploymentInterface
 	ownerRefs      []metav1.OwnerReference
 	ownerMeta      metav1.ObjectMeta
+	prevOwnerMeta  metav1.ObjectMeta
 }
 
 func (d *StrategyDetailsDeployment) GetStrategyName() string {
@@ -53,7 +54,7 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta, prevOwner metav1.ObjectMeta) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient: strategyClient,
 		ownerRefs: []metav1.OwnerReference{
@@ -66,7 +67,8 @@ func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploym
 				BlockOwnerDeletion: &BlockOwnerDeletion,
 			},
 		},
-		ownerMeta: ownerMeta,
+		ownerMeta:     ownerMeta,
+		prevOwnerMeta: prevOwner,
 	}
 }
 
@@ -115,32 +117,58 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 }
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
-
-	// Sort Deployments into:
-	//          DeploymentSpec with Name? | Deployment with Name? | Deployment with Spec? |
-	// NO OP  |         YES               |         YES           |         YES           | Found existing deployment with same Name and same Spec
-	// UPDATE |         YES               |         YES           |         NO            | Found existing deployment with same Name but different Spec as DeploymentSpec
-	// CREATE |         YES               |         NO            |         N/A           | No deployment exists with DeploymentSpec's Name
-	// DELETE |         NO                |         NO            |         NO            | Found Deployment that doesn't match any DeploymentSpecs by Name
-
+	//
+	//  dep_X  - existing deployment, as specified in CSV
+	// (dep_X) - deployment does not already exist but is specified in the CSV spec
+	//  dep_X* - existing deployment, not specified in current CSV
+	//
+	//  BEFORE
+	//
+	//         CSVs        my-cloud-service-v0.9.0           my-cloud-service-v1.0.1
+	//                           /    \                     _ /       /    \      \ _
+	//                         /        \                 /         /        \        \
+	//  Deployments         dep_A      dep_B          (dep_B)   (dep_C)     dep_D    dep_E*
+	//                       1           2              2         3           4       5
+	//            CSV.DeploymentSpecs ->        dep_B  dep_C  dep_D
+	//  GetOwnedDeployments(replaces) -> dep_A  dep_B
+	//  GetOwnedDeployments(ownerRef) ->                      dep_D  dep_E
+	//
+	//                         delete -> dep_A                       dep_E    - owned by self or replaces, not in spec
+	//                         create ->               dep_C                  - none exist, in spec
+	//                         update ->        dep_B                         - owned by replaces, in spec
+	//                          no op ->                      dep_D           - owned by self, in spec
+	//
+	//  AFTER
+	//
+	//         CSVs        my-cloud-service-v0.9.0           my-cloud-service-v1.0.1
+	//                           /    \                     _ /       /    \      \ _
+	//                         /        \                 /         /        \        \
+	//  Deployments       (dep_A)     (dep_B) -------> dep_B     dep_C      dep_D    dep_E*
+	//                   <deleted>   <updated to new version>  <created>   <no op>  <deleted>
+	//
 	existingDeployments, err := i.strategyClient.GetOwnedDeployments(i.ownerMeta)
 	if err != nil {
 		return fmt.Errorf("query for existing deployments failed: %s", err)
 	}
-	// compare deployments to see if any need to be created/updated
-	existingMap := map[string]struct{}{}
+	priorDeployments, err := i.strategyClient.GetOwnedDeployments(i.prevOwnerMeta)
+	if err != nil {
+		return fmt.Errorf("query for previous deployments failed: %s", err)
+	}
+	// keep track of existing deployments and if already owned by current CSV
+	currentDeployments := map[string]bool{}
 	for _, d := range existingDeployments.Items {
-		existingMap[d.GetName()] = struct{}{}
+		currentDeployments[d.GetName()] = true
+	}
+	for _, d := range priorDeployments.Items {
+		currentDeployments[d.GetName()] = false
 	}
 	for _, d := range deps {
-		_, exists := existingMap[d.Name]
-		delete(existingMap, d.Name) // remove ref
-
-		// Check for NO OP
-		if exists {
+		isUpToDate, exists := currentDeployments[d.Name]
+		delete(currentDeployments, d.Name)
+		if exists && isUpToDate {
 			continue
 		}
-		// Otherwise Create or Update Deployment
+		// Create or Update Deployment
 		dep := v1beta1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.ownerMeta.Namespace)
@@ -156,7 +184,7 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 	}
 
 	// delete remaining deployments
-	for name, _ := range existingMap {
+	for name, _ := range currentDeployments {
 		if err := i.strategyClient.DeleteDeployment(name); err != nil {
 			return err
 		}
