@@ -50,7 +50,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	// Create an instance of a CatalogEntry client.
 	aceClient, err := client.NewAlphaCatalogEntryClient(kubeconfigPath)
 	if err != nil {
-		log.Fatalf("Couldn't create alpha catalog entry client: %s", err.Error())
+		return nil, err
 	}
 
 	// Create an informer for CatalogSources.
