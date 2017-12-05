@@ -20,7 +20,7 @@ type InstallStrategyDeploymentInterface interface {
 	CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
 	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
-	GetDeployments(depNames []string) []*v1beta1extensions.Deployment
+	FindAnyDeploymentsMatchingNames(depNames []string) []*v1beta1extensions.Deployment
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
@@ -89,7 +89,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(se
 	return c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccountName, metav1.GetOptions{})
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) GetDeployments(depNames []string) (deployments []*v1beta1extensions.Deployment) {
+func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) (deployments []*v1beta1extensions.Deployment) {
 	for _, depName := range depNames {
 		fetchedDep, err := c.opClient.GetDeployment(c.Namespace, depName)
 		if err == nil {

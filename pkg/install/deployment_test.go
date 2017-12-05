@@ -628,7 +628,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					depNames = append(depNames, fmt.Sprintf("alm-dep-%d", i))
 				}
 				mockClient.EXPECT().
-					GetDeployments(depNames).
+					FindAnyDeploymentsMatchingNames(depNames).
 					Return(mockedDeps)
 			}
 
@@ -732,7 +732,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			if tt.checkServiceAccountErr == nil {
 				dep := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
 				mockClient.EXPECT().
-					GetDeployments([]string{dep.Name}).
+					FindAnyDeploymentsMatchingNames([]string{dep.Name}).
 					Return(
 						[]*v1beta1.Deployment{
 							&dep,

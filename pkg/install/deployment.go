@@ -192,7 +192,7 @@ func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {
 	}
 
 	// Check deployments
-	if found, err := i.checkForOwnedDeployments(i.ownerMeta, strategy.DeploymentSpecs); !found {
+	if found, err := i.checkForDeployments(strategy.DeploymentSpecs); !found {
 		log.Debug("deployments not found")
 		return false, err
 	}
@@ -210,26 +210,18 @@ func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName 
 	return true, nil
 }
 
-func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []StrategyDeploymentSpec) (bool, error) {
+func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []StrategyDeploymentSpec) (bool, error) {
 	var depNames []string
 	for _, dep := range deploymentSpecs {
 		depNames = append(depNames, dep.Name)
 	}
 
-	existingDeployments := i.strategyClient.GetDeployments(depNames)
-
-	// if number of existing and desired deployments are different, needs to resync
-	if len(existingDeployments) != len(deploymentSpecs) {
-		log.Debugf("looking deployments: %s", depNames)
-		log.Debugf("wrong number of deployments found. want %d, got %d",
-			len(deploymentSpecs), len(existingDeployments))
-		return false, nil
-	}
+	existingDeployments := i.strategyClient.FindAnyDeploymentsMatchingNames(depNames)
 
 	// compare deployments to see if any need to be created/updated
-	existingMap := map[string]v1beta1.DeploymentSpec{}
+	existingMap := map[string]*v1beta1.Deployment{}
 	for _, d := range existingDeployments {
-		existingMap[d.GetName()] = d.Spec
+		existingMap[d.GetName()] = d
 	}
 	for _, spec := range deploymentSpecs {
 		if _, exists := existingMap[spec.Name]; !exists {

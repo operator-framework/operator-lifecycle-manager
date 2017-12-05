@@ -38,7 +38,7 @@ func (m *MockStrategyResolverInterface) EXPECT() *MockStrategyResolverInterfaceM
 }
 
 // InstallerForStrategy mocks base method
-func (m *MockStrategyResolverInterface) InstallerForStrategy(arg0 string, arg1 client.Interface, arg2, arg3 v1.ObjectMeta) install.StrategyInstaller {
+func (m *MockStrategyResolverInterface) InstallerForStrategy(arg0 string, arg1 client.Interface, arg2 v1.ObjectMeta, arg3 install.Strategy) install.StrategyInstaller {
 	ret := m.ctrl.Call(m, "InstallerForStrategy", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(install.StrategyInstaller)
 	return ret0
