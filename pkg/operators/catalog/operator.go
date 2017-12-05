@@ -32,7 +32,7 @@ type Operator struct {
 	*queueinformer.Operator
 	ipClient     client.InstallPlanInterface
 	csvClient    client.ClusterServiceVersionInterface
-	aceClient    client.UICatalogEntryInterface
+	uiceClient   client.UICatalogEntryInterface
 	catsrcClient client.CatalogSourceInterface
 	namespace    string
 	sources      map[string]catlib.Source
@@ -52,7 +52,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Create an instance of a CatalogEntry client.
-	aceClient, err := client.NewUICatalogEntryClient(kubeconfigPath)
+	uiceClient, err := client.NewUICatalogEntryClient(kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		queueOperator,
 		ipClient,
 		csvClient,
-		aceClient,
+		uiceClient,
 		catsrcClient,
 		operatorNamespace,
 		make(map[string]catlib.Source),
@@ -162,7 +162,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	log.Infof("syncing CatalogSource: %s", catsrc.SelfLink)
 	store := &catlib.CustomResourceCatalogStore{
-		Client:    o.aceClient,
+		Client:    o.uiceClient,
 		Namespace: o.namespace,
 	}
 	entries, err := store.Sync(src)
