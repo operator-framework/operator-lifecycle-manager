@@ -206,7 +206,7 @@ spec:
                         value:
                           type: object
                           description: If present, the value of this status is the same for all instances of the CRD and can be found here instead of on the CR.
-                  specDescriptor:
+                  specDescriptors:
                     type: array
                     items:
                       type: object
