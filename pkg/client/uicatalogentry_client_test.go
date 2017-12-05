@@ -18,11 +18,11 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/coreos-inc/alm/pkg/apis"
-	"github.com/coreos-inc/alm/pkg/apis/alphacatalogentry/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 )
 
-func mockClient(t *testing.T, ts *httptest.Server) *AlphaCatalogEntryClient {
+func mockClient(t *testing.T, ts *httptest.Server) *UICatalogEntryClient {
 	config := rest.Config{
 		Host: ts.URL,
 	}
@@ -40,19 +40,19 @@ func mockClient(t *testing.T, ts *httptest.Server) *AlphaCatalogEntryClient {
 	restClient, err := rest.RESTClientFor(&config)
 	assert.NoError(t, err)
 	assert.NotNil(t, restClient)
-	return &AlphaCatalogEntryClient{
+	return &UICatalogEntryClient{
 		RESTClient: restClient,
 	}
 }
 
-func createTestEntry(name, version, label string) *v1alpha1.AlphaCatalogEntry {
-	return &v1alpha1.AlphaCatalogEntry{
+func createTestEntry(name, version, label string) *v1alpha1.UICatalogEntry {
+	return &v1alpha1.UICatalogEntry{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: "alm-coreos-tests",
 			Labels:    map[string]string{"test": label},
 		},
-		Spec: &v1alpha1.AlphaCatalogEntrySpec{
+		Spec: &v1alpha1.UICatalogEntrySpec{
 			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
 				Version: *semver.New(version),
 			},
@@ -67,22 +67,22 @@ func TestUpdateEntry(t *testing.T) {
 
 	tests := []struct {
 		Description string
-		InputEntry  *v1alpha1.AlphaCatalogEntry
+		InputEntry  *v1alpha1.UICatalogEntry
 
 		PostStatusCode int
-		PostBody       *v1alpha1.AlphaCatalogEntry
+		PostBody       *v1alpha1.UICatalogEntry
 
 		GetStatusCode int
-		GetBody       *v1alpha1.AlphaCatalogEntry
+		GetBody       *v1alpha1.UICatalogEntry
 
 		PutStatusCode int
-		PutBody       *v1alpha1.AlphaCatalogEntry
+		PutBody       *v1alpha1.UICatalogEntry
 
 		ExpectedError error
-		ExpectedEntry *v1alpha1.AlphaCatalogEntry
+		ExpectedEntry *v1alpha1.UICatalogEntry
 	}{
 		{
-			Description: "successfully creates AlphaCatalogEntry via POST when doesn't already exist",
+			Description: "successfully creates UICatalogEntry via POST when doesn't already exist",
 			InputEntry:  createTestEntry(testCSVName, testCSVNewVersion, "create-new-entry-input"),
 
 			PostStatusCode: http.StatusOK,
@@ -98,7 +98,7 @@ func TestUpdateEntry(t *testing.T) {
 			ExpectedError: nil,
 		},
 		{
-			Description: "handles error when POSTing AlphaCatalogEntry returns unknown error",
+			Description: "handles error when POSTing UICatalogEntry returns unknown error",
 			InputEntry:  createTestEntry(testCSVName, testCSVNewVersion, "create-entry-error-input"),
 
 			PostStatusCode: http.StatusForbidden,
@@ -111,12 +111,12 @@ func TestUpdateEntry(t *testing.T) {
 			PutBody:       nil,
 
 			ExpectedEntry: nil,
-			ExpectedError: fmt.Errorf("failed to create or update AlphaCatalogEntry: "+
+			ExpectedError: fmt.Errorf("failed to create or update UICatalogEntry: "+
 				" (post %s.%s %s)",
-				v1alpha1.AlphaCatalogEntryCRDName, apis.GroupName, testCSVName),
+				v1alpha1.UICatalogEntryCRDName, apis.GroupName, testCSVName),
 		},
 		{
-			Description: "successfully updates AlphaCatalogEntry via PUT when one already exists",
+			Description: "successfully updates UICatalogEntry via PUT when one already exists",
 			InputEntry:  createTestEntry(testCSVName, testCSVNewVersion, "patch-entry-input"),
 
 			PostStatusCode: http.StatusConflict,
@@ -132,7 +132,7 @@ func TestUpdateEntry(t *testing.T) {
 			ExpectedError: nil,
 		},
 		{
-			Description: "handles error when fetching existing AlphaCatalogEntry fails",
+			Description: "handles error when fetching existing UICatalogEntry fails",
 			InputEntry:  createTestEntry(testCSVName, testCSVNewVersion, "patch-entry-error-input"),
 
 			PostStatusCode: http.StatusConflict,
@@ -145,12 +145,12 @@ func TestUpdateEntry(t *testing.T) {
 			PutBody:       nil,
 
 			ExpectedEntry: nil,
-			ExpectedError: fmt.Errorf("failed to find then update AlphaCatalogEntry: "+
+			ExpectedError: fmt.Errorf("failed to find then update UICatalogEntry: "+
 				"failed to update CR status: the server could not find the requested resource "+
-				"(get %s.%s %s)", v1alpha1.AlphaCatalogEntryCRDName, apis.GroupName, testCSVName),
+				"(get %s.%s %s)", v1alpha1.UICatalogEntryCRDName, apis.GroupName, testCSVName),
 		},
 		{
-			Description: "handles error when patching AlphaCatalogEntry via PUT fails",
+			Description: "handles error when patching UICatalogEntry via PUT fails",
 			InputEntry:  createTestEntry(testCSVName, testCSVNewVersion, "patch-entry-error-input"),
 
 			PostStatusCode: http.StatusConflict,
@@ -163,16 +163,16 @@ func TestUpdateEntry(t *testing.T) {
 			PutBody:       nil,
 
 			ExpectedEntry: nil,
-			ExpectedError: fmt.Errorf("failed to update AlphaCatalogEntry: "+
+			ExpectedError: fmt.Errorf("failed to update UICatalogEntry: "+
 				"an error on the server (\"\") has prevented the request from succeeding "+
-				"(put %s.%s %s)", v1alpha1.AlphaCatalogEntryCRDName, apis.GroupName, testCSVName),
+				"(put %s.%s %s)", v1alpha1.UICatalogEntryCRDName, apis.GroupName, testCSVName),
 		},
 	}
 
 	for _, test := range tests {
 		testHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			statusCode := http.StatusMethodNotAllowed
-			var body *v1alpha1.AlphaCatalogEntry
+			var body *v1alpha1.UICatalogEntry
 			switch r.Method {
 			case http.MethodPost:
 				statusCode = test.PostStatusCode
@@ -186,16 +186,16 @@ func TestUpdateEntry(t *testing.T) {
 				r.Body.Close()
 				assert.NoError(t, err, test.Description)
 
-				putEntry := &v1alpha1.AlphaCatalogEntry{}
+				putEntry := &v1alpha1.UICatalogEntry{}
 				json.Unmarshal(putBody, putEntry)
 				assert.NoError(t, err, test.Description)
 				assert.NotNil(t, test.GetBody, "invalid test: %s", test.Description)
 
 				assert.Equal(t, test.GetBody.GetResourceVersion(), putEntry.GetResourceVersion(),
-					"AlphaCatalogEntry in PUT must have same ResourceVersion as existing entry %s",
+					"UICatalogEntry in PUT must have same ResourceVersion as existing entry %s",
 					test.Description)
 				assert.True(t, equality.Semantic.DeepEqual(test.InputEntry, putEntry),
-					"testing '%s': AlphaCatalogEntry in PUT should be updated version - %s",
+					"testing '%s': UICatalogEntry in PUT should be updated version - %s",
 					test.Description, diff.ObjectGoPrintSideBySide(test.InputEntry, putEntry))
 
 				statusCode = test.PutStatusCode
@@ -213,8 +213,8 @@ func TestUpdateEntry(t *testing.T) {
 
 		ts := httptest.NewServer(testHandler)
 		defer ts.Close()
-		test.InputEntry.TypeMeta.Kind = v1alpha1.AlphaCatalogEntryKind
-		test.InputEntry.TypeMeta.APIVersion = v1alpha1.AlphaCatalogEntryCRDAPIVersion
+		test.InputEntry.TypeMeta.Kind = v1alpha1.UICatalogEntryKind
+		test.InputEntry.TypeMeta.APIVersion = v1alpha1.UICatalogEntryCRDAPIVersion
 
 		actualEntry, err := mockClient(t, ts).UpdateEntry(test.InputEntry)
 		assert.Equal(t, test.ExpectedError, err, "testing: '%s'", test.Description)

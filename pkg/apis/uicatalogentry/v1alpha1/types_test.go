@@ -8,13 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterAlphaCatalogEntry(t *testing.T) {
+func TestRegisterUICatalogEntry(t *testing.T) {
 	version, err := semver.NewVersion("0.0.0-pre")
 	require.NoError(t, err)
 
-	testApp := &AlphaCatalogEntrySpec{
+	testApp := &UICatalogEntrySpec{
 		v1alpha1.ClusterServiceVersionSpec{
-			DisplayName: "TestAlphaCatalogEntry",
+			DisplayName: "TestUICatalogEntry",
 			Description: "This is a test app type",
 			Keywords:    []string{"mock", "dev", "alm"},
 			Maintainers: []v1alpha1.Maintainer{{
@@ -33,6 +33,6 @@ func TestRegisterAlphaCatalogEntry(t *testing.T) {
 		},
 	}
 
-	rsrc := NewAlphaCatalogEntryResource(testApp)
+	rsrc := NewUICatalogEntryResource(testApp)
 	require.NotNil(t, rsrc)
 }

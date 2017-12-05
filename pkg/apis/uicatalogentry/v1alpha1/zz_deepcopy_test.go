@@ -11,9 +11,9 @@ import (
 func TestGeneratedDeepcopy(t *testing.T) {
 	version, err := semver.NewVersion("0.0.0-pre")
 	require.NoError(t, err)
-	testSpec := &AlphaCatalogEntrySpec{
+	testSpec := &UICatalogEntrySpec{
 		v1alpha1.ClusterServiceVersionSpec{
-			DisplayName: "TestAlphaCatalogEntry",
+			DisplayName: "TestUICatalogEntry",
 			Description: "This is a test app type",
 			Keywords:    []string{"mock", "dev", "alm"},
 			Maintainers: []v1alpha1.Maintainer{{
@@ -32,10 +32,10 @@ func TestGeneratedDeepcopy(t *testing.T) {
 		},
 	}
 
-	testEntry := &AlphaCatalogEntry{Spec: testSpec}
+	testEntry := &UICatalogEntry{Spec: testSpec}
 	copyEntry := testEntry.DeepCopy()
 	require.EqualValues(t, testEntry, copyEntry)
-	testEntry = &AlphaCatalogEntry{Spec: nil}
+	testEntry = &UICatalogEntry{Spec: nil}
 	copyEntry = testEntry.DeepCopy()
 	require.EqualValues(t, testEntry, copyEntry)
 	copyEntryObj := testEntry.DeepCopyObject()
@@ -44,10 +44,10 @@ func TestGeneratedDeepcopy(t *testing.T) {
 	require.Nil(t, testEntry.DeepCopy())
 	require.Nil(t, testEntry.DeepCopyObject())
 
-	testList := &AlphaCatalogEntryList{Items: []*AlphaCatalogEntrySpec{testSpec}}
+	testList := &UICatalogEntryList{Items: []*UICatalogEntrySpec{testSpec}}
 	copyList := testList.DeepCopy()
 	require.EqualValues(t, copyList, testList)
-	testList = &AlphaCatalogEntryList{Items: []*AlphaCatalogEntrySpec{nil}}
+	testList = &UICatalogEntryList{Items: []*UICatalogEntrySpec{nil}}
 	copyList = testList.DeepCopy()
 	require.EqualValues(t, copyList, testList)
 	copyListObj := testList.DeepCopyObject()

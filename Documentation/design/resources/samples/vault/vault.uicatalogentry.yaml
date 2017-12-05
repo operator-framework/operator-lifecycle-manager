@@ -1,6 +1,6 @@
-#! validate-crd: alphacatalogentry.crd.yaml
+#! validate-crd: uicatalogentry.crd.yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: AlphaCatalogEntry-v1
+kind: UICatalogEntry-v1
 metadata:
   namespace: default
   name: vault-operator.0.0.2

@@ -85,7 +85,7 @@ deploy-preview:
     || true
   - kubectl apply -f ../../../Documentation/design/resources/clusterserviceversion.crd.yaml
   - kubectl apply -f ../../../Documentation/design/resources/installplan.crd.yaml
-  - kubectl apply -f ../../../Documentation/design/resources/alphacatalogentry.crd.yaml
+  - kubectl apply -f ../../../Documentation/design/resources/uicatalogentry.crd.yaml
   - helm registry upgrade quay.io/coreos/alm-ci-app@1.0.0-${CI_COMMIT_REF_SLUG}-pre -- --install ci-alm-${CI_COMMIT_REF_SLUG} --namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set alm.image.repository=quay.io/coreos/alm-ci
     --set alm.image.tag=${CI_COMMIT_REF_SLUG}-pre --set catalog.image.repository=quay.io/coreos/catalog-ci --set catalog.image.tag=${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=tectonic-system --set
     namespace=ci-alm-${CI_COMMIT_REF_SLUG}
@@ -118,7 +118,7 @@ deploy-staging:
     || true
   - kubectl apply -f ../../../Documentation/design/resources/clusterserviceversion.crd.yaml
   - kubectl apply -f ../../../Documentation/design/resources/installplan.crd.yaml
-  - kubectl apply -f ../../../Documentation/design/resources/alphacatalogentry.crd.yaml
+  - kubectl apply -f ../../../Documentation/design/resources/uicatalogentry.crd.yaml
   - helm registry upgrade quay.io/coreos/alm-ci-app@1.0.0-${CI_COMMIT_REF_SLUG}-${SHA8} -- --install ci-alm-staging --namespace=ci-alm-staging --set alm.image.repository=quay.io/coreos/alm --set alm.image.tag=${CI_COMMIT_REF_SLUG}-${SHA8}
     --set catalog.image.repository=quay.io/coreos/catalog --set catalog.image.tag=${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system --set namespace=ci-alm-staging --force
   - kubectl get ingresses -n ci-alm-staging -o wide

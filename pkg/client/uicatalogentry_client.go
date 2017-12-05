@@ -11,21 +11,21 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
 
-	"github.com/coreos-inc/alm/pkg/apis/alphacatalogentry/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 )
 
-type AlphaCatalogEntryInterface interface {
-	UpdateEntry(csv *v1alpha1.AlphaCatalogEntry) (*v1alpha1.AlphaCatalogEntry, error)
+type UICatalogEntryInterface interface {
+	UpdateEntry(csv *v1alpha1.UICatalogEntry) (*v1alpha1.UICatalogEntry, error)
 }
 
-type AlphaCatalogEntryClient struct {
+type UICatalogEntryClient struct {
 	*rest.RESTClient
 }
 
-var _ AlphaCatalogEntryInterface = &AlphaCatalogEntryClient{}
+var _ UICatalogEntryInterface = &UICatalogEntryClient{}
 
-// NewAlphaCatalogEntryClient creates a client that can interact with the AlphaCatalogEntry resource in k8s api
-func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryClient, err error) {
+// NewUICatalogEntryClient creates a client that can interact with the UICatalogEntry resource in k8s api
+func NewUICatalogEntryClient(kubeconfig string) (client *UICatalogEntryClient, err error) {
 	var config *rest.Config
 	config, err = getConfig(kubeconfig)
 	if err != nil {
@@ -47,16 +47,16 @@ func NewAlphaCatalogEntryClient(kubeconfig string) (client *AlphaCatalogEntryCli
 	if err != nil {
 		return
 	}
-	return &AlphaCatalogEntryClient{restClient}, nil
+	return &UICatalogEntryClient{restClient}, nil
 }
 
-func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*v1alpha1.AlphaCatalogEntry, error) {
+func (c *UICatalogEntryClient) UpdateEntry(in *v1alpha1.UICatalogEntry) (*v1alpha1.UICatalogEntry, error) {
 	log.Debugf("UpdateEntry -- BEGIN %s", in.Name)
-	result := &v1alpha1.AlphaCatalogEntry{}
+	result := &v1alpha1.UICatalogEntry{}
 
 	err := c.RESTClient.Post().Context(context.TODO()).
 		Namespace(in.Namespace).
-		Resource(v1alpha1.AlphaCatalogEntryCRDName).
+		Resource(v1alpha1.UICatalogEntryCRDName).
 		Name(in.Name).
 		Body(in).
 		Do().
@@ -69,17 +69,17 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*
 
 	if !k8serrors.IsAlreadyExists(err) {
 		log.Errorf("UpdateEntry -- ERROR %s -- error attempting to create entry: %s", in.Name, err)
-		return nil, fmt.Errorf("failed to create or update AlphaCatalogEntry: %s", err)
+		return nil, fmt.Errorf("failed to create or update UICatalogEntry: %s", err)
 	}
 	curr, err := c.getEntry(in.Namespace, in.Name)
 	if err != nil {
 		log.Errorf("UpdateEntry -- ERROR %s -- error fetching current entry: %s", in.Name, err)
-		return nil, fmt.Errorf("failed to find then update AlphaCatalogEntry: %s", err)
+		return nil, fmt.Errorf("failed to find then update UICatalogEntry: %s", err)
 	}
 	in.SetResourceVersion(curr.GetResourceVersion())
 	err = c.RESTClient.Put().Context(context.TODO()).
 		Namespace(in.Namespace).
-		Resource(v1alpha1.AlphaCatalogEntryCRDName).
+		Resource(v1alpha1.UICatalogEntryCRDName).
 		Name(in.Name).
 		Body(in).
 		Do().
@@ -87,18 +87,18 @@ func (c *AlphaCatalogEntryClient) UpdateEntry(in *v1alpha1.AlphaCatalogEntry) (*
 
 	if err != nil {
 		log.Errorf("UpdateEntry -- ERROR %s -- error attempting to update entry: %s", in.Name, err)
-		return nil, errors.New("failed to update AlphaCatalogEntry: " + err.Error())
+		return nil, errors.New("failed to update UICatalogEntry: " + err.Error())
 	}
 
 	log.Debugf("UpdateEntry -- OK    %s -- updated exisiting entry", in.Name)
 	return result, nil
 }
 
-func (c *AlphaCatalogEntryClient) getEntry(namespace, serviceName string) (*v1alpha1.AlphaCatalogEntry, error) {
-	result := &v1alpha1.AlphaCatalogEntry{}
+func (c *UICatalogEntryClient) getEntry(namespace, serviceName string) (*v1alpha1.UICatalogEntry, error) {
+	result := &v1alpha1.UICatalogEntry{}
 	err := c.RESTClient.Get().Context(context.TODO()).
 		Namespace(namespace).
-		Resource(v1alpha1.AlphaCatalogEntryCRDName).
+		Resource(v1alpha1.UICatalogEntryCRDName).
 		Name(serviceName).
 		Do().
 		Into(result)

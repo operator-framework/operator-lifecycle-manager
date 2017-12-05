@@ -39,7 +39,7 @@ helm init; kubectl rollout status -w deployment/tiller-deploy --namespace=kube-s
 kubectl create ns ${namespace} || { echo 'ns exists'; }
 kubectl apply -f ./Documentation/install/alm_resources/clusterserviceversion.crd.yaml || { echo 'clusterserviceversion crd exists'; }
 kubectl apply -f ./Documentation/install/alm_resources/installplan.crd.yaml || { echo 'installplan crd exists'; }
-kubectl apply -f ./Documentation/install/alm_resources/alphacatalogentry.crd.yaml || { echo 'alphacatalogentry crd exists'; }
+kubectl apply -f ./Documentation/install/alm_resources/uicatalogentry.crd.yaml || { echo 'uicatalogentry crd exists'; }
 
 # copy chart and add version
 cp -R deploy/alm-app/kube-1.8/ ${charttmpdir}/
