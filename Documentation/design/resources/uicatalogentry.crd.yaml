@@ -1,10 +1,12 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  name: alphacatalogentry-v1s.app.coreos.com
+  name: uicatalogentry-v1s.app.coreos.com
   annotations:
-    displayName: Alpha Catalog Entry
+    displayName: UI Catalog Entry
     description: Represents an installable Cloud Service for the console to show
+  labels:
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   group: app.coreos.com
   version: v1alpha1
@@ -105,7 +107,7 @@ spec:
           description: Publishing organization or individual
 
   names:
-    plural: alphacatalogentry-v1s
-    singular: alphacatalogentry-v1
-    kind: AlphaCatalogEntry-v1
-    listKind: AlphaCatalogEntryList-v1
+    plural: uicatalogentry-v1s
+    singular: uicatalogentry-v1
+    kind: UICatalogEntry-v1
+    listKind: UICatalogEntryList-v1

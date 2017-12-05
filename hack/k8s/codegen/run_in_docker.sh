@@ -9,7 +9,7 @@ set -o pipefail
 source ./$(dirname "$0")/codegen.sh
 
 api_groups=("clusterserviceversion:v1alpha1" "installplan:v1alpha1"
-            "alphacatalogentry:v1alpha1" "catalogsource:v1alpha1")
+            "uicatalogentry:v1alpha1" "catalogsource:v1alpha1")
 
 for group in ${api_groups[@]}; do
     echo -n "[$group] "

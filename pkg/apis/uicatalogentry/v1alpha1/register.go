@@ -24,12 +24,12 @@ func Resource(resource string) schema.GroupResource {
 // addKnownTypes adds the set of types defined in this package to the supplied scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypeWithName(
-		SchemeGroupVersion.WithKind(AlphaCatalogEntryKind),
-		&AlphaCatalogEntry{},
+		SchemeGroupVersion.WithKind(UICatalogEntryKind),
+		&UICatalogEntry{},
 	)
 	scheme.AddKnownTypeWithName(
-		SchemeGroupVersion.WithKind(AlphaCatalogEntryListKind),
-		&AlphaCatalogEntryList{},
+		SchemeGroupVersion.WithKind(UICatalogEntryListKind),
+		&UICatalogEntryList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

@@ -11,18 +11,18 @@ import (
 
 	"reflect"
 
-	"github.com/coreos-inc/alm/pkg/apis/alphacatalogentry/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 )
 
-type EntryMatcher struct{ entry v1alpha1.AlphaCatalogEntry }
+type EntryMatcher struct{ entry v1alpha1.UICatalogEntry }
 
-func MatchesEntry(entry v1alpha1.AlphaCatalogEntry) gomock.Matcher {
+func MatchesEntry(entry v1alpha1.UICatalogEntry) gomock.Matcher {
 	return &EntryMatcher{entry}
 }
 
 func (e *EntryMatcher) Matches(x interface{}) bool {
-	entry, ok := x.(*v1alpha1.AlphaCatalogEntry)
+	entry, ok := x.(*v1alpha1.UICatalogEntry)
 	if !ok {
 		return false
 	}
@@ -34,12 +34,12 @@ func (e *EntryMatcher) String() string {
 }
 
 func MatchesService(service csvv1alpha1.ClusterServiceVersion) gomock.Matcher {
-	return &EntryMatcher{v1alpha1.AlphaCatalogEntry{Spec: &v1alpha1.AlphaCatalogEntrySpec{ClusterServiceVersionSpec: service.Spec}}}
+	return &EntryMatcher{v1alpha1.UICatalogEntry{Spec: &v1alpha1.UICatalogEntrySpec{ClusterServiceVersionSpec: service.Spec}}}
 }
 
 func TestCustomCatalogStore(t *testing.T) {
 	ctrl := gomock.NewController(t)
-	mockClient := NewMockAlphaCatalogEntryInterface(ctrl)
+	mockClient := NewMockUICatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
 
 	store := CustomResourceCatalogStore{Client: mockClient}
@@ -64,16 +64,16 @@ func TestCustomCatalogStore(t *testing.T) {
 			},
 		},
 	}
-	expectedEntry := v1alpha1.AlphaCatalogEntry{
+	expectedEntry := v1alpha1.UICatalogEntry{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.AlphaCatalogEntryKind,
-			APIVersion: v1alpha1.AlphaCatalogEntryCRDAPIVersion,
+			Kind:       v1alpha1.UICatalogEntryKind,
+			APIVersion: v1alpha1.UICatalogEntryCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,
 			Namespace: "alm-coreos-tests",
 		},
-		Spec: &v1alpha1.AlphaCatalogEntrySpec{
+		Spec: &v1alpha1.UICatalogEntrySpec{
 			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
 				Version: *semver.New(testCSVVersion),
 				CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
@@ -83,7 +83,7 @@ func TestCustomCatalogStore(t *testing.T) {
 			},
 		},
 	}
-	returnEntry := v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
+	returnEntry := v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
 	returnErr := errors.New("test error")
 	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
 
@@ -95,7 +95,7 @@ func TestCustomCatalogStore(t *testing.T) {
 func TestCustomResourceCatalogStoreSync(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
-	mockClient := NewMockAlphaCatalogEntryInterface(ctrl)
+	mockClient := NewMockUICatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
 
 	store := CustomResourceCatalogStore{Client: mockClient, Namespace: "alm-coreos-tests"}
@@ -116,34 +116,34 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 	src.AddOrReplaceService(testCSVB2)
 
 	storeResults := []struct {
-		ResultA1 *v1alpha1.AlphaCatalogEntry
+		ResultA1 *v1alpha1.UICatalogEntry
 		ErrorA1  error
 
-		ResultB1 *v1alpha1.AlphaCatalogEntry
+		ResultB1 *v1alpha1.UICatalogEntry
 		ErrorB1  error
 
-		ResultB2 *v1alpha1.AlphaCatalogEntry
+		ResultB2 *v1alpha1.UICatalogEntry
 		ErrorB2  error
 
 		ExpectedStatus         string
 		ExpectedServicesSynced int
 	}{
 		{
-			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
-			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
-			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
+			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
 			"success", 3,
 		},
 		{
-			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
+			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
 			nil, errors.New("test error"),
-			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
 			"error", 2,
 		},
 		{
 			nil, errors.New("test error1"),
 			nil, errors.New("test error2"),
-			&v1alpha1.AlphaCatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
+			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
 			"error", 1,
 		},
 	}

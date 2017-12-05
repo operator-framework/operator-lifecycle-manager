@@ -6,8 +6,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/pkg/apis/alphacatalogentry/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
 )
 
@@ -24,16 +24,16 @@ type CatalogSync struct {
 
 // CustomResourceCatalogStore stores service Catalog entries as CRDs in the cluster
 type CustomResourceCatalogStore struct {
-	Client             client.AlphaCatalogEntryInterface
+	Client             client.UICatalogEntryInterface
 	Namespace          string
 	LastSuccessfulSync CatalogSync
 	LastAttemptedSync  CatalogSync
 }
 
-// Store creates a new AlphaCatalogEntry custom resource for the given service definition, csv
-func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.AlphaCatalogEntry, error) {
-	spec := &v1alpha1.AlphaCatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
-	resource := v1alpha1.NewAlphaCatalogEntryResource(spec)
+// Store creates a new UICatalogEntry custom resource for the given service definition, csv
+func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.UICatalogEntry, error) {
+	spec := &v1alpha1.UICatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
+	resource := v1alpha1.NewUICatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
 	resource.SetNamespace(store.Namespace)
 	return store.Client.UpdateEntry(resource)
@@ -44,14 +44,14 @@ func (c CatalogSync) Error() string {
 		c.ServicesFound, c.ServicesSynced, c.ServicesFailed, c.ServicesFound, c.Errors)
 }
 
-// Sync creates AlphaCatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
-func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.AlphaCatalogEntry, error) {
+// Sync creates UICatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
+func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICatalogEntry, error) {
 	status := CatalogSync{
 		StartTime: metav1.Now(),
 		Status:    "syncing",
 	}
 	log.Debug("Catalog Sync       -- BEGIN")
-	entries := []*v1alpha1.AlphaCatalogEntry{}
+	entries := []*v1alpha1.UICatalogEntry{}
 	csvs, err := catalog.ListServices()
 	if err != nil {
 		status.EndTime = metav1.Now()

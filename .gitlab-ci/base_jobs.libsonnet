@@ -96,7 +96,8 @@ local appr = utils.appr;
                                  "$DOCKER_PASS") +
             k8s.apply("../../../Documentation/design/resources/clusterserviceversion.crd.yaml") +
             k8s.apply("../../../Documentation/design/resources/installplan.crd.yaml") +
-            k8s.apply("../../../Documentation/design/resources/alphacatalogentry.crd.yaml") +
+            k8s.apply("../../../Documentation/design/resources/uicatalogentry.crd.yaml") +
+            k8s.apply("../../../Documentation/design/resources/catalogsource.crd.yaml") +
             helm.upgrade(_vars.app,
                          _vars.appname,
                          _vars.namespace,

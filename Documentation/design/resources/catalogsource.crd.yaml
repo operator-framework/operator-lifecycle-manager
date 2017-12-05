@@ -5,6 +5,8 @@ metadata:
   annotations:
     displayName: CatalogSource
     description: A source configured to find packages and updates.
+  labels:
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   group: app.coreos.com
   version: v1alpha1

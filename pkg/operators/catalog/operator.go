@@ -29,7 +29,7 @@ type Operator struct {
 	*queueinformer.Operator
 	ipClient  client.InstallPlanInterface
 	csvClient client.ClusterServiceVersionInterface
-	aceClient client.AlphaCatalogEntryInterface
+	aceClient client.UICatalogEntryInterface
 	namespace string
 	sources   map[string]catlib.Source
 }
@@ -48,7 +48,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Create an instance of a CatalogEntry client.
-	aceClient, err := client.NewAlphaCatalogEntryClient(kubeconfigPath)
+	aceClient, err := client.NewUICatalogEntryClient(kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
