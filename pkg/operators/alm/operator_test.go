@@ -13,6 +13,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/coreos-inc/alm/pkg/annotator"
+	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
@@ -22,6 +23,7 @@ type MockALMOperator struct {
 	ALMOperator
 	MockQueueOperator    *queueinformer.MockOperator
 	MockCSVClient        *MockClusterServiceVersionInterface
+	MockOpClient         *opClient.MockInterface
 	TestQueueInformer    queueinformer.TestQueueInformer
 	MockStrategyResolver *MockStrategyResolverInterface
 }
@@ -123,6 +125,7 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 		ALMOperator:          almOperator,
 		MockCSVClient:        mockCSVClient,
 		MockQueueOperator:    qOp,
+		MockOpClient:         qOp.MockClient,
 		TestQueueInformer:    *csvQueueInformer,
 		MockStrategyResolver: mockInstallResolver,
 	}
@@ -311,26 +314,6 @@ func TestCSVStateTransitions(t *testing.T) {
 					Phase: v1alpha1.CSVPhaseInstalling,
 				}),
 			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:  v1alpha1.CSVPhaseUnknown,
-				Reason: v1alpha1.CSVReasonInstallCheckFailed,
-			}),
-			mockCheckInstall: true,
-			checkInstall:     false,
-			checkInstallErr:  fmt.Errorf("check failed"),
-			description:      "TransitionInstallingToUnknown/InstallCheckFailed",
-		},
-		{
-			in: withStatus(withSpec(testCSV(),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "test",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
 				Phase:  v1alpha1.CSVPhaseFailed,
 				Reason: v1alpha1.CSVReasonComponentFailed,
 			}),
@@ -355,9 +338,10 @@ func TestCSVStateTransitions(t *testing.T) {
 				Phase:  v1alpha1.CSVPhaseSucceeded,
 				Reason: v1alpha1.CSVReasonInstallSuccessful,
 			}),
-			mockCheckInstall: true,
-			checkInstall:     true,
-			description:      "TransitionInstallingToSucceeded/InstallSucceeded",
+			installApplySuccess: true,
+			mockCheckInstall:    true,
+			checkInstall:        true,
+			description:         "TransitionInstallingToSucceeded/InstallSucceeded",
 		},
 		{
 			in: withStatus(withSpec(testCSV(),
@@ -398,6 +382,8 @@ func TestCSVStateTransitions(t *testing.T) {
 				InstallerForStrategy((&testInstallStrategy).GetStrategyName(), gomock.Any(), gomock.Any(), gomock.Any()).
 				Return(NewTestInstaller(tt))
 		}
+
+		mockOp.MockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&opClient.CustomResourceList{}, nil)
 
 		// Test the transition
 		t.Run(tt.description, func(t *testing.T) {

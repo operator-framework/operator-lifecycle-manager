@@ -41,10 +41,10 @@ type StrategyDetailsDeployment struct {
 }
 
 type StrategyDeploymentInstaller struct {
-	strategyClient client.InstallStrategyDeploymentInterface
-	ownerRefs      []metav1.OwnerReference
-	ownerMeta      metav1.ObjectMeta
-	prevOwnerMeta  metav1.ObjectMeta
+	strategyClient   client.InstallStrategyDeploymentInterface
+	ownerRefs        []metav1.OwnerReference
+	ownerMeta        metav1.ObjectMeta
+	previousStrategy Strategy
 }
 
 func (d *StrategyDetailsDeployment) GetStrategyName() string {
@@ -54,7 +54,7 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta, prevOwner metav1.ObjectMeta) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta, previousStrategy Strategy) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient: strategyClient,
 		ownerRefs: []metav1.OwnerReference{
@@ -67,8 +67,8 @@ func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploym
 				BlockOwnerDeletion: &BlockOwnerDeletion,
 			},
 		},
-		ownerMeta:     ownerMeta,
-		prevOwnerMeta: prevOwner,
+		ownerMeta:        ownerMeta,
+		previousStrategy: previousStrategy,
 	}
 }
 
@@ -117,32 +117,8 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 }
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
-
-	// Sort Deployments into:
-	//          DeploymentSpec with Name? | Deployment with Name? | Deployment with Spec? |
-	// NO OP  |         YES               |         YES           |         YES           | Found existing deployment with same Name and same Spec
-	// UPDATE |         YES               |         YES           |         NO            | Found existing deployment with same Name but different Spec as DeploymentSpec
-	// CREATE |         YES               |         NO            |         N/A           | No deployment exists with DeploymentSpec's Name
-	// DELETE |         NO                |         NO            |         NO            | Found Deployment that doesn't match any DeploymentSpecs by Name
-
-	existingDeployments, err := i.strategyClient.GetOwnedDeployments(i.ownerMeta)
-	if err != nil {
-		return fmt.Errorf("query for existing deployments failed: %s", err)
-	}
-	// compare deployments to see if any need to be created/updated
-	existingMap := map[string]struct{}{}
-	for _, d := range existingDeployments.Items {
-		existingMap[d.GetName()] = struct{}{}
-	}
 	for _, d := range deps {
-		_, exists := existingMap[d.Name]
-		delete(existingMap, d.Name) // remove ref
-
-		// Check for NO OP
-		if exists {
-			continue
-		}
-		// Otherwise Create or Update Deployment
+		// Create or Update Deployment
 		dep := v1beta1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.ownerMeta.Namespace)
@@ -157,13 +133,24 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 		}
 	}
 
-	// delete remaining deployments
-	for name, _ := range existingMap {
-		if err := i.strategyClient.DeleteDeployment(name); err != nil {
-			return err
-		}
-	}
 	return nil
+}
+
+func (i *StrategyDeploymentInstaller) cleanupPrevious(current *StrategyDetailsDeployment, previous *StrategyDetailsDeployment) error {
+	previousDeploymentsMap := map[string]struct{}{}
+	for _, d := range previous.DeploymentSpecs {
+		previousDeploymentsMap[d.Name] = struct{}{}
+	}
+	for _, d := range current.DeploymentSpecs {
+		delete(previousDeploymentsMap, d.Name)
+	}
+	log.Debugf("preparing to cleanup: %s", previousDeploymentsMap)
+	// delete deployments in old strategy but not new
+	var err error = nil
+	for name := range previousDeploymentsMap {
+		err = i.strategyClient.DeleteDeployment(name)
+	}
+	return err
 }
 
 func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
@@ -176,7 +163,18 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		return err
 	}
 
-	return i.installDeployments(strategy.DeploymentSpecs)
+	if err := i.installDeployments(strategy.DeploymentSpecs); err != nil {
+		return err
+	}
+
+	if i.previousStrategy != nil {
+		previous, ok := i.previousStrategy.(*StrategyDetailsDeployment)
+		if !ok {
+			return fmt.Errorf("couldn't parse old install %s strategy with deployment installer", previous.GetStrategyName())
+		}
+		return i.cleanupPrevious(strategy, previous)
+	}
+	return nil
 }
 
 func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (bool, error) {
@@ -213,20 +211,24 @@ func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName 
 }
 
 func (i *StrategyDeploymentInstaller) checkForOwnedDeployments(owner metav1.ObjectMeta, deploymentSpecs []StrategyDeploymentSpec) (bool, error) {
-	existingDeployments, err := i.strategyClient.GetOwnedDeployments(owner)
-	if err != nil {
-		return false, fmt.Errorf("query for existing deployments failed: %s", err)
+	var depNames []string
+	for _, dep := range deploymentSpecs {
+		depNames = append(depNames, dep.Name)
 	}
+
+	existingDeployments := i.strategyClient.GetDeployments(depNames)
+
 	// if number of existing and desired deployments are different, needs to resync
-	if len(existingDeployments.Items) != len(deploymentSpecs) {
+	if len(existingDeployments) != len(deploymentSpecs) {
+		log.Debugf("looking deployments: %s", depNames)
 		log.Debugf("wrong number of deployments found. want %d, got %d",
-			len(deploymentSpecs), len(existingDeployments.Items))
+			len(deploymentSpecs), len(existingDeployments))
 		return false, nil
 	}
 
 	// compare deployments to see if any need to be created/updated
 	existingMap := map[string]v1beta1.DeploymentSpec{}
-	for _, d := range existingDeployments.Items {
+	for _, d := range existingDeployments {
 		existingMap[d.GetName()] = d.Spec
 	}
 	for _, spec := range deploymentSpecs {

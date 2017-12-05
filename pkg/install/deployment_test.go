@@ -199,71 +199,69 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 		strategyDeploymentSpecs []StrategyDeploymentSpec
 	}
 	type setup struct {
-		existingDeployments      v1beta1.DeploymentList
-		getOwnedDeploymentsError error
+		existingDeployments []*v1beta1.Deployment
 	}
 	type createOrUpdateMock struct {
 		expectedDeployment v1beta1.Deployment
 		returnError        error
-	}
-	type deleteMock struct {
-		deploymentName string
-		returnError    error
 	}
 	tests := []struct {
 		description         string
 		inputs              inputs
 		setup               setup
 		createOrUpdateMocks []createOrUpdateMock
-		deleteMocks         []deleteMock
 		output              error
 	}{
 		{
-			description: "deletes/updates/creates correctly",
+			description: "updates/creates correctly",
 			inputs: inputs{
 				strategyDeploymentSpecs: []StrategyDeploymentSpec{
-					StrategyDeploymentSpec{
+					{
 						Name: "test-deployment-1",
 						Spec: v1beta1.DeploymentSpec{},
 					},
-					StrategyDeploymentSpec{
+					{
 						Name: "test-deployment-2",
 						Spec: v1beta1.DeploymentSpec{},
 					},
-					StrategyDeploymentSpec{
+					{
 						Name: "test-deployment-3",
-						Spec: v1beta1.DeploymentSpec{
-							Paused: true, // arbitrary spec difference
-						},
+						Spec: v1beta1.DeploymentSpec{},
 					},
 				},
 			},
 			setup: setup{
-				existingDeployments: v1beta1.DeploymentList{
-					Items: []v1beta1.Deployment{
-						v1beta1.Deployment{
-							ObjectMeta: metav1.ObjectMeta{
-								Name: "test-deployment-1",
-							},
+				existingDeployments: []*v1beta1.Deployment{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-deployment-1",
 						},
-						v1beta1.Deployment{
-							ObjectMeta: metav1.ObjectMeta{
-								Name: "test-deployment-3",
-							},
-							Spec: v1beta1.DeploymentSpec{
-								Paused: false, // arbitrary spec difference
-							},
+					},
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "test-deployment-3",
 						},
-						v1beta1.Deployment{
-							ObjectMeta: metav1.ObjectMeta{
-								Name: "test-deployment-4",
-							},
+						Spec: v1beta1.DeploymentSpec{
+							Paused: false, // arbitrary spec difference
 						},
 					},
 				},
-				getOwnedDeploymentsError: nil,
 			},
 			createOrUpdateMocks: []createOrUpdateMock{
+				{
+					expectedDeployment: v1beta1.Deployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            "test-deployment-1",
+							Namespace:       namespace,
+							OwnerReferences: mockOwnerRefs,
+							Labels: map[string]string{
+								"alm-owner-name":      mockOwnerName,
+								"alm-owner-namespace": namespace,
+							},
+						},
+					},
+					returnError: nil,
+				},
 				{
 					expectedDeployment: v1beta1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
@@ -278,11 +276,19 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					},
 					returnError: nil,
 				},
-			},
-			deleteMocks: []deleteMock{
 				{
-					deploymentName: "test-deployment-4",
-					returnError:    nil,
+					expectedDeployment: v1beta1.Deployment{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            "test-deployment-3",
+							Namespace:       namespace,
+							OwnerReferences: mockOwnerRefs,
+							Labels: map[string]string{
+								"alm-owner-name":      mockOwnerName,
+								"alm-owner-namespace": namespace,
+							},
+						},
+					},
+					returnError: nil,
 				},
 			},
 			output: nil,
@@ -294,19 +300,10 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 
-			mockClient.EXPECT().
-				GetOwnedDeployments(mockOwnerMeta).
-				Return(&tt.setup.existingDeployments, tt.setup.getOwnedDeploymentsError)
-
 			for _, m := range tt.createOrUpdateMocks {
 				mockClient.EXPECT().
 					CreateOrUpdateDeployment(MatchesDeployment(m.expectedDeployment)).
 					Return(nil, m.returnError)
-			}
-			for _, m := range tt.deleteMocks {
-				mockClient.EXPECT().
-					DeleteDeployment(m.deploymentName).
-					Return(m.returnError)
 			}
 
 			installer := &StrategyDeploymentInstaller{
@@ -550,10 +547,6 @@ func TestInstallStrategyDeployment(t *testing.T) {
 		Name:      "clusterserviceversion-owner",
 		Namespace: namespace,
 	}
-	mockPrevOwnerMeta := metav1.ObjectMeta{
-		Name:      "clusterserviceversion-owner", // self
-		Namespace: namespace,
-	}
 
 	tests := []struct {
 		numMockServiceAccounts int
@@ -619,34 +612,34 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					Return(&v1beta1rbac.Role{Rules: p.Rules}, nil)
 				mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, nil)
 			}
-			mockedDeps := []v1beta1.Deployment{}
+
+			var mockedDeps []*v1beta1.Deployment
 			for i := 1; i <= tt.numMockDeployments; i++ {
 				dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
 				dep.Spec = v1beta1.DeploymentSpec{Paused: true} // arbitrary
 
-				mockedDeps = append(mockedDeps, dep)
+				mockedDeps = append(mockedDeps, &dep)
 			}
 			if tt.numMockServiceAccounts == tt.numExpected {
 				t.Log("mocking dep check")
 				// if all serviceaccounts exist then we check if deployments exist
+				var depNames []string
+				for i := 1; i <= tt.numExpected; i++ {
+					depNames = append(depNames, fmt.Sprintf("alm-dep-%d", i))
+				}
 				mockClient.EXPECT().
-					GetOwnedDeployments(mockOwnerMeta).
-					Return(&v1beta1.DeploymentList{Items: mockedDeps}, nil)
+					GetDeployments(depNames).
+					Return(mockedDeps)
 			}
 
-			if len(strategy.DeploymentSpecs) > 0 {
-				mockClient.EXPECT().
-					GetOwnedDeployments(mockOwnerMeta).
-					Return(&v1beta1.DeploymentList{Items: mockedDeps}, nil)
-			}
-			for i := tt.numMockDeployments + 1; i <= len(strategy.DeploymentSpecs); i++ {
+			for i := 1; i <= len(strategy.DeploymentSpecs); i++ {
 				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
 				mockClient.EXPECT().
 					CreateOrUpdateDeployment(&deployment).
 					Return(&deployment, nil)
 			}
 
-			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, mockPrevOwnerMeta)
+			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
 
 			installed, err := installer.CheckInstalled(strategy)
 			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
@@ -676,12 +669,8 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 		Name:      "clusterserviceversion-owner",
 		Namespace: "ns",
 	}
-	prevMockOwnerMeta := metav1.ObjectMeta{
-		Name:      "clusterserviceversion-owner",
-		Namespace: "ns",
-	}
 	mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
-	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, prevMockOwnerMeta)
+	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
 	_, err := strategy.CheckInstalled(&BadStrategy{})
@@ -694,10 +683,6 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		Name:      "clusterserviceversion-owner",
 		Namespace: namespace,
 	}
-	mockPrevOwnerMeta := metav1.ObjectMeta{
-		Name:      "clusterserviceversion-owner",
-		Namespace: namespace,
-	}
 
 	tests := []struct {
 		createRoleErr           error
@@ -705,16 +690,11 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		createServiceAccountErr error
 		createDeploymentErr     error
 		checkServiceAccountErr  error
-		checkDeploymentErr      error
 		description             string
 	}{
 		{
 			checkServiceAccountErr: fmt.Errorf("couldn't query serviceaccount"),
 			description:            "ErrorCheckingForServiceAccount",
-		},
-		{
-			checkDeploymentErr: fmt.Errorf("couldn't query deployments"),
-			description:        "ErrorCheckingForDeployments",
 		},
 		{
 			createRoleErr: fmt.Errorf("error creating role"),
@@ -741,27 +721,23 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 			strategy := strategy(1, namespace, mockOwnerMeta)
-			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, mockPrevOwnerMeta)
+			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
 
-			skipInstall := tt.checkDeploymentErr != nil || tt.checkServiceAccountErr != nil
+			skipInstall := tt.checkServiceAccountErr != nil
 
 			mockClient.EXPECT().
 				GetServiceAccountByName(strategy.Permissions[0].ServiceAccountName).
 				Return(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
 
 			if tt.checkServiceAccountErr == nil {
-				dep := testDeployment("alm-dep", namespace, mockOwnerMeta)
-				if tt.checkDeploymentErr == nil {
-					dep = testDeployment("alm-dep-1", namespace, mockOwnerMeta)
-				}
+				dep := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
 				mockClient.EXPECT().
-					GetOwnedDeployments(mockOwnerMeta).
+					GetDeployments([]string{dep.Name}).
 					Return(
-						&v1beta1.DeploymentList{
-							Items: []v1beta1.Deployment{
-								dep,
-							},
-						}, tt.checkDeploymentErr)
+						[]*v1beta1.Deployment{
+							&dep,
+						},
+					)
 			}
 
 			installed, err := installer.CheckInstalled(strategy)
@@ -802,12 +778,6 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				return
 			}
 			deployment := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
-			mockClient.EXPECT().
-				GetOwnedDeployments(mockOwnerMeta).
-				Return(
-					&v1beta1.DeploymentList{
-						Items: []v1beta1.Deployment{},
-					}, nil)
 			mockClient.EXPECT().
 				CreateOrUpdateDeployment(&deployment).
 				Return(&deployment, tt.createDeploymentErr)

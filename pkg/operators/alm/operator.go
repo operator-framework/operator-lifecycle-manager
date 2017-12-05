@@ -12,10 +12,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/coreos-inc/alm/pkg/annotator"
+	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
+	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
 )
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
@@ -139,6 +141,14 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
 // state.
 func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
+
+	if replacement := a.isBeingReplaced(csv); replacement != nil {
+		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
+		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
+		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
+		return
+	}
+
 	switch csv.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
 		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", csv.SelfLink)
@@ -163,35 +173,28 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
 			return
 		}
-		replaces := metav1.ObjectMeta{
-			Name:      csv.Spec.Replaces,
-			Namespace: csv.GetNamespace(),
+
+		previousCSV := a.isReplacing(csv)
+		var previousStrategy install.Strategy
+		if previousCSV != nil {
+			previousStrategy, err = a.resolver.UnmarshalStrategy(previousCSV.Spec.InstallStrategy)
+			if err != nil {
+				previousStrategy = nil
+			}
 		}
+
 		strName := strategy.GetStrategyName()
-		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, replaces)
-		installed, err := installer.CheckInstalled(strategy)
-		if err != nil {
-			// TODO: add a retry count, don't give up on first failure
-			csv.SetPhase(v1alpha1.CSVPhaseUnknown, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
-			return
-		}
-		if installed {
-			log.Infof(
-				"%s install strategy successful for %s",
-				csv.Spec.InstallStrategy.StrategyName,
-				csv.SelfLink,
-			)
-			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
-			return
-		}
-		// We transition to ComponentFailed if install failed, but we don't transition to succeeded here. Instead we let
-		// this queue pick the object back up, and transition to Succeeded once we verify the install
-		// with the install strategy's `CheckInstall`
+		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, previousStrategy)
 		syncError = installer.Install(strategy)
 		if syncError != nil {
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
 			return
 		} else {
+			log.Infof(
+				"%s install strategy successful for %s",
+				csv.Spec.InstallStrategy.StrategyName,
+				csv.SelfLink,
+			)
 			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
 			return
 		}
@@ -202,12 +205,16 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			return
 		}
 
-		replaces := metav1.ObjectMeta{
-			Name:      csv.Spec.Replaces,
-			Namespace: csv.GetNamespace(),
+		previousCSV := a.isReplacing(csv)
+		var previousStrategy install.Strategy
+		if previousCSV != nil {
+			previousStrategy, err = a.resolver.UnmarshalStrategy(previousCSV.Spec.InstallStrategy)
+			if err != nil {
+				previousStrategy = nil
+			}
 		}
 		strName := strategy.GetStrategyName()
-		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, replaces)
+		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, previousStrategy)
 		installed, err := installer.CheckInstalled(strategy)
 
 		// if already installed, don't transition to pending if we can't query
@@ -260,4 +267,42 @@ func (a *ALMOperator) annotateNamespace(obj interface{}) (syncError error) {
 		return err
 	}
 	return nil
+}
+
+func (a *ALMOperator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
+	csvsInNamespace, err := a.OpClient.ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, in.GetNamespace(), v1alpha1.ClusterServiceVersionKind)
+	if err != nil {
+		return nil
+	}
+	unstructuredConverter := conversion.NewConverter(true)
+
+	for _, csvUnst := range csvsInNamespace.Items {
+		csv := v1alpha1.ClusterServiceVersion{}
+		if err := unstructuredConverter.FromUnstructured(csvUnst.UnstructuredContent(), &csv); err != nil {
+			continue
+		}
+		if csv.Spec.Replaces == in.GetName() {
+			return &csv
+		}
+	}
+	return nil
+}
+
+func (a *ALMOperator) isReplacing(in *v1alpha1.ClusterServiceVersion) (previous *v1alpha1.ClusterServiceVersion) {
+	log.Debugf("checking if csv is replacing an older version")
+	if in.Spec.Replaces == "" {
+		return nil
+	}
+	oldCSVUnst, err := a.OpClient.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, in.GetNamespace(), v1alpha1.ClusterServiceVersionKind, in.Spec.Replaces)
+	if err != nil {
+		log.Debugf("unable to get previous csv: %s", err.Error())
+		return nil
+	}
+	unstructuredConverter := conversion.NewConverter(true)
+	p := v1alpha1.ClusterServiceVersion{}
+	if err := unstructuredConverter.FromUnstructured(oldCSVUnst.UnstructuredContent(), &p); err != nil {
+		log.Debugf("unable to parse previous csv: %s", err.Error())
+		return nil
+	}
+	return &p
 }
