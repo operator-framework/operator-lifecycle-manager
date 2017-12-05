@@ -9,6 +9,7 @@ Each of these operators are responsible for managing the CRDs that are the basis
 | ClusterServiceVersion-v1 | CSV        | ALM     | application metadata: name, version, icon, required resources, installation, etc...        |
 | InstallPlan-v1           | IP         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
 | UICatalogEntry-v1        | UICE       | Catalog | indexed application metadata for UI discovery only                       |
+| CatalogSource-v1         | UICE       | Catalog | a repository of CSVs and CRDs that define an application |
 
 Each of these operators are also responsible for creating resources:
 
