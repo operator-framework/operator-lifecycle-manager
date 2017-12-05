@@ -12,6 +12,7 @@ import (
 )
 
 type CatalogSourceInterface interface {
+	GetCS(namespace, name string) (*v1alpha1.CatalogSource, error)
 	UpdateCS(csv *v1alpha1.CatalogSource) (result *v1alpha1.CatalogSource, err error)
 	CreateCS(csv *v1alpha1.CatalogSource) (err error)
 }
@@ -46,6 +47,19 @@ func NewCatalogSourceClient(kubeconfig string) (client *CatalogSourceClient, err
 		return
 	}
 	return &CatalogSourceClient{restClient}, nil
+}
+
+func (c *CatalogSourceClient) GetCS(namespace, name string) (result *v1alpha1.CatalogSource, err error) {
+	err = c.RESTClient.Get().Context(context.TODO()).
+		Namespace(namespace).
+		Resource(v1alpha1.CatalogSourceCRDName).
+		Name(name).
+		Do().
+		Into(result)
+	if err != nil {
+		err = errors.New("failed to get CatalogSource: " + err.Error())
+	}
+	return
 }
 
 func (c *CatalogSourceClient) UpdateCS(in *v1alpha1.CatalogSource) (result *v1alpha1.CatalogSource, err error) {

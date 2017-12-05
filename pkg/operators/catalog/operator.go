@@ -21,17 +21,21 @@ import (
 	"github.com/coreos-inc/alm/pkg/client"
 )
 
-const crdKind = "CustomResourceDefinition"
+const (
+	crdKind    = "CustomResourceDefinition"
+	secretKind = "Secret"
+)
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	ipClient  client.InstallPlanInterface
-	csvClient client.ClusterServiceVersionInterface
-	aceClient client.UICatalogEntryInterface
-	namespace string
-	sources   map[string]catlib.Source
+	ipClient     client.InstallPlanInterface
+	csvClient    client.ClusterServiceVersionInterface
+	aceClient    client.UICatalogEntryInterface
+	catsrcClient client.CatalogSourceInterface
+	namespace    string
+	sources      map[string]catlib.Source
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -114,6 +118,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		ipClient,
 		csvClient,
 		aceClient,
+		catsrcClient,
 		operatorNamespace,
 		make(map[string]catlib.Source),
 	}
@@ -164,7 +169,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	if err != nil {
 		return fmt.Errorf("failed to created catalog entries for %s: %s", catsrc.Name, err)
 	}
-	log.Infof("created %d AlphaCatalogEntry resources", len(entries))
+	log.Infof("created %d UICatalogEntry resources", len(entries))
 
 	o.sources[catsrc.Spec.Name] = src
 	return
@@ -245,12 +250,48 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
 
-	for _, source := range o.sources {
-		log.Debugf("resolving against source %v", source)
+	for sourceName, source := range o.sources {
+		log.Debugf("resolving against source %v", sourceName)
+		plan.Status.CatalogSources = append(plan.Status.CatalogSources, sourceName)
 		err := resolveInstallPlan(source, plan)
+		if err != nil {
+			return err
+		}
+
+		// Look up the CatalogSource.
+		catsrc, err := o.catsrcClient.GetCS(o.namespace, sourceName)
+		if err != nil {
+			return err
+		}
+
+		for _, secretName := range catsrc.Spec.Secrets {
+			// Attempt to look up the secret.
+			_, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Get(secretName, metav1.GetOptions{})
+			status := v1alpha1.StepStatusUnknown
+			if k8serrors.IsNotFound(err) {
+				status = v1alpha1.StepStatusNotPresent
+			} else if err == nil {
+				status = v1alpha1.StepStatusPresent
+			} else {
+				return err
+			}
+
+			// Prepend any required secrets to the plan for that Catalog Source.
+			plan.Status.Plan = append([]v1alpha1.Step{{
+				Resolving: "",
+				Resource: v1alpha1.StepResource{
+					Name:    secretName,
+					Kind:    "Secret",
+					Group:   "",
+					Version: "v1",
+				},
+				Status: status,
+			}}, plan.Status.Plan...)
+		}
+
 		// Intentionally return after the first source only.
 		// TODO(jzelinskie): update to check all sources.
-		return err
+		return nil
 	}
 
 	return nil
@@ -430,6 +471,29 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the CSV.
 				err = o.csvClient.CreateCSV(&csv)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If it no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
+			case secretKind:
+				// Get the pre-existing secret.
+				secret, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(o.namespace).Get(step.Resource.Name, metav1.GetOptions{})
+				if k8serrors.IsNotFound(err) {
+					return fmt.Errorf("secret %s does not exist", step.Resource.Name)
+				} else if err != nil {
+					return err
+				}
+
+				// Set the namespace to the InstallPlan's namespace and attempt to
+				// create a new secret.
+				secret.Namespace = plan.Namespace
+				_, err = o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(secret)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
