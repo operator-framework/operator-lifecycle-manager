@@ -10,6 +10,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+var ErrNilObject = errors.New("Bad object supplied: <nil>")
+
 type InstallStrategyDeploymentInterface interface {
 	CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error)
 	CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
@@ -18,7 +20,7 @@ type InstallStrategyDeploymentInterface interface {
 	CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
 	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
-	GetOwnedDeployments(owner metav1.ObjectMeta) (*v1beta1extensions.DeploymentList, error)
+	FindAnyDeploymentsMatchingNames(depNames []string) []*v1beta1extensions.Deployment
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
@@ -44,15 +46,20 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBind
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error) {
-	foundAccount, err := c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccount.Name, metav1.GetOptions{})
-	if err == nil {
+	if serviceAccount == nil {
+		return nil, ErrNilObject
+	}
+
+	foundAccount, err := c.opClient.GetServiceAccount(c.Namespace, serviceAccount.Name)
+	if err == nil && foundAccount != nil {
 		return foundAccount, nil
 	}
-	if !apierrors.IsNotFound(err) {
+	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "checking for existing serviceacccount failed")
 	}
 
-	createdAccount, err := c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Create(serviceAccount)
+	serviceAccount.SetNamespace(c.Namespace)
+	createdAccount, err := c.opClient.CreateServiceAccount(serviceAccount)
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		return nil, errors.Wrap(err, "creating serviceacccount failed")
 	}
@@ -82,9 +89,12 @@ func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(se
 	return c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccountName, metav1.GetOptions{})
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) GetOwnedDeployments(owner metav1.ObjectMeta) (*v1beta1extensions.DeploymentList, error) {
-	return c.opClient.ListDeploymentsWithLabels(c.Namespace, map[string]string{
-		"alm-owner-name":      owner.Name,
-		"alm-owner-namespace": owner.Namespace,
-	})
+func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) (deployments []*v1beta1extensions.Deployment) {
+	for _, depName := range depNames {
+		fetchedDep, err := c.opClient.GetDeployment(c.Namespace, depName)
+		if err == nil {
+			deployments = append(deployments, fetchedDep)
+		}
+	}
+	return
 }

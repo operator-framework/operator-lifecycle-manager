@@ -9,7 +9,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/extensions/v1beta1"
 	v1beta10 "k8s.io/api/rbac/v1beta1"
-	v10 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	reflect "reflect"
 )
 
@@ -126,15 +125,14 @@ func (mr *MockInstallStrategyDeploymentInterfaceMockRecorder) GetServiceAccountB
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceAccountByName", reflect.TypeOf((*MockInstallStrategyDeploymentInterface)(nil).GetServiceAccountByName), serviceAccountName)
 }
 
-// GetOwnedDeployments mocks base method
-func (m *MockInstallStrategyDeploymentInterface) GetOwnedDeployments(owner v10.ObjectMeta) (*v1beta1.DeploymentList, error) {
-	ret := m.ctrl.Call(m, "GetOwnedDeployments", owner)
-	ret0, _ := ret[0].(*v1beta1.DeploymentList)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+// FindAnyDeploymentsMatchingNames mocks base method
+func (m *MockInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNames(depNames []string) []*v1beta1.Deployment {
+	ret := m.ctrl.Call(m, "FindAnyDeploymentsMatchingNames", depNames)
+	ret0, _ := ret[0].([]*v1beta1.Deployment)
+	return ret0
 }
 
-// GetOwnedDeployments indicates an expected call of GetOwnedDeployments
-func (mr *MockInstallStrategyDeploymentInterfaceMockRecorder) GetOwnedDeployments(owner interface{}) *gomock.Call {
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOwnedDeployments", reflect.TypeOf((*MockInstallStrategyDeploymentInterface)(nil).GetOwnedDeployments), owner)
+// FindAnyDeploymentsMatchingNames indicates an expected call of FindAnyDeploymentsMatchingNames
+func (mr *MockInstallStrategyDeploymentInterfaceMockRecorder) FindAnyDeploymentsMatchingNames(depNames interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindAnyDeploymentsMatchingNames", reflect.TypeOf((*MockInstallStrategyDeploymentInterface)(nil).FindAnyDeploymentsMatchingNames), depNames)
 }

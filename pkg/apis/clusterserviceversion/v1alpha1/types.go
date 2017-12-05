@@ -13,10 +13,8 @@ import (
 const (
 	GroupVersion = "v1alpha1" // used in registering ClusterServiceVersion scheme
 
-	ClusterServiceVersionCRDName       = "clusterserviceversion-v1s.app.coreos.com"
-	ClusterServiceVersionKind          = "ClusterServiceVersion-v1"
-	ClusterServiceVersionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
-
+	ClusterServiceVersionCRDName = "clusterserviceversion-v1s.app.coreos.com"
+	ClusterServiceVersionKind    = "ClusterServiceVersion-v1"
 )
 
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
@@ -119,17 +117,21 @@ type ClusterServiceVersionPhase string
 // These are the valid phases of ClusterServiceVersion
 const (
 	CSVPhaseNone = ""
-	// CSVPending means the csv has been accepted by the system, but the install strategy has not been attempted.
+	// CSVPhasePending means the csv has been accepted by the system, but the install strategy has not been attempted.
 	// This is likely because there are unmet requirements.
 	CSVPhasePending ClusterServiceVersionPhase = "Pending"
-	// CSVRunning means that the requirements are met but the install strategy has not been run.
+	// CSVPhaseInstalling means that the requirements are met but the install strategy has not been run.
 	CSVPhaseInstalling ClusterServiceVersionPhase = "Installing"
-	// CSVSucceeded means that the resources in the CSV were created successfully.
+	// CSVPhaseSucceeded means that the resources in the CSV were created successfully.
 	CSVPhaseSucceeded ClusterServiceVersionPhase = "Succeeded"
-	// CSVFailed means that the install strategy could not be successfully completed.
+	// CSVPhaseFailed means that the install strategy could not be successfully completed.
 	CSVPhaseFailed ClusterServiceVersionPhase = "Failed"
-	// CSVUnknown means that for some reason the state of the csv could not be obtained.
+	// CSVPhaseUnknown means that for some reason the state of the csv could not be obtained.
 	CSVPhaseUnknown ClusterServiceVersionPhase = "Unknown"
+	// CSVPhaseReplacing means that a newer CSV has been created and the csv's resources will be transitioned to a new owner.
+	CSVPhaseReplacing ClusterServiceVersionPhase = "Replacing"
+	// CSVPhaseDeleting means that a CSV has been replaced by a new one and will be checked for safety before being deleted
+	CSVPhaseDeleting ClusterServiceVersionPhase = "Deleting"
 )
 
 // ConditionReason is a camelcased reason for the state transition
@@ -144,6 +146,7 @@ const (
 	CSVReasonInstallSuccessful   ConditionReason = "InstallSucceeded"
 	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
 	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"
+	CSVReasonBeingReplaced       ConditionReason = "BeingReplaced"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
