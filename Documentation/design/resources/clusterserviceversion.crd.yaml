@@ -5,6 +5,8 @@ metadata:
   annotations:
     displayName: Operator Version
     description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
+  labels:
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   group: app.coreos.com
   version: v1alpha1

@@ -5,6 +5,7 @@ metadata:
   namespace: tectonic-system
   labels:
     app:  alm-operator
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   strategy:
     type: RollingUpdate
