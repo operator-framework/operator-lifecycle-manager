@@ -76,6 +76,10 @@ gen-ci: fmt-ci
 codegen:
 	hack/k8s/codegen/update-generated.sh
 
+update-catalog:
+	./build_catalog_configmap.sh catalog_resources/tectonicocs.configmap.yaml
+	./build_catalog_configmap.sh Documentation/install/alm_resources/tectonicocs.configmap.yaml
+
 MOCKGEN := $(GOBIN)/mockgen
 $(MOCKGEN):
 	go install github.com/golang/mock/mockgen
