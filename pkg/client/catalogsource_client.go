@@ -13,8 +13,8 @@ import (
 
 type CatalogSourceInterface interface {
 	GetCS(namespace, name string) (*v1alpha1.CatalogSource, error)
-	UpdateCS(csv *v1alpha1.CatalogSource) (result *v1alpha1.CatalogSource, err error)
-	CreateCS(csv *v1alpha1.CatalogSource) (err error)
+	UpdateCS(cs *v1alpha1.CatalogSource) (result *v1alpha1.CatalogSource, err error)
+	CreateCS(cs *v1alpha1.CatalogSource) (err error)
 }
 
 type CatalogSourceClient struct {
@@ -77,15 +77,15 @@ func (c *CatalogSourceClient) UpdateCS(in *v1alpha1.CatalogSource) (result *v1al
 	return
 }
 
-func (c *CatalogSourceClient) CreateCS(csv *v1alpha1.CatalogSource) error {
+func (c *CatalogSourceClient) CreateCS(cs *v1alpha1.CatalogSource) error {
 	out := &v1alpha1.CatalogSource{}
 	return c.RESTClient.
 		Post().
 		Context(context.TODO()).
-		Namespace(csv.Namespace).
+		Namespace(cs.Namespace).
 		Resource(v1alpha1.CatalogSourceCRDName).
-		Name(csv.Name).
-		Body(csv).
+		Name(cs.Name).
+		Body(cs).
 		Do().
 		Into(out)
 }
