@@ -127,6 +127,11 @@ spec:
       kind: EtcdCluster
       displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
+      resources:
+        - kind: Service
+          version: v1
+        - kind: Pod
+          version: v1
       specDescriptors:
         - description: The desired number of member Pods for the etcd cluster.
           displayName: Size

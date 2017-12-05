@@ -161,6 +161,9 @@ spec:
       kind: Prometheus
       displayName: Prometheus
       description: A running Prometheus instance
+      resources:
+        - kind: Pod
+          version: v1
       specDescriptors: 
       - description: Desired number of Pods for the cluster
         displayName: Size
@@ -201,7 +204,10 @@ spec:
       kind: ServiceMonitor
       displayName: Service Monitor
       description: Configures prometheus to monitor a particular k8s service
-      specDescriptors: 
+      resources:
+        - kind: Pod
+          version: v1
+      specDescriptors:
       - description: Selector to select which namespaces the Endpoints objects are discovered from
         displayName: Monitoring Namespaces
         path: namespaceSelector
@@ -222,6 +228,9 @@ spec:
       kind: Alertmanager
       displayName: Alert Manager
       description: Configures an Alert Manager for the namespace
+      resources:
+        - kind: Pod
+          version: v1
       specDescriptors: 
       - description: Desired number of Pods for the cluster
         displayName: Size

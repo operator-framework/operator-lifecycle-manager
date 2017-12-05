@@ -181,6 +181,24 @@ spec:
                   description:
                     type: string
                     description: A description of the CRD
+                  resources:
+                    type: array
+                    items:
+                      type: object
+                      description: A list of resources that should be displayed for the CRD
+                      required:
+                        - kind
+                        - version
+                      properties:
+                        name:
+                          type: string
+                          description: If a CRD, the fully qualified name of the CustomResourceDefinition (e.g. my-resource-v1.app.coreos.com)
+                        version:
+                          type: string
+                          description: The version of the resource kind
+                        kind:
+                          type: string
+                          description: The kind field of the resource kind
                   statusDescriptors:
                     type: array
                     items:
@@ -208,7 +226,7 @@ spec:
                         value:
                           type: object
                           description: If present, the value of this status is the same for all instances of the CRD and can be found here instead of on the CR.
-                  specDescriptor:
+                  specDescriptors:
                     type: array
                     items:
                       type: object

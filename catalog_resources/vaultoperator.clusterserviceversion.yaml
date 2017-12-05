@@ -129,7 +129,19 @@ spec:
       kind: VaultService
       displayName: Vault Service
       description: A running Vault instance, backed by an Etcd Cluster
-      specDescriptors: 
+      resources:
+        - name: etcdclusters.etcd.database.coreos.com
+          version: v1beta2
+          kind: EtcdCluster
+        - kind: Service
+          version: v1
+        - kind: ConfigMap
+          version: v1
+        - kind: Secret
+          version: v1
+        - kind: Pod
+          version: v1
+      specDescriptors:
         - description: The desired number of Pods for the cluster
           displayName: Size
           path: nodes
