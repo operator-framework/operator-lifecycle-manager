@@ -476,6 +476,8 @@ data:
             displayName: Prometheus
             description: A running Prometheus instance
             resources:
+              - kind: StatefulSet
+                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors: 
@@ -543,6 +545,8 @@ data:
             displayName: Alert Manager
             description: Configures an Alert Manager for the namespace
             resources:
+              - kind: StatefulSet
+                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors: 
@@ -683,6 +687,10 @@ data:
                 version: v1
               - kind: Secret
                 version: v1
+              - kind: Deployment
+                version: v1beta2
+              - kind: ReplicaSet
+                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors:
