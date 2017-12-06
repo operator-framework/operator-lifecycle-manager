@@ -8,6 +8,7 @@ import (
 
 	"github.com/coreos-inc/alm/pkg/queueinformer"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -493,7 +494,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Set the namespace to the InstallPlan's namespace and attempt to
 				// create a new secret.
 				secret.Namespace = plan.Namespace
-				_, err = o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(secret)
+				_, err = o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(&v1.Secret{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      secret.Name,
+						Namespace: plan.Namespace,
+					},
+					Data: secret.Data,
+				})
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
