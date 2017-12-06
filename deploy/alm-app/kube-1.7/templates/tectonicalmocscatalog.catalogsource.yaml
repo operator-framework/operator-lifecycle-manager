@@ -1,0 +1,15 @@
+#! validate-crd: catalogsource.crd.yaml
+#! parse-kind: CatalogSource
+apiVersion: app.coreos.com/v1alpha1
+kind: CatalogSource-v1
+metadata:
+  name: tectonic-alm-ocs-catalog
+  namespace: {{ .Values.catalog_namespace }}
+spec:
+  name: tectonic-ocs
+  sourceType: internal
+  secrets:
+  - coreos-pull-secret
+  displayName: Tectonic Open Cloud Services
+  publisher: CoreOS, Inc.
+  configMap: tectonic-ocs
