@@ -134,6 +134,8 @@ spec:
           version: v1
         - kind: Pod
           version: v1
+        - kind: ReplicaSet
+          version: v1beta2
       specDescriptors:
         - description: The desired number of Pods for the cluster
           displayName: Size
