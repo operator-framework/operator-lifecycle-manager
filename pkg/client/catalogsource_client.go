@@ -49,8 +49,9 @@ func NewCatalogSourceClient(kubeconfig string) (client *CatalogSourceClient, err
 	return &CatalogSourceClient{restClient}, nil
 }
 
-func (c *CatalogSourceClient) GetCS(namespace, name string) (result *v1alpha1.CatalogSource, err error) {
-	err = c.RESTClient.Get().Context(context.TODO()).
+func (c *CatalogSourceClient) GetCS(namespace, name string) (*v1alpha1.CatalogSource, error) {
+	result := &v1alpha1.CatalogSource{}
+	err := c.RESTClient.Get().Context(context.TODO()).
 		Namespace(namespace).
 		Resource(v1alpha1.CatalogSourceCRDName).
 		Name(name).
@@ -59,7 +60,7 @@ func (c *CatalogSourceClient) GetCS(namespace, name string) (result *v1alpha1.Ca
 	if err != nil {
 		err = errors.New("failed to get CatalogSource: " + err.Error())
 	}
-	return
+	return result, nil
 }
 
 func (c *CatalogSourceClient) UpdateCS(in *v1alpha1.CatalogSource) (result *v1alpha1.CatalogSource, err error) {
