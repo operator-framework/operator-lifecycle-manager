@@ -132,10 +132,12 @@ spec:
           version: v1
         - kind: Secret
           version: v1
-        - kind: Pod
-          version: v1
+        - kind: Deployment
+          version: v1beta2
         - kind: ReplicaSet
           version: v1beta2
+        - kind: Pod
+          version: v1
       specDescriptors:
         - description: The desired number of Pods for the cluster
           displayName: Size

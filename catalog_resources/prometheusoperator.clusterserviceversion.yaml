@@ -162,10 +162,10 @@ spec:
       displayName: Prometheus
       description: A running Prometheus instance
       resources:
-        - kind: Pod
-          version: v1
         - kind: StatefulSet
           version: v1beta2
+        - kind: Pod
+          version: v1
       specDescriptors: 
       - description: Desired number of Pods for the cluster
         displayName: Size
@@ -231,10 +231,10 @@ spec:
       displayName: Alert Manager
       description: Configures an Alert Manager for the namespace
       resources:
-        - kind: Pod
-          version: v1
         - kind: StatefulSet
           version: v1beta2
+        - kind: Pod
+          version: v1
       specDescriptors: 
       - description: Desired number of Pods for the cluster
         displayName: Size
