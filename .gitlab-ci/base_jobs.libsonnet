@@ -80,7 +80,7 @@ local appr = utils.appr;
 
         before_script: [
             "appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io",
-            "cd deploy/alm-app/kube-1.7",
+            "cd deploy/chart/kube-1.7",
             'echo "version: %s" >> Chart.yaml' % _vars.appversion,
             'echo %s > params.json' % std.escapeStringJson(_vars.params),
             "cat params.json",

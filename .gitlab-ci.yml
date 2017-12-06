@@ -63,7 +63,7 @@ container-release:
 deploy-preview:
   before_script:
   - appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io
-  - cd deploy/alm-app/kube-1.7
+  - cd deploy/chart/kube-1.7
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> Chart.yaml'
   - 'echo "{\"alm.image.repository\": \"quay.io/coreos/alm-ci\", \"alm.image.tag\": \"${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.repository\": \"quay.io/coreos/catalog-ci\", \"catalog.image.tag\": \"${CI_COMMIT_REF_SLUG}-pre\",
     \"catalog_namespace\": \"tectonic-system\", \"namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
@@ -101,7 +101,7 @@ deploy-preview:
 deploy-staging:
   before_script:
   - appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io
-  - cd deploy/alm-app/kube-1.7
+  - cd deploy/chart/kube-1.7
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-${SHA8}" >> Chart.yaml'
   - 'echo "{\"alm.image.repository\": \"quay.io/coreos/alm\", \"alm.image.tag\": \"${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.repository\": \"quay.io/coreos/catalog\", \"catalog.image.tag\": \"${CI_COMMIT_REF_SLUG}-${SHA8}\",
     \"catalog_namespace\": \"tectonic-system\", \"namespace\": \"ci-alm-staging\"}" > params.json'

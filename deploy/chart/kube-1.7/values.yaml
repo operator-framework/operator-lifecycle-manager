@@ -1,4 +1,4 @@
-namespace: alm-app
+namespace: alm
 catalog-namespace: tectonic-system
 alm:
   replicaCount: 1
