@@ -45,13 +45,21 @@ type SpecDescriptor struct {
 
 // CRDDescription provides details to ALM about the CRDs
 type CRDDescription struct {
-	Name              string             `json:"name"`
-	Version           string             `json:"version"`
-	Kind              string             `json:"kind"`
-	DisplayName       string             `json:"displayName,omitempty"`
-	Description       string             `json:"description,omitempty"`
-	StatusDescriptors []StatusDescriptor `json:"statusDescriptors,omitempty"`
-	SpecDescriptors   []SpecDescriptor   `json:"specDescriptors,omitempty"`
+	Name              string                 `json:"name"`
+	Version           string                 `json:"version"`
+	Kind              string                 `json:"kind"`
+	DisplayName       string                 `json:"displayName,omitempty"`
+	Description       string                 `json:"description,omitempty"`
+	Resources         []CRDResourceReference `json:"resources,omitempty"`
+	StatusDescriptors []StatusDescriptor     `json:"statusDescriptors,omitempty"`
+	SpecDescriptors   []SpecDescriptor       `json:"specDescriptors,omitempty"`
+}
+
+// CRDResourceReference is a Kubernetes resource type used by a custom resource
+type CRDResourceReference struct {
+	Name    string `json:"name"`
+	Kind    string `json:"kind"`
+	Version string `json:"version"`
 }
 
 // CustomResourceDefinitions declares all of the CRDs managed or required by
