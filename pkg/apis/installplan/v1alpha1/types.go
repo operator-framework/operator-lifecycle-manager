@@ -157,7 +157,7 @@ type StepResource struct {
 	Version  string `json:"version"`
 	Kind     string `json:"kind"`
 	Name     string `json:"name"`
-	Manifest string `json:"manifest"`
+	Manifest string `json:"manifest,omitempty"`
 }
 
 // NewStepResourceFromCSV creates an unresolved Step for the provided CSV.
