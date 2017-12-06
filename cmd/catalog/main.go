@@ -60,7 +60,7 @@ func main() {
 	}
 	err = catsrcClient.CreateCS(&v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tectonic-alm-ocs-catalog",
+			Name:      "tectonic-ocs",
 			Namespace: *catalogNamespace,
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
