@@ -13,8 +13,9 @@ import (
 const (
 	GroupVersion = "v1alpha1" // used in registering ClusterServiceVersion scheme
 
-	ClusterServiceVersionCRDName = "clusterserviceversion-v1s.app.coreos.com"
-	ClusterServiceVersionKind    = "ClusterServiceVersion-v1"
+	ClusterServiceVersionCRDName    = "clusterserviceversion-v1s.app.coreos.com"
+	ClusterServiceVersionKind       = "ClusterServiceVersion-v1"
+	ClusterServiceVersionPluralName = "clusterserviceversion-v1s"
 )
 
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
