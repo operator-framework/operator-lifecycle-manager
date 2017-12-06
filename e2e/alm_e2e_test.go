@@ -8,17 +8,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"encoding/json"
-
 	"github.com/coreos-inc/alm/pkg/apis"
-	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/install"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -93,63 +86,4 @@ func TestCreateInstallPlan(t *testing.T) {
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 	//TODO: poll for creation of other resources
-}
-
-func TestUpdateClusterServiceVersion(t *testing.T) {
-	c := newKubeClient(t)
-
-	strategyPrev := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: "prev-deployment-keep",
-				Spec: v1beta1.DeploymentSpec{
-					Template: v1.PodTemplateSpec{
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:  "test-1",
-									Image: "hello-world",
-								},
-							},
-						},
-					},
-				},
-			},
-			{
-				Name: "prev-deployment-delete",
-				Spec: v1beta1.DeploymentSpec{
-					Template: v1.PodTemplateSpec{
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:  "test-2",
-									Image: "hello-world",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	jsonStrategyPrev := json.Marshal(prev)
-
-	prevCSV := csvv1alpha1.ClusterServiceVersion{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       csvv1alpha1.ClusterServiceVersionKind,
-			APIVersion: csvv1alpha1.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "clusterservice-0.0.1",
-			Namespace: testNamespace,
-		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: csvv1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: json.RawMessage{},
-			},
-			Version: *semver.New("0.0.1"),
-		},
-	}
 }

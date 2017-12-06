@@ -52,7 +52,7 @@ func (c *ClusterServiceVersionClient) UpdateCSV(in *v1alpha1.ClusterServiceVersi
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.RESTClient.Put().Context(context.TODO()).
 		Namespace(in.Namespace).
-		Resource(v1alpha1.ClusterServiceVersionCRDName).
+		Resource(v1alpha1.ClusterServiceVersionPluralName).
 		Name(in.Name).
 		Body(in).
 		Do().
@@ -69,7 +69,7 @@ func (c *ClusterServiceVersionClient) CreateCSV(csv *v1alpha1.ClusterServiceVers
 		Post().
 		Context(context.TODO()).
 		Namespace(csv.Namespace).
-		Resource(v1alpha1.ClusterServiceVersionCRDName).
+		Resource(v1alpha1.ClusterServiceVersionPluralName).
 		Name(csv.Name).
 		Body(csv).
 		Do().
