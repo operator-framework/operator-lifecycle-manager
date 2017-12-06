@@ -207,7 +207,8 @@ spec:
       displayName: Service Monitor
       description: Configures prometheus to monitor a particular k8s service
       resources:
-        
+        - kind: Pod
+          version: v1
       specDescriptors:
       - description: Selector to select which namespaces the Endpoints objects are discovered from
         displayName: Monitoring Namespaces
