@@ -8,4 +8,4 @@ metadata:
   annotations:
     tectonic-operators.coreos.com/upgrade-behaviour: "CreateOrUpgrade"
 spec:
-  desiredVersion: 0.1.0
+  desiredVersion: 0.2.0
