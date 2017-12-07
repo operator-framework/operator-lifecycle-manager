@@ -256,7 +256,7 @@ data:
                       command:
                       - etcd-operator
                       - --create-crd=false
-                      image: quay.io/coreos/etcd-operator@sha256:568aea1174a72946bda083822f198f1a1ea2ef87ca0693eefeb380076c2da3c3
+                      image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
