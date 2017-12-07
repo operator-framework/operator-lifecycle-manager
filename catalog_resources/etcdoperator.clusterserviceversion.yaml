@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  name: etcdoperator.v0.6.1
+  name: etcdoperator.v0.7.2
   namespace: placeholder
 spec:
   displayName: etcd
@@ -27,7 +27,7 @@ spec:
     **Backups included**
     Coming soon, the ability to schedule backups to happen on or off cluster.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-  version: 0.6.1
+  version: 0.7.2
   maturity: alpha
   maintainers:
   - name: CoreOS, Inc
@@ -36,7 +36,7 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-status-descriptors: etcdoperator.v0.6.1
+    alm-status-descriptors: etcdoperator.v0.7.2
     alm-owner-etcd: etcdoperator
     operated-by: etcdoperator
   selector:
@@ -110,7 +110,7 @@ spec:
                 command:
                 - etcd-operator
                 - --create-crd=false
-                image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
+                image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
                 env:
                 - name: MY_POD_NAMESPACE
                   valueFrom:
