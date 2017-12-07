@@ -25,7 +25,7 @@ spec:
           - /bin/catalog
           - '-namespace'
           - tectonic-system
-          image: quay.io/coreos/catalog@sha256:d49bca61e937772803eef6b7e4713d70c2df4799a2c41101fb4e1ec4480889f3
+          image: quay.io/coreos/catalog@sha256:2fed9b67d1b143f86250cf344ade38cc2f9eb8599da83bb43f1ecf2f2cf662bb
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
