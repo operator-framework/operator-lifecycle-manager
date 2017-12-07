@@ -500,6 +500,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						Namespace: plan.Namespace,
 					},
 					Data: secret.Data,
+					Type: secret.Type,
 				})
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
