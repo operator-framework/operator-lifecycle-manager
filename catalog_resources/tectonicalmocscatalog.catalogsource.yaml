@@ -1,4 +1,4 @@
-#! validate-crd: catalogsource.crd.yaml
+#! validate-crd: ../../deploy/chart/kube-1.8/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1

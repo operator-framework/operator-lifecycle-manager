@@ -1,4 +1,4 @@
-package resources
+package design
 
 import (
 	"bufio"
@@ -242,12 +242,7 @@ func (d *DirectoryResourceValidator) ValidateResource(path string, f os.FileInfo
 	return nil
 }
 
-func TestResourceExamples(t *testing.T) {
-	directoryTester := DirectoryResourceValidator{t}
-	directoryTester.ValidateResources(".")
-}
-
 func TestCatalogResources(t *testing.T) {
 	directoryTester := DirectoryResourceValidator{t}
-	directoryTester.ValidateResources("../../../catalog_resources")
+	directoryTester.ValidateResources("../../catalog_resources")
 }
