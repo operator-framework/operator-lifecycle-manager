@@ -253,7 +253,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 
 	for sourceName, source := range o.sources {
 		log.Debugf("resolving against source %v", sourceName)
-		plan.Status.CatalogSources = append(plan.Status.CatalogSources, sourceName)
+		plan.EnsureCatalogSource(sourceName)
 		err := resolveInstallPlan(source, plan)
 		if err != nil {
 			return err

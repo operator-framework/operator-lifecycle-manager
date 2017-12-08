@@ -214,6 +214,18 @@ type InstallPlan struct {
 	Status InstallPlanStatus `json:"status"`
 }
 
+// EnsureCatalogSource ensures that a CatalogSource is present in the Status
+// block of an InstallPlan.
+func (p *InstallPlan) EnsureCatalogSource(catalogSourceName string) {
+	for _, source := range p.Status.CatalogSources {
+		if source == catalogSourceName {
+			return
+		}
+	}
+
+	p.Status.CatalogSources = append(p.Status.CatalogSources, catalogSourceName)
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type InstallPlanList struct {
 	metav1.TypeMeta `json:",inline"`
