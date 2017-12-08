@@ -38,11 +38,23 @@ $ make build
 
 #### Packaging
 
-To build the project as a Docker image, use the standard docker tooling:
-```sh
-$ docker build -t coreos-alm:dev ./
-```
+ALM is packaged as a set of manifests for a tectonic-x-operator specialization (tectonic-alm-operator).
 
+A new version can be generated from the helm chart by:
+
+ 1. Modifying the `deploy/tectonic-alm-operator/values.yaml` file for the release to include new SHAs of the container images. 
+ 1. Running the `package` make command, which takes a single variable (`ver`)
+ 
+For example:
+
+```
+make ver=0.3.0 package
+``` 
+
+Will generate a new set of manifests from the helm chart in `deploy/chart` combined with the `values.yaml` file in `deploy/tectonic-alm-operator`, and output the rendered templates to `deploy/tectonic-alm-operator/manifests/0.3.0`.
+
+See the documentation in `deploy/tectonic-alm-operator` for how to take the new manifests and package them as a new version of `tectonic-alm-operator`.
+ 
 ### Dependency Management
 
 #### Using glide
