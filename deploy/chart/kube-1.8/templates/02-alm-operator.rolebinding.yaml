@@ -1,11 +1,3 @@
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: {{ template "fullname" . }}-serviceaccount
-  namespace: {{ .Values.namespace }}
-  labels:
-    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -18,5 +10,5 @@ roleRef:
   name: cluster-admin
 subjects:
 - kind: ServiceAccount
-  name: {{ template "fullname" . }}-serviceaccount
+  name: {{ .Values.namespace }}-alm-serviceaccount
   namespace: {{ .Values.namespace }}

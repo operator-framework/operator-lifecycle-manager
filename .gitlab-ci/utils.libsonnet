@@ -97,14 +97,14 @@
 
     helm: {
         // uses app-registry
-        upgrade(name, appname, namespace="default", vars={}, extra_opts=[]):: [
+        upgrade(chartdir, appname, namespace="default", vars={}, extra_opts=[]):: [
             local set_opts = [
                 "--set %s=%s" % [key, vars[key]]
                 for key in std.objectFields(vars)
             ];
 
             std.join(" ", [
-                              "helm registry upgrade %s -- --install %s" % [name, appname],
+                              "helm upgrade %s --install %s" % [appname, chartdir],
                               "--namespace=%s" % namespace,
                           ] +
                           set_opts +

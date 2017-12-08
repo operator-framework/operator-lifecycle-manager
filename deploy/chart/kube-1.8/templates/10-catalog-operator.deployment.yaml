@@ -1,13 +1,10 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}-catalog
+  name: catalog-operator
   namespace: {{ .Values.namespace }}
   labels:
     app: {{ template "name" . }}
-    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   strategy:
@@ -17,18 +14,19 @@ spec:
     metadata:
       labels:
         app: {{ template "name" . }}-catalog
-        release: {{ .Release.Name }}
     spec:
-      serviceAccountName: {{ template "fullname" . }}-serviceaccount
+      serviceAccountName: {{ .Values.namespace }}-alm-serviceaccount
       containers:
         - name: {{ .Chart.Name }}
           command:
           - /bin/catalog
+          {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
-          - {{ .Values.namespace }}
+          - {{ .Values.watchedNamespaces }}
+          {{- end }}
           - -namespace
           - {{ .Values.catalog_namespace }}
-          image: "{{ .Values.catalog.image.repository }}:{{ .Values.catalog.image.tag }}"
+          image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.catalog.service.internalPort }}
@@ -40,8 +38,10 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
+          {{- if .Values.catalog.resources }}
           resources:
 {{ toYaml .Values.catalog.resources | indent 12 }}
+          {{- end}}
     {{- if .Values.catalog.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.catalog.nodeSelector | indent 8 }}

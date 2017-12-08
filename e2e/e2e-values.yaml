@@ -1,0 +1,16 @@
+alm:
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/alm:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+
+catalog:
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/catalog:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+

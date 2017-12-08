@@ -51,6 +51,7 @@ local appr = utils.appr;
             appversion: "1.0.0-%s" % self.image.alm.tag,
             apprepo: "quay.io/coreos/alm-ci-app",
             appname: self.namespace,
+            chart: "deploy/chart/kube-1.7",
             app: "%s@%s" % [self.apprepo, self.appversion],
             domain: "alm-%s.k8s.devtable.com" % "${CI_COMMIT_REF_SLUG}",
             namespace: "ci-alm-%s" % "${CI_COMMIT_REF_SLUG}",
@@ -79,31 +80,23 @@ local appr = utils.appr;
         },
 
         before_script: [
-            "appr login -u $DOCKER_USER -p $DOCKER_PASS quay.io",
-            "cd deploy/chart/kube-1.7",
-            'echo "version: %s" >> Chart.yaml' % _vars.appversion,
+            'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> %s/Chart.yaml' % _vars.chart,
             'echo %s > params.json' % std.escapeStringJson(_vars.params),
             "cat params.json",
         ],
 
         script:
-            appr.push(_vars.apprepo, channel=_vars.channel, force=true) +
             k8s.createNamespace(_vars.namespace) +
             k8s.createPullSecret("coreos-pull-secret",
                                  _vars.namespace,
                                  "quay.io",
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
-            k8s.apply("../../../Documentation/design/resources/clusterserviceversion.crd.yaml") +
-            k8s.apply("../../../Documentation/design/resources/installplan.crd.yaml") +
-            k8s.apply("../../../Documentation/design/resources/uicatalogentry.crd.yaml") +
-            k8s.apply("../../../Documentation/design/resources/catalogsource.crd.yaml") +
-            helm.upgrade(_vars.app,
+            helm.upgrade(_vars.chart,
                          _vars.appname,
                          _vars.namespace,
                          _vars.params,
-                         _vars.helm_opts) +
-            ["kubectl get ingresses -n %s -o wide" % _vars.namespace],
+                         _vars.helm_opts),
     } + job_tags,
 
     DeployStop: self.Deploy {

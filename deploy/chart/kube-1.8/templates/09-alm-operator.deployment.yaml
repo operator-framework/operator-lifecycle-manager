@@ -1,13 +1,10 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: {{ template "fullname" . }}-alm
+  name: alm-operator
   namespace: {{ .Values.namespace }}
   labels:
     app: {{ template "name" . }}
-    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   strategy:
@@ -17,16 +14,17 @@ spec:
     metadata:
       labels:
         app: {{ template "name" . }}-alm
-        release: {{ .Release.Name }}
     spec:
-      serviceAccountName: {{ template "fullname" . }}-serviceaccount
+      serviceAccountName: {{ .Values.namespace }}-alm-serviceaccount
       containers:
         - name: {{ .Chart.Name }}
           command:
           - /bin/alm
+          {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
-          - {{ .Values.namespace }}
-          image: "{{ .Values.alm.image.repository }}:{{ .Values.alm.image.tag }}"
+          - {{ .Values.watchedNamespaces }}
+          {{- end }}
+          image: {{ .Values.alm.image.ref }}
           imagePullPolicy: {{ .Values.alm.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.alm.service.internalPort }}
@@ -44,9 +42,13 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
-            value: {{ template "fullname" . }}-alm
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          {{- if .Values.alm.resources }}
           resources:
 {{ toYaml .Values.alm.resources | indent 12 }}
+          {{- end}}
     {{- if .Values.alm.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.alm.nodeSelector | indent 8 }}

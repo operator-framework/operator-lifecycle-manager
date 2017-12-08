@@ -35,8 +35,14 @@ cover: $(COVERUTIL)
 coverage-html: cover
 	go tool cover -html=cover.out
 
-e2e-local: vendor-update
-	./e2e/build_e2e_local.sh
+run-local: vendor-update update-catalog
+	./deploy/tectonic-alm-operator/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
+	./Documentation/install/build_local.sh
+	./Documentation/install/install_local.sh local Documentation/install/resources
+	rm -rf Documentation/install/resources
+
+e2e-local: vendor-update update-catalog
+	./Documentation/install/build_local.sh
 	./e2e/run_e2e_local.sh
 
 build:
@@ -78,7 +84,6 @@ codegen:
 
 update-catalog:
 	./build_catalog_configmap.sh catalog_resources/tectonicocs.configmap.yaml
-	./build_catalog_configmap.sh Documentation/install/alm_resources/tectonicocs.configmap.yaml
 
 MOCKGEN := $(GOBIN)/mockgen
 $(MOCKGEN):
@@ -96,3 +101,7 @@ generate-mock-client: $(MOCKGEN)
 	goimports -w $(PKG_DIR)/operators/alm/zz_generated.mock_resolver_test.go
 
 make gen-all: gen-ci codegen generate-mock-client
+
+# make ver=0.3.0 package
+make release: update-catalog
+	./deploy/tectonic-alm-operator/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml

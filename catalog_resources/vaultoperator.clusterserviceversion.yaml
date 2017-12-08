@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  namespace: placeholder
+  namespace: ci-alm-staging
   name: vault-operator.0.1.5
 spec:
   displayName: Vault
