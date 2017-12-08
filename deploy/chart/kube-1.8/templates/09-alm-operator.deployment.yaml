@@ -1,0 +1,57 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: alm-operator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ template "name" . }}
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.alm.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}-alm
+    spec:
+      serviceAccountName: {{ .Values.namespace }}-alm-serviceaccount
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+          - /bin/alm
+          {{- if .Values.watchedNamespaces }}
+          - -watchedNamespaces
+          - {{ .Values.watchedNamespaces }}
+          {{- end }}
+          image: {{ .Values.alm.image.ref }}
+          imagePullPolicy: {{ .Values.alm.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.alm.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.alm.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.alm.service.internalPort }}
+          env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          {{- if .Values.alm.resources }}
+          resources:
+{{ toYaml .Values.alm.resources | indent 12 }}
+          {{- end}}
+    {{- if .Values.alm.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.alm.nodeSelector | indent 8 }}
+    {{- end }}
+      imagePullSecrets:
+        - name: coreos-pull-secret

@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.namespace }}-alm-operator
+  labels:
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.namespace }}-alm-serviceaccount
+  namespace: {{ .Values.namespace }}

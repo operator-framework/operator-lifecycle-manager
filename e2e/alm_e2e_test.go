@@ -56,7 +56,7 @@ func TestCreateInstallPlan(t *testing.T) {
 			Namespace: testNamespace,
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"vault-operator.0.1.3"},
+			ClusterServiceVersionNames: []string{"vault-operator.0.1.5"},
 			Approval:                   installplanv1alpha1.ApprovalAutomatic,
 		},
 	}

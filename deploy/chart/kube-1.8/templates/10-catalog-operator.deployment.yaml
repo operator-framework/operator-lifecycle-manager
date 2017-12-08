@@ -1,0 +1,50 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: catalog-operator
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: {{ template "name" . }}
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.catalog.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}-catalog
+    spec:
+      serviceAccountName: {{ .Values.namespace }}-alm-serviceaccount
+      containers:
+        - name: {{ .Chart.Name }}
+          command:
+          - /bin/catalog
+          {{- if .Values.watchedNamespaces }}
+          - -watchedNamespaces
+          - {{ .Values.watchedNamespaces }}
+          {{- end }}
+          - -namespace
+          - {{ .Values.catalog_namespace }}
+          image: {{ .Values.catalog.image.ref }}
+          imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.catalog.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.catalog.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.catalog.service.internalPort }}
+          {{- if .Values.catalog.resources }}
+          resources:
+{{ toYaml .Values.catalog.resources | indent 12 }}
+          {{- end}}
+    {{- if .Values.catalog.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.catalog.nodeSelector | indent 8 }}
+    {{- end }}
+      imagePullSecrets:
+        - name: coreos-pull-secret
