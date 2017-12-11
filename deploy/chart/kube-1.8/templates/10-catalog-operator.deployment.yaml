@@ -4,27 +4,30 @@ metadata:
   name: catalog-operator
   namespace: {{ .Values.namespace }}
   labels:
-    app: {{ template "name" . }}
+    app: catalog-operator
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: {{ .Values.catalog.replicaCount }}
+  selector:
+    matchLabels:
+      app: catalog-operator
   template:
     metadata:
       labels:
-        app: {{ template "name" . }}-catalog
+        app: catalog-operator
     spec:
-      serviceAccountName: {{ .Values.namespace }}-alm-serviceaccount
+      serviceAccountName: alm-operator-serviceaccount
       containers:
-        - name: {{ .Chart.Name }}
+        - name: catalog-operator
           command:
           - /bin/catalog
           {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}
           {{- end }}
-          - -namespace
+          - '-namespace'
           - {{ .Values.catalog_namespace }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}

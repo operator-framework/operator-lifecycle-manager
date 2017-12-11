@@ -84,6 +84,8 @@ codegen:
 
 update-catalog:
 	./build_catalog_configmap.sh catalog_resources/tectonicocs.configmap.yaml
+	./build_catalog_configmap.sh deploy/chart/kube-1.7/templates/08-tectonicocs.configmap.yaml
+	./build_catalog_configmap.sh deploy/chart/kube-1.8/templates/08-tectonicocs.configmap.yaml
 
 MOCKGEN := $(GOBIN)/mockgen
 $(MOCKGEN):
