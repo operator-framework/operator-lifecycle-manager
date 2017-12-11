@@ -299,8 +299,6 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 		require.NotEmpty(t, csvsPresent)
 	}
 }
-<<<<<<< HEAD
-=======
 
 func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t *testing.T) {
 	c := newKubeClient(t)
@@ -350,4 +348,47 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 
 }
 
->>>>>>> Add test for creating InstallPlans with invalid CSV names without a Failed plan state
+// As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
+func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
+	c := newKubeClient(t)
+
+	installPlan := installplanv1alpha1.InstallPlan{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       installplanv1alpha1.InstallPlanKind,
+			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "install-bitcoin-miner",
+			Namespace: testNamespace,
+		},
+		Spec: installplanv1alpha1.InstallPlanSpec{
+			ClusterServiceVersionNames: []string{"Bitcoin-miner-0.1"},
+			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+		},
+	}
+	unstructuredConverter := conversion.NewConverter(true)
+	unstructuredInstallPlan, err := unstructuredConverter.ToUnstructured(&installPlan)
+	require.NoError(t, err)
+
+	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
+	require.NoError(t, err)
+
+	fetchedInstallPlan := &installplanv1alpha1.InstallPlan{}
+	wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, installPlan.GetName())
+		if err != nil {
+			return false, err
+		}
+
+		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, fetchedInstallPlan)
+		require.NoError(t, err)
+
+		if fetchedInstallPlan.Status.Phase != installplanv1alpha1.InstallPlanPhaseFailed {
+			t.Log("waiting for installplan phase to fail")
+			return false, nil
+		}
+		return true, nil
+	})
+
+	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
+}
