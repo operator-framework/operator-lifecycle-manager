@@ -3,6 +3,7 @@ package e2e
 import (
 	"flag"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 
 	"github.com/coreos-inc/alm/pkg/apis"
 	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
+	uicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,8 +21,9 @@ import (
 )
 
 const (
-	pollInterval = 1 * time.Second
-	pollDuration = 5 * time.Minute
+	pollInterval             = 1 * time.Second
+	pollDuration             = 5 * time.Minute
+	expectedUICatalogEntries = 3
 )
 
 var testNamespace = metav1.NamespaceDefault
@@ -88,6 +92,7 @@ func TestCreateInstallPlan(t *testing.T) {
 	//TODO: poll for creation of other resources
 }
 
+<<<<<<< HEAD
 // This test is skipped until manual approval is implemented
 func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
@@ -158,3 +163,40 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	t.Logf("%d Vault Resources present", vaultResourcesPresent)
 	require.Zero(t, vaultResourcesPresent)
 }
+=======
+func TestUICatalogEntriesPresent(t *testing.T) {
+	c := newKubeClient(t)
+
+	requiredUICatalogEntryNames := []string{"etcdoperator", "prometheusoperator", "vault-operator"}
+
+	var fetchedUICatalogEntryNames *opClient.CustomResourceList
+
+	// This test may start before all of the UICatalogEntries are present in the cluster
+	wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		var err error
+
+		fetchedUICatalogEntryNames, err = c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
+		if err != nil {
+			return false, err
+		}
+
+		if len(fetchedUICatalogEntryNames.Items) < len(requiredUICatalogEntryNames) {
+			t.Logf("waiting for %d UICatalogEntry names, %d present", len(requiredUICatalogEntryNames), len(fetchedUICatalogEntryNames.Items))
+			return false, nil
+		}
+
+		return true, nil
+	})
+
+	uiCatalogEntryNames := make([]string, len(fetchedUICatalogEntryNames.Items))
+	for i, uicName := range fetchedUICatalogEntryNames.Items {
+		uiCatalogEntryNames[i] = strings.Split(uicName.GetName(), ".")[0]
+	}
+
+	for _, name := range requiredUICatalogEntryNames {
+		require.Contains(t, uiCatalogEntryNames, name)
+	}
+
+}
+
+>>>>>>> Adds test for expected UICatalogEntries
