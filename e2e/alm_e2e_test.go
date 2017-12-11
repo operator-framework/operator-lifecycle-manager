@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -92,7 +93,6 @@ func TestCreateInstallPlan(t *testing.T) {
 	//TODO: poll for creation of other resources
 }
 
-<<<<<<< HEAD
 // This test is skipped until manual approval is implemented
 func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
@@ -163,7 +163,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	t.Logf("%d Vault Resources present", vaultResourcesPresent)
 	require.Zero(t, vaultResourcesPresent)
 }
-=======
+
 func TestUICatalogEntriesPresent(t *testing.T) {
 	c := newKubeClient(t)
 
@@ -199,4 +199,102 @@ func TestUICatalogEntriesPresent(t *testing.T) {
 
 }
 
->>>>>>> Adds test for expected UICatalogEntries
+func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
+	c := newKubeClient(t)
+	var fetchedUICatalogEntryNames *opClient.CustomResourceList
+
+	// This test may start before all of the UICatalogEntries are present in the cluster
+	wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		var err error
+
+		fetchedUICatalogEntryNames, err = c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
+		if err != nil {
+			return false, err
+		}
+
+		if len(fetchedUICatalogEntryNames.Items) < expectedUICatalogEntries {
+			t.Logf("waiting for %d UICatalogEntries, %d present", expectedUICatalogEntries, len(fetchedUICatalogEntryNames.Items))
+			return false, nil
+		}
+
+		return true, nil
+	})
+
+	unstructuredConverter := conversion.NewConverter(true)
+	for _, uic := range fetchedUICatalogEntryNames.Items {
+		uiCatalogEntryName := uic.GetName()
+
+		t.Logf("Creating install plan for %s\n", uiCatalogEntryName)
+
+		installPlan := installplanv1alpha1.InstallPlan{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       installplanv1alpha1.InstallPlanKind,
+				APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("install-%s", uiCatalogEntryName),
+				Namespace: testNamespace,
+			},
+			Spec: installplanv1alpha1.InstallPlanSpec{
+				ClusterServiceVersionNames: []string{uiCatalogEntryName},
+				Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			},
+		}
+
+		unstructuredInstallPlan, err := unstructuredConverter.ToUnstructured(&installPlan)
+		require.NoError(t, err)
+
+		err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
+		require.NoError(t, err)
+
+		// Wait for InstallPlan to be status: Complete before checking for resource presence
+		fetchedInstallPlan := &installplanv1alpha1.InstallPlan{}
+		wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+			fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, installPlan.GetName())
+			if err != nil {
+				return false, err
+			}
+
+			err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, fetchedInstallPlan)
+			require.NoError(t, err)
+			if fetchedInstallPlan.Status.Phase != installplanv1alpha1.InstallPlanPhaseComplete {
+				t.Log("waiting for installplan phase to complete")
+				return false, nil
+			}
+			return true, nil
+		})
+
+		require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseComplete)
+
+		crdsPresent := 0
+		csvsPresent := 0
+
+		// Ensure that each component of the InstallPlan is present in the cluster
+		// Currently only checking for CustomResourceDefinitions, ClusterServiceVersion-v1s and Secrets
+		for _, step := range fetchedInstallPlan.Status.Plan {
+			t.Logf("Verifiying that %s %s is present", step.Resource.Kind, step.Resource.Name)
+			if step.Resource.Kind == "CustomResourceDefinition" {
+				_, err := c.GetCustomResourceDefinition(step.Resource.Name)
+
+				require.NoError(t, err)
+				crdsPresent++
+			} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
+				_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
+
+				require.NoError(t, err)
+				csvsPresent++
+			} else if step.Resource.Kind == "Secret" {
+				_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
+
+				require.NoError(t, err)
+			}
+
+		}
+
+		// Ensure that the InstallPlan actually has at least one CRD and CSV
+		t.Logf("%d CRDs present for %s", crdsPresent, uiCatalogEntryName)
+		require.NotEmpty(t, crdsPresent)
+		t.Logf("%d CSVs present for %s", csvsPresent, uiCatalogEntryName)
+		require.NotEmpty(t, csvsPresent)
+	}
+}
