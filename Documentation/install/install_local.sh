@@ -4,7 +4,7 @@
 
 set -e
 
-if [ ${#@} < 2 ]; then
+if [[ ${#@} < 2 ]]; then
     echo "Usage: $0 namespace chart"
     echo "* namespace: namespace to install into"
     echo "* chart: directory of chart to install"
