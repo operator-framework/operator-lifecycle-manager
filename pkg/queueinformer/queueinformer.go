@@ -68,7 +68,6 @@ func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventH
 			}
 
 			log.Infof("%s deleted", key)
-			q.enqueue(key)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			key, ok := q.keyFunc(newObj)
