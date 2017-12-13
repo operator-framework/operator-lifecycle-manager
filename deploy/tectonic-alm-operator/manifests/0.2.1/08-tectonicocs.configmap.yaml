@@ -1,3 +1,5 @@
+---
+# Source: alm/templates/08-tectonicocs.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -149,7 +151,7 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: etcdoperator.v0.7.2
+        name: etcdoperator.v0.6.1
         namespace: placeholder
       spec:
         displayName: etcd
@@ -173,7 +175,7 @@ data:
           **Backups included**
           Coming soon, the ability to schedule backups to happen on or off cluster.
         keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-        version: 0.7.2
+        version: 0.6.1
         maturity: alpha
         maintainers:
         - name: CoreOS, Inc
@@ -182,7 +184,7 @@ data:
         provider:
           name: CoreOS, Inc
         labels:
-          alm-status-descriptors: etcdoperator.v0.7.2
+          alm-status-descriptors: etcdoperator.v0.6.1
           alm-owner-etcd: etcdoperator
           operated-by: etcdoperator
         selector:
@@ -256,7 +258,7 @@ data:
                       command:
                       - etcd-operator
                       - --create-crd=false
-                      image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
+                      image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
@@ -317,7 +319,7 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: prometheusoperator.0.15.0
+        name: prometheusoperator.0.14.0
         namespace: placeholder
       spec:
         displayName: Prometheus
@@ -359,7 +361,7 @@ data:
           url: https://github.com/coreos/prometheus-operator
       
         labels:
-          alm-status-descriptors: prometheusoperator.0.15.0
+          alm-status-descriptors: prometheusoperator.0.14.0
           alm-owner-prometheus: prometheusoperator
       
         selector:
@@ -441,13 +443,13 @@ data:
                     serviceAccount: prometheus-operator-0-14-0
                     containers:
                     - name: prometheus-operator
-                      image: quay.io/coreos/prometheus-operator@sha256:0e92dd9b5789c4b13d53e1319d0a6375bcca4caaf0d698af61198061222a576d
+                      image: quay.io/coreos/prometheus-operator@sha256:5037b4e90dbb03ebdefaa547ddf6a1f748c8eeebeedf6b9d9f0913ad662b5731
                       command:
                         - sh
                         - -c
                         - >
                           /bin/operator --namespace=$K8S_NAMESPACE --crd-apigroup monitoring.coreos.com
-                          --labels alm-status-descriptors=prometheusoperator.0.15.0,alm-owner-prometheus=prometheusoperator
+                          --labels alm-status-descriptors=prometheusoperator.0.14.0,alm-owner-prometheus=prometheusoperator
                           --kubelet-service=kube-system/kubelet
                           --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
                       env:
@@ -466,8 +468,8 @@ data:
                           cpu: 100m
                           memory: 50Mi
         maturity: alpha
-        version: 0.15.0
-        replaces: prometheusoperator.0.14.0
+        version: 0.14.0
+        replaces: prometheusoperator.0.13.0
         customresourcedefinitions:
           owned:
           - name: prometheuses.monitoring.coreos.com
@@ -476,8 +478,6 @@ data:
             displayName: Prometheus
             description: A running Prometheus instance
             resources:
-              - kind: StatefulSet
-                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors: 
@@ -545,8 +545,6 @@ data:
             displayName: Alert Manager
             description: Configures an Alert Manager for the namespace
             resources:
-              - kind: StatefulSet
-                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors: 
@@ -559,7 +557,7 @@ data:
       kind: ClusterServiceVersion-v1
       metadata:
         namespace: placeholder
-        name: vault-operator.0.1.6
+        name: vault-operator.0.1.5
       spec:
         displayName: Vault
         description: |
@@ -592,7 +590,7 @@ data:
         - name: Vault Project
           url: https://www.vaultproject.io/
         labels:
-          alm-status-descriptors: vault-operator.0.1.6
+          alm-status-descriptors: vault-operator.0.1.5
           alm-owner-vault: vault-operator
           operated-by: vault-operator
         selector:
@@ -656,7 +654,7 @@ data:
                     serviceAccountName: vault-operator
                     containers:
                     - name: vault-operator
-                      image: quay.io/coreos/vault-operator@sha256:e86656d1f06ee73f035df49586e24b928beae1e70c097cb8675cb93091ca3942
+                      image: quay.io/coreos/vault-operator@sha256:74036811bc5d6cc1a136d8cc6d5577db67f29ba95eba02fbf0c3a8d2357dc8fe
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
@@ -668,7 +666,7 @@ data:
                             fieldPath: metadata.name
                     imagePullSecrets:
                     - name: coreos-pull-secret
-        version: 0.1.6
+        version: 0.1.5
         maturity: alpha
         customresourcedefinitions:
           owned:
@@ -687,10 +685,6 @@ data:
                 version: v1
               - kind: Secret
                 version: v1
-              - kind: Deployment
-                version: v1beta2
-              - kind: ReplicaSet
-                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors:
@@ -719,3 +713,4 @@ data:
             kind: EtcdCluster
             displayName: etcd Cluster
             description: Represents a cluster of etcd nodes.
+
