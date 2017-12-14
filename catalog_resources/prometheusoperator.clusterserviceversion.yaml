@@ -20,11 +20,22 @@ spec:
 
     ## Supported Features
 
+
     **High availability**
+
+
     Multiple instances are run across failure zones and data is replicated. This keeps your monitoring available during an outage, when you need it most.
+
+
     **Updates via automated operations**
+
+
     New Prometheus versions are deployed using a rolling update with no downtime, making it easy to stay up to date.
+
+
     **Handles the dynamic nature of containers**
+
+
     Alerting rules are attached to groups of containers instead of individual instances, which is ideal for the highly dynamic nature of container deployment.
 
   keywords: ['prometheus', 'monitoring', 'tsdb', 'alerting']
