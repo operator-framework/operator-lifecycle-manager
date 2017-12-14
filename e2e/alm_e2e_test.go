@@ -10,6 +10,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/coreos-inc/alm/pkg/apis"
 	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
@@ -19,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
-	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 const (
@@ -59,6 +59,48 @@ func newKubeClient(t *testing.T) opClient.Interface {
 	return opClient.NewClient(kubeconfigPath)
 }
 
+func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opClient.CustomResourceList, error) {
+	var crl *opClient.CustomResourceList
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		crl, err = c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
+
+		if err != nil {
+			return false, err
+		}
+
+		if len(crl.Items) < count {
+			t.Logf("waiting for %d entries, %d present", count, len(crl.Items))
+			return false, nil
+		}
+
+		return true, nil
+	})
+
+	return crl, err
+}
+
+func FetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker ConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
+	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
+	var err error
+
+	unstructuredConverter := conversion.NewConverter(true)
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, name)
+		if err != nil {
+			return false, err
+		}
+
+		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetchedInstallPlan)
+		require.NoError(t, err)
+
+		return checker(fetchedInstallPlan), nil
+	})
+
+	return fetchedInstallPlan, err
+}
+
 func TestCreateInstallPlan(t *testing.T) {
 	c := newKubeClient(t)
 
@@ -85,8 +127,7 @@ func TestCreateInstallPlan(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan := &installplanv1alpha1.InstallPlan{}
-	fetchedInstallPlan, err = FetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
+	fetchedInstallPlan, err := FetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
 
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -186,54 +227,10 @@ func TestUICatalogEntriesPresent(t *testing.T) {
 
 }
 
-func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opClient.CustomResourceList, error) {
-	var crl *opClient.CustomResourceList
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		crl, err = c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
-
-		if err != nil {
-			return false, err
-		}
-
-		if len(crl.Items) < count {
-			t.Logf("waiting for %d entries, %d present", count, len(crl.Items))
-			return false, nil
-		}
-
-		return true, nil
-	})
-
-	return crl, err
-}
-
-func FetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker ConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
-	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
-	var err error
-
-	unstructuredConverter := conversion.NewConverter(true)
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, name)
-		if err != nil {
-			return false, err
-		}
-
-		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetchedInstallPlan)
-		require.NoError(t, err)
-
-		return checker(fetchedInstallPlan), nil
-	})
-
-	return fetchedInstallPlan, err
-}
-
 func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 	c := newKubeClient(t)
-	var err error
-	var fetchedUICatalogEntryNames *opClient.CustomResourceList
 
-	fetchedUICatalogEntryNames, err = FetchUICatalogEntries(t, c, expectedUICatalogEntries)
+	fetchedUICatalogEntryNames, err := FetchUICatalogEntries(t, c, expectedUICatalogEntries)
 	require.NoError(t, err)
 
 	unstructuredConverter := conversion.NewConverter(true)
@@ -327,8 +324,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
 	require.NoError(t, err)
 
-	fetchedInstallPlan := &installplanv1alpha1.InstallPlan{}
-	fetchedInstallPlan, err = FetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+	fetchedInstallPlan, err := FetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
 		return fip.Status.Phase == installplanv1alpha1.InstallPlanPhasePlanning &&
 			fip.Status.Conditions[0].Type == installplanv1alpha1.InstallPlanResolved &&
 			fip.Status.Conditions[0].Reason == installplanv1alpha1.InstallPlanReasonDependencyConflict
@@ -343,8 +339,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
-	// This is skipped for now as InstallPlanPhaseFailed isn't implemented yet
-	t.Skip()
+	t.Skip("InstallPlanPhaseFailed isn't implemented yet")
 
 	c := newKubeClient(t)
 
