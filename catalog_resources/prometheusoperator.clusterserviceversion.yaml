@@ -18,7 +18,7 @@ spec:
 
     [Read the complete guide to monitoring applications with the Prometheus Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/prometheus-ocs.html)
 
-    ## Supported Features
+    ### Supported Features
 
 
     **High availability**
