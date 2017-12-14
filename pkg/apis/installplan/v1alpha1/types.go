@@ -47,6 +47,7 @@ const (
 	InstallPlanPhaseRequiresApproval InstallPlanPhase = "RequiresApproval"
 	InstallPlanPhaseInstalling       InstallPlanPhase = "Installing"
 	InstallPlanPhaseComplete         InstallPlanPhase = "Complete"
+	InstallPlanPhaseFailed           InstallPlanPhase = "Failed"
 )
 
 // InstallPlanConditionType describes the state of an InstallPlan at a certain point as a whole.

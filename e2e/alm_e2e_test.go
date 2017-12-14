@@ -36,6 +36,9 @@ var InstallPlanCompleteChecker = func(fip *installplanv1alpha1.InstallPlan) bool
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseComplete
 }
 
+var InstallPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
+	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseFailed
+}
 
 func init() {
 	e2eNamespace := os.Getenv("NAMESPACE")
@@ -340,6 +343,9 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
+	// This is skipped for now as InstallPlanPhaseFailed isn't implemented yet
+	t.Skip()
+
 	c := newKubeClient(t)
 
 	installPlan := installplanv1alpha1.InstallPlan{
@@ -348,11 +354,11 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "install-bitcoin-miner",
+			Name:      "install-dogecoin-miner",
 			Namespace: testNamespace,
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"Bitcoin-miner-0.1"},
+			ClusterServiceVersionNames: []string{"Dogecoin-miner-0.1"},
 			Approval:                   installplanv1alpha1.ApprovalAutomatic,
 		},
 	}
@@ -364,21 +370,9 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 
 	fetchedInstallPlan := &installplanv1alpha1.InstallPlan{}
-	wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, installPlan.GetName())
-		if err != nil {
-			return false, err
-		}
-
-		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, fetchedInstallPlan)
-		require.NoError(t, err)
-
-		if fetchedInstallPlan.Status.Phase != installplanv1alpha1.InstallPlanPhaseFailed {
-			t.Log("waiting for installplan phase to fail")
-			return false, nil
-		}
-		return true, nil
-	})
+	// Wait for InstallPlan to be status: Complete before checking for resource presence
+	fetchedInstallPlan, err = FetchInstallPlan(t, c, installPlan.GetName(), InstallPlanFailedChecker)
+	require.NoError(t, err)
 
 	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
 }
