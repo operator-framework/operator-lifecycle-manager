@@ -84,7 +84,7 @@ local jobs = {
 
     'unit-tests': unittest_stage {
         coverage: @"/\d\d\.\d.$/",
-        script: ["make vendor", "make test-cover"],
+        script: ["make codegen && git diff --exit-code", "make vendor", "make test-cover"],
     },
 
     'e2e-setup': baseJob.Deploy {
