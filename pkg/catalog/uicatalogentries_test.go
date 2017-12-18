@@ -53,8 +53,9 @@ func TestCustomCatalogStore(t *testing.T) {
 			APIVersion: csvv1alpha1.GroupVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      testCSVName,
-			Namespace: "alm-coreos-tests",
+			Name:        testCSVName,
+			Namespace:   "alm-coreos-tests",
+			Annotations: map[string]string{"tectonic-visiblity": "hidden"},
 		},
 		Spec: csvv1alpha1.ClusterServiceVersionSpec{
 			Version: *semver.New(testCSVVersion),
@@ -72,6 +73,64 @@ func TestCustomCatalogStore(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,
 			Namespace: "alm-coreos-tests",
+			Labels:    map[string]string{"tectonic-visibility": "hidden"},
+		},
+		Spec: &v1alpha1.UICatalogEntrySpec{
+			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
+				Version: *semver.New(testCSVVersion),
+				CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
+					Owned:    []csvv1alpha1.CRDDescription{},
+					Required: []csvv1alpha1.CRDDescription{},
+				},
+			},
+		},
+	}
+	returnEntry := v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
+	returnErr := errors.New("test error")
+	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
+
+	actualEntry, err := store.Store(&csv)
+	assert.Equal(t, returnErr, err)
+	compareResources(t, &returnEntry, actualEntry)
+}
+
+func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockClient := NewMockUICatalogEntryInterface(ctrl)
+	defer ctrl.Finish()
+
+	store := CustomResourceCatalogStore{Client: mockClient}
+
+	testCSVName := "MockServiceName-v1"
+	testCSVVersion := "0.2.4+alpha"
+
+	csv := csvv1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       csvv1alpha1.ClusterServiceVersionCRDName,
+			APIVersion: csvv1alpha1.GroupVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        testCSVName,
+			Namespace:   "alm-coreos-tests",
+			Annotations: map[string]string{}, // no visibility annotation
+		},
+		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+			Version: *semver.New(testCSVVersion),
+			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
+				Owned:    []csvv1alpha1.CRDDescription{},
+				Required: []csvv1alpha1.CRDDescription{},
+			},
+		},
+	}
+	expectedEntry := v1alpha1.UICatalogEntry{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.UICatalogEntryKind,
+			APIVersion: v1alpha1.UICatalogEntryCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      testCSVName,
+			Namespace: "alm-coreos-tests",
+			Labels:    map[string]string{"tectonic-visibility": "visible"},
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
 			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{

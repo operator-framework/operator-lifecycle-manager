@@ -11,6 +11,13 @@ import (
 	"github.com/coreos-inc/alm/pkg/client"
 )
 
+const (
+	CSVCatalogVisibilityAnnotation = "tectonic-visibility"
+	CatalogEntryVisibilityLabel    = "tectonic-visibility"
+	CatalogEntryVisibilityVisible  = "visible"
+	CatalogEntryVisibilityHidden   = "hidden"
+)
+
 // CatalogSync tracks information about the last time the catalog was synced to the cluster
 type CatalogSync struct {
 	StartTime      metav1.Time
@@ -33,9 +40,19 @@ type CustomResourceCatalogStore struct {
 // Store creates a new UICatalogEntry custom resource for the given service definition, csv
 func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.UICatalogEntry, error) {
 	spec := &v1alpha1.UICatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
+	visibility, ok := csv.GetAnnotations()[CSVCatalogVisibilityAnnotation]
+	if !ok {
+		visibility = CatalogEntryVisibilityVisible // default to visible in catalog
+	}
 	resource := v1alpha1.NewUICatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
 	resource.SetNamespace(store.Namespace)
+	labels := resource.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[CatalogEntryVisibilityLabel] = visibility
+	resource.SetLabels(labels)
 	return store.Client.UpdateEntry(resource)
 }
 
