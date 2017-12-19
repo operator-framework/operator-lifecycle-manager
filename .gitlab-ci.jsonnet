@@ -9,7 +9,9 @@ local stages_list = [
     'docker_base',
     'docker_build',
     'deploy_preview',
+    'test_setup',
     'tests',
+    'test_teardown',
     'integration',
     'docker_release',
     'deploy_staging',
@@ -36,7 +38,7 @@ local jobs = {
                                       cache=false,
                                       args={ sshkey: vars.deploy_keys.operator_client },
                                       extra_opts=["-f base.Dockerfile"]),
-        only: ["schedules", "tag"],
+        only: ["schedules", "tags"],
     },
 
     'container-build': baseJob.dockerBuild {
@@ -57,7 +59,10 @@ local jobs = {
                                       extra_opts=["-f alm-pre.Dockerfile"]) +
                 docker.build_and_push(images.prerelease.catalog.name,
                                       cache=false,
-                                      extra_opts=["-f catalog-pre.Dockerfile"]),
+                                      extra_opts=["-f catalog-pre.Dockerfile"]) +
+                docker.build_and_push(images.e2e.name, 
+                                      cache=false, 
+                                      extra_opts=["-f e2e-run.Dockerfile"]),
     },
 
     'container-release': baseJob.dockerBuild {
@@ -81,16 +86,31 @@ local jobs = {
         script: ["make vendor", "make test-cover"],
     },
 
+    'e2e-setup': baseJob.Deploy {
+        local _vars = self.localvars,
+        localvars+:: {
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+        },
+        stage: stages.test_setup,
+    },
+
+    'e2e-teardown': baseJob.DeployStop {
+        local _vars = self.localvars,
+        localvars+:: {
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+        },
+        stage: stages.test_teardown,
+    },
+
     // End2End tests
     local integration_test = baseJob.EndToEndTest {
         stage: stages.tests,
     },
 
-    e2e_example: integration_test {
-        image: { name: "python:2.7" },
-        script+: [
-            "ls",
-        ],
+    e2e_tests: integration_test {
+        image: { name: images.e2e.name },
         allow_failure: true,
     },
 

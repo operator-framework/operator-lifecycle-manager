@@ -1,4 +1,0 @@
-almOperator:
-  interval: 15m
-  namespaces:
-    - dev
