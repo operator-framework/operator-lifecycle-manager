@@ -14,8 +14,9 @@ import (
 const (
 	CSVCatalogVisibilityAnnotation = "tectonic-visibility"
 	CatalogEntryVisibilityLabel    = "tectonic-visibility"
-	CatalogEntryVisibilityVisible  = "visible"
-	CatalogEntryVisibilityHidden   = "hidden"
+
+	CatalogEntryVisibilityTectonicFeature = "tectonic-feature"
+	CatalogEntryVisibilityOCS             = "ocs"
 )
 
 // CatalogSync tracks information about the last time the catalog was synced to the cluster
@@ -42,7 +43,7 @@ func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVe
 	spec := &v1alpha1.UICatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
 	visibility, ok := csv.GetAnnotations()[CSVCatalogVisibilityAnnotation]
 	if !ok {
-		visibility = CatalogEntryVisibilityVisible // default to visible in catalog
+		visibility = CatalogEntryVisibilityOCS // default to visible in catalog
 	}
 	resource := v1alpha1.NewUICatalogEntryResource(spec)
 	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)

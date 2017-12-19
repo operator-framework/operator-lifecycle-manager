@@ -55,7 +55,7 @@ func TestCustomCatalogStore(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        testCSVName,
 			Namespace:   "alm-coreos-tests",
-			Annotations: map[string]string{"tectonic-visiblity": "hidden"},
+			Annotations: map[string]string{"tectonic-visiblity": "tectonic-feature"},
 		},
 		Spec: csvv1alpha1.ClusterServiceVersionSpec{
 			Version: *semver.New(testCSVVersion),
@@ -73,7 +73,7 @@ func TestCustomCatalogStore(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,
 			Namespace: "alm-coreos-tests",
-			Labels:    map[string]string{"tectonic-visibility": "hidden"},
+			Labels:    map[string]string{"tectonic-visibility": "tectonic-feature"},
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
 			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
@@ -130,7 +130,7 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      testCSVName,
 			Namespace: "alm-coreos-tests",
-			Labels:    map[string]string{"tectonic-visibility": "visible"},
+			Labels:    map[string]string{"tectonic-visibility": "ocs"},
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
 			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
