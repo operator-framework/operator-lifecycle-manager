@@ -2,7 +2,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: tectonic-ocs
-  namespace: tectonic-system
+  namespace: {{ .Values.catalog_namespace }}
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 data:

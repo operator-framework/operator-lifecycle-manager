@@ -45,6 +45,10 @@ e2e-local: vendor-update update-catalog
 	./Documentation/install/build_local.sh
 	./e2e/run_e2e_local.sh
 
+e2e-local-docker: update-catalog
+	./Documentation/install/build_local.sh
+	./e2e/run_e2e_docker.sh
+
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
@@ -83,7 +87,6 @@ codegen:
 	hack/k8s/codegen/update-generated.sh
 
 update-catalog:
-	./build_catalog_configmap.sh catalog_resources/tectonicocs.configmap.yaml
 	./build_catalog_configmap.sh deploy/chart/kube-1.7/templates/08-tectonicocs.configmap.yaml
 	./build_catalog_configmap.sh deploy/chart/kube-1.8/templates/08-tectonicocs.configmap.yaml
 

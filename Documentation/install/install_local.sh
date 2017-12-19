@@ -34,8 +34,14 @@ n=0
 until [ $n -ge 5 ]
 do
   kubectl rollout status -w deployment/alm-operator --namespace=${namespace} && break
-  kubectl rollout status -w deployment/catalog-operator --namespace=${namespace} && break
   n=$[$n+1]
   sleep 1
 done
 
+n=0
+until [ $n -ge 5 ]
+do
+  kubectl rollout status -w deployment/catalog-operator --namespace=${namespace} && break
+  n=$[$n+1]
+  sleep 1
+done

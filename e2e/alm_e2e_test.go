@@ -56,7 +56,7 @@ func TestCreateInstallPlan(t *testing.T) {
 			Namespace: testNamespace,
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"vault-operator.0.1.5"},
+			ClusterServiceVersionNames: []string{"vault-operator.0.1.6"},
 			Approval:                   installplanv1alpha1.ApprovalAutomatic,
 		},
 	}
@@ -102,7 +102,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 			Namespace: testNamespace,
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"vault-operator.0.1.5"},
+			ClusterServiceVersionNames: []string{"vault-operator.0.1.6"},
 			Approval:                   installplanv1alpha1.ApprovalManual,
 		},
 	}
@@ -137,21 +137,21 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	for _, step := range fetchedInstallPlan.Status.Plan {
 		t.Logf("Verifiying that %s %s is not present", step.Resource.Kind, step.Resource.Name)
 		if step.Resource.Kind == "CustomResourceDefinition" {
-				_, err := c.GetCustomResourceDefinition(step.Resource.Name)
+			_, err := c.GetCustomResourceDefinition(step.Resource.Name)
 
-				require.NoError(t, err)
-				vaultResourcesPresent++
-			} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
-				_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
+			require.NoError(t, err)
+			vaultResourcesPresent++
+		} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
+			_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
 
-				require.NoError(t, err)
-				vaultResourcesPresent++
-			} else if step.Resource.Kind == "Secret" {
-				_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			vaultResourcesPresent++
+		} else if step.Resource.Kind == "Secret" {
+			_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
 
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
 		}
+	}
 
 	// Result: Ensure that the InstallPlan actually creates no vault resources
 	t.Skip()
