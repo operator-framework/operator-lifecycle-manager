@@ -33,8 +33,8 @@ container-build:
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f catalog-pre.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG} . '
-  - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}
+  - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} . '
+  - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: docker_build
   tags:
   - kubernetes
@@ -56,6 +56,9 @@ container-release:
   - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
+  - docker push quay.io/coreos/alm-e2e:latest
   stage: docker_release
   tags:
   - kubernetes
@@ -158,7 +161,7 @@ e2e-teardown:
   when: always
 e2e_tests:
   image:
-    name: quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}
+    name: quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   script:
   - ./e2e/e2e.sh
   stage: tests

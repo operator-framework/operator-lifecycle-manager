@@ -72,7 +72,8 @@ local jobs = {
         before_script+: ["mkdir -p $PWD/bin"],
         script:
             docker.rename(images.prerelease.alm.name, images.release.alm.name) +
-            docker.rename(images.prerelease.catalog.name, images.release.catalog.name),
+            docker.rename(images.prerelease.catalog.name, images.release.catalog.name) +
+            docker.rename(images.e2e.name, images.e2elatest.name),
 
     } + onlyMaster,
 
