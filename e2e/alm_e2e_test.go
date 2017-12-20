@@ -32,6 +32,7 @@ const (
 	pollDuration             = 5 * time.Minute
 	expectedUICatalogEntries = 3
 	vaultVersion             = "0.9.0-0"
+	vaultOperatorVersion     = "0.1.6"
 	expectedEtcdNodes        = 3
 	vaultClusterSize         = 2
 )
@@ -167,7 +168,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 			Namespace: testNamespace,
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"vault-operator.0.1.6"},
+			ClusterServiceVersionNames: []string{fmt.Sprintf("vault-operator.%s", vaultOperatorVersion)},
 			Approval:                   installplanv1alpha1.ApprovalManual,
 		},
 	}
@@ -411,7 +412,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 			Namespace: testNamespace,
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"vault-operator.0.1.5"},
+			ClusterServiceVersionNames: []string{fmt.Sprintf("vault-operator.%s", vaultOperatorVersion)},
 			Approval:                   installplanv1alpha1.ApprovalAutomatic,
 		},
 	}
