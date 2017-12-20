@@ -19,6 +19,7 @@ import:
   - pkg/fields
   - pkg/openapi
   - pkg/util/uuid
+  - pkg/api/errors
 - package: github.com/pkg/errors
   version: ~0.8.0
 - package: k8s.io/apiserver
