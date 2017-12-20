@@ -15,10 +15,10 @@ chartdir=$2
 values=$3
 
 charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`
-mkdir ${charttmpdir}/chart
+
 charttmpdir=${charttmpdir}/chart
 
-cp -R deploy/chart/kube-1.8/ ${charttmpdir}/
+cp -R deploy/chart/kube-1.8/ ${charttmpdir}
 echo "version: $1" >> ${charttmpdir}/Chart.yaml
 
 mkdir ${chartdir}
