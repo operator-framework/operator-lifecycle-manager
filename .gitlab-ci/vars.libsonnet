@@ -46,7 +46,7 @@ local utils = import "utils.libsonnet";
 
         e2e: {
             repo: "quay.io/coreos/alm-e2e",
-            tag: "${CI_COMMIT_REF_SLUG}",
+            tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
             name: utils.containerName(self.repo, self.tag),
         },
 

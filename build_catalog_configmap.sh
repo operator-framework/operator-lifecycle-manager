@@ -1,13 +1,14 @@
 #! /bin/bash
 
 OUTFILE=${1:-'catalog_resources/tectonicocs.configmap.yaml'}
+NAMESPACE=${2:-'{{ .Values.catalog_namespace }}'}
 
 cat <<EOF > $OUTFILE
 kind: ConfigMap
 apiVersion: v1
 metadata:
   name: tectonic-ocs
-  namespace: {{ .Values.catalog_namespace }}
+  namespace: $NAMESPACE
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 data:

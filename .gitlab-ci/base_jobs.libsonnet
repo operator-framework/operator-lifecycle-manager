@@ -37,12 +37,10 @@ local appr = utils.appr;
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
         },
         image: vars.images.e2e.name,
-        script: ['/e2e.sh'],
+        script: ['./e2e/e2e.sh'],
         variables: {
             NAMESPACE: _vars.namespace,
             K8S_NAMESPACE: _vars.namespace,
-            GIT_STRATEGY: "none",
-            ALM_HOST: "localhost:8080",
         },
     } + job_tags,
 

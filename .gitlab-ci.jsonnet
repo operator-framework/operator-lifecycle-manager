@@ -102,6 +102,7 @@ local jobs = {
             catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
         },
         stage: stages.test_teardown,
+        when: "always",
     },
 
     // End2End tests
@@ -111,7 +112,6 @@ local jobs = {
 
     e2e_tests: integration_test {
         image: { name: images.e2e.name },
-        allow_failure: true,
     },
 
     "deploy-preview": baseJob.Deploy {

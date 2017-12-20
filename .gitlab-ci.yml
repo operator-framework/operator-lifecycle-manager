@@ -155,18 +155,16 @@ e2e-teardown:
     ALM_DOMAIN: alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
     GIT_STRATEGY: none
     K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}
+  when: always
 e2e_tests:
-  allow_failure: true
   image:
     name: quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}
   script:
-  - /e2e.sh
+  - ./e2e/e2e.sh
   stage: tests
   tags:
   - kubernetes
   variables:
-    ALM_HOST: localhost:8080
-    GIT_STRATEGY: none
     K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}
     NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}
 stages:
