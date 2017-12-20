@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: e2e
+spec:
+  template:
+    metadata:
+      name: e2e
+    spec:
+      containers:
+      - name: e2e
+        image: quay.io/coreos/alm-e2e:local
+        command: ["./e2e/e2e.sh"]
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+      restartPolicy: Never
+  backoffLimit: 4

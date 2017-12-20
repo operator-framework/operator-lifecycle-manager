@@ -1,7 +1,7 @@
 #! /bin/bash
 
 OUTFILE=${1:-'catalog_resources/tectonicocs.configmap.yaml'}
-NAMESPACE=${2:-tectonic-system}
+NAMESPACE=${2:-'{{ .Values.catalog_namespace }}'}
 
 cat <<EOF > $OUTFILE
 kind: ConfigMap

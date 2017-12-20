@@ -44,6 +44,18 @@ local utils = import "utils.libsonnet";
             },
         },
 
+        e2e: {
+            repo: "quay.io/coreos/alm-e2e",
+            tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            name: utils.containerName(self.repo, self.tag),
+        },
+
+        e2elatest: {
+            repo: "quay.io/coreos/alm-e2e",
+            tag: "latest",
+            name: utils.containerName(self.repo, self.tag),
+        },
+
         prerelease: {
             alm: {
                 repo: "quay.io/coreos/alm-ci",

@@ -32,15 +32,15 @@ local appr = utils.appr;
 
 
     EndToEndTest: {
-        image: "python:2.7",
-        services: [
-            { name: vars.images.prerelease.alm.name, alias: 'alm' },
-        ],
-        before_script: ["cd /"],
-        script: ['sleep 10'],
+        local _vars = self.localvars,
+        localvars:: {
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+        },
+        image: vars.images.e2e.name,
+        script: ['./e2e/e2e.sh'],
         variables: {
-            GIT_STRATEGY: "none",
-            ALM_HOST: "localhost:8080",
+            NAMESPACE: _vars.namespace,
+            K8S_NAMESPACE: _vars.namespace,
         },
     } + job_tags,
 
@@ -55,6 +55,7 @@ local appr = utils.appr;
             app: "%s@%s" % [self.apprepo, self.appversion],
             domain: "alm-%s.k8s.devtable.com" % "${CI_COMMIT_REF_SLUG}",
             namespace: "ci-alm-%s" % "${CI_COMMIT_REF_SLUG}",
+            catalog_namespace: "tectonic-system",
             image: vars.images.prerelease,
             channel: null,
             helm_opts: [],
@@ -63,7 +64,7 @@ local appr = utils.appr;
                 "alm.image.tag": _vars.image.alm.tag,
                 "catalog.image.repository": _vars.image.catalog.repo,
                 "catalog.image.tag": _vars.image.catalog.tag,
-                "catalog_namespace": "tectonic-system",
+                catalog_namespace: _vars.catalog_namespace,
                 namespace: _vars.namespace,
             },
         },

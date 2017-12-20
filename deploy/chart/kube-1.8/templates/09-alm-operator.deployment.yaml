@@ -12,11 +12,13 @@ spec:
   replicas: {{ .Values.alm.replicaCount }}
   selector:
     matchLabels:
-      app: alm-operator
+      app: alm
+      alm-component: alm
   template:
     metadata:
       labels:
-        app: alm-operator
+        app: alm
+        alm-component: alm
     spec:
       serviceAccountName: alm-operator-serviceaccount
       containers:

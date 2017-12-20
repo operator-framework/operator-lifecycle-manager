@@ -1,4 +1,4 @@
-FROM golang:1.9 as builder
+FROM golang:1.10beta1 as builder
 WORKDIR /go/src/github.com/coreos-inc/alm
 
 # SSH key to fetch operator-client dependency. should be base64 encoded
