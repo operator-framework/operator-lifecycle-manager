@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Note: run from root
+# Individual tests can be run by calling ./e2e/run_e2e_local.sh TestName
 
 set -e
 
