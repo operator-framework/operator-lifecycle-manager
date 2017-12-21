@@ -83,7 +83,7 @@ spec:
         - apiGroups: [""]
           resources:
           - configmaps
-          verbs: ["get"]  
+          verbs: ["get"]
       - serviceAccountName: prometheus-operator-0-14-0
         rules:
         - apiGroups:
@@ -177,7 +177,7 @@ spec:
           version: v1beta2
         - kind: Pod
           version: v1
-      specDescriptors: 
+      specDescriptors:
       - description: Desired number of Pods for the cluster
         displayName: Size
         path: replicas
@@ -186,7 +186,7 @@ spec:
       - description: A selector for the ConfigMaps from which to load rule files
         displayName: Rule Config Map Selector
         path: ruleSelector
-        x-descriptors: 
+        x-descriptors:
           - 'urn:alm:descriptor:com.tectonic.ui:selector:ConfigMap'
       - description: ServiceMonitors to be selected for target discovery
         displayName: Service Monitor Selector
@@ -229,12 +229,12 @@ spec:
       - description: The label to use to retrieve the job name from
         displayName: Job Label
         path: jobLabel
-        x-descriptors: 
+        x-descriptors:
           - 'urn:alm:descriptor:com.tectonic.ui:label'
       - description: A list of endpoints allowed as part of this ServiceMonitor
         displayName: Endpoints
         path: endpoints
-        x-descriptors: 
+        x-descriptors:
           - 'urn:alm:descriptor:com.tectonic.ui:endpointList'
     - name: alertmanagers.monitoring.coreos.com
       version: v1
@@ -246,9 +246,9 @@ spec:
           version: v1beta2
         - kind: Pod
           version: v1
-      specDescriptors: 
+      specDescriptors:
       - description: Desired number of Pods for the cluster
         displayName: Size
         path: replicas
-        x-descriptors: 
+        x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:podCount'

@@ -1,6 +1,6 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
-metadata: 
+metadata:
   name: vaultservices.vault.security.coreos.com
 spec:
   group: vault.security.coreos.com
@@ -34,7 +34,7 @@ spec:
           labels:
             type: object
             description: Labels to apply to associated resources
-  names: 
+  names:
     plural: vaultservices
     singular: vaultservice
     kind: VaultService
