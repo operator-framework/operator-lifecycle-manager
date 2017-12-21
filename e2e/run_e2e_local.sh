@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Note: run from root
+# Individual tests can be run by calling ./e2e/run_e2e_local.sh TestName
 
 set -e
 
@@ -35,4 +36,6 @@ trap cleanupAndExit SIGINT SIGTERM EXIT
 
 ./Documentation/install/install_local.sh ${namespace} e2e/resources
 
+
+# run tests
 KUBECONFIG=~/.kube/config NAMESPACE=${namespace} go test -v ./e2e/... ${1/[[:alnum:]-]*/-run ${1}}
