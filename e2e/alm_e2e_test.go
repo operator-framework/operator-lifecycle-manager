@@ -247,6 +247,32 @@ func TestUICatalogEntriesPresent(t *testing.T) {
 
 }
 
+// TestUICatalogEntriesVisibility tests that the visibility is copied over from CSV to catalog entry
+func TestUICatalogEntriesVisibility(t *testing.T) {
+	c := newKubeClient(t)
+
+	requiredVisibilities := map[string]string{
+		"etcdoperator":       "ocs",
+		"prometheusoperator": "ocs",
+		"vault-operator":     "ocs",
+	}
+
+	// This test may start before all of the UICatalogEntries are present in the cluster
+	fetchedUICatalogEntries, err := FetchUICatalogEntries(t, c, len(requiredVisibilities))
+	require.NoError(t, err)
+
+	for _, entry := range fetchedUICatalogEntries.Items {
+		serviceName := strings.Split(entry.GetName(), ".")[0] // remove version info
+		labels := entry.GetLabels()
+
+		actual, ok := labels["tectonic-visibility"]
+		require.True(t, ok, "missing visibility label: service='%s' labels=%v", serviceName, labels)
+
+		expected := requiredVisibilities[serviceName]
+		require.Equal(t, expected, actual, "incorrect visibility: service='%s'", serviceName)
+	}
+}
+
 func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 	c := newKubeClient(t)
 
