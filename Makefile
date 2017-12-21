@@ -35,13 +35,13 @@ cover: $(COVERUTIL)
 coverage-html: cover
 	go tool cover -html=cover.out
 
-run-local: vendor-update update-catalog
+run-local: update-catalog
 	./deploy/tectonic-alm-operator/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
 	./Documentation/install/build_local.sh
 	./Documentation/install/install_local.sh local Documentation/install/resources
 	rm -rf Documentation/install/resources
 
-e2e-local: vendor-update update-catalog
+e2e-local: update-catalog
 	./Documentation/install/build_local.sh
 	./e2e/run_e2e_local.sh
 
