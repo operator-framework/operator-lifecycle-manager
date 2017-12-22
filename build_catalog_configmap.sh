@@ -20,6 +20,7 @@ do
   printf "    - " >> $OUTFILE
   head -n 1 $crd >> $OUTFILE
   tail -n +2 $crd | sed 's/^/      /' >> $OUTFILE
+  sed -i 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
 done
 
 printf '  clusterServiceVersions: |-\n' >> $OUTFILE
@@ -29,4 +30,5 @@ do
   printf "    - " >> $OUTFILE
   head -n 3 $csv | tail -n 1 >> $OUTFILE
   tail -n +4 $csv | sed 's/^/      /' >> $OUTFILE
+  sed -i 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
 done
