@@ -22,10 +22,10 @@ spec:
         - name: coreos-pull-secret
       containers:
       - name: tectonic-alm-operator
-        image: quay.io/coreos/tectonic-alm-operator:latest
+        image: quay.io/coreos/tectonic-alm-operator:v0.2.1-lithium
         imagePullPolicy: Always
-        command:
-        - /tectonic-x-operator
+        args:
+        - --manifest-dir=/manifests
         - --operator-name=tectonic-alm-operator
         - --appversion-name=tectonic-alm-operator
         - --v=2
