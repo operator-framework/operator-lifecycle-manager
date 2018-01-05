@@ -133,6 +133,16 @@
             "export KUBECONFIG=./kubeconfig",
         ],
 
+        waitForDeployment(deploymentName, namespace):: [
+            "n=0",
+            "until [ $n -ge 5 ]",
+            "do",
+            "kubectl rollout status -w deployment/%s --namespace=%s && break" % [deploymentName, namespace],
+            "n=$[$n+1]",
+            "sleep 1",
+            "done",
+        ],
+
         createNamespace(name):: [
             "kubectl create ns %s" % name + " || true",
         ],

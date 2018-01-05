@@ -46,7 +46,13 @@ local jobs = {
         // Docker Tag is the branch/tag name
         stage: stages.docker_build,
         before_script+: ["mkdir -p $PWD/bin"],
-        script: docker.build_and_push(images.ci.alm.name,
+        script: 
+                [
+                    'echo "sanity check catalog"',
+                    "make update-catalog",
+                    "git diff --exit-code",
+                ] +  
+                docker.build_and_push(images.ci.alm.name,
                                       cache=false,
                                       extra_opts=["-f alm-ci.Dockerfile"]) +
                 docker.build_and_push(images.ci.catalog.name,
@@ -60,8 +66,8 @@ local jobs = {
                 docker.build_and_push(images.prerelease.catalog.name,
                                       cache=false,
                                       extra_opts=["-f catalog-pre.Dockerfile"]) +
-                docker.build_and_push(images.e2e.name, 
-                                      cache=false, 
+                docker.build_and_push(images.e2e.name,
+                                      cache=false,
                                       extra_opts=["-f e2e-run.Dockerfile"]),
     },
 
@@ -103,7 +109,6 @@ local jobs = {
             catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
         },
         stage: stages.test_teardown,
-        when: "always",
     },
 
     // End2End tests
@@ -112,7 +117,6 @@ local jobs = {
     },
 
     e2e_tests: integration_test {
-        image: { name: images.e2e.name },
     },
 
     "deploy-preview": baseJob.Deploy {

@@ -2,6 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: e2e
+  namespace: {{ .Values.namespace }}
 spec:
   template:
     metadata:
@@ -9,7 +10,7 @@ spec:
     spec:
       containers:
       - name: e2e
-        image: quay.io/coreos/alm-e2e:local
+        image:  {{ .Values.e2e.image.ref }}
         command: ["./e2e/e2e.sh"]
         env:
         - name: NAMESPACE
