@@ -3,8 +3,10 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  namespace: placeholder
   name: vault-operator.0.1.6
+  namespace: placeholder
+  annotations:
+    tectonic-visibility: ocs
 spec:
   displayName: Vault
   description: |
