@@ -151,6 +151,8 @@ data:
       metadata:
         name: etcdoperator.v0.7.2
         namespace: placeholder
+        annotations:
+          tectonic-visibility: ocs
       spec:
         displayName: etcd
         description: |
@@ -304,7 +306,7 @@ data:
                   - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
               - description: The service at which the running etcd cluster can be accessed.
                 displayName: Service
-                path: service
+                path: serviceName
                 x-descriptors:
                   - 'urn:alm:descriptor:io.kubernetes:Service'
               - description: The current size of the etcd cluster.
@@ -331,6 +333,8 @@ data:
       metadata:
         name: prometheusoperator.0.15.0
         namespace: placeholder
+        annotations:
+          tectonic-visibility: ocs
       spec:
         displayName: Prometheus
         description: |
@@ -581,8 +585,10 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        namespace: placeholder
         name: vault-operator.0.1.6
+        namespace: placeholder
+        annotations:
+          tectonic-visibility: ocs
       spec:
         displayName: Vault
         description: |

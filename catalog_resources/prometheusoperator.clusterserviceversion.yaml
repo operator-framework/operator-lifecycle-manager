@@ -5,6 +5,8 @@ kind: ClusterServiceVersion-v1
 metadata:
   name: prometheusoperator.0.15.0
   namespace: placeholder
+  annotations:
+    tectonic-visibility: ocs
 spec:
   displayName: Prometheus
   description: |
