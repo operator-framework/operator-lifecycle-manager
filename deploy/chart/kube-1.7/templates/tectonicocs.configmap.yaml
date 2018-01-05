@@ -752,6 +752,8 @@ data:
               - description: The port at which the Vault cluster is running under the service.
                 displayName: Client Port
                 path: clientPort
+                x-descriptors:
+                  - 'urn:alm:descriptor:text'
           required:
           - name: etcdclusters.etcd.database.coreos.com
             version: v1beta2
