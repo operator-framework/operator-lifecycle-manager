@@ -128,6 +128,11 @@
     },
 
     k8s: {
+        setKubeConfig(kubeconfig):: [
+            "echo %s | base64 -d > kubeconfig" % kubeconfig, 
+            "export KUBECONFIG=./kubeconfig",
+        ],
+
         createNamespace(name):: [
             "kubectl create ns %s" % name + " || true",
         ],

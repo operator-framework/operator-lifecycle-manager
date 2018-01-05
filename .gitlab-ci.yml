@@ -82,6 +82,8 @@ deploy-preview:
   only:
   - branches
   script:
+  - echo $CD_KUBECONFIG | base64 -d > kubeconfig
+  - export KUBECONFIG=./kubeconfig
   - kubectl create ns ci-alm-${CI_COMMIT_REF_SLUG} || true
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
     || true
@@ -107,6 +109,8 @@ deploy-staging:
   only:
   - master
   script:
+  - echo $CD_KUBECONFIG | base64 -d > kubeconfig
+  - export KUBECONFIG=./kubeconfig
   - kubectl create ns ci-alm-staging || true
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
     || true
@@ -129,6 +133,8 @@ e2e-setup:
     url: https://alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
   image: quay.io/coreos/alm-ci-build:latest
   script:
+  - echo $CD_KUBECONFIG | base64 -d > kubeconfig
+  - export KUBECONFIG=./kubeconfig
   - kubectl create ns e2e-${CI_COMMIT_REF_SLUG} || true
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}
     || true
@@ -148,6 +154,8 @@ e2e-teardown:
     url: https://alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
   image: quay.io/coreos/alm-ci-build:latest
   script:
+  - echo $CD_KUBECONFIG | base64 -d > kubeconfig
+  - export KUBECONFIG=./kubeconfig
   - helm del --purge e2e-${CI_COMMIT_REF_SLUG}
   - kubectl delete ns e2e-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n e2e-${CI_COMMIT_REF_SLUG}
@@ -194,6 +202,8 @@ stop-preview:
   only:
   - branches
   script:
+  - echo $CD_KUBECONFIG | base64 -d > kubeconfig
+  - export KUBECONFIG=./kubeconfig
   - helm del --purge ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl delete ns ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n ci-alm-${CI_COMMIT_REF_SLUG}

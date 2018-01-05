@@ -87,6 +87,7 @@ local appr = utils.appr;
         ],
 
         script:
+            k8s.setKubeConfig("$CD_KUBECONFIG") +
             k8s.createNamespace(_vars.namespace) +
             k8s.createPullSecret("coreos-pull-secret",
                                  _vars.namespace,
@@ -106,7 +107,8 @@ local appr = utils.appr;
             action: "stop",
         },
         before_script: [],
-        script: [
+        script: 
+            k8s.setKubeConfig("$CD_KUBECONFIG") + [
             "helm del --purge %s" % self.localvars.appname,
             "kubectl delete ns %s" % self.localvars.namespace,
             "kubectl get pods -o wide -n %s" % self.localvars.namespace,
