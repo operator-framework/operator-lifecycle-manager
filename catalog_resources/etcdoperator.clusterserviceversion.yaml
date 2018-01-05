@@ -158,7 +158,7 @@ spec:
             - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
         - description: The service at which the running etcd cluster can be accessed.
           displayName: Service
-          path: service
+          path: serviceName
           x-descriptors:
             - 'urn:alm:descriptor:io.kubernetes:Service'
         - description: The current size of the etcd cluster.
