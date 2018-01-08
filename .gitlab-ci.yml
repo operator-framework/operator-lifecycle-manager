@@ -213,6 +213,7 @@ unit-tests:
   coverage: /\d\d\.\d.$/
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
+  - make codegen && git diff --exit-code
   - make vendor
   - make test-cover
   stage: tests
