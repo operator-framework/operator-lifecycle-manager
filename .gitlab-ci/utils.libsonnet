@@ -104,7 +104,7 @@
             ];
 
             std.join(" ", [
-                              "helm upgrade %s --install %s" % [appname, chartdir],
+                              "helm upgrade %s --force --install %s" % [appname, chartdir],
                               "--namespace=%s" % namespace,
                           ] +
                           set_opts +
@@ -134,13 +134,7 @@
         ],
 
         waitForDeployment(deploymentName, namespace):: [
-            "n=0",
-            "until [ $n -ge 5 ]",
-            "do",
-            "kubectl rollout status -w deployment/%s --namespace=%s && break" % [deploymentName, namespace],
-            "n=$[$n+1]",
-            "sleep 1",
-            "done",
+            "kubectl rollout status -w deployment/%s --namespace=%s" % [deploymentName, namespace],
         ],
 
         createNamespace(name):: [

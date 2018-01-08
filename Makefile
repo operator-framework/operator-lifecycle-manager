@@ -87,8 +87,7 @@ codegen:
 	hack/k8s/codegen/update-generated.sh
 
 update-catalog:
-	./hack/build_catalog_configmap.sh deploy/chart/kube-1.7/templates/tectonicocs.configmap.yaml
-	./hack/build_catalog_configmap.sh deploy/chart/kube-1.8/templates/08-tectonicocs.configmap.yaml
+	./update-catalog.sh
 
 MOCKGEN := $(GOBIN)/mockgen
 $(MOCKGEN):

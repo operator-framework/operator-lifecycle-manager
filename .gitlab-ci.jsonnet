@@ -47,11 +47,6 @@ local jobs = {
         stage: stages.docker_build,
         before_script+: ["mkdir -p $PWD/bin"],
         script: 
-                [
-                    'echo "sanity check catalog"',
-                    "make update-catalog",
-                    "git diff --exit-code",
-                ] +  
                 docker.build_and_push(images.ci.alm.name,
                                       cache=false,
                                       extra_opts=["-f alm-ci.Dockerfile"]) +
@@ -90,7 +85,11 @@ local jobs = {
 
     'unit-tests': unittest_stage {
         coverage: @"/\d\d\.\d.$/",
-        script: ["make vendor", "make test-cover"],
+        script: [
+            "make update-catalog && git diff --exit-code", 
+            "make vendor", 
+            "make test-cover"
+        ],
     },
 
     'e2e-setup': baseJob.Deploy {

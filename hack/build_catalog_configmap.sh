@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/usr/bin/env bash
 
 OUTFILE=${1:-'catalog_resources/tectonicocs.configmap.yaml'}
 NAMESPACE=${2:-'{{ .Values.catalog_namespace }}'}
@@ -20,7 +20,8 @@ do
   printf "    - " >> $OUTFILE
   head -n 1 $crd >> $OUTFILE
   tail -n +2 $crd | sed 's/^/      /' >> $OUTFILE
-  sed -E -i '' 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
+  # need -i.bak for mac/linux cross-compat
+  sed -E -i.bak 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
 done
 
 printf '  clusterServiceVersions: |-\n' >> $OUTFILE
@@ -29,6 +30,7 @@ for csv in catalog_resources/*.clusterserviceversion.yaml
 do
   printf "    - " >> $OUTFILE
   head -n 3 $csv | tail -n 1 >> $OUTFILE
+  # need -i.bak for mac/linux cross-compat
   tail -n +4 $csv | sed 's/^/      /' >> $OUTFILE
-  sed -E -i '' 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
+  sed -E -i.bak 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
 done

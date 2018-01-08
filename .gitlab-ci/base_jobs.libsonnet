@@ -91,6 +91,7 @@ local appr = utils.appr;
             params: {
                 "alm.image.ref": _vars.image.alm.name,
                 "catalog.image.ref": _vars.image.catalog.name,
+                "watchedNamespaces": _vars.namespace,
                 catalog_namespace: _vars.catalog_namespace,
                 namespace: _vars.namespace,
             },
@@ -138,7 +139,6 @@ local appr = utils.appr;
         before_script: [],
         script: 
             k8s.setKubeConfig("$CD_KUBECONFIG") + [
-            "helm del --purge %s" % self.localvars.appname,
             "kubectl delete ns %s" % self.localvars.namespace,
             "kubectl get pods -o wide -n %s" % self.localvars.namespace,
         ],

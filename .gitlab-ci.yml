@@ -23,9 +23,6 @@ container-build:
   - mkdir -p $PWD/bin
   image: docker:git
   script:
-  - echo "sanity check catalog"
-  - make update-catalog
-  - git diff --exit-code
   - 'docker build  --no-cache -f alm-ci.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   - 'docker build  --no-cache -f catalog-ci.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} . '
@@ -72,7 +69,7 @@ deploy-preview:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/kube-1.8/Chart.yaml'
   - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"tectonic-system\",
-    \"namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
+    \"namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\", \"watchedNamespaces\": \"ci-alm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
   - cat params.json
   environment:
     name: review/ci-alm-${CI_COMMIT_REF_SLUG}
@@ -90,22 +87,10 @@ deploy-preview:
   - kubectl create ns ci-alm-${CI_COMMIT_REF_SLUG} || true
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
     || true
-  - helm upgrade ci-alm-${CI_COMMIT_REF_SLUG} --install deploy/chart/kube-1.8 --namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-    --set catalog_namespace=tectonic-system --set namespace=ci-alm-${CI_COMMIT_REF_SLUG}
-  - n=0
-  - until [ $n -ge 5 ]
-  - do
-  - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG} && break
-  - n=$[$n+1]
-  - sleep 1
-  - done
-  - n=0
-  - until [ $n -ge 5 ]
-  - do
-  - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG} && break
-  - n=$[$n+1]
-  - sleep 1
-  - done
+  - helm upgrade ci-alm-${CI_COMMIT_REF_SLUG} --force --install deploy/chart/kube-1.8 --namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+    --set catalog_namespace=tectonic-system --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG}
+  - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
+  - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview
   tags:
   - kubernetes
@@ -117,7 +102,7 @@ deploy-staging:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/kube-1.8/Chart.yaml'
   - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
-    \"namespace\": \"ci-alm-staging\"}" > params.json'
+    \"namespace\": \"ci-alm-staging\", \"watchedNamespaces\": \"ci-alm-staging\"}" > params.json'
   - cat params.json
   environment:
     name: staging
@@ -131,22 +116,10 @@ deploy-staging:
   - kubectl create ns ci-alm-staging || true
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
     || true
-  - helm upgrade ci-alm-staging --install deploy/chart/kube-1.8 --namespace=ci-alm-staging --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
-    --set catalog_namespace=tectonic-system --set namespace=ci-alm-staging --force
-  - n=0
-  - until [ $n -ge 5 ]
-  - do
-  - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-staging && break
-  - n=$[$n+1]
-  - sleep 1
-  - done
-  - n=0
-  - until [ $n -ge 5 ]
-  - do
-  - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging && break
-  - n=$[$n+1]
-  - sleep 1
-  - done
+  - helm upgrade ci-alm-staging --force --install deploy/chart/kube-1.8 --namespace=ci-alm-staging --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
+    --set catalog_namespace=tectonic-system --set namespace=ci-alm-staging --set watchedNamespaces=ci-alm-staging --force
+  - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-staging
+  - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging
   stage: deploy_staging
   tags:
   - kubernetes
@@ -157,7 +130,7 @@ e2e-setup:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/kube-1.8/Chart.yaml'
   - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"e2e-${CI_COMMIT_REF_SLUG}\",
-    \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}\"}" > params.json'
+    \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}\"}" > params.json'
   - cat params.json
   environment:
     name: review/e2e-${CI_COMMIT_REF_SLUG}
@@ -169,22 +142,10 @@ e2e-setup:
   - kubectl create ns e2e-${CI_COMMIT_REF_SLUG} || true
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}
     || true
-  - helm upgrade e2e-${CI_COMMIT_REF_SLUG} --install deploy/chart/kube-1.8 --namespace=e2e-${CI_COMMIT_REF_SLUG} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-    --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG} --set namespace=e2e-${CI_COMMIT_REF_SLUG}
-  - n=0
-  - until [ $n -ge 5 ]
-  - do
-  - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG} && break
-  - n=$[$n+1]
-  - sleep 1
-  - done
-  - n=0
-  - until [ $n -ge 5 ]
-  - do
-  - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG} && break
-  - n=$[$n+1]
-  - sleep 1
-  - done
+  - helm upgrade e2e-${CI_COMMIT_REF_SLUG} --force --install deploy/chart/kube-1.8 --namespace=e2e-${CI_COMMIT_REF_SLUG} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+    --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG} --set namespace=e2e-${CI_COMMIT_REF_SLUG} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}
+  - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}
+  - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}
   stage: test_setup
   tags:
   - kubernetes
@@ -201,7 +162,6 @@ e2e-teardown:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - helm del --purge e2e-${CI_COMMIT_REF_SLUG}
   - kubectl delete ns e2e-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n e2e-${CI_COMMIT_REF_SLUG}
   stage: test_teardown
@@ -219,7 +179,7 @@ e2e_tests:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}
     || true
   - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'''
-  - helm upgrade e2e-${CI_COMMIT_REF_SLUG} --install e2e/chart --namespace=e2e-${CI_COMMIT_REF_SLUG} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}
+  - helm upgrade e2e-${CI_COMMIT_REF_SLUG} --force --install e2e/chart --namespace=e2e-${CI_COMMIT_REF_SLUG} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e -f
   - if kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e | grep -q 'not'; then exit 1; else exit 0; fi
@@ -255,7 +215,6 @@ stop-preview:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - helm del --purge ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl delete ns ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n ci-alm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview
@@ -274,6 +233,7 @@ unit-tests:
   coverage: /\d\d\.\d.$/
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
+  - make update-catalog && git diff --exit-code
   - make vendor
   - make test-cover
   stage: tests
