@@ -629,7 +629,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				}
 				mockClient.EXPECT().
 					FindAnyDeploymentsMatchingNames(depNames).
-					Return(mockedDeps)
+					Return(mockedDeps, nil)
 			}
 
 			for i := 1; i <= len(strategy.DeploymentSpecs); i++ {
@@ -641,13 +641,12 @@ func TestInstallStrategyDeployment(t *testing.T) {
 
 			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
 
-			installed, err := installer.CheckInstalled(strategy)
+			err := installer.CheckInstalled(strategy)
 			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
-				require.True(t, installed)
+				require.NoError(t, err)
 			} else {
-				require.False(t, installed)
+				require.Error(t, err)
 			}
-			assert.NoError(t, err)
 			assert.NoError(t, installer.Install(strategy))
 
 			ctrl.Finish()
@@ -673,7 +672,7 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
-	_, err := strategy.CheckInstalled(&BadStrategy{})
+	err := strategy.CheckInstalled(&BadStrategy{})
 	require.Error(t, err)
 }
 
@@ -736,18 +735,16 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 					Return(
 						[]*v1beta1.Deployment{
 							&dep,
-						},
+						}, nil,
 					)
 			}
 
-			installed, err := installer.CheckInstalled(strategy)
+			err := installer.CheckInstalled(strategy)
 
 			if skipInstall {
-				require.False(t, installed)
 				require.Error(t, err)
 				return
 			} else {
-				require.True(t, installed)
 				require.NoError(t, err)
 			}
 

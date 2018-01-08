@@ -129,7 +129,9 @@ const (
 	// CSVPhasePending means the csv has been accepted by the system, but the install strategy has not been attempted.
 	// This is likely because there are unmet requirements.
 	CSVPhasePending ClusterServiceVersionPhase = "Pending"
-	// CSVPhaseInstalling means that the requirements are met but the install strategy has not been run.
+	// CSVPhaseInstallReady means that the requirements are met but the install strategy has not been run.
+	CSVPhaseInstallReady ClusterServiceVersionPhase = "InstallReady"
+	// CSVPhaseInstalling means that the install strategy has been initiated but not completed.
 	CSVPhaseInstalling ClusterServiceVersionPhase = "Installing"
 	// CSVPhaseSucceeded means that the resources in the CSV were created successfully.
 	CSVPhaseSucceeded ClusterServiceVersionPhase = "Succeeded"
@@ -156,6 +158,7 @@ const (
 	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
 	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"
 	CSVReasonBeingReplaced       ConditionReason = "BeingReplaced"
+	CSVReasonReplaced            ConditionReason = "Replaced"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion

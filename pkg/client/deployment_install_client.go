@@ -20,7 +20,7 @@ type InstallStrategyDeploymentInterface interface {
 	CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
 	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
-	FindAnyDeploymentsMatchingNames(depNames []string) []*v1beta1extensions.Deployment
+	FindAnyDeploymentsMatchingNames(depNames []string) ([]*v1beta1extensions.Deployment, error)
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
@@ -89,12 +89,19 @@ func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(se
 	return c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccountName, metav1.GetOptions{})
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) (deployments []*v1beta1extensions.Deployment) {
+func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) ([]*v1beta1extensions.Deployment, error) {
+	var deployments []*v1beta1extensions.Deployment
 	for _, depName := range depNames {
 		fetchedDep, err := c.opClient.GetDeployment(c.Namespace, depName)
+
 		if err == nil {
 			deployments = append(deployments, fetchedDep)
+		} else {
+			// Any errors other than !exists are propagated up
+			if !apierrors.IsNotFound(err) {
+				return deployments, err
+			}
 		}
 	}
-	return
+	return deployments, nil
 }

@@ -142,11 +142,14 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 // state.
 func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
 
-	if replacement := a.isBeingReplaced(csv); replacement != nil {
-		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
-		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
-		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
-		return
+	// check if we should transition to Replacing first, because it short-circuits all other state transitions
+	if csv.Status.Phase != v1alpha1.CSVPhaseReplacing && csv.Status.Phase != v1alpha1.CSVPhaseDeleting {
+		if replacement := a.isBeingReplaced(csv); replacement != nil {
+			log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
+			msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
+			csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
+			return
+		}
 	}
 
 	switch csv.Status.Phase {
@@ -165,9 +168,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", csv.SelfLink)
-		csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
+		csv.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
 		csv.SetRequirementStatus(statuses)
-	case v1alpha1.CSVPhaseInstalling:
+	case v1alpha1.CSVPhaseInstallReady:
 		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 		if err != nil {
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
@@ -190,14 +193,54 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
 			return
 		} else {
-			log.Infof(
-				"%s install strategy successful for %s",
-				csv.Spec.InstallStrategy.StrategyName,
-				csv.SelfLink,
-			)
-			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+			csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
+			// TODO: setting an error requeus the object, won't be necessary if we can update based on the deployment events directly
+			syncError = fmt.Errorf("installing, requeue for another check")
 			return
 		}
+	case v1alpha1.CSVPhaseInstalling:
+		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+		if err != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
+			return
+		}
+
+		previousCSV := a.isReplacing(csv)
+		var previousStrategy install.Strategy
+		if previousCSV != nil {
+			previousStrategy, err = a.resolver.UnmarshalStrategy(previousCSV.Spec.InstallStrategy)
+			if err != nil {
+				previousStrategy = nil
+			}
+		}
+
+		strName := strategy.GetStrategyName()
+		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, previousStrategy)
+
+		strategyErr := installer.CheckInstalled(strategy)
+
+		// installcheck determined we can't progress (e.g. deployment failed to come up in time)
+		if install.IsErrorUnrecoverable(strategyErr) {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", err))
+			return
+		}
+
+		// if there's an error checking install that shouldn't fail the strategy requeue with message
+		if strategyErr != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, fmt.Sprintf("waiting for install to complete: %s", err))
+			// TODO: setting an error requeues the object, won't be necessary if we can update based on the deployment events directly
+			syncError = fmt.Errorf("installing, requeue for another check: %s", err.Error())
+			syncError = fmt.Errorf("installing, requeue for another check: %s", strategyErr.Error())
+			return
+		}
+
+		log.Infof(
+			"%s install strategy successful for %s",
+			csv.Spec.InstallStrategy.StrategyName,
+			csv.SelfLink,
+		)
+		csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+		return
 	case v1alpha1.CSVPhaseSucceeded:
 		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 		if err != nil {
@@ -215,17 +258,63 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		}
 		strName := strategy.GetStrategyName()
 		installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, previousStrategy)
-		installed, err := installer.CheckInstalled(strategy)
+		strategyErr := installer.CheckInstalled(strategy)
 
-		// if already installed, don't transition to pending if we can't query
-		if err != nil {
-			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install check failed: %s", err))
+		// installcheck determined we can't progress (e.g. deployment failed to come up in time)
+		if install.IsErrorUnrecoverable(strategyErr) {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", err))
 			return
 		}
 		// transition back to pending
-		if !installed {
+		if strategyErr != nil {
 			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonComponentUnhealthy, "component unhealthy, rechecking and re-installing")
 			return
+		}
+	case v1alpha1.CSVPhaseReplacing:
+		// if we're the oldest version being replaced (not replacing anything)
+		// and there exists a newer version in a replacement chain that installed successfully
+		// then we're safe to delete
+
+		// if there is a previous csv still in the cluster, not safe to delete csv yet
+		if prev := a.isReplacing(csv); prev != nil {
+			log.Debugf("%s is being replaced, but is not a leaf so we don't replace it for now.", csv.GetName())
+			return
+		}
+
+		// if we can find a newer version that's successfully installed, we're safe to delete
+		current := csv
+		next := a.isBeingReplaced(current)
+		for next != nil {
+			log.Debugf("checking to see if %s is running so we can delete %s", next.GetName(), csv.GetName())
+			nextStrategy, err := a.resolver.UnmarshalStrategy(next.Spec.InstallStrategy)
+			if err != nil {
+				log.Debugf("couldn't unmarshal strategy for %s", next.GetName())
+				continue
+			}
+
+			currentStrategy, err := a.resolver.UnmarshalStrategy(current.Spec.InstallStrategy)
+			if err != nil {
+				log.Debugf("couldn't unmarshal strategy for %s", current.GetName())
+				currentStrategy = nil
+			}
+
+			installer := a.resolver.InstallerForStrategy(nextStrategy.GetStrategyName(), a.OpClient, csv.ObjectMeta, currentStrategy)
+			strategyErr := installer.CheckInstalled(nextStrategy)
+
+			// found newer, installed CSV - safe to delete the current csv
+			if strategyErr == nil {
+				csv.SetPhase(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.")
+				return
+			}
+
+			log.Debugf("install strategy for %s is in an error state: %s, checking next", next.GetName(), err.Error())
+			current = next
+			next = a.isBeingReplaced(current)
+		}
+	case v1alpha1.CSVPhaseDeleting:
+		syncError := a.OpClient.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, csv.GetNamespace(), v1alpha1.ClusterServiceVersionKind, csv.GetName())
+		if syncError != nil {
+			log.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
 		}
 	}
 	return

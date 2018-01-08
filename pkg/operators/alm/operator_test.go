@@ -66,8 +66,8 @@ func (i *TestInstaller) Install(s install.Strategy) error {
 	return fmt.Errorf(i.state.errString)
 }
 
-func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
-	return i.state.checkInstall, i.state.checkInstallErr
+func (i *TestInstaller) CheckInstalled(s install.Strategy) error {
+	return i.state.checkInstallErr
 }
 
 func testCSV() *v1alpha1.ClusterServiceVersion {
@@ -135,8 +135,7 @@ type StateTransitionTestState struct {
 	in                  *v1alpha1.ClusterServiceVersion
 	out                 *v1alpha1.ClusterServiceVersion
 	mockCRDs            bool
-	mockCheckInstall    bool
-	checkInstall        bool
+	failStrategy        bool
 	checkInstallErr     error
 	mockApplyStrategy   bool
 	installApplySuccess bool
@@ -262,11 +261,11 @@ func TestCSVStateTransitions(t *testing.T) {
 					Phase: v1alpha1.CSVPhasePending,
 				}),
 			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:  v1alpha1.CSVPhaseInstalling,
+				Phase:  v1alpha1.CSVPhaseInstallReady,
 				Reason: v1alpha1.CSVReasonRequirementsMet,
 			}),
 			mockCRDs:    true,
-			description: "TransitionPendingToInstalling/RequirementsMet/OwnedAndRequiredFound",
+			description: "TransitionPendingToInstallReady/RequirementsMet/OwnedAndRequiredFound",
 		},
 		{
 			in: withStatus(withSpec(testCSV(),
@@ -279,11 +278,11 @@ func TestCSVStateTransitions(t *testing.T) {
 					Phase: v1alpha1.CSVPhasePending,
 				}),
 			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:  v1alpha1.CSVPhaseInstalling,
+				Phase:  v1alpha1.CSVPhaseInstallReady,
 				Reason: v1alpha1.CSVReasonRequirementsMet,
 			}),
 			mockCRDs:    true,
-			description: "TransitionPendingToInstalling/RequirementsMet/OwnedFound",
+			description: "TransitionPendingToInstallReady/RequirementsMet/OwnedFound",
 		},
 		{
 			in: withStatus(withSpec(testCSV(),
@@ -296,12 +295,13 @@ func TestCSVStateTransitions(t *testing.T) {
 					Phase: v1alpha1.CSVPhasePending,
 				}),
 			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:  v1alpha1.CSVPhaseInstalling,
+				Phase:  v1alpha1.CSVPhaseInstallReady,
 				Reason: v1alpha1.CSVReasonRequirementsMet,
 			}),
 			mockCRDs:    true,
-			description: "TransitionPendingToInstalling/RequirementsMet/RequiredFound",
+			description: "TransitionPendingToInstallReady/RequirementsMet/RequiredFound",
 		},
+		//TODO: transition InstallReady to Installing
 		{
 			in: withStatus(withSpec(testCSV(),
 				&v1alpha1.ClusterServiceVersionSpec{
@@ -311,17 +311,15 @@ func TestCSVStateTransitions(t *testing.T) {
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
+					Phase: v1alpha1.CSVPhaseInstallReady,
 				}),
 			out: withStatus(testCSV(), &v1alpha1.ClusterServiceVersionStatus{
 				Phase:  v1alpha1.CSVPhaseFailed,
 				Reason: v1alpha1.CSVReasonComponentFailed,
 			}),
-			mockCheckInstall:  true,
-			checkInstall:      false,
 			mockApplyStrategy: true,
 			errString:         "install failed",
-			description:       "TransitionInstallingToFailed/InstallComponentFailed",
+			description:       "TransitionInstallReadyToFailed/InstallComponentFailed",
 		},
 		{
 			in: withStatus(withSpec(testCSV(),
@@ -339,8 +337,6 @@ func TestCSVStateTransitions(t *testing.T) {
 				Reason: v1alpha1.CSVReasonInstallSuccessful,
 			}),
 			installApplySuccess: true,
-			mockCheckInstall:    true,
-			checkInstall:        true,
 			description:         "TransitionInstallingToSucceeded/InstallSucceeded",
 		},
 		{
@@ -359,9 +355,8 @@ func TestCSVStateTransitions(t *testing.T) {
 				Phase:  v1alpha1.CSVPhasePending,
 				Reason: v1alpha1.CSVReasonComponentUnhealthy,
 			}),
-			mockCheckInstall: true,
-			checkInstall:     false,
-			description:      "TransitionSucceededToPending/ComponentUnhealthy",
+			checkInstallErr: fmt.Errorf("component unhealthy"),
+			description:     "TransitionSucceededToPending/ComponentUnhealthy",
 		},
 	}
 
