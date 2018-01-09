@@ -88,7 +88,7 @@ deploy-preview:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
     || true
   - helm upgrade ci-alm-${CI_COMMIT_REF_SLUG} --force --install deploy/chart/kube-1.8 --namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-    --set catalog_namespace=tectonic-system --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG}
+    --set catalog_namespace=tectonic-system --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG} --force
   - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview
@@ -179,10 +179,13 @@ e2e_tests:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}
     || true
   - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'''
-  - helm upgrade e2e-${CI_COMMIT_REF_SLUG} --force --install e2e/chart --namespace=e2e-${CI_COMMIT_REF_SLUG} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}
+  - kubectl -n e2e-${CI_COMMIT_REF_SLUG} create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}:default --namespace=e2e-${CI_COMMIT_REF_SLUG} || true
+  - mkdir -p e2e/test-resources;pushd e2e/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+    --set namespace=e2e-${CI_COMMIT_REF_SLUG} -f e2e/e2e-values.yaml -x templates/${f} e2e/chart > e2e/test-resources/${f};done;
+  - kubectl apply -f e2e/test-resources
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e -f
-  - if kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e | grep -q 'not'; then exit 1; else exit 0; fi
+  - if kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e 2>&1 | grep -q 'not'; then kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs -l app=alm; exit 1; else exit 0; fi
   stage: tests
   tags:
   - kubernetes

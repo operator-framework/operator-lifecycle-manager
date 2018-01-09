@@ -14,7 +14,7 @@ echo "namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 echo "watchedNamespaces: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 echo "catalog_namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 
-./deploy/tectonic-alm-operator/package-release.sh ver=1.0.0-e2e e2e/resources ${tmpdir}/e2e-values.yaml
+./scripts/package-release.sh ver=1.0.0-e2e e2e/resources ${tmpdir}/e2e-values.yaml
 
 function cleanup {
  	kubectl delete namespace ${namespace}
@@ -34,7 +34,7 @@ function cleanupAndExit {
 
 trap cleanupAndExit SIGINT SIGTERM EXIT
 
-./Documentation/install/install_local.sh ${namespace} e2e/resources
+./scripts/install_local.sh ${namespace} e2e/resources
 
 mkdir -p e2e/test-resources
 

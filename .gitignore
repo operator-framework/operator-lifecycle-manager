@@ -460,3 +460,4 @@ __pycache__/
 *.xsd.cs
 vendor
 e2e/resources/*
+*.bak

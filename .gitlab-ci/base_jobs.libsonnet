@@ -33,6 +33,10 @@ local appr = utils.appr;
 
     EndToEndTest: {
         local _vars = self.localvars,
+        local set_opts = [
+            "--set %s=%s" % [key, _vars.params[key]]
+            for key in std.objectFields(_vars.params)
+        ],
         localvars:: {
             appname: self.namespace,
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
@@ -42,29 +46,38 @@ local appr = utils.appr;
             params: {
                 namespace: _vars.namespace,
                 "e2e.image.ref": vars.images.e2e.name,
-            }, 
+            },
             patch: "{\"imagePullSecrets\": [{\"name\": \"coreos-pull-secret\"}]}",
         },
         image: "quay.io/coreos/alm-ci-build:latest",
-        script: 
+        script:
             k8s.setKubeConfig("$CD_KUBECONFIG") +
             k8s.createPullSecret("coreos-pull-secret",
-                        _vars.namespace,
-                        "quay.io",
-                        "$DOCKER_USER",
-                        "$DOCKER_PASS") +
+                                 _vars.namespace,
+                                 "quay.io",
+                                 "$DOCKER_USER",
+                                 "$DOCKER_PASS") +
             [
                 'kubectl -n %s patch serviceaccount default -p %s' % [_vars.namespace, std.escapeStringBash(_vars.patch)],
             ] +
-            helm.upgrade(_vars.chart,
-                         _vars.appname,
-                         _vars.namespace,
-                         _vars.params,
-                         _vars.helm_opts) +
             [
-            "until kubectl -n %s logs job/e2e | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % _vars.namespace,
-            "kubectl -n %s logs job/e2e -f" % _vars.namespace,
-            "if kubectl -n %s logs job/e2e | grep -q 'not'; then exit 1; else exit 0; fi" % _vars.namespace,
+                'kubectl -n %s create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=%s:default --namespace=%s || true' % [_vars.namespace, _vars.namespace, _vars.namespace],
+            ] +
+            [
+                "mkdir -p e2e/test-resources;" + 
+                "pushd e2e/chart/templates;" + 
+                "filenames=$(ls *.yaml);" +
+                "popd;" +
+                "for f in ${filenames};" + 
+                "do " +
+                "helm template --set namespace=%s %s -f e2e/e2e-values.yaml -x templates/${f} e2e/chart > e2e/test-resources/${f};" % [_vars.namespace, std.join(" ", set_opts)] +
+                "done;" 
+            ] + 
+            ["kubectl apply -f e2e/test-resources"] +
+            [
+                "until kubectl -n %s logs job/e2e | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % _vars.namespace,
+                "kubectl -n %s logs job/e2e -f" % _vars.namespace,
+                "if kubectl -n %s logs job/e2e 2>&1 | grep -q 'not'; then kubectl -n %s logs -l app=alm; exit 1; else exit 0; fi" % [_vars.namespace, _vars.namespace],
             ],
 
         variables: {
@@ -91,7 +104,7 @@ local appr = utils.appr;
             params: {
                 "alm.image.ref": _vars.image.alm.name,
                 "catalog.image.ref": _vars.image.catalog.name,
-                "watchedNamespaces": _vars.namespace,
+                watchedNamespaces: _vars.namespace,
                 catalog_namespace: _vars.catalog_namespace,
                 namespace: _vars.namespace,
             },
@@ -126,9 +139,9 @@ local appr = utils.appr;
                          _vars.appname,
                          _vars.namespace,
                          _vars.params,
-                         _vars.helm_opts) + 
+                         _vars.helm_opts) +
             k8s.waitForDeployment("alm-operator", _vars.namespace) +
-            k8s.waitForDeployment("catalog-operator", _vars.namespace)
+            k8s.waitForDeployment("catalog-operator", _vars.namespace),
     } + job_tags,
 
     DeployStop: self.Deploy {
@@ -137,11 +150,11 @@ local appr = utils.appr;
             action: "stop",
         },
         before_script: [],
-        script: 
+        script:
             k8s.setKubeConfig("$CD_KUBECONFIG") + [
-            "kubectl delete ns %s" % self.localvars.namespace,
-            "kubectl get pods -o wide -n %s" % self.localvars.namespace,
-        ],
+                "kubectl delete ns %s" % self.localvars.namespace,
+                "kubectl get pods -o wide -n %s" % self.localvars.namespace,
+            ],
     } + job_tags,
 
 }

@@ -36,18 +36,18 @@ coverage-html: cover
 	go tool cover -html=cover.out
 
 run-local: update-catalog
-	./deploy/tectonic-alm-operator/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
-	./Documentation/install/build_local.sh
-	./Documentation/install/install_local.sh local Documentation/install/resources
+	./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
+	./scripts/build_local.sh
+	./scripts/install_local.sh local Documentation/install/resources
 	rm -rf Documentation/install/resources
 
 e2e-local: update-catalog
-	./Documentation/install/build_local.sh
-	./e2e/run_e2e_local.sh
+	./scripts/build_local.sh
+	./scripts/run_e2e_local.sh
 
 e2e-local-docker: update-catalog
-	./Documentation/install/build_local.sh
-	./e2e/run_e2e_docker.sh
+	./scripts/build_local.sh
+	./scripts/run_e2e_docker.sh
 
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
@@ -84,10 +84,10 @@ gen-ci: fmt-ci
 	ffctl gen
 
 codegen:
-	hack/k8s/codegen/update-generated.sh
+	./scripts/hack/k8s/codegen/update-generated.sh
 
 update-catalog:
-	./update-catalog.sh
+	./scripts/update-catalog.sh
 
 MOCKGEN := $(GOBIN)/mockgen
 $(MOCKGEN):
@@ -108,4 +108,4 @@ make gen-all: gen-ci codegen generate-mock-client
 
 # make ver=0.3.0 package
 make release: update-catalog
-	./deploy/tectonic-alm-operator/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
+	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml

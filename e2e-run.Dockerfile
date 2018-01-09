@@ -4,4 +4,4 @@ RUN apt-get update && apt-get install -y jq
 COPY . .
 RUN make vendor-update
 RUN go test -c -o /bin/e2e ./e2e/...
-CMD ["./e2e/e2e.sh"]
+CMD ["/bin/e2e"]
