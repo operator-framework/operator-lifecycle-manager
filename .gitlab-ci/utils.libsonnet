@@ -96,6 +96,26 @@
     },
 
     helm: {
+        templateApply(chartdir, namespace, vars={}):: [
+            local set_opts = [
+                "--set %s=%s" % [key, vars[key]]
+                for key in std.objectFields(vars)
+            ];
+            
+            std.join(" ", [
+                "charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;"+
+                "mkdir -p ${charttmpdir};" + 
+                "pushd %s/templates;" % chartdir + 
+                "filenames=$(ls *.yaml);" +
+                "popd;" +
+                "for f in ${filenames};" + 
+                "do " +
+                "helm template --set namespace=%s %s -x templates/${f} %s > ${charttmpdir}/${f};" % [namespace, chartdir, std.join(" ", set_opts)] +
+                "done;" +
+                "kubectl apply -f ${charttmpdir}"
+            ]),
+        ], 
+
         // uses app-registry
         upgrade(chartdir, appname, namespace="default", vars={}, extra_opts=[]):: [
 
