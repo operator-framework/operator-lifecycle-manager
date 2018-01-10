@@ -7,6 +7,8 @@ metadata:
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
+  labels: 
+    alm-catalog: tectonic-ocs
 spec:
   displayName: Prometheus
   description: |
