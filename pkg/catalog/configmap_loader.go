@@ -72,7 +72,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 
 		for _, csv := range parsedCSVList {
 			found = true
-			d.Catalog.SetCSVDefinition(csv)
+			d.Catalog.setCSVDefinition(csv)
 		}
 	}
 
