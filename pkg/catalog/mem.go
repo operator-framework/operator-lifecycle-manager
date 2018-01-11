@@ -216,8 +216,8 @@ func (m *InMem) FindCSVByName(name string) (*v1alpha1.ClusterServiceVersion, err
 	return &csv, nil
 }
 
-// findReplacementForName looks up any CSV in the catalog that replaces the given xservice
-func (m *InMem) findReplacementForName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+// FindReplacementCSVForCSVName looks up any CSV in the catalog that replaces the given CSV, if any.
+func (m *InMem) FindReplacementCSVForName(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csvMetadata, ok := m.replaces[name]
 	if !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion that replaces %s", name)
