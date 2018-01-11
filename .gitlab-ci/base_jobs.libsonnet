@@ -34,10 +34,38 @@ local appr = utils.appr;
     EndToEndTest: {
         local _vars = self.localvars,
         localvars:: {
+            appname: self.namespace,
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+            chart: "e2e/chart",
+            appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
+            helm_opts: [],
+            params: {
+                namespace: _vars.namespace,
+                "e2e.image.ref": vars.images.e2e.name,
+            },
+            patch: "{\"imagePullSecrets\": [{\"name\": \"coreos-pull-secret\"}]}",
         },
-        image: vars.images.e2e.name,
-        script: ['./e2e/e2e.sh'],
+        image: "quay.io/coreos/alm-ci-build:latest",
+        script:
+            k8s.setKubeConfig("$CD_KUBECONFIG") +
+            k8s.createPullSecret("coreos-pull-secret",
+                                 _vars.namespace,
+                                 "quay.io",
+                                 "$DOCKER_USER",
+                                 "$DOCKER_PASS") +
+            [
+                'kubectl -n %s patch serviceaccount default -p %s' % [_vars.namespace, std.escapeStringBash(_vars.patch)],
+            ] +
+            [
+                'kubectl -n %s create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=%s:default --namespace=%s || true' % [_vars.namespace, _vars.namespace, _vars.namespace],
+            ] +
+            helm.templateApply(_vars.chart, _vars.namespace, _vars.params) +
+            [
+                "until kubectl -n %s logs job/e2e | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % _vars.namespace,
+                "kubectl -n %s logs job/e2e -f" % _vars.namespace,
+                "if kubectl -n %s logs job/e2e 2>&1 | grep -q 'not'; then kubectl -n %s logs -l app=alm; exit 1; else exit 0; fi" % [_vars.namespace, _vars.namespace],
+            ],
+
         variables: {
             NAMESPACE: _vars.namespace,
             K8S_NAMESPACE: _vars.namespace,
@@ -51,7 +79,7 @@ local appr = utils.appr;
             appversion: "1.0.0-%s" % self.image.alm.tag,
             apprepo: "quay.io/coreos/alm-ci-app",
             appname: self.namespace,
-            chart: "deploy/chart/kube-1.7",
+            chart: "deploy/chart/kube-1.8",
             app: "%s@%s" % [self.apprepo, self.appversion],
             domain: "alm-%s.k8s.devtable.com" % "${CI_COMMIT_REF_SLUG}",
             namespace: "ci-alm-%s" % "${CI_COMMIT_REF_SLUG}",
@@ -60,10 +88,9 @@ local appr = utils.appr;
             channel: null,
             helm_opts: [],
             params: {
-                "alm.image.repository": _vars.image.alm.repo,
-                "alm.image.tag": _vars.image.alm.tag,
-                "catalog.image.repository": _vars.image.catalog.repo,
-                "catalog.image.tag": _vars.image.catalog.tag,
+                "alm.image.ref": _vars.image.alm.name,
+                "catalog.image.ref": _vars.image.catalog.name,
+                watchedNamespaces: _vars.namespace,
                 catalog_namespace: _vars.catalog_namespace,
                 namespace: _vars.namespace,
             },
@@ -87,17 +114,16 @@ local appr = utils.appr;
         ],
 
         script:
+            k8s.setKubeConfig("$CD_KUBECONFIG") +
             k8s.createNamespace(_vars.namespace) +
             k8s.createPullSecret("coreos-pull-secret",
                                  _vars.namespace,
                                  "quay.io",
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
-            helm.upgrade(_vars.chart,
-                         _vars.appname,
-                         _vars.namespace,
-                         _vars.params,
-                         _vars.helm_opts),
+            helm.templateApply(_vars.chart, _vars.namespace, _vars.params) +
+            k8s.waitForDeployment("alm-operator", _vars.namespace) +
+            k8s.waitForDeployment("catalog-operator", _vars.namespace),
     } + job_tags,
 
     DeployStop: self.Deploy {
@@ -106,11 +132,11 @@ local appr = utils.appr;
             action: "stop",
         },
         before_script: [],
-        script: [
-            "helm del --purge %s" % self.localvars.appname,
-            "kubectl delete ns %s" % self.localvars.namespace,
-            "kubectl get pods -o wide -n %s" % self.localvars.namespace,
-        ],
+        script:
+            k8s.setKubeConfig("$CD_KUBECONFIG") + [
+                "kubectl delete ns %s" % self.localvars.namespace,
+                "kubectl get pods -o wide -n %s" % self.localvars.namespace,
+            ],
     } + job_tags,
 
 }

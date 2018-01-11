@@ -96,15 +96,37 @@
     },
 
     helm: {
+        templateApply(chartdir, namespace, vars={}):: [
+            local set_opts = [
+                "--set %s=%s" % [key, vars[key]]
+                for key in std.objectFields(vars)
+            ];
+            
+            std.join(" ", [
+                "charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;"+
+                "mkdir -p ${charttmpdir};" + 
+                "pushd %s/templates;" % chartdir + 
+                "filenames=$(ls *.yaml);" +
+                "popd;" +
+                "for f in ${filenames};" + 
+                "do " +
+                "helm template --set namespace=%s %s -x templates/${f} %s > ${charttmpdir}/${f};" % [namespace, chartdir, std.join(" ", set_opts)] +
+                "done;" +
+                "kubectl apply -f ${charttmpdir}"
+            ]),
+        ], 
+
         // uses app-registry
         upgrade(chartdir, appname, namespace="default", vars={}, extra_opts=[]):: [
+
             local set_opts = [
                 "--set %s=%s" % [key, vars[key]]
                 for key in std.objectFields(vars)
             ];
 
-            std.join(" ", [
-                              "helm upgrade %s --install %s" % [appname, chartdir],
+            std.join(" ",
+                          [
+                              "helm upgrade %s --force --install %s" % [appname, chartdir],
                               "--namespace=%s" % namespace,
                           ] +
                           set_opts +
@@ -128,6 +150,15 @@
     },
 
     k8s: {
+        setKubeConfig(kubeconfig):: [
+            "echo %s | base64 -d > kubeconfig" % kubeconfig, 
+            "export KUBECONFIG=./kubeconfig",
+        ],
+
+        waitForDeployment(deploymentName, namespace):: [
+            "kubectl rollout status -w deployment/%s --namespace=%s" % [deploymentName, namespace],
+        ],
+
         createNamespace(name):: [
             "kubectl create ns %s" % name + " || true",
         ],

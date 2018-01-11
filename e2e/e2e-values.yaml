@@ -14,3 +14,6 @@ catalog:
   service:
     internalPort: 8080
 
+e2e:
+  image:
+    ref: quay.io/coreos/alm-e2e:local

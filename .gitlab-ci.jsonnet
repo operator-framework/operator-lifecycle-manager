@@ -46,23 +46,24 @@ local jobs = {
         // Docker Tag is the branch/tag name
         stage: stages.docker_build,
         before_script+: ["mkdir -p $PWD/bin"],
-        script: docker.build_and_push(images.ci.alm.name,
-                                      cache=false,
-                                      extra_opts=["-f alm-ci.Dockerfile"]) +
-                docker.build_and_push(images.ci.catalog.name,
-                                      cache=false,
-                                      extra_opts=["-f catalog-ci.Dockerfile"]) +
-                docker.cp(images.ci.alm.name, src="/bin/alm", dest="bin/alm") +
-                docker.cp(images.ci.catalog.name, src="/bin/catalog", dest="bin/catalog") +
-                docker.build_and_push(images.prerelease.alm.name,
-                                      cache=false,
-                                      extra_opts=["-f alm-pre.Dockerfile"]) +
-                docker.build_and_push(images.prerelease.catalog.name,
-                                      cache=false,
-                                      extra_opts=["-f catalog-pre.Dockerfile"]) +
-                docker.build_and_push(images.e2e.name, 
-                                      cache=false, 
-                                      extra_opts=["-f e2e-run.Dockerfile"]),
+        script:
+            docker.build_and_push(images.ci.alm.name,
+                                  cache=false,
+                                  extra_opts=["-f alm-ci.Dockerfile"]) +
+            docker.build_and_push(images.ci.catalog.name,
+                                  cache=false,
+                                  extra_opts=["-f catalog-ci.Dockerfile"]) +
+            docker.cp(images.ci.alm.name, src="/bin/alm", dest="bin/alm") +
+            docker.cp(images.ci.catalog.name, src="/bin/catalog", dest="bin/catalog") +
+            docker.build_and_push(images.prerelease.alm.name,
+                                  cache=false,
+                                  extra_opts=["-f alm-pre.Dockerfile"]) +
+            docker.build_and_push(images.prerelease.catalog.name,
+                                  cache=false,
+                                  extra_opts=["-f catalog-pre.Dockerfile"]) +
+            docker.build_and_push(images.e2e.name,
+                                  cache=false,
+                                  extra_opts=["-f e2e-run.Dockerfile"]),
     },
 
     'container-release': baseJob.dockerBuild {
@@ -84,7 +85,11 @@ local jobs = {
 
     'unit-tests': unittest_stage {
         coverage: @"/\d\d\.\d.$/",
-        script: ["make vendor", "make test-cover"],
+        script: [
+            "make update-catalog && git diff --exit-code",
+            "make vendor",
+            "make test-cover",
+        ],
     },
 
     'e2e-setup': baseJob.Deploy {
@@ -103,7 +108,6 @@ local jobs = {
             catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
         },
         stage: stages.test_teardown,
-        when: "always",
     },
 
     // End2End tests
@@ -112,11 +116,13 @@ local jobs = {
     },
 
     e2e_tests: integration_test {
-        image: { name: images.e2e.name },
     },
 
     "deploy-preview": baseJob.Deploy {
         local _vars = self.localvars,
+        localvars+:: {
+            helm_opts: ["--force"],
+        },
         stage: stages.deploy_preview,
         when: "manual",
         environment+: {

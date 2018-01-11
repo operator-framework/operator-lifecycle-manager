@@ -17,5 +17,5 @@ for group in ${api_groups[@]}; do
         github.com/coreos-inc/alm/pkg/generated \
         github.com/coreos-inc/alm/pkg/apis \
         $group \
-        --go-header-file "./hack/k8s/codegen/boilerplate.go.txt"
+        --go-header-file "./scripts/hack/k8s/codegen/boilerplate.go.txt"
 done
