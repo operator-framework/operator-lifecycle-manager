@@ -80,7 +80,7 @@ func TestFindClusterServiceVersionByNameAndVersion(t *testing.T) {
 	compareResources(t, &testCSVResource, foundCSV)
 }
 
-func TestFindReplacementByName(t *testing.T) {
+func TestFindReplacementCSVForName(t *testing.T) {
 	var (
 		testCSVName = "mockservice-operator.stable"
 
@@ -126,7 +126,7 @@ func TestFindReplacementByName(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceLatest)
 	catalog.AddOrReplaceService(otherTestCSVResource)
 
-	foundCSV, err := catalog.findReplacementForName(testReplacesName)
+	foundCSV, err := catalog.FindReplacementCSVForName(testReplacesName)
 	assert.NoError(t, err)
 	assert.Equal(t, testCSVName, foundCSV.GetName())
 	assert.Equal(t, testCSVLatestVersion, foundCSV.Spec.Version.String(),

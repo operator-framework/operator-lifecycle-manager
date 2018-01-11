@@ -7,11 +7,13 @@ import (
 )
 
 // Catalog Source
-//    - Map name to AppTypeClusterServiceVersion
+//    - Map name to ClusterServiceVersion
 //    - Map CRD to CRD definition
-//    - Map CRD to AppTypeClusterServiceVersion that manages it
+//    - Map CRD to ClusterServiceVersion that manages it
 
 type Source interface {
+	FindReplacementCSVForName(name string) (*v1alpha1.ClusterServiceVersion, error)
+
 	FindCSVByName(name string) (*v1alpha1.ClusterServiceVersion, error)
 	ListServices() ([]v1alpha1.ClusterServiceVersion, error)
 
