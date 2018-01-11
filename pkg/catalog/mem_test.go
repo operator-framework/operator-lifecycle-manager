@@ -48,15 +48,15 @@ func createCSV(name, version, replaces string, owned []string) v1alpha1.ClusterS
 	}
 }
 
-// If there are multiple versions of a CSV, FindClusterServiceVersionByServiceName gets the latest one
+// If there are multiple versions of a CSV, FindClusterServiceVersionByName gets the latest one
 // If there are multiple versions of a CSV, FindClusterServiceVersionByReplaces should be able to retrieve any of them (according to replaces field value)
 // If I query for a crd by name, I get a crd that I can deserialize into a thing I kubernetes recognizes as a real CRD.
 // We can make multiple queries for different services and get the right CSVs out.
 // A full dependency test, where we can get a CSV by service name, read it's crd requirements, get its CRDs, and for each of them, get the corresponding owner CSV.
 
-func TestFindClusterServiceVersionByServiceNameAndVersion(t *testing.T) {
+func TestFindClusterServiceVersionByNameAndVersion(t *testing.T) {
 	var (
-		testCSVName    = "MockServiceName-v1"
+		testCSVName    = "MockName-v1"
 		testCSVVersion = "0.2.4+alpha"
 		testCRDName    = "MockServiceResource-v2"
 	)
@@ -73,14 +73,14 @@ func TestFindClusterServiceVersionByServiceNameAndVersion(t *testing.T) {
 	catalog.setOrReplaceCRDDefinition(testCRDDefinition)
 	catalog.AddOrReplaceService(testCSVResource)
 
-	foundCSV, err := catalog.FindLatestCSVByServiceName(testCSVName)
+	foundCSV, err := catalog.FindCSVByName(testCSVName)
 	assert.NoError(t, err)
 	assert.Equal(t, testCSVName, foundCSV.GetName())
 	assert.Equal(t, testCSVVersion, foundCSV.Spec.Version.String())
 	compareResources(t, &testCSVResource, foundCSV)
 }
 
-func TestFindReplacementByServiceName(t *testing.T) {
+func TestFindReplacementByName(t *testing.T) {
 	var (
 		testCSVName = "mockservice-operator.stable"
 
@@ -126,48 +126,10 @@ func TestFindReplacementByServiceName(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceLatest)
 	catalog.AddOrReplaceService(otherTestCSVResource)
 
-	foundCSV, err := catalog.findReplacementForServiceName(testReplacesName)
+	foundCSV, err := catalog.findReplacementForName(testReplacesName)
 	assert.NoError(t, err)
 	assert.Equal(t, testCSVName, foundCSV.GetName())
 	assert.Equal(t, testCSVLatestVersion, foundCSV.Spec.Version.String(),
 		"did not get latest version of CSV")
 	compareResources(t, &testCSVResourceLatest, foundCSV)
-}
-
-func TestListCSVsForServiceName(t *testing.T) {
-	var (
-		testCSVName     = "MockServiceName-v1"
-		testCSVVersion1 = "0.2.4+alpha"
-		testCSVVersion2 = "1.0.1"
-
-		testCRDName = "MockServiceResource-v2"
-	)
-
-	testCSVResource1 := createCSV(testCSVName, testCSVVersion1, "", []string{testCRDName})
-
-	testCSVResource2 := createCSV(testCSVName, testCSVVersion2, "", []string{testCRDName})
-
-	testCRDDefinition := v1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: testCRDName,
-		},
-	}
-
-	catalog := NewInMem()
-	catalog.setOrReplaceCRDDefinition(testCRDDefinition)
-	catalog.AddOrReplaceService(testCSVResource1)
-	catalog.AddOrReplaceService(testCSVResource2)
-
-	csvs, err := catalog.listCSVsForServiceName(testCSVName)
-
-	assert.NoError(t, err)
-	assert.Equal(t, 2, len(csvs))
-
-	assert.Equal(t, testCSVName, csvs[0].GetName())
-	assert.Equal(t, testCSVName, csvs[1].GetName())
-
-	assert.Equal(t, testCSVVersion1, csvs[0].Spec.Version.String())
-	assert.Equal(t, testCSVVersion2, csvs[1].Spec.Version.String())
-	compareResources(t, testCSVResource1, csvs[0])
-	compareResources(t, testCSVResource2, csvs[1])
 }

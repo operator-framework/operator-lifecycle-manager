@@ -165,14 +165,11 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 
 	testCSVNameB := "MockServiceNameB-v1"
 	testCSVVersionB1 := "1.0.1"
-	testCSVVersionB2 := "2.1.4"
 
 	testCSVA1 := createCSV(testCSVNameA, testCSVVersionA1, "", []string{})
 	testCSVB1 := createCSV(testCSVNameB, testCSVVersionB1, "", []string{})
-	testCSVB2 := createCSV(testCSVNameB, testCSVVersionB2, "", []string{})
 	src.AddOrReplaceService(testCSVA1)
 	src.AddOrReplaceService(testCSVB1)
-	src.AddOrReplaceService(testCSVB2)
 
 	storeResults := []struct {
 		ResultA1 *v1alpha1.UICatalogEntry
@@ -181,27 +178,21 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 		ResultB1 *v1alpha1.UICatalogEntry
 		ErrorB1  error
 
-		ResultB2 *v1alpha1.UICatalogEntry
-		ErrorB2  error
-
 		ExpectedStatus         string
 		ExpectedServicesSynced int
 	}{
 		{
 			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
 			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
-			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
-			"success", 3,
+			"success", 2,
 		},
 		{
 			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameA}}, nil,
 			nil, errors.New("test error"),
-			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
-			"error", 2,
+			"error", 1,
 		},
 		{
 			nil, errors.New("test error1"),
-			nil, errors.New("test error2"),
 			&v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: testCSVNameB}}, nil,
 			"error", 1,
 		},
@@ -210,7 +201,6 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 	for _, res := range storeResults {
 		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVA1)).Return(res.ResultA1, res.ErrorA1)
 		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVB1)).Return(res.ResultB1, res.ErrorB1)
-		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVB2)).Return(res.ResultB2, res.ErrorB2)
 		entries, err := store.Sync(src)
 		assert.Equal(t, res.ExpectedServicesSynced, len(entries))
 		assert.Equal(t, res.ExpectedStatus, store.LastAttemptedSync.Status)

@@ -372,7 +372,7 @@ func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMa
 		}
 
 		// Get the full CSV object for the name.
-		csv, err := source.FindLatestCSVByServiceName(currentName)
+		csv, err := source.FindCSVByName(currentName)
 		if err != nil {
 			return nil, err
 		}
