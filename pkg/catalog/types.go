@@ -12,7 +12,7 @@ import (
 //    - Map CRD to AppTypeClusterServiceVersion that manages it
 
 type Source interface {
-	FindLatestCSVByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error)
+	FindCSVByName(name string) (*v1alpha1.ClusterServiceVersion, error)
 	ListServices() ([]v1alpha1.ClusterServiceVersion, error)
 
 	FindCRDByKey(key CRDKey) (*v1beta1.CustomResourceDefinition, error)

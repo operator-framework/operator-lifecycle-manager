@@ -2,8 +2,6 @@ package catalog
 
 import (
 	"fmt"
-	"reflect"
-	"sort"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -27,8 +25,8 @@ func (k CRDKey) String() string {
 }
 
 type InMem struct {
-	// map ClusterServiceVersion name to a nested mapping of versions to their resource definition
-	clusterservices map[string]map[string]v1alpha1.ClusterServiceVersion
+	// map ClusterServiceVersion name to to their resource definition
+	clusterservices map[string]v1alpha1.ClusterServiceVersion
 
 	// map ClusterServiceVersions by name to metadata for the CSV that replaces it
 	replaces map[string]CSVMetadata
@@ -61,7 +59,7 @@ func NewInMemoryFromConfigMap(cmClient client.ConfigMapClient, namespace, cmName
 // NewInMem returns a ptr to a new InMem instance
 func NewInMem() *InMem {
 	return &InMem{
-		clusterservices: map[string]map[string]v1alpha1.ClusterServiceVersion{},
+		clusterservices: map[string]v1alpha1.ClusterServiceVersion{},
 		replaces:        map[string]CSVMetadata{},
 		crdToCSV:        map[CRDKey]string{},
 		crds:            map[CRDKey]v1beta1.CustomResourceDefinition{},
@@ -98,16 +96,6 @@ func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error
 	version := csv.Spec.Version.String()
 
 	errs := []error{}
-
-	// validate csv doesn't already exist and no other csv manages the same crds
-	if _, exists := m.clusterservices[name]; !exists {
-		m.clusterservices[name] = map[string]v1alpha1.ClusterServiceVersion{}
-	}
-	if currCSV, exists := m.clusterservices[name][version]; exists {
-		if !reflect.DeepEqual(currCSV, csv) {
-			errs = append(errs, fmt.Errorf("existing definition for CSV %s", name))
-		}
-	}
 
 	// validate csv doesn't replace a csv that already has a replacement
 	if replaces := csv.Spec.Replaces; replaces != "" {
@@ -153,7 +141,7 @@ func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error
 // will error if `safe` is true and conflicts are found
 func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error {
 	name := csv.GetName()
-	version := csv.Spec.Version.String()
+
 	// find and log any conflicts; return with error if in `safe` mode
 	if conflicts := m.findServiceConflicts(csv); len(conflicts) > 0 {
 		log.Debugf("found conflicts for CSV %s: %v", name, conflicts)
@@ -163,13 +151,13 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 	}
 
 	// add service
-	m.clusterservices[name][version] = csv
+	m.clusterservices[name] = csv
 
 	// register it as replacing CSV from its spec, if any
 	if csv.Spec.Replaces != "" {
 		m.replaces[csv.Spec.Replaces] = CSVMetadata{
 			Name:    name,
-			Version: version,
+			Version: csv.Spec.Version.String(),
 		}
 	}
 
@@ -198,16 +186,14 @@ func (m *InMem) AddOrReplaceService(csv v1alpha1.ClusterServiceVersion) {
 
 // removeService is a helper fn to delete a service from the catalog
 func (m *InMem) removeService(name string) error {
-	foundCSVs, exists := m.clusterservices[name]
-	if !exists || len(foundCSVs) < 1 {
+	csv, exists := m.clusterservices[name]
+	if !exists {
 		return fmt.Errorf("not found: ClusterServiceVersion %s", name)
 	}
 
 	delete(m.clusterservices, name)
-	for _, csv := range foundCSVs {
-		if csv.Spec.Replaces != "" {
-			delete(m.replaces, csv.Spec.Replaces)
-		}
+	if csv.Spec.Replaces != "" {
+		delete(m.replaces, csv.Spec.Replaces)
 	}
 
 	// remove any crd's registered as managed by service
@@ -216,84 +202,35 @@ func (m *InMem) removeService(name string) error {
 			delete(m.crdToCSV, crd)
 		}
 	}
+
 	return nil
 }
 
-// Implement sort on list of ClusterServiceVersions
-type csvList []v1alpha1.ClusterServiceVersion
-
-func (s csvList) Len() int {
-	return len(s)
-}
-
-func (s csvList) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s csvList) Less(i, j int) bool {
-	return s[i].Spec.Version.LessThan(s[j].Spec.Version)
-}
-
-// sortCSVsByVersion is a convenience function for sorting CSVs
-func sortCSVsByVersion(csvs []v1alpha1.ClusterServiceVersion) []v1alpha1.ClusterServiceVersion {
-	sort.Sort(csvList(csvs))
-	return csvs
-}
-
-// FindLatestCSVByServiceName looks up the latest version (using semver) for the given service
-func (m *InMem) FindLatestCSVByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
-	csvs, err := m.listCSVsForServiceName(name)
-	if err != nil {
-		return nil, err
-	}
-	if len(csvs) < 1 {
+// FindCSVByName looks up the CSV with the given name.
+func (m *InMem) FindCSVByName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+	csv, exists := m.clusterservices[name]
+	if !exists {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion %s", name)
 	}
-	return &csvs[len(csvs)-1], nil
-}
 
-// findCSVByServiceNameAndVersion looks up a particular version of a service in the catalog
-func (m *InMem) findCSVByServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error) {
-	if _, ok := m.clusterservices[name]; !ok {
-		return nil, fmt.Errorf("not found: ClusterServiceVersion %s v%s", name, version)
-	}
-	csv, ok := m.clusterservices[name][version]
-	if !ok {
-		return nil, fmt.Errorf("not found: ClusterServiceVersion %s v%s", name, version)
-	}
 	return &csv, nil
 }
 
-// listCSVsForServiceName lists all versions of the service in the catalog
-func (m *InMem) listCSVsForServiceName(name string) ([]v1alpha1.ClusterServiceVersion, error) {
-	csvs := []v1alpha1.ClusterServiceVersion{}
-	versions, ok := m.clusterservices[name]
-
-	if !ok {
-		return csvs, nil
-	}
-	for _, service := range versions {
-		csvs = append(csvs, service)
-	}
-	return sortCSVsByVersion(csvs), nil
-}
-
-// findReplacementForServiceName looks up any CSV in the catalog that replaces the given xservice
-func (m *InMem) findReplacementForServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
-	csv, ok := m.replaces[name]
+// findReplacementForName looks up any CSV in the catalog that replaces the given xservice
+func (m *InMem) findReplacementForName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+	csvMetadata, ok := m.replaces[name]
 	if !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion that replaces %s", name)
 	}
-	return m.findCSVByServiceNameAndVersion(csv.Name, csv.Version)
+
+	return m.FindCSVByName(csvMetadata.Name)
 }
 
-// listCSVsForServiceName lists all versions of the service in the catalog
+// ListServices lists all versions of the service in the catalog
 func (m *InMem) ListServices() ([]v1alpha1.ClusterServiceVersion, error) {
 	services := []v1alpha1.ClusterServiceVersion{}
-	for _, versions := range m.clusterservices {
-		for _, csv := range versions {
-			services = append(services, csv)
-		}
+	for _, csv := range m.clusterservices {
+		services = append(services, csv)
 	}
 	return services, nil
 }
@@ -304,7 +241,7 @@ func (m *InMem) FindLatestCSVForCRD(key CRDKey) (*v1alpha1.ClusterServiceVersion
 	if !ok {
 		return nil, fmt.Errorf("not found: CRD %s", key)
 	}
-	return m.FindLatestCSVByServiceName(name)
+	return m.FindCSVByName(name)
 }
 
 // ListCSVsForCRD lists all versions of the service that manages the given CRD
