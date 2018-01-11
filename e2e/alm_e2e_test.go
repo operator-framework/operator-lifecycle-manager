@@ -1,12 +1,9 @@
 package e2e
 
 import (
-	"flag"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	extensions "k8s.io/api/extensions/v1beta1"
@@ -28,8 +25,6 @@ import (
 )
 
 const (
-	pollInterval             = 1 * time.Second
-	pollDuration             = 5 * time.Minute
 	expectedUICatalogEntries = 3
 	vaultVersion             = "0.9.0-0"
 	vaultOperatorVersion     = "0.1.6"
@@ -37,9 +32,7 @@ const (
 	vaultClusterSize         = 2
 )
 
-var testNamespace = metav1.NamespaceDefault
-
-type ConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool
+type InstallPlanConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool
 
 var InstallPlanCompleteChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseComplete
@@ -47,25 +40,6 @@ var InstallPlanCompleteChecker = func(fip *installplanv1alpha1.InstallPlan) bool
 
 var InstallPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseFailed
-}
-
-func init() {
-	e2eNamespace := os.Getenv("NAMESPACE")
-	if e2eNamespace != "" {
-		testNamespace = e2eNamespace
-	}
-	flag.Set("logtostderr", "true")
-	flag.Parse()
-}
-
-// newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
-func newKubeClient(t *testing.T) opClient.Interface {
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	if kubeconfigPath == "" {
-		t.Log("using in-cluster config")
-	}
-	// TODO: impersonate ALM serviceaccount
-	return opClient.NewClient(kubeconfigPath)
 }
 
 func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opClient.CustomResourceList, error) {
@@ -90,7 +64,19 @@ func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opCl
 	return crl, err
 }
 
-func FetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker ConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
+func createInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPlan) error {
+	plan.Kind = installplanv1alpha1.InstallPlanKind
+	plan.APIVersion = installplanv1alpha1.SchemeGroupVersion.String()
+	plan.Namespace = testNamespace
+	unstructuredConverter := conversion.NewConverter(true)
+	csvUnst, err := unstructuredConverter.ToUnstructured(&plan)
+	if err != nil {
+		return err
+	}
+	return c.CreateCustomResource(&unstructured.Unstructured{Object: csvUnst})
+}
+
+func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker InstallPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
 	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
 	var err error
 
@@ -110,62 +96,13 @@ func FetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker C
 	return fetchedInstallPlan, err
 }
 
-func FetchPods(t *testing.T, c opClient.Interface, selector string, expectedCount int) (*corev1.PodList, error) {
-	var fetchedPodList *corev1.PodList
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{
-			LabelSelector: selector,
-		})
-
-		if err != nil {
-			return false, err
-		}
-
-		t.Logf("Waiting for %d nodes matching %s selector, %d present", expectedCount, selector, len(fetchedPodList.Items))
-
-		if len(fetchedPodList.Items) < expectedCount {
-			return false, nil
-		}
-
-		return true, nil
-	})
-
-	require.NoError(t, err)
-	return fetchedPodList, err
-}
-
-func PollForCustomResource(t *testing.T, c opClient.Interface, group string, version string, kind string, name string) error {
-	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
-
-	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := c.GetCustomResource(group, version, testNamespace, kind, name)
-		if err != nil {
-			if sErr := err.(*errors.StatusError); sErr.Status().Reason == metav1.StatusReasonNotFound {
-				return false, nil
-			}
-			return false, err
-		}
-
-		return true, nil
-	})
-
-	return err
-}
-
 // This test is skipped until manual approval is implemented
 func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
 
 	vaultInstallPlan := installplanv1alpha1.InstallPlan{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "install-vaultmanual",
-			Namespace: testNamespace,
+			Name: "install-vaultmanual",
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{fmt.Sprintf("vault-operator.%s", vaultOperatorVersion)},
@@ -174,27 +111,12 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	}
 
 	// Create a new installplan for vault with manual approval
-	unstructuredConverter := conversion.NewConverter(true)
-	vaultUnst, err := unstructuredConverter.ToUnstructured(&vaultInstallPlan)
-	require.NoError(t, err)
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: vaultUnst})
+	err := createInstallPlan(c, vaultInstallPlan)
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan := &installplanv1alpha1.InstallPlan{}
-	wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, vaultInstallPlan.GetName())
-		if err != nil {
-			return false, err
-		}
-		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, fetchedInstallPlan)
-		require.NoError(t, err)
-		if fetchedInstallPlan.Status.Phase != installplanv1alpha1.InstallPlanPhaseComplete {
-			t.Log("waiting for installplan phase to complete")
-			return false, nil
-		}
-		return true, nil
-	})
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
+	require.NoError(t, err)
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 	vaultResourcesPresent := 0
@@ -307,7 +229,7 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for InstallPlan to be status: Complete before checking for resource presence
-		fetchedInstallPlan, err := FetchInstallPlan(t, c, installPlan.GetName(), InstallPlanCompleteChecker)
+		fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), InstallPlanCompleteChecker)
 
 		require.NoError(t, err)
 		require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseComplete)
@@ -370,7 +292,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
 	require.NoError(t, err)
 
-	fetchedInstallPlan, err := FetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
 		return fip.Status.Phase == installplanv1alpha1.InstallPlanPhasePlanning &&
 			fip.Status.Conditions[0].Type == installplanv1alpha1.InstallPlanResolved &&
 			fip.Status.Conditions[0].Reason == installplanv1alpha1.InstallPlanReasonDependencyConflict
@@ -411,7 +333,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for InstallPlan to be status: Complete before checking for resource presence
-	fetchedInstallPlan, err := FetchInstallPlan(t, c, installPlan.GetName(), InstallPlanFailedChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), InstallPlanFailedChecker)
 	require.NoError(t, err)
 
 	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
@@ -452,7 +374,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := FetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
 
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 

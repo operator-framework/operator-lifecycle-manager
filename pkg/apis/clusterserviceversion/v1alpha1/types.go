@@ -154,6 +154,7 @@ const (
 	CSVReasonRequirementsMet     ConditionReason = "AllRequirementsMet"
 	CSVReasonComponentFailed     ConditionReason = "InstallComponentFailed"
 	CSVReasonInvalidStrategy     ConditionReason = "InvalidInstallStrategy"
+	CSVReasonWaiting             ConditionReason = "InstallWaiting"
 	CSVReasonInstallSuccessful   ConditionReason = "InstallSucceeded"
 	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
 	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"

@@ -20,6 +20,7 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	catlib "github.com/coreos-inc/alm/pkg/catalog"
 	"github.com/coreos-inc/alm/pkg/client"
+	"k8s.io/client-go/util/workqueue"
 )
 
 const (
@@ -125,8 +126,9 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Register CatalogSource informers.
+	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	catsrcQueueInformer := queueinformer.New(
-		"catalogsources",
+		catsrcQueue,
 		catsrcSharedIndexInformers,
 		op.syncCatalogSources,
 		nil,
@@ -136,8 +138,9 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Register InstallPlan informers.
+	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installplans")
 	ipQueueInformers := queueinformer.New(
-		"installplans",
+		ipQueue,
 		sharedIndexInformers,
 		op.syncInstallPlans,
 		nil,

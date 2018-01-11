@@ -83,19 +83,19 @@ func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventH
 
 // New creates a set of new queueinformers given a name, a set of informers, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func New(queuename string, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) []*QueueInformer {
+func New(queue workqueue.RateLimitingInterface, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) []*QueueInformer {
 	queueInformers := []*QueueInformer{}
 	for _, informer := range informers {
-		queueInformers = append(queueInformers, NewInformer(queuename, informer, handler, funcs))
+		queueInformers = append(queueInformers, NewInformer(queue, informer, handler, funcs))
 	}
 	return queueInformers
 }
 
 // NewInformer creates a new queueinformer given a name, an informer, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func NewInformer(queuename string, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *QueueInformer {
+func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *QueueInformer {
 	queueInformer := &QueueInformer{
-		queue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queuename),
+		queue:       queue,
 		informer:    informer,
 		syncHandler: handler,
 	}

@@ -40,6 +40,8 @@ func reasonForError(err error) string {
 	switch t := err.(type) {
 	case StrategyError:
 		return t.Reason
+	case *StrategyError:
+		return t.Reason
 	}
 	return StrategyErrReasonUnknown
 }

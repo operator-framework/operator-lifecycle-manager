@@ -1,5 +1,5 @@
-hash: 48165f384f46efdd0317d1017dc92545f4c0942bcf2b62203330c87740c37fd0
-updated: 2017-12-18T22:22:18.884417572-08:00
+hash: b89c7c644c62b61395661d1c0721b4473d6e1236ba48732be62b9f77e81a8253
+updated: 2018-01-16T10:41:36.78483154-05:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
@@ -109,6 +109,10 @@ imports:
   version: 5f041e8faa004a95c88a202771f4cc3e991971e6
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/PuerkitoBio/purell
   version: 8a290539e2e8629dbc4e6bad948158f790ec31f4
 - name: github.com/PuerkitoBio/urlesc
@@ -117,6 +121,11 @@ imports:
   version: d682213848ed68c0a260ca37d6dd5ace8423f5ba
 - name: github.com/spf13/pflag
   version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- name: github.com/stretchr/testify
+  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
+  subpackages:
+  - assert
+  - require
 - name: golang.org/x/crypto
   version: 81e90905daefcd6fd217b62423c0908922eadb30
   subpackages:
@@ -231,6 +240,7 @@ imports:
   - pkg/util/json
   - pkg/util/mergepatch
   - pkg/util/net
+  - pkg/util/rand
   - pkg/util/runtime
   - pkg/util/sets
   - pkg/util/strategicpatch
@@ -246,6 +256,7 @@ imports:
 - name: k8s.io/apiserver
   version: 9707c008294d447053c0e2737c256ee23f99e5b4
   subpackages:
+  - pkg/storage/names
   - pkg/util/feature
 - name: k8s.io/client-go
   version: 2ae454230481a7cb5544325e12ad7658ecccd19b
@@ -329,13 +340,4 @@ imports:
   version: 868f2f29720b192240e18284659231b440f9cda5
   subpackages:
   - pkg/common
-testImports:
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
-  subpackages:
-  - assert
-  - require
+testImports: []
