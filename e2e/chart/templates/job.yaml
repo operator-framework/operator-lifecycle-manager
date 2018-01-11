@@ -1,12 +1,10 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: e2e
+  name: {{ .Values.job_name }}
   namespace: {{ .Values.namespace }}
 spec:
   template:
-    metadata:
-      name: e2e
     spec:
       containers:
       - name: e2e

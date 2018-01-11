@@ -36,12 +36,14 @@ local appr = utils.appr;
         localvars:: {
             appname: self.namespace,
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+            jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             chart: "e2e/chart",
             appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
             helm_opts: [],
             params: {
                 namespace: _vars.namespace,
                 "e2e.image.ref": vars.images.e2e.name,
+                "job_name": _vars.jobname,
             },
             patch: "{\"imagePullSecrets\": [{\"name\": \"coreos-pull-secret\"}]}",
         },
@@ -61,9 +63,9 @@ local appr = utils.appr;
             ] +
             helm.templateApply(_vars.chart, _vars.namespace, _vars.params) +
             [
-                "until kubectl -n %s logs job/e2e | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % _vars.namespace,
-                "kubectl -n %s logs job/e2e -f" % _vars.namespace,
-                "if kubectl -n %s logs job/e2e 2>&1 | grep -q 'not'; then kubectl -n %s logs -l app=alm; exit 1; else exit 0; fi" % [_vars.namespace, _vars.namespace],
+                "until kubectl -n %s logs job/%s | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % [_vars.namespace, _vars.jobname],
+                "kubectl -n %s logs job/%s -f" % [_vars.namespace, _vars.jobname],
+                "if kubectl -n %s logs job/%s 2>&1 | grep -q '^not'; then kubectl -n %s logs -l app=alm; exit 1; else exit 0; fi" % [_vars.namespace, _vars.jobname, _vars.namespace],
             ],
 
         variables: {
