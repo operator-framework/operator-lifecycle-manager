@@ -36,7 +36,7 @@ func LoadCSVFromFile(m *InMem, filepath string) (*v1alpha1.ClusterServiceVersion
 	if _, _, err = scheme.Codecs.UniversalDecoder().Decode(data, nil, &csv); err != nil {
 		return nil, fmt.Errorf("could not decode contents of file %s into CSV: %v", filepath, err)
 	}
-	if err = m.SetCSVDefinition(csv); err != nil {
+	if err = m.setCSVDefinition(csv); err != nil {
 		return nil, fmt.Errorf("unable to set CSV found in catalog: %v", err)
 	}
 	return &csv, nil

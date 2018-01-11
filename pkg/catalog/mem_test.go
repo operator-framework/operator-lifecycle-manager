@@ -70,7 +70,7 @@ func TestFindClusterServiceVersionByServiceNameAndVersion(t *testing.T) {
 	}
 
 	catalog := NewInMem()
-	catalog.SetOrReplaceCRDDefinition(testCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testCRDDefinition)
 	catalog.AddOrReplaceService(testCSVResource)
 
 	foundCSV, err := catalog.FindLatestCSVByServiceName(testCSVName)
@@ -118,15 +118,15 @@ func TestFindReplacementByServiceName(t *testing.T) {
 	}
 
 	catalog := NewInMem()
-	catalog.SetOrReplaceCRDDefinition(testOwnedCRDDefinition)
-	catalog.SetOrReplaceCRDDefinition(testOtherCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testOwnedCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testOtherCRDDefinition)
 
 	catalog.AddOrReplaceService(testCSVResourceAlpha)
 	catalog.AddOrReplaceService(testCSVResourcePrior)
 	catalog.AddOrReplaceService(testCSVResourceLatest)
 	catalog.AddOrReplaceService(otherTestCSVResource)
 
-	foundCSV, err := catalog.FindReplacementForServiceName(testReplacesName)
+	foundCSV, err := catalog.findReplacementForServiceName(testReplacesName)
 	assert.NoError(t, err)
 	assert.Equal(t, testCSVName, foundCSV.GetName())
 	assert.Equal(t, testCSVLatestVersion, foundCSV.Spec.Version.String(),
@@ -154,11 +154,11 @@ func TestListCSVsForServiceName(t *testing.T) {
 	}
 
 	catalog := NewInMem()
-	catalog.SetOrReplaceCRDDefinition(testCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testCRDDefinition)
 	catalog.AddOrReplaceService(testCSVResource1)
 	catalog.AddOrReplaceService(testCSVResource2)
 
-	csvs, err := catalog.ListCSVsForServiceName(testCSVName)
+	csvs, err := catalog.listCSVsForServiceName(testCSVName)
 
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(csvs))

@@ -83,8 +83,8 @@ func (m *InMem) SetCRDDefinition(crd v1beta1.CustomResourceDefinition) error {
 	return nil
 }
 
-// SetOrReplaceCRDDefinition overwrites any existing definition with the same name
-func (m *InMem) SetOrReplaceCRDDefinition(crd v1beta1.CustomResourceDefinition) {
+// setOrReplaceCRDDefinition overwrites any existing definition with the same name
+func (m *InMem) setOrReplaceCRDDefinition(crd v1beta1.CustomResourceDefinition) {
 	m.crds[CRDKey{
 		Kind:    crd.Spec.Names.Kind,
 		Name:    crd.GetName(),
@@ -185,9 +185,9 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 	return nil
 }
 
-// SetCSVDefinition registers a new service into the catalog
+// setCSVDefinition registers a new service into the catalog
 // will return error if any conflicts exist
-func (m *InMem) SetCSVDefinition(csv v1alpha1.ClusterServiceVersion) error {
+func (m *InMem) setCSVDefinition(csv v1alpha1.ClusterServiceVersion) error {
 	return m.addService(csv, true)
 }
 
@@ -234,15 +234,15 @@ func (s csvList) Less(i, j int) bool {
 	return s[i].Spec.Version.LessThan(s[j].Spec.Version)
 }
 
-// SortCSVsByVersion is a convenience function for sorting CSVs
-func SortCSVsByVersion(csvs []v1alpha1.ClusterServiceVersion) []v1alpha1.ClusterServiceVersion {
+// sortCSVsByVersion is a convenience function for sorting CSVs
+func sortCSVsByVersion(csvs []v1alpha1.ClusterServiceVersion) []v1alpha1.ClusterServiceVersion {
 	sort.Sort(csvList(csvs))
 	return csvs
 }
 
 // FindLatestCSVByServiceName looks up the latest version (using semver) for the given service
 func (m *InMem) FindLatestCSVByServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
-	csvs, err := m.ListCSVsForServiceName(name)
+	csvs, err := m.listCSVsForServiceName(name)
 	if err != nil {
 		return nil, err
 	}
@@ -252,8 +252,8 @@ func (m *InMem) FindLatestCSVByServiceName(name string) (*v1alpha1.ClusterServic
 	return &csvs[len(csvs)-1], nil
 }
 
-// FindCSVByServiceNameAndVersion looks up a particular version of a service in the catalog
-func (m *InMem) FindCSVByServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error) {
+// findCSVByServiceNameAndVersion looks up a particular version of a service in the catalog
+func (m *InMem) findCSVByServiceNameAndVersion(name, version string) (*v1alpha1.ClusterServiceVersion, error) {
 	if _, ok := m.clusterservices[name]; !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion %s v%s", name, version)
 	}
@@ -264,8 +264,8 @@ func (m *InMem) FindCSVByServiceNameAndVersion(name, version string) (*v1alpha1.
 	return &csv, nil
 }
 
-// ListCSVsForServiceName lists all versions of the service in the catalog
-func (m *InMem) ListCSVsForServiceName(name string) ([]v1alpha1.ClusterServiceVersion, error) {
+// listCSVsForServiceName lists all versions of the service in the catalog
+func (m *InMem) listCSVsForServiceName(name string) ([]v1alpha1.ClusterServiceVersion, error) {
 	csvs := []v1alpha1.ClusterServiceVersion{}
 	versions, ok := m.clusterservices[name]
 
@@ -275,19 +275,19 @@ func (m *InMem) ListCSVsForServiceName(name string) ([]v1alpha1.ClusterServiceVe
 	for _, service := range versions {
 		csvs = append(csvs, service)
 	}
-	return SortCSVsByVersion(csvs), nil
+	return sortCSVsByVersion(csvs), nil
 }
 
-// FindReplacementForServiceName looks up any CSV in the catalog that replaces the given xservice
-func (m *InMem) FindReplacementForServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
+// findReplacementForServiceName looks up any CSV in the catalog that replaces the given xservice
+func (m *InMem) findReplacementForServiceName(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csv, ok := m.replaces[name]
 	if !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion that replaces %s", name)
 	}
-	return m.FindCSVByServiceNameAndVersion(csv.Name, csv.Version)
+	return m.findCSVByServiceNameAndVersion(csv.Name, csv.Version)
 }
 
-// ListCSVsForServiceName lists all versions of the service in the catalog
+// listCSVsForServiceName lists all versions of the service in the catalog
 func (m *InMem) ListServices() ([]v1alpha1.ClusterServiceVersion, error) {
 	services := []v1alpha1.ClusterServiceVersion{}
 	for _, versions := range m.clusterservices {
