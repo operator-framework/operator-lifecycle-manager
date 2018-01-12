@@ -28,6 +28,7 @@ import (
 
 	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	catalog "github.com/coreos-inc/alm/pkg/catalog"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -108,15 +109,67 @@ func ValidateKubectlable(t *testing.T, fileBytes []byte) error {
 	return nil
 }
 
-func ValidateUsingPragma(t *testing.T, pragma string, fileBytes []byte) error {
+func ValidateUsingPragma(t *testing.T, pragma string, fileBytes []byte) (bool, error) {
 	const ValidateCRDPrefix = "validate-crd:"
 	const ParseAsKindPrefix = "parse-kind:"
+	const PackageManifest = "package-manifest:"
+
 	switch {
 	case strings.HasPrefix(pragma, ValidateCRDPrefix):
-		return ValidateCRD(t, strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
+		return true, ValidateCRD(t, strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
 	case strings.HasPrefix(pragma, ParseAsKindPrefix):
-		return ValidateKind(t, strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
+		return true, ValidateKind(t, strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
+	case strings.HasPrefix(pragma, PackageManifest):
+		csvFilenames := strings.Split(strings.TrimSpace(strings.TrimPrefix(pragma, PackageManifest)), ",")
+		return false, ValidatePackageManifest(t, fileBytes, csvFilenames)
 	}
+	return false, nil
+}
+
+func ValidatePackageManifest(t *testing.T, fileBytes []byte, csvFilenames []string) error {
+	manifestBytesJson, err := yaml.YAMLToJSON(fileBytes)
+	require.NoError(t, err)
+
+	var packageManifest catalog.PackageManifest
+	err = json.Unmarshal(manifestBytesJson, &packageManifest)
+	require.NoError(t, err)
+
+	if len(packageManifest.Channels) < 1 {
+		t.Errorf("Package manifest validation failure for package %s: Missing channels", packageManifest.PackageName)
+	}
+
+	// Collect the defined CSV names.
+	csvNames := map[string]bool{}
+	for _, csvFilename := range csvFilenames {
+		csvBytes, err := ioutil.ReadFile(csvFilename)
+		require.NoError(t, err)
+
+		csvBytesJson, err := yaml.YAMLToJSON(csvBytes)
+		require.NoError(t, err)
+
+		csv := v1alpha1.ClusterServiceVersion{}
+		err = json.Unmarshal(csvBytesJson, &csv)
+		require.NoError(t, err)
+
+		csvNames[csv.Name] = true
+	}
+
+	if len(packageManifest.PackageName) == 0 {
+		t.Errorf("Empty package name")
+	}
+
+	// Make sure that each channel name is unique and that the referenced CSV exists.
+	channelMap := make(map[string]bool, len(packageManifest.Channels))
+	for _, channel := range packageManifest.Channels {
+		if _, exists := channelMap[channel.Name]; exists {
+			t.Errorf("Channel %s declared twice in package manifest", channel.Name)
+		}
+
+		if _, ok := csvNames[channel.CurrentCSVName]; !ok {
+			t.Errorf("Missing CSV with name %s", channel.CurrentCSVName)
+		}
+	}
+
 	return nil
 }
 
@@ -204,17 +257,24 @@ func ValidateResource(t *testing.T, path string, f os.FileInfo, err error) error
 	require.NoError(t, err)
 	pragmas, err := ReadPragmas(fileBytes)
 	require.NoError(t, err)
+
+	isKubResource := false
 	for _, pragma := range pragmas {
 		fileReader.Reset(exampleFileReader)
-		err := ValidateUsingPragma(t, pragma, fileBytes)
+		isKub, err := ValidateUsingPragma(t, pragma, fileBytes)
+		if err != nil {
+			t.Errorf("validating %s: %v", path, err)
+		}
+		isKubResource = isKubResource || isKub
+	}
+
+	if isKubResource {
+		err = ValidateKubectlable(t, fileBytes)
 		if err != nil {
 			t.Errorf("validating %s: %v", path, err)
 		}
 	}
-	err = ValidateKubectlable(t, fileBytes)
-	if err != nil {
-		t.Errorf("validating %s: %v", path, err)
-	}
+
 	return nil
 }
 

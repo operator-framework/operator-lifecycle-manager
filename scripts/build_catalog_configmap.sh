@@ -34,3 +34,14 @@ do
   tail -n +4 $csv | sed 's/^/      /' >> $OUTFILE
   sed -E -i.bak 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
 done
+
+printf '  packages: |-\n' >> $OUTFILE
+
+for csv in catalog_resources/*.package.yaml
+do
+  printf "    - " >> $OUTFILE
+  head -n 2 $csv | tail -n 1 >> $OUTFILE
+  # need -i.bak for mac/linux cross-compat
+  tail -n +3 $csv | sed 's/^/      /' >> $OUTFILE
+  sed -E -i.bak 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
+done

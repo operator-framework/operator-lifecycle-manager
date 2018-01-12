@@ -13,8 +13,9 @@ import (
 )
 
 const (
-	ConfigMapCRDName = "customResourceDefinitions"
-	ConfigMapCSVName = "clusterServiceVersions"
+	ConfigMapCRDName     = "customResourceDefinitions"
+	ConfigMapCSVName     = "clusterServiceVersions"
+	ConfigMapPackageName = "packages"
 )
 
 // ConfigMapCatalogResourceLoader loads a ConfigMap of resources into the in-memory catalog
@@ -73,6 +74,27 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 		for _, csv := range parsedCSVList {
 			found = true
 			d.Catalog.setCSVDefinition(csv)
+		}
+	}
+
+	packageListYaml, ok := cm.Data[ConfigMapPackageName]
+	if ok {
+		packageListJson, err := yaml.YAMLToJSON([]byte(packageListYaml))
+		if err != nil {
+			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
+			return fmt.Errorf("error loading package list yaml from ConfigMap %s: %s", configMapName, err)
+		}
+
+		var parsedPackageManifests []PackageManifest
+		err = json.Unmarshal([]byte(packageListJson), &parsedPackageManifests)
+		if err != nil {
+			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
+			return fmt.Errorf("error parsing package list (json) from ConfigMap %s: %s", configMapName, err)
+		}
+
+		for _, packageManifest := range parsedPackageManifests {
+			found = true
+			d.Catalog.addPackageManifest(packageManifest)
 		}
 	}
 
