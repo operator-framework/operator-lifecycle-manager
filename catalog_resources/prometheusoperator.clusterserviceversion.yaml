@@ -202,9 +202,9 @@ spec:
         path: serviceAccountName
         x-descriptors:
           - 'urn:alm:descriptor:io.kubernetes:ServiceAccount'
-      - description: Define resources requests and limits for single Pods
-        displayName: Resource Request
-        path: resources.requests
+      - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+        displayName: Resource Requirements
+        path: resources
         x-descriptors:
           - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       statusDescriptors:
@@ -256,3 +256,8 @@ spec:
         path: replicas
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+      - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+        displayName: Resource Requirements
+        path: resources
+        x-descriptors:
+          - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
