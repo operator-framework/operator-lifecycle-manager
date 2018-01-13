@@ -178,3 +178,49 @@ spec:
       kind: EtcdCluster
       displayName: etcd Cluster
       description: Represents a cluster of etcd nodes.
+      resources:
+        - kind: Service
+          version: v1
+        - kind: Pod
+          version: v1
+      specDescriptors:
+        - description: The desired number of member Pods for the etcd cluster.
+          displayName: Size
+          path: size
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+        - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+          displayName: Resource Requirements
+          path: pod.resources
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      statusDescriptors:
+        - description: The status of each of the member Pods for the etcd cluster.
+          displayName: Member Status
+          path: members
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+        - description: The service at which the running etcd cluster can be accessed.
+          displayName: Service
+          path: serviceName
+          x-descriptors:
+            - 'urn:alm:descriptor:io.kubernetes:Service'
+        - description: The current size of the etcd cluster.
+          displayName: Cluster Size
+          path: size
+        - description: The current version of the etcd cluster.
+          displayName: Current Version
+          path: currentVersion
+        - description: The target version of the etcd cluster, after upgrading.
+          displayName: Target Version
+          path: targetVersion
+        - description: The current status of the etcd cluster.
+          displayName: Status
+          path: phase
+          x-descriptors:
+            - 'urn:alm:descriptor:io.kubernetes.phase'
+        - description: Explanation for the current status of the cluster.
+          displayName: Status Details
+          path: reason
+          x-descriptors:
+            - 'urn:alm:descriptor:io.kubernetes.phase:reason'
