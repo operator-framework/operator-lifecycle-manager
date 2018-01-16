@@ -255,7 +255,8 @@ func TestFindReplacementCSVForPackageNameUnderChannel(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceReplaced)
 
 	catalog.addPackageManifest(PackageManifest{
-		PackageName: "mockservice",
+		PackageName:        "mockservice",
+		DefaultChannelName: "stable",
 		Channels: []PackageChannel{
 			PackageChannel{
 				Name:           "stable",
@@ -293,4 +294,140 @@ func TestFindReplacementCSVForPackageNameUnderChannel(t *testing.T) {
 
 	_, err = catalog.FindReplacementCSVForPackageNameUnderChannel("mockservice", "unknown", testReplacedCSVName)
 	assert.Error(t, err)
+
+	// Check the CSVs for the CRD.
+	found, err := catalog.ListLatestCSVsForCRD(CRDKey{Name: testOwnedCRDName})
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(found))
+}
+
+func TestListLatestCSVsForCRD(t *testing.T) {
+	var (
+		testStableCSVName   = "mockservice-operator.v1.0.0"
+		testBetaCSVName     = "mockservice-operator.v1.1.0"
+		testAlphaCSVName    = "mockservice-operator.v1.2.0"
+		testReplacedCSVName = "mockservice-operator.v0.0.9"
+
+		testCSVStableVersion   = "1.0.0"
+		testCSVBetaVersion     = "1.1.0"
+		testCSVAlphaVersion    = "1.2.0"
+		testCSVReplacedVersion = "0.0.9"
+
+		testSomeCRD    = "somecrd.catalog.testing.coreos.com"
+		testAnotherCRD = "anothercrd.catalog.testing.coreos.com"
+		testThirdCRD   = "thirdcrd.catalog.testing.coreos.com"
+		testMiddleCRD  = "middlecrd.catalog.testing.coreos.com"
+	)
+
+	// v0.0.9 owns `somecrd`
+	// v1.0.0 owns `somecrd` and `anothercrd`
+	// v1.1.0 owns `somecrd` and `middlecrd`
+	// v1.2.0 owns `somecrd` and `thirdcrd` but *not* `middlecrd`
+
+	// Stable: v1.0.0 replaces v0.0.9
+	testCSVResourceStable := createCSV(testStableCSVName, testCSVStableVersion,
+		testReplacedCSVName, []string{testSomeCRD, testAnotherCRD})
+
+	// Beta: v1.1.0 replaces v0.0.9
+	testCSVResourceBeta := createCSV(testBetaCSVName, testCSVBetaVersion,
+		testReplacedCSVName, []string{testSomeCRD, testMiddleCRD})
+
+	// Alpha: v1.2.0 replaces v1.1.0 replaces v0.0.9
+	testCSVResourceAlpha := createCSV(testAlphaCSVName, testCSVAlphaVersion,
+		testBetaCSVName, []string{testSomeCRD, testThirdCRD})
+
+	testCSVResourceReplaced := createCSV(testReplacedCSVName, testCSVReplacedVersion,
+		"", []string{testSomeCRD})
+
+	testSomeCRDDefinition := v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testSomeCRD,
+		},
+	}
+
+	testAnotherCRDDefinition := v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testAnotherCRD,
+		},
+	}
+
+	testThirdCRDDefinition := v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testThirdCRD,
+		},
+	}
+
+	testMiddleCRDDefinition := v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testMiddleCRD,
+		},
+	}
+
+	catalog := NewInMem()
+	catalog.setOrReplaceCRDDefinition(testSomeCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testAnotherCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testThirdCRDDefinition)
+	catalog.setOrReplaceCRDDefinition(testMiddleCRDDefinition)
+
+	catalog.AddOrReplaceService(testCSVResourceAlpha)
+	catalog.AddOrReplaceService(testCSVResourceBeta)
+	catalog.AddOrReplaceService(testCSVResourceStable)
+	catalog.AddOrReplaceService(testCSVResourceReplaced)
+
+	catalog.addPackageManifest(PackageManifest{
+		PackageName:        "mockservice",
+		DefaultChannelName: "stable",
+		Channels: []PackageChannel{
+			PackageChannel{
+				Name:           "stable",
+				CurrentCSVName: testStableCSVName,
+			},
+			PackageChannel{
+				Name:           "beta",
+				CurrentCSVName: testBetaCSVName,
+			},
+			PackageChannel{
+				Name:           "alpha",
+				CurrentCSVName: testAlphaCSVName,
+			},
+		},
+	})
+
+	assertChannels := func(csvs []CSVAndChannelInfo, expectedChannels ...string) {
+		assert.Equal(t, len(expectedChannels), len(csvs), "Expected channels %v, found %v", expectedChannels, csvs)
+		channelsFound := map[string]bool{}
+		for _, csv := range csvs {
+			channelsFound[csv.Channel.Name] = true
+		}
+
+		for _, expectedChannel := range expectedChannels {
+			_, found := channelsFound[expectedChannel]
+			assert.True(t, found, "Expected channel %s", expectedChannel)
+		}
+	}
+
+	// Find the latest owners of `somecrd`. Should be alpha, beta and stable, with their latest
+	// versions.
+	someCSVs, err := catalog.ListLatestCSVsForCRD(CRDKey{Name: testSomeCRD})
+	assert.NoError(t, err)
+	assertChannels(someCSVs, "alpha", "beta", "stable")
+
+	// Find the latest owners of `anothercrd`. Should only be beta.
+	anotherCSVs, err := catalog.ListLatestCSVsForCRD(CRDKey{Name: testAnotherCRD})
+	assert.NoError(t, err)
+	assertChannels(anotherCSVs, "stable")
+
+	// Find the latest owners of `thirdcrd`. Should only be alpha.
+	thirdCSVs, err := catalog.ListLatestCSVsForCRD(CRDKey{Name: testThirdCRD})
+	assert.NoError(t, err)
+	assertChannels(thirdCSVs, "alpha")
+
+	// Find the latest owners of `middlecrd`. Should be alpha and beta, with beta's CSV (1.1.0) for
+	// both, since alpha removes it in its later version.
+	middleCSVs, err := catalog.ListLatestCSVsForCRD(CRDKey{Name: testMiddleCRD})
+	assert.NoError(t, err)
+	assertChannels(middleCSVs, "alpha", "beta")
+
+	assert.Equal(t, testBetaCSVName, middleCSVs[0].CSV.GetName())
+	assert.Equal(t, testBetaCSVName, middleCSVs[1].CSV.GetName())
 }

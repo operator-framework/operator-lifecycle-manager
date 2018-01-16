@@ -168,6 +168,8 @@ func ValidatePackageManifest(t *testing.T, fileBytes []byte, csvFilenames []stri
 		if _, ok := csvNames[channel.CurrentCSVName]; !ok {
 			t.Errorf("Missing CSV with name %s", channel.CurrentCSVName)
 		}
+
+		channelMap[channel.Name] = true
 	}
 
 	return nil

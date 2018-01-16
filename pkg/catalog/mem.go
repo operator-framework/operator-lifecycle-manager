@@ -29,16 +29,24 @@ type InMem struct {
 	clusterservices map[string]v1alpha1.ClusterServiceVersion
 
 	// map ClusterServiceVersions by name to metadata for the CSV that replaces it
-	replaces map[string]CSVMetadata
-
-	// map CRDs to the name of the ClusterServiceVersion that manages it
-	crdToCSV map[CRDKey]string
+	replaces map[string][]CSVMetadata
 
 	// map CRD to their full definition
 	crds map[CRDKey]v1beta1.CustomResourceDefinition
 
+	// map CRD to the names of the CSVs that own them
+	crdOwners map[CRDKey][]string
+
 	// map package name to their full manifest
 	packages map[string]PackageManifest
+
+	// map from CSV name to the package channel(s) that contain it.
+	csvPackageChannels map[string][]packageAndChannel
+}
+
+type packageAndChannel struct {
+	packageRef PackageManifest
+	channelRef PackageChannel
 }
 
 func NewInMemoryFromDirectory(directory string) (*InMem, error) {
@@ -62,11 +70,12 @@ func NewInMemoryFromConfigMap(cmClient client.ConfigMapClient, namespace, cmName
 // NewInMem returns a ptr to a new InMem instance
 func NewInMem() *InMem {
 	return &InMem{
-		clusterservices: map[string]v1alpha1.ClusterServiceVersion{},
-		replaces:        map[string]CSVMetadata{},
-		crdToCSV:        map[CRDKey]string{},
-		crds:            map[CRDKey]v1beta1.CustomResourceDefinition{},
-		packages:        map[string]PackageManifest{},
+		clusterservices:    map[string]v1alpha1.ClusterServiceVersion{},
+		replaces:           map[string][]CSVMetadata{},
+		crds:               map[CRDKey]v1beta1.CustomResourceDefinition{},
+		crdOwners:          map[CRDKey][]string{},
+		packages:           map[string]PackageManifest{},
+		csvPackageChannels: map[string][]packageAndChannel{},
 	}
 }
 
@@ -156,13 +165,59 @@ func (m *InMem) addPackageManifest(pkg PackageManifest) error {
 			return fmt.Errorf("Channel %s declared twice in package manifest", channel.Name)
 		}
 
-		if _, err := m.FindCSVByName(channel.CurrentCSVName); err != nil {
+		channelMap[channel.Name] = true
+
+		currentCSV, err := m.FindCSVByName(channel.CurrentCSVName)
+		if err != nil {
 			return fmt.Errorf("Missing CSV with name %s", channel.CurrentCSVName)
+		}
+
+		// For each of the CSVs in the full replacement chain, add an entry to the package map.
+		csvChain, err := m.fullCSVReplacesHistory(currentCSV)
+		if err != nil {
+			return err
+		}
+
+		for _, csv := range csvChain {
+			if _, ok := m.csvPackageChannels[csv.GetName()]; !ok {
+				m.csvPackageChannels[csv.GetName()] = []packageAndChannel{}
+			}
+
+			m.csvPackageChannels[csv.GetName()] = append(m.csvPackageChannels[csv.GetName()], packageAndChannel{
+				packageRef: pkg,
+				channelRef: channel,
+			})
+		}
+	}
+
+	// Make sure the default channel name matches a real channel, if given.
+	if pkg.DefaultChannelName != "" {
+		if _, exists := channelMap[pkg.DefaultChannelName]; !exists {
+			return fmt.Errorf("Invalid default channel %s", pkg.DefaultChannelName)
 		}
 	}
 
 	m.packages[pkg.PackageName] = pkg
 	return nil
+}
+
+// fullCSVHistory returns the full set of CSVs in the `replaces` history, starting at the given CSV.
+func (m *InMem) fullCSVReplacesHistory(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.ClusterServiceVersion, error) {
+	if csv.Spec.Replaces == "" {
+		return []v1alpha1.ClusterServiceVersion{*csv}, nil
+	}
+
+	replaced, err := m.FindCSVByName(csv.Spec.Replaces)
+	if err != nil {
+		return []v1alpha1.ClusterServiceVersion{}, err
+	}
+
+	replacedChain, err := m.fullCSVReplacesHistory(replaced)
+	if err != nil {
+		return []v1alpha1.ClusterServiceVersion{}, err
+	}
+
+	return append(replacedChain, *csv), nil
 }
 
 // setOrReplaceCRDDefinition overwrites any existing definition with the same name
@@ -176,19 +231,8 @@ func (m *InMem) setOrReplaceCRDDefinition(crd v1beta1.CustomResourceDefinition) 
 
 // findServiceConflicts collates a list of errors from conflicting catalog entries
 func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error {
-	name := csv.GetName()
-	version := csv.Spec.Version.String()
-
 	errs := []error{}
 
-	// validate csv doesn't replace a csv that already has a replacement
-	if replaces := csv.Spec.Replaces; replaces != "" {
-		foundCSV, exists := m.replaces[replaces]
-		if exists && (foundCSV.Name != name || foundCSV.Version != version) {
-			err := fmt.Errorf("cannot replace CSV %s: already replaced by %v", replaces, foundCSV)
-			errs = append(errs, err)
-		}
-	}
 	// validate required CRDs
 	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Required {
 		key := CRDKey{
@@ -213,10 +257,6 @@ func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error
 		if _, ok := m.crds[key]; !ok {
 			errs = append(errs, fmt.Errorf("missing definition for owned CRD %v", key))
 		}
-		// validate crds not already managed by another service
-		if manager, ok := m.crdToCSV[key]; ok && manager != crdReq.Name {
-			errs = append(errs, fmt.Errorf("CRD %s already managed by %s", crdReq.Name, manager))
-		}
 	}
 	return errs
 }
@@ -239,10 +279,14 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 
 	// register it as replacing CSV from its spec, if any
 	if csv.Spec.Replaces != "" {
-		m.replaces[csv.Spec.Replaces] = CSVMetadata{
+		if _, ok := m.replaces[csv.Spec.Replaces]; !ok {
+			m.replaces[csv.Spec.Replaces] = []CSVMetadata{}
+		}
+
+		m.replaces[csv.Spec.Replaces] = append(m.replaces[csv.Spec.Replaces], CSVMetadata{
 			Name:    name,
 			Version: csv.Spec.Version.String(),
-		}
+		})
 	}
 
 	// register its crds
@@ -252,7 +296,12 @@ func (m *InMem) addService(csv v1alpha1.ClusterServiceVersion, safe bool) error 
 			Version: crd.Version,
 			Kind:    crd.Kind,
 		}
-		m.crdToCSV[key] = name
+
+		if m.crdOwners[key] == nil {
+			m.crdOwners[key] = []string{}
+		}
+
+		m.crdOwners[key] = append(m.crdOwners[key], name)
 	}
 	return nil
 }
@@ -280,13 +329,6 @@ func (m *InMem) removeService(name string) error {
 		delete(m.replaces, csv.Spec.Replaces)
 	}
 
-	// remove any crd's registered as managed by service
-	for crd, csv := range m.crdToCSV {
-		if csv == name {
-			delete(m.crdToCSV, crd)
-		}
-	}
-
 	return nil
 }
 
@@ -300,14 +342,18 @@ func (m *InMem) FindCSVByName(name string) (*v1alpha1.ClusterServiceVersion, err
 	return &csv, nil
 }
 
-// FindReplacementCSVForCSVName looks up any CSV in the catalog that replaces the given CSV, if any.
+// FindReplacementCSVForName looks up any CSV in the catalog that replaces the given CSV, if any.
 func (m *InMem) FindReplacementCSVForName(name string) (*v1alpha1.ClusterServiceVersion, error) {
 	csvMetadata, ok := m.replaces[name]
 	if !ok {
 		return nil, fmt.Errorf("not found: ClusterServiceVersion that replaces %s", name)
 	}
 
-	return m.FindCSVByName(csvMetadata.Name)
+	if len(csvMetadata) < 1 {
+		return nil, fmt.Errorf("not found: ClusterServiceVersion that replaces %s", name)
+	}
+
+	return m.FindCSVByName(csvMetadata[0].Name)
 }
 
 // ListServices lists all versions of the service in the catalog
@@ -319,22 +365,85 @@ func (m *InMem) ListServices() ([]v1alpha1.ClusterServiceVersion, error) {
 	return services, nil
 }
 
-// FindLatestCSVForCRD looks up the latest service version (by semver) that manages a given CRD
-func (m *InMem) FindLatestCSVForCRD(key CRDKey) (*v1alpha1.ClusterServiceVersion, error) {
-	name, ok := m.crdToCSV[key]
+// ListLatestCSVsForCRD lists the latests versions of the service that manages the given CRD.
+func (m *InMem) ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error) {
+	// Find the names of the CSVs that own the CRD.
+	ownerCSVNames, ok := m.crdOwners[key]
 	if !ok {
 		return nil, fmt.Errorf("not found: CRD %s", key)
 	}
-	return m.FindCSVByName(name)
+
+	// For each of the CSVs found, lookup the package channels that create that CSV somewhere along
+	// the way. For each, we then filter to the latest CSV that creates the CRD, and return that.
+	// This allows the caller to find the *latest* version of each channel, that will successfully
+	// instantiate the require CRD.
+	channelInfo := make([]CSVAndChannelInfo, 0, len(ownerCSVNames))
+	added := map[string]bool{}
+
+	for _, ownerCSVName := range ownerCSVNames {
+		packageChannels, ok := m.csvPackageChannels[ownerCSVName]
+		if !ok {
+			// Note: legacy handling. To be removed once all CSVs are part of packages.
+			latestCSV, err := m.findLatestCSVThatOwns(ownerCSVName, key)
+			if err != nil {
+				return nil, err
+			}
+
+			channelInfo = append(channelInfo, CSVAndChannelInfo{
+				CSV:              latestCSV,
+				Channel:          PackageChannel{},
+				IsDefaultChannel: false,
+			})
+			continue
+		}
+
+		for _, packageChannel := range packageChannels {
+			// Find the latest CSV in the channel that owns the CRD.
+			latestCSV, err := m.findLatestCSVThatOwns(packageChannel.channelRef.CurrentCSVName, key)
+			if err != nil {
+				return nil, err
+			}
+
+			key := fmt.Sprintf("%s::%s", latestCSV.GetName(), packageChannel.channelRef.Name)
+			if _, ok := added[key]; ok {
+				continue
+			}
+
+			channelInfo = append(channelInfo, CSVAndChannelInfo{
+				CSV:              latestCSV,
+				Channel:          packageChannel.channelRef,
+				IsDefaultChannel: packageChannel.channelRef.isDefaultChannel(packageChannel.packageRef),
+			})
+			added[key] = true
+		}
+	}
+
+	return channelInfo, nil
 }
 
-// ListCSVsForCRD lists all versions of the service that manages the given CRD
-func (m *InMem) ListCSVsForCRD(key CRDKey) ([]v1alpha1.ClusterServiceVersion, error) {
-	csv, _ := m.FindLatestCSVForCRD(key)
-	if csv == nil {
-		return []v1alpha1.ClusterServiceVersion{}, nil
+// findLatestCSVThatOwns returns the latest CSV in the chain of CSVs, starting at the CSV with the
+// specified name, that owns the referenced CRD. For example, if given CSV `foobar-v1.2.0` in the
+// a chain of foobar-v1.2.0 --(replaces)--> foobar-v1.1.0 --(replaces)--> foobar-v1.0.0 and
+// `foobar-v1.1.0` is the latest that owns the CRD, it will be returned.
+func (m *InMem) findLatestCSVThatOwns(csvName string, key CRDKey) (*v1alpha1.ClusterServiceVersion, error) {
+	csv, err := m.FindCSVByName(csvName)
+	if err != nil {
+		return nil, err
 	}
-	return []v1alpha1.ClusterServiceVersion{*csv}, nil
+
+	// Check if the CSV owns the CRD.
+	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Owned {
+		if crdReq.Name == key.Name {
+			return csv, nil
+		}
+	}
+
+	// Otherwise, check the CSV this CSV replaces.
+	if csv.Spec.Replaces == "" {
+		return nil, fmt.Errorf("Could not find owner for CRD %s", key.Name)
+	}
+
+	return m.findLatestCSVThatOwns(csv.Spec.Replaces, key)
 }
 
 // FindCRDByName looks up the full CustomResourceDefinition for the resource with the given name

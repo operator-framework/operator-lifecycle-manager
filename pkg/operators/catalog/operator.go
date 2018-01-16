@@ -318,13 +318,17 @@ func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source catlib.Sou
 		return step, "", err
 	}
 
-	csv, err := source.FindLatestCSVForCRD(crdKey)
+	csvs, err := source.ListLatestCSVsForCRD(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
-	log.Infof("found %v owner %s", crdKey, csv.Name)
+	if len(csvs) == 0 {
+		return v1alpha1.StepResource{}, "", fmt.Errorf("Unknown CRD %s", crdKey)
+	}
 
-	return v1alpha1.StepResource{}, csv.Name, nil
+	// TODO: Change to lookup the CSV from the preferred or default channel.
+	log.Infof("found %v owner %s", crdKey, csvs[0].CSV.Name)
+	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
 }
 
 type stepResourceMap map[string][]v1alpha1.StepResource
