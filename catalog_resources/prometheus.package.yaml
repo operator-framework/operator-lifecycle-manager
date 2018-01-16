@@ -1,0 +1,5 @@
+#! package-manifest: ../../catalog_resources/prometheusoperator.clusterserviceversion.yaml
+packageName: prometheus
+channels:
+- name: alpha
+  currentCSV: prometheusoperator.0.15.0

@@ -80,6 +80,82 @@ func TestFindClusterServiceVersionByNameAndVersion(t *testing.T) {
 	compareResources(t, &testCSVResource, foundCSV)
 }
 
+func TestFindCSVForPackageNameUnderChannel(t *testing.T) {
+	var (
+		testCSVName = "mockservice-operator."
+
+		testCSVAlphaVersion  = "0.2.4+alpha"
+		testCSVStableVersion = "0.2.4"
+
+		testOwnedCRDName = "mockserviceresource-v1.catalog.testing.coreos.com"
+	)
+
+	// Cluster has both alpha and stable running, with no replaces.
+	testCSVResourceAlpha := createCSV(testCSVName+testCSVAlphaVersion, testCSVAlphaVersion,
+		"", []string{testOwnedCRDName})
+
+	testCSVResourceStable := createCSV(testCSVName+testCSVStableVersion, testCSVStableVersion,
+		"", []string{testOwnedCRDName})
+
+	testOwnedCRDDefinition := v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testOwnedCRDName,
+		},
+	}
+
+	catalog := NewInMem()
+	catalog.setOrReplaceCRDDefinition(testOwnedCRDDefinition)
+
+	catalog.AddOrReplaceService(testCSVResourceAlpha)
+	catalog.AddOrReplaceService(testCSVResourceStable)
+
+	catalog.addPackageManifest(PackageManifest{
+		PackageName: "mockservice",
+		Channels: []PackageChannel{
+			PackageChannel{
+				Name:           "alpha",
+				CurrentCSVName: testCSVName + testCSVAlphaVersion,
+			},
+			PackageChannel{
+				Name:           "stable",
+				CurrentCSVName: testCSVName + testCSVStableVersion,
+			},
+		},
+	})
+
+	alphaCSV, err := catalog.FindCSVForPackageNameUnderChannel("mockservice", "alpha")
+	assert.NoError(t, err)
+	assert.Equal(t, testCSVName+testCSVAlphaVersion, alphaCSV.GetName())
+	compareResources(t, &testCSVResourceAlpha, alphaCSV)
+
+	stableCSV, err := catalog.FindCSVForPackageNameUnderChannel("mockservice", "stable")
+	assert.NoError(t, err)
+	assert.Equal(t, testCSVName+testCSVStableVersion, stableCSV.GetName())
+	compareResources(t, &testCSVResourceStable, stableCSV)
+
+	_, err = catalog.FindCSVForPackageNameUnderChannel("mockservice", "invalid")
+	assert.Error(t, err)
+
+	_, err = catalog.FindCSVForPackageNameUnderChannel("weirdservice", "alpha")
+	assert.Error(t, err)
+}
+
+func TestInvalidPackageManifest(t *testing.T) {
+	catalog := NewInMem()
+
+	err := catalog.addPackageManifest(PackageManifest{
+		PackageName: "mockservice",
+		Channels: []PackageChannel{
+			PackageChannel{
+				Name:           "alpha",
+				CurrentCSVName: "somecsv",
+			},
+		},
+	})
+
+	assert.Error(t, err)
+}
+
 func TestFindReplacementCSVForName(t *testing.T) {
 	var (
 		testCSVName = "mockservice-operator.stable"
@@ -132,4 +208,89 @@ func TestFindReplacementCSVForName(t *testing.T) {
 	assert.Equal(t, testCSVLatestVersion, foundCSV.Spec.Version.String(),
 		"did not get latest version of CSV")
 	compareResources(t, &testCSVResourceLatest, foundCSV)
+}
+
+func TestFindReplacementCSVForPackageNameUnderChannel(t *testing.T) {
+	var (
+		testStableCSVName   = "mockservice-operator.v1.0.0"
+		testBetaCSVName     = "mockservice-operator.v1.1.0"
+		testAlphaCSVName    = "mockservice-operator.v1.2.0"
+		testReplacedCSVName = "mockservice-operator.v0.0.9"
+
+		testCSVStableVersion   = "1.0.0"
+		testCSVBetaVersion     = "1.1.0"
+		testCSVAlphaVersion    = "1.2.0"
+		testCSVReplacedVersion = "0.0.9"
+
+		testOwnedCRDName = "mockserviceresource-v1.catalog.testing.coreos.com"
+	)
+
+	// Stable: v1.0.0 replaces v0.0.9
+	testCSVResourceStable := createCSV(testStableCSVName, testCSVStableVersion,
+		testReplacedCSVName, []string{testOwnedCRDName})
+
+	// Beta: v1.1.0 replaces v0.0.9
+	testCSVResourceBeta := createCSV(testBetaCSVName, testCSVBetaVersion,
+		testReplacedCSVName, []string{testOwnedCRDName})
+
+	// Alpha: v1.2.0 replaces v1.1.0 replaces v0.0.9
+	testCSVResourceAlpha := createCSV(testAlphaCSVName, testCSVAlphaVersion,
+		testBetaCSVName, []string{testOwnedCRDName})
+
+	testCSVResourceReplaced := createCSV(testReplacedCSVName, testCSVReplacedVersion,
+		"", []string{testOwnedCRDName})
+
+	testOwnedCRDDefinition := v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testOwnedCRDName,
+		},
+	}
+
+	catalog := NewInMem()
+	catalog.setOrReplaceCRDDefinition(testOwnedCRDDefinition)
+
+	catalog.AddOrReplaceService(testCSVResourceAlpha)
+	catalog.AddOrReplaceService(testCSVResourceBeta)
+	catalog.AddOrReplaceService(testCSVResourceStable)
+	catalog.AddOrReplaceService(testCSVResourceReplaced)
+
+	catalog.addPackageManifest(PackageManifest{
+		PackageName: "mockservice",
+		Channels: []PackageChannel{
+			PackageChannel{
+				Name:           "stable",
+				CurrentCSVName: testStableCSVName,
+			},
+			PackageChannel{
+				Name:           "beta",
+				CurrentCSVName: testBetaCSVName,
+			},
+			PackageChannel{
+				Name:           "alpha",
+				CurrentCSVName: testAlphaCSVName,
+			},
+		},
+	})
+
+	// v0.0.9 -> v1.0.0
+	stableCSV, err := catalog.FindReplacementCSVForPackageNameUnderChannel("mockservice", "stable", testReplacedCSVName)
+	assert.NoError(t, err)
+	assert.Equal(t, testStableCSVName, stableCSV.GetName())
+
+	// v0.0.9 -> v1.1.0
+	betaCSV, err := catalog.FindReplacementCSVForPackageNameUnderChannel("mockservice", "beta", testReplacedCSVName)
+	assert.NoError(t, err)
+	assert.Equal(t, testBetaCSVName, betaCSV.GetName())
+
+	// v0.0.9 -> v1.1.0 -> v1.2.0
+	betaCSVStep, err := catalog.FindReplacementCSVForPackageNameUnderChannel("mockservice", "alpha", testReplacedCSVName)
+	assert.NoError(t, err)
+	assert.Equal(t, testBetaCSVName, betaCSVStep.GetName())
+
+	alphaCSV, err := catalog.FindReplacementCSVForPackageNameUnderChannel("mockservice", "alpha", testBetaCSVName)
+	assert.NoError(t, err)
+	assert.Equal(t, testAlphaCSVName, alphaCSV.GetName())
+
+	_, err = catalog.FindReplacementCSVForPackageNameUnderChannel("mockservice", "unknown", testReplacedCSVName)
+	assert.Error(t, err)
 }

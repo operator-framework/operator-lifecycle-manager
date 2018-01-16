@@ -36,6 +36,9 @@ type InMem struct {
 
 	// map CRD to their full definition
 	crds map[CRDKey]v1beta1.CustomResourceDefinition
+
+	// map package name to their full manifest
+	packages map[string]PackageManifest
 }
 
 func NewInMemoryFromDirectory(directory string) (*InMem, error) {
@@ -63,6 +66,7 @@ func NewInMem() *InMem {
 		replaces:        map[string]CSVMetadata{},
 		crdToCSV:        map[CRDKey]string{},
 		crds:            map[CRDKey]v1beta1.CustomResourceDefinition{},
+		packages:        map[string]PackageManifest{},
 	}
 }
 
@@ -78,6 +82,86 @@ func (m *InMem) SetCRDDefinition(crd v1beta1.CustomResourceDefinition) error {
 		return fmt.Errorf("invalid CRD : definition for CRD %s already set", crd.GetName())
 	}
 	m.crds[key] = crd
+	return nil
+}
+
+// FindReplacementCSVForPackageNameUnderChannel returns the CSV that replaces the CSV with the
+// matching CSV name, within the package and channel specified.
+func (m *InMem) FindReplacementCSVForPackageNameUnderChannel(packageName string, channelName string, csvName string) (*v1alpha1.ClusterServiceVersion, error) {
+	latestCSV, err := m.FindCSVForPackageNameUnderChannel(packageName, channelName)
+	if err != nil {
+		return nil, err
+	}
+
+	if latestCSV.GetName() == csvName {
+		return nil, fmt.Errorf("Channel is already up-to-date")
+	}
+
+	// Walk backwards over the `replaces` field until we find the CSV with the specified name.
+	var currentCSV = latestCSV
+	var nextCSV *v1alpha1.ClusterServiceVersion = nil
+	for currentCSV != nil {
+		if currentCSV.GetName() == csvName {
+			return nextCSV, nil
+		}
+
+		nextCSV = currentCSV
+		replacesName := currentCSV.Spec.Replaces
+		currentCSV = nil
+
+		if replacesName != "" {
+			replacesCSV, err := m.FindCSVByName(replacesName)
+			if err != nil {
+				return nil, err
+			}
+
+			currentCSV = replacesCSV
+		}
+	}
+
+	return nil, fmt.Errorf("Could not find matching replacement for CSV `%s` in package `%s` for channel `%s`", csvName, packageName, channelName)
+}
+
+// FindCSVForPackageNameUnderChannel finds the CSV referenced by the specified channel under the
+// package with the specified name.
+func (m *InMem) FindCSVForPackageNameUnderChannel(packageName string, channelName string) (*v1alpha1.ClusterServiceVersion, error) {
+	packageManifest, ok := m.packages[packageName]
+	if !ok {
+		return nil, fmt.Errorf("Unknown package %s", packageName)
+	}
+
+	for _, channel := range packageManifest.Channels {
+		if channel.Name == channelName {
+			return m.FindCSVByName(channel.CurrentCSVName)
+		}
+	}
+
+	return nil, fmt.Errorf("Unknown channel %s in package %s", channelName, packageName)
+}
+
+// addPackageManifest adds a new package manifest to the in memory catalog.
+func (m *InMem) addPackageManifest(pkg PackageManifest) error {
+	if len(pkg.PackageName) == 0 {
+		return fmt.Errorf("Empty package name")
+	}
+
+	if old, exists := m.packages[pkg.PackageName]; exists && !equality.Semantic.DeepEqual(pkg, old) {
+		return fmt.Errorf("invalid package manifest: definition for package %s already exists", pkg.PackageName)
+	}
+
+	// Make sure that each channel name is unique and that the referenced CSV exists.
+	channelMap := make(map[string]bool, len(pkg.Channels))
+	for _, channel := range pkg.Channels {
+		if _, exists := channelMap[channel.Name]; exists {
+			return fmt.Errorf("Channel %s declared twice in package manifest", channel.Name)
+		}
+
+		if _, err := m.FindCSVByName(channel.CurrentCSVName); err != nil {
+			return fmt.Errorf("Missing CSV with name %s", channel.CurrentCSVName)
+		}
+	}
+
+	m.packages[pkg.PackageName] = pkg
 	return nil
 }
 
