@@ -136,6 +136,55 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.name
+      - name: etcd-backup-operator
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                name: etcd-backup-operator
+            spec:
+              serviceAccountName: etcd-operator
+              containers:
+              - name: etcd-backup-operator
+                image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
+                command:
+                - etcd-backup-operator
+                - --create-crd=false
+                env:
+                - name: MY_POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MY_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+      - name: etcd-restore-operator
+        spec:
+          replicas: 1
+          template:
+            metadata:
+              labels:
+                name: etcd-restore-operator
+            spec:
+              containers:
+              - name: etcd-restore-operator
+                image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
+                command:
+                - etcd-restore-operator
+                - --create-crd=false
+                env:
+                - name: MY_POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: MY_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: SERVICE_ADDR
+                  value: "etcd-restore-operator:19999"
   customresourcedefinitions:
     owned:
     - name: etcdclusters.etcd.database.coreos.com
@@ -154,7 +203,7 @@ spec:
           path: size
           x-descriptors:
             - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-        - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+        - description: Limits describes the minimum/maximum amount of compute resources required/allowed.
           displayName: Resource Requirements
           path: pod.resources
           x-descriptors:
@@ -188,4 +237,69 @@ spec:
           displayName: Status Details
           path: reason
           x-descriptors:
+            - 'urn:alm:descriptor:io.kubernetes.phase:reason'
+    - name: etcdbackups.etcd.database.coreos.com
+      version: v1beta2
+      kind: EtcdBackup
+      displayName: etcd Backup
+      description: Represents the intent to backup an etcd cluster.
+      specDescriptors:
+        - description: Specifies the endpoints of an etcd cluster.
+          displayName: etcd Endpoint(s)
+          path: etcdEndpoints
+          x-descriptors: 
+            # TODO(alecmerdler)
+        - description: The full AWS S3 path where the backup is saved.
+          displayName: S3 Path
+          path: s3.path
+          x-descriptors: 
+            # TODO(alecmerdler)
+        - description: The name of the secret object that stores the AWS credential and config files.
+          displayName: AWS Secret
+          path: s3.awsSecret
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes:Secret'
+      statusDescriptors:
+        - description: Indicates if the backup was successful.
+          displayName: Succeeded
+          path: succeeded
+          x-descriptors: 
+            - 'urn:alm:descriptor:text'
+        - description: Indicates the reason for any backup related failures.
+          displayName: Reason
+          path: reason
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes.phase:reason'
+    - name: etcdrestores.etcd.database.coreos.com
+      version: v1beta2
+      kind: EtcdRestore
+      displayName: etcd Restore
+      description: Represents the intent to restore an etcd cluster from a backup.
+      specDescriptors:
+        - description: References the EtcdCluster which should be restored,
+          displayName: etcd Cluster
+          path: etcdCluster.name
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes:EtcdCluster'
+            - 'urn:alm:descriptor:text'
+        - description: The full AWS S3 path where the backup is saved.
+          displayName: S3 Path
+          path: s3.path
+          x-descriptors: 
+            # TODO(alecmerdler)
+        - description: The name of the secret object that stores the AWS credential and config files.
+          displayName: AWS Secret
+          path: s3.awsSecret
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes:Secret'
+      statusDescriptors:
+        - description: Indicates if the restore was successful.
+          displayName: Succeeded
+          path: succeeded
+          x-descriptors: 
+            - 'urn:alm:descriptor:text'
+        - description: Indicates the reason for any restore related failures.
+          displayName: Reason
+          path: reason
+          x-descriptors: 
             - 'urn:alm:descriptor:io.kubernetes.phase:reason'
