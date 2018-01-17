@@ -7,6 +7,8 @@ metadata:
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
+  labels:
+    alm-catalog: tectonic-ocs
 spec:
   displayName: etcd
   description: |
@@ -51,7 +53,6 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-status-descriptors: etcdoperator.v0.8.1
     alm-owner-etcd: etcdoperator
     operated-by: etcdoperator
   selector:
@@ -177,6 +178,11 @@ spec:
           path: size
           x-descriptors:
             - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+        - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+          displayName: Resource Requirements
+          path: pod.resources
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       statusDescriptors:
         - description: The status of each of the member Pods for the etcd cluster.
           displayName: Member Status
@@ -211,9 +217,64 @@ spec:
       version: v1beta2
       kind: EtcdBackup
       displayName: etcd Backup
-      description: Represents a backup for an etcd cluster
+      description: Represents the intent to backup an etcd cluster.
+      specDescriptors:
+        - description: Specifies the endpoints of an etcd cluster.
+          displayName: etcd Endpoint(s)
+          path: etcdEndpoints
+          x-descriptors: 
+            - 'urn:alm:descriptor:etcd:endpoint'
+        - description: The full AWS S3 path where the backup is saved.
+          displayName: S3 Path
+          path: s3.path
+          x-descriptors: 
+            - 'urn:alm:descriptor:aws:s3:path'
+        - description: The name of the secret object that stores the AWS credential and config files.
+          displayName: AWS Secret
+          path: s3.awsSecret
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes:Secret'
+      statusDescriptors:
+        - description: Indicates if the backup was successful.
+          displayName: Succeeded
+          path: succeeded
+          x-descriptors: 
+            - 'urn:alm:descriptor:text'
+        - description: Indicates the reason for any backup related failures.
+          displayName: Reason
+          path: reason
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes.phase:reason'
     - name: etcdrestores.etcd.database.coreos.com
       version: v1beta2
       kind: EtcdRestore
       displayName: etcd Restore
-      description: Represents one try of restoring etcd cluster from previous backup
+      description: Represents the intent to restore an etcd cluster from a backup.
+      specDescriptors:
+        - description: References the EtcdCluster which should be restored,
+          displayName: etcd Cluster
+          path: etcdCluster.name
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes:EtcdCluster'
+            - 'urn:alm:descriptor:text'
+        - description: The full AWS S3 path where the backup is saved.
+          displayName: S3 Path
+          path: s3.path
+          x-descriptors: 
+            - 'urn:alm:descriptor:aws:s3:path'
+        - description: The name of the secret object that stores the AWS credential and config files.
+          displayName: AWS Secret
+          path: s3.awsSecret
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes:Secret'
+      statusDescriptors:
+        - description: Indicates if the restore was successful.
+          displayName: Succeeded
+          path: succeeded
+          x-descriptors: 
+            - 'urn:alm:descriptor:text'
+        - description: Indicates the reason for any restore related failures.
+          displayName: Reason
+          path: reason
+          x-descriptors: 
+            - 'urn:alm:descriptor:io.kubernetes.phase:reason'
