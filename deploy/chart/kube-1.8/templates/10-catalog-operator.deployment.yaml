@@ -47,9 +47,11 @@ spec:
           resources:
 {{ toYaml .Values.catalog.resources | indent 12 }}
           {{- end}}
-    {{- if .Values.catalog.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.catalog.nodeSelector | indent 8 }}
-    {{- end }}
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
       imagePullSecrets:
         - name: coreos-pull-secret
