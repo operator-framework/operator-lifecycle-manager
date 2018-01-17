@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type MockALMOperator struct {
@@ -119,9 +120,9 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 		csvClient: mockCSVClient,
 		resolver:  mockInstallResolver,
 	}
-
+	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "test-clusterserviceversions")
 	csvQueueInformer := queueinformer.NewTestQueueInformer(
-		"test-clusterserviceversions",
+		queue,
 		cache.NewSharedIndexInformer(&queueinformer.MockListWatcher{}, &v1alpha1.ClusterServiceVersion{}, 0, nil),
 		almOperator.syncClusterServiceVersion,
 		nil,
@@ -130,6 +131,7 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 	qOp := queueinformer.NewMockOperator(gomockCtrl, csvQueueInformer)
 	almOperator.Operator = &qOp.Operator
 	almOperator.annotator = annotator.NewAnnotator(qOp.OpClient, map[string]string{})
+	almOperator.csvQueue = queue
 	return &MockALMOperator{
 		ALMOperator:          almOperator,
 		MockCSVClient:        mockCSVClient,
@@ -325,7 +327,6 @@ func TestCSVStateTransitions(t *testing.T) {
 				Reason: v1alpha1.CSVReasonInstallSuccessful,
 			}),
 			mockApplyStrategy: true,
-			errString:         "installing, requeue for another check",
 			description:       "TransitionInstallReadyToFailed/InstallComponentFailed",
 		},
 		{
@@ -363,7 +364,6 @@ func TestCSVStateTransitions(t *testing.T) {
 				Reason: v1alpha1.CSVReasonComponentUnhealthy,
 			}),
 			checkInstallErr: fmt.Errorf("component unhealthy"),
-			errString:       "requeue for another check: component unhealthy",
 			description:     "TransitionSucceededToInstalling/ComponentUnhealthy",
 		},
 	}
@@ -468,7 +468,6 @@ func TestCSVStateTransitionsFromInstallReady(t *testing.T) {
 					Message: "waiting for install components to report healthy",
 					Reason:  v1alpha1.CSVReasonInstallSuccessful,
 				}),
-			err:         fmt.Errorf("installing, requeue for another check"),
 			description: "InstallStrategy/NotReplacing/Installing",
 		},
 		{
@@ -529,7 +528,6 @@ func TestCSVStateTransitionsFromInstallReady(t *testing.T) {
 						Phase: v1alpha1.CSVPhaseSucceeded,
 					}),
 			},
-			err:         fmt.Errorf("installing, requeue for another check"),
 			description: "InstallStrategy/Replacing/Installing",
 		},
 		{
@@ -559,7 +557,6 @@ func TestCSVStateTransitionsFromInstallReady(t *testing.T) {
 			state: clusterState{
 				prevCSVQueryErr: fmt.Errorf("error getting prev csv"),
 			},
-			err:         fmt.Errorf("installing, requeue for another check"),
 			description: "InstallStrategy/Replacing/PrevCSVErr/Installing",
 		},
 	}
@@ -673,7 +670,6 @@ func TestCSVStateTransitionsFromInstalling(t *testing.T) {
 			state: clusterState{
 				checkInstallErr: fmt.Errorf("error installing component"),
 			},
-			err:         fmt.Errorf("requeue for another check: error installing component"),
 			description: "InstallStrategy/NotReplacing/WaitingForInstall",
 		},
 		{
@@ -772,7 +768,6 @@ func TestCSVStateTransitionsFromInstalling(t *testing.T) {
 					}),
 				checkInstallErr: fmt.Errorf("error installing component"),
 			},
-			err:         fmt.Errorf("requeue for another check: error installing component"),
 			description: "InstallStrategy/Replacing/WaitingForInstall",
 		},
 		{
@@ -901,8 +896,9 @@ func TestCSVStateTransitionsFromSucceeded(t *testing.T) {
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseSucceeded,
-					Reason: v1alpha1.CSVReasonInstallSuccessful,
+					Phase:   v1alpha1.CSVPhaseSucceeded,
+					Message: "install strategy completed with no errors",
+					Reason:  v1alpha1.CSVReasonInstallSuccessful,
 				}),
 			description: "InstallStrategy/LookingGood",
 		},
@@ -926,7 +922,6 @@ func TestCSVStateTransitionsFromSucceeded(t *testing.T) {
 			state: clusterState{
 				checkInstallErr: fmt.Errorf("error installing component"),
 			},
-			err:         fmt.Errorf("requeue for another check: error installing component"),
 			description: "InstallStrategy/ComponentWentUnhealthy",
 		},
 		{
