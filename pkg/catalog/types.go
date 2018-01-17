@@ -23,8 +23,19 @@ type Source interface {
 	ListServices() ([]v1alpha1.ClusterServiceVersion, error)
 
 	FindCRDByKey(key CRDKey) (*v1beta1.CustomResourceDefinition, error)
-	FindLatestCSVForCRD(key CRDKey) (*v1alpha1.ClusterServiceVersion, error)
-	ListCSVsForCRD(key CRDKey) ([]v1alpha1.ClusterServiceVersion, error)
+	ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error)
+}
+
+// CSVAndChannelInfo holds information about a CSV and the channel in which it lives.
+type CSVAndChannelInfo struct {
+	// CSV is the CSV found.
+	CSV *v1alpha1.ClusterServiceVersion
+
+	// Channel is the channel that "contains" this CSV, as it is declared as part of the channel.
+	Channel PackageChannel
+
+	// IsDefaultChannel returns true iff the channel is the default channel for the package.
+	IsDefaultChannel bool
 }
 
 // CSVMetadata holds the necessary information to locate a particular CSV in the catalog
@@ -41,6 +52,11 @@ type PackageManifest struct {
 
 	// Channels are the declared channels for the package, ala `stable` or `alpha`.
 	Channels []PackageChannel `json:"channels"`
+
+	// DefaultChannelName is, if specified, the name of the default channel for the package. The
+	// default channel will be installed if no other channel is explicitly given. If the package
+	// has a single channel, then that channel is implicitly the default.
+	DefaultChannelName string `json:"defaultChannel"`
 }
 
 // PackageChannel defines a single channel under a package, pointing to a version of that
@@ -52,4 +68,8 @@ type PackageChannel struct {
 	// CurrentCSVName defines a reference to the CSV holding the version of this package currently
 	// for the channel.
 	CurrentCSVName string `json:"currentCSV"`
+}
+
+func (pc PackageChannel) isDefaultChannel(pm PackageManifest) bool {
+	return pc.Name == pm.DefaultChannelName || len(pm.Channels) == 1
 }
