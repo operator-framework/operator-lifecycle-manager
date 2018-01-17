@@ -1,5 +1,5 @@
-#! package-manifest: ../../catalog_resources/vaultoperator.clusterserviceversion.yaml
+#! package-manifest: ../../catalog_resources/vaultoperator.0.1.7.clusterserviceversion.yaml
 packageName: vault
 channels:
 - name: alpha
-  currentCSV: vault-operator.0.1.6
+  currentCSV: vault-operator.0.1.7
