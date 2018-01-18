@@ -243,10 +243,13 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 	return
 }
 
+// findIntermediatesForDeletion starts at csv and follows the replacement chain until one is running and active
 func (a *ALMOperator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceVersion) (csvs []*v1alpha1.ClusterServiceVersion) {
+	csvsInNamespace := a.csvsInNamespace(csv.GetNamespace())
 	current := csv
-	next := a.isBeingReplaced(current)
+	next := a.isBeingReplaced(current, csvsInNamespace)
 	for next != nil {
+		csvs = append(csvs, current)
 		log.Debugf("checking to see if %s is running so we can delete %s", next.GetName(), csv.GetName())
 		installer, nextStrategy, currentStrategy := a.getStrategyInstaller(next)
 		if nextStrategy == nil {
@@ -258,16 +261,30 @@ func (a *ALMOperator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceV
 			continue
 		}
 		installErr := installer.CheckInstalled(nextStrategy)
-		if installErr == nil {
-			csvs = append(csvs, current)
-		} else {
-			log.Debugf("install strategy for %s is in an error state: %s, checking next", next.GetName(), installErr)
+		if installErr == nil && !next.IsObsolete() {
+			return csvs
 		}
-
 		current = next
-		next = a.isBeingReplaced(current)
+		next = a.isBeingReplaced(current, csvsInNamespace)
 	}
-	return csvs
+	return nil
+}
+
+// csvsInNamespace finds all CSVs in a namespace
+func (a *ALMOperator) csvsInNamespace(namespace string) (csvs []*v1alpha1.ClusterServiceVersion) {
+	csvsInNamespace, err := a.OpClient.ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, namespace, v1alpha1.ClusterServiceVersionKind)
+	if err != nil {
+		return nil
+	}
+	unstructuredConverter := conversion.NewConverter(true)
+	for _, csvUnst := range csvsInNamespace.Items {
+		csv := v1alpha1.ClusterServiceVersion{}
+		if err := unstructuredConverter.FromUnstructured(csvUnst.UnstructuredContent(), &csv); err != nil {
+			continue
+		}
+		csvs = append(csvs, &csv)
+	}
+	return
 }
 
 // replacingCSV returns an error if we can find a newer CSV and sets the status if so
@@ -275,7 +292,8 @@ func (a *ALMOperator) replacingCSV(csv *v1alpha1.ClusterServiceVersion) error {
 	if csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting {
 		return nil
 	}
-	if replacement := a.isBeingReplaced(csv); replacement != nil {
+
+	if replacement := a.isBeingReplaced(csv, a.csvsInNamespace(csv.GetNamespace())); replacement != nil {
 		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
 		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
 		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
@@ -369,22 +387,14 @@ func (a *ALMOperator) annotateNamespace(obj interface{}) (syncError error) {
 	return nil
 }
 
-func (a *ALMOperator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
-	csvsInNamespace, err := a.OpClient.ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, in.GetNamespace(), v1alpha1.ClusterServiceVersionKind)
-	if err != nil {
-		return nil
-	}
-	unstructuredConverter := conversion.NewConverter(true)
-	for _, csvUnst := range csvsInNamespace.Items {
-		csv := v1alpha1.ClusterServiceVersion{}
-		if err := unstructuredConverter.FromUnstructured(csvUnst.UnstructuredContent(), &csv); err != nil {
-			continue
-		}
+func (a *ALMOperator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNamespace []*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
+	for _, csv := range csvsInNamespace {
 		if csv.Spec.Replaces == in.GetName() {
-			return &csv
+			replacedBy = csv
+			return
 		}
 	}
-	return nil
+	return
 }
 
 func (a *ALMOperator) isReplacing(in *v1alpha1.ClusterServiceVersion) (previous *v1alpha1.ClusterServiceVersion) {

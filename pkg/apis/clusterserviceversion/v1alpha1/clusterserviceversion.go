@@ -36,3 +36,13 @@ func (c *ClusterServiceVersion) SetPhase(phase ClusterServiceVersionPhase, reaso
 func (c *ClusterServiceVersion) SetRequirementStatus(statuses []RequirementStatus) {
 	c.Status.RequirementStatus = statuses
 }
+
+// IsObsolete returns if this CSV is being replaced or is marked for deletion
+func (c *ClusterServiceVersion) IsObsolete() bool {
+	for _, condition := range c.Status.Conditions {
+		if condition.Reason == CSVReasonReplaced || condition.Reason == CSVReasonBeingReplaced {
+			return true
+		}
+	}
+	return false
+}
