@@ -111,6 +111,10 @@ var CSVSucceededChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 	return csv.Status.Phase == v1alpha1.CSVPhaseSucceeded
 }
 
+var CSVReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
+	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing
+}
+
 func fetchCSV(t *testing.T, c opClient.Interface, name string, checker CSVConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
@@ -124,7 +128,7 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker CSVCondit
 
 		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched)
 		require.NoError(t, err)
-		t.Log(fetched.Status)
+		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
 	})
 
@@ -225,7 +229,10 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 			Group:   "cluster.com",
 			Version: "v1alpha1",
 			Names: extv1beta1.CustomResourceDefinitionNames{
-				Plural: crdPlural,
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
 			},
 			Scope: "Namespaced",
 		},
@@ -397,9 +404,9 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins.cluster.com",
+						Name:    "ins2.cluster.com",
 						Version: "v1alpha1",
-						Kind:    "InCluster",
+						Kind:    "InCluster2",
 					},
 				},
 			},
@@ -409,16 +416,16 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	// Create dependency first (CRD)
 	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "ins.cluster.com",
+			Name: "ins2.cluster.com",
 		},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{
 			Group:   "cluster.com",
 			Version: "v1alpha1",
 			Names: extv1beta1.CustomResourceDefinitionNames{
-				Plural:   "ins",
-				Singular: "in",
-				Kind:     "InCluster",
-				ListKind: "InClusterList",
+				Plural:   "ins2",
+				Singular: "in2",
+				Kind:     "InCluster2",
+				ListKind: "InClusterList2",
 			},
 			Scope: "Namespaced",
 		},
@@ -464,9 +471,9 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins.cluster.com",
+						Name:    "ins2.cluster.com",
 						Version: "v1alpha1",
-						Kind:    "InCluster",
+						Kind:    "InCluster2",
 					},
 				},
 			},
@@ -485,13 +492,10 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
-	depOld, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
-	require.Error(t, err)
-	require.Nil(t, depOld)
 
 	// Should have garbage collected the old CSV
-	_, err = fetchCSV(t, c, csv.Name, CSVSucceededChecker)
-	require.Error(t, err)
+	_, err = fetchCSV(t, c, csv.Name, CSVReplacingChecker)
+	require.NoError(t, err)
 }
 
 // TODO: test behavior when replaces field doesn't point to existing CSV
