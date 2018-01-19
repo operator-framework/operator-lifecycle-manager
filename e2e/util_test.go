@@ -43,7 +43,8 @@ func newKubeClient(t *testing.T) opClient.Interface {
 	return opClient.NewClient(kubeconfigPath)
 }
 
-func FetchPods(t *testing.T, c opClient.Interface, selector string, expectedCount int) (*corev1.PodList, error) {
+// fetchPods waits for a set of pods to exist in the cluster
+func fetchPods(t *testing.T, c opClient.Interface, selector string, expectedCount int) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
 
@@ -69,7 +70,8 @@ func FetchPods(t *testing.T, c opClient.Interface, selector string, expectedCoun
 	return fetchedPodList, err
 }
 
-func PollForCustomResource(t *testing.T, c opClient.Interface, group string, version string, kind string, name string) error {
+// pollForCustomResource waits for a CR to exist in the cluster
+func pollForCustomResource(t *testing.T, c opClient.Interface, group string, version string, kind string, name string) error {
 	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
 
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -86,19 +88,3 @@ func PollForCustomResource(t *testing.T, c opClient.Interface, group string, ver
 
 	return err
 }
-
-//func waitForObjectDeletion(info *resource.Info, timeout time.Duration) error {
-//	copied := *info
-//	info = &copied
-//	// TODO: refactor Reaper so that we can pass the "wait" option into it, and then check for UID change.
-//	return wait.PollImmediate(objectDeletionWaitInterval, timeout, func() (bool, error) {
-//		switch err := info.Get(); {
-//		case err == nil:
-//			return false, nil
-//		case errors.IsNotFound(err):
-//			return true, nil
-//		default:
-//			return false, err
-//		}
-//	})
-//}

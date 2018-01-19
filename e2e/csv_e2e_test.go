@@ -16,6 +16,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
@@ -26,7 +27,9 @@ var singleInstance = int32(1)
 
 type cleanupFunc func()
 
-func cleanupCSV(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) cleanupFunc {
+var immediateDeleteGracePeriod int64 = 0
+
+func buildCSVCleanupFunc(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) cleanupFunc {
 	return func() {
 		err := c.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csv.GetName())
 		if err != nil {
@@ -48,13 +51,13 @@ func createCSV(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) (cleanu
 	if err != nil {
 		return nil, err
 	}
-	return cleanupCSV(c, csv), nil
+	return buildCSVCleanupFunc(c, csv), nil
 
 }
 
-func cleanupCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) cleanupFunc {
+func buildCRDCleanupFunc(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) cleanupFunc {
 	return func() {
-		err := c.DeleteCustomResourceDefinition(crd.Name, &metav1.DeleteOptions{})
+		err := c.DeleteCustomResourceDefinition(crd.Name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
 		if err != nil {
 			fmt.Println(err)
 		}
@@ -66,7 +69,7 @@ func createCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) (c
 	if err != nil {
 		return nil, err
 	}
-	return cleanupCRD(c, crd), nil
+	return buildCRDCleanupFunc(c, crd), nil
 
 }
 
@@ -101,21 +104,21 @@ func newNginxDeployment() v1beta1.DeploymentSpec {
 	}
 }
 
-type CSVConditionChecker func(csv *v1alpha1.ClusterServiceVersion) bool
+type csvConditionChecker func(csv *v1alpha1.ClusterServiceVersion) bool
 
-var CSVPendingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
+var csvPendingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 	return csv.Status.Phase == v1alpha1.CSVPhasePending
 }
 
-var CSVSucceededChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
+var csvSucceededChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 	return csv.Status.Phase == v1alpha1.CSVPhaseSucceeded
 }
 
-var CSVReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
+var csvReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing
 }
 
-func fetchCSV(t *testing.T, c opClient.Interface, name string, checker CSVConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
@@ -130,6 +133,41 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker CSVCondit
 		require.NoError(t, err)
 		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
+	})
+
+	return fetched, err
+}
+
+func waitForDeploymentToDelete(t *testing.T, c opClient.Interface, name string) error {
+	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err := c.GetDeployment(testNamespace, name)
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+}
+
+func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alpha1.ClusterServiceVersion, error) {
+	var fetched *v1alpha1.ClusterServiceVersion
+	var err error
+
+	unstructuredConverter := conversion.NewConverter(true)
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		if err := unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched); err == nil {
+			t.Logf("%s still exists", fetched.Name)
+		}
+		return false, nil
 	})
 
 	return fetched, err
@@ -175,7 +213,7 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, c, csv.Name, CSVPendingChecker)
+	_, err = fetchCSV(t, c, csv.Name, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
@@ -198,6 +236,9 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	strategyRaw, err := json.Marshal(strategy)
 	require.NoError(t, err)
 
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+
 	csv := v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
@@ -210,9 +251,9 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins.cluster.com",
+						Name:    crdName,
 						Version: "v1alpha1",
-						Kind:    "InCluster",
+						Kind:    crdPlural,
 					},
 				},
 			},
@@ -220,10 +261,9 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	}
 
 	// Create dependency first (CRD)
-	crdPlural := genName("ins")
 	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: crdPlural + ".cluster.com",
+			Name: crdName,
 		},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{
 			Group:   "cluster.com",
@@ -244,7 +284,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, c, csv.Name, CSVSucceededChecker)
+	_, err = fetchCSV(t, c, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should create deployment
@@ -314,7 +354,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	defer cleanupCSV()
 
 	// Wait for current CSV to succeed
-	_, err = fetchCSV(t, c, csv.Name, CSVSucceededChecker)
+	_, err = fetchCSV(t, c, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have created deployment
@@ -363,7 +403,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	_, err = fetchCSV(t, c, csvNew.Name, CSVSucceededChecker)
+	_, err = fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have updated existing deployment
@@ -372,9 +412,9 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NotNil(t, depUpdated)
 	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
 
-	// Should have garbage collected the old CSV
-	_, err = fetchCSV(t, c, csv.Name, CSVSucceededChecker)
-	require.Error(t, err)
+	// Should eventually GC the CSV
+	_, err = waitForCSVToDelete(t, c, csv.Name)
+	require.NoError(t, err)
 }
 
 func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
@@ -438,7 +478,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupCSV()
 
 	// Wait for current CSV to succeed
-	_, err = fetchCSV(t, c, csv.Name, CSVSucceededChecker)
+	_, err = fetchCSV(t, c, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have created deployment
@@ -485,16 +525,22 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	_, err = fetchCSV(t, c, csvNew.Name, CSVSucceededChecker)
+	_, err = fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should have marked the old CSV for replacement
+	_, err = fetchCSV(t, c, csv.Name, csvReplacingChecker)
 	require.NoError(t, err)
 
 	// Should have created new deployment and deleted old
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
+	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
 
-	// Should have garbage collected the old CSV
-	_, err = fetchCSV(t, c, csv.Name, CSVReplacingChecker)
+	// Should eventually GC the CSV
+	_, err = waitForCSVToDelete(t, c, csv.Name)
 	require.NoError(t, err)
 }
 

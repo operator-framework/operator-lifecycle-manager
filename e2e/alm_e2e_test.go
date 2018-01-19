@@ -32,13 +32,13 @@ const (
 	vaultClusterSize         = 2
 )
 
-type InstallPlanConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool
+type installPlanConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool
 
-var InstallPlanCompleteChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
+var installPlanCompleteChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseComplete
 }
 
-var InstallPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
+var installPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseFailed
 }
 
@@ -76,7 +76,7 @@ func createInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPla
 	return c.CreateCustomResource(&unstructured.Unstructured{Object: csvUnst})
 }
 
-func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker InstallPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
+func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker installPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
 	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
 	var err error
 
@@ -115,7 +115,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
 	require.NoError(t, err)
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -229,7 +229,7 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 		require.NoError(t, err)
 
 		// Wait for InstallPlan to be status: Complete before checking for resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), InstallPlanCompleteChecker)
+		fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), installPlanCompleteChecker)
 
 		require.NoError(t, err)
 		require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseComplete)
@@ -333,7 +333,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for InstallPlan to be status: Complete before checking for resource presence
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), InstallPlanFailedChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), installPlanFailedChecker)
 	require.NoError(t, err)
 
 	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
@@ -374,7 +374,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), InstallPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
 
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -474,14 +474,14 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: vaultService})
 	require.NoError(t, err)
 
-	require.NoError(t, PollForCustomResource(t, c, "vault.security.coreos.com", "v1alpha1", "VaultService", "test-vault"))
-	require.NoError(t, PollForCustomResource(t, c, "etcd.database.coreos.com", "v1beta2", "EtcdCluster", "test-vault-etcd"))
+	require.NoError(t, pollForCustomResource(t, c, "vault.security.coreos.com", "v1alpha1", "VaultService", "test-vault"))
+	require.NoError(t, pollForCustomResource(t, c, "etcd.database.coreos.com", "v1beta2", "EtcdCluster", "test-vault-etcd"))
 
-	etcdPods, err := FetchPods(t, c, "etcd_cluster=test-vault-etcd", expectedEtcdNodes)
+	etcdPods, err := fetchPods(t, c, "etcd_cluster=test-vault-etcd", expectedEtcdNodes)
 	require.NoError(t, err)
 	require.Equal(t, expectedEtcdNodes, len(etcdPods.Items))
 
-	vaultPods, err := FetchPods(t, c, "vault_cluster=test-vault", vaultClusterSize)
+	vaultPods, err := fetchPods(t, c, "vault_cluster=test-vault", vaultClusterSize)
 	require.NoError(t, err)
 	require.Equal(t, vaultClusterSize, len(vaultPods.Items))
 
