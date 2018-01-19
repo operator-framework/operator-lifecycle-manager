@@ -23,6 +23,25 @@ Each of these operators are also responsible for creating resources:
 | Catalog  | Custom Resource Definition |
 | Catalog  | ClusterServiceVersion-v1   |
 
+
+## What is a ClusterServiceVersion?
+
+ClusterServiceVersion combines metadata and runtime information about a service that allows ALM to manage it.
+
+ClusterServiceVersion:
+ - Metadata (name, description, version, links, labels, icon, etc)
+ - Install strategy
+    - Type: Deployment
+       - Set of service accounts / required permissions
+       - Set of deployments
+ - CRDs
+   - Type
+   - Owned - managed by this service
+   - Required - must exist in the cluster for this service to run
+   - Resources - a list of k8s resources that the operator interacts with
+   - Descriptors - annotate CRD spec and status fields to provide semantic information
+
+
 ## ALM Operator
 
 The ALM operator is responsible to deploying applications defined by ClusterServiceVersion-v1 resources once the required resources specified in the ClusterServiceVersion-v1 are present in the cluster.
