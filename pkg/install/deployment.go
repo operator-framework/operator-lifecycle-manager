@@ -179,31 +179,34 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 
 // CheckInstalled can return nil (installed), or errors
 // Errors can indicate: some component missing (keep installing), unable to query (check again later), or unrecoverable (failed in a way we know we can't recover from)
-func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (err error) {
+func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (installed bool, err error) {
 	strategy, ok := s.(*StrategyDetailsDeployment)
 	if !ok {
-		return &StrategyError{Reason: StrategyErrReasonInvalidStrategy, Message: fmt.Sprintf("attempted to check %s strategy with deployment installer", strategy.GetStrategyName())}
+		return false, StrategyError{Reason: StrategyErrReasonInvalidStrategy, Message: fmt.Sprintf("attempted to check %s strategy with deployment installer", strategy.GetStrategyName())}
 	}
 
 	// Check service accounts
 	for _, perm := range strategy.Permissions {
 		if err := i.checkForServiceAccount(perm.ServiceAccountName); err != nil {
-			return err
+			return false, err
 		}
 	}
 
 	// Check deployments
-	return i.checkForDeployments(strategy.DeploymentSpecs)
+	if err := i.checkForDeployments(strategy.DeploymentSpecs); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName string) error {
 	if _, err := i.strategyClient.GetServiceAccountByName(serviceAccountName); err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Debugf("service account not found: %s", serviceAccountName)
-			return &StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("service account not found: %s", serviceAccountName)}
+			return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("service account not found: %s", serviceAccountName)}
 		}
 		log.Debugf("error querying for %s: %s", serviceAccountName, err)
-		return &StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying for %s: %s", serviceAccountName, err)}
+		return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying for %s: %s", serviceAccountName, err)}
 	}
 	// TODO: use a SelfSubjectRulesReview (or a sync version) to verify ServiceAccount has correct access
 	return nil
@@ -217,7 +220,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []Stra
 
 	existingDeployments, err := i.strategyClient.FindAnyDeploymentsMatchingNames(depNames)
 	if err != nil {
-		return &StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying for %s: %s", depNames, err)}
+		return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying for %s: %s", depNames, err)}
 	}
 
 	// compare deployments to see if any need to be created/updated
@@ -229,15 +232,15 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []Stra
 		dep, exists := existingMap[spec.Name]
 		if !exists {
 			log.Debugf("missing deployment with name=%s", spec.Name)
-			return &StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("missing deployment with name=%s", spec.Name)}
+			return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("missing deployment with name=%s", spec.Name)}
 		}
 		reason, ready, err := DeploymentStatus(dep)
 		if err != nil {
 			log.Debugf("deployment %s not ready before timeout: %s", dep.Name, err.Error())
-			return &StrategyError{Reason: StrategyErrReasonTimeout, Message: fmt.Sprintf("deployment %s not ready before timeout: %s", dep.Name, err.Error())}
+			return StrategyError{Reason: StrategyErrReasonTimeout, Message: fmt.Sprintf("deployment %s not ready before timeout: %s", dep.Name, err.Error())}
 		}
 		if !ready {
-			return &StrategyError{Reason: StrategyErrReasonWaiting, Message: fmt.Sprintf("waiting for deployment %s to become ready: %s", dep.Name, reason)}
+			return StrategyError{Reason: StrategyErrReasonWaiting, Message: fmt.Sprintf("waiting for deployment %s to become ready: %s", dep.Name, reason)}
 		}
 	}
 	return nil

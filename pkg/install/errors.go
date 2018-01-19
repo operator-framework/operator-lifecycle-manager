@@ -10,7 +10,8 @@ const (
 	StrategyErrReasonUnknown          = "Unknown"
 )
 
-var UnrecoverableErrors = map[string]struct{}{
+// unrecoverableErrors are the set of errors that mean we can't recover an install strategy
+var unrecoverableErrors = map[string]struct{}{
 	StrategyErrReasonInvalidStrategy: {},
 	StrategyErrReasonTimeout:         {},
 }
@@ -21,18 +22,19 @@ type StrategyError struct {
 	Message string
 }
 
-var _ error = &StrategyError{}
+var _ error = StrategyError{}
 
 // Error implements the Error interface.
 func (e StrategyError) Error() string {
 	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
 }
 
+// IsErrorUnrecoverable reports if a given strategy error is one of the predefined unrecoverable types
 func IsErrorUnrecoverable(err error) bool {
 	if err == nil {
 		return false
 	}
-	_, ok := UnrecoverableErrors[reasonForError(err)]
+	_, ok := unrecoverableErrors[reasonForError(err)]
 	return ok
 }
 

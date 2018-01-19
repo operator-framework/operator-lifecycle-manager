@@ -135,8 +135,11 @@ func (i *TestInstaller) Install(s install.Strategy) error {
 	return i.installErr
 }
 
-func (i *TestInstaller) CheckInstalled(s install.Strategy) error {
-	return i.checkInstallErr
+func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
+	if i.checkInstallErr != nil {
+		return false, i.checkInstallErr
+	}
+	return true, nil
 }
 
 func testCSV(name string) *v1alpha1.ClusterServiceVersion {
@@ -1539,7 +1542,7 @@ func TestReplacingCSV(t *testing.T) {
 		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), csvsInNamespace, tt.state.csvQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.replacingCSV(tt.in)
+			err := mockOp.checkReplacementsAndUpdateStatus(tt.in)
 			require.EqualValues(t, tt.err, err)
 			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
 			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)

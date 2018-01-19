@@ -64,7 +64,7 @@ func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opCl
 	return crl, err
 }
 
-func createInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPlan) error {
+func decorateCommonAndCreateInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPlan) error {
 	plan.Kind = installplanv1alpha1.InstallPlanKind
 	plan.APIVersion = installplanv1alpha1.SchemeGroupVersion.String()
 	plan.Namespace = testNamespace
@@ -111,7 +111,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	}
 
 	// Create a new installplan for vault with manual approval
-	err := createInstallPlan(c, vaultInstallPlan)
+	err := decorateCommonAndCreateInstallPlan(c, vaultInstallPlan)
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
@@ -477,11 +477,11 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	require.NoError(t, pollForCustomResource(t, c, "vault.security.coreos.com", "v1alpha1", "VaultService", "test-vault"))
 	require.NoError(t, pollForCustomResource(t, c, "etcd.database.coreos.com", "v1beta2", "EtcdCluster", "test-vault-etcd"))
 
-	etcdPods, err := fetchPods(t, c, "etcd_cluster=test-vault-etcd", expectedEtcdNodes)
+	etcdPods, err := awaitPods(t, c, "etcd_cluster=test-vault-etcd", expectedEtcdNodes)
 	require.NoError(t, err)
 	require.Equal(t, expectedEtcdNodes, len(etcdPods.Items))
 
-	vaultPods, err := fetchPods(t, c, "vault_cluster=test-vault", vaultClusterSize)
+	vaultPods, err := awaitPods(t, c, "vault_cluster=test-vault", vaultClusterSize)
 	require.NoError(t, err)
 	require.Equal(t, vaultClusterSize, len(vaultPods.Items))
 

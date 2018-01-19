@@ -43,8 +43,8 @@ func newKubeClient(t *testing.T) opClient.Interface {
 	return opClient.NewClient(kubeconfigPath)
 }
 
-// fetchPods waits for a set of pods to exist in the cluster
-func fetchPods(t *testing.T, c opClient.Interface, selector string, expectedCount int) (*corev1.PodList, error) {
+// awaitPods waits for a set of pods to exist in the cluster
+func awaitPods(t *testing.T, c opClient.Interface, selector string, expectedCount int) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
 
@@ -70,7 +70,7 @@ func fetchPods(t *testing.T, c opClient.Interface, selector string, expectedCoun
 	return fetchedPodList, err
 }
 
-// pollForCustomResource waits for a CR to exist in the cluster
+// pollForCustomResource waits for a CR to exist in the cluster, returning an error if we fail to retrieve the CR after its been created
 func pollForCustomResource(t *testing.T, c opClient.Interface, group string, version string, kind string, name string) error {
 	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
 

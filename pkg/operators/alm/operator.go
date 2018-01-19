@@ -162,7 +162,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 // state.
 func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
 	// check if the current CSV is being replaced, return with replacing status if so
-	if err := a.replacingCSV(csv); err != nil {
+	if err := a.checkReplacementsAndUpdateStatus(csv); err != nil {
 		return
 	}
 	switch csv.Status.Phase {
@@ -184,9 +184,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		csv.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
 		csv.SetRequirementStatus(statuses)
 	case v1alpha1.CSVPhaseInstallReady:
-		installer, strategy, _ := a.getStrategyInstaller(csv)
+		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
 		if strategy == nil {
-			// getStrategyInstaller sets CSV status
+			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
 
@@ -198,9 +198,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		}
 		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
 	case v1alpha1.CSVPhaseInstalling:
-		installer, strategy, _ := a.getStrategyInstaller(csv)
+		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
 		if strategy == nil {
-			// getStrategyInstaller sets CSV status
+			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
 
@@ -209,9 +209,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		}
 
 	case v1alpha1.CSVPhaseSucceeded:
-		installer, strategy, _ := a.getStrategyInstaller(csv)
+		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
 		if strategy == nil {
-			// getStrategyInstaller sets CSV status
+			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
 		if installErr := a.updateInstallStatus(csv, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr == nil {
@@ -251,7 +251,7 @@ func (a *ALMOperator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceV
 	for next != nil {
 		csvs = append(csvs, current)
 		log.Debugf("checking to see if %s is running so we can delete %s", next.GetName(), csv.GetName())
-		installer, nextStrategy, currentStrategy := a.getStrategyInstaller(next)
+		installer, nextStrategy, currentStrategy := a.parseStrategiesAndUpdateStatus(next)
 		if nextStrategy == nil {
 			log.Debugf("couldn't get strategy for %s", next.GetName())
 			continue
@@ -260,8 +260,8 @@ func (a *ALMOperator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceV
 			log.Debugf("couldn't get strategy for %s", next.GetName())
 			continue
 		}
-		installErr := installer.CheckInstalled(nextStrategy)
-		if installErr == nil && !next.IsObsolete() {
+		installed, _ := installer.CheckInstalled(nextStrategy)
+		if installed && !next.IsObsolete() {
 			return csvs
 		}
 		current = next
@@ -287,8 +287,8 @@ func (a *ALMOperator) csvsInNamespace(namespace string) (csvs []*v1alpha1.Cluste
 	return
 }
 
-// replacingCSV returns an error if we can find a newer CSV and sets the status if so
-func (a *ALMOperator) replacingCSV(csv *v1alpha1.ClusterServiceVersion) error {
+// checkReplacementsAndUpdateStatus returns an error if we can find a newer CSV and sets the status if so
+func (a *ALMOperator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterServiceVersion) error {
 	if csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting {
 		return nil
 	}
@@ -307,7 +307,12 @@ func (a *ALMOperator) replacingCSV(csv *v1alpha1.ClusterServiceVersion) error {
 }
 
 func (a *ALMOperator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller, strategy install.Strategy, requeueConditionReason v1alpha1.ConditionReason) error {
-	strategyErr := installer.CheckInstalled(strategy)
+	installed, strategyErr := installer.CheckInstalled(strategy)
+	if installed {
+		// if there's no error, we're successfully running
+		csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+		return nil
+	}
 
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
 	if install.IsErrorUnrecoverable(strategyErr) {
@@ -322,13 +327,11 @@ func (a *ALMOperator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, i
 		return strategyErr
 	}
 
-	// if there's no error, we're successfully running
-	csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
 	return nil
 }
 
-// getStrategyInstaller returns a StrategyInstaller and a Strategy for a CSV if it can, else it sets a status on the CSV and returns
-func (a *ALMOperator) getStrategyInstaller(csv *v1alpha1.ClusterServiceVersion) (install.StrategyInstaller, install.Strategy, install.Strategy) {
+// parseStrategiesAndUpdateStatus returns a StrategyInstaller and a Strategy for a CSV if it can, else it sets a status on the CSV and returns
+func (a *ALMOperator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVersion) (install.StrategyInstaller, install.Strategy, install.Strategy) {
 	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 	if err != nil {
 		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))

@@ -17,7 +17,7 @@ type Strategy interface {
 
 type StrategyInstaller interface {
 	Install(strategy Strategy) error
-	CheckInstalled(strategy Strategy) error
+	CheckInstalled(strategy Strategy) (bool, error)
 }
 
 type StrategyResolverInterface interface {
@@ -59,6 +59,6 @@ func (i *NullStrategyInstaller) Install(s Strategy) error {
 	return fmt.Errorf("null InstallStrategy used")
 }
 
-func (i *NullStrategyInstaller) CheckInstalled(s Strategy) error {
-	return nil
+func (i *NullStrategyInstaller) CheckInstalled(s Strategy) (bool, error) {
+	return true, nil
 }

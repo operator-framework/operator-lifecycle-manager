@@ -26,7 +26,7 @@ These are our requirements:
 
 **Namespacing**
 
- * An operator and the resources it operates must be restricted to one namespace. This is the only reasonable way to manage a multi-tenant cluster and enforce RBAC and chargeback on operator resources.
+ * An operator and the resources it operates *must* be restricted to one namespace. This is the only reasonable way to manage a multi-tenant cluster and enforce RBAC and chargeback on operator resources.
 
 **Custom Resources**	
 
@@ -40,7 +40,7 @@ These are our requirements:
 
  * Operators will only need to worry about packaging themselves and the resources they manage, not linking in the world in order to run. 
 
- * Dynamic libraries, not fat binaries. The vault operator container should not also include the etcd operator container, but should rather take a dependency on Etcd that ALM will resolve. This is analogous to dynamic vs. static linking.
+ * Dynamic libraries, not fat binaries. As an example, the vault operator container should not also include the etcd operator container, but should rather take a dependency on Etcd that ALM will resolve. This is analogous to dynamic vs. static linking.
 
  * To achieve this, operators will need to define their dependencies.
 
@@ -150,7 +150,7 @@ We have two major components that handle the resources described above
 
         3. For each required CRD, finds the ClusterServiceVersion that manages it
 
-        4. Goto i
+        4. Goto 1
 
     * Watches for resolved InstallPlans and creates all of the discovered resources for it (if approved by a user or automatically)
 
@@ -184,5 +184,5 @@ Updates are discovered by either updating the service cache and running a new In
 
 **What if there are multiple operators that "own" or "manage" a CRD?**
 
-Initially, we require that there be only one owner for a CRD in the service catalog cache. If there is a use case for multiple owners, the option will be surfaced on the InstallPlan, and a user will manually resolve the choice.
+Initially, we require that there be only one owner package for a CRD in the service catalog cache. If there is a use case for multiple owners, the option will be surfaced on the InstallPlan, and a user will manually resolve the choice.
 
