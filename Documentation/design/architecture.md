@@ -9,7 +9,8 @@ Each of these operators are responsible for managing the CRDs that are the basis
 | ClusterServiceVersion-v1 | CSV        | ALM     | application metadata: name, version, icon, required resources, installation, etc...        |
 | InstallPlan-v1           | IP         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
 | UICatalogEntry-v1        | UICE       | Catalog | indexed application metadata for UI discovery only                       |
-| CatalogSource-v1         | UICE       | Catalog | a repository of CSVs and CRDs that define an application |
+| CatalogSource-v1         | CE         | Catalog | a repository of CSVs, CRDs, and packages that define an application |
+| Subscription-v1          | SS         | Catalog | used to keep CSVs up to date by tracking a channel in a package |
 
 Each of these operators are also responsible for creating resources:
 
@@ -33,20 +34,28 @@ While the ALM operator is often configured to watch all namespaces, it can also 
 ### ClusterServiceVersion-v1 Control Loop
 
 ```
-           +-------------------------------------+
-           |                                     |
-           v                     +--> Succeeded -+
-None --> Pending --> Installing -|
-                                 +--> Failed
+           +------------------------------------------------------+
+           |                                                      |
+           v                                      +--> Succeeded -+
+None --> Pending --> InstallReady --> Installing -|
+                                                  +--> Failed
+\                                                                 /
+ +---------------------------------------------------------------+
+    |
+    V
+Replacing --> Deleting
 ```
 
 | Phase      | Description                                                                                                            |
 |------------|------------------------------------------------------------------------------------------------------------------------|
 | None       | initial phase, once seen by the operator, it is immediately transitioned to `Pending`                                  |
 | Pending    | requirements in the CSV are not met, once they are this phase transitions to `Installing`                              |
-| Installing | all required resources are present and the operator is now executing the Install Strategy specified in the CSV         |
+| InstallReady | all requirements in the CSV are present, the operator will begin executing the install strategy |
+| Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready          |
 | Succeeded  | the execution of the Install Strategy was successful; if requirements disappear, this may transition back to `Pending` |
 | Failed     | upon failed execution of the Install Strategy, the CSV transitions to this terminal phase                              |
+| Replacing | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC | 
+| Deleting | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon. |
 
 ### Namespace Control Loop
 
@@ -56,8 +65,9 @@ This enables dashboards and users of `kubectl` to filter namespaces based on wha
 
 ## Catalog Operator
 
-The Catalog operator is responsible for resolving and installing ClusterServiceVersion-v1s and the required resources they specify.
-Users can create an InstallPlan-v1 resource containing the names of the desired ClusterServiceVersion-v1s and an approval strategy and the Catalog operator will create an execution plan for the creation of all of the required resources.
+The Catalog operator is responsible for resolving and installing ClusterServiceVersion-v1s and the required resources they specify. It is also responsible for watching catalog sources for updates to packages in channels, and upgrading them (optionally automatically) to the latest available versions.
+A user that wishes to track a package in a channel creates a Subscription-v1 resource configuring the desired package, channel, and the catalog source from which to pull updates. When updates are found, an appropriate InstallPlan-v1 is written into the namespace on behalf of the user.
+Users can also create an InstallPlan-v1 resource directly, containing the names of the desired ClusterServiceVersion-v1s and an approval strategy and the Catalog operator will create an execution plan for the creation of all of the required resources.
 Once approved, the Catalog operator will create all of the resources in an InstallPlan-v1; this should then independently satisfy the ALM operator, which will proceed to install the ClusterServiceVersion-v1s.
 
 ### InstallPlan-v1 Control Loop
@@ -72,3 +82,20 @@ None --> Planning --> Installing --> Complete
 | Planning   | dependencies between resources are being resolved, to be stored in the InstallPlan-v1 `Status` |
 | Installing | resolved resources in the InstallPlan-v1 `Status` block are being created                      |
 | Complete   | all resolved resources in the `Status` block exist                                             |
+
+
+## Catalog (Registry) Design
+
+The Catalog Registry stores CSVs and CRDs for creation in a cluster, and stores metadata about packages and channels.
+
+A package manifest is an entry in the catalog registry that associates a package identity with sets of ClusterServiceVersion-v1s. Within a package, channels which point to a particular CSV. Because CSVs explicitly reference the CSV that they replace, a package manifest provides the catalog operator needs to update a CSV to the latest version in a channel (stepping through each intermediate version).
+
+```
+Package {name}
+  |
+  +-- Channel {name} --> CSV {version} (--> CSV {version - 1} --> ...)
+  |
+  +-- Channel {name} --> CSV {version}
+  |
+  +-- Channel {name} --> CSV {version}
+```
