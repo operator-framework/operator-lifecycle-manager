@@ -60,5 +60,5 @@ func (i *NullStrategyInstaller) Install(s Strategy) error {
 }
 
 func (i *NullStrategyInstaller) CheckInstalled(s Strategy) (bool, error) {
-	return false, fmt.Errorf("null InstallStrategy used")
+	return true, nil
 }

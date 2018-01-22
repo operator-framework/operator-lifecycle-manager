@@ -56,3 +56,48 @@ func TestSetPhase(t *testing.T) {
 		})
 	}
 }
+
+func TestIsObsolete(t *testing.T) {
+	tests := []struct {
+		currentPhase      ClusterServiceVersionPhase
+		currentConditions []ClusterServiceVersionCondition
+		out               bool
+		description       string
+	}{
+		{
+			currentPhase:      "",
+			currentConditions: []ClusterServiceVersionCondition{},
+			out:               false,
+			description:       "NoPhase",
+		},
+		{
+			currentPhase:      CSVPhasePending,
+			currentConditions: []ClusterServiceVersionCondition{{Phase: CSVPhasePending}},
+			out:               false,
+			description:       "Pending",
+		},
+		{
+			currentPhase:      CSVPhaseReplacing,
+			currentConditions: []ClusterServiceVersionCondition{{Phase: CSVPhaseReplacing, Reason: CSVReasonBeingReplaced}},
+			out:               true,
+			description:       "Replacing",
+		},
+		{
+			currentPhase:      CSVPhaseDeleting,
+			currentConditions: []ClusterServiceVersionCondition{{Phase: CSVPhaseDeleting, Reason: CSVReasonReplaced}},
+			out:               true,
+			description:       "CSVPhaseDeleting",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			csv := ClusterServiceVersion{
+				Status: ClusterServiceVersionStatus{
+					Phase:      tt.currentPhase,
+					Conditions: tt.currentConditions,
+				},
+			}
+			require.Equal(t, csv.IsObsolete(), tt.out)
+		})
+	}
+}

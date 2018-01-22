@@ -1,5 +1,5 @@
-hash: 48165f384f46efdd0317d1017dc92545f4c0942bcf2b62203330c87740c37fd0
-updated: 2017-12-18T22:22:18.884417572-08:00
+hash: b89c7c644c62b61395661d1c0721b4473d6e1236ba48732be62b9f77e81a8253
+updated: 2018-01-18T17:50:18.667940224-05:00
 imports:
 - name: github.com/asaskevich/govalidator
   version: 593d64559f7600f29581a3ee42177f5dbded27a9
@@ -231,6 +231,7 @@ imports:
   - pkg/util/json
   - pkg/util/mergepatch
   - pkg/util/net
+  - pkg/util/rand
   - pkg/util/runtime
   - pkg/util/sets
   - pkg/util/strategicpatch
@@ -246,6 +247,7 @@ imports:
 - name: k8s.io/apiserver
   version: 9707c008294d447053c0e2737c256ee23f99e5b4
   subpackages:
+  - pkg/storage/names
   - pkg/util/feature
 - name: k8s.io/client-go
   version: 2ae454230481a7cb5544325e12ad7658ecccd19b
@@ -335,7 +337,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
   subpackages:
   - assert
   - require

@@ -17,3 +17,5 @@ catalog:
 e2e:
   image:
     ref: quay.io/coreos/alm-e2e:local
+
+job_name: e2e

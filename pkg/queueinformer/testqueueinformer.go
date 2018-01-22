@@ -14,10 +14,10 @@ func (q *TestQueueInformer) Enqueue(obj interface{}) {
 	q.QueueInformer.enqueue(obj)
 }
 
-func NewTestQueueInformer(queuename string, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *TestQueueInformer {
+func NewTestQueueInformer(queue workqueue.RateLimitingInterface, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *TestQueueInformer {
 	queueInformer := &TestQueueInformer{
 		QueueInformer{
-			queue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queuename),
+			queue:       queue,
 			informer:    informer,
 			syncHandler: handler,
 		},

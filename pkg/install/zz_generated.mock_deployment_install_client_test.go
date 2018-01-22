@@ -126,10 +126,11 @@ func (mr *MockInstallStrategyDeploymentInterfaceMockRecorder) GetServiceAccountB
 }
 
 // FindAnyDeploymentsMatchingNames mocks base method
-func (m *MockInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNames(depNames []string) []*v1beta1.Deployment {
+func (m *MockInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNames(depNames []string) ([]*v1beta1.Deployment, error) {
 	ret := m.ctrl.Call(m, "FindAnyDeploymentsMatchingNames", depNames)
 	ret0, _ := ret[0].([]*v1beta1.Deployment)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // FindAnyDeploymentsMatchingNames indicates an expected call of FindAnyDeploymentsMatchingNames
