@@ -53,8 +53,8 @@ type SubscriptionStatus struct {
 }
 
 type InstallPlanReference struct {
-	UUID types.UUID `json:"uuid"`
-	Name string     `json:"name"`
+	UID  types.UID `json:"uuid"`
+	Name string    `json:"name"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

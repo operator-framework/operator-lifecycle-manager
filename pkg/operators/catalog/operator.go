@@ -18,6 +18,7 @@ import (
 	catsrcv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
+	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/apis/subscription/v1alpha1"
 	catlib "github.com/coreos-inc/alm/pkg/catalog"
 	"github.com/coreos-inc/alm/pkg/client"
 	"k8s.io/client-go/util/workqueue"
@@ -32,12 +33,13 @@ const (
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	ipClient     client.InstallPlanInterface
-	csvClient    client.ClusterServiceVersionInterface
-	uiceClient   client.UICatalogEntryInterface
-	catsrcClient client.CatalogSourceInterface
-	namespace    string
-	sources      map[string]catlib.Source
+	ipClient           client.InstallPlanInterface
+	csvClient          client.ClusterServiceVersionInterface
+	uiceClient         client.UICatalogEntryInterface
+	catsrcClient       client.CatalogSourceInterface
+	subscriptionClient client.SubscriptionClientInterface
+	namespace          string
+	sources            map[string]catlib.Source
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -86,8 +88,15 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		return nil, err
 	}
 
+	// Create an instance of a Subscription client
+	subscriptionClient, err := client.NewSubscriptionClient(kubeconfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create a watch for each namespace.
 	ipWatchers := []*cache.ListWatch{}
+	subscriptionWatchers := []*cache.ListWatch{}
 	for _, namespace := range watchedNamespaces {
 		ipWatchers = append(ipWatchers, cache.NewListWatchFromClient(
 			ipClient,
@@ -95,6 +104,14 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 			namespace,
 			fields.Everything(),
 		))
+
+		subscriptionWatchers = append(subscriptionWatchers, cache.NewListWatchFromClient(
+			subscriptionClient,
+			subscriptionv1alpha1.SubscriptionKind,
+			namespace,
+			fields.Everything(),
+		))
+
 	}
 
 	// Create an informer for each watch.
@@ -103,6 +120,14 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		sharedIndexInformers = append(sharedIndexInformers, cache.NewSharedIndexInformer(
 			ipWatcher,
 			&v1alpha1.InstallPlan{},
+			wakeupInterval,
+			cache.Indexers{},
+		))
+	}
+	for _, watcher := range subscriptionWatchers {
+		sharedIndexInformers = append(sharedIndexInformers, cache.NewSharedIndexInformer(
+			watcher,
+			&subscriptionv1alpha1.Subscription{},
 			wakeupInterval,
 			cache.Indexers{},
 		))
@@ -121,6 +146,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		csvClient,
 		uiceClient,
 		catsrcClient,
+		subscriptionClient,
 		operatorNamespace,
 		make(map[string]catlib.Source),
 	}
@@ -146,6 +172,17 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		nil,
 	)
 	for _, informer := range ipQueueInformers {
+		op.RegisterQueueInformer(informer)
+	}
+
+	// Register Subscription informers.
+	subscriptionQueueInformers := queueinformer.New(
+		"subscriptions",
+		sharedIndexInformers,
+		op.syncSubscriptions,
+		nil,
+	)
+	for _, informer := range subscriptionQueueInformers {
 		op.RegisterQueueInformer(informer)
 	}
 
@@ -176,6 +213,31 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	log.Infof("created %d UICatalogEntry resources", len(entries))
 
 	o.sources[catsrc.Spec.Name] = src
+	return
+}
+
+func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
+	sub, ok := obj.(*subscriptionv1alpha1.Subscription)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Subscription failed")
+	}
+
+	log.Infof("syncing Subscription with catalog %s: %s on channel %s",
+		sub.Spec.CatalogSource, sub.Spec.Package, sub.Spec.Channel)
+
+	syncError = o.syncSubscription(sub)
+
+	// Update Subscription with status of transition. Log errors if we can't write them to the status.
+	if _, err := o.subscriptionClient.UpdateSubscription(sub); err != nil {
+		updateErr := errors.New("error updating Subscription status: " + err.Error())
+		if syncError == nil {
+			log.Info(updateErr)
+			return updateErr
+		}
+		syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
+		log.Info(syncError)
+	}
 	return
 }
 
