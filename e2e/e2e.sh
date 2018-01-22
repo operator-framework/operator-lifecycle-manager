@@ -11,3 +11,9 @@ touch /out/test.log
 set -o pipefail
 
 /bin/e2e -test.v 2>&1 | tee /out/test.log | go tool test2json | tee /out/test.json | jq -r -f ./e2e/tap.jq
+
+if cat /out/test.log | grep -q '^not'; then
+  exit 1
+else
+  exit 0
+fi

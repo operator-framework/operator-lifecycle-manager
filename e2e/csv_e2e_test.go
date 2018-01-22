@@ -115,7 +115,7 @@ var csvSucceededChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 }
 
 var csvReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
-	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing
+	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting
 }
 
 func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
@@ -526,10 +526,6 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 
 	// Wait for updated CSV to succeed
 	_, err = fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
-	require.NoError(t, err)
-
-	// Should have marked the old CSV for replacement
-	_, err = fetchCSV(t, c, csv.Name, csvReplacingChecker)
 	require.NoError(t, err)
 
 	// Should have created new deployment and deleted old
