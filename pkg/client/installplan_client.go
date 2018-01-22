@@ -12,8 +12,8 @@ import (
 )
 
 type InstallPlanInterface interface {
-	CreateInstallPlan(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
 	UpdateInstallPlan(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
+	CreateInstallPlan(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
 }
 
 type InstallPlanClient struct {

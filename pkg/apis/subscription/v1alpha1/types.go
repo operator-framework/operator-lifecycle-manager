@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
@@ -27,7 +28,8 @@ type SubscriptionSpec struct {
 	CatalogSource string `json:"source"`
 	Package       string `json:"name"`
 	Channel       string `json:"channel,omitempty"`
-	LatestCSV     string `json:"latestCSV,omitempty"`
+
+	AtCSV string `json:"nextCSV,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -43,9 +45,16 @@ type Subscription struct {
 type SubscriptionStatus struct {
 	metav1.Status `json:",inline"`
 
-	InstalledCSVName string            `json:"installedCSV"`
-	State            SubscriptionState `json:"state"`
-	LastUpdated      metav1.Time       `json:"lastUpdated"`
+	CurrentCSV string                `json:"installedCSV"`
+	Install    *InstallPlanReference `json:"installplan"`
+
+	State       SubscriptionState `json:"state"`
+	LastUpdated metav1.Time       `json:"lastUpdated"`
+}
+
+type InstallPlanReference struct {
+	UUID types.UUID `json:"uuid"`
+	Name string     `json:"name"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
