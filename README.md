@@ -27,8 +27,10 @@ This project does not:
 * Follow the [installation guide]
 * Understand the YAML resources for the [ALM itself]
 * Review the YAML resources for the [existing applications] leveraging the ALM framework
+* Learn to [debug] services running with ALM
 
 [architecture]: /Documentation/design/architecture.md
+[debug]: /Documentation/design/debugging.md
 [installation guide]: /Documentation/install/install.md
 [ALM itself]: /Documentation/design/resources
 [existing applications]: /catalog_resources
