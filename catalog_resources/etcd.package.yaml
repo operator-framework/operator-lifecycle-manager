@@ -1,5 +1,5 @@
-#! package-manifest: ../../catalog_resources/etcdoperator.v0.8.1.clusterserviceversion.yaml
+#! package-manifest: ../../catalog_resources/etcdoperator.v0.8.2.clusterserviceversion.yaml
 packageName: etcd
 channels:
 - name: alpha
-  currentCSV: etcdoperator.v0.8.1
+  currentCSV: etcdoperator.v0.8.2

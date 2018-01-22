@@ -364,7 +364,7 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: etcdoperator.v0.8.1
+        name: etcdoperator.v0.8.2
         namespace: placeholder
         annotations:
           tectonic-visibility: ocs
@@ -404,7 +404,7 @@ data:
 
           Coming soon, the ability to schedule backups to happen on or off cluster.
         keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-        version: 0.8.1
+        version: 0.8.2
         maturity: alpha
         replaces: etcdoperator.v0.7.2
         maintainers:
@@ -483,7 +483,7 @@ data:
                       command:
                       - etcd-operator
                       - --create-crd=false
-                      image: quay.io/coreos/etcd-operator@sha256:b85754eaeed0a684642b0886034742234d288132dc6439b8132e9abd7a199de0
+                      image: quay.io/coreos/etcd-operator@sha256:e1ff01a711f6758a1ee1996029db5ad9bae517a5f076c6acd44454132c8a2b85
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
@@ -494,7 +494,7 @@ data:
                           fieldRef:
                             fieldPath: metadata.name
                     - name: etcd-backup-operator
-                      image: quay.io/coreos/etcd-operator@sha256:b85754eaeed0a684642b0886034742234d288132dc6439b8132e9abd7a199de0
+                      image: quay.io/coreos/etcd-operator@sha256:e1ff01a711f6758a1ee1996029db5ad9bae517a5f076c6acd44454132c8a2b85
                       command:
                       - etcd-backup-operator
                       - --create-crd=false
@@ -508,7 +508,7 @@ data:
                           fieldRef:
                             fieldPath: metadata.name
                     - name: etcd-restore-operator
-                      image: quay.io/coreos/etcd-operator@sha256:b85754eaeed0a684642b0886034742234d288132dc6439b8132e9abd7a199de0
+                      image: quay.io/coreos/etcd-operator@sha256:e1ff01a711f6758a1ee1996029db5ad9bae517a5f076c6acd44454132c8a2b85
                       command:
                       - etcd-restore-operator
                       - --create-crd=false
@@ -903,7 +903,7 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: vault-operator.0.1.7
+        name: vault-operator.0.1.8
         namespace: placeholder
         annotations:
           tectonic-visibility: ocs
@@ -949,7 +949,7 @@ data:
         - name: Vault Project
           url: https://www.vaultproject.io/
         labels:
-          alm-status-descriptors: vault-operator.0.1.7
+          alm-status-descriptors: vault-operator.0.1.8
           alm-owner-vault: vault-operator
           operated-by: vault-operator
         selector:
@@ -1013,7 +1013,7 @@ data:
                     serviceAccountName: vault-operator
                     containers:
                     - name: vault-operator
-                      image: quay.io/coreos/vault-operator@sha256:437f1fd00c450ab7b98c9c92307609cc86e8ee087bd3ea93ea12e04aa91df454
+                      image: quay.io/coreos/vault-operator@sha256:81e4b28f983d55c77dce9ff024cc2cdb4de0ac3cf9f70ad2ad069f9fae5323dc
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
@@ -1025,7 +1025,7 @@ data:
                             fieldPath: metadata.name
                     imagePullSecrets:
                     - name: coreos-pull-secret
-        version: 0.1.7
+        version: 0.1.8
         replaces: vault-operator.0.1.6
         maturity: alpha
         customresourcedefinitions:
@@ -1315,7 +1315,7 @@ data:
     - packageName: etcd
       channels:
       - name: alpha
-        currentCSV: etcdoperator.v0.8.1
+        currentCSV: etcdoperator.v0.8.2
     - packageName: prometheus
       channels:
       - name: alpha
@@ -1323,4 +1323,4 @@ data:
     - packageName: vault
       channels:
       - name: alpha
-        currentCSV: vault-operator.0.1.7
+        currentCSV: vault-operator.0.1.8
