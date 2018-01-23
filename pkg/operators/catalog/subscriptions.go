@@ -35,7 +35,8 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 				sub.Spec.Package, sub.Spec.Channel)
 		}
 		sub.Spec.AtCSV = csv.GetName()
-		return nil
+		_, err = o.subscriptionClient.UpdateSubscription(sub)
+		return err
 	}
 	// check that desired CSV has been installed
 	csv, err := o.csvClient.GetCSVByName(sub.GetNamespace(), sub.Spec.AtCSV)
@@ -45,6 +46,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			log.Infof("installplan for %s already exists", sub.Spec.AtCSV)
 			return nil
 		}
+		// install CSV if doesn't exist
 		ip := &ipv1alpha1.InstallPlan{}
 		owner := []metav1.OwnerReference{
 			{
