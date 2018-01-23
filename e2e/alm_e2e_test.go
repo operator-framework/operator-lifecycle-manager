@@ -6,20 +6,18 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/coreos-inc/alm/pkg/apis"
-	clusterserviceversionv1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	uicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 
+	"github.com/coreos-inc/alm/pkg/catalog"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
 )
@@ -27,9 +25,9 @@ import (
 const (
 	expectedUICatalogEntries = 3
 	vaultVersion             = "0.9.0-0"
-	vaultOperatorVersion     = "0.1.6"
 	expectedEtcdNodes        = 3
 	vaultClusterSize         = 2
+	ocsConfigMap             = "tectonic-ocs"
 )
 
 type installPlanConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool
@@ -64,16 +62,37 @@ func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opCl
 	return crl, err
 }
 
-func decorateCommonAndCreateInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPlan) error {
+func buildInstallPlanCleanupFunc(c opClient.Interface, installPlan *installplanv1alpha1.InstallPlan) cleanupFunc {
+	return func() {
+		for _, step := range installPlan.Status.Plan {
+			if step.Resource.Kind == v1alpha1.ClusterServiceVersionKind {
+				err := c.DeleteCustomResource(step.Resource.Group, step.Resource.Version, testNamespace, step.Resource.Kind, step.Resource.Name)
+				if err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+		err := c.DeleteCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, installPlan.GetName())
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
+func decorateCommonAndCreateInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPlan) (cleanupFunc, error) {
 	plan.Kind = installplanv1alpha1.InstallPlanKind
 	plan.APIVersion = installplanv1alpha1.SchemeGroupVersion.String()
 	plan.Namespace = testNamespace
 	unstructuredConverter := conversion.NewConverter(true)
-	csvUnst, err := unstructuredConverter.ToUnstructured(&plan)
+	ipUnst, err := unstructuredConverter.ToUnstructured(&plan)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return c.CreateCustomResource(&unstructured.Unstructured{Object: csvUnst})
+	err = c.CreateCustomResource(&unstructured.Unstructured{Object: ipUnst})
+	if err != nil {
+		return nil, err
+	}
+	return buildInstallPlanCleanupFunc(c, &plan), nil
 }
 
 func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker installPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
@@ -100,19 +119,27 @@ func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker i
 func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
 
+	inMem, err := catalog.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
+	require.NoError(t, err)
+	require.NotNil(t, inMem)
+	latestVaultCSV, err := inMem.FindCSVForPackageNameUnderChannel("vault", "alpha")
+	require.NoError(t, err)
+	require.NotNil(t, latestVaultCSV)
+
 	vaultInstallPlan := installplanv1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "install-vaultmanual",
+			Name: "install-manual-" + latestVaultCSV.GetName(),
 		},
 		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{fmt.Sprintf("vault-operator.%s", vaultOperatorVersion)},
+			ClusterServiceVersionNames: []string{latestVaultCSV.GetName()},
 			Approval:                   installplanv1alpha1.ApprovalManual,
 		},
 	}
 
 	// Create a new installplan for vault with manual approval
-	err := decorateCommonAndCreateInstallPlan(c, vaultInstallPlan)
+	cleanup, err := decorateCommonAndCreateInstallPlan(c, vaultInstallPlan)
 	require.NoError(t, err)
+	defer cleanup()
 
 	// Get InstallPlan and verify status
 	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
@@ -337,152 +364,4 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
-}
-
-// As an infra owner, when I create an installplan for vault:
-// * I should see a resolved installplan listing EtcdCluster, VaultService, vault ClusterServiceVersion, and etcd ClusterServiceVersion
-// * I should see the resolved resources be created in the same namespace.
-// * I should see a vault-operator deployment and an etcd-operator deployment in the same namespace
-// * I should see service accounts for vault and etcd with permissions matching what’s listed in the ClusterServiceVersions
-// * When I create a VaultService CR
-//   * I should see a related EtcdCluster CR appear
-//   * I should see pods for vault and etcd appear
-func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
-	c := newKubeClient(t)
-
-	vaultInstallPlan := installplanv1alpha1.InstallPlan{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "install-vault",
-			Namespace: testNamespace,
-		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{fmt.Sprintf("vault-operator.%s", vaultOperatorVersion)},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
-		},
-	}
-
-	// Create a new installplan for vault
-	unstructuredConverter := conversion.NewConverter(true)
-	vaultUnst, err := unstructuredConverter.ToUnstructured(&vaultInstallPlan)
-	require.NoError(t, err)
-
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: vaultUnst})
-	require.NoError(t, err)
-
-	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
-
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
-	// Ensure CustomResourceDefinitions and ClusterServiceVersion-v1s are present in the resolved InstallPlan
-	requiredCSVs := []string{"etcdoperator", "vault-operator"}
-	requiredCRDs := []string{"etcdclusters.etcd.database.coreos.com", "vaultservices.vault.security.coreos.com"}
-
-	csvNames := map[string]string{}
-	crdNames := []string{}
-
-	for _, step := range fetchedInstallPlan.Status.Plan {
-		if step.Resource.Kind == "CustomResourceDefinition" {
-			crdNames = append(crdNames, step.Resource.Name)
-		} else if step.Resource.Kind == clusterserviceversionv1.ClusterServiceVersionKind {
-			csvNames[strings.Split(step.Resource.Name, ".")[0]] = step.Resource.Name
-		}
-	}
-
-	// Check that the CSV and CRDs are actually present in the cluster as well
-	for _, name := range requiredCSVs {
-		require.NotEmpty(t, csvNames[name])
-
-		t.Logf("Ensuring CSV %s is present in %s namespace", name, testNamespace)
-		_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, clusterserviceversionv1.ClusterServiceVersionKind, csvNames[name])
-		require.NoError(t, err)
-	}
-
-	for _, name := range requiredCRDs {
-		require.Contains(t, crdNames, name)
-
-		t.Logf("Ensuring CRD %s is present in cluster", name)
-		_, err := c.GetCustomResourceDefinition(name)
-		require.NoError(t, err)
-	}
-
-	// * I should see service accounts for vault and etcd with permissions matching what’s listed in the ClusterServiceVersions
-	for _, accountName := range []string{"etcd-operator", "vault-operator"} {
-		var sa *corev1.ServiceAccount
-		t.Logf("Looking for ServiceAccount %s in %s\n", accountName, testNamespace)
-
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-			sa, err = c.GetServiceAccount(testNamespace, accountName)
-			if err != nil {
-				if sErr := err.(*errors.StatusError); sErr.Status().Reason == metav1.StatusReasonNotFound {
-					return false, nil
-				}
-				return false, err
-			}
-
-			return true, nil
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, accountName, sa.Name)
-
-	}
-
-	for _, deploymentName := range []string{"etcd-operator", "vault-operator"} {
-		var deployment *extensions.Deployment
-		t.Logf("Looking for Deployment %s in %s\n", deploymentName, testNamespace)
-
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-			deployment, err = c.GetDeployment(testNamespace, deploymentName)
-			if err != nil {
-				if sErr := err.(*errors.StatusError); sErr.Status().Reason == metav1.StatusReasonNotFound {
-					return false, nil
-				}
-				return false, err
-			}
-
-			return true, nil
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, deploymentName, deployment.Name)
-	}
-
-	// * When I create a VaultService CR
-	//   * I should see a related EtcdCluster CR appear
-	//   * I should see pods for vault and etcd appear
-
-	// Importing the vault-operator v1alpha1 api package causes all kinds of weird dependency conflicts
-	// that I was unable to resolve.
-	vaultService := map[string]interface{}{
-		"kind":       "VaultService",
-		"apiVersion": "vault.security.coreos.com/v1alpha1",
-		"metadata": map[string]interface{}{
-			"name":      "test-vault",
-			"namespace": testNamespace,
-		},
-		"spec": map[string]interface{}{
-			"nodes":   2,
-			"version": vaultVersion,
-		},
-	}
-
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: vaultService})
-	require.NoError(t, err)
-
-	require.NoError(t, pollForCustomResource(t, c, "vault.security.coreos.com", "v1alpha1", "VaultService", "test-vault"))
-	require.NoError(t, pollForCustomResource(t, c, "etcd.database.coreos.com", "v1beta2", "EtcdCluster", "test-vault-etcd"))
-
-	etcdPods, err := awaitPods(t, c, "etcd_cluster=test-vault-etcd", expectedEtcdNodes)
-	require.NoError(t, err)
-	require.Equal(t, expectedEtcdNodes, len(etcdPods.Items))
-
-	vaultPods, err := awaitPods(t, c, "vault_cluster=test-vault", vaultClusterSize)
-	require.NoError(t, err)
-	require.Equal(t, vaultClusterSize, len(vaultPods.Items))
-
 }

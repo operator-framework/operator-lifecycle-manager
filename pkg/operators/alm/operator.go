@@ -129,6 +129,7 @@ func (a *ALMOperator) requeueCSV(csv *v1alpha1.ClusterServiceVersion) {
 		log.Infof("creating key failed: %s", err)
 		return
 	}
+	log.Infof("requeueing %s", csv.SelfLink)
 	a.csvQueue.AddRateLimited(k)
 	return
 }
@@ -233,6 +234,9 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
 			csv.SetPhase(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.")
 		}
+
+		// if there's no newer version, requeue for processing (likely will be GCable before resync)
+		a.requeueCSV(csv)
 	case v1alpha1.CSVPhaseDeleting:
 		syncError := a.OpClient.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, csv.GetNamespace(), v1alpha1.ClusterServiceVersionKind, csv.GetName())
 		if syncError != nil {
@@ -345,6 +349,10 @@ func (a *ALMOperator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServic
 		if err != nil {
 			previousStrategy = nil
 		}
+	}
+	if previousStrategy != nil {
+		// check for status changes if we know we're replacing a CSV
+		a.requeueCSV(previousCSV)
 	}
 
 	strName := strategy.GetStrategyName()
