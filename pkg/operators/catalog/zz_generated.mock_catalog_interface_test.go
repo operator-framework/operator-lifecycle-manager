@@ -5,6 +5,7 @@ package catalog
 
 import (
 	v1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	catalog "github.com/coreos-inc/alm/pkg/catalog"
 	gomock "github.com/golang/mock/gomock"
 	v1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
@@ -85,7 +86,7 @@ func (_mr *_MockSourceRecorder) ListServices() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ListServices")
 }
 
-func (_m *MockSource) FindCRDByKey(key CRDKey) (*v1beta1.CustomResourceDefinition, error) {
+func (_m *MockSource) FindCRDByKey(key catalog.CRDKey) (*v1beta1.CustomResourceDefinition, error) {
 	ret := _m.ctrl.Call(_m, "FindCRDByKey", key)
 	ret0, _ := ret[0].(*v1beta1.CustomResourceDefinition)
 	ret1, _ := ret[1].(error)
@@ -96,9 +97,9 @@ func (_mr *_MockSourceRecorder) FindCRDByKey(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FindCRDByKey", arg0)
 }
 
-func (_m *MockSource) ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error) {
+func (_m *MockSource) ListLatestCSVsForCRD(key catalog.CRDKey) ([]catalog.CSVAndChannelInfo, error) {
 	ret := _m.ctrl.Call(_m, "ListLatestCSVsForCRD", key)
-	ret0, _ := ret[0].([]CSVAndChannelInfo)
+	ret0, _ := ret[0].([]catalog.CSVAndChannelInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

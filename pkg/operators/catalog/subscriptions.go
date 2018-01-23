@@ -47,7 +47,9 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			return nil
 		}
 		// install CSV if doesn't exist
-		ip := &ipv1alpha1.InstallPlan{}
+		ip := &ipv1alpha1.InstallPlan{
+			ObjectMeta: metav1.ObjectMeta{},
+		}
 		owner := []metav1.OwnerReference{
 			{
 				APIVersion: v1alpha1.SchemeGroupVersion.String(),
@@ -58,12 +60,17 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		}
 		ip.SetOwnerReferences(owner)
 		ip.SetGenerateName(fmt.Sprintf("install-%s", sub.Spec.AtCSV))
-		if _, err := o.ipClient.CreateInstallPlan(ip); err != nil {
+		ip.SetNamespace(sub.GetNamespace())
+		res, err := o.ipClient.CreateInstallPlan(ip)
+		if err != nil {
 			return fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Spec.AtCSV, err)
 		}
+		if res == nil {
+			return errors.New("unexpected installplan returned by k8s api on create: <nil>")
+		}
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
-			UID:  ip.GetUID(),
-			Name: ip.GetName(),
+			UID:  res.GetUID(),
+			Name: res.GetName(),
 		}
 		_, err = o.subscriptionClient.UpdateSubscription(sub)
 		return err

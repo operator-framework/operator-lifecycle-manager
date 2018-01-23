@@ -1,6 +1,8 @@
 package catalog
 
 import (
+	"fmt"
+
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
@@ -24,6 +26,17 @@ type Source interface {
 
 	FindCRDByKey(key CRDKey) (*v1beta1.CustomResourceDefinition, error)
 	ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error)
+}
+
+// CRDKey contains metadata needed to uniquely identify a CRD
+type CRDKey struct {
+	Kind    string
+	Name    string
+	Version string
+}
+
+func (k CRDKey) String() string {
+	return fmt.Sprintf("%s/%s/%s", k.Kind, k.Name, k.Version)
 }
 
 // CSVAndChannelInfo holds information about a CSV and the channel in which it lives.
