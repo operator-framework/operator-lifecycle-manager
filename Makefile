@@ -95,6 +95,9 @@ $(MOCKGEN):
 
 generate-mock-client: $(MOCKGEN)
 	mockgen -source=$(PKG_DIR)/client/clusterserviceversion_client.go -package=alm > $(PKG_DIR)/operators/alm/zz_generated.mock_clusterserviceversion_client_test.go
+	mockgen -source=$(PKG_DIR)/client/clusterserviceversion_client.go -package=catalog > $(PKG_DIR)/operators/catalog/zz_generated.mock_clusterserviceversion_client_test.go
+	mockgen -source=$(PKG_DIR)/client/installplan_client.go -package=catalog > $(PKG_DIR)/operators/catalog/zz_generated.mock_installplan_client_test.go
+	mockgen -source=$(PKG_DIR)/client/subscription_client.go -package=catalog > $(PKG_DIR)/operators/catalog/zz_generated.mock_subscription_client_test.go
 	mockgen -package=client -source=$(PKG_DIR)/client/installplan_client.go > $(PKG_DIR)/client/zz_generated.mock_installplan_client_test.go
 	mockgen -source=$(PKG_DIR)/client/uicatalogentry_client.go  -package=catalog > $(PKG_DIR)/catalog/zz_generated.mock_uicatalogentry_client_test.go
 	mockgen -source=$(PKG_DIR)/client/deployment_install_client.go -package=install > $(PKG_DIR)/install/zz_generated.mock_deployment_install_client_test.go
