@@ -72,6 +72,9 @@ func TestSyncSubscription(t *testing.T) {
 		findReplacementCSVResult *csvv1alpha1.ClusterServiceVersion
 		findReplacementCSVError  error
 
+		getInstallPlanResult *ipv1alpha1.InstallPlan
+		getInstallPlanError  error
+
 		createInstallPlanResult *ipv1alpha1.InstallPlan
 		createInstallPlanError  error
 
@@ -84,13 +87,14 @@ func TestSyncSubscription(t *testing.T) {
 		subscription *v1alpha1.Subscription
 	}
 	type expected struct {
-		csvName      string
-		namespace    string
-		packageName  string
-		channelName  string
-		subscription *v1alpha1.Subscription
-		installPlan  *ipv1alpha1.InstallPlan
-		err          string
+		csvName                 string
+		namespace               string
+		packageName             string
+		channelName             string
+		subscription            *v1alpha1.Subscription
+		installPlan             *ipv1alpha1.InstallPlan
+		existingInstallPlanName string
+		err                     string
 	}
 	table := []struct {
 		name     string
@@ -233,6 +237,11 @@ func TestSyncSubscription(t *testing.T) {
 			initial: initial{
 				catalogName:  "flying-unicorns",
 				getCSVResult: nil,
+				getInstallPlanResult: &ipv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "existing-install",
+					},
+				},
 			},
 			args: args{subscription: &v1alpha1.Subscription{
 				ObjectMeta: metav1.ObjectMeta{
@@ -245,41 +254,87 @@ func TestSyncSubscription(t *testing.T) {
 					AtCSV:         "pending",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: &v1alpha1.InstallPlanReference{},
+					Install: &v1alpha1.InstallPlanReference{Name: "existing-install"},
 				},
 			}},
 			expected: expected{
-				csvName:   "pending",
-				namespace: "fairy-land",
-				err:       "",
+				existingInstallPlanName: "existing-install",
+				csvName:                 "pending",
+				namespace:               "fairy-land",
+				err:                     "",
 			},
 		},
 		{
-			name:    "install in progress",
-			subName: "NoOp",
+			name:    "no csv or installplan",
+			subName: "get installplan error",
 			initial: initial{
-				catalogName:  "flying-unicorns",
-				getCSVResult: nil,
-				getCSVError:  errors.New("GetCSVError"),
+				catalogName:         "flying-unicorns",
+				getCSVResult:        nil,
+				getCSVError:         errors.New("GetCSVError"),
+				getInstallPlanError: errors.New("GetInstallPlanError"),
+				createInstallPlanResult: &ipv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "installplan-1",
+						UID:  types.UID("UID-OK"),
+					},
+				},
 			},
 			args: args{subscription: &v1alpha1.Subscription{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: "fairy-land",
+					Name:      "test-subscription",
+					UID:       types.UID("subscription-uid"),
 				},
 				Spec: &v1alpha1.SubscriptionSpec{
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "pending",
+					AtCSV:         "latest-and-greatest",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: &v1alpha1.InstallPlanReference{},
+					Install: &v1alpha1.InstallPlanReference{
+						Name: "dead-install",
+					},
 				},
 			}},
 			expected: expected{
-				csvName:   "pending",
-				namespace: "fairy-land",
-				err:       "",
+				csvName:                 "latest-and-greatest",
+				existingInstallPlanName: "dead-install",
+				namespace:               "fairy-land",
+				installPlan: &ipv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "install-latest-and-greatest",
+						Namespace:    "fairy-land",
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "app.coreos.com/v1alpha1",
+								Kind:       "Subscription-v1",
+								Name:       "test-subscription",
+								UID:        types.UID("subscription-uid"),
+							},
+						},
+					},
+				},
+				subscription: &v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "fairy-land",
+						Name:      "test-subscription",
+						UID:       types.UID("subscription-uid"),
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource: "flying-unicorns",
+						Package:       "rainbows",
+						Channel:       "magical",
+						AtCSV:         "latest-and-greatest",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						Install: &v1alpha1.InstallPlanReference{
+							UID:  types.UID("UID-OK"),
+							Name: "installplan-1",
+						},
+					},
+				},
+				err: "",
 			},
 		},
 		{
@@ -574,6 +629,12 @@ func TestSyncSubscription(t *testing.T) {
 				ipClientMock.EXPECT().
 					CreateInstallPlan(MatchesInstallPlan(tt.expected.installPlan)).
 					Return(tt.initial.createInstallPlanResult, tt.initial.createInstallPlanError)
+			}
+
+			if tt.expected.existingInstallPlanName != "" {
+				ipClientMock.EXPECT().
+					GetInstallPlanByName(tt.expected.namespace, tt.expected.existingInstallPlanName).
+					Return(tt.initial.getInstallPlanResult, tt.initial.getInstallPlanError)
 			}
 
 			subscriptionClientMock := NewMockSubscriptionClientInterface(ctrl)
