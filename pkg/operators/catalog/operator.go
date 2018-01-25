@@ -176,8 +176,9 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Register Subscription informers.
+	subscriptionQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "subscriptions")
 	subscriptionQueueInformers := queueinformer.New(
-		"subscriptions",
+		subscriptionQueue,
 		sharedIndexInformers,
 		op.syncSubscriptions,
 		nil,
