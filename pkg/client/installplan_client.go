@@ -14,6 +14,7 @@ import (
 type InstallPlanInterface interface {
 	UpdateInstallPlan(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
 	CreateInstallPlan(*v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error)
+	GetInstallPlanByName(namespace string, name string) (*v1alpha1.InstallPlan, error)
 }
 
 type InstallPlanClient struct {
@@ -82,4 +83,17 @@ func (c *InstallPlanClient) CreateInstallPlan(in *v1alpha1.InstallPlan) (*v1alph
 		return nil, fmt.Errorf("failed to create InstallPlan: %v", err)
 	}
 	return out, nil
+}
+
+func (c *InstallPlanClient) GetInstallPlanByName(namespace, name string) (*v1alpha1.InstallPlan, error) {
+	out := &v1alpha1.InstallPlan{}
+	err := c.RESTClient.
+		Get().
+		Context(context.TODO()).
+		Namespace(namespace).
+		Resource(v1alpha1.InstallPlanCRDName).
+		Name(name).
+		Do().
+		Into(out)
+	return out, err
 }

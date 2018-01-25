@@ -43,8 +43,16 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	if err != nil || csv == nil {
 		log.Infof("error fetching CSV %s via k8s api: %v", sub.Spec.AtCSV, err)
 		if sub.Status.Install != nil {
-			log.Infof("installplan for %s already exists", sub.Spec.AtCSV)
-			return nil
+			ip, err := o.ipClient.GetInstallPlanByName(sub.GetNamespace(), sub.Status.Install.Name)
+			if err != nil {
+				log.Errorf("get installplan %s error: %v", sub.Status.Install.Name, err)
+			}
+			if err == nil && ip != nil {
+				log.Infof("installplan for %s already exists", sub.Spec.AtCSV)
+				return nil
+			}
+			log.Infof("installplan %s not found: creating new plan", sub.Status.Install.Name)
+			sub.Status.Install = nil
 		}
 		// install CSV if doesn't exist
 		ip := &ipv1alpha1.InstallPlan{

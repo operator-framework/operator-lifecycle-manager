@@ -50,3 +50,14 @@ func (_m *MockInstallPlanInterface) CreateInstallPlan(_param0 *v1alpha1.InstallP
 func (_mr *_MockInstallPlanInterfaceRecorder) CreateInstallPlan(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CreateInstallPlan", arg0)
 }
+
+func (_m *MockInstallPlanInterface) GetInstallPlanByName(namespace string, name string) (*v1alpha1.InstallPlan, error) {
+	ret := _m.ctrl.Call(_m, "GetInstallPlanByName", namespace, name)
+	ret0, _ := ret[0].(*v1alpha1.InstallPlan)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockInstallPlanInterfaceRecorder) GetInstallPlanByName(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetInstallPlanByName", arg0, arg1)
+}
