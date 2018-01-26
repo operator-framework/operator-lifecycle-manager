@@ -13,7 +13,16 @@ func TestRegisterUICatalogEntry(t *testing.T) {
 	require.NoError(t, err)
 
 	testApp := &UICatalogEntrySpec{
-		v1alpha1.ClusterServiceVersionSpec{
+		Manifest: PackageManifest{
+			PackageName: "TestPackage",
+			Channels: []PackageChannel{
+				{
+					Name:           "alpha",
+					CurrentCSVName: "testpackagename",
+				},
+			},
+		},
+		CSVSpec: v1alpha1.ClusterServiceVersionSpec{
 			DisplayName: "TestUICatalogEntry",
 			Description: "This is a test app type",
 			Keywords:    []string{"mock", "dev", "alm"},

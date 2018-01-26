@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+
 	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 )
 
@@ -38,15 +40,15 @@ type InMem struct {
 	crdOwners map[CRDKey][]string
 
 	// map package name to their full manifest
-	packages map[string]PackageManifest
+	packages map[string]uiv1alpha1.PackageManifest
 
 	// map from CSV name to the package channel(s) that contain it.
 	csvPackageChannels map[string][]packageAndChannel
 }
 
 type packageAndChannel struct {
-	packageRef PackageManifest
-	channelRef PackageChannel
+	packageRef uiv1alpha1.PackageManifest
+	channelRef uiv1alpha1.PackageChannel
 }
 
 func NewInMemoryFromDirectory(directory string) (*InMem, error) {
@@ -74,7 +76,7 @@ func NewInMem() *InMem {
 		replaces:           map[string][]CSVMetadata{},
 		crds:               map[CRDKey]v1beta1.CustomResourceDefinition{},
 		crdOwners:          map[CRDKey][]string{},
-		packages:           map[string]PackageManifest{},
+		packages:           map[string]uiv1alpha1.PackageManifest{},
 		csvPackageChannels: map[string][]packageAndChannel{},
 	}
 }
@@ -149,7 +151,7 @@ func (m *InMem) FindCSVForPackageNameUnderChannel(packageName string, channelNam
 }
 
 // addPackageManifest adds a new package manifest to the in memory catalog.
-func (m *InMem) addPackageManifest(pkg PackageManifest) error {
+func (m *InMem) addPackageManifest(pkg uiv1alpha1.PackageManifest) error {
 	if len(pkg.PackageName) == 0 {
 		return fmt.Errorf("Empty package name")
 	}
@@ -356,6 +358,11 @@ func (m *InMem) FindReplacementCSVForName(name string) (*v1alpha1.ClusterService
 	return m.FindCSVByName(csvMetadata[0].Name)
 }
 
+// AllPackages returns all package manifests in the catalog
+func (m *InMem) AllPackages() map[string]uiv1alpha1.PackageManifest {
+	return m.packages
+}
+
 // ListServices lists all versions of the service in the catalog
 func (m *InMem) ListServices() ([]v1alpha1.ClusterServiceVersion, error) {
 	services := []v1alpha1.ClusterServiceVersion{}
@@ -391,7 +398,7 @@ func (m *InMem) ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error) {
 
 			channelInfo = append(channelInfo, CSVAndChannelInfo{
 				CSV:              latestCSV,
-				Channel:          PackageChannel{},
+				Channel:          uiv1alpha1.PackageChannel{},
 				IsDefaultChannel: false,
 			})
 			continue
@@ -412,7 +419,7 @@ func (m *InMem) ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error) {
 			channelInfo = append(channelInfo, CSVAndChannelInfo{
 				CSV:              latestCSV,
 				Channel:          packageChannel.channelRef,
-				IsDefaultChannel: packageChannel.channelRef.isDefaultChannel(packageChannel.packageRef),
+				IsDefaultChannel: packageChannel.channelRef.IsDefaultChannel(packageChannel.packageRef),
 			})
 			added[key] = true
 		}

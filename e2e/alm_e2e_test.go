@@ -177,7 +177,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 func TestUICatalogEntriesPresent(t *testing.T) {
 	c := newKubeClient(t)
 
-	requiredUICatalogEntryNames := []string{"etcdoperator", "prometheusoperator", "vault-operator"}
+	requiredUICatalogEntryNames := []string{"etcd", "prometheus", "vault"}
 
 	var fetchedUICatalogEntryNames *opClient.CustomResourceList
 
@@ -201,9 +201,9 @@ func TestUICatalogEntriesVisibility(t *testing.T) {
 	c := newKubeClient(t)
 
 	requiredVisibilities := map[string]string{
-		"etcdoperator":       "ocs",
-		"prometheusoperator": "ocs",
-		"vault-operator":     "ocs",
+		"etcd":       "ocs",
+		"prometheus": "ocs",
+		"vault":      "ocs",
 	}
 
 	// This test may start before all of the UICatalogEntries are present in the cluster
@@ -230,10 +230,11 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 
 	unstructuredConverter := conversion.NewConverter(true)
 	for _, uic := range fetchedUICatalogEntryNames.Items {
-		uiCatalogEntryName := uic.GetName()
+		catalogEntry := uicatalogentryv1alpha1.UICatalogEntry{}
+		unstructuredConverter.FromUnstructured(uic.Object, &catalogEntry)
+		uiCatalogEntryName := catalogEntry.Spec.Manifest.Channels[0].CurrentCSVName
 
-		t.Logf("Creating install plan for %s\n", uiCatalogEntryName)
-
+		t.Logf("Creating install plan for %s\n")
 		installPlan := installplanv1alpha1.InstallPlan{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       installplanv1alpha1.InstallPlanKind,
