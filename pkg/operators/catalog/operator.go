@@ -30,7 +30,8 @@ const (
 	secretKind = "Secret"
 )
 
-var timeNow = metav1.Now // for test stubbing
+//for test stubbing and for ensuring standardization of timezones to UTC
+var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
