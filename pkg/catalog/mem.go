@@ -16,16 +16,6 @@ import (
 // InMem - catalog source implementation that stores the data in memory in golang maps
 var _ Source = &InMem{}
 
-type CRDKey struct {
-	Kind    string
-	Name    string
-	Version string
-}
-
-func (k CRDKey) String() string {
-	return fmt.Sprintf("%s/%s/%s", k.Kind, k.Name, k.Version)
-}
-
 type InMem struct {
 	// map ClusterServiceVersion name to to their resource definition
 	clusterservices map[string]v1alpha1.ClusterServiceVersion

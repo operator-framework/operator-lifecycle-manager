@@ -13,6 +13,7 @@ import (
 
 type ClusterServiceVersionInterface interface {
 	UpdateCSV(csv *v1alpha1.ClusterServiceVersion) (result *v1alpha1.ClusterServiceVersion, err error)
+	GetCSVByName(namespace string, name string) (result *v1alpha1.ClusterServiceVersion, err error)
 	CreateCSV(csv *v1alpha1.ClusterServiceVersion) (err error)
 }
 
@@ -74,4 +75,17 @@ func (c *ClusterServiceVersionClient) CreateCSV(csv *v1alpha1.ClusterServiceVers
 		Body(csv).
 		Do().
 		Into(out)
+}
+
+func (c *ClusterServiceVersionClient) GetCSVByName(namespace, name string) (*v1alpha1.ClusterServiceVersion, error) {
+	out := &v1alpha1.ClusterServiceVersion{}
+	err := c.RESTClient.
+		Get().
+		Context(context.TODO()).
+		Namespace(namespace).
+		Resource(v1alpha1.ClusterServiceVersionPluralName).
+		Name(name).
+		Do().
+		Into(out)
+	return out, err
 }

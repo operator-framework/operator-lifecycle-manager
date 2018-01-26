@@ -165,7 +165,7 @@ e2e-teardown:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl delete ns e2e-${CI_COMMIT_REF_SLUG}
+  - kubectl delete ns --ignore-not-found=true e2e-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n e2e-${CI_COMMIT_REF_SLUG}
   stage: test_teardown
   tags:
@@ -221,7 +221,7 @@ stop-preview:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl delete ns ci-alm-${CI_COMMIT_REF_SLUG}
+  - kubectl delete ns --ignore-not-found=true ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n ci-alm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview
   tags:

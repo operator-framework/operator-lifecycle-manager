@@ -1,6 +1,9 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+)
 
 const (
 	CatalogSourceCRDName       = "catalogsource-v1s"
@@ -27,13 +30,26 @@ type Icon struct {
 	MediaType string `json:"mediatype"`
 	Data      string `json:"base64data"`
 }
+type CatalogSourceStatus struct {
+	ConfigMapResource *ConfigMapResourceReference `json:"configMapReeference,omitempty"`
+	LastSync          metav1.Time                 `json:"lastSync,omitempty"`
+}
+type ConfigMapResourceReference struct {
+	Name      string `json:"name"`
+	Namespace string `json:"namespace"`
+
+	UID             types.UID `json:"uid,omitempty"`
+	ResourceVersion string    `json:"resourceVersion,omitempty"`
+	Hash            string    `json:"hash,omitempty"`
+}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type CatalogSource struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec CatalogSourceSpec `json:"spec"`
+	Spec   CatalogSourceSpec   `json:"spec"`
+	Status CatalogSourceStatus `json:"status"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
