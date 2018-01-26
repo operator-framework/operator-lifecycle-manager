@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/coreos-inc/alm/pkg/queueinformer"
@@ -40,6 +41,8 @@ type Operator struct {
 	subscriptionClient client.SubscriptionClientInterface
 	namespace          string
 	sources            map[string]catlib.Source
+	sourcesLock        sync.Mutex
+	sourcesLastUpdate  metav1.Time
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -141,16 +144,15 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		queueOperator,
-		ipClient,
-		csvClient,
-		uiceClient,
-		catsrcClient,
-		subscriptionClient,
-		operatorNamespace,
-		make(map[string]catlib.Source),
+		Operator:           queueOperator,
+		ipClient:           ipClient,
+		csvClient:          csvClient,
+		uiceClient:         uiceClient,
+		catsrcClient:       catsrcClient,
+		subscriptionClient: subscriptionClient,
+		namespace:          operatorNamespace,
+		sources:            make(map[string]catlib.Source),
 	}
-
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	catsrcQueueInformer := queueinformer.New(
@@ -212,9 +214,16 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("failed to created catalog entries for %s: %s", catsrc.Name, err)
 	}
 	log.Infof("created %d UICatalogEntry resources", len(entries))
-
+	o.sourcesLock.Lock()
+	defer o.sourcesLock.Unlock()
 	o.sources[catsrc.Spec.Name] = src
-	return
+	o.sourcesLastUpdate = metav1.Now()
+	catsrc.Status = catsrcv1alpha1.CatalogSourceStatus{
+		LastSync: o.sourcesLastUpdate,
+		// TODO store ConfigMapResource reference info in status
+	}
+	_, err = o.catsrcClient.UpdateCS(catsrc)
+	return err
 }
 
 func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
@@ -316,6 +325,8 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	if len(o.sources) == 0 {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
+	o.sourcesLock.Lock()
+	defer o.sourcesLock.Unlock()
 
 	for sourceName, source := range o.sources {
 		log.Debugf("resolving against source %v", sourceName)

@@ -19,6 +19,14 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	if sub == nil || sub.Spec == nil {
 		return ErrNilSubscription
 	}
+	// only sync if catalog has been updated since last sync time
+	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) {
+		log.Infof("skipping sync: no new updates to catalog since last sync at %s",
+			sub.Status.LastUpdated.String())
+		return nil
+	}
+	o.sourcesLock.Lock()
+	defer o.sourcesLock.Unlock()
 	catalog, ok := o.sources[sub.Spec.CatalogSource]
 	if !ok {
 		return fmt.Errorf("unknown catalog source %s", sub.Spec.CatalogSource)
