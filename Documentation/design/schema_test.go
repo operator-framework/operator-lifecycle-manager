@@ -28,7 +28,7 @@ import (
 
 	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
-	catalog "github.com/coreos-inc/alm/pkg/catalog"
+	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -130,7 +130,7 @@ func ValidatePackageManifest(t *testing.T, fileBytes []byte, csvFilenames []stri
 	manifestBytesJson, err := yaml.YAMLToJSON(fileBytes)
 	require.NoError(t, err)
 
-	var packageManifest catalog.PackageManifest
+	var packageManifest uiv1alpha1.PackageManifest
 	err = json.Unmarshal(manifestBytesJson, &packageManifest)
 	require.NoError(t, err)
 

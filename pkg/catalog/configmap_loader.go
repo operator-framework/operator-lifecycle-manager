@@ -9,6 +9,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 )
 
@@ -85,7 +86,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 			return fmt.Errorf("error loading package list yaml from ConfigMap %s: %s", configMapName, err)
 		}
 
-		var parsedPackageManifests []PackageManifest
+		var parsedPackageManifests []uiv1alpha1.PackageManifest
 		err = json.Unmarshal([]byte(packageListJson), &parsedPackageManifests)
 		if err != nil {
 			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)

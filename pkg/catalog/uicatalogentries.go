@@ -39,8 +39,8 @@ type CustomResourceCatalogStore struct {
 }
 
 // Store creates a new UICatalogEntry custom resource for the given service definition, csv
-func (store *CustomResourceCatalogStore) Store(csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.UICatalogEntry, error) {
-	spec := &v1alpha1.UICatalogEntrySpec{ClusterServiceVersionSpec: csv.Spec}
+func (store *CustomResourceCatalogStore) Store(manifest v1alpha1.PackageManifest, csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.UICatalogEntry, error) {
+	spec := &v1alpha1.UICatalogEntrySpec{Manifest: manifest, CSVSpec: csv.Spec}
 	visibility, ok := csv.GetAnnotations()[CSVCatalogVisibilityAnnotation]
 	if !ok {
 		visibility = CatalogEntryVisibilityOCS // default to visible in catalog
@@ -62,7 +62,7 @@ func (c CatalogSync) Error() string {
 		c.ServicesFound, c.ServicesSynced, c.ServicesFailed, c.ServicesFound, c.Errors)
 }
 
-// Sync creates UICatalogEntry CRDs for each entry in the catalog. Fails immediately on error.
+// Sync creates UICatalogEntry CRDs for each package in the catalog. Fails immediately on error.
 func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICatalogEntry, error) {
 	status := CatalogSync{
 		StartTime: metav1.Now(),
@@ -70,32 +70,32 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICat
 	}
 	log.Debug("Catalog Sync       -- BEGIN")
 	entries := []*v1alpha1.UICatalogEntry{}
-	csvs, err := catalog.ListServices()
-	if err != nil {
-		status.EndTime = metav1.Now()
-		status.Errors = []error{fmt.Errorf("catalog ListServices error: %v", err)}
-		status.Status = "error"
-		log.Debugf("Catalog Sync -- ERROR %v", status.Errors)
-		return entries, status
-	}
-	status.ServicesFound = len(csvs)
-	for i, csv := range csvs {
-		log.Debugf("Catalog Sync [%2d/%d] -- BEGIN store service %s v%s -- ", i+1, len(csvs),
-			csv.GetName(), csv.Spec.Version)
-		resource, err := store.Store(&csv)
+	status.ServicesFound = len(catalog.AllPackages())
+
+	for name, manifest := range catalog.AllPackages() {
+		log.Debugf("Catalog Sync -- BEGIN store service %s v%s -- ", name)
+		latestCSVInDefaultChannel, err := catalog.FindCSVForPackageNameUnderChannel(name, manifest.GetDefaultChannel())
+		if err != nil {
+			status.Errors = append(status.Errors, fmt.Errorf("error getting service %s v%s: %v",
+				latestCSVInDefaultChannel.GetName(), latestCSVInDefaultChannel.Spec.Version, err))
+			log.Debugf("Catalog Sync -- ERROR getting service %s -- %s",
+				latestCSVInDefaultChannel.GetName(), err)
+		}
+		resource, err := store.Store(manifest, latestCSVInDefaultChannel)
 		if err != nil {
 			status.Errors = append(status.Errors, fmt.Errorf("error storing service %s v%s: %v",
-				csv.GetName(), csv.Spec.Version, err))
-			log.Debugf("Catalog Sync [%2d/%d] -- ERROR storing service %s -- %s", i+1, len(csvs),
-				csv.GetName(), err)
+				latestCSVInDefaultChannel.GetName(), latestCSVInDefaultChannel.Spec.Version, err))
+			log.Debugf("Catalog Sync -- ERROR storing service %s -- %s",
+				latestCSVInDefaultChannel.GetName(), err)
 			status.ServicesFailed = status.ServicesFailed + 1
 			continue
 		}
 		status.ServicesSynced = status.ServicesSynced + 1
-		log.Debugf("Catalog Sync [%2d/%d] -- OK    storing service %s v%s", i+1, len(csvs),
-			csv.GetName(), csv.Spec.Version)
+		log.Debugf("Catalog Sync -- OK    storing service %s v%s",
+			latestCSVInDefaultChannel.GetName(), latestCSVInDefaultChannel.Spec.Version)
 		entries = append(entries, resource)
 	}
+
 	status.EndTime = metav1.Now()
 	if status.ServicesFound == status.ServicesSynced {
 		status.Status = "success"

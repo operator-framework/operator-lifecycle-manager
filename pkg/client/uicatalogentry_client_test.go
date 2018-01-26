@@ -53,7 +53,7 @@ func createTestEntry(name, version, label string) *v1alpha1.UICatalogEntry {
 			Labels:    map[string]string{"test": label},
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
-			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
+			CSVSpec: csvv1alpha1.ClusterServiceVersionSpec{
 				Version: *semver.New(version),
 			},
 		},

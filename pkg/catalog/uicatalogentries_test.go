@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
@@ -9,10 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"reflect"
-
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+	"github.com/stretchr/testify/require"
 )
 
 type EntryMatcher struct{ entry v1alpha1.UICatalogEntry }
@@ -33,8 +33,8 @@ func (e *EntryMatcher) String() string {
 	return "matches expected entry"
 }
 
-func MatchesService(service csvv1alpha1.ClusterServiceVersion) gomock.Matcher {
-	return &EntryMatcher{v1alpha1.UICatalogEntry{Spec: &v1alpha1.UICatalogEntrySpec{ClusterServiceVersionSpec: service.Spec}}}
+func MatchesService(manifest v1alpha1.PackageManifest, service csvv1alpha1.ClusterServiceVersion) gomock.Matcher {
+	return &EntryMatcher{v1alpha1.UICatalogEntry{Spec: &v1alpha1.UICatalogEntrySpec{Manifest: manifest, CSVSpec: service.Spec}}}
 }
 
 func TestCustomCatalogStore(t *testing.T) {
@@ -44,9 +44,19 @@ func TestCustomCatalogStore(t *testing.T) {
 
 	store := CustomResourceCatalogStore{Client: mockClient}
 
+	testPackageName := "MockServiceName"
 	testCSVName := "MockServiceName-v1"
 	testCSVVersion := "0.2.4+alpha"
 
+	manifest := v1alpha1.PackageManifest{
+		PackageName: testPackageName,
+		Channels: []v1alpha1.PackageChannel{
+			{
+				Name:           "alpha",
+				CurrentCSVName: testCSVName,
+			},
+		},
+	}
 	csv := csvv1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       csvv1alpha1.ClusterServiceVersionCRDName,
@@ -76,7 +86,16 @@ func TestCustomCatalogStore(t *testing.T) {
 			Labels:    map[string]string{"tectonic-visibility": "tectonic-feature"},
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
-			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
+			Manifest: v1alpha1.PackageManifest{
+				PackageName: testPackageName,
+				Channels: []v1alpha1.PackageChannel{
+					{
+						Name:           "alpha",
+						CurrentCSVName: testCSVName,
+					},
+				},
+			},
+			CSVSpec: csvv1alpha1.ClusterServiceVersionSpec{
 				Version: *semver.New(testCSVVersion),
 				CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
 					Owned:    []csvv1alpha1.CRDDescription{},
@@ -89,7 +108,7 @@ func TestCustomCatalogStore(t *testing.T) {
 	returnErr := errors.New("test error")
 	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
 
-	actualEntry, err := store.Store(&csv)
+	actualEntry, err := store.Store(manifest, &csv)
 	assert.Equal(t, returnErr, err)
 	compareResources(t, &returnEntry, actualEntry)
 }
@@ -101,8 +120,19 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 
 	store := CustomResourceCatalogStore{Client: mockClient}
 
+	testPackageName := "MockServiceName"
 	testCSVName := "MockServiceName-v1"
 	testCSVVersion := "0.2.4+alpha"
+
+	manifest := v1alpha1.PackageManifest{
+		PackageName: testPackageName,
+		Channels: []v1alpha1.PackageChannel{
+			{
+				Name:           "alpha",
+				CurrentCSVName: testCSVName,
+			},
+		},
+	}
 
 	csv := csvv1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
@@ -133,7 +163,16 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 			Labels:    map[string]string{"tectonic-visibility": "ocs"},
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
-			ClusterServiceVersionSpec: csvv1alpha1.ClusterServiceVersionSpec{
+			Manifest: v1alpha1.PackageManifest{
+				PackageName: testPackageName,
+				Channels: []v1alpha1.PackageChannel{
+					{
+						Name:           "alpha",
+						CurrentCSVName: testCSVName,
+					},
+				},
+			},
+			CSVSpec: csvv1alpha1.ClusterServiceVersionSpec{
 				Version: *semver.New(testCSVVersion),
 				CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
 					Owned:    []csvv1alpha1.CRDDescription{},
@@ -146,13 +185,12 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 	returnErr := errors.New("test error")
 	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
 
-	actualEntry, err := store.Store(&csv)
+	actualEntry, err := store.Store(manifest, &csv)
 	assert.Equal(t, returnErr, err)
 	compareResources(t, &returnEntry, actualEntry)
 }
 
 func TestCustomResourceCatalogStoreSync(t *testing.T) {
-
 	ctrl := gomock.NewController(t)
 	mockClient := NewMockUICatalogEntryInterface(ctrl)
 	defer ctrl.Finish()
@@ -162,14 +200,34 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 
 	testCSVNameA := "MockServiceNameA-v1"
 	testCSVVersionA1 := "0.2.4+alpha"
+	testPackageA := v1alpha1.PackageManifest{
+		PackageName: "MockServiceA",
+		Channels: []v1alpha1.PackageChannel{
+			{
+				Name:           "alpha",
+				CurrentCSVName: testCSVNameA,
+			},
+		},
+	}
 
 	testCSVNameB := "MockServiceNameB-v1"
 	testCSVVersionB1 := "1.0.1"
+	testPackageB := v1alpha1.PackageManifest{
+		PackageName: "MockServiceB",
+		Channels: []v1alpha1.PackageChannel{
+			{
+				Name:           "alpha",
+				CurrentCSVName: testCSVNameB,
+			},
+		},
+	}
 
 	testCSVA1 := createCSV(testCSVNameA, testCSVVersionA1, "", []string{})
 	testCSVB1 := createCSV(testCSVNameB, testCSVVersionB1, "", []string{})
 	src.AddOrReplaceService(testCSVA1)
 	src.AddOrReplaceService(testCSVB1)
+	require.NoError(t, src.addPackageManifest(testPackageA))
+	require.NoError(t, src.addPackageManifest(testPackageB))
 
 	storeResults := []struct {
 		ResultA1 *v1alpha1.UICatalogEntry
@@ -199,8 +257,8 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 	}
 
 	for _, res := range storeResults {
-		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVA1)).Return(res.ResultA1, res.ErrorA1)
-		mockClient.EXPECT().UpdateEntry(MatchesService(testCSVB1)).Return(res.ResultB1, res.ErrorB1)
+		mockClient.EXPECT().UpdateEntry(MatchesService(testPackageA, testCSVA1)).Return(res.ResultA1, res.ErrorA1)
+		mockClient.EXPECT().UpdateEntry(MatchesService(testPackageB, testCSVB1)).Return(res.ResultB1, res.ErrorB1)
 		entries, err := store.Sync(src)
 		assert.Equal(t, res.ExpectedServicesSynced, len(entries))
 		assert.Equal(t, res.ExpectedStatus, store.LastAttemptedSync.Status)

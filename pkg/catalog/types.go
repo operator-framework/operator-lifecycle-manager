@@ -4,6 +4,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 )
 
 // Catalog Source
@@ -14,6 +15,7 @@ import (
 type Source interface {
 	FindCSVForPackageNameUnderChannel(packageName string, channelName string) (*v1alpha1.ClusterServiceVersion, error)
 	FindReplacementCSVForPackageNameUnderChannel(packageName string, channelName string, csvName string) (*v1alpha1.ClusterServiceVersion, error)
+	AllPackages() map[string]uiv1alpha1.PackageManifest
 
 	// Deprecated: Switch to FindReplacementCSVForPackageNameUnderChannel when the caller has package and channel
 	// information.
@@ -32,7 +34,7 @@ type CSVAndChannelInfo struct {
 	CSV *v1alpha1.ClusterServiceVersion
 
 	// Channel is the channel that "contains" this CSV, as it is declared as part of the channel.
-	Channel PackageChannel
+	Channel uiv1alpha1.PackageChannel
 
 	// IsDefaultChannel returns true iff the channel is the default channel for the package.
 	IsDefaultChannel bool
@@ -42,34 +44,4 @@ type CSVAndChannelInfo struct {
 type CSVMetadata struct {
 	Name    string
 	Version string
-}
-
-// PackageManifest holds information about a package, which is a reference to one (or more)
-// channels under a single package.
-type PackageManifest struct {
-	// PackageName is the name of the overall package, ala `etcd`.
-	PackageName string `json:"packageName"`
-
-	// Channels are the declared channels for the package, ala `stable` or `alpha`.
-	Channels []PackageChannel `json:"channels"`
-
-	// DefaultChannelName is, if specified, the name of the default channel for the package. The
-	// default channel will be installed if no other channel is explicitly given. If the package
-	// has a single channel, then that channel is implicitly the default.
-	DefaultChannelName string `json:"defaultChannel"`
-}
-
-// PackageChannel defines a single channel under a package, pointing to a version of that
-// package.
-type PackageChannel struct {
-	// Name is the name of the channel, e.g. `alpha` or `stable`
-	Name string `json:"name"`
-
-	// CurrentCSVName defines a reference to the CSV holding the version of this package currently
-	// for the channel.
-	CurrentCSVName string `json:"currentCSV"`
-}
-
-func (pc PackageChannel) isDefaultChannel(pm PackageManifest) bool {
-	return pc.Name == pm.DefaultChannelName || len(pm.Channels) == 1
 }
