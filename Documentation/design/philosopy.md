@@ -74,61 +74,61 @@ ALM defines packaging formats for operators. These are:
 
  **ClusterServiceVersion**
 
-    * Represents a particular version of the ClusterService and the operator managing it
+ * Represents a particular version of the ClusterService and the operator managing it
 
-    * References global named identity (e.g. "etcd") for the ClusterService
+ * References global named identity (e.g. "etcd") for the ClusterService
 
-        * `apt-get install ruby` actually installs `mruby-2.3`
+     * `apt-get install ruby` actually installs `mruby-2.3`
 
-    * Has metadata about the package (maintainers, icon, etc)
+ * Has metadata about the package (maintainers, icon, etc)
 
-    * Declares managed CRDs
+ * Declares managed CRDs
 
-        * These are the CRDs directly managed by the Operator. `EtcdCluster` is managed by the Etcd `ClusterServiceVersion` but not the Vault `ClusterServiceVersion`
+     * These are the CRDs directly managed by the Operator. `EtcdCluster` is managed by the Etcd `ClusterServiceVersion` but not the Vault `ClusterServiceVersion`
 
-    * Declares required CRDs
+ * Declares required CRDs
 
-        * These are CRDs required by the Operator but not directly managed by it.  `EtcdCluster` is required by the Vault `ClusterServiceVersion` but not managed by it.
+     * These are CRDs required by the Operator but not directly managed by it.  `EtcdCluster` is required by the Vault `ClusterServiceVersion` but not managed by it.
 
-    * Declares cluster requirements
+ * Declares cluster requirements
 
-        * An operator may require a pull secret, a config map, the availability of a cluster feature.
+     * An operator may require a pull secret, a config map, the availability of a cluster feature.
 
-    * Provides an Install Strategy 
+ * Provides an Install Strategy 
 
-        * The install strategy tells ALM how to actually create resources in the cluster. 
+     * The install strategy tells ALM how to actually create resources in the cluster. 
 
-        * Currently the only strategy is "deployment", but planned are: image, helm, and <whatever upstream solutions are created>
+     * Currently the only strategy is "deployment", but planned are: image, helm, and <whatever upstream solutions are created>
 
-    * Roughly equivalent to dpkg - you can install a dpkg manually, but if you do, dependency resolution is up to you.
+ * Roughly equivalent to dpkg - you can install a dpkg manually, but if you do, dependency resolution is up to you.
 
  **InstallPlan**
 
-    * An install plan is a declaration by a user that they want a particular ClusterService in a namespace. (i.e. `apt-get install midori`)
+ * An install plan is a declaration by a user that they want a particular ClusterService in a namespace. (i.e. `apt-get install midori`)
 
-    * The install plan gets "resolved" to a concrete set of resources
+ * The install plan gets "resolved" to a concrete set of resources
 
-        * Much like apt reads the dependency information from dpkgs to come up with a set of things to install, ALM reads the dependency graph from ClusterServiceVersions to come up with a set of resources to install
+     * Much like apt reads the dependency information from dpkgs to come up with a set of things to install, ALM reads the dependency graph from ClusterServiceVersions to come up with a set of resources to install
 
-    * The resolved set of resources is written back to the InstallPlan
+ * The resolved set of resources is written back to the InstallPlan
 
-        * Users can set these to auto-approve (apt-get install -y) or require manual review
+     * Users can set these to auto-approve (apt-get install -y) or require manual review
 
-        * The record of these resources is kept in cluster so that installs are repeatable/recoverable/inspectable, but can be cleaned up once completed if desired.
+     * The record of these resources is kept in cluster so that installs are repeatable/recoverable/inspectable, but can be cleaned up once completed if desired.
 
  **CatalogSource**
 
-    * A catalog source binds a name to a url where ClusterServices can be downloaded
+ * A catalog source binds a name to a url where ClusterServices can be downloaded
 
-    * The ClusterService cache is updated from this URL
+ * The ClusterService cache is updated from this URL
 
  **Subscription**
 
-    * A subscription configures when and how to update a ClusterService
+ * A subscription configures when and how to update a ClusterService
 
-    * Binds a ClusterService to a channel in a CatalogSource
+ * Binds a ClusterService to a channel in a CatalogSource
 
-    * Configures the update strategy for a ClusterService (automatic, manual approval, etc)
+ * Configures the update strategy for a ClusterService (automatic, manual approval, etc)
 
 # Components
 
@@ -136,25 +136,25 @@ We have two major components that handle the resources described above
 
  **ALM Operator**
 
-    * Watches for ClusterServiceVersions in a namespace and checks that requirements are met. If so, runs the service install strategy for the ClusterServiceVersion (e.g: installs deployment)
+ * Watches for ClusterServiceVersions in a namespace and checks that requirements are met. If so, runs the service install strategy for the ClusterServiceVersion (e.g: installs deployment)
 
  **Service Catalog Operator**
 
-    * Has a cache of CRDs and ClusterServiceVersions, indexed by name
+ * Has a cache of CRDs and ClusterServiceVersions, indexed by name
 
-    * Watches for InstallPlans created by a user (unresolved)
+ * Watches for InstallPlans created by a user (unresolved)
 
-        1. Finds the ClusterServiceVersion matching the cluster service name requested, adds it as a resolved resource.
+     1. Finds the ClusterServiceVersion matching the cluster service name requested, adds it as a resolved resource.
 
-        2. For each managed or required CRD, adds it as a resolved resource.
+     2. For each managed or required CRD, adds it as a resolved resource.
 
-        3. For each required CRD, finds the ClusterServiceVersion that manages it
+     3. For each required CRD, finds the ClusterServiceVersion that manages it
 
-        4. Goto 1
+     4. Goto 1
 
-    * Watches for resolved InstallPlans and creates all of the discovered resources for it (if approved by a user or automatically)
+ * Watches for resolved InstallPlans and creates all of the discovered resources for it (if approved by a user or automatically)
 
-    * Watches for CatalogSources / Subscriptions and creates InstallPlans based on them
+ * Watches for CatalogSources / Subscriptions and creates InstallPlans based on them
 
 # FAQ
 
