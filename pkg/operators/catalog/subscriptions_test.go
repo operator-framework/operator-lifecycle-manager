@@ -232,6 +232,42 @@ func TestSyncSubscription(t *testing.T) {
 		},
 		{
 			name:    "clean install",
+			subName: "successfully sets starting version if specified",
+			initial: initial{
+				catalogName:       "flying-unicorns",
+				sourcesLastUpdate: earlierTime,
+			},
+			args: args{subscription: &v1alpha1.Subscription{
+				Spec: &v1alpha1.SubscriptionSpec{
+					CatalogSource: "flying-unicorns",
+					Package:       "rainbows",
+					Channel:       "magical",
+					StartingCSV:   "wayback",
+				},
+				Status: v1alpha1.SubscriptionStatus{
+					LastUpdated: earliestTime,
+					Install:     nil,
+				},
+			}},
+			expected: expected{
+				namespace: "fairy-land",
+				subscription: &v1alpha1.Subscription{
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource: "flying-unicorns",
+						Package:       "rainbows",
+						Channel:       "magical",
+						StartingCSV:   "wayback",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV:  "wayback",
+						LastUpdated: earliestTime,
+					},
+				},
+				err: "",
+			},
+		},
+		{
+			name:    "clean install",
 			subName: "returns errors updating subscription",
 			initial: initial{
 				catalogName: "flying-unicorns",

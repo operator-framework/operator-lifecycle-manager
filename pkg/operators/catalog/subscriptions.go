@@ -33,18 +33,25 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	}
 	// find latest CSV if no CSVs are installed already
 	if sub.Status.CurrentCSV == "" {
-		csv, err := catalog.FindCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel)
-		if err != nil {
-			return fmt.Errorf("failed to find CSV for package %s in channel %s: %v",
-				sub.Spec.Package, sub.Spec.Channel, err)
+		if sub.Spec.StartingCSV != "" {
+			sub.Status.CurrentCSV = sub.Spec.StartingCSV
+		} else {
+			csv, err := catalog.FindCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel)
+			if err != nil {
+				return fmt.Errorf("failed to find CSV for package %s in channel %s: %v",
+					sub.Spec.Package, sub.Spec.Channel, err)
+			}
+			if csv == nil {
+				return fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV",
+					sub.Spec.Package, sub.Spec.Channel)
+			}
+			sub.Status.CurrentCSV = csv.GetName()
 		}
-		if csv == nil {
-			return fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV",
-				sub.Spec.Package, sub.Spec.Channel)
-		}
-		sub.Status.CurrentCSV = csv.GetName()
-		_, err = o.subscriptionClient.UpdateSubscription(sub)
+		_, err := o.subscriptionClient.UpdateSubscription(sub)
 		return err
+	}
+	if sub.Status.CurrentCSV == "" {
+
 	}
 	// check that desired CSV has been installed
 	csv, err := o.csvClient.GetCSVByName(sub.GetNamespace(), sub.Status.CurrentCSV)
