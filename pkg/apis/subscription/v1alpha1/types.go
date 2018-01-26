@@ -29,7 +29,7 @@ type SubscriptionSpec struct {
 	Package       string `json:"name"`
 	Channel       string `json:"channel,omitempty"`
 
-	AtCSV string `json:"nextCSV,omitempty"`
+	StartingCSV string `json:"nextCSV,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

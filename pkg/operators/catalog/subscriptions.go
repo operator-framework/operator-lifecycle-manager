@@ -32,7 +32,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		return fmt.Errorf("unknown catalog source %s", sub.Spec.CatalogSource)
 	}
 	// find latest CSV if no CSVs are installed already
-	if sub.Spec.AtCSV == "" {
+	if sub.Status.CurrentCSV == "" {
 		csv, err := catalog.FindCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel)
 		if err != nil {
 			return fmt.Errorf("failed to find CSV for package %s in channel %s: %v",
@@ -42,21 +42,21 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			return fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV",
 				sub.Spec.Package, sub.Spec.Channel)
 		}
-		sub.Spec.AtCSV = csv.GetName()
+		sub.Status.CurrentCSV = csv.GetName()
 		_, err = o.subscriptionClient.UpdateSubscription(sub)
 		return err
 	}
 	// check that desired CSV has been installed
-	csv, err := o.csvClient.GetCSVByName(sub.GetNamespace(), sub.Spec.AtCSV)
+	csv, err := o.csvClient.GetCSVByName(sub.GetNamespace(), sub.Status.CurrentCSV)
 	if err != nil || csv == nil {
-		log.Infof("error fetching CSV %s via k8s api: %v", sub.Spec.AtCSV, err)
+		log.Infof("error fetching CSV %s via k8s api: %v", sub.Status.CurrentCSV, err)
 		if sub.Status.Install != nil {
 			ip, err := o.ipClient.GetInstallPlanByName(sub.GetNamespace(), sub.Status.Install.Name)
 			if err != nil {
 				log.Errorf("get installplan %s error: %v", sub.Status.Install.Name, err)
 			}
 			if err == nil && ip != nil {
-				log.Infof("installplan for %s already exists", sub.Spec.AtCSV)
+				log.Infof("installplan for %s already exists", sub.Status.CurrentCSV)
 				return nil
 			}
 			log.Infof("installplan %s not found: creating new plan", sub.Status.Install.Name)
@@ -75,11 +75,11 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			},
 		}
 		ip.SetOwnerReferences(owner)
-		ip.SetGenerateName(fmt.Sprintf("install-%s", sub.Spec.AtCSV))
+		ip.SetGenerateName(fmt.Sprintf("install-%s", sub.Status.CurrentCSV))
 		ip.SetNamespace(sub.GetNamespace())
 		res, err := o.ipClient.CreateInstallPlan(ip)
 		if err != nil {
-			return fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Spec.AtCSV, err)
+			return fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Status.CurrentCSV, err)
 		}
 		if res == nil {
 			return errors.New("unexpected installplan returned by k8s api on create: <nil>")
@@ -95,15 +95,15 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	}
 	// poll catalog for an update
 	repl, err := catalog.FindReplacementCSVForPackageNameUnderChannel(
-		sub.Spec.Package, sub.Spec.Channel, sub.Spec.AtCSV)
+		sub.Spec.Package, sub.Spec.Channel, sub.Status.CurrentCSV)
 	if err != nil {
-		return fmt.Errorf("failed to lookup replacement CSV for %s: %v", sub.Spec.AtCSV, err)
+		return fmt.Errorf("failed to lookup replacement CSV for %s: %v", sub.Status.CurrentCSV, err)
 	}
 	if repl == nil {
-		return fmt.Errorf("nil replacement CSV for %s returned from catalog", sub.Spec.AtCSV)
+		return fmt.Errorf("nil replacement CSV for %s returned from catalog", sub.Status.CurrentCSV)
 	}
 	// update subscription with new latest
-	sub.Spec.AtCSV = repl.GetName()
+	sub.Status.CurrentCSV = repl.GetName()
 	sub.Status.Install = nil
 	_, err = o.subscriptionClient.UpdateSubscription(sub)
 	return err

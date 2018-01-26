@@ -221,9 +221,9 @@ func TestSyncSubscription(t *testing.T) {
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
 						Channel:       "magical",
-						AtCSV:         "latest-and-greatest",
 					},
 					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV:  "latest-and-greatest",
 						LastUpdated: earliestTime,
 					},
 				},
@@ -257,7 +257,9 @@ func TestSyncSubscription(t *testing.T) {
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
 						Channel:       "magical",
-						AtCSV:         "latest-and-greatest",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "latest-and-greatest",
 					},
 				},
 				err: "UpdateErr",
@@ -283,10 +285,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "pending",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: &v1alpha1.InstallPlanReference{Name: "existing-install"},
+					CurrentCSV: "pending",
+					Install:    &v1alpha1.InstallPlanReference{Name: "existing-install"},
 				},
 			}},
 			expected: expected{
@@ -321,9 +323,9 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "latest-and-greatest",
 				},
 				Status: v1alpha1.SubscriptionStatus{
+					CurrentCSV: "latest-and-greatest",
 					Install: &v1alpha1.InstallPlanReference{
 						Name: "dead-install",
 					},
@@ -357,9 +359,9 @@ func TestSyncSubscription(t *testing.T) {
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
 						Channel:       "magical",
-						AtCSV:         "latest-and-greatest",
 					},
 					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
 							UID:  types.UID("UID-OK"),
 							Name: "installplan-1",
@@ -393,10 +395,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "latest-and-greatest",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: nil,
+					CurrentCSV: "latest-and-greatest",
+					Install:    nil,
 				},
 			}},
 			expected: expected{
@@ -424,9 +426,9 @@ func TestSyncSubscription(t *testing.T) {
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
 						Channel:       "magical",
-						AtCSV:         "latest-and-greatest",
 					},
 					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
 							UID:  types.UID("UID-OK"),
 							Name: "installplan-1",
@@ -457,10 +459,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "pending",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: nil,
+					CurrentCSV: "pending",
+					Install:    nil,
 				},
 			}},
 			expected: expected{
@@ -503,10 +505,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "pending",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: nil,
+					CurrentCSV: "pending",
+					Install:    nil,
 				},
 			}},
 			expected: expected{
@@ -547,10 +549,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "toupgrade",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: nil,
+					CurrentCSV: "toupgrade",
+					Install:    nil,
 				},
 			}},
 			expected: expected{
@@ -578,10 +580,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "toupgrade",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: nil,
+					CurrentCSV: "toupgrade",
+					Install:    nil,
 				},
 			}},
 			expected: expected{
@@ -614,10 +616,10 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
-					AtCSV:         "toupgrade",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					Install: nil,
+					CurrentCSV: "toupgrade",
+					Install:    nil,
 				},
 			}},
 			expected: expected{
@@ -635,10 +637,10 @@ func TestSyncSubscription(t *testing.T) {
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
 						Channel:       "magical",
-						AtCSV:         "next",
 					},
 					Status: v1alpha1.SubscriptionStatus{
-						Install: nil,
+						CurrentCSV: "next",
+						Install:    nil,
 					},
 				},
 			},
