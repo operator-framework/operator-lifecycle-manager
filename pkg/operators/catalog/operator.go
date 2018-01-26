@@ -30,6 +30,8 @@ const (
 	secretKind = "Secret"
 )
 
+var timeNow = metav1.Now // for test stubbing
+
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
@@ -217,7 +219,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
 	o.sources[catsrc.Spec.Name] = src
-	o.sourcesLastUpdate = metav1.Now()
+	o.sourcesLastUpdate = timeNow()
 	catsrc.Status = catsrcv1alpha1.CatalogSourceStatus{
 		LastSync: o.sourcesLastUpdate,
 		// TODO store ConfigMapResource reference info in status
@@ -237,7 +239,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 		sub.Spec.CatalogSource, sub.Spec.Package, sub.Spec.Channel)
 
 	syncError = o.syncSubscription(sub)
-
+	sub.Status.LastUpdated = timeNow()
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.subscriptionClient.UpdateSubscription(sub); err != nil {
 		updateErr := errors.New("error updating Subscription status: " + err.Error())

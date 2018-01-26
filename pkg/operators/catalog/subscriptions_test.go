@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	ipv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
@@ -63,9 +64,16 @@ func (e *SubscriptionMatcher) String() string {
 }
 
 func TestSyncSubscription(t *testing.T) {
+	var (
+		nowTime      = metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
+		earlierTime  = metav1.Date(2018, time.January, 19, 20, 20, 0, 0, time.UTC)
+		earliestTime = metav1.Date(2017, time.December, 10, 12, 00, 0, 0, time.UTC)
+	)
+	timeNow = func() metav1.Time { return nowTime }
 
 	type initial struct {
 		catalogName         string
+		sourcesLastUpdate   metav1.Time
 		findLatestCSVResult *csvv1alpha1.ClusterServiceVersion
 		findLatestCSVError  error
 
@@ -127,6 +135,23 @@ func TestSyncSubscription(t *testing.T) {
 			expected: expected{err: "unknown catalog source flying-unicorns"},
 		},
 		{
+			name:    "no updates",
+			subName: "subscription synced already since last catalog update",
+			initial: initial{
+				catalogName:       "flying-unicorns",
+				sourcesLastUpdate: earliestTime,
+			},
+			args: args{subscription: &v1alpha1.Subscription{
+				Spec: &v1alpha1.SubscriptionSpec{
+					CatalogSource: "flying-unicorns",
+				},
+				Status: v1alpha1.SubscriptionStatus{
+					LastUpdated: earlierTime,
+				},
+			}},
+			expected: expected{},
+		},
+		{
 			name:    "clean install",
 			subName: "catalog error",
 			initial: initial{
@@ -176,12 +201,16 @@ func TestSyncSubscription(t *testing.T) {
 						Name: "latest-and-greatest",
 					},
 				},
+				sourcesLastUpdate: earlierTime,
 			},
 			args: args{subscription: &v1alpha1.Subscription{
 				Spec: &v1alpha1.SubscriptionSpec{
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
 					Channel:       "magical",
+				},
+				Status: v1alpha1.SubscriptionStatus{
+					LastUpdated: earliestTime,
 				},
 			}},
 			expected: expected{
@@ -193,6 +222,9 @@ func TestSyncSubscription(t *testing.T) {
 						Package:       "rainbows",
 						Channel:       "magical",
 						AtCSV:         "latest-and-greatest",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						LastUpdated: earliestTime,
 					},
 				},
 				err: "",
@@ -666,6 +698,7 @@ func TestSyncSubscription(t *testing.T) {
 				sources: map[string]catlib.Source{
 					tt.initial.catalogName: catalogMock,
 				},
+				sourcesLastUpdate: tt.initial.sourcesLastUpdate,
 			}
 
 			err := op.syncSubscription(tt.args.subscription)
