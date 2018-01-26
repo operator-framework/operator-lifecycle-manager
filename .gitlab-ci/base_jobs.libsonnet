@@ -136,7 +136,7 @@ local appr = utils.appr;
         before_script: [],
         script:
             k8s.setKubeConfig("$CD_KUBECONFIG") + [
-                "kubectl delete ns %s" % self.localvars.namespace,
+                "kubectl delete ns --ignore-not-found=true %s" % self.localvars.namespace,
                 "kubectl get pods -o wide -n %s" % self.localvars.namespace,
             ],
     } + job_tags,
