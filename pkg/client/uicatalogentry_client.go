@@ -1,3 +1,4 @@
+//go:generate counterfeiter uicatalogentry_client.go UICatalogEntryInterface
 package client
 
 import (

@@ -1,3 +1,5 @@
+//go:generate counterfeiter clusterserviceversion_client.go ClusterServiceVersionInterface
+
 package client
 
 import (

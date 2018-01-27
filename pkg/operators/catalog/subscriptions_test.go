@@ -3,65 +3,21 @@ package catalog
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	ipv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/subscription/v1alpha1"
-	catlib "github.com/coreos-inc/alm/pkg/catalog"
+	"github.com/coreos-inc/alm/pkg/client/clientfakes"
+	"github.com/coreos-inc/alm/pkg/registry"
+	"github.com/coreos-inc/alm/pkg/registry/registryfakes"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/diff"
 )
-
-type InstallPlanMatcher struct{ ip *ipv1alpha1.InstallPlan }
-
-func MatchesInstallPlan(ip *ipv1alpha1.InstallPlan) gomock.Matcher {
-	return &InstallPlanMatcher{ip}
-}
-
-func (e *InstallPlanMatcher) Matches(x interface{}) bool {
-	ip, ok := x.(*ipv1alpha1.InstallPlan)
-	if !ok {
-		return false
-	}
-	eq := reflect.DeepEqual(e.ip, ip)
-	if !eq {
-		fmt.Printf("InstallPlans NOT EQUAL: %s\n", diff.ObjectDiff(e.ip, ip))
-	}
-	return eq
-}
-
-func (e *InstallPlanMatcher) String() string {
-	return "matches expected InstallPlan"
-}
-
-type SubscriptionMatcher struct{ s *v1alpha1.Subscription }
-
-func MatchesSubscription(s *v1alpha1.Subscription) gomock.Matcher {
-	return &SubscriptionMatcher{s}
-}
-
-func (e *SubscriptionMatcher) Matches(x interface{}) bool {
-	s, ok := x.(*v1alpha1.Subscription)
-	if !ok {
-		return false
-	}
-	eq := reflect.DeepEqual(*e.s, *s)
-	if !eq {
-		fmt.Printf("Subscriptions NOT EQUAL: %s\n", diff.ObjectReflectDiff(e.s, s))
-	}
-	return eq
-}
-
-func (e *SubscriptionMatcher) String() string {
-	return "matches expected Subscription"
-}
 
 func TestSyncSubscription(t *testing.T) {
 	var (
@@ -687,54 +643,78 @@ func TestSyncSubscription(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			defer ctrl.Finish()
-			csvClientMock := NewMockClusterServiceVersionInterface(ctrl)
+
+			csvClientFake := new(clientfakes.FakeClusterServiceVersionInterface)
 			if tt.expected.csvName != "" {
-				csvClientMock.EXPECT().
-					GetCSVByName(tt.expected.namespace, tt.expected.csvName).
-					Return(tt.initial.getCSVResult, tt.initial.getCSVError)
+				defer func() {
+					require.Equal(t, 1, csvClientFake.GetCSVByNameCallCount())
+					ns, name := csvClientFake.GetCSVByNameArgsForCall(0)
+					require.Equal(t, tt.expected.namespace, ns)
+					require.Equal(t, tt.expected.csvName, name)
+				}()
+				csvClientFake.GetCSVByNameReturns(tt.initial.getCSVResult, tt.initial.getCSVError)
 			}
 
-			ipClientMock := NewMockInstallPlanInterface(ctrl)
+			ipClientFake := new(clientfakes.FakeInstallPlanInterface)
 			if tt.expected.installPlan != nil {
-				ipClientMock.EXPECT().
-					CreateInstallPlan(MatchesInstallPlan(tt.expected.installPlan)).
-					Return(tt.initial.createInstallPlanResult, tt.initial.createInstallPlanError)
+				defer func() {
+					require.Equal(t, 1, ipClientFake.CreateInstallPlanCallCount())
+					ip := ipClientFake.CreateInstallPlanArgsForCall(0)
+					require.Equal(t, tt.expected.installPlan, ip)
+				}()
+				ipClientFake.CreateInstallPlanReturns(tt.initial.createInstallPlanResult, tt.initial.createInstallPlanError)
 			}
 
 			if tt.expected.existingInstallPlanName != "" {
-				ipClientMock.EXPECT().
-					GetInstallPlanByName(tt.expected.namespace, tt.expected.existingInstallPlanName).
-					Return(tt.initial.getInstallPlanResult, tt.initial.getInstallPlanError)
+				defer func() {
+					require.Equal(t, 1, ipClientFake.GetInstallPlanByNameCallCount())
+					ns, name := ipClientFake.GetInstallPlanByNameArgsForCall(0)
+					require.Equal(t, tt.expected.namespace, ns)
+					require.Equal(t, tt.expected.existingInstallPlanName, name)
+				}()
+				ipClientFake.GetInstallPlanByNameReturns(tt.initial.getInstallPlanResult, tt.initial.getInstallPlanError)
 			}
 
-			subscriptionClientMock := NewMockSubscriptionClientInterface(ctrl)
+			subscriptionClientFake := new(clientfakes.FakeSubscriptionClientInterface)
 			if tt.expected.subscription != nil {
-				subscriptionClientMock.EXPECT().
-					UpdateSubscription(MatchesSubscription(tt.expected.subscription)).
-					Return(nil, tt.initial.updateSubscriptionError)
+				defer func() {
+					require.Equal(t, 1, subscriptionClientFake.UpdateSubscriptionCallCount())
+					sub := subscriptionClientFake.UpdateSubscriptionArgsForCall(0)
+					require.Equal(t, tt.expected.subscription, sub)
+				}()
+				subscriptionClientFake.UpdateSubscriptionReturns(nil, tt.initial.updateSubscriptionError)
 			}
 
-			catalogMock := NewMockSource(ctrl)
+			catalogFake := new(registryfakes.FakeSource)
 			if tt.expected.packageName != "" && tt.expected.channelName != "" {
 				if tt.expected.csvName == "" {
-					catalogMock.EXPECT().
-						FindCSVForPackageNameUnderChannel(tt.expected.packageName, tt.expected.channelName).
-						Return(tt.initial.findLatestCSVResult, tt.initial.findLatestCSVError)
+					defer func() {
+						require.Equal(t, 1, catalogFake.FindCSVForPackageNameUnderChannelCallCount())
+						pkg, chnl := catalogFake.FindCSVForPackageNameUnderChannelArgsForCall(0)
+						require.Equal(t, tt.expected.packageName, pkg)
+						require.Equal(t, tt.expected.channelName, chnl)
+					}()
+
+					catalogFake.FindCSVForPackageNameUnderChannelReturns(tt.initial.findLatestCSVResult, tt.initial.findLatestCSVError)
 				} else {
-					catalogMock.EXPECT().
-						FindReplacementCSVForPackageNameUnderChannel(tt.expected.packageName,
-							tt.expected.channelName, tt.expected.csvName).
-						Return(tt.initial.findReplacementCSVResult, tt.initial.findReplacementCSVError)
+					defer func() {
+						require.Equal(t, 1, catalogFake.FindReplacementCSVForPackageNameUnderChannelCallCount())
+						pkg, chnl, csvName := catalogFake.FindReplacementCSVForPackageNameUnderChannelArgsForCall(0)
+						require.Equal(t, tt.expected.packageName, pkg)
+						require.Equal(t, tt.expected.channelName, chnl)
+						require.Equal(t, tt.expected.csvName, csvName)
+					}()
+					catalogFake.FindReplacementCSVForPackageNameUnderChannelReturns(tt.initial.findReplacementCSVResult, tt.initial.findReplacementCSVError)
 				}
 			}
 
 			op := &Operator{
-				ipClient:           ipClientMock,
-				csvClient:          csvClientMock,
-				subscriptionClient: subscriptionClientMock,
+				ipClient:           ipClientFake,
+				csvClient:          csvClientFake,
+				subscriptionClient: subscriptionClientFake,
 				namespace:          "ns",
-				sources: map[string]catlib.Source{
-					tt.initial.catalogName: catalogMock,
+				sources: map[string]registry.Source{
+					tt.initial.catalogName: catalogFake,
 				},
 				sourcesLastUpdate: tt.initial.sourcesLastUpdate,
 			}
@@ -745,7 +725,6 @@ func TestSyncSubscription(t *testing.T) {
 			} else {
 				require.Nil(t, err)
 			}
-
 		})
 
 	}

@@ -1,48 +1,23 @@
-package catalog
+package registry
 
 import (
 	"errors"
-	"reflect"
 	"testing"
-
-	"github.com/coreos/go-semver/semver"
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/client/clientfakes"
+
+	"github.com/coreos/go-semver/semver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type EntryMatcher struct{ entry v1alpha1.UICatalogEntry }
-
-func MatchesEntry(entry v1alpha1.UICatalogEntry) gomock.Matcher {
-	return &EntryMatcher{entry}
-}
-
-func (e *EntryMatcher) Matches(x interface{}) bool {
-	entry, ok := x.(*v1alpha1.UICatalogEntry)
-	if !ok {
-		return false
-	}
-	return reflect.DeepEqual(entry.Spec, e.entry.Spec)
-}
-
-func (e *EntryMatcher) String() string {
-	return "matches expected entry"
-}
-
-func MatchesService(manifest v1alpha1.PackageManifest, service csvv1alpha1.ClusterServiceVersion) gomock.Matcher {
-	return &EntryMatcher{v1alpha1.UICatalogEntry{Spec: &v1alpha1.UICatalogEntrySpec{Manifest: manifest, CSVSpec: service.Spec}}}
-}
-
 func TestCustomCatalogStore(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockClient := NewMockUICatalogEntryInterface(ctrl)
-	defer ctrl.Finish()
+	fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
 
-	store := CustomResourceCatalogStore{Client: mockClient}
+	store := CustomResourceCatalogStore{Client: fakeClient}
 
 	testPackageName := "MockServiceName"
 	testCSVName := "MockServiceName-v1"
@@ -106,7 +81,12 @@ func TestCustomCatalogStore(t *testing.T) {
 	}
 	returnEntry := v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
 	returnErr := errors.New("test error")
-	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
+
+	fakeClient.UpdateEntryReturns(&returnEntry, returnErr)
+	defer func() {
+		require.Equal(t, 1, fakeClient.UpdateEntryCallCount())
+		require.EqualValues(t, expectedEntry.Spec, fakeClient.UpdateEntryArgsForCall(0).Spec)
+	}()
 
 	actualEntry, err := store.Store(manifest, &csv)
 	assert.Equal(t, returnErr, err)
@@ -114,11 +94,9 @@ func TestCustomCatalogStore(t *testing.T) {
 }
 
 func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockClient := NewMockUICatalogEntryInterface(ctrl)
-	defer ctrl.Finish()
+	fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
 
-	store := CustomResourceCatalogStore{Client: mockClient}
+	store := CustomResourceCatalogStore{Client: fakeClient}
 
 	testPackageName := "MockServiceName"
 	testCSVName := "MockServiceName-v1"
@@ -183,7 +161,12 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 	}
 	returnEntry := v1alpha1.UICatalogEntry{ObjectMeta: metav1.ObjectMeta{Name: "test"}}
 	returnErr := errors.New("test error")
-	mockClient.EXPECT().UpdateEntry(MatchesEntry(expectedEntry)).Return(&returnEntry, returnErr)
+
+	fakeClient.UpdateEntryReturns(&returnEntry, returnErr)
+	defer func() {
+		require.Equal(t, 1, fakeClient.UpdateEntryCallCount())
+		require.Equal(t, expectedEntry.Spec, fakeClient.UpdateEntryArgsForCall(0).Spec)
+	}()
 
 	actualEntry, err := store.Store(manifest, &csv)
 	assert.Equal(t, returnErr, err)
@@ -191,11 +174,7 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 }
 
 func TestCustomResourceCatalogStoreSync(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	mockClient := NewMockUICatalogEntryInterface(ctrl)
-	defer ctrl.Finish()
-
-	store := CustomResourceCatalogStore{Client: mockClient, Namespace: "alm-coreos-tests"}
+	store := CustomResourceCatalogStore{Namespace: "alm-coreos-tests"}
 	src := NewInMem()
 
 	testCSVNameA := "MockServiceNameA-v1"
@@ -257,12 +236,16 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 	}
 
 	for _, res := range storeResults {
-		mockClient.EXPECT().UpdateEntry(MatchesService(testPackageA, testCSVA1)).Return(res.ResultA1, res.ErrorA1)
-		mockClient.EXPECT().UpdateEntry(MatchesService(testPackageB, testCSVB1)).Return(res.ResultB1, res.ErrorB1)
-		entries, err := store.Sync(src)
-		assert.Equal(t, res.ExpectedServicesSynced, len(entries))
-		assert.Equal(t, res.ExpectedStatus, store.LastAttemptedSync.Status)
-		assert.NoError(t, err)
-	}
+		fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
+		store.Client = fakeClient
 
+		fakeClient.UpdateEntryReturnsOnCall(0, res.ResultA1, res.ErrorA1)
+		fakeClient.UpdateEntryReturnsOnCall(1, res.ResultB1, res.ErrorB1)
+
+		entries, err := store.Sync(src)
+		require.Equal(t, res.ExpectedServicesSynced, len(entries))
+		require.Equal(t, res.ExpectedStatus, store.LastAttemptedSync.Status)
+		require.NoError(t, err)
+		require.Equal(t, 2, fakeClient.UpdateEntryCallCount())
+	}
 }

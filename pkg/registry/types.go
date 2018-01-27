@@ -1,4 +1,6 @@
-package catalog
+//go:generate counterfeiter types.go Source
+
+package registry
 
 import (
 	"fmt"

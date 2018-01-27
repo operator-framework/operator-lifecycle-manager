@@ -20,8 +20,8 @@ import (
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/apis/subscription/v1alpha1"
-	catlib "github.com/coreos-inc/alm/pkg/catalog"
 	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/registry"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -43,7 +43,7 @@ type Operator struct {
 	catsrcClient       client.CatalogSourceInterface
 	subscriptionClient client.SubscriptionClientInterface
 	namespace          string
-	sources            map[string]catlib.Source
+	sources            map[string]registry.Source
 	sourcesLock        sync.Mutex
 	sourcesLastUpdate  metav1.Time
 }
@@ -154,7 +154,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		catsrcClient:       catsrcClient,
 		subscriptionClient: subscriptionClient,
 		namespace:          operatorNamespace,
-		sources:            make(map[string]catlib.Source),
+		sources:            make(map[string]registry.Source),
 	}
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
@@ -202,13 +202,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
-	src, err := catlib.NewInMemoryFromConfigMap(o.OpClient, o.namespace, catsrc.Spec.ConfigMap)
+	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, o.namespace, catsrc.Spec.ConfigMap)
 	if err != nil {
 		return fmt.Errorf("failed to create catalog source from ConfigMap: %s", catsrc.Spec.ConfigMap)
 	}
 
 	log.Infof("syncing CatalogSource: %s", catsrc.SelfLink)
-	store := &catlib.CustomResourceCatalogStore{
+	store := &registry.CustomResourceCatalogStore{
 		Client:    o.uiceClient,
 		Namespace: o.namespace,
 	}
@@ -378,10 +378,10 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source catlib.Source, owned bool) (v1alpha1.StepResource, string, error) {
+func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
-	crdKey := catlib.CRDKey{
+	crdKey := registry.CRDKey{
 		Kind:    crdDesc.Kind,
 		Name:    crdDesc.Name,
 		Version: crdDesc.Version,
@@ -439,7 +439,7 @@ func (srm stepResourceMap) Combine(y stepResourceMap) {
 	}
 }
 
-func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMap, error) {
+func resolveCSV(csvName, namespace string, source registry.Source) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -495,7 +495,7 @@ func resolveCSV(csvName, namespace string, source catlib.Source) (stepResourceMa
 	return steps, nil
 }
 
-func resolveInstallPlan(source catlib.Source, plan *v1alpha1.InstallPlan) error {
+func resolveInstallPlan(source registry.Source, plan *v1alpha1.InstallPlan) error {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
 		csvSRM, err := resolveCSV(csvName, plan.Namespace, source)

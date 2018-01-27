@@ -14,8 +14,8 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	uicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/registry"
 
-	"github.com/coreos-inc/alm/pkg/catalog"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -119,7 +119,7 @@ func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker i
 func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
 
-	inMem, err := catalog.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
+	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
 	require.NoError(t, err)
 	require.NotNil(t, inMem)
 	latestVaultCSV, err := inMem.FindCSVForPackageNameUnderChannel("vault", "alpha")

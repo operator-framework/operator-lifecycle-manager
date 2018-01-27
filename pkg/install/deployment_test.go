@@ -3,19 +3,17 @@ package install
 import (
 	"errors"
 	"fmt"
-	"reflect"
 	"testing"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/diff"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/client/clientfakes"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -59,90 +57,6 @@ func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *corev1.Se
 	return serviceAccount
 }
 
-type RoleMatcher struct{ rules []v1beta1rbac.PolicyRule }
-
-func MatchesRoleRules(rules []v1beta1rbac.PolicyRule) gomock.Matcher {
-	return &RoleMatcher{rules}
-}
-
-func (e *RoleMatcher) Matches(x interface{}) bool {
-	role, ok := x.(*v1beta1rbac.Role)
-	if !ok {
-		return false
-	}
-	return reflect.DeepEqual(role.Rules, e.rules)
-}
-
-func (e *RoleMatcher) String() string {
-	return "matches expected rules"
-}
-
-type RoleMatcher2 struct{ role *v1beta1rbac.Role }
-
-func MatchesRole(role *v1beta1rbac.Role) gomock.Matcher {
-	return &RoleMatcher2{role}
-}
-
-func (e *RoleMatcher2) Matches(x interface{}) bool {
-	role, ok := x.(*v1beta1rbac.Role)
-	if !ok {
-		return false
-	}
-	eq := reflect.DeepEqual(e.role, role)
-	if !eq {
-		fmt.Printf("ROLES NOT EQUAL: %s\n", diff.ObjectDiff(e.role, role))
-	}
-	return eq
-}
-
-func (e *RoleMatcher2) String() string {
-	return "matches expected rules"
-}
-
-type RoleBindingMatcher struct{ rb *v1beta1rbac.RoleBinding }
-
-func MatchesRoleBinding(rb *v1beta1rbac.RoleBinding) gomock.Matcher {
-	return &RoleBindingMatcher{rb}
-}
-
-func (e *RoleBindingMatcher) Matches(x interface{}) bool {
-	roleBinding, ok := x.(*v1beta1rbac.RoleBinding)
-	if !ok {
-		return false
-	}
-	eq := reflect.DeepEqual(roleBinding, e.rb)
-	if !eq {
-		fmt.Printf("NOT EQUAL: %s\n", diff.ObjectDiff(e.rb, roleBinding))
-	}
-	return eq
-}
-
-func (e *RoleBindingMatcher) String() string {
-	return "matches expected rules"
-}
-
-type DeploymentMatcher struct{ dep v1beta1.Deployment }
-
-func MatchesDeployment(dep v1beta1.Deployment) gomock.Matcher {
-	return &DeploymentMatcher{dep}
-}
-
-func (e *DeploymentMatcher) Matches(x interface{}) bool {
-	deployment, ok := x.(*v1beta1.Deployment)
-	if !ok {
-		return false
-	}
-	eq := reflect.DeepEqual(&e.dep, deployment)
-	if !eq {
-		fmt.Printf("NOT EQUAL: %s\n", diff.ObjectDiff(e.dep, deployment))
-	}
-	return eq
-}
-
-func (e *DeploymentMatcher) String() string {
-	return "matches expected deployment"
-}
-
 func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *StrategyDetailsDeployment {
 	var deploymentSpecs = []StrategyDeploymentSpec{}
 	var permissions = []StrategyDeploymentPermissions{}
@@ -167,11 +81,7 @@ func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *Strateg
 		Permissions:     permissions,
 	}
 }
-func testPermissions(name string) StrategyDeploymentPermissions {
-	return StrategyDeploymentPermissions{
-		ServiceAccountName: name,
-	}
-}
+
 func testRules(name string) []v1beta1rbac.PolicyRule {
 	return []v1beta1rbac.PolicyRule{
 		{
@@ -297,24 +207,23 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
+			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
 
-			for _, m := range tt.createOrUpdateMocks {
-				mockClient.EXPECT().
-					CreateOrUpdateDeployment(MatchesDeployment(m.expectedDeployment)).
-					Return(nil, m.returnError)
+			for i, m := range tt.createOrUpdateMocks {
+				fakeClient.CreateDeploymentReturns(nil, m.returnError)
+				defer func(i int, expectedDeployment v1beta1.Deployment) {
+					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
+					require.Equal(t, expectedDeployment, *dep)
+				}(i, m.expectedDeployment)
 			}
 
 			installer := &StrategyDeploymentInstaller{
-				strategyClient: mockClient,
+				strategyClient: fakeClient,
 				ownerRefs:      mockOwnerRefs,
 				ownerMeta:      mockOwnerMeta,
 			}
 			result := installer.installDeployments(tt.inputs.strategyDeploymentSpecs)
 			assert.Equal(t, tt.output, result)
-
-			ctrl.Finish()
 		})
 	}
 }
@@ -510,33 +419,39 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
 
-			for _, m := range tt.mocks {
-				mockClient.EXPECT().
-					CreateRole(MatchesRole(m.expectedRole)).
-					Return(m.createdRole, m.roleCreationError)
+			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
+
+			for i, m := range tt.mocks {
+				fakeClient.CreateRoleReturns(m.createdRole, m.roleCreationError)
+				defer func() {
+					require.Equal(t, m.expectedRole, fakeClient.CreateRoleArgsForCall(i))
+				}()
+
 				if m.expectedServiceAccount != nil {
-					mockClient.EXPECT().
-						EnsureServiceAccount(m.expectedServiceAccount).
-						Return(m.ensuredServiceAccount, m.ensureServiceAccountError)
+					fakeClient.EnsureServiceAccountReturns(m.ensuredServiceAccount, m.ensureServiceAccountError)
+					defer func() {
+						require.Equal(t, 2, fakeClient.EnsureServiceAccountCallCount())
+						sa := fakeClient.EnsureServiceAccountArgsForCall(1)
+						require.Equal(t, m.expectedServiceAccount, sa)
+					}()
 				}
 				if m.expectedRoleBinding != nil {
-					mockClient.EXPECT().
-						CreateRoleBinding(MatchesRoleBinding(m.expectedRoleBinding)).
-						Return(nil, m.roleBindingCreationError)
+					fakeClient.CreateRoleBindingReturns(nil, m.roleBindingCreationError)
+					defer func() {
+						require.Equal(t, 2, fakeClient.CreateRoleBindingCallCount())
+						require.Equal(t, m.expectedRoleBinding, fakeClient.CreateRoleBindingArgsForCall(1))
+					}()
 				}
 			}
 			installer := &StrategyDeploymentInstaller{
-				strategyClient: mockClient,
+				strategyClient: fakeClient,
 				ownerRefs:      mockOwnerRefs,
 				ownerMeta:      mockOwnerMeta,
 			}
 			result := installer.installPermissions(tt.inputs.strategyPermissions)
 			assert.Equal(t, tt.output, result)
 
-			ctrl.Finish()
 		})
 	}
 }
@@ -588,29 +503,33 @@ func TestInstallStrategyDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
+			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
 			strategy := strategy(tt.numExpected, namespace, mockOwnerMeta)
 			for i, p := range strategy.Permissions {
 				if i < tt.numMockServiceAccounts {
 					t.Logf("mocking %s true", p.ServiceAccountName)
-					mockClient.EXPECT().
-						GetServiceAccountByName(p.ServiceAccountName).
-						Return(testServiceAccount(p.ServiceAccountName, mockOwnerMeta), nil)
+
+					fakeClient.GetServiceAccountByNameReturnsOnCall(i, testServiceAccount(p.ServiceAccountName, mockOwnerMeta), nil)
+					defer func() {
+						require.Equal(t, p.ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(i))
+					}()
 				}
 				if i == tt.numMockServiceAccounts {
 					t.Logf("mocking %s false", p.ServiceAccountName)
-					mockClient.EXPECT().
-						GetServiceAccountByName(p.ServiceAccountName).
-						Return(nil, apierrors.NewNotFound(schema.GroupResource{}, p.ServiceAccountName))
+					fakeClient.GetServiceAccountByNameReturnsOnCall(i, nil, apierrors.NewNotFound(schema.GroupResource{}, p.ServiceAccountName))
+					defer func() {
+						require.Equal(t, p.ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(i))
+					}()
 				}
 
 				serviceAccount := testServiceAccount(p.ServiceAccountName, mockOwnerMeta)
-				mockClient.EXPECT().EnsureServiceAccount(serviceAccount).Return(serviceAccount, nil)
-				mockClient.EXPECT().
-					CreateRole(MatchesRoleRules(p.Rules)).
-					Return(&v1beta1rbac.Role{Rules: p.Rules}, nil)
-				mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, nil)
+
+				fakeClient.EnsureServiceAccountReturnsOnCall(i, serviceAccount, nil)
+				fakeClient.CreateRoleReturnsOnCall(i, &v1beta1rbac.Role{Rules: p.Rules}, nil)
+				fakeClient.CreateRoleBindingReturnsOnCall(i, &v1beta1rbac.RoleBinding{}, nil)
+				defer func(call int, rules []v1beta1rbac.PolicyRule) {
+					require.Equal(t, rules, fakeClient.CreateRoleArgsForCall(call).Rules)
+				}(i, p.Rules)
 			}
 
 			var mockedDeps []*v1beta1.Deployment
@@ -627,19 +546,20 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				for i := 1; i <= tt.numExpected; i++ {
 					depNames = append(depNames, fmt.Sprintf("alm-dep-%d", i))
 				}
-				mockClient.EXPECT().
-					FindAnyDeploymentsMatchingNames(depNames).
-					Return(mockedDeps, nil)
+
+				fakeClient.FindAnyDeploymentsMatchingNamesReturns(mockedDeps, nil)
+				defer func() {
+					require.Equal(t, 1, fakeClient.FindAnyDeploymentsMatchingNamesCallCount())
+					require.Equal(t, depNames, fakeClient.FindAnyDeploymentsMatchingNamesArgsForCall(0))
+				}()
 			}
 
 			for i := 1; i <= len(strategy.DeploymentSpecs); i++ {
 				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
-				mockClient.EXPECT().
-					CreateOrUpdateDeployment(&deployment).
-					Return(&deployment, nil)
+				fakeClient.CreateDeploymentReturnsOnCall(i-1, &deployment, nil)
 			}
 
-			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
+			installer := NewStrategyDeploymentInstaller(fakeClient, mockOwnerMeta, nil)
 
 			installed, err := installer.CheckInstalled(strategy)
 			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
@@ -650,8 +570,6 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				require.Error(t, err)
 			}
 			assert.NoError(t, installer.Install(strategy))
-
-			ctrl.Finish()
 		})
 	}
 }
@@ -663,15 +581,12 @@ func (b *BadStrategy) GetStrategyName() string {
 }
 
 func TestNewStrategyDeploymentInstaller(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	mockOwnerMeta := metav1.ObjectMeta{
 		Name:      "clusterserviceversion-owner",
 		Namespace: "ns",
 	}
-	mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
-	strategy := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
+	fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
+	strategy := NewStrategyDeploymentInstaller(fakeClient, mockOwnerMeta, nil)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
 	installed, err := strategy.CheckInstalled(&BadStrategy{})
@@ -718,28 +633,27 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
-
-			mockClient := NewMockInstallStrategyDeploymentInterface(ctrl)
+			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
 			strategy := strategy(1, namespace, mockOwnerMeta)
-			installer := NewStrategyDeploymentInstaller(mockClient, mockOwnerMeta, nil)
+			installer := NewStrategyDeploymentInstaller(fakeClient, mockOwnerMeta, nil)
 
 			skipInstall := tt.checkServiceAccountErr != nil
 
-			mockClient.EXPECT().
-				GetServiceAccountByName(strategy.Permissions[0].ServiceAccountName).
-				Return(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
+			fakeClient.GetServiceAccountByNameReturns(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
+			defer func() {
+				require.Equal(t, strategy.Permissions[0].ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(0))
+			}()
 
 			if tt.checkServiceAccountErr == nil {
 				dep := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
-				mockClient.EXPECT().
-					FindAnyDeploymentsMatchingNames([]string{dep.Name}).
-					Return(
-						[]*v1beta1.Deployment{
-							&dep,
-						}, nil,
-					)
+				fakeClient.FindAnyDeploymentsMatchingNamesReturns(
+					[]*v1beta1.Deployment{
+						&dep,
+					}, nil,
+				)
+				defer func() {
+					require.Equal(t, []string{dep.Name}, fakeClient.FindAnyDeploymentsMatchingNamesArgsForCall(0))
+				}()
 			}
 
 			installed, err := installer.CheckInstalled(strategy)
@@ -753,9 +667,10 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			mockClient.EXPECT().
-				CreateRole(MatchesRoleRules(strategy.Permissions[0].Rules)).
-				Return(&v1beta1rbac.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
+			fakeClient.CreateRoleReturns(&v1beta1rbac.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
+			defer func() {
+				require.Equal(t, strategy.Permissions[0].Rules, fakeClient.CreateRoleArgsForCall(0).Rules)
+			}()
 
 			if tt.createRoleErr != nil {
 				err := installer.Install(strategy)
@@ -764,15 +679,18 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			}
 
 			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta)
-			mockClient.EXPECT().EnsureServiceAccount(serviceAccount).Return(serviceAccount, tt.createServiceAccountErr)
+
+			fakeClient.EnsureServiceAccountReturns(serviceAccount, tt.createServiceAccountErr)
+			defer func() {
+				require.Equal(t, serviceAccount, fakeClient.EnsureServiceAccountArgsForCall(0))
+			}()
 
 			if tt.createServiceAccountErr != nil {
 				err := installer.Install(strategy)
 				require.Error(t, err)
 				return
 			}
-
-			mockClient.EXPECT().CreateRoleBinding(gomock.Any()).Return(&v1beta1rbac.RoleBinding{}, tt.createRoleBindingErr)
+			fakeClient.CreateRoleBindingReturns(&v1beta1rbac.RoleBinding{}, tt.createRoleBindingErr)
 
 			if tt.createRoleBindingErr != nil {
 				err := installer.Install(strategy)
@@ -780,9 +698,10 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				return
 			}
 			deployment := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
-			mockClient.EXPECT().
-				CreateOrUpdateDeployment(&deployment).
-				Return(&deployment, tt.createDeploymentErr)
+			fakeClient.CreateOrUpdateDeploymentReturns(&deployment, tt.createDeploymentErr)
+			defer func() {
+				require.Equal(t, &deployment, fakeClient.CreateOrUpdateDeploymentArgsForCall(0))
+			}()
 
 			if tt.createDeploymentErr != nil {
 				err := installer.Install(strategy)

@@ -1,3 +1,4 @@
+//go:generate counterfeiter subscription_client.go SubscriptionClientInterface
 package client
 
 import (
