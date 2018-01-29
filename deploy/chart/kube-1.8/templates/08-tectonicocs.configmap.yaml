@@ -807,7 +807,6 @@ data:
                           memory: 50Mi
         maturity: alpha
         version: 0.15.0
-        replaces: prometheusoperator.0.14.0
         customresourcedefinitions:
           owned:
           - name: prometheuses.monitoring.coreos.com
