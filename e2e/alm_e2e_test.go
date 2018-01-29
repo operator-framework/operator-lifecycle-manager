@@ -232,20 +232,20 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 	for _, uic := range fetchedUICatalogEntryNames.Items {
 		catalogEntry := uicatalogentryv1alpha1.UICatalogEntry{}
 		unstructuredConverter.FromUnstructured(uic.Object, &catalogEntry)
-		uiCatalogEntryName := catalogEntry.Spec.Manifest.Channels[0].CurrentCSVName
+		csvName := catalogEntry.Spec.Manifest.Channels[0].CurrentCSVName
 
-		t.Logf("Creating install plan for %s\n")
+		t.Logf("Creating install plan for %s", csvName)
 		installPlan := installplanv1alpha1.InstallPlan{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       installplanv1alpha1.InstallPlanKind,
 				APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
 			},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("install-%s", uiCatalogEntryName),
+				Name:      fmt.Sprintf("install-%s", csvName),
 				Namespace: testNamespace,
 			},
 			Spec: installplanv1alpha1.InstallPlanSpec{
-				ClusterServiceVersionNames: []string{uiCatalogEntryName},
+				ClusterServiceVersionNames: []string{csvName},
 				Approval:                   installplanv1alpha1.ApprovalAutomatic,
 			},
 		}
@@ -288,9 +288,9 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 		}
 
 		// Ensure that the InstallPlan actually has at least one CRD and CSV
-		t.Logf("%d CRDs present for %s", crdsPresent, uiCatalogEntryName)
+		t.Logf("%d CRDs present for %s", crdsPresent, csvName)
 		require.NotEmpty(t, crdsPresent)
-		t.Logf("%d CSVs present for %s", csvsPresent, uiCatalogEntryName)
+		t.Logf("%d CSVs present for %s", csvsPresent, csvName)
 		require.NotEmpty(t, csvsPresent)
 	}
 }
