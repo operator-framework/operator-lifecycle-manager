@@ -9,8 +9,8 @@ const (
 	GroupVersion              = "v1alpha1" // version used in the Scheme for subscriptions
 	SubscriptionKind          = "Subscription-v1"
 	SubscriptionListKind      = "SubscriptionList-v1"
-	SubscriptionCRDName       = "subscription-v1s.app.coreos.com"
-	SubscriptionCRDAPIVersion = "apiextensions.k8s.io/v1beta1" // API version w/ CRD support
+	SubscriptionCRDName       = "subscription-v1s"
+	SubscriptionCRDAPIVersion = "app.coreos.com/v1alpha1" // API version w/ CRD support
 )
 
 // SubscriptionState tracks when updates are available, installing, or service is up to date
@@ -64,5 +64,5 @@ type SubscriptionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []*SubscriptionSpec `json:"items"`
+	Items []Subscription `json:"items"`
 }

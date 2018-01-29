@@ -39,7 +39,7 @@ type UICatalogEntryList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []*UICatalogEntrySpec `json:"items"`
+	Items []UICatalogEntry `json:"items"`
 }
 
 // PackageManifest holds information about a package, which is a reference to one (or more)
