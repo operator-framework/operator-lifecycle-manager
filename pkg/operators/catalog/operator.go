@@ -121,17 +121,18 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Create an informer for each watch.
-	sharedIndexInformers := []cache.SharedIndexInformer{}
+	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, ipWatcher := range ipWatchers {
-		sharedIndexInformers = append(sharedIndexInformers, cache.NewSharedIndexInformer(
+		ipSharedIndexInformers = append(ipSharedIndexInformers, cache.NewSharedIndexInformer(
 			ipWatcher,
 			&v1alpha1.InstallPlan{},
 			wakeupInterval,
 			cache.Indexers{},
 		))
 	}
+	subSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, watcher := range subscriptionWatchers {
-		sharedIndexInformers = append(sharedIndexInformers, cache.NewSharedIndexInformer(
+		subSharedIndexInformers = append(subSharedIndexInformers, cache.NewSharedIndexInformer(
 			watcher,
 			&subscriptionv1alpha1.Subscription{},
 			wakeupInterval,
@@ -172,7 +173,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installplans")
 	ipQueueInformers := queueinformer.New(
 		ipQueue,
-		sharedIndexInformers,
+		ipSharedIndexInformers,
 		op.syncInstallPlans,
 		nil,
 	)
@@ -184,7 +185,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	subscriptionQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "subscriptions")
 	subscriptionQueueInformers := queueinformer.New(
 		subscriptionQueue,
-		sharedIndexInformers,
+		subSharedIndexInformers,
 		op.syncSubscriptions,
 		nil,
 	)
