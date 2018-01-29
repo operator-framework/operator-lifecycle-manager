@@ -98,14 +98,9 @@ func (in *SubscriptionList) DeepCopyInto(out *SubscriptionList) {
 	out.ListMeta = in.ListMeta
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]*SubscriptionSpec, len(*in))
+		*out = make([]Subscription, len(*in))
 		for i := range *in {
-			if (*in)[i] == nil {
-				(*out)[i] = nil
-			} else {
-				(*out)[i] = new(SubscriptionSpec)
-				(*in)[i].DeepCopyInto((*out)[i])
-			}
+			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
 	return
