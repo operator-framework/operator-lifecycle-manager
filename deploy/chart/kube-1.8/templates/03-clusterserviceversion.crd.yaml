@@ -401,6 +401,7 @@ spec:
                                     - update
                                     - patch
                                     - delete
+                                    - deletecollection
 
 
   names:

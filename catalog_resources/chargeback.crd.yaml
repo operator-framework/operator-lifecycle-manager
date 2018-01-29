@@ -1,0 +1,16 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: chargebacks.chargeback.coreos.com
+  annotations:
+    catalog.app.coreos.com/description: An instance of Chargeback
+    catalog.app.coreos.com/displayName: Chargeback
+spec:
+  group: chargeback.coreos.com
+  version: v1alpha1
+  scope: Namespaced
+  names:
+    plural: chargebacks
+    singular: chargeback
+    kind: Chargeback
+    listKind: ChargebackList
