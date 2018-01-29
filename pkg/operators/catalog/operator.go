@@ -113,7 +113,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 
 		subscriptionWatchers = append(subscriptionWatchers, cache.NewListWatchFromClient(
 			subscriptionClient,
-			subscriptionv1alpha1.SubscriptionKind,
+			"subscription-v1s",
 			namespace,
 			fields.Everything(),
 		))
