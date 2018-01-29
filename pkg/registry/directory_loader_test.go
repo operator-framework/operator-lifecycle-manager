@@ -12,8 +12,13 @@ import (
 )
 
 func TestDirectoryLoader(t *testing.T) {
-	_, err := NewInMemoryFromDirectory("../../catalog_resources")
+	catalog, err := NewInMemoryFromDirectory("../../catalog_resources")
 	require.NoError(t, err)
+
+	require.Contains(t, catalog.packages, "etcd")
+	require.Contains(t, catalog.packages, "vault")
+	require.Contains(t, catalog.packages, "prometheus")
+	require.Len(t, catalog.packages, 3)
 }
 
 func TestDirectoryLoaderHiddenDirs(t *testing.T) {

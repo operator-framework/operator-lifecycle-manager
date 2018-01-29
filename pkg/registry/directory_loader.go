@@ -26,13 +26,19 @@ func (d *DirectoryCatalogResourceLoader) LoadCatalogResources(directory string) 
 		log.Debugf("Load Dir     -- ERROR %s : CSV error=%s", directory, err)
 		return fmt.Errorf("error loading CSVs from directory %s: %s", directory, err)
 	}
+	if err := filepath.Walk(directory, d.LoadPackagesWalkFunc); err != nil {
+		log.Debugf("Load Dir     -- ERROR %s : PKG error=%s", directory, err)
+		return fmt.Errorf("error loading Packages from directory %s: %s", directory, err)
+	}
 	log.Debugf("Load Dir     -- OK    %s", directory)
 	return nil
 }
 
 func (d *DirectoryCatalogResourceLoader) LoadCRDsWalkFunc(path string, f os.FileInfo, err error) error {
 	log.Debugf("Load CRD     -- BEGIN %s", path)
-
+	if f == nil {
+		return fmt.Errorf("Not a valid file")
+	}
 	if f.IsDir() {
 		log.Debugf("Load CRD     -- ISDIR %s", path)
 		if strings.HasPrefix(f.Name(), ".") {
@@ -59,7 +65,9 @@ func (d *DirectoryCatalogResourceLoader) LoadCRDsWalkFunc(path string, f os.File
 
 func (d *DirectoryCatalogResourceLoader) LoadCSVsWalkFunc(path string, f os.FileInfo, err error) error {
 	log.Debugf("Load CSV     -- BEGIN %s", path)
-
+	if f == nil {
+		return fmt.Errorf("Not a valid file")
+	}
 	if f.IsDir() {
 		if strings.HasPrefix(f.Name(), ".") {
 			log.Debugf("Load CSV     -- SKIPHIDDEN %s", path)
@@ -79,6 +87,34 @@ func (d *DirectoryCatalogResourceLoader) LoadCSVsWalkFunc(path string, f os.File
 			return err
 		}
 		log.Debugf("Load CSV     -- OK    %s", csv.Name)
+	}
+	return nil
+}
+
+func (d *DirectoryCatalogResourceLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err error) error {
+	log.Debugf("Load Package     -- BEGIN %s", path)
+	if f == nil {
+		return fmt.Errorf("Not a valid file")
+	}
+	if f.IsDir() {
+		if strings.HasPrefix(f.Name(), ".") {
+			log.Debugf("Load Package     -- SKIPHIDDEN %s", path)
+			return filepath.SkipDir
+		}
+		log.Debugf("Load Package     -- ISDIR %s", path)
+		return nil
+	}
+	if strings.HasPrefix(f.Name(), ".") {
+		log.Debugf("Load Package     -- SKIPHIDDEN %s", path)
+		return nil
+	}
+	if strings.HasSuffix(path, ".package.yaml") {
+		pkg, err := LoadPackageFromFile(d.Catalog, path)
+		if err != nil {
+			log.Debugf("Load Package     -- ERROR %s", path)
+			return err
+		}
+		log.Debugf("Load Package     -- OK    %s", pkg.PackageName)
 	}
 	return nil
 }
