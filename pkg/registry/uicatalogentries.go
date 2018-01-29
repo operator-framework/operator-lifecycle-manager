@@ -46,7 +46,7 @@ func (store *CustomResourceCatalogStore) Store(manifest v1alpha1.PackageManifest
 		visibility = CatalogEntryVisibilityOCS // default to visible in catalog
 	}
 	resource := v1alpha1.NewUICatalogEntryResource(spec)
-	csv.ObjectMeta.DeepCopyInto(&resource.ObjectMeta)
+	resource.SetName(manifest.PackageName)
 	resource.SetNamespace(store.Namespace)
 	labels := resource.GetLabels()
 	if labels == nil {
@@ -72,8 +72,10 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICat
 	entries := []*v1alpha1.UICatalogEntry{}
 	status.ServicesFound = len(catalog.AllPackages())
 
+	log.Debugf("Catalog Sync -- Packages found: %v", catalog.AllPackages())
+
 	for name, manifest := range catalog.AllPackages() {
-		log.Debugf("Catalog Sync -- BEGIN store service %s v%s -- ", name)
+		log.Debugf("Catalog Sync -- BEGIN store service %s", name)
 		latestCSVInDefaultChannel, err := catalog.FindCSVForPackageNameUnderChannel(name, manifest.GetDefaultChannel())
 		if err != nil {
 			status.Errors = append(status.Errors, fmt.Errorf("error getting service %s v%s: %v",
