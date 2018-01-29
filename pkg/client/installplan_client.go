@@ -1,3 +1,4 @@
+//go:generate counterfeiter installplan_client.go InstallPlanInterface
 package client
 
 import (

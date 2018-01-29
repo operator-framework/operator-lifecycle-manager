@@ -1,4 +1,4 @@
-package catalog
+package registry
 
 import (
 	"fmt"
@@ -80,6 +80,8 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICat
 				latestCSVInDefaultChannel.GetName(), latestCSVInDefaultChannel.Spec.Version, err))
 			log.Debugf("Catalog Sync -- ERROR getting service %s -- %s",
 				latestCSVInDefaultChannel.GetName(), err)
+			status.ServicesFailed = status.ServicesFailed + 1
+			continue
 		}
 		resource, err := store.Store(manifest, latestCSVInDefaultChannel)
 		if err != nil {

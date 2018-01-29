@@ -11,6 +11,8 @@ import (
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
 
+	"github.com/coreos-inc/alm/pkg/client/clientfakes"
+	"github.com/coreos-inc/alm/pkg/install/installfakes"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -25,11 +27,13 @@ import (
 type MockALMOperator struct {
 	ALMOperator
 	MockQueueOperator    *queueinformer.MockOperator
-	MockCSVClient        *MockClusterServiceVersionInterface
+	CSVClientFake        *clientfakes.FakeClusterServiceVersionInterface
 	MockOpClient         *opClient.MockInterface
 	TestQueueInformer    queueinformer.TestQueueInformer
-	MockStrategyResolver *MockStrategyResolverInterface
+	StrategyResolverFake *installfakes.FakeStrategyResolverInterface
 }
+
+type Expect func()
 
 // Helpers
 
@@ -48,16 +52,34 @@ func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alp
 	}
 }
 
-func mockIntermediates(t *testing.T, mockOpClient *opClient.MockInterface, mockResolver *MockStrategyResolverInterface, current *v1alpha1.ClusterServiceVersion, intermediates []*v1alpha1.ClusterServiceVersion) {
+func mockIntermediates(t *testing.T, mockOpClient *opClient.MockInterface, resolverFake *installfakes.FakeStrategyResolverInterface, current *v1alpha1.ClusterServiceVersion, intermediates []*v1alpha1.ClusterServiceVersion) Expect {
 	mockCSVsInNamespace(t, mockOpClient, current.GetNamespace(), intermediates, nil)
 	prevCSV := current
-	for _, csv := range intermediates {
+
+	expectFns := []func(){}
+	call := -2
+	for i, csv := range intermediates {
+		call += 2
 		mockIsReplacing(t, mockOpClient, prevCSV, csv, nil)
 		testInstallStrategy := TestStrategy{}
-		mockResolver.EXPECT().UnmarshalStrategy(csv.Spec.InstallStrategy).Return(&testInstallStrategy, nil)
-		mockResolver.EXPECT().UnmarshalStrategy(prevCSV.Spec.InstallStrategy).Return(&testInstallStrategy, nil)
-		mockResolver.EXPECT().InstallerForStrategy(testInstallStrategy.GetStrategyName(), mockOpClient, csv.ObjectMeta, &testInstallStrategy).Return(NewTestInstaller(nil, nil))
+		resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, nil)
+		resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, nil)
+		resolverFake.InstallerForStrategyReturns(NewTestInstaller(nil, nil))
+		expectFns = append(expectFns, func() {
+			require.Equal(t, csv.Spec.InstallStrategy, resolverFake.UnmarshalStrategyArgsForCall(call))
+			require.Equal(t, prevCSV.Spec.InstallStrategy, resolverFake.UnmarshalStrategyArgsForCall(call+1))
+			name, opClient, _, strategy := resolverFake.InstallerForStrategyArgsForCall(i)
+			require.Equal(t, testInstallStrategy.GetStrategyName(), name)
+			require.Equal(t, mockOpClient, opClient)
+			require.Equal(t, &testInstallStrategy, strategy)
+		})
 		prevCSV = csv
+	}
+	// Return a set of expectations that can be deferred until the test fn has finished
+	return func() {
+		for _, fn := range expectFns {
+			fn()
+		}
 	}
 }
 
@@ -90,24 +112,44 @@ func mockCSVsInNamespace(t *testing.T, mockOpClient *opClient.MockInterface, nam
 	mockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, namespace, v1alpha1.ClusterServiceVersionKind).Return(csvList, csvQueryErr)
 }
 
-func mockInstallStrategy(t *testing.T, mockResolver *MockStrategyResolverInterface, strategy *v1alpha1.NamedInstallStrategy, installErr error, checkInstallErr error, prevStrategy *v1alpha1.NamedInstallStrategy, prevCSVQueryErr error) {
+func mockInstallStrategy(t *testing.T, resolverFake *installfakes.FakeStrategyResolverInterface, strategy *v1alpha1.NamedInstallStrategy, installErr error, checkInstallErr error, prevStrategy *v1alpha1.NamedInstallStrategy, prevCSVQueryErr error) Expect {
 	testInstallStrategy := TestStrategy{}
-	matchPrev := gomock.Nil()
-	if prevStrategy != nil {
-		matchPrev = gomock.Any()
-	}
+	expectFns := []func(){}
+	//matchPrev := gomock.Nil()
+	//if prevStrategy != nil {
+	//	matchPrev = gomock.Any()
+	//}
 	stratErr := fmt.Errorf("couldn't unmarshal install strategy")
 	if strategy.StrategyName == "teststrategy" {
 		stratErr = nil
 	}
-	mockResolver.EXPECT().UnmarshalStrategy(*strategy).Return(&testInstallStrategy, stratErr)
+	resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, stratErr)
+	expectFns = append(expectFns, func() {
+		strat := resolverFake.UnmarshalStrategyArgsForCall(0)
+		require.Equal(t, strategy, strat)
+	})
 	if stratErr == nil {
-		mockResolver.EXPECT().
-			InstallerForStrategy((&testInstallStrategy).GetStrategyName(), gomock.Any(), gomock.Any(), matchPrev).
-			Return(NewTestInstaller(installErr, checkInstallErr))
+		resolverFake.InstallerForStrategyReturns(NewTestInstaller(installErr, checkInstallErr))
+		expectFns = append(expectFns, func() {
+			strategyName, _, _, prev := resolverFake.InstallerForStrategyArgsForCall(0)
+			require.Equal(t, (&testInstallStrategy).GetStrategyName(), strategyName)
+			if prevStrategy != nil {
+				require.NotNil(t, prev)
+			}
+		})
 	}
 	if prevStrategy != nil {
-		mockResolver.EXPECT().UnmarshalStrategy(*prevStrategy).Return(&testInstallStrategy, prevCSVQueryErr)
+		resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, prevCSVQueryErr)
+		expectFns = append(expectFns, func() {
+			strat := resolverFake.UnmarshalStrategyArgsForCall(1)
+			require.Equal(t, prevStrategy, strat)
+		})
+	}
+	// Return a set of expectations that can be deferred until the test fn has finished
+	return func() {
+		for _, fn := range expectFns {
+			fn()
+		}
 	}
 }
 
@@ -183,12 +225,12 @@ func withReplaces(csv *v1alpha1.ClusterServiceVersion, replaces string) *v1alpha
 }
 
 func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
-	mockCSVClient := NewMockClusterServiceVersionInterface(gomockCtrl)
-	mockInstallResolver := NewMockStrategyResolverInterface(gomockCtrl)
+	csvClientFake := new(clientfakes.FakeClusterServiceVersionInterface)
+	resolverFake := new(installfakes.FakeStrategyResolverInterface)
 
 	almOperator := ALMOperator{
-		csvClient: mockCSVClient,
-		resolver:  mockInstallResolver,
+		csvClient: csvClientFake,
+		resolver:  resolverFake,
 	}
 	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "test-clusterserviceversions")
 	csvQueueInformer := queueinformer.NewTestQueueInformer(
@@ -204,11 +246,11 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 	almOperator.csvQueue = queue
 	return &MockALMOperator{
 		ALMOperator:          almOperator,
-		MockCSVClient:        mockCSVClient,
+		CSVClientFake:        csvClientFake,
 		MockQueueOperator:    qOp,
 		MockOpClient:         qOp.MockClient,
 		TestQueueInformer:    *csvQueueInformer,
-		MockStrategyResolver: mockInstallResolver,
+		StrategyResolverFake: resolverFake,
 	}
 }
 
@@ -595,7 +637,7 @@ func TestCSVStateTransitionsFromInstallReady(t *testing.T) {
 		}
 
 		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-		mockInstallStrategy(t, mockOp.MockStrategyResolver, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
+		mockInstallStrategy(t, mockOp.StrategyResolverFake, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
 		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
@@ -845,7 +887,7 @@ func TestCSVStateTransitionsFromInstalling(t *testing.T) {
 		}
 
 		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-		mockInstallStrategy(t, mockOp.MockStrategyResolver, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
+		mockInstallStrategy(t, mockOp.StrategyResolverFake, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
 		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
@@ -982,7 +1024,7 @@ func TestCSVStateTransitionsFromSucceeded(t *testing.T) {
 		}
 
 		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-		mockInstallStrategy(t, mockOp.MockStrategyResolver, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
+		mockInstallStrategy(t, mockOp.StrategyResolverFake, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
 		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
@@ -1234,7 +1276,8 @@ func TestCSVStateTransitionsFromReplacing(t *testing.T) {
 
 		// transition short circuits if there's a prevCSV, so we only mock the rest if there isn't
 		if tt.state.prevCSV == nil {
-			mockIntermediates(t, mockOp.MockOpClient, mockOp.MockStrategyResolver, tt.in, tt.state.csvsInNamespace)
+			intermediateExpect := mockIntermediates(t, mockOp.MockOpClient, mockOp.StrategyResolverFake, tt.in, tt.state.csvsInNamespace)
+			defer intermediateExpect()
 		}
 
 		t.Run(tt.description, func(t *testing.T) {

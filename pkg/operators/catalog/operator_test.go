@@ -12,7 +12,7 @@ import (
 
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
-	catlib "github.com/coreos-inc/alm/pkg/catalog"
+	"github.com/coreos-inc/alm/pkg/registry"
 )
 
 type mockTransitioner struct {
@@ -132,7 +132,7 @@ func TestResolveInstallPlan(t *testing.T) {
 
 			// Create a catalog source containing a CSVs and CRDs with the provided
 			// names.
-			src := catlib.NewInMem()
+			src := registry.NewInMem()
 			for _, name := range tt.crdNames {
 				err := src.SetCRDDefinition(crd(name))
 				require.NoError(t, err)
