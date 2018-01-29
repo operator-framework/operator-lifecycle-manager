@@ -57,7 +57,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	csv, err := o.csvClient.GetCSVByName(sub.GetNamespace(), sub.Status.CurrentCSV)
 	if err != nil || csv == nil {
 		log.Infof("error fetching CSV %s via k8s api: %v", sub.Status.CurrentCSV, err)
-		if sub.Status.Install != nil {
+		if sub.Status.Install != nil && sub.Status.Install.Name != "" {
 			ip, err := o.ipClient.GetInstallPlanByName(sub.GetNamespace(), sub.Status.Install.Name)
 			if err != nil {
 				log.Errorf("get installplan %s error: %v", sub.Status.Install.Name, err)
@@ -72,6 +72,10 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		// install CSV if doesn't exist
 		ip := &ipv1alpha1.InstallPlan{
 			ObjectMeta: metav1.ObjectMeta{},
+			Spec: ipv1alpha1.InstallPlanSpec{
+				ClusterServiceVersionNames: []string{sub.Status.CurrentCSV},
+				Approval:                   ipv1alpha1.ApprovalAutomatic,
+			},
 		}
 		owner := []metav1.OwnerReference{
 			{

@@ -340,6 +340,10 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
+					Spec: ipv1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{"latest-and-greatest"},
+						Approval:                   ipv1alpha1.ApprovalAutomatic,
+					},
 				},
 				subscription: &v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
@@ -407,6 +411,10 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
+					Spec: ipv1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{"latest-and-greatest"},
+						Approval:                   ipv1alpha1.ApprovalAutomatic,
+					},
 				},
 				subscription: &v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
@@ -473,6 +481,10 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
+					Spec: ipv1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{"pending"},
+						Approval:                   ipv1alpha1.ApprovalAutomatic,
+					},
 				},
 				err: "failed to ensure current CSV pending installed: CreateInstallPlanError",
 			},
@@ -518,6 +530,10 @@ func TestSyncSubscription(t *testing.T) {
 								UID:        types.UID("subscription-uid"),
 							},
 						},
+					},
+					Spec: ipv1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{"pending"},
+						Approval:                   ipv1alpha1.ApprovalAutomatic,
 					},
 				},
 				err: "unexpected installplan returned by k8s api on create: <nil>",
