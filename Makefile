@@ -7,7 +7,7 @@ IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
 PKG_DIR := pkg
 
-.PHONY: test run clean vendor vendor-update coverage e2e
+.PHONY: build test run clean vendor vendor-update coverage e2e
 
 all: test build
 
@@ -55,7 +55,9 @@ $(ALM_EXECUTABLE):
 $(CATALOG_EXECUTABLE):
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
-build: $(ALM_EXECUTABLE) $(CATALOG_EXECUTABLE)
+build:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
 run: build
 	./bin/$(EXECUTABLE)

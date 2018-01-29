@@ -80,6 +80,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 
 	packageListYaml, ok := cm.Data[ConfigMapPackageName]
 	if ok {
+		log.Debug("Load ConfigMap      -- ConfigMap contains packages")
 		packageListJson, err := yaml.YAMLToJSON([]byte(packageListYaml))
 		if err != nil {
 			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
@@ -97,6 +98,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 			found = true
 			d.Catalog.addPackageManifest(packageManifest)
 		}
+		log.Debug("Load ConfigMap      -- Found packages: %v", d.Catalog.packages)
 	}
 
 	if !found {
