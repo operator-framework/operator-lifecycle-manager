@@ -18,7 +18,8 @@ func TestDirectoryLoader(t *testing.T) {
 	require.Contains(t, catalog.packages, "etcd")
 	require.Contains(t, catalog.packages, "vault")
 	require.Contains(t, catalog.packages, "prometheus")
-	require.Len(t, catalog.packages, 3)
+	require.Contains(t, catalog.packages, "chargeback")
+	require.Len(t, catalog.packages, 4)
 }
 
 func TestDirectoryLoaderHiddenDirs(t *testing.T) {
