@@ -188,8 +188,9 @@ e2e_tests:
     apply -f ${charttmpdir}
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} -f
-  - if kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} 2>&1 | grep -q '^not'; then kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs -l app=alm-operator && kubectl -n e2e-${CI_COMMIT_REF_SLUG}
-    logs -l app=catalog-operator; exit 1; else exit 0; fi
+  - kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > e2e.log
+  - cat e2e.log | grep -q '^not'
+  - if [ $? -eq 0 ]; then exit 1; else exit 0; fi
   stage: tests
   tags:
   - kubernetes
