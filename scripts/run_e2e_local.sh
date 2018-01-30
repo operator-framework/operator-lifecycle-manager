@@ -26,7 +26,8 @@ function cleanupAndExit {
 	exitCode=$?
 	if [ "$exitCode" -ne "0" ]; then
 		echo "error running tests, printing pod logs: ";
-		kubectl -n ${namespace} logs -l app=alm;	
+		kubectl -n ${namespace} logs -l app=alm-operator;
+		kubectl -n ${namespace} logs -l app=catalog-operator;
 	fi
 	cleanup
     exit $exitCode

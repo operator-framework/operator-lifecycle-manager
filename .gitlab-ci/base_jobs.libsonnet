@@ -65,7 +65,7 @@ local appr = utils.appr;
             [
                 "until kubectl -n %s logs job/%s | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % [_vars.namespace, _vars.jobname],
                 "kubectl -n %s logs job/%s -f" % [_vars.namespace, _vars.jobname],
-                "if kubectl -n %s logs job/%s 2>&1 | grep -q '^not'; then kubectl -n %s logs -l app=alm; exit 1; else exit 0; fi" % [_vars.namespace, _vars.jobname, _vars.namespace],
+                "if kubectl -n %s logs job/%s 2>&1 | grep -q '^not'; then kubectl -n %s logs -l app=alm-operator && kubectl -n %s logs -l app=catalog-operator; exit 1; else exit 0; fi" % [_vars.namespace, _vars.jobname, _vars.namespace, _vars.namespace],
             ],
 
         variables: {

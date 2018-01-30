@@ -26,7 +26,8 @@ function cleanupAndExit {
 	exitCode=$?
 	if [ "$exitCode" -ne "0" ]; then
 		echo "error running tests, printing pod logs: ";
-		kubectl -n ${namespace} logs -l app=alm;
+		kubectl -n ${namespace} logs -l app=alm-operator;
+		kubectl -n ${namespace} logs -l app=catalog-operator;
 	fi
 	cleanup
     exit $exitCode
@@ -49,7 +50,7 @@ do
 done
 
 eval $(minikube docker-env) || { echo 'Cannot switch to minikube docker'; exit 1; }
-docker build -t quay.io/coreos/alm-e2e:local -f e2e-local-run.Dockerfile .
+docker build --no-cache -t quay.io/coreos/alm-e2e:local -f e2e-local-run.Dockerfile .
 kubectl apply -f e2e/test-resources
 until kubectl -n ${namespace} logs job/e2e | grep -v "ContainerCreating"; do echo "waiting for job to run" && sleep 1; done
 kubectl -n ${namespace} logs job/e2e -f

@@ -12,13 +12,11 @@ spec:
   replicas: {{ .Values.catalog.replicaCount }}
   selector:
     matchLabels:
-      app: alm
-      alm-component: catalog
+      app: catalog-operator
   template:
     metadata:
       labels:
-        app: alm
-        alm-component: catalog
+        app: catalog-operator
     spec:
       serviceAccountName: alm-operator-serviceaccount
       containers:
@@ -31,6 +29,7 @@ spec:
           {{- end }}
           - '-namespace'
           - {{ .Values.catalog_namespace }}
+          - '-debug'
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
