@@ -3,6 +3,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -70,17 +71,20 @@ func (c *InstallPlanClient) UpdateInstallPlan(in *v1alpha1.InstallPlan) (out *v1
 }
 
 func (c *InstallPlanClient) CreateInstallPlan(in *v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error) {
+	if in == nil {
+		return nil, errors.New("cannot create InstallPlan with nil input")
+	}
 	out := &v1alpha1.InstallPlan{}
-	err := c.RESTClient.
+	r := c.RESTClient.
 		Post().
 		Context(context.TODO()).
 		Namespace(in.Namespace).
-		Resource(v1alpha1.InstallPlanCRDName).
-		Name(in.Name).
-		Body(in).
-		Do().
-		Into(out)
-	if err != nil {
+		Resource("installplan-v1s").
+		Body(in)
+	if len(in.Name) > 0 {
+		r = r.Name(in.Name)
+	}
+	if err := r.Do().Into(out); err != nil {
 		return nil, fmt.Errorf("failed to create InstallPlan: %v", err)
 	}
 	return out, nil
