@@ -222,11 +222,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	defer o.sourcesLock.Unlock()
 	o.sources[catsrc.Spec.Name] = src
 	o.sourcesLastUpdate = timeNow()
-	catsrc.Status = catsrcv1alpha1.CatalogSourceStatus{
-		LastSync: o.sourcesLastUpdate,
-		// TODO store ConfigMapResource reference info in status
-	}
-	_, err = o.catsrcClient.UpdateCS(catsrc)
 	return err
 }
 
