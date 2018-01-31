@@ -2,20 +2,18 @@ package deploy
 
 import (
 	"io/ioutil"
-	"strings"
-	"testing"
-
 	"os"
-
 	"path"
 	"sort"
+	"strings"
+	"testing"
 
 	"encoding/json"
 
 	"github.com/coreos-inc/alm/pkg/registry"
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
-	"github.com/json-iterator/go/require"
+	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 )
 
