@@ -66,8 +66,7 @@ local appr = utils.appr;
                 "until kubectl -n %s logs job/%s | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % [_vars.namespace, _vars.jobname],
                 "kubectl -n %s logs job/%s -f" % [_vars.namespace, _vars.jobname],
                 "kubectl -n %s logs job/%s > e2e.log" % [_vars.namespace, _vars.jobname],
-                "cat e2e.log | grep -q '^not'",
-                "if [ $? -eq 0 ]; then exit 1; else exit 0; fi",
+                "if cat e2e.log | grep -q '^not'; then echo 'err' && exit 1; else echo 'no err' && exit 0; fi",
             ],
 
         variables: {

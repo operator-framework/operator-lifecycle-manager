@@ -189,8 +189,7 @@ e2e_tests:
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} -f
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > e2e.log
-  - cat e2e.log | grep -q '^not'
-  - if [ $? -eq 0 ]; then exit 1; else exit 0; fi
+  - if cat e2e.log | grep -q '^not'; then echo 'err' && exit 1; else echo 'no err' && exit 0; fi
   stage: tests
   tags:
   - kubernetes

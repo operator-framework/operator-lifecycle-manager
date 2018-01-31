@@ -204,6 +204,7 @@ func TestUICatalogEntriesVisibility(t *testing.T) {
 		"etcd":       "ocs",
 		"prometheus": "ocs",
 		"vault":      "ocs",
+		"chargeback": "tectonic-feature",
 	}
 
 	// This test may start before all of the UICatalogEntries are present in the cluster
