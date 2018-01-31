@@ -589,7 +589,7 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: etcdoperator.v0.7.2
+        name: etcdoperator.v0.6.1
         namespace: placeholder
         annotations:
           tectonic-visibility: ocs
@@ -610,26 +610,14 @@ data:
           [Read the complete guide to using the etcd Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/etcd-ocs.html)
 
           ### Supported Features
-
-
           **High availability**
-
-
           Multiple instances of etcd are networked together and secured. Individual failures or networking issues are transparently handled to keep your cluster up and running.
-
-
           **Automated updates**
-
-
           Rolling out a new etcd version works like all Kubernetes rolling updates. Simply declare the desired version, and the etcd service starts a safe rolling update to the new version automatically.
-
-
           **Backups included**
-
-
           Coming soon, the ability to schedule backups to happen on or off cluster.
         keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-        version: 0.7.2
+        version: 0.6.1
         maturity: alpha
         maintainers:
         - name: CoreOS, Inc
@@ -638,7 +626,7 @@ data:
         provider:
           name: CoreOS, Inc
         labels:
-          alm-status-descriptors: etcdoperator.v0.7.2
+          alm-status-descriptors: etcdoperator.v0.6.1
           alm-owner-etcd: etcdoperator
           operated-by: etcdoperator
         selector:
@@ -712,7 +700,7 @@ data:
                       command:
                       - etcd-operator
                       - --create-crd=false
-                      image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
+                      image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
@@ -740,11 +728,6 @@ data:
                 path: size
                 x-descriptors:
                   - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-              - description: Limits describes the minimum/maximum amount of compute resources required/allowed
-                displayName: Resource Requirements
-                path: pod.resources
-                x-descriptors:
-                  - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
             statusDescriptors:
               - description: The status of each of the member Pods for the etcd cluster.
                 displayName: Member Status
@@ -753,7 +736,7 @@ data:
                   - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
               - description: The service at which the running etcd cluster can be accessed.
                 displayName: Service
-                path: serviceName
+                path: service
                 x-descriptors:
                   - 'urn:alm:descriptor:io.kubernetes:Service'
               - description: The current size of the etcd cluster.
@@ -820,7 +803,7 @@ data:
         keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
         version: 0.8.3
         maturity: alpha
-        replaces: etcdoperator.v0.7.2
+        replaces: etcdoperator.v0.6.1
         maintainers:
         - name: CoreOS, Inc
           email: support@coreos.com
@@ -1441,7 +1424,7 @@ data:
                     imagePullSecrets:
                     - name: coreos-pull-secret
         version: 0.1.8
-        replaces: vault-operator.0.1.6
+        replaces: vault-operator.0.1.5
         maturity: alpha
         customresourcedefinitions:
           owned:
@@ -1505,8 +1488,8 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: vault-operator.0.1.6
         namespace: placeholder
+        name: vault-operator.0.1.5
         annotations:
           tectonic-visibility: ocs
         labels:
@@ -1527,20 +1510,10 @@ data:
           ### Supported Features
 
           **Secure by Default**
-
-
           Hands-free automated creation of TLS certificates between all components ensure all best practices are followed for secret security. Further, the API makes unseal operations easy.
-
-
           **Highly available**
-
-
           Multiple instances of Vault are clustered together via an etcd backend and secured.
-
-
           **Safe Upgrades**
-
-
           Rolling out a new Vault version is as easy as updating the Vault Cluster definition. Everything is automatically handled using Vault best practices while pausing for unseal tokens.
 
         keywords: ['vault', 'secret', 'encryption']
@@ -1553,7 +1526,7 @@ data:
         - name: Vault Project
           url: https://www.vaultproject.io/
         labels:
-          alm-status-descriptors: vault-operator.0.1.6
+          alm-status-descriptors: vault-operator.0.1.5
           alm-owner-vault: vault-operator
           operated-by: vault-operator
         selector:
@@ -1617,7 +1590,7 @@ data:
                     serviceAccountName: vault-operator
                     containers:
                     - name: vault-operator
-                      image: quay.io/coreos/vault-operator@sha256:e86656d1f06ee73f035df49586e24b928beae1e70c097cb8675cb93091ca3942
+                      image: quay.io/coreos/vault-operator@sha256:74036811bc5d6cc1a136d8cc6d5577db67f29ba95eba02fbf0c3a8d2357dc8fe
                       env:
                       - name: MY_POD_NAMESPACE
                         valueFrom:
@@ -1629,7 +1602,7 @@ data:
                             fieldPath: metadata.name
                     imagePullSecrets:
                     - name: coreos-pull-secret
-        version: 0.1.6
+        version: 0.1.5
         maturity: alpha
         customresourcedefinitions:
           owned:
@@ -1648,10 +1621,6 @@ data:
                 version: v1
               - kind: Secret
                 version: v1
-              - kind: Deployment
-                version: v1beta2
-              - kind: ReplicaSet
-                version: v1beta2
               - kind: Pod
                 version: v1
             specDescriptors:
@@ -1680,52 +1649,6 @@ data:
             kind: EtcdCluster
             displayName: etcd Cluster
             description: Represents a cluster of etcd nodes.
-            resources:
-              - kind: Service
-                version: v1
-              - kind: Pod
-                version: v1
-            specDescriptors:
-              - description: The desired number of member Pods for the etcd cluster.
-                displayName: Size
-                path: size
-                x-descriptors:
-                  - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-              - description: Limits describes the minimum/maximum amount of compute resources required/allowed
-                displayName: Resource Requirements
-                path: pod.resources
-                x-descriptors:
-                  - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
-            statusDescriptors:
-              - description: The status of each of the member Pods for the etcd cluster.
-                displayName: Member Status
-                path: members
-                x-descriptors:
-                  - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
-              - description: The service at which the running etcd cluster can be accessed.
-                displayName: Service
-                path: serviceName
-                x-descriptors:
-                  - 'urn:alm:descriptor:io.kubernetes:Service'
-              - description: The current size of the etcd cluster.
-                displayName: Cluster Size
-                path: size
-              - description: The current version of the etcd cluster.
-                displayName: Current Version
-                path: currentVersion
-              - description: The target version of the etcd cluster, after upgrading.
-                displayName: Target Version
-                path: targetVersion
-              - description: The current status of the etcd cluster.
-                displayName: Status
-                path: phase
-                x-descriptors:
-                  - 'urn:alm:descriptor:io.kubernetes.phase'
-              - description: Explanation for the current status of the cluster.
-                displayName: Status Details
-                path: reason
-                x-descriptors:
-                  - 'urn:alm:descriptor:io.kubernetes.phase:reason'
   packages: |-
     - packageName: chargeback
       channels:

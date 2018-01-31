@@ -45,7 +45,7 @@ spec:
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
   version: 0.8.3
   maturity: alpha
-  replaces: etcdoperator.v0.7.2
+  replaces: etcdoperator.v0.6.1
   maintainers:
   - name: CoreOS, Inc
     email: support@coreos.com

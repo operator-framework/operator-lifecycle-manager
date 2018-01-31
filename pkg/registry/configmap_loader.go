@@ -11,6 +11,7 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"k8s.io/api/core/v1"
 )
 
 const (
@@ -34,7 +35,11 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 		log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
 		return fmt.Errorf("error loading catalog from ConfigMap %s: %s", configMapName, err)
 	}
+	return d.LoadCatalogResourcesFromConfigMap(cm)
+}
 
+func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(cm *v1.ConfigMap) error {
+	configMapName := cm.GetName()
 	found := false
 	crdListYaml, ok := cm.Data[ConfigMapCRDName]
 	if ok {
