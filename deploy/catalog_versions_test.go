@@ -1,0 +1,120 @@
+package deploy
+
+import (
+	"io/ioutil"
+	"strings"
+	"testing"
+
+	"os"
+
+	"path"
+	"sort"
+
+	"encoding/json"
+
+	"github.com/coreos-inc/alm/pkg/registry"
+	"github.com/coreos/go-semver/semver"
+	"github.com/ghodss/yaml"
+	"github.com/json-iterator/go/require"
+	"k8s.io/api/core/v1"
+)
+
+const manifestDir = "./tectonic-alm-operator/manifests"
+
+// BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,
+// which is how manifest directories are stored
+type BySemverDir []os.FileInfo
+
+func (s BySemverDir) Len() int      { return len(s) }
+func (s BySemverDir) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s BySemverDir) Less(i, j int) bool {
+	semverA := semver.New(s[i].Name())
+	semverB := semver.New(s[j].Name())
+	return semverA.LessThan(*semverB)
+}
+
+// loadCatalogFromFile loads an in memory catalog from a file path. Only used for testing.
+func loadCatalogFromFile(path string) (*registry.InMem, error) {
+	loader := registry.ConfigMapCatalogResourceLoader{
+		Catalog: registry.NewInMem(),
+	}
+	currentBytes, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	currentJsonBytes, err := yaml.YAMLToJSON(currentBytes)
+	if err != nil {
+		return nil, err
+	}
+	var currentConfigMap v1.ConfigMap
+	err = json.Unmarshal(currentJsonBytes, &currentConfigMap)
+	if err != nil {
+		return nil, err
+	}
+	err = loader.LoadCatalogResourcesFromConfigMap(&currentConfigMap)
+	if err != nil {
+		return nil, err
+	}
+	return loader.Catalog, nil
+}
+
+func TestCatalogVersions(t *testing.T) {
+	// for each version of the catalog, load (version-1) and verify that each OCS that has a replaces field
+	// points to an OCS in the previous version of the catalog
+	files, err := ioutil.ReadDir(manifestDir)
+	require.NoError(t, err)
+
+	versionDirs := []os.FileInfo{}
+	for _, f := range files {
+		if f.IsDir() {
+			versionDirs = append(versionDirs, f)
+		}
+	}
+
+	// sort manifest directories by semver
+	sort.Sort(BySemverDir(versionDirs))
+
+	// versions before this don't contain the catalog
+	oldestVersion := semver.New("0.2.1")
+
+	// collect catalog configmaps
+	catalogConfigMaps := []string{}
+	for _, versioned := range versionDirs {
+
+		// ignore old versions that don't have the catalog
+		semverDirName := semver.New(versioned.Name())
+		if semverDirName.LessThan(*oldestVersion) {
+			continue
+		}
+
+		// get the path of each version of the catalog
+		manifestFiles, err := ioutil.ReadDir(path.Join(manifestDir, versioned.Name()))
+		require.NoError(t, err)
+		for _, f := range manifestFiles {
+			if strings.HasSuffix(f.Name(), "configmap.yaml") {
+				catalogConfigMaps = append(catalogConfigMaps, path.Join(manifestDir, versioned.Name(), f.Name()))
+			}
+		}
+	}
+
+	// ensure services in <version> that have a `replaces` field replace something in <version - 1>
+	for i := 0; i < len(catalogConfigMaps)-1; i++ {
+		t.Logf("comparing %s and %s", catalogConfigMaps[i], catalogConfigMaps[i+1])
+
+		currentCatalog, err := loadCatalogFromFile(catalogConfigMaps[i])
+		require.NoError(t, err)
+
+		nextCatalog, err := loadCatalogFromFile(catalogConfigMaps[i+1])
+		require.NoError(t, err)
+
+		nextServices, err := nextCatalog.ListServices()
+		require.NoError(t, err)
+		for _, csv := range nextServices {
+			if csv.Spec.Replaces != "" {
+				oldCSV, err := currentCatalog.FindCSVByName(csv.Spec.Replaces)
+				require.NoError(t, err)
+				require.NotNil(t, oldCSV)
+			}
+		}
+	}
+}

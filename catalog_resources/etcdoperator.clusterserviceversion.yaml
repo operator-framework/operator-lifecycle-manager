@@ -3,11 +3,11 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  name: etcdoperator.v0.7.2
+  name: etcdoperator.v0.6.1
   namespace: placeholder
-  annotations:
-    tectonic-visibility: ocs
-  labels: 
+  annotations:		
+    tectonic-visibility: ocs		
+  labels: 		
     alm-catalog: tectonic-ocs
 spec:
   displayName: etcd
@@ -24,26 +24,14 @@ spec:
     [Read the complete guide to using the etcd Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/etcd-ocs.html)
 
     ### Supported Features
-
-
     **High availability**
-
-
     Multiple instances of etcd are networked together and secured. Individual failures or networking issues are transparently handled to keep your cluster up and running.
-
-
     **Automated updates**
-
-
     Rolling out a new etcd version works like all Kubernetes rolling updates. Simply declare the desired version, and the etcd service starts a safe rolling update to the new version automatically.
-
-
     **Backups included**
-
-
     Coming soon, the ability to schedule backups to happen on or off cluster.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-  version: 0.7.2
+  version: 0.6.1
   maturity: alpha
   maintainers:
   - name: CoreOS, Inc
@@ -52,7 +40,7 @@ spec:
   provider:
     name: CoreOS, Inc
   labels:
-    alm-status-descriptors: etcdoperator.v0.7.2
+    alm-status-descriptors: etcdoperator.v0.6.1
     alm-owner-etcd: etcdoperator
     operated-by: etcdoperator
   selector:
@@ -126,7 +114,7 @@ spec:
                 command:
                 - etcd-operator
                 - --create-crd=false
-                image: quay.io/coreos/etcd-operator@sha256:e552b908b9f4272dfc28f5386b861c608f1f8dabda9176639021d8ca095ff1fa
+                image: quay.io/coreos/etcd-operator@sha256:bd944a211eaf8f31da5e6d69e8541e7cada8f16a9f7a5a570b22478997819943
                 env:
                 - name: MY_POD_NAMESPACE
                   valueFrom:
@@ -154,11 +142,6 @@ spec:
           path: size
           x-descriptors:
             - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-        - description: Limits describes the minimum/maximum amount of compute resources required/allowed
-          displayName: Resource Requirements
-          path: pod.resources
-          x-descriptors:
-            - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       statusDescriptors:
         - description: The status of each of the member Pods for the etcd cluster.
           displayName: Member Status
@@ -167,7 +150,7 @@ spec:
             - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
         - description: The service at which the running etcd cluster can be accessed.
           displayName: Service
-          path: serviceName
+          path: service
           x-descriptors:
             - 'urn:alm:descriptor:io.kubernetes:Service'
         - description: The current size of the etcd cluster.
