@@ -119,9 +119,14 @@ func (in *UICatalogEntryList) DeepCopyInto(out *UICatalogEntryList) {
 	out.ListMeta = in.ListMeta
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
-		*out = make([]UICatalogEntry, len(*in))
+		*out = make([]*UICatalogEntry, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] == nil {
+				(*out)[i] = nil
+			} else {
+				(*out)[i] = new(UICatalogEntry)
+				(*in)[i].DeepCopyInto((*out)[i])
+			}
 		}
 	}
 	return

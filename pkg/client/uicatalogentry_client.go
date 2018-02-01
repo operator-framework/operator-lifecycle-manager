@@ -8,6 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/rest"
@@ -17,6 +18,8 @@ import (
 
 type UICatalogEntryInterface interface {
 	UpdateEntry(csv *v1alpha1.UICatalogEntry) (*v1alpha1.UICatalogEntry, error)
+	ListEntries(namespace string) (*v1alpha1.UICatalogEntryList, error)
+	Delete(name, namespace string, options *metav1.DeleteOptions) error
 }
 
 type UICatalogEntryClient struct {
@@ -104,8 +107,31 @@ func (c *UICatalogEntryClient) getEntry(namespace, serviceName string) (*v1alpha
 		Do().
 		Into(result)
 	if err != nil {
-		return nil, errors.New("failed to update CR status: " + err.Error())
+		return nil, errors.New("failed to update UICatalogEntry status: " + err.Error())
 	}
 	return result, nil
 
+}
+
+func (c *UICatalogEntryClient) ListEntries(namespace string) (*v1alpha1.UICatalogEntryList, error) {
+	result := &v1alpha1.UICatalogEntryList{}
+	err := c.RESTClient.Get().
+		Namespace(namespace).
+		Resource(v1alpha1.UICatalogEntryCRDName).
+		Do().
+		Into(result)
+	if err != nil {
+		return nil, errors.New("failed to list UICatalogEntries: " + err.Error())
+	}
+	return result, nil
+}
+
+func (c *UICatalogEntryClient) Delete(name, namespace string, options *metav1.DeleteOptions) error {
+	return c.RESTClient.Delete().
+		Namespace(namespace).
+		Resource(v1alpha1.UICatalogEntryCRDName).
+		Name(name).
+		Body(options).
+		Do().
+		Error()
 }

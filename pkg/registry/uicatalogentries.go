@@ -62,17 +62,23 @@ func (c CatalogSync) Error() string {
 		c.ServicesFound, c.ServicesSynced, c.ServicesFailed, c.ServicesFound, c.Errors)
 }
 
-// Sync creates UICatalogEntry CRDs for each package in the catalog. Fails immediately on error.
+// Sync creates UICatalogEntry CRDs for each package in the catalog and removes old ones. Fails immediately on error.
 func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICatalogEntry, error) {
 	status := CatalogSync{
 		StartTime: metav1.Now(),
 		Status:    "syncing",
 	}
-	log.Debug("Catalog Sync       -- BEGIN")
+	log.Debug("Catalog Sync -- BEGIN")
 	entries := []*v1alpha1.UICatalogEntry{}
 	status.ServicesFound = len(catalog.AllPackages())
 
 	log.Debugf("Catalog Sync -- Packages found: %v", catalog.AllPackages())
+
+	// fetch existing UICatalogEntries to prune any old ones
+	existingEntries, err := store.Client.ListEntries(store.Namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	for name, manifest := range catalog.AllPackages() {
 		log.Debugf("Catalog Sync -- BEGIN store service %s", name)
@@ -108,7 +114,38 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICat
 		status.Status = "error"
 	}
 	store.LastAttemptedSync = status
+
+	if existingEntries != nil {
+		log.Debugf("Catalog Sync -- Pruning old services")
+		store.prune(existingEntries.Items, entries)
+	}
+
 	log.Debugf("Catalog Sync -- END %d/%d services synced",
 		status.ServicesSynced, status.ServicesFound)
+
 	return entries, nil
+}
+
+func (store *CustomResourceCatalogStore) prune(existingEntries, newEntries []*v1alpha1.UICatalogEntry) error {
+	var immediateDelete int64 = 0
+	existingMap := map[string]*v1alpha1.UICatalogEntry{}
+	newMap := map[string]*v1alpha1.UICatalogEntry{}
+
+	for _, existing := range existingEntries {
+		existingMap[existing.Name] = existing
+	}
+	for _, new := range newEntries {
+		newMap[new.Name] = new
+	}
+
+	for name := range existingMap {
+		if _, ok := newMap[name]; !ok {
+			if err := store.Client.Delete(name, store.Namespace, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDelete}); err != nil {
+				log.Debugf("Catalog Sync -- err pruning %s: %s", name, err)
+				return err
+			}
+			log.Debugf("Catalog Sync -- pruned %s", name)
+		}
+	}
+	return nil
 }

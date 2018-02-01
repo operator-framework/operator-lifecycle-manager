@@ -30,8 +30,14 @@ type UICatalogEntry struct {
 	Status metav1.Status       `json:"status"`
 }
 
-func NewUICatalogEntryResource(app *UICatalogEntrySpec) *UICatalogEntry {
-	return &UICatalogEntry{Spec: app}
+func NewUICatalogEntryResource(spec *UICatalogEntrySpec) *UICatalogEntry {
+	return &UICatalogEntry{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       UICatalogEntryKind,
+			APIVersion: UICatalogEntryCRDAPIVersion,
+		},
+		Spec: spec,
+	}
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -39,7 +45,7 @@ type UICatalogEntryList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
 
-	Items []UICatalogEntry `json:"items"`
+	Items []*UICatalogEntry `json:"items"`
 }
 
 // PackageManifest holds information about a package, which is a reference to one (or more)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type FakeUICatalogEntryInterface struct {
@@ -21,6 +22,32 @@ type FakeUICatalogEntryInterface struct {
 	updateEntryReturnsOnCall map[int]struct {
 		result1 *v1alpha1.UICatalogEntry
 		result2 error
+	}
+	ListEntriesStub        func(namespace string) (*v1alpha1.UICatalogEntryList, error)
+	listEntriesMutex       sync.RWMutex
+	listEntriesArgsForCall []struct {
+		namespace string
+	}
+	listEntriesReturns struct {
+		result1 *v1alpha1.UICatalogEntryList
+		result2 error
+	}
+	listEntriesReturnsOnCall map[int]struct {
+		result1 *v1alpha1.UICatalogEntryList
+		result2 error
+	}
+	DeleteStub        func(name, namespace string, options *metav1.DeleteOptions) error
+	deleteMutex       sync.RWMutex
+	deleteArgsForCall []struct {
+		name      string
+		namespace string
+		options   *metav1.DeleteOptions
+	}
+	deleteReturns struct {
+		result1 error
+	}
+	deleteReturnsOnCall map[int]struct {
+		result1 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -77,11 +104,116 @@ func (fake *FakeUICatalogEntryInterface) UpdateEntryReturnsOnCall(i int, result1
 	}{result1, result2}
 }
 
+func (fake *FakeUICatalogEntryInterface) ListEntries(namespace string) (*v1alpha1.UICatalogEntryList, error) {
+	fake.listEntriesMutex.Lock()
+	ret, specificReturn := fake.listEntriesReturnsOnCall[len(fake.listEntriesArgsForCall)]
+	fake.listEntriesArgsForCall = append(fake.listEntriesArgsForCall, struct {
+		namespace string
+	}{namespace})
+	fake.recordInvocation("ListEntries", []interface{}{namespace})
+	fake.listEntriesMutex.Unlock()
+	if fake.ListEntriesStub != nil {
+		return fake.ListEntriesStub(namespace)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fake.listEntriesReturns.result1, fake.listEntriesReturns.result2
+}
+
+func (fake *FakeUICatalogEntryInterface) ListEntriesCallCount() int {
+	fake.listEntriesMutex.RLock()
+	defer fake.listEntriesMutex.RUnlock()
+	return len(fake.listEntriesArgsForCall)
+}
+
+func (fake *FakeUICatalogEntryInterface) ListEntriesArgsForCall(i int) string {
+	fake.listEntriesMutex.RLock()
+	defer fake.listEntriesMutex.RUnlock()
+	return fake.listEntriesArgsForCall[i].namespace
+}
+
+func (fake *FakeUICatalogEntryInterface) ListEntriesReturns(result1 *v1alpha1.UICatalogEntryList, result2 error) {
+	fake.ListEntriesStub = nil
+	fake.listEntriesReturns = struct {
+		result1 *v1alpha1.UICatalogEntryList
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeUICatalogEntryInterface) ListEntriesReturnsOnCall(i int, result1 *v1alpha1.UICatalogEntryList, result2 error) {
+	fake.ListEntriesStub = nil
+	if fake.listEntriesReturnsOnCall == nil {
+		fake.listEntriesReturnsOnCall = make(map[int]struct {
+			result1 *v1alpha1.UICatalogEntryList
+			result2 error
+		})
+	}
+	fake.listEntriesReturnsOnCall[i] = struct {
+		result1 *v1alpha1.UICatalogEntryList
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeUICatalogEntryInterface) Delete(name string, namespace string, options *metav1.DeleteOptions) error {
+	fake.deleteMutex.Lock()
+	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
+	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
+		name      string
+		namespace string
+		options   *metav1.DeleteOptions
+	}{name, namespace, options})
+	fake.recordInvocation("Delete", []interface{}{name, namespace, options})
+	fake.deleteMutex.Unlock()
+	if fake.DeleteStub != nil {
+		return fake.DeleteStub(name, namespace, options)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fake.deleteReturns.result1
+}
+
+func (fake *FakeUICatalogEntryInterface) DeleteCallCount() int {
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
+	return len(fake.deleteArgsForCall)
+}
+
+func (fake *FakeUICatalogEntryInterface) DeleteArgsForCall(i int) (string, string, *metav1.DeleteOptions) {
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
+	return fake.deleteArgsForCall[i].name, fake.deleteArgsForCall[i].namespace, fake.deleteArgsForCall[i].options
+}
+
+func (fake *FakeUICatalogEntryInterface) DeleteReturns(result1 error) {
+	fake.DeleteStub = nil
+	fake.deleteReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeUICatalogEntryInterface) DeleteReturnsOnCall(i int, result1 error) {
+	fake.DeleteStub = nil
+	if fake.deleteReturnsOnCall == nil {
+		fake.deleteReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.deleteReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeUICatalogEntryInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.updateEntryMutex.RLock()
 	defer fake.updateEntryMutex.RUnlock()
+	fake.listEntriesMutex.RLock()
+	defer fake.listEntriesMutex.RUnlock()
+	fake.deleteMutex.RLock()
+	defer fake.deleteMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

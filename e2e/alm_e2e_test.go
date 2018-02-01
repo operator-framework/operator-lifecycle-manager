@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"github.com/coreos-inc/alm/pkg/client/clientfakes"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
 const (
@@ -366,4 +368,134 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
+}
+
+func TestPruneUiCatalogEntry(t *testing.T) {
+	c := newKubeClient(t)
+
+		type catalogState struct {
+			csvs     []*v1alpha1.ClusterServiceVersion
+			crds     []*v1beta1.CustomResourceDefinition
+			packages []*uicatalogentryv1alpha1.PackageManifest
+		}
+		type clusterState struct {
+			entries []*uicatalogentryv1alpha1.UICatalogEntry
+		}
+		type outState struct {
+			createdOrUpdated []*uicatalogentryv1alpha1.UICatalogEntry
+			pruned           []*uicatalogentryv1alpha1.UICatalogEntry
+		}
+		tests := []struct {
+			in          catalogState
+			out         outState
+			state       clusterState
+			err         error
+			description string
+		}{
+			{
+				state: clusterState{
+					entries: []*uicatalogentryv1alpha1.UICatalogEntry{
+						uiCatalogEntry(
+							makeCSV("service1", "1.0.0", makeCRDs("owned1"), makeCRDs("required1")),
+							uicatalogentryv1alpha1.PackageManifest{
+								PackageName: "service",
+								Channels: []uicatalogentryv1alpha1.PackageChannel{
+									{
+										Name:           "alpha",
+										CurrentCSVName: "service1",
+									},
+								},
+							},
+						),
+					},
+				},
+				in: catalogState{
+					csvs: []*v1alpha1.ClusterServiceVersion{
+						makeCSV("service2", "1.0.2", makeCRDs("owned2"), makeCRDs("required2")),
+					},
+					crds: makeCRDs("owned2", "required2"),
+					packages: []*uicatalogentryv1alpha1.PackageManifest{
+						{
+							PackageName: "service2",
+							Channels: []uicatalogentryv1alpha1.PackageChannel{
+								{
+									Name:           "alpha",
+									CurrentCSVName: "service2",
+								},
+							},
+						},
+					},
+				},
+				out: outState{
+					createdOrUpdated: []*uicatalogentryv1alpha1.UICatalogEntry{
+						uiCatalogEntry(
+							makeCSV("service2", "1.0.2", makeCRDs("owned2"), makeCRDs("required2")),
+							uicatalogentryv1alpha1.PackageManifest{
+								PackageName: "service2",
+								Channels: []uicatalogentryv1alpha1.PackageChannel{
+									{
+										Name:           "alpha",
+										CurrentCSVName: "service2",
+									},
+								},
+							},
+						),
+					},
+					pruned: []*uicatalogentryv1alpha1.UICatalogEntry{
+						uiCatalogEntry(
+							makeCSV("service1", "1.0.0", makeCRDs("owned1"), makeCRDs("required1")),
+							uicatalogentryv1alpha1.PackageManifest{
+								PackageName: "service",
+								Channels: []uicatalogentryv1alpha1.PackageChannel{
+									{
+										Name:           "alpha",
+										CurrentCSVName: "service1",
+									},
+								},
+							},
+						),
+					},
+				},
+				description: "PruneExistingAndCreateEntries",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.description, func(t *testing.T) {
+
+				// configure store and cluster
+				store := CustomResourceCatalogStore{Namespace: "alm-coreos-tests"}
+				src := NewInMem()
+				fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
+				store.Client = fakeClient
+
+				for _, crd := range tt.in.crds {
+					require.NoError(t, src.SetCRDDefinition(*crd))
+				}
+				for _, csv := range tt.in.csvs {
+					src.AddOrReplaceService(*csv)
+				}
+				for _, manifest := range tt.in.packages {
+					require.NoError(t, src.addPackageManifest(*manifest))
+				}
+				fakeClient.ListEntriesReturns(&v1alpha1.UICatalogEntryList{Items: tt.state.entries}, nil)
+				for i, entry := range tt.out.createdOrUpdated {
+					fakeClient.UpdateEntryReturnsOnCall(i, entry, nil)
+				}
+				fakeClient.DeleteReturns(nil)
+
+				// sync source with cluster state
+				store.Sync(src)
+
+				// verify the right entries were created/updated
+				require.Equal(t, len(tt.out.createdOrUpdated), fakeClient.UpdateEntryCallCount())
+				for i, entry := range tt.out.createdOrUpdated {
+					require.EqualValues(t, entry, fakeClient.UpdateEntryArgsForCall(i))
+				}
+				for i, entry := range tt.out.pruned {
+					prunedName, _, _ := fakeClient.DeleteArgsForCall(i)
+					require.EqualValues(t, entry.Name, prunedName)
+				}
+			})
+		}
+	}
 }
