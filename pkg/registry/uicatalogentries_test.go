@@ -8,6 +8,7 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client/clientfakes"
 
+	catsrcv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,16 +69,17 @@ func makeCSV(name string, version string, ownedCRDs, requiredCRDs []*v1beta1.Cus
 	return csv
 }
 
-func uiCatalogEntry(csv *csvv1alpha1.ClusterServiceVersion, manifest v1alpha1.PackageManifest) *v1alpha1.UICatalogEntry {
+func uiCatalogEntry(csv *csvv1alpha1.ClusterServiceVersion, manifest v1alpha1.PackageManifest, ownerRefs []metav1.OwnerReference) *v1alpha1.UICatalogEntry {
 	return &v1alpha1.UICatalogEntry{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.UICatalogEntryKind,
 			APIVersion: v1alpha1.UICatalogEntryCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      manifest.PackageName,
-			Namespace: "alm-coreos-tests",
-			Labels:    map[string]string{"tectonic-visibility": "ocs"},
+			Name:            manifest.PackageName,
+			Namespace:       "alm-coreos-tests",
+			Labels:          map[string]string{"tectonic-visibility": "ocs"},
+			OwnerReferences: ownerRefs,
 		},
 		Spec: &v1alpha1.UICatalogEntrySpec{
 			Manifest: manifest,
@@ -90,6 +92,10 @@ func TestCustomCatalogStore(t *testing.T) {
 	fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
 
 	store := CustomResourceCatalogStore{Client: fakeClient}
+	source := catsrcv1alpha1.CatalogSource{}
+	ownerRefs := []metav1.OwnerReference{
+		*metav1.NewControllerRef(&source, source.GroupVersionKind()),
+	}
 
 	testPackageName := "MockServiceName"
 	testCSVName := "MockServiceName-v1"
@@ -160,7 +166,7 @@ func TestCustomCatalogStore(t *testing.T) {
 		require.EqualValues(t, expectedEntry.Spec, fakeClient.UpdateEntryArgsForCall(0).Spec)
 	}()
 
-	actualEntry, err := store.Store(manifest, &csv)
+	actualEntry, err := store.Store(manifest, &csv, ownerRefs)
 	assert.Equal(t, returnErr, err)
 	compareResources(t, &returnEntry, actualEntry)
 }
@@ -169,6 +175,10 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 	fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
 
 	store := CustomResourceCatalogStore{Client: fakeClient}
+	source := catsrcv1alpha1.CatalogSource{}
+	ownerRefs := []metav1.OwnerReference{
+		*metav1.NewControllerRef(&source, source.GroupVersionKind()),
+	}
 
 	testPackageName := "MockServiceName"
 	testCSVName := "MockServiceName-v1"
@@ -240,7 +250,7 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 		require.Equal(t, expectedEntry.Spec, fakeClient.UpdateEntryArgsForCall(0).Spec)
 	}()
 
-	actualEntry, err := store.Store(manifest, &csv)
+	actualEntry, err := store.Store(manifest, &csv, ownerRefs)
 	assert.Equal(t, returnErr, err)
 	compareResources(t, &returnEntry, actualEntry)
 }
@@ -248,6 +258,7 @@ func TestCustomCatalogStoreDefaultVisibility(t *testing.T) {
 func TestCustomResourceCatalogStoreSync(t *testing.T) {
 	store := CustomResourceCatalogStore{Namespace: "alm-coreos-tests"}
 	src := NewInMem()
+	source := catsrcv1alpha1.CatalogSource{}
 
 	testCSVNameA := "MockServiceNameA-v1"
 	testCSVVersionA1 := "0.2.4+alpha"
@@ -317,7 +328,7 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 		fakeClient.UpdateEntryReturnsOnCall(0, res.ResultA1, res.ErrorA1)
 		fakeClient.UpdateEntryReturnsOnCall(1, res.ResultB1, res.ErrorB1)
 
-		entries, err := store.Sync(src)
+		entries, err := store.Sync(src, &source)
 		require.Equal(t, res.ExpectedServicesSynced, len(entries))
 		require.Equal(t, res.ExpectedStatus, store.LastAttemptedSync.Status)
 		require.NoError(t, err)
@@ -326,6 +337,19 @@ func TestCustomResourceCatalogStoreSync(t *testing.T) {
 }
 
 func TestPruneUICatalogEntries(t *testing.T) {
+	source := catsrcv1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       catsrcv1alpha1.CatalogSourceKind,
+			APIVersion: catsrcv1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-source",
+		},
+	}
+	ownerRefs := []metav1.OwnerReference{
+		*metav1.NewControllerRef(&source, source.GroupVersionKind()),
+	}
+
 	type catalogState struct {
 		csvs     []*csvv1alpha1.ClusterServiceVersion
 		crds     []*v1beta1.CustomResourceDefinition
@@ -379,6 +403,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 								},
 							},
 						},
+						ownerRefs,
 					),
 				},
 			},
@@ -398,6 +423,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 								},
 							},
 						},
+						ownerRefs,
 					),
 				},
 			},
@@ -431,6 +457,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 								},
 							},
 						},
+						ownerRefs,
 					),
 				},
 			},
@@ -450,6 +477,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 								},
 							},
 						},
+						ownerRefs,
 					),
 				},
 			},
@@ -483,6 +511,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 								},
 							},
 						},
+						ownerRefs,
 					),
 				},
 				pruned: []*v1alpha1.UICatalogEntry{
@@ -497,6 +526,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 								},
 							},
 						},
+						ownerRefs,
 					),
 				},
 			},
@@ -528,7 +558,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 			fakeClient.DeleteReturns(nil)
 
 			// sync source with cluster state
-			store.Sync(src)
+			store.Sync(src, &source)
 
 			// verify the right entries were created/updated
 			require.Equal(t, len(tt.out.createdOrUpdated), fakeClient.UpdateEntryCallCount())

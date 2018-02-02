@@ -98,12 +98,13 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(cm *v
 			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
 			return fmt.Errorf("error parsing package list (json) from ConfigMap %s: %s", configMapName, err)
 		}
-
 		for _, packageManifest := range parsedPackageManifests {
 			found = true
-			d.Catalog.addPackageManifest(packageManifest)
+			if err := d.Catalog.addPackageManifest(packageManifest); err != nil {
+				return err
+			}
 		}
-		log.Debug("Load ConfigMap      -- Found packages: %v", d.Catalog.packages)
+		log.Debugf("Load ConfigMap      -- Found packages: %v", d.Catalog.packages)
 	}
 
 	if !found {

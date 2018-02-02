@@ -2,13 +2,9 @@ package e2e
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
@@ -16,12 +12,15 @@ import (
 	uicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/registry"
 
+	catalogv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
-	"github.com/coreos-inc/alm/pkg/client/clientfakes"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 const (
@@ -42,7 +41,7 @@ var installPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseFailed
 }
 
-func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opClient.CustomResourceList, error) {
+func fetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opClient.CustomResourceList, error) {
 	var crl *opClient.CustomResourceList
 	var err error
 
@@ -62,6 +61,51 @@ func FetchUICatalogEntries(t *testing.T, c opClient.Interface, count int) (*opCl
 	})
 
 	return crl, err
+}
+
+// fetchUICatalogEntry waits for a specific entry to exist
+func fetchUICatalogEntry(t *testing.T, c opClient.Interface, name string) (*uicatalogentryv1alpha1.UICatalogEntry, error) {
+	var crl *opClient.CustomResourceList
+	var err error
+
+	var foundEntry *uicatalogentryv1alpha1.UICatalogEntry
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		crl, err = c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
+
+		if err != nil {
+			return false, err
+		}
+
+		for _, entry := range crl.Items {
+			if entry.GetName() == name {
+				unstructuredConverter := conversion.NewConverter(true)
+				err := unstructuredConverter.FromUnstructured(entry.Object, foundEntry)
+				require.NoError(t, err)
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+
+	return foundEntry, err
+}
+
+// deletedUICatalogEntry waits for a specific entry to be deleted
+func deletedUICatalogEntry(t *testing.T, c opClient.Interface, name string) error {
+	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		crl, err := c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
+
+		if err != nil {
+			return false, err
+		}
+
+		for _, entry := range crl.Items {
+			if entry.GetName() == name {
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 func buildInstallPlanCleanupFunc(c opClient.Interface, installPlan *installplanv1alpha1.InstallPlan) cleanupFunc {
@@ -115,6 +159,26 @@ func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker i
 	})
 
 	return fetchedInstallPlan, err
+}
+
+func fetchCatalogSource(t *testing.T, c opClient.Interface, name string) (*catalogv1alpha1.CatalogSource, error) {
+	var fetchedCatalogSource *catalogv1alpha1.CatalogSource
+	var err error
+
+	unstructuredConverter := conversion.NewConverter(true)
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedCSUnst, err := c.GetCustomResource(apis.GroupName, catalogv1alpha1.GroupVersion, testNamespace, catalogv1alpha1.CatalogSourceKind, name)
+		if err != nil {
+			return false, err
+		}
+
+		err = unstructuredConverter.FromUnstructured(fetchedCSUnst.Object, &fetchedCatalogSource)
+		require.NoError(t, err)
+
+		return true, nil
+	})
+
+	return fetchedCatalogSource, err
 }
 
 // This test is skipped until manual approval is implemented
@@ -184,7 +248,7 @@ func TestUICatalogEntriesPresent(t *testing.T) {
 	var fetchedUICatalogEntryNames *opClient.CustomResourceList
 
 	// This test may start before all of the UICatalogEntries are present in the cluster
-	fetchedUICatalogEntryNames, err := FetchUICatalogEntries(t, c, len(requiredUICatalogEntryNames))
+	fetchedUICatalogEntryNames, err := fetchUICatalogEntries(t, c, len(requiredUICatalogEntryNames))
 	require.NoError(t, err)
 
 	uiCatalogEntryNames := make([]string, len(fetchedUICatalogEntryNames.Items))
@@ -210,7 +274,7 @@ func TestUICatalogEntriesVisibility(t *testing.T) {
 	}
 
 	// This test may start before all of the UICatalogEntries are present in the cluster
-	fetchedUICatalogEntries, err := FetchUICatalogEntries(t, c, len(requiredVisibilities))
+	fetchedUICatalogEntries, err := fetchUICatalogEntries(t, c, len(requiredVisibilities))
 	require.NoError(t, err)
 
 	for _, entry := range fetchedUICatalogEntries.Items {
@@ -228,7 +292,7 @@ func TestUICatalogEntriesVisibility(t *testing.T) {
 func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 	c := newKubeClient(t)
 
-	fetchedUICatalogEntryNames, err := FetchUICatalogEntries(t, c, expectedUICatalogEntries)
+	fetchedUICatalogEntryNames, err := fetchUICatalogEntries(t, c, expectedUICatalogEntries)
 	require.NoError(t, err)
 
 	unstructuredConverter := conversion.NewConverter(true)
@@ -370,132 +434,81 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
 }
 
-func TestPruneUiCatalogEntry(t *testing.T) {
+func TestPruneUICatalogEntry(t *testing.T) {
 	c := newKubeClient(t)
 
-		type catalogState struct {
-			csvs     []*v1alpha1.ClusterServiceVersion
-			crds     []*v1beta1.CustomResourceDefinition
-			packages []*uicatalogentryv1alpha1.PackageManifest
-		}
-		type clusterState struct {
-			entries []*uicatalogentryv1alpha1.UICatalogEntry
-		}
-		type outState struct {
-			createdOrUpdated []*uicatalogentryv1alpha1.UICatalogEntry
-			pruned           []*uicatalogentryv1alpha1.UICatalogEntry
-		}
-		tests := []struct {
-			in          catalogState
-			out         outState
-			state       clusterState
-			err         error
-			description string
-		}{
-			{
-				state: clusterState{
-					entries: []*uicatalogentryv1alpha1.UICatalogEntry{
-						uiCatalogEntry(
-							makeCSV("service1", "1.0.0", makeCRDs("owned1"), makeCRDs("required1")),
-							uicatalogentryv1alpha1.PackageManifest{
-								PackageName: "service",
-								Channels: []uicatalogentryv1alpha1.PackageChannel{
-									{
-										Name:           "alpha",
-										CurrentCSVName: "service1",
-									},
-								},
-							},
-						),
-					},
-				},
-				in: catalogState{
-					csvs: []*v1alpha1.ClusterServiceVersion{
-						makeCSV("service2", "1.0.2", makeCRDs("owned2"), makeCRDs("required2")),
-					},
-					crds: makeCRDs("owned2", "required2"),
-					packages: []*uicatalogentryv1alpha1.PackageManifest{
-						{
-							PackageName: "service2",
-							Channels: []uicatalogentryv1alpha1.PackageChannel{
-								{
-									Name:           "alpha",
-									CurrentCSVName: "service2",
-								},
-							},
-						},
-					},
-				},
-				out: outState{
-					createdOrUpdated: []*uicatalogentryv1alpha1.UICatalogEntry{
-						uiCatalogEntry(
-							makeCSV("service2", "1.0.2", makeCRDs("owned2"), makeCRDs("required2")),
-							uicatalogentryv1alpha1.PackageManifest{
-								PackageName: "service2",
-								Channels: []uicatalogentryv1alpha1.PackageChannel{
-									{
-										Name:           "alpha",
-										CurrentCSVName: "service2",
-									},
-								},
-							},
-						),
-					},
-					pruned: []*uicatalogentryv1alpha1.UICatalogEntry{
-						uiCatalogEntry(
-							makeCSV("service1", "1.0.0", makeCRDs("owned1"), makeCRDs("required1")),
-							uicatalogentryv1alpha1.PackageManifest{
-								PackageName: "service",
-								Channels: []uicatalogentryv1alpha1.PackageChannel{
-									{
-										Name:           "alpha",
-										CurrentCSVName: "service1",
-									},
-								},
-							},
-						),
-					},
-				},
-				description: "PruneExistingAndCreateEntries",
-			},
-		}
-		for _, tt := range tests {
-			t.Run(tt.description, func(t *testing.T) {
+	// Load old configmap (contains packages A and B)
+	oldFile, err := os.Open("e2e/data/catalog.old.yaml")
+	require.NoError(t, err)
 
-				// configure store and cluster
-				store := CustomResourceCatalogStore{Namespace: "alm-coreos-tests"}
-				src := NewInMem()
-				fakeClient := new(clientfakes.FakeUICatalogEntryInterface)
-				store.Client = fakeClient
+	oldConfigMap := corev1.ConfigMap{}
+	err = yaml.NewYAMLToJSONDecoder(oldFile).Decode(&oldConfigMap)
+	require.NoError(t, err)
+	oldConfigMap.SetNamespace(testNamespace)
 
-				for _, crd := range tt.in.crds {
-					require.NoError(t, src.SetCRDDefinition(*crd))
-				}
-				for _, csv := range tt.in.csvs {
-					src.AddOrReplaceService(*csv)
-				}
-				for _, manifest := range tt.in.packages {
-					require.NoError(t, src.addPackageManifest(*manifest))
-				}
-				fakeClient.ListEntriesReturns(&v1alpha1.UICatalogEntryList{Items: tt.state.entries}, nil)
-				for i, entry := range tt.out.createdOrUpdated {
-					fakeClient.UpdateEntryReturnsOnCall(i, entry, nil)
-				}
-				fakeClient.DeleteReturns(nil)
+	// Load new configmap (contains packages B (updated) and C, not A)
+	newFile, err := os.Open("e2e/data/catalog.new.yaml")
+	require.NoError(t, err)
 
-				// sync source with cluster state
-				store.Sync(src)
+	newConfigMap := corev1.ConfigMap{}
+	err = yaml.NewYAMLToJSONDecoder(newFile).Decode(&newConfigMap)
+	require.NoError(t, err)
+	newConfigMap.SetNamespace(testNamespace)
 
-				// verify the right entries were created/updated
-				require.Equal(t, len(tt.out.createdOrUpdated), fakeClient.UpdateEntryCallCount())
-				for i, entry := range tt.out.createdOrUpdated {
-					require.EqualValues(t, entry, fakeClient.UpdateEntryArgsForCall(i))
-				}
-				for i, entry := range tt.out.pruned {
-					prunedName, _, _ := fakeClient.DeleteArgsForCall(i)
-					require.EqualValues(t, entry.Name, prunedName)
-				}
-			})
-		}
+	// Creating backing configmaps
+	_, err = c.CreateConfigMap(testNamespace, &oldConfigMap)
+	require.NoError(t, err)
+	_, err = c.CreateConfigMap(testNamespace, &newConfigMap)
+	require.NoError(t, err)
+
+	catalogSource := catalogv1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       catalogv1alpha1.CatalogSourceKind,
+			APIVersion: catalogv1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: testNamespace,
+			Name:      "test-catalogsource",
+		},
+		Spec: catalogv1alpha1.CatalogSourceSpec{
+			Name:       "test-catalogsource",
+			SourceType: "internal",
+			ConfigMap:  oldConfigMap.GetName(),
+		},
 	}
+	unstructuredConverter := conversion.NewConverter(true)
+	unstructuredCatalogSource, err := unstructuredConverter.ToUnstructured(&catalogSource)
+	require.NoError(t, err)
+
+	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredCatalogSource})
+	require.NoError(t, err)
+	fetchedCatalogSource, err := fetchCatalogSource(t, c, catalogSource.GetName())
+	require.NoError(t, err)
+
+	// wait for A and B to exist
+	_, err = fetchUICatalogEntry(t, c, "package-a")
+	require.NoError(t, err)
+	oldEntryB, err := fetchUICatalogEntry(t, c, "package-b")
+	require.NoError(t, err)
+	require.EqualValues(t, "1.0.0", oldEntryB.Spec.CSVSpec.Version.String())
+
+	// update catalogsource to point to the newconfigmap
+	fetchedCatalogSource.Spec.ConfigMap = newConfigMap.GetName()
+	unstructuredNewCatalogSource, err := unstructuredConverter.ToUnstructured(&fetchedCatalogSource)
+	require.NoError(t, err)
+
+	err = c.UpdateCustomResource(&unstructured.Unstructured{Object: unstructuredNewCatalogSource})
+	require.NoError(t, err)
+
+	// wait for C to exist
+	_, err = fetchUICatalogEntry(t, c, "package-c")
+	require.NoError(t, err)
+
+	// B should've been updated
+	newEntryB, err := fetchUICatalogEntry(t, c, "package-b")
+	require.NoError(t, err)
+	require.EqualValues(t, "1.0.1", newEntryB.Spec.CSVSpec.Version.String())
+
+	// A should be removed
+	require.NoError(t, deletedUICatalogEntry(t, c, "package-a"))
 }
