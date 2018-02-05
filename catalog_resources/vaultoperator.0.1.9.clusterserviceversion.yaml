@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  name: vault-operator.0.1.8
+  name: vault-operator.0.1.9
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
@@ -51,7 +51,7 @@ spec:
   - name: Vault Project
     url: https://www.vaultproject.io/
   labels:
-    alm-status-descriptors: vault-operator.0.1.8
+    alm-status-descriptors: vault-operator.0.1.9
     alm-owner-vault: vault-operator
     operated-by: vault-operator
   selector:
@@ -115,7 +115,7 @@ spec:
               serviceAccountName: vault-operator
               containers:
               - name: vault-operator
-                image: quay.io/coreos/vault-operator@sha256:81e4b28f983d55c77dce9ff024cc2cdb4de0ac3cf9f70ad2ad069f9fae5323dc
+                image: quay.io/coreos/vault-operator@sha256:945a0a6d88cf6fa2bce9a83019a2a64f74d89fc8281301a4259f3302eabc79e6
                 env:
                 - name: MY_POD_NAMESPACE
                   valueFrom:
@@ -127,7 +127,7 @@ spec:
                       fieldPath: metadata.name
               imagePullSecrets:
               - name: coreos-pull-secret
-  version: 0.1.8
+  version: 0.1.9
   replaces: vault-operator.0.1.5
   maturity: alpha
   customresourcedefinitions:
