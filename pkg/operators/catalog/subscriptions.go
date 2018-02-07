@@ -15,10 +15,26 @@ var (
 	ErrNilSubscription = errors.New("invalid Subscription object: <nil>")
 )
 
+const (
+	PackageLabel = "alm-package"
+	CatalogLabel = "alm-catalog"
+	ChannelLabel = "alm-channel"
+)
+
 func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	if sub == nil || sub.Spec == nil {
 		return ErrNilSubscription
 	}
+
+	labels := sub.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	labels[PackageLabel] = sub.Spec.Package
+	labels[CatalogLabel] = sub.Spec.CatalogSource
+	labels[ChannelLabel] = sub.Spec.Channel
+	sub.SetLabels(labels)
+
 	// only sync if catalog has been updated since last sync time
 	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) {
 		log.Infof("skipping sync: no new updates to catalog since last sync at %s",
