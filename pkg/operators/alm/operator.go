@@ -314,7 +314,9 @@ func (a *ALMOperator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, i
 	installed, strategyErr := installer.CheckInstalled(strategy)
 	if installed {
 		// if there's no error, we're successfully running
-		csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+		if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+		}
 		return nil
 	}
 
