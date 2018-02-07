@@ -96,7 +96,7 @@ func (c *InstallPlanClient) GetInstallPlanByName(namespace, name string) (*v1alp
 		Get().
 		Context(context.TODO()).
 		Namespace(namespace).
-		Resource(v1alpha1.InstallPlanCRDName).
+		Resource("installplan-v1s").
 		Name(name).
 		Do().
 		Into(out)
