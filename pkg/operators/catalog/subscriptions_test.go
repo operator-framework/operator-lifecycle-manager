@@ -696,7 +696,9 @@ func TestSyncSubscription(t *testing.T) {
 				defer func() {
 					require.Equal(t, 1, subscriptionClientFake.UpdateSubscriptionCallCount())
 					sub := subscriptionClientFake.UpdateSubscriptionArgsForCall(0)
-					require.Equal(t, tt.expected.subscription, sub)
+					require.Equal(t, map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"}, sub.GetLabels())
+					require.Equal(t, tt.expected.subscription.Spec, sub.Spec)
+					require.Equal(t, tt.expected.subscription.Status, sub.Status)
 				}()
 				subscriptionClientFake.UpdateSubscriptionReturns(nil, tt.initial.updateSubscriptionError)
 			}
