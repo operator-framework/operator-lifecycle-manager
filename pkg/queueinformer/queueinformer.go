@@ -68,6 +68,7 @@ func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventH
 			}
 
 			log.Infof("%s deleted", key)
+			q.queue.Forget(key)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			key, ok := q.keyFunc(newObj)

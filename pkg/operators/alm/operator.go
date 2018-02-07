@@ -215,8 +215,8 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
-		if installErr := a.updateInstallStatus(csv, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr == nil {
-			log.Infof("%s has an unhealthy component %s", csv.GetName())
+		if installErr := a.updateInstallStatus(csv, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
+			log.Infof("%s has an unhealthy component: %s", csv.GetName(), installErr)
 		}
 	case v1alpha1.CSVPhaseReplacing:
 		// determine CSVs that are safe to delete by finding a replacement chain to a CSV that's running
