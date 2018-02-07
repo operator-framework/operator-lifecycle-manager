@@ -65,10 +65,10 @@ func TestTransitionInstallPlan(t *testing.T) {
 		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.InstallPlanPhasePlanning, nil},
 
 		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.InstallPlanPhaseInstalling, resolved},
-		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.InstallPlanPhasePlanning, unresolved},
+		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.InstallPlanPhaseFailed, unresolved},
 
 		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.InstallPlanPhaseComplete, installed},
-		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.InstallPlanPhaseInstalling, failed},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.InstallPlanPhaseFailed, failed},
 	}
 	for _, tt := range table {
 		// Create a plan in the provided initial phase.

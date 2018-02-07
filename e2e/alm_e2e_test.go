@@ -402,8 +402,6 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
-	t.Skip("InstallPlanPhaseFailed isn't implemented yet")
-
 	c := newKubeClient(t)
 
 	installPlan := installplanv1alpha1.InstallPlan{

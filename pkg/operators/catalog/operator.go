@@ -293,6 +293,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		if err := transitioner.ResolvePlan(plan); err != nil {
 			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
 				v1alpha1.InstallPlanReasonDependencyConflict, err))
+			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 			return err
 		}
 		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
@@ -304,6 +305,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		if err := transitioner.ExecutePlan(plan); err != nil {
 			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
 				v1alpha1.InstallPlanReasonComponentFailed, err))
+			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 			return err
 		}
 		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
