@@ -21,27 +21,33 @@ spec:
       type: object
       description: Represents a subscription to a source and channel
       required:
-      - source
-      - apptype
-      - channel
-      - approval
+      - spec
       properties:
-        source:
-          type: string
-          description: Name of a CatalogSource that defines where and how to find the channel
+        spec:
+          type: object
+          description: Spec for a Subscription
+          required:
+          - source
+          - apptype
+          - channel
+          - approval
+          properties:
+            source:
+              type: string
+              description: Name of a CatalogSource that defines where and how to find the channel
 
-        apptype:
-          type: string
-          description: Name of the AppType that this subscription tracks
+            apptype:
+              type: string
+              description: Name of the AppType that this subscription tracks
 
-        channel:
-          type: string
-          description: Name of the channel to track
+            channel:
+              type: string
+              description: Name of the channel to track
 
-        approval:
-          type: string
-          description: Approval setting determines behavior when a new version is available.
-          enum:
-          - Automatic
-          - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
-          - Manual
+            approval:
+              type: string
+              description: Approval setting determines behavior when a new version is available.
+              enum:
+              - Automatic
+              - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
+              - Manual
