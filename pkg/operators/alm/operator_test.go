@@ -951,8 +951,9 @@ func TestCSVStateTransitionsFromSucceeded(t *testing.T) {
 					},
 				}),
 				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseSucceeded,
-					Reason: v1alpha1.CSVReasonInstallSuccessful,
+					Phase:   v1alpha1.CSVPhaseSucceeded,
+					Message: "install strategy completed with no errors",
+					Reason:  v1alpha1.CSVReasonInstallSuccessful,
 				}),
 			out: withStatus(withSpec(testCSV(""),
 				&v1alpha1.ClusterServiceVersionSpec{
