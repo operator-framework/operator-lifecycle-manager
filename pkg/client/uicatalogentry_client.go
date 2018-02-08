@@ -19,7 +19,7 @@ import (
 type UICatalogEntryInterface interface {
 	UpdateEntry(csv *v1alpha1.UICatalogEntry) (*v1alpha1.UICatalogEntry, error)
 	ListEntries(namespace string) (*v1alpha1.UICatalogEntryList, error)
-	Delete(name, namespace string, options *metav1.DeleteOptions) error
+	Delete(namespace, name string, options *metav1.DeleteOptions) error
 }
 
 type UICatalogEntryClient struct {
@@ -126,7 +126,7 @@ func (c *UICatalogEntryClient) ListEntries(namespace string) (*v1alpha1.UICatalo
 	return result, nil
 }
 
-func (c *UICatalogEntryClient) Delete(name, namespace string, options *metav1.DeleteOptions) error {
+func (c *UICatalogEntryClient) Delete(namespace, name string, options *metav1.DeleteOptions) error {
 	return c.RESTClient.Delete().
 		Namespace(namespace).
 		Resource(v1alpha1.UICatalogEntryCRDName).

@@ -36,11 +36,11 @@ type FakeUICatalogEntryInterface struct {
 		result1 *v1alpha1.UICatalogEntryList
 		result2 error
 	}
-	DeleteStub        func(name, namespace string, options *metav1.DeleteOptions) error
+	DeleteStub        func(namespace, name string, options *metav1.DeleteOptions) error
 	deleteMutex       sync.RWMutex
 	deleteArgsForCall []struct {
-		name      string
 		namespace string
+		name      string
 		options   *metav1.DeleteOptions
 	}
 	deleteReturns struct {
@@ -155,18 +155,18 @@ func (fake *FakeUICatalogEntryInterface) ListEntriesReturnsOnCall(i int, result1
 	}{result1, result2}
 }
 
-func (fake *FakeUICatalogEntryInterface) Delete(name string, namespace string, options *metav1.DeleteOptions) error {
+func (fake *FakeUICatalogEntryInterface) Delete(namespace string, name string, options *metav1.DeleteOptions) error {
 	fake.deleteMutex.Lock()
 	ret, specificReturn := fake.deleteReturnsOnCall[len(fake.deleteArgsForCall)]
 	fake.deleteArgsForCall = append(fake.deleteArgsForCall, struct {
-		name      string
 		namespace string
+		name      string
 		options   *metav1.DeleteOptions
-	}{name, namespace, options})
-	fake.recordInvocation("Delete", []interface{}{name, namespace, options})
+	}{namespace, name, options})
+	fake.recordInvocation("Delete", []interface{}{namespace, name, options})
 	fake.deleteMutex.Unlock()
 	if fake.DeleteStub != nil {
-		return fake.DeleteStub(name, namespace, options)
+		return fake.DeleteStub(namespace, name, options)
 	}
 	if specificReturn {
 		return ret.result1
@@ -183,7 +183,7 @@ func (fake *FakeUICatalogEntryInterface) DeleteCallCount() int {
 func (fake *FakeUICatalogEntryInterface) DeleteArgsForCall(i int) (string, string, *metav1.DeleteOptions) {
 	fake.deleteMutex.RLock()
 	defer fake.deleteMutex.RUnlock()
-	return fake.deleteArgsForCall[i].name, fake.deleteArgsForCall[i].namespace, fake.deleteArgsForCall[i].options
+	return fake.deleteArgsForCall[i].namespace, fake.deleteArgsForCall[i].name, fake.deleteArgsForCall[i].options
 }
 
 func (fake *FakeUICatalogEntryInterface) DeleteReturns(result1 error) {

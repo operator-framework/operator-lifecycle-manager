@@ -153,13 +153,13 @@ func (store *CustomResourceCatalogStore) prune(source *catalogv1alpha1.CatalogSo
 			existingMap[existing.Name] = existing
 		}
 	}
-	for _, new := range newEntries {
-		newMap[new.Name] = new
+	for _, newEntry := range newEntries {
+		newMap[newEntry.Name] = newEntry
 	}
 
 	for name := range existingMap {
 		if _, ok := newMap[name]; !ok {
-			if err := store.Client.Delete(name, store.Namespace, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDelete}); err != nil {
+			if err := store.Client.Delete(store.Namespace, name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDelete}); err != nil {
 				log.Debugf("Catalog Sync -- err pruning %s: %s", name, err)
 				return err
 			}

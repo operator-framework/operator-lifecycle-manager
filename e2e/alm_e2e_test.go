@@ -68,7 +68,7 @@ func fetchUICatalogEntry(t *testing.T, c opClient.Interface, name string) (*uica
 	var crl *opClient.CustomResourceList
 	var err error
 
-	var foundEntry *uicatalogentryv1alpha1.UICatalogEntry
+	foundEntry := &uicatalogentryv1alpha1.UICatalogEntry{}
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		crl, err = c.ListCustomResource(apis.GroupName, uicatalogentryv1alpha1.GroupVersion, testNamespace, uicatalogentryv1alpha1.UICatalogEntryKind)
 
@@ -437,8 +437,10 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 func TestPruneUICatalogEntry(t *testing.T) {
 	c := newKubeClient(t)
 
+	// Setup
+
 	// Load old configmap (contains packages A and B)
-	oldFile, err := os.Open("e2e/data/catalog.old.yaml")
+	oldFile, err := os.Open("./e2e/data/catalog.old.yaml")
 	require.NoError(t, err)
 
 	oldConfigMap := corev1.ConfigMap{}
@@ -447,7 +449,7 @@ func TestPruneUICatalogEntry(t *testing.T) {
 	oldConfigMap.SetNamespace(testNamespace)
 
 	// Load new configmap (contains packages B (updated) and C, not A)
-	newFile, err := os.Open("e2e/data/catalog.new.yaml")
+	newFile, err := os.Open("./e2e/data/catalog.new.yaml")
 	require.NoError(t, err)
 
 	newConfigMap := corev1.ConfigMap{}
@@ -480,6 +482,7 @@ func TestPruneUICatalogEntry(t *testing.T) {
 	unstructuredCatalogSource, err := unstructuredConverter.ToUnstructured(&catalogSource)
 	require.NoError(t, err)
 
+	// Expectations
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredCatalogSource})
 	require.NoError(t, err)
 	fetchedCatalogSource, err := fetchCatalogSource(t, c, catalogSource.GetName())

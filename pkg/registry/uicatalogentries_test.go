@@ -566,7 +566,7 @@ func TestPruneUICatalogEntries(t *testing.T) {
 				require.EqualValues(t, entry, fakeClient.UpdateEntryArgsForCall(i))
 			}
 			for i, entry := range tt.out.pruned {
-				prunedName, _, _ := fakeClient.DeleteArgsForCall(i)
+				_, prunedName, _ := fakeClient.DeleteArgsForCall(i)
 				require.EqualValues(t, entry.Name, prunedName)
 			}
 		})
