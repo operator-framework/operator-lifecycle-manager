@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  name: etcdoperator.v0.8.3
+  name: etcdoperator.v0.9.0
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
@@ -43,7 +43,7 @@ spec:
 
     Coming soon, the ability to schedule backups to happen on or off cluster.
   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
-  version: 0.8.3
+  version: 0.9.0
   maturity: alpha
   replaces: etcdoperator.v0.6.1
   maintainers:
@@ -122,7 +122,7 @@ spec:
                 command:
                 - etcd-operator
                 - --create-crd=false
-                image: quay.io/coreos/etcd-operator@sha256:f265c92cbada0eabf9fae88a2b460563d01d86c8c79fca82fb9857ed8dfe78f5
+                image: quay.io/coreos/etcd-operator@sha256:db563baa8194fcfe39d1df744ed70024b0f1f9e9b55b5923c2f3a413c44dc6b8
                 env:
                 - name: MY_POD_NAMESPACE
                   valueFrom:
@@ -133,7 +133,7 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
               - name: etcd-backup-operator
-                image: quay.io/coreos/etcd-operator@sha256:f265c92cbada0eabf9fae88a2b460563d01d86c8c79fca82fb9857ed8dfe78f5
+                image: quay.io/coreos/etcd-operator@sha256:db563baa8194fcfe39d1df744ed70024b0f1f9e9b55b5923c2f3a413c44dc6b8
                 command:
                 - etcd-backup-operator
                 - --create-crd=false
@@ -147,7 +147,7 @@ spec:
                     fieldRef:
                       fieldPath: metadata.name
               - name: etcd-restore-operator
-                image: quay.io/coreos/etcd-operator@sha256:f265c92cbada0eabf9fae88a2b460563d01d86c8c79fca82fb9857ed8dfe78f5
+                image: quay.io/coreos/etcd-operator@sha256:db563baa8194fcfe39d1df744ed70024b0f1f9e9b55b5923c2f3a413c44dc6b8
                 command:
                 - etcd-restore-operator
                 - --create-crd=false
