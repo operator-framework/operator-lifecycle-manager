@@ -190,6 +190,10 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: genName("csv"),
 		},
@@ -241,6 +245,10 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	crdName := crdPlural + ".cluster.com"
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
 		},
@@ -332,6 +340,10 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
 		},
@@ -422,6 +434,10 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv2",
 		},
@@ -494,6 +510,10 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
 		},
@@ -560,6 +580,10 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv2",
 		},

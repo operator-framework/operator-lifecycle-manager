@@ -115,10 +115,6 @@ func mockCSVsInNamespace(t *testing.T, mockOpClient *opClient.MockInterface, nam
 func mockInstallStrategy(t *testing.T, resolverFake *installfakes.FakeStrategyResolverInterface, strategy *v1alpha1.NamedInstallStrategy, installErr error, checkInstallErr error, prevStrategy *v1alpha1.NamedInstallStrategy, prevCSVQueryErr error) Expect {
 	testInstallStrategy := TestStrategy{}
 	expectFns := []func(){}
-	//matchPrev := gomock.Nil()
-	//if prevStrategy != nil {
-	//	matchPrev = gomock.Any()
-	//}
 	stratErr := fmt.Errorf("couldn't unmarshal install strategy")
 	if strategy.StrategyName == "teststrategy" {
 		stratErr = nil
@@ -189,6 +185,10 @@ func testCSV(name string) *v1alpha1.ClusterServiceVersion {
 		name = "test-csv"
 	}
 	return &v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:     name,
 			SelfLink: "/link/" + name,
