@@ -358,7 +358,7 @@ func (a *ALMOperator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServic
 	}
 
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv.ObjectMeta, previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv, previousStrategy)
 	return installer, strategy, previousStrategy
 }
 

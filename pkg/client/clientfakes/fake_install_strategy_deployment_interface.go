@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/ownerutil"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
@@ -37,10 +38,11 @@ type FakeInstallStrategyDeploymentInterface struct {
 		result1 *v1beta1rbac.RoleBinding
 		result2 error
 	}
-	EnsureServiceAccountStub        func(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error)
+	EnsureServiceAccountStub        func(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
 	ensureServiceAccountMutex       sync.RWMutex
 	ensureServiceAccountArgsForCall []struct {
 		serviceAccount *corev1.ServiceAccount
+		owner          ownerutil.Owner
 	}
 	ensureServiceAccountReturns struct {
 		result1 *corev1.ServiceAccount
@@ -219,16 +221,17 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturnsOnCa
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error) {
 	fake.ensureServiceAccountMutex.Lock()
 	ret, specificReturn := fake.ensureServiceAccountReturnsOnCall[len(fake.ensureServiceAccountArgsForCall)]
 	fake.ensureServiceAccountArgsForCall = append(fake.ensureServiceAccountArgsForCall, struct {
 		serviceAccount *corev1.ServiceAccount
-	}{serviceAccount})
-	fake.recordInvocation("EnsureServiceAccount", []interface{}{serviceAccount})
+		owner          ownerutil.Owner
+	}{serviceAccount, owner})
+	fake.recordInvocation("EnsureServiceAccount", []interface{}{serviceAccount, owner})
 	fake.ensureServiceAccountMutex.Unlock()
 	if fake.EnsureServiceAccountStub != nil {
-		return fake.EnsureServiceAccountStub(serviceAccount)
+		return fake.EnsureServiceAccountStub(serviceAccount, owner)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -242,10 +245,10 @@ func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountCallCoun
 	return len(fake.ensureServiceAccountArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountArgsForCall(i int) *corev1.ServiceAccount {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountArgsForCall(i int) (*corev1.ServiceAccount, ownerutil.Owner) {
 	fake.ensureServiceAccountMutex.RLock()
 	defer fake.ensureServiceAccountMutex.RUnlock()
-	return fake.ensureServiceAccountArgsForCall[i].serviceAccount
+	return fake.ensureServiceAccountArgsForCall[i].serviceAccount, fake.ensureServiceAccountArgsForCall[i].owner
 }
 
 func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturns(result1 *corev1.ServiceAccount, result2 error) {

@@ -6,16 +6,17 @@ import (
 	"encoding/json"
 	"sort"
 
+	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	GroupVersion = "v1alpha1" // used in registering ClusterServiceVersion scheme
-
-	ClusterServiceVersionCRDName    = "clusterserviceversion-v1s.app.coreos.com"
-	ClusterServiceVersionKind       = "ClusterServiceVersion-v1"
+	GroupVersion                    = "v1alpha1" // used in registering ClusterServiceVersion scheme
 	ClusterServiceVersionPluralName = "clusterserviceversion-v1s"
+	ClusterServiceVersionCRDName    = ClusterServiceVersionPluralName + "." + apis.GroupName
+	ClusterServiceVersionAPIVersion = apis.GroupName + "/" + GroupVersion
+	ClusterServiceVersionKind       = "ClusterServiceVersion-v1"
 )
 
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"
@@ -15,19 +16,47 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 )
 
+var (
+	Controller         = false
+	BlockOwnerDeletion = false
+)
+
+func ownerReferenceFromCSV(csv *v1alpha1.ClusterServiceVersion) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion:         v1alpha1.SchemeGroupVersion.String(),
+		Kind:               v1alpha1.ClusterServiceVersionKind,
+		Name:               csv.GetName(),
+		UID:                csv.GetUID(),
+		Controller:         &Controller,
+		BlockOwnerDeletion: &BlockOwnerDeletion,
+	}
+}
+
 func TestEnsureServiceAccount(t *testing.T) {
 	testErr := errors.New("NaNaNaNaN") // used to ensure exact error returned
-
+	mockOwner := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "clusterserviceversion-owner",
+			Namespace: "test-namespace",
+		},
+	}
 	type state struct {
 		namespace                  string
 		existingServiceAccount     *corev1.ServiceAccount
 		getServiceAccountError     error
 		createServiceAccountResult *corev1.ServiceAccount
 		createServiceAccountError  error
+		updateServiceAccountResult *corev1.ServiceAccount
+		updateServiceAccountError  error
 	}
 	type input struct {
-		serviceAccountName string
-		serviceAccount     *corev1.ServiceAccount
+		serviceAccountName     string
+		serviceAccount         *corev1.ServiceAccount
+		serviceAccountToUpdate *corev1.ServiceAccount
 	}
 	type expect struct {
 		returnedServiceAccount *corev1.ServiceAccount
@@ -49,7 +78,7 @@ func TestEnsureServiceAccount(t *testing.T) {
 			},
 		},
 		{
-			name:    "ServiceAccount already exists",
+			name:    "ServiceAccount already exists, owned by CSV",
 			subname: "returns existing SA when successfully fetched via Kubernetes API",
 			state: state{
 				namespace: "test-namespace",
@@ -58,6 +87,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Name: "test-service-account",
 						Labels: map[string]string{
 							"test": "existing-service-account-found",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
 						},
 					},
 				},
@@ -79,9 +111,116 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Labels: map[string]string{
 							"test": "existing-service-account-found",
 						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 				returnedError: nil,
+			},
+		},
+		{
+			name:    "ServiceAccount already exists, not owned by CSV",
+			subname: "returns existing SA when successfully fetched via Kubernetes API",
+			state: state{
+				namespace: "test-namespace",
+				existingServiceAccount: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+						Labels: map[string]string{
+							"test": "existing-service-account-found",
+						},
+					},
+				},
+				updateServiceAccountResult: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+						Labels: map[string]string{
+							"test": "existing-service-account-found",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
+					},
+				},
+				getServiceAccountError:    nil,
+				createServiceAccountError: nil,
+				updateServiceAccountError: nil,
+			},
+			input: input{
+				serviceAccountName: "test-service-account",
+				serviceAccount: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+					},
+				},
+				serviceAccountToUpdate: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+						Labels: map[string]string{
+							"test": "existing-service-account-found",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
+					},
+				},
+			},
+			expect: expect{
+				returnedServiceAccount: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+						Labels: map[string]string{
+							"test": "existing-service-account-found",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
+					},
+				},
+				returnedError: nil,
+			},
+		},
+		{
+			name:    "ServiceAccount already exists, not owned by CSV, update fails",
+			subname: "returns existing SA when successfully fetched via Kubernetes API",
+			state: state{
+				namespace: "test-namespace",
+				existingServiceAccount: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+						Labels: map[string]string{
+							"test": "existing-service-account-found",
+						},
+					},
+				},
+				updateServiceAccountResult: nil,
+				getServiceAccountError:     nil,
+				createServiceAccountError:  nil,
+				updateServiceAccountError:  testErr,
+			},
+			input: input{
+				serviceAccountName: "test-service-account",
+				serviceAccount: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+					},
+				},
+				serviceAccountToUpdate: &corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "test-service-account",
+						Labels: map[string]string{
+							"test": "existing-service-account-found",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
+					},
+				},
+			},
+			expect: expect{
+				returnedServiceAccount: nil,
+				returnedError:          testErr,
 			},
 		},
 		{
@@ -94,6 +233,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Name: "test-service-account",
 						Labels: map[string]string{
 							"test": "existing-service-account-create-conflict",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
 						},
 					},
 				},
@@ -116,6 +258,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Labels: map[string]string{
 							"test": "existing-service-account-create-conflict",
 						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 				returnedError: nil,
@@ -132,9 +277,13 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Labels: map[string]string{
 							"test": "successfully-created-serviceaccount",
 						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 				createServiceAccountError: nil,
+				getServiceAccountError:    apierrors.NewNotFound(corev1.Resource("serviceaccounts"), "test-service-account"),
 			},
 			input: input{
 				serviceAccountName: "test-service-account",
@@ -150,6 +299,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Name: "test-service-account",
 						Labels: map[string]string{
 							"test": "successfully-created-serviceaccount",
+						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
 						},
 					},
 				},
@@ -169,6 +321,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Labels: map[string]string{
 							"test": "successfully-created-serviceaccount-notfound-error",
 						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 				createServiceAccountError: nil,
@@ -188,6 +343,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 						Labels: map[string]string{
 							"test": "successfully-created-serviceaccount-notfound-error",
 						},
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 				returnedError: nil,
@@ -206,6 +364,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 				serviceAccount: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test-service-account",
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 			},
@@ -217,8 +378,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 			name:    "Unknown errors",
 			subname: "returns unknown errors received trying to create SA",
 			state: state{
-				namespace:                 "test-namespace",
-				getServiceAccountError:    nil,
+				namespace: "test-namespace",
+				getServiceAccountError: apierrors.NewNotFound(
+					corev1.Resource("serviceaccounts"), "test-service-account"),
 				createServiceAccountError: testErr,
 			},
 			input: input{
@@ -226,6 +388,9 @@ func TestEnsureServiceAccount(t *testing.T) {
 				serviceAccount: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "test-service-account",
+						OwnerReferences: []metav1.OwnerReference{
+							ownerReferenceFromCSV(&mockOwner),
+						},
 					},
 				},
 			},
@@ -252,7 +417,12 @@ func TestEnsureServiceAccount(t *testing.T) {
 				Return(tt.state.createServiceAccountResult, tt.state.createServiceAccountError).
 				AnyTimes()
 
-			sa, err := client.EnsureServiceAccount(tt.input.serviceAccount)
+			mockOpClient.EXPECT().
+				UpdateServiceAccount(tt.input.serviceAccountToUpdate).
+				Return(tt.state.updateServiceAccountResult, tt.state.updateServiceAccountError).
+				AnyTimes()
+
+			sa, err := client.EnsureServiceAccount(tt.input.serviceAccount, &mockOwner)
 
 			require.True(t, equality.Semantic.DeepEqual(tt.expect.returnedServiceAccount, sa),
 				"Resources do not match <expected, actual>: %s",

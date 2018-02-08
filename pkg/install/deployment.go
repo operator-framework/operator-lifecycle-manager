@@ -8,18 +8,14 @@ import (
 	"k8s.io/api/extensions/v1beta1"
 	rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/ownerutil"
 )
 
 const (
 	InstallStrategyNameDeployment = "deployment"
 )
-
-var BlockOwnerDeletion = true
-var Controller = false
 
 // StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy
 type StrategyDeploymentPermissions struct {
@@ -42,8 +38,7 @@ type StrategyDetailsDeployment struct {
 
 type StrategyDeploymentInstaller struct {
 	strategyClient   client.InstallStrategyDeploymentInterface
-	ownerRefs        []metav1.OwnerReference
-	ownerMeta        metav1.ObjectMeta
+	owner            ownerutil.Owner
 	previousStrategy Strategy
 }
 
@@ -54,20 +49,10 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, ownerMeta metav1.ObjectMeta, previousStrategy Strategy) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
-		strategyClient: strategyClient,
-		ownerRefs: []metav1.OwnerReference{
-			{
-				APIVersion:         v1alpha1.SchemeGroupVersion.String(),
-				Kind:               v1alpha1.ClusterServiceVersionKind,
-				Name:               ownerMeta.GetName(),
-				UID:                ownerMeta.UID,
-				Controller:         &Controller,
-				BlockOwnerDeletion: &BlockOwnerDeletion,
-			},
-		},
-		ownerMeta:        ownerMeta,
+		strategyClient:   strategyClient,
+		owner:            owner,
 		previousStrategy: previousStrategy,
 	}
 }
@@ -78,8 +63,8 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 		role := &rbac.Role{
 			Rules: permission.Rules,
 		}
-		role.SetOwnerReferences(i.ownerRefs)
-		role.SetGenerateName(fmt.Sprintf("%s-role-", i.ownerMeta.GetName()))
+		ownerutil.AddNonBlockingOwner(role, i.owner)
+		role.SetGenerateName(fmt.Sprintf("%s-role-", i.owner.GetName()))
 		createdRole, err := i.strategyClient.CreateRole(role)
 		if err != nil {
 			return err
@@ -87,9 +72,9 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 
 		// create serviceaccount if necessary
 		serviceAccount := &corev1.ServiceAccount{}
-		serviceAccount.SetOwnerReferences(i.ownerRefs)
 		serviceAccount.SetName(permission.ServiceAccountName)
-		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount)
+		// EnsureServiceAccount verifies/creates ownerreferences so we don't add them here
+		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount, i.owner)
 		if err != nil {
 			return err
 		}
@@ -103,10 +88,10 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 			Subjects: []rbac.Subject{{
 				Kind:      "ServiceAccount",
 				Name:      permission.ServiceAccountName,
-				Namespace: i.ownerMeta.Namespace,
+				Namespace: i.owner.GetNamespace(),
 			}},
 		}
-		roleBinding.SetOwnerReferences(i.ownerRefs)
+		ownerutil.AddNonBlockingOwner(roleBinding, i.owner)
 		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
 
 		if _, err := i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
@@ -119,16 +104,16 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
 	for _, d := range deps {
 		// Create or Update Deployment
-		dep := v1beta1.Deployment{Spec: d.Spec}
+		dep := &v1beta1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
-		dep.SetNamespace(i.ownerMeta.Namespace)
-		dep.SetOwnerReferences(i.ownerRefs)
+		dep.SetNamespace(i.owner.GetNamespace())
+		ownerutil.AddNonBlockingOwner(dep, i.owner)
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})
 		}
-		dep.Labels["alm-owner-name"] = i.ownerMeta.Name
-		dep.Labels["alm-owner-namespace"] = i.ownerMeta.Namespace
-		if _, err := i.strategyClient.CreateOrUpdateDeployment(&dep); err != nil {
+		dep.Labels["alm-owner-name"] = i.owner.GetName()
+		dep.Labels["alm-owner-namespace"] = i.owner.GetNamespace()
+		if _, err := i.strategyClient.CreateOrUpdateDeployment(dep); err != nil {
 			return err
 		}
 	}
