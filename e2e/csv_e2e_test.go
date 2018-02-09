@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 	"k8s.io/api/extensions/v1beta1"
+	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -189,6 +190,10 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: genName("csv"),
 		},
@@ -240,6 +245,10 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	crdName := crdPlural + ".cluster.com"
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
 		},
@@ -298,6 +307,28 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 
 	// create "current" CSV
 	strategy := install.StrategyDetailsDeployment{
+		Permissions: []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: "csv-sa",
+				Rules: []rbacv1beta1.PolicyRule{
+					{
+						Verbs:     []string{"list", "delete"},
+						APIGroups: []string{""},
+						Resources: []string{"pods"},
+					},
+				},
+			},
+			{
+				ServiceAccountName: "old-csv-sa",
+				Rules: []rbacv1beta1.PolicyRule{
+					{
+						Verbs:     []string{"list", "delete"},
+						APIGroups: []string{""},
+						Resources: []string{"pods"},
+					},
+				},
+			},
+		},
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: "dep1",
@@ -309,6 +340,10 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
 		},
@@ -364,6 +399,28 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 
 	// Create "updated" CSV
 	strategyNew := install.StrategyDetailsDeployment{
+		Permissions: []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: "csv-sa",
+				Rules: []rbacv1beta1.PolicyRule{
+					{
+						Verbs:     []string{"list", "delete"},
+						APIGroups: []string{""},
+						Resources: []string{"pods"},
+					},
+				},
+			},
+			{
+				ServiceAccountName: "new-csv-sa",
+				Rules: []rbacv1beta1.PolicyRule{
+					{
+						Verbs:     []string{"list", "delete"},
+						APIGroups: []string{""},
+						Resources: []string{"pods"},
+					},
+				},
+			},
+		},
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				// Same name
@@ -377,6 +434,10 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv2",
 		},
@@ -406,14 +467,30 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	_, err = fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
+	// should have csv-sa and old-csv-sa
+	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
+	require.NoError(t, err)
+	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
+	require.NoError(t, err)
+
 	// Should have updated existing deployment
 	depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depUpdated)
 	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
 
+	// should have csv-sa and old-csv-sa
+	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
+	require.NoError(t, err)
+	_, err = c.GetServiceAccount(testNamespace, "new-csv-sa")
+	require.NoError(t, err)
+
 	// Should eventually GC the CSV
 	_, err = waitForCSVToDelete(t, c, csv.Name)
+	require.NoError(t, err)
+
+	// csv-sa shouldn't have been GC'd
+	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
 	require.NoError(t, err)
 }
 
@@ -433,6 +510,10 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv1",
 		},
@@ -499,6 +580,10 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "csv2",
 		},

@@ -8,10 +8,10 @@ import (
 	"fmt"
 
 	operatorClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/ownerutil"
 )
 
 type Strategy interface {
@@ -25,7 +25,7 @@ type StrategyInstaller interface {
 
 type StrategyResolverInterface interface {
 	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
-	InstallerForStrategy(strategyName string, opClient operatorClient.Interface, ownerMeta metav1.ObjectMeta, previousStrategy Strategy) StrategyInstaller
+	InstallerForStrategy(strategyName string, opClient operatorClient.Interface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller
 }
 
 type StrategyResolver struct{}
@@ -43,11 +43,11 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 	return
 }
 
-func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorClient.Interface, ownerMeta metav1.ObjectMeta, previousStrategy Strategy) StrategyInstaller {
+func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorClient.Interface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	switch strategyName {
 	case InstallStrategyNameDeployment:
-		strategyClient := client.NewInstallStrategyDeploymentClient(opClient, ownerMeta.Namespace)
-		return NewStrategyDeploymentInstaller(strategyClient, ownerMeta, previousStrategy)
+		strategyClient := client.NewInstallStrategyDeploymentClient(opClient, owner.GetNamespace())
+		return NewStrategyDeploymentInstaller(strategyClient, owner, previousStrategy)
 	}
 
 	// Insurance against these functions being called incorrectly (unmarshal strategy will return a valid strategy name)

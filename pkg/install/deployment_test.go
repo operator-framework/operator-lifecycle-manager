@@ -14,12 +14,18 @@ import (
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client/clientfakes"
+	"github.com/coreos-inc/alm/pkg/ownerutil"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-func testDeployment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1beta1.Deployment {
-	testDeploymentLabels := map[string]string{"alm-owner-name": mockOwnerMeta.Name, "alm-owner-namespace": mockOwnerMeta.Namespace}
+var (
+	Controller         = false
+	BlockOwnerDeletion = false
+)
+
+func testDeployment(name, namespace string, mockOwner ownerutil.Owner) v1beta1.Deployment {
+	testDeploymentLabels := map[string]string{"alm-owner-name": mockOwner.GetName(), "alm-owner-namespace": mockOwner.GetNamespace()}
 
 	deployment := v1beta1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -29,8 +35,8 @@ func testDeployment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1b
 				{
 					APIVersion:         v1alpha1.SchemeGroupVersion.String(),
 					Kind:               v1alpha1.ClusterServiceVersionKind,
-					Name:               mockOwnerMeta.GetName(),
-					UID:                mockOwnerMeta.UID,
+					Name:               mockOwner.GetName(),
+					UID:                mockOwner.GetUID(),
 					Controller:         &Controller,
 					BlockOwnerDeletion: &BlockOwnerDeletion,
 				},
@@ -41,15 +47,15 @@ func testDeployment(name, namespace string, mockOwnerMeta metav1.ObjectMeta) v1b
 	return deployment
 }
 
-func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *corev1.ServiceAccount {
+func testServiceAccount(name string, mockOwner ownerutil.Owner) *corev1.ServiceAccount {
 	serviceAccount := &corev1.ServiceAccount{}
 	serviceAccount.SetName(name)
 	serviceAccount.SetOwnerReferences([]metav1.OwnerReference{
 		{
 			APIVersion:         v1alpha1.SchemeGroupVersion.String(),
 			Kind:               v1alpha1.ClusterServiceVersionKind,
-			Name:               mockOwnerMeta.GetName(),
-			UID:                mockOwnerMeta.UID,
+			Name:               mockOwner.GetName(),
+			UID:                mockOwner.GetUID(),
 			Controller:         &Controller,
 			BlockOwnerDeletion: &BlockOwnerDeletion,
 		},
@@ -57,14 +63,14 @@ func testServiceAccount(name string, mockOwnerMeta metav1.ObjectMeta) *corev1.Se
 	return serviceAccount
 }
 
-func strategy(n int, namespace string, mockOwnerMeta metav1.ObjectMeta) *StrategyDetailsDeployment {
+func strategy(n int, namespace string, mockOwner ownerutil.Owner) *StrategyDetailsDeployment {
 	var deploymentSpecs = []StrategyDeploymentSpec{}
 	var permissions = []StrategyDeploymentPermissions{}
 	for i := 1; i <= n; i++ {
-		dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+		dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwner)
 		spec := StrategyDeploymentSpec{Name: dep.GetName(), Spec: dep.Spec}
 		deploymentSpecs = append(deploymentSpecs, spec)
-		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwnerMeta)
+		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwner)
 		permissions = append(permissions, StrategyDeploymentPermissions{
 			ServiceAccountName: serviceAccount.Name,
 			Rules: []v1beta1rbac.PolicyRule{
@@ -94,14 +100,23 @@ func testRules(name string) []v1beta1rbac.PolicyRule {
 
 func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 	var (
-		namespace     = "alm-test-deployment"
-		mockOwnerName = "clusterserviceversion-owner"
-		mockOwnerMeta = metav1.ObjectMeta{
-			Name:      mockOwnerName,
-			Namespace: namespace,
+		mockOwner = v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "clusterserviceversion-owner",
+				Namespace: "alm-test-deployment",
+			},
 		}
 		mockOwnerRefs = []metav1.OwnerReference{{
-			Name: mockOwnerName,
+			APIVersion:         v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:               v1alpha1.ClusterServiceVersionKind,
+			Name:               mockOwner.GetName(),
+			UID:                mockOwner.UID,
+			Controller:         &Controller,
+			BlockOwnerDeletion: &BlockOwnerDeletion,
 		}}
 	)
 
@@ -162,11 +177,11 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					expectedDeployment: v1beta1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            "test-deployment-1",
-							Namespace:       namespace,
+							Namespace:       mockOwner.GetNamespace(),
 							OwnerReferences: mockOwnerRefs,
 							Labels: map[string]string{
-								"alm-owner-name":      mockOwnerName,
-								"alm-owner-namespace": namespace,
+								"alm-owner-name":      mockOwner.GetName(),
+								"alm-owner-namespace": mockOwner.GetNamespace(),
 							},
 						},
 					},
@@ -176,11 +191,11 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					expectedDeployment: v1beta1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            "test-deployment-2",
-							Namespace:       namespace,
+							Namespace:       mockOwner.GetNamespace(),
 							OwnerReferences: mockOwnerRefs,
 							Labels: map[string]string{
-								"alm-owner-name":      mockOwnerName,
-								"alm-owner-namespace": namespace,
+								"alm-owner-name":      mockOwner.GetName(),
+								"alm-owner-namespace": mockOwner.GetNamespace(),
 							},
 						},
 					},
@@ -190,11 +205,11 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					expectedDeployment: v1beta1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            "test-deployment-3",
-							Namespace:       namespace,
+							Namespace:       mockOwner.GetNamespace(),
 							OwnerReferences: mockOwnerRefs,
 							Labels: map[string]string{
-								"alm-owner-name":      mockOwnerName,
-								"alm-owner-namespace": namespace,
+								"alm-owner-name":      mockOwner.GetName(),
+								"alm-owner-namespace": mockOwner.GetNamespace(),
 							},
 						},
 					},
@@ -219,8 +234,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 
 			installer := &StrategyDeploymentInstaller{
 				strategyClient: fakeClient,
-				ownerRefs:      mockOwnerRefs,
-				ownerMeta:      mockOwnerMeta,
+				owner:          &mockOwner,
 			}
 			result := installer.installDeployments(tt.inputs.strategyDeploymentSpecs)
 			assert.Equal(t, tt.output, result)
@@ -234,12 +248,23 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 	mockOwnerName := "clusterserviceversion-owner"
 	generateRoleName := "clusterserviceversion-owner-role-"
 
-	mockOwnerMeta := metav1.ObjectMeta{
-		Name:      mockOwnerName,
-		Namespace: namespace,
+	mockOwner := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      mockOwnerName,
+			Namespace: namespace,
+		},
 	}
 	mockOwnerRefs := []metav1.OwnerReference{{
-		Name: mockOwnerName,
+		APIVersion:         v1alpha1.ClusterServiceVersionAPIVersion,
+		Kind:               v1alpha1.ClusterServiceVersionKind,
+		Name:               mockOwner.GetName(),
+		UID:                mockOwner.UID,
+		Controller:         &Controller,
+		BlockOwnerDeletion: &BlockOwnerDeletion,
 	}}
 
 	serviceAccountName1 := "alm-sa-1"
@@ -315,12 +340,12 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 
 					expectedServiceAccount: &corev1.ServiceAccount{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:            serviceAccountName1,
-							OwnerReferences: mockOwnerRefs,
+							Name: serviceAccountName1,
 						},
 					},
 					ensuredServiceAccount: &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
-						Name: ensuredServiceAccountName1,
+						Name:            ensuredServiceAccountName1,
+						OwnerReferences: mockOwnerRefs,
 					}},
 					ensureServiceAccountError: nil,
 
@@ -357,12 +382,12 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 
 					expectedServiceAccount: &corev1.ServiceAccount{
 						ObjectMeta: metav1.ObjectMeta{
-							Name:            serviceAccountName2,
-							OwnerReferences: mockOwnerRefs,
+							Name: serviceAccountName2,
 						},
 					},
 					ensuredServiceAccount: &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{
-						Name: ensuredServiceAccountName2,
+						Name:            ensuredServiceAccountName2,
+						OwnerReferences: mockOwnerRefs,
 					}},
 					ensureServiceAccountError: nil,
 
@@ -432,8 +457,9 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 					fakeClient.EnsureServiceAccountReturns(m.ensuredServiceAccount, m.ensureServiceAccountError)
 					defer func() {
 						require.Equal(t, 2, fakeClient.EnsureServiceAccountCallCount())
-						sa := fakeClient.EnsureServiceAccountArgsForCall(1)
+						sa, owner := fakeClient.EnsureServiceAccountArgsForCall(1)
 						require.Equal(t, m.expectedServiceAccount, sa)
+						require.Equal(t, &mockOwner, owner)
 					}()
 				}
 				if m.expectedRoleBinding != nil {
@@ -446,8 +472,7 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 			}
 			installer := &StrategyDeploymentInstaller{
 				strategyClient: fakeClient,
-				ownerRefs:      mockOwnerRefs,
-				ownerMeta:      mockOwnerMeta,
+				owner:          &mockOwner,
 			}
 			result := installer.installPermissions(tt.inputs.strategyPermissions)
 			assert.Equal(t, tt.output, result)
@@ -458,9 +483,16 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 
 func TestInstallStrategyDeployment(t *testing.T) {
 	namespace := "alm-test-deployment"
-	mockOwnerMeta := metav1.ObjectMeta{
-		Name:      "clusterserviceversion-owner",
-		Namespace: namespace,
+
+	mockOwner := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "clusterserviceversion-owner",
+			Namespace: namespace,
+		},
 	}
 
 	tests := []struct {
@@ -504,12 +536,12 @@ func TestInstallStrategyDeployment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
-			strategy := strategy(tt.numExpected, namespace, mockOwnerMeta)
+			strategy := strategy(tt.numExpected, namespace, &mockOwner)
 			for i, p := range strategy.Permissions {
 				if i < tt.numMockServiceAccounts {
 					t.Logf("mocking %s true", p.ServiceAccountName)
 
-					fakeClient.GetServiceAccountByNameReturnsOnCall(i, testServiceAccount(p.ServiceAccountName, mockOwnerMeta), nil)
+					fakeClient.GetServiceAccountByNameReturnsOnCall(i, testServiceAccount(p.ServiceAccountName, &mockOwner), nil)
 					defer func() {
 						require.Equal(t, p.ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(i))
 					}()
@@ -522,7 +554,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 					}()
 				}
 
-				serviceAccount := testServiceAccount(p.ServiceAccountName, mockOwnerMeta)
+				serviceAccount := testServiceAccount(p.ServiceAccountName, &mockOwner)
 
 				fakeClient.EnsureServiceAccountReturnsOnCall(i, serviceAccount, nil)
 				fakeClient.CreateRoleReturnsOnCall(i, &v1beta1rbac.Role{Rules: p.Rules}, nil)
@@ -534,7 +566,7 @@ func TestInstallStrategyDeployment(t *testing.T) {
 
 			var mockedDeps []*v1beta1.Deployment
 			for i := 1; i <= tt.numMockDeployments; i++ {
-				dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+				dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, &mockOwner)
 				dep.Spec = v1beta1.DeploymentSpec{Paused: true} // arbitrary
 
 				mockedDeps = append(mockedDeps, &dep)
@@ -555,11 +587,11 @@ func TestInstallStrategyDeployment(t *testing.T) {
 			}
 
 			for i := 1; i <= len(strategy.DeploymentSpecs); i++ {
-				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, mockOwnerMeta)
+				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, &mockOwner)
 				fakeClient.CreateDeploymentReturnsOnCall(i-1, &deployment, nil)
 			}
 
-			installer := NewStrategyDeploymentInstaller(fakeClient, mockOwnerMeta, nil)
+			installer := NewStrategyDeploymentInstaller(fakeClient, &mockOwner, nil)
 
 			installed, err := installer.CheckInstalled(strategy)
 			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
@@ -581,12 +613,18 @@ func (b *BadStrategy) GetStrategyName() string {
 }
 
 func TestNewStrategyDeploymentInstaller(t *testing.T) {
-	mockOwnerMeta := metav1.ObjectMeta{
-		Name:      "clusterserviceversion-owner",
-		Namespace: "ns",
+	mockOwner := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "clusterserviceversion-owner",
+			Namespace: "ns",
+		},
 	}
 	fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
-	strategy := NewStrategyDeploymentInstaller(fakeClient, mockOwnerMeta, nil)
+	strategy := NewStrategyDeploymentInstaller(fakeClient, &mockOwner, nil)
 	require.Implements(t, (*StrategyInstaller)(nil), strategy)
 	require.Error(t, strategy.Install(&BadStrategy{}))
 	installed, err := strategy.CheckInstalled(&BadStrategy{})
@@ -596,9 +634,16 @@ func TestNewStrategyDeploymentInstaller(t *testing.T) {
 
 func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 	namespace := "alm-test-deployment"
-	mockOwnerMeta := metav1.ObjectMeta{
-		Name:      "clusterserviceversion-owner",
-		Namespace: namespace,
+
+	mockOwner := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "clusterserviceversion-owner",
+			Namespace: namespace,
+		},
 	}
 
 	tests := []struct {
@@ -634,18 +679,18 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
-			strategy := strategy(1, namespace, mockOwnerMeta)
-			installer := NewStrategyDeploymentInstaller(fakeClient, mockOwnerMeta, nil)
+			strategy := strategy(1, namespace, &mockOwner)
+			installer := NewStrategyDeploymentInstaller(fakeClient, &mockOwner, nil)
 
 			skipInstall := tt.checkServiceAccountErr != nil
 
-			fakeClient.GetServiceAccountByNameReturns(testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta), tt.checkServiceAccountErr)
+			fakeClient.GetServiceAccountByNameReturns(testServiceAccount(strategy.Permissions[0].ServiceAccountName, &mockOwner), tt.checkServiceAccountErr)
 			defer func() {
 				require.Equal(t, strategy.Permissions[0].ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(0))
 			}()
 
 			if tt.checkServiceAccountErr == nil {
-				dep := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
+				dep := testDeployment("alm-dep-1", namespace, &mockOwner)
 				fakeClient.FindAnyDeploymentsMatchingNamesReturns(
 					[]*v1beta1.Deployment{
 						&dep,
@@ -678,11 +723,15 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				return
 			}
 
-			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, mockOwnerMeta)
+			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, &mockOwner)
+			// we expect `EnsureServiceAccount` to be called with no ownerreferences
+			serviceAccount.SetOwnerReferences(nil)
 
 			fakeClient.EnsureServiceAccountReturns(serviceAccount, tt.createServiceAccountErr)
 			defer func() {
-				require.Equal(t, serviceAccount, fakeClient.EnsureServiceAccountArgsForCall(0))
+				sa, owner := fakeClient.EnsureServiceAccountArgsForCall(0)
+				require.Equal(t, serviceAccount, sa)
+				require.Equal(t, owner, &mockOwner)
 			}()
 
 			if tt.createServiceAccountErr != nil {
@@ -697,7 +746,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-			deployment := testDeployment("alm-dep-1", namespace, mockOwnerMeta)
+			deployment := testDeployment("alm-dep-1", namespace, &mockOwner)
 			fakeClient.CreateOrUpdateDeploymentReturns(&deployment, tt.createDeploymentErr)
 			defer func() {
 				require.Equal(t, &deployment, fakeClient.CreateOrUpdateDeploymentArgsForCall(0))

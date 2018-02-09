@@ -2,6 +2,7 @@
 package client
 
 import (
+	"github.com/coreos-inc/alm/pkg/ownerutil"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -16,7 +17,7 @@ var ErrNilObject = errors.New("Bad object supplied: <nil>")
 type InstallStrategyDeploymentInterface interface {
 	CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error)
 	CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
-	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error)
+	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
 	CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
 	CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
 	DeleteDeployment(name string) error
@@ -46,28 +47,36 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBind
 	return c.opClient.KubernetesInterface().RbacV1beta1().RoleBindings(c.Namespace).Create(roleBinding)
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount) (*corev1.ServiceAccount, error) {
+func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error) {
 	if serviceAccount == nil {
 		return nil, ErrNilObject
 	}
 
 	foundAccount, err := c.opClient.GetServiceAccount(c.Namespace, serviceAccount.Name)
-	if err == nil && foundAccount != nil {
-		return foundAccount, nil
-	}
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "checking for existing serviceacccount failed")
 	}
 
-	serviceAccount.SetNamespace(c.Namespace)
-	createdAccount, err := c.opClient.CreateServiceAccount(serviceAccount)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
-		return nil, errors.Wrap(err, "creating serviceacccount failed")
+	// create if not found
+	if err != nil && apierrors.IsNotFound(err) {
+		serviceAccount.SetNamespace(c.Namespace)
+		createdAccount, err := c.opClient.CreateServiceAccount(serviceAccount)
+		if err != nil && !apierrors.IsAlreadyExists(err) {
+			return nil, errors.Wrap(err, "creating serviceacccount failed")
+		}
+		if apierrors.IsAlreadyExists(err) {
+			return serviceAccount, nil
+		}
+		return createdAccount, nil
 	}
-	if apierrors.IsAlreadyExists(err) {
-		return serviceAccount, nil
+
+	// if found, ensure ownerreferences
+	if ownerutil.IsOwnedBy(foundAccount, owner) {
+		return foundAccount, nil
 	}
-	return createdAccount, nil
+	// set owner if missing
+	ownerutil.AddNonBlockingOwner(foundAccount, owner)
+	return c.opClient.UpdateServiceAccount(foundAccount)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
