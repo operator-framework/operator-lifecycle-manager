@@ -146,10 +146,6 @@ func (m *InMem) addPackageManifest(pkg uiv1alpha1.PackageManifest) error {
 		return fmt.Errorf("Empty package name")
 	}
 
-	if old, exists := m.packages[pkg.PackageName]; exists && !equality.Semantic.DeepEqual(pkg, old) {
-		return fmt.Errorf("invalid package manifest: definition for package %s already exists", pkg.PackageName)
-	}
-
 	// Make sure that each channel name is unique and that the referenced CSV exists.
 	channelMap := make(map[string]bool, len(pkg.Channels))
 	for _, channel := range pkg.Channels {

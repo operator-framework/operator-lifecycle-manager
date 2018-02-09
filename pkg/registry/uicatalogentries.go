@@ -6,6 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	catalogv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
@@ -39,7 +40,7 @@ type CustomResourceCatalogStore struct {
 }
 
 // Store creates a new UICatalogEntry custom resource for the given service definition, csv
-func (store *CustomResourceCatalogStore) Store(manifest v1alpha1.PackageManifest, csv *csvv1alpha1.ClusterServiceVersion) (*v1alpha1.UICatalogEntry, error) {
+func (store *CustomResourceCatalogStore) Store(manifest v1alpha1.PackageManifest, csv *csvv1alpha1.ClusterServiceVersion, ownerRefs []metav1.OwnerReference) (*v1alpha1.UICatalogEntry, error) {
 	spec := &v1alpha1.UICatalogEntrySpec{Manifest: manifest, CSVSpec: csv.Spec}
 	visibility, ok := csv.GetAnnotations()[CSVCatalogVisibilityAnnotation]
 	if !ok {
@@ -54,6 +55,7 @@ func (store *CustomResourceCatalogStore) Store(manifest v1alpha1.PackageManifest
 	}
 	labels[CatalogEntryVisibilityLabel] = visibility
 	resource.SetLabels(labels)
+	resource.SetOwnerReferences(ownerRefs)
 	return store.Client.UpdateEntry(resource)
 }
 
@@ -62,17 +64,32 @@ func (c CatalogSync) Error() string {
 		c.ServicesFound, c.ServicesSynced, c.ServicesFailed, c.ServicesFound, c.Errors)
 }
 
-// Sync creates UICatalogEntry CRDs for each package in the catalog. Fails immediately on error.
-func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICatalogEntry, error) {
+// Sync creates UICatalogEntry CRDs for each package in the catalog and removes old ones. Fails immediately on error.
+func (store *CustomResourceCatalogStore) Sync(catalog Source, source *catalogv1alpha1.CatalogSource) ([]*v1alpha1.UICatalogEntry, error) {
 	status := CatalogSync{
 		StartTime: metav1.Now(),
 		Status:    "syncing",
 	}
-	log.Debug("Catalog Sync       -- BEGIN")
+	source.TypeMeta = metav1.TypeMeta{
+		Kind:       catalogv1alpha1.CatalogSourceKind,
+		APIVersion: catalogv1alpha1.CatalogSourceCRDAPIVersion,
+	}
+	controllerRef := metav1.NewControllerRef(source, source.GroupVersionKind())
+	ownerRefs := []metav1.OwnerReference{
+		*controllerRef,
+	}
+
+	log.Debug("Catalog Sync -- BEGIN")
 	entries := []*v1alpha1.UICatalogEntry{}
 	status.ServicesFound = len(catalog.AllPackages())
 
 	log.Debugf("Catalog Sync -- Packages found: %v", catalog.AllPackages())
+
+	// fetch existing UICatalogEntries to prune any old ones
+	existingEntries, err := store.Client.ListEntries(store.Namespace)
+	if err != nil {
+		return nil, err
+	}
 
 	for name, manifest := range catalog.AllPackages() {
 		log.Debugf("Catalog Sync -- BEGIN store service %s", name)
@@ -85,7 +102,7 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICat
 			status.ServicesFailed = status.ServicesFailed + 1
 			continue
 		}
-		resource, err := store.Store(manifest, latestCSVInDefaultChannel)
+		resource, err := store.Store(manifest, latestCSVInDefaultChannel, ownerRefs)
 		if err != nil {
 			status.Errors = append(status.Errors, fmt.Errorf("error storing service %s v%s: %v",
 				latestCSVInDefaultChannel.GetName(), latestCSVInDefaultChannel.Spec.Version, err))
@@ -108,7 +125,46 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source) ([]*v1alpha1.UICat
 		status.Status = "error"
 	}
 	store.LastAttemptedSync = status
+
+	if existingEntries != nil {
+		log.Debugf("Catalog Sync -- Pruning old services")
+		store.prune(source, existingEntries.Items, entries)
+	}
+
 	log.Debugf("Catalog Sync -- END %d/%d services synced",
 		status.ServicesSynced, status.ServicesFound)
+
 	return entries, nil
+}
+
+func (store *CustomResourceCatalogStore) prune(source *catalogv1alpha1.CatalogSource, existingEntries, newEntries []*v1alpha1.UICatalogEntry) error {
+	var immediateDelete int64 = 0
+	existingMap := map[string]*v1alpha1.UICatalogEntry{}
+	newMap := map[string]*v1alpha1.UICatalogEntry{}
+
+	for _, existing := range existingEntries {
+		// prune things controlled by this source
+		if metav1.IsControlledBy(existing, source) {
+			existingMap[existing.Name] = existing
+		}
+
+		// prune things not controlled by any source
+		if existing.GetOwnerReferences() == nil || len(existing.GetOwnerReferences()) == 0 {
+			existingMap[existing.Name] = existing
+		}
+	}
+	for _, newEntry := range newEntries {
+		newMap[newEntry.Name] = newEntry
+	}
+
+	for name := range existingMap {
+		if _, ok := newMap[name]; !ok {
+			if err := store.Client.Delete(store.Namespace, name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDelete}); err != nil {
+				log.Debugf("Catalog Sync -- err pruning %s: %s", name, err)
+				return err
+			}
+			log.Debugf("Catalog Sync -- pruned %s", name)
+		}
+	}
+	return nil
 }

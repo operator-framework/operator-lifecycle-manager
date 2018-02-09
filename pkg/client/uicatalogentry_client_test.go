@@ -155,7 +155,7 @@ func TestUpdateEntry(t *testing.T) {
 
 			ExpectedEntry: nil,
 			ExpectedError: fmt.Errorf("failed to find then update UICatalogEntry: "+
-				"failed to update CR status: the server could not find the requested resource "+
+				"failed to update UICatalogEntry status: the server could not find the requested resource "+
 				"(get %s.%s %s)", v1alpha1.UICatalogEntryCRDName, apis.GroupName, testCSVName),
 		},
 		{

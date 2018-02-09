@@ -1,0 +1,111 @@
+# Contains PackageB (Updated), PackageC (new)
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: new-test-catalog
+  namespace: tectonic-system
+data:
+  customResourceDefinitions: |-
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: testcs.example.com
+      spec:
+        group: example.com
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: testcs
+          singular: testc
+          kind: TestC
+          listKind: TestCList
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: testbs.example.com
+      spec:
+        group: example.com
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: testbs
+          singular: testb
+          kind: TestB
+          listKind: TestBList
+  clusterServiceVersions: |-
+    - apiVersion: app.coreos.com/v1alpha1
+      kind: ClusterServiceVersion-v1
+      metadata:
+        name: service-c.1.0.0
+        namespace: placeholder
+        annotations:
+          tectonic-visibility: tectonic-ocs
+        labels:
+          alm-catalog: ocs
+      spec:
+        displayName: TestServiceC
+        description: Test Service C
+        keywords: [test]
+        version: 1.0.0
+        maturity: alpha
+        customresourcedefinitions:
+          owned:
+          - description: Test C
+            displayName: TestC
+            kind: TestC
+            name: testcs.example.com
+            version: v1alpha1
+    - apiVersion: app.coreos.com/v1alpha1
+      kind: ClusterServiceVersion-v1
+      metadata:
+        name: service-b.1.0.0
+        namespace: placeholder
+        annotations:
+          tectonic-visibility: tectonic-ocs
+        labels:
+          alm-catalog: ocs
+      spec:
+        displayName: TestServiceB
+        description: Test Service B
+        keywords: [test]
+        version: 1.0.0
+        maturity: alpha
+        customresourcedefinitions:
+          owned:
+          - description: Test B
+            displayName: TestB
+            kind: TestB
+            name: testbs.example.com
+            version: v1alpha1
+    - apiVersion: app.coreos.com/v1alpha1
+      kind: ClusterServiceVersion-v1
+      metadata:
+        name: service-b.1.0.1
+        namespace: placeholder
+        annotations:
+          tectonic-visibility: tectonic-ocs
+        labels:
+          alm-catalog: ocs
+      spec:
+        displayName: TestServiceB
+        description: Test Service B
+        keywords: [test]
+        version: 1.0.1
+        replaces: service-b.1.0.0
+        maturity: alpha
+        customresourcedefinitions:
+          owned:
+          - description: Test B
+            displayName: TestB
+            kind: TestB
+            name: testbs.example.com
+            version: v1alpha1
+  packages: |-
+    - packageName: package-c
+      channels:
+      - name: alpha
+        currentCSV: service-c.1.0.0
+    - packageName: package-b
+      channels:
+      - name: alpha
+        currentCSV: service-b.1.0.1

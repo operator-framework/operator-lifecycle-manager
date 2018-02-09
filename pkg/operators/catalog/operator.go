@@ -205,7 +205,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, o.namespace, catsrc.Spec.ConfigMap)
 	if err != nil {
-		return fmt.Errorf("failed to create catalog source from ConfigMap: %s", catsrc.Spec.ConfigMap)
+		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", catsrc.Spec.ConfigMap, err)
 	}
 
 	log.Infof("syncing CatalogSource: %s", catsrc.SelfLink)
@@ -213,7 +213,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		Client:    o.uiceClient,
 		Namespace: o.namespace,
 	}
-	entries, err := store.Sync(src)
+	entries, err := store.Sync(src, catsrc)
 	if err != nil {
 		return fmt.Errorf("failed to created catalog entries for %s: %s", catsrc.Name, err)
 	}
