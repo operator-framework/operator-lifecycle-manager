@@ -297,8 +297,6 @@ data:
         namespace: placeholder
         annotations:
           tectonic-visibility: tectonic-feature
-        labels:
-          alm-catalog: tectonic-feature
       spec:
         displayName: Chargeback
         description: Chargeback can generate reports based on historical usage data from a cluster, providing accountability for how resources have been used.
@@ -591,8 +589,6 @@ data:
         namespace: placeholder
         annotations:
           tectonic-visibility: ocs
-        labels:
-          alm-catalog: tectonic-ocs
       spec:
         displayName: etcd
         description: |
@@ -763,8 +759,6 @@ data:
         namespace: placeholder
         annotations:
           tectonic-visibility: ocs
-        labels:
-          alm-catalog: tectonic-ocs
       spec:
         displayName: etcd
         description: |
@@ -1041,8 +1035,6 @@ data:
         namespace: placeholder
         annotations:
           tectonic-visibility: ocs
-        labels:
-          alm-catalog: tectonic-ocs
       spec:
         displayName: Prometheus
         description: |
@@ -1490,8 +1482,6 @@ data:
         name: vault-operator.0.1.5
         annotations:
           tectonic-visibility: ocs
-        labels:
-          alm-catalog: tectonic-ocs
       spec:
         displayName: Vault
         description: |

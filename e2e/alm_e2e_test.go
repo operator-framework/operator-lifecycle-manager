@@ -283,7 +283,6 @@ func TestUICatalogEntriesVisibility(t *testing.T) {
 
 		actual, ok := labels["tectonic-visibility"]
 		require.True(t, ok, "missing visibility label: service='%s' labels=%v", serviceName, labels)
-
 		expected := requiredVisibilities[serviceName]
 		require.Equal(t, expected, actual, "incorrect visibility: service='%s'", serviceName)
 	}
@@ -294,6 +293,10 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 
 	fetchedUICatalogEntryNames, err := fetchUICatalogEntries(t, c, expectedUICatalogEntries)
 	require.NoError(t, err)
+
+	requiredLabels := map[string]string{
+		"alm-catalog": "tectonic-ocs",
+	}
 
 	unstructuredConverter := conversion.NewConverter(true)
 	for _, uic := range fetchedUICatalogEntryNames.Items {
@@ -332,20 +335,25 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 		crdsPresent := 0
 		csvsPresent := 0
 
-		// Ensure that each component of the InstallPlan is present in the cluster
+		// Ensure that each component of the InstallPlan is present in the cluster and has the correct provenance labels
 		// Currently only checking for CustomResourceDefinitions, ClusterServiceVersion-v1s and Secrets
 		for _, step := range fetchedInstallPlan.Status.Plan {
 			t.Logf("Verifiying that %s %s is present", step.Resource.Kind, step.Resource.Name)
 			if step.Resource.Kind == "CustomResourceDefinition" {
 				_, err := c.GetCustomResourceDefinition(step.Resource.Name)
-
 				require.NoError(t, err)
 				crdsPresent++
 			} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
-				_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
+				csv, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
 
 				require.NoError(t, err)
 				csvsPresent++
+
+				for labelName, labelValue := range requiredLabels {
+					actual, ok := csv.GetLabels()[labelName]
+					require.True(t, ok, "%s missing expected label %s:%s", csv.GetName(), labelName, labelValue)
+					require.Equal(t, labelValue, actual)
+				}
 			} else if step.Resource.Kind == "Secret" {
 				_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
 

@@ -143,7 +143,7 @@ func TestResolveInstallPlan(t *testing.T) {
 			}
 
 			// Resolve the plan.
-			err := resolveInstallPlan(src, &plan)
+			err := resolveInstallPlan("tectonic-ocs", src, &plan)
 
 			// Assert the error is as expected.
 			if tt.expectedErr == nil {

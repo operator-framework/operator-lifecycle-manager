@@ -332,7 +332,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	for sourceName, source := range o.sources {
 		log.Debugf("resolving against source %v", sourceName)
 		plan.EnsureCatalogSource(sourceName)
-		err := resolveInstallPlan(source, plan)
+		err := resolveInstallPlan(sourceName, source, plan)
 		if err != nil {
 			return err
 		}
@@ -376,7 +376,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
+func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
 	crdKey := registry.CRDKey{
@@ -392,6 +392,15 @@ func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, source registry.S
 	log.Debugf("found %#v", crd)
 
 	if owned {
+		// Label CRD with catalog source
+		labels := crd.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[CatalogLabel] = sourceName
+		crd.SetLabels(labels)
+
+		// Add CRD Step
 		step, err := v1alpha1.NewStepResourceFromCRD(crd)
 		return step, "", err
 	}
@@ -437,7 +446,7 @@ func (srm stepResourceMap) Combine(y stepResourceMap) {
 	}
 }
 
-func resolveCSV(csvName, namespace string, source registry.Source) (stepResourceMap, error) {
+func resolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -462,7 +471,7 @@ func resolveCSV(csvName, namespace string, source registry.Source) (stepResource
 
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
-			step, owner, err := resolveCRDDescription(crdDesc, source, csv.OwnsCRD(crdDesc.Name))
+			step, owner, err := resolveCRDDescription(crdDesc, sourceName, source, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, err
 			}
@@ -480,6 +489,15 @@ func resolveCSV(csvName, namespace string, source registry.Source) (stepResource
 		// Manually override the namespace and create the final step for the CSV,
 		// which is for the CSV itself.
 		csv.SetNamespace(namespace)
+
+		// Add the sourcename as a label on the CSV, so that we know where it came from
+		labels := csv.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[CatalogLabel] = sourceName
+		csv.SetLabels(labels)
+
 		step, err := v1alpha1.NewStepResourceFromCSV(csv)
 		if err != nil {
 			return nil, err
@@ -493,10 +511,10 @@ func resolveCSV(csvName, namespace string, source registry.Source) (stepResource
 	return steps, nil
 }
 
-func resolveInstallPlan(source registry.Source, plan *v1alpha1.InstallPlan) error {
+func resolveInstallPlan(sourceName string, source registry.Source, plan *v1alpha1.InstallPlan) error {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, err := resolveCSV(csvName, plan.Namespace, source)
+		csvSRM, err := resolveCSV(csvName, plan.Namespace, sourceName, source)
 		if err != nil {
 			return err
 		}

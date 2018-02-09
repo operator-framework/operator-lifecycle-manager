@@ -7,8 +7,6 @@ metadata:
   name: vault-operator.0.1.5
   annotations:
     tectonic-visibility: ocs
-  labels:
-    alm-catalog: tectonic-ocs
 spec:
   displayName: Vault
   description: |

@@ -7,8 +7,6 @@ metadata:
   namespace: placeholder
   annotations:
     tectonic-visibility: tectonic-feature
-  labels:
-    alm-catalog: tectonic-feature
 spec:
   displayName: Chargeback
   description: Chargeback can generate reports based on historical usage data from a cluster, providing accountability for how resources have been used.
