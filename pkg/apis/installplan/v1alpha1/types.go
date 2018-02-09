@@ -8,8 +8,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	runtime "k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
@@ -167,7 +166,7 @@ func NewStepResourceFromCSV(csv *csvv1alpha1.ClusterServiceVersion) (StepResourc
 	if err := csvv1alpha1.AddToScheme(csvScheme); err != nil {
 		return StepResource{}, err
 	}
-	csvSerializer := json.NewSerializer(json.DefaultMetaFactory, csvScheme, csvScheme, true)
+	csvSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, csvScheme, csvScheme, true)
 
 	var manifestCSV bytes.Buffer
 	if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
