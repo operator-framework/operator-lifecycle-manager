@@ -8,6 +8,7 @@ metadata:
   annotations:
     tectonic-visibility: ocs
 spec:
+  replaces: prometheusoperator.0.14.0
   displayName: Prometheus
   description: |
     An open-source monitoring system with a dimensional data model, flexible query language, efficient time series database and modern alerting approach.
