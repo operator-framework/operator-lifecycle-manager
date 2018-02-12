@@ -43,12 +43,10 @@ type Subscription struct {
 }
 
 type SubscriptionStatus struct {
-	metav1.Status `json:",inline"`
+	CurrentCSV string                `json:"installedCSV,omitempty"`
+	Install    *InstallPlanReference `json:"installplan,omitempty"`
 
-	CurrentCSV string                `json:"installedCSV"`
-	Install    *InstallPlanReference `json:"installplan"`
-
-	State       SubscriptionState `json:"state"`
+	State       SubscriptionState `json:"state,omitempty"`
 	LastUpdated metav1.Time       `json:"lastUpdated"`
 }
 

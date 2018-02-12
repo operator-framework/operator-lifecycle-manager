@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -699,6 +700,23 @@ func TestSyncSubscription(t *testing.T) {
 					require.Equal(t, map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"}, sub.GetLabels())
 					require.Equal(t, tt.expected.subscription.Spec, sub.Spec)
 					require.Equal(t, tt.expected.subscription.Status, sub.Status)
+
+					m, _ := json.Marshal(tt.expected.subscription.Status)
+					raw := map[string]interface{}{}
+					json.Unmarshal(m, &raw)
+
+					if sub.Status.CurrentCSV == "" {
+						_, ok := raw["installedCSV"]
+						require.False(t, ok)
+					}
+					if sub.Status.Install == nil {
+						_, ok := raw["installplan"]
+						require.False(t, ok)
+					}
+					if sub.Status.State == "" {
+						_, ok := raw["state"]
+						require.False(t, ok)
+					}
 				}()
 				subscriptionClientFake.UpdateSubscriptionReturns(nil, tt.initial.updateSubscriptionError)
 			}
