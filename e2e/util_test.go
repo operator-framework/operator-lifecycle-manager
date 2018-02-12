@@ -2,18 +2,21 @@ package e2e
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/stretchr/testify/require"
 	"k8s.io/apiserver/pkg/storage/names"
+
+	"github.com/coreos-inc/alm/pkg/apis"
 )
 
 const (
@@ -87,4 +90,30 @@ func pollForCustomResource(t *testing.T, c opClient.Interface, group string, ver
 	})
 
 	return err
+}
+
+/// waitForAndFetchCustomResource is same as pollForCustomResource but returns the fetched unstructured resource
+func waitForAndFetchCustomResource(t *testing.T, c opClient.Interface, version string, kind string, name string) (*unstructured.Unstructured, error) {
+	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
+	var res *unstructured.Unstructured
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		res, err = c.GetCustomResource(apis.GroupName, version, testNamespace, kind, name)
+		if err != nil {
+			return false, nil
+		}
+		return true, nil
+	})
+
+	return res, err
+}
+func cleanupCustomResource(c opClient.Interface, group, kind, name string) cleanupFunc {
+	return func() {
+		err := c.DeleteCustomResource(apis.GroupName, group, testNamespace, kind, name)
+		if err != nil {
+			fmt.Printf("ERROR cleaning up - DeleteCustomResource(%s, %s, %s, %s, %s) err=%v\n",
+				apis.GroupName, group, testNamespace, kind, name, err)
+		}
+	}
 }
