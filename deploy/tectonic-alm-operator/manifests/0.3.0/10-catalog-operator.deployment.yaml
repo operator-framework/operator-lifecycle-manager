@@ -28,7 +28,7 @@ spec:
           - '-namespace'
           - tectonic-system
           - '-debug'
-          image: quay.io/coreos/catalog@sha256:4d6e9d09d705b79cfc7a13e860dd8b07c7ab5c4f4b093444d175781a1ee67fc9
+          image: quay.io/coreos/catalog@sha256:0e1464ed5936eae58a1b8caec61ff670725010a226dd216bf3a868b0dccee19e
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

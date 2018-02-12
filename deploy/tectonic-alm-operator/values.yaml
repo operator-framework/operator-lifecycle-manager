@@ -3,7 +3,7 @@ catalog-namespace: tectonic-system
 alm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/alm@sha256:87a9223a92ec592be9ca917c2662ed8d79bdf844a17f43198ca0f8f56b5ba9df
+    ref: quay.io/coreos/alm@sha256:2986602e8c9c8c459944f4ef8824939f77925896faa71e66798bcea5569005ad
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -11,7 +11,7 @@ alm:
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/catalog@sha256:4d6e9d09d705b79cfc7a13e860dd8b07c7ab5c4f4b093444d175781a1ee67fc9
+    ref: quay.io/coreos/catalog@sha256:0e1464ed5936eae58a1b8caec61ff670725010a226dd216bf3a868b0dccee19e
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
