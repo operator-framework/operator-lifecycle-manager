@@ -33,7 +33,7 @@ type StrategyDeploymentSpec struct {
 // InstallStrategy.
 type StrategyDetailsDeployment struct {
 	DeploymentSpecs []StrategyDeploymentSpec        `json:"deployments"`
-	Permissions     []StrategyDeploymentPermissions `json:"permissions"`
+	Permissions     []StrategyDeploymentPermissions `json:"permissions,omitempty"`
 }
 
 type StrategyDeploymentInstaller struct {

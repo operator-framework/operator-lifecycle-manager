@@ -23,10 +23,6 @@ spec:
           description: Spec for a ClusterServiceVersion
           required:
           - displayName
-          - version
-          - maturity
-          - labels
-          - selector
           - install
           properties:
             displayName:

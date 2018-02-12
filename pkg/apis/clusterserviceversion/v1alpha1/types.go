@@ -68,7 +68,7 @@ type CRDResourceReference struct {
 //
 // If the CRD is present in the Owned list, it is implicitly required.
 type CustomResourceDefinitions struct {
-	Owned    []CRDDescription `json:"owned"`
+	Owned    []CRDDescription `json:"owned,omitempty"`
 	Required []CRDDescription `json:"required,omitempty"`
 }
 
@@ -76,14 +76,14 @@ type CustomResourceDefinitions struct {
 // that can manage apps for given version and AppType.
 type ClusterServiceVersionSpec struct {
 	InstallStrategy           NamedInstallStrategy      `json:"install"`
-	Version                   semver.Version            `json:"version"`
-	Maturity                  string                    `json:"maturity"`
-	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions"`
+	Version                   semver.Version            `json:"version,omitempty"`
+	Maturity                  string                    `json:"maturity,omitempty"`
+	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	DisplayName               string                    `json:"displayName"`
-	Description               string                    `json:"description"`
-	Keywords                  []string                  `json:"keywords"`
-	Maintainers               []Maintainer              `json:"maintainers"`
-	Provider                  AppLink                   `json:"provider"`
+	Description               string                    `json:"description,omitempty"`
+	Keywords                  []string                  `json:"keywords,omitempty"`
+	Maintainers               []Maintainer              `json:"maintainers,omitempty"`
+	Provider                  AppLink                   `json:"provider,omitempty"`
 	Links                     []AppLink                 `json:"links,omitempty"`
 	Icon                      []Icon                    `json:"icon,omitempty"`
 
@@ -107,13 +107,13 @@ type ClusterServiceVersionSpec struct {
 }
 
 type Maintainer struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	Name  string `json:"name,omitempty"`
+	Email string `json:"email,omitempty"`
 }
 
 type AppLink struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
+	Name string `json:"name,omitempty"`
+	URL  string `json:"url,omitempty"`
 }
 
 type Icon struct {
