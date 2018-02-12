@@ -466,8 +466,14 @@ func TestPruneUICatalogEntry(t *testing.T) {
 	// Creating backing configmaps
 	_, err = c.CreateConfigMap(testNamespace, &oldConfigMap)
 	require.NoError(t, err)
+	defer func() {
+		c.DeleteConfigMap(testNamespace, oldConfigMap.GetName())
+	}()
 	_, err = c.CreateConfigMap(testNamespace, &newConfigMap)
 	require.NoError(t, err)
+	defer func() {
+		c.DeleteConfigMap(testNamespace, newConfigMap.GetName())
+	}()
 
 	catalogSource := catalogv1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
@@ -487,6 +493,9 @@ func TestPruneUICatalogEntry(t *testing.T) {
 	unstructuredConverter := conversion.NewConverter(true)
 	unstructuredCatalogSource, err := unstructuredConverter.ToUnstructured(&catalogSource)
 	require.NoError(t, err)
+	defer func() {
+		c.DeleteCustomResource(apis.GroupName, catalogv1alpha1.GroupVersion, testNamespace, catalogv1alpha1.CatalogSourceKind, catalogSource.GetName())
+	}()
 
 	// Expectations
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredCatalogSource})
