@@ -46,10 +46,11 @@ spec:
           - name: OPERATOR_NAME
             value: {{ template "fullname" . }}-alm
           resources:
-{{ toYaml .Values.alm.resources | indent 12 }}
-    {{- if .Values.alm.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.alm.nodeSelector | indent 8 }}
-    {{- end }}
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
       imagePullSecrets:
         - name: coreos-pull-secret
