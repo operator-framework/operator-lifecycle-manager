@@ -1685,11 +1685,6 @@ data:
                 x-descriptors:
                   - 'urn:alm:descriptor:com.tectonic.ui:podCount'
             statusDescriptors:
-              - description: The status of each of the node Pods for the Vault cluster.
-                displayName: Node Status
-                path: nodes
-                x-descriptors:
-                  - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
               - description: The service at which the running Vault cluster can be accessed.
                 displayName: Service
                 path: serviceName
