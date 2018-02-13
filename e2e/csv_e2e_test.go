@@ -260,9 +260,11 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    crdName,
-						Version: "v1alpha1",
-						Kind:    crdPlural,
+						Name:        crdName,
+						Version:     "v1alpha1",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: crdName,
 					},
 				},
 			},
@@ -355,9 +357,11 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins.cluster.com",
-						Version: "v1alpha1",
-						Kind:    "InCluster",
+						Name:        "ins.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "InCluster",
+						DisplayName: "Ins",
+						Description: "In the cluster",
 					},
 				},
 			},
@@ -450,9 +454,11 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins.cluster.com",
-						Version: "v1alpha1",
-						Kind:    "InCluster",
+						Name:        "ins.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "InCluster",
+						DisplayName: "Ins",
+						Description: "In the cluster",
 					},
 				},
 			},
@@ -525,9 +531,11 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins2.cluster.com",
-						Version: "v1alpha1",
-						Kind:    "InCluster2",
+						Name:        "ins2.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "InCluster2",
+						DisplayName: "Ins2",
+						Description: "In the cluster2",
 					},
 				},
 			},
@@ -596,9 +604,11 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "ins2.cluster.com",
-						Version: "v1alpha1",
-						Kind:    "InCluster2",
+						Name:        "ins2.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "InCluster2",
+						DisplayName: "Ins2",
+						Description: "In the cluster2",
 					},
 				},
 			},

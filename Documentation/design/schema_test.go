@@ -223,7 +223,7 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	err = openapispec.ExpandSchema(openapiSchema, nil, nil)
 	require.NoError(t, err)
 	validator := validate.NewSchemaValidator(openapiSchema, nil, "", strfmt.Default)
-	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent()["spec"], validator)
+	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent(), validator)
 }
 
 func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {

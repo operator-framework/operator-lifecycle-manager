@@ -21,17 +21,23 @@ spec:
       type: object
       description: Document which defines the desire and current state of an installation of a Cluster Service
       required:
-      - clusterServiceVersionNames
-      - approval
+      - spec
       properties:
-        clusterServiceVersionNames:
-          type: array
-          description: A list of the names of the Cluster Services
-          items:
-            type: string
-        approval:
-          type: string
-          enum:
-          - Automatic
-          - Manual
-          - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
+        spec:
+          type: object
+          description: Spec for an InstallPlan
+          required:
+          - clusterServiceVersionNames
+          - approval
+          properties:
+            clusterServiceVersionNames:
+              type: array
+              description: A list of the names of the Cluster Services
+              items:
+                type: string
+            approval:
+              type: string
+              enum:
+              - Automatic
+              - Manual
+              - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
