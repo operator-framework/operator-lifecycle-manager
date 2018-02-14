@@ -7,6 +7,7 @@ metadata:
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
+    alm-examples: '[{"apiVersion":"etcd.database.coreos.com/v1alpha1","kind":"EtcdCluster","metadata":{"name":"example","namespace":"default"},"spec":{"size":3}}]'
 spec:
   displayName: etcd
   description: |

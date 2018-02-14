@@ -7,6 +7,7 @@ metadata:
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
+    alm-examples: '[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{"nodes":2,"version":"0.9.1-0"}}]'
   labels:
     alm-catalog: tectonic-ocs
 spec:
