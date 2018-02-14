@@ -1,3 +1,4 @@
+rbacApiVersion: rbac.authorization.k8s.io
 namespace: alm
 catalog_namespace: tectonic-system
 alm:
