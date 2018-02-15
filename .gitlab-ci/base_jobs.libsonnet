@@ -82,7 +82,7 @@ local appr = utils.appr;
             appversion: "1.0.0-%s" % self.image.alm.tag,
             apprepo: "quay.io/coreos/alm-ci-app",
             appname: self.namespace,
-            chart: "deploy/chart/kube-1.8",
+            chart: "deploy/chart",
             app: "%s@%s" % [self.apprepo, self.appversion],
             domain: "alm-%s.k8s.devtable.com" % "${CI_COMMIT_REF_SLUG}",
             namespace: "ci-alm-%s" % "${CI_COMMIT_REF_SLUG}",

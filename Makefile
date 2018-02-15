@@ -36,9 +36,15 @@ coverage-html: cover
 	go tool cover -html=cover.out
 
 run-local: update-catalog
-	./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
-	./scripts/build_local.sh
-	./scripts/install_local.sh local Documentation/install/resources
+	. ./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
+	. ./scripts/build_local.sh
+	. ./scripts/install_local.sh local Documentation/install/resources
+	rm -rf Documentation/install/resources
+
+run-local-shift: update-catalog
+	. ./scripts/package-release.sh ver=1.0.0-localshift Documentation/install/resources Documentation/install/local-values-shift.yaml
+	. ./scripts/build_local_shift.sh
+	. ./scripts/install_local.sh local Documentation/install/resources
 	rm -rf Documentation/install/resources
 
 e2e-local: update-catalog

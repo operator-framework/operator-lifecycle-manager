@@ -14,11 +14,6 @@ fi
 namespace=$1
 chart=$2
 
-# use minikube context
-kubectl config use-context minikube
-kubectl apply -f ./Documentation/install/minikube/minikube_kube-system_fix.yaml
-eval $(minikube docker-env) || { echo 'Cannot switch to minikube docker'; exit 1; }
-
 # create alm NS
 kubectl create ns ${namespace} || { echo 'ns exists'; }
 

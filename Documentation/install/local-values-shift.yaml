@@ -1,4 +1,4 @@
-rbacApiVersion: rbac.authorization.k8s.io
+rbacApiVersion: authorization.openshift.io
 namespace: local
 watchedNamespaces: local
 catalog_namespace: local
