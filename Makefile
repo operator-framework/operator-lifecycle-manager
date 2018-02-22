@@ -91,7 +91,7 @@ gen-ci: fmt-ci
 	ffctl gen
 
 codegen:
-	./scripts/hack/k8s/codegen/update-generated.sh
+	./scripts/generate_groups.sh all github.com/coreos-inc/alm/pkg/client github.com/coreos-inc/alm/pkg/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1 uicatalogentry:v1alpha1"
 
 update-catalog:
 	./scripts/update-catalog.sh
