@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // This file contains tests that are for specific OCS services. They're a sanity check that we can always do the right
@@ -60,8 +60,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	}
 
 	// Create a new installplan for vault
-	unstructuredConverter := conversion.NewConverter(true)
-	vaultUnst, err := unstructuredConverter.ToUnstructured(&vaultInstallPlan)
+	vaultUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vaultInstallPlan)
 	require.NoError(t, err)
 
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: vaultUnst})

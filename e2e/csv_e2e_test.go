@@ -20,7 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -43,8 +43,7 @@ func createCSV(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) (cleanu
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
 	csv.Namespace = testNamespace
-	unstructuredConverter := conversion.NewConverter(true)
-	csvUnst, err := unstructuredConverter.ToUnstructured(&csv)
+	csvUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
 	if err != nil {
 		return nil, err
 	}
@@ -123,14 +122,13 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvCondit
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
-	unstructuredConverter := conversion.NewConverter(true)
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if err != nil {
 			return false, err
 		}
 
-		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched)
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched)
 		require.NoError(t, err)
 		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
@@ -156,7 +154,6 @@ func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alp
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
-	unstructuredConverter := conversion.NewConverter(true)
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if errors.IsNotFound(err) {
@@ -165,7 +162,7 @@ func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alp
 		if err != nil {
 			return false, err
 		}
-		if err := unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched); err == nil {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched); err == nil {
 			t.Logf("%s still exists", fetched.Name)
 		}
 		return false, nil

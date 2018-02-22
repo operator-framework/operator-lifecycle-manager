@@ -19,7 +19,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -84,10 +84,9 @@ func mockIntermediates(t *testing.T, mockOpClient *opClient.MockInterface, resol
 }
 
 func mockIsReplacing(t *testing.T, mockOpClient *opClient.MockInterface, prevCSV *v1alpha1.ClusterServiceVersion, currentCSV *v1alpha1.ClusterServiceVersion, csvQueryErr error) {
-	unstructuredConverter := conversion.NewConverter(true)
 	var unstructuredOldCSV *unstructured.Unstructured = nil
 	if prevCSV != nil {
-		unst, err := unstructuredConverter.ToUnstructured(prevCSV)
+		unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(prevCSV)
 		require.NoError(t, err)
 		unstructuredOldCSV = &unstructured.Unstructured{Object: unst}
 	} else {
@@ -100,10 +99,9 @@ func mockIsReplacing(t *testing.T, mockOpClient *opClient.MockInterface, prevCSV
 }
 
 func mockCSVsInNamespace(t *testing.T, mockOpClient *opClient.MockInterface, namespace string, csvsInNamespace []*v1alpha1.ClusterServiceVersion, csvQueryErr error) {
-	unstructuredConverter := conversion.NewConverter(true)
 	unstructuredCSVs := []*unstructured.Unstructured{}
 	for _, csv := range csvsInNamespace {
-		unst, err := unstructuredConverter.ToUnstructured(csv)
+		unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(csv)
 		require.NoError(t, err)
 		unstructuredCSVs = append(unstructuredCSVs, &unstructured.Unstructured{Object: unst})
 	}

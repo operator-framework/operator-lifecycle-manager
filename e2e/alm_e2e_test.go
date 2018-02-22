@@ -18,7 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -78,8 +78,7 @@ func fetchUICatalogEntry(t *testing.T, c opClient.Interface, name string) (*uica
 
 		for _, entry := range crl.Items {
 			if entry.GetName() == name {
-				unstructuredConverter := conversion.NewConverter(true)
-				err := unstructuredConverter.FromUnstructured(entry.Object, foundEntry)
+				err := runtime.DefaultUnstructuredConverter.FromUnstructured(entry.Object, foundEntry)
 				require.NoError(t, err)
 				return true, nil
 			}
@@ -129,8 +128,7 @@ func decorateCommonAndCreateInstallPlan(c opClient.Interface, plan installplanv1
 	plan.Kind = installplanv1alpha1.InstallPlanKind
 	plan.APIVersion = installplanv1alpha1.SchemeGroupVersion.String()
 	plan.Namespace = testNamespace
-	unstructuredConverter := conversion.NewConverter(true)
-	ipUnst, err := unstructuredConverter.ToUnstructured(&plan)
+	ipUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&plan)
 	if err != nil {
 		return nil, err
 	}
@@ -145,14 +143,13 @@ func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker i
 	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
 	var err error
 
-	unstructuredConverter := conversion.NewConverter(true)
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, name)
 		if err != nil {
 			return false, err
 		}
 
-		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetchedInstallPlan)
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetchedInstallPlan)
 		require.NoError(t, err)
 
 		return checker(fetchedInstallPlan), nil
@@ -165,14 +162,13 @@ func fetchCatalogSource(t *testing.T, c opClient.Interface, name string) (*catal
 	var fetchedCatalogSource *catalogv1alpha1.CatalogSource
 	var err error
 
-	unstructuredConverter := conversion.NewConverter(true)
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSUnst, err := c.GetCustomResource(apis.GroupName, catalogv1alpha1.GroupVersion, testNamespace, catalogv1alpha1.CatalogSourceKind, name)
 		if err != nil {
 			return false, err
 		}
 
-		err = unstructuredConverter.FromUnstructured(fetchedCSUnst.Object, &fetchedCatalogSource)
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedCSUnst.Object, &fetchedCatalogSource)
 		require.NoError(t, err)
 
 		return true, nil
@@ -298,10 +294,9 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 		"alm-catalog": "tectonic-ocs",
 	}
 
-	unstructuredConverter := conversion.NewConverter(true)
 	for _, uic := range fetchedUICatalogEntryNames.Items {
 		catalogEntry := uicatalogentryv1alpha1.UICatalogEntry{}
-		unstructuredConverter.FromUnstructured(uic.Object, &catalogEntry)
+		runtime.DefaultUnstructuredConverter.FromUnstructured(uic.Object, &catalogEntry)
 		csvName := catalogEntry.Spec.Manifest.Channels[0].CurrentCSVName
 
 		t.Logf("Creating install plan for %s", csvName)
@@ -320,7 +315,7 @@ func TestCreateInstallPlanFromEachUICatalogEntry(t *testing.T) {
 			},
 		}
 
-		unstructuredInstallPlan, err := unstructuredConverter.ToUnstructured(&installPlan)
+		unstructuredInstallPlan, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&installPlan)
 		require.NoError(t, err)
 
 		err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
@@ -388,8 +383,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 			Approval:                   installplanv1alpha1.ApprovalAutomatic,
 		},
 	}
-	unstructuredConverter := conversion.NewConverter(true)
-	unstructuredInstallPlan, err := unstructuredConverter.ToUnstructured(&installPlan)
+	unstructuredInstallPlan, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&installPlan)
 	require.NoError(t, err)
 
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
@@ -426,8 +420,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 			Approval:                   installplanv1alpha1.ApprovalAutomatic,
 		},
 	}
-	unstructuredConverter := conversion.NewConverter(true)
-	unstructuredInstallPlan, err := unstructuredConverter.ToUnstructured(&installPlan)
+	unstructuredInstallPlan, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&installPlan)
 	require.NoError(t, err)
 
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
@@ -490,8 +483,7 @@ func TestPruneUICatalogEntry(t *testing.T) {
 			ConfigMap:  oldConfigMap.GetName(),
 		},
 	}
-	unstructuredConverter := conversion.NewConverter(true)
-	unstructuredCatalogSource, err := unstructuredConverter.ToUnstructured(&catalogSource)
+	unstructuredCatalogSource, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&catalogSource)
 	require.NoError(t, err)
 	defer func() {
 		c.DeleteCustomResource(apis.GroupName, catalogv1alpha1.GroupVersion, testNamespace, catalogv1alpha1.CatalogSourceKind, catalogSource.GetName())
@@ -512,7 +504,7 @@ func TestPruneUICatalogEntry(t *testing.T) {
 
 	// update catalogsource to point to the newconfigmap
 	fetchedCatalogSource.Spec.ConfigMap = newConfigMap.GetName()
-	unstructuredNewCatalogSource, err := unstructuredConverter.ToUnstructured(&fetchedCatalogSource)
+	unstructuredNewCatalogSource, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&fetchedCatalogSource)
 	require.NoError(t, err)
 
 	err = c.UpdateCustomResource(&unstructured.Unstructured{Object: unstructuredNewCatalogSource})

@@ -68,18 +68,13 @@ build:
 run: build
 	./bin/$(EXECUTABLE)
 
-GLIDE := $(GOPATH)/bin/glide
+DEP := $(GOPATH)/bin/dep
 
-$(GLIDE):
-	go get github.com/Masterminds/glide
+$(DEP):
+	go get -u github.com/golang/dep/cmd/dep
 
-glide: $(GLIDE)
-
-vendor: $(GLIDE)
-	$(GLIDE) install -v
-
-vendor-update: vendor
-	$(GLIDE) up -v
+vendor-update:
+	$(GLIDE) ensure -v
 
 container: build
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .

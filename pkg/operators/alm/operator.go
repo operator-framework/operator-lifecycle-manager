@@ -17,7 +17,7 @@ import (
 	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -280,10 +280,9 @@ func (a *ALMOperator) csvsInNamespace(namespace string) (csvs []*v1alpha1.Cluste
 	if err != nil {
 		return nil
 	}
-	unstructuredConverter := conversion.NewConverter(true)
 	for _, csvUnst := range csvsInNamespace.Items {
 		csv := v1alpha1.ClusterServiceVersion{}
-		if err := unstructuredConverter.FromUnstructured(csvUnst.UnstructuredContent(), &csv); err != nil {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(csvUnst.UnstructuredContent(), &csv); err != nil {
 			continue
 		}
 		csvs = append(csvs, &csv)
@@ -420,9 +419,8 @@ func (a *ALMOperator) isReplacing(in *v1alpha1.ClusterServiceVersion) (previous 
 		log.Debugf("unable to get previous csv: %s", err.Error())
 		return nil
 	}
-	unstructuredConverter := conversion.NewConverter(true)
 	p := v1alpha1.ClusterServiceVersion{}
-	if err := unstructuredConverter.FromUnstructured(oldCSVUnst.UnstructuredContent(), &p); err != nil {
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(oldCSVUnst.UnstructuredContent(), &p); err != nil {
 		log.Debugf("unable to parse previous csv: %s", err.Error())
 		return nil
 	}
