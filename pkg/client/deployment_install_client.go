@@ -5,8 +5,8 @@ import (
 	"github.com/coreos-inc/alm/pkg/ownerutil"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
+	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
-	v1beta1extensions "k8s.io/api/extensions/v1beta1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -18,11 +18,11 @@ type InstallStrategyDeploymentInterface interface {
 	CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error)
 	CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
 	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
-	CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
-	CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error)
+	CreateDeployment(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error)
+	CreateOrUpdateDeployment(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error)
 	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
-	FindAnyDeploymentsMatchingNames(depNames []string) ([]*v1beta1extensions.Deployment, error)
+	FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1beta2.Deployment, error)
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
@@ -79,7 +79,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 	return c.opClient.UpdateServiceAccount(foundAccount)
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
+func (c *InstallStrategyDeploymentClientForNamespace) CreateDeployment(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error) {
 	return c.opClient.CreateDeployment(deployment)
 }
 
@@ -90,8 +90,8 @@ func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name stri
 	return c.opClient.DeleteDeployment(c.Namespace, name, immediateForegroundDelete)
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *v1beta1extensions.Deployment) (*v1beta1extensions.Deployment, error) {
-	_, d, err := c.opClient.CreateOrRollingUpdateDeployment(deployment)
+func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error) {
+	d, _, err := c.opClient.CreateOrRollingUpdateDeployment(deployment)
 	return d, err
 }
 
@@ -99,8 +99,8 @@ func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(se
 	return c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccountName, metav1.GetOptions{})
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) ([]*v1beta1extensions.Deployment, error) {
-	var deployments []*v1beta1extensions.Deployment
+func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1beta2.Deployment, error) {
+	var deployments []*appsv1beta2.Deployment
 	for _, depName := range depNames {
 		fetchedDep, err := c.opClient.GetDeployment(c.Namespace, depName)
 

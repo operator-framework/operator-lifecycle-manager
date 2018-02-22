@@ -7,7 +7,6 @@ import (
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 )
@@ -67,14 +66,10 @@ func (a *Annotator) getNamespaces(namespaceNames []string) (namespaces []corev1.
 }
 
 func (a *Annotator) AnnotateNamespace(namespace *corev1.Namespace) error {
-	// Clone the object since it will be modified.
-	obj, err := runtime.NewScheme().Copy(namespace)
+	originalName := namespace.GetName()
+	originalData, err := json.Marshal(namespace)
 	if err != nil {
 		return err
-	}
-	original, ok := obj.(*corev1.Namespace)
-	if !ok {
-		return fmt.Errorf("couldn't cast copy to namespace")
 	}
 
 	if namespace.Annotations == nil {
@@ -88,10 +83,6 @@ func (a *Annotator) AnnotateNamespace(namespace *corev1.Namespace) error {
 		namespace.Annotations[key] = value
 	}
 
-	originalData, err := json.Marshal(original)
-	if err != nil {
-		return err
-	}
 	modifiedData, err := json.Marshal(namespace)
 	if err != nil {
 		return err
@@ -100,7 +91,7 @@ func (a *Annotator) AnnotateNamespace(namespace *corev1.Namespace) error {
 	if err != nil {
 		return fmt.Errorf("error creating patch for Namespace: %v", err)
 	}
-	_, err = a.OpClient.KubernetesInterface().CoreV1().Namespaces().Patch(original.Name, types.StrategicMergePatchType, patchBytes)
+	_, err = a.OpClient.KubernetesInterface().CoreV1().Namespaces().Patch(originalName, types.StrategicMergePatchType, patchBytes)
 	if err != nil {
 		return err
 	}
