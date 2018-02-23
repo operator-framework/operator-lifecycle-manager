@@ -7,7 +7,7 @@ ARG sshkey
 RUN mkdir -p ~/.ssh
 RUN apt-get install make git openssh-client gcc g++
 
-COPY glide.yaml glide.lock Makefile ./
+COPY Gopkg.toml Gopkg.lock Makefile ./
 
 RUN make glide \
     && echo $sshkey | base64 -d > ~/.ssh/id_rsa  \

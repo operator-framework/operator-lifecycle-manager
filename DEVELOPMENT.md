@@ -5,7 +5,7 @@
 | Requirement | Purpose               | macOS                |
 |-------------|-----------------------|----------------------|
 | Go          | Compiler              | brew install go      |
-| Glide       | Dependency Management | brew install glide   |
+| Dep         | Dependency Management | brew install dep     |
 | Docker      | Packaging             | [Docker for Mac]     |
 | jsonnet     | JSON templating tool  | brew install jsonnet |
 | ffctl       | Gitlab CI format      | pip install ffctl    |
@@ -57,42 +57,19 @@ See the documentation in `deploy/tectonic-alm-operator` for how to take the new 
  
 ### Dependency Management
 
-#### Using glide
-
-This project uses [glide] for managing dependencies.
-
-[glide]: https://github.com/Masterminds/glide
-
-To install the projects dependencies into the `vendor` directory, run the following command:
-
-```sh
-$ glide install -v
-```
-
-To add a new dependency, run the following command:
-
-```sh
-$ glide get -v github.com/foo/bar
-```
-
-To add a new dependency at a specific version, append with `#{version}`:
-
-```sh
-$ glide get github.com/foo/bar#~1.2.0
-```
-
-To update all existing dependencies, run the following command:
-
-```sh
-$ glide up -v
-```
-
 #### Using make
 These commands are handled for you via the Makefile. To install the project
 dependencies, run:
 
 ```sh
 $ make vendor
+```
+
+To update dependencies, run:
+
+```sh
+$ make vendor-update
+$ make test
 ```
 
 The Makefile recipes for testing and builds ensure the project's dependencies
