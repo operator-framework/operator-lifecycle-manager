@@ -8,6 +8,11 @@ metadata:
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
+  names:
+    plural: clusterserviceversion-v1s
+    singular: clusterserviceversion-v1
+    kind: ClusterServiceVersion-v1
+    listKind: ClusterServiceVersionList-v1
   group: app.coreos.com
   version: v1alpha1
   scope: Namespaced
@@ -404,10 +409,3 @@ spec:
                                         - patch
                                         - delete
                                         - deletecollection
-
-
-  names:
-    plural: clusterserviceversion-v1s
-    singular: clusterserviceversion-v1
-    kind: ClusterServiceVersion-v1
-    listKind: ClusterServiceVersionList-v1

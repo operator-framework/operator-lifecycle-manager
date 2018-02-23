@@ -12,9 +12,6 @@ import (
 	"testing"
 
 	"github.com/ghodss/yaml"
-	openapispec "github.com/go-openapi/spec"
-	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/validate"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -24,11 +21,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	utilfeature "k8s.io/apiserver/pkg/util/feature"
 
 	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
@@ -178,11 +175,7 @@ func ValidatePackageManifest(t *testing.T, fileBytes []byte, csvFilenames []stri
 func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	schemaBytes, err := ioutil.ReadFile(schemaFileName)
 	require.NoError(t, err)
-
 	schemaBytesJson, err := yaml.YAMLToJSON(schemaBytes)
-	require.NoError(t, err)
-	var parsedSchema map[string]interface{}
-	err = json.Unmarshal(schemaBytesJson, &parsedSchema)
 	require.NoError(t, err)
 
 	crd := v1beta1.CustomResourceDefinition{}
@@ -195,20 +188,15 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	require.NoError(t, err)
 
 	// Validate CRD definition statically
-
-	// enable alpha feature CustomResourceValidation
-	err = utilfeature.DefaultFeatureGate.Set("CustomResourceValidation=true")
-	require.NoError(t, err)
-
 	scheme := runtime.NewScheme()
 	err = apiextensions.AddToScheme(scheme)
 	require.NoError(t, err)
 	err = v1beta1.AddToScheme(scheme)
 	require.NoError(t, err)
-	convertedCRD := apiextensions.CustomResourceDefinition{}
-	scheme.Convert(&crd, &convertedCRD, nil)
 
-	errList := validation.ValidateCustomResourceDefinition(&convertedCRD)
+	unversionedCRD := apiextensions.CustomResourceDefinition{}
+	scheme.Converter().Convert(&crd, &unversionedCRD, conversion.SourceToDest, nil)
+	errList := validation.ValidateCustomResourceDefinition(&unversionedCRD)
 	if len(errList) > 0 {
 		for _, ferr := range errList {
 			fmt.Println(ferr)
@@ -217,12 +205,7 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	}
 
 	// Validate CR against CRD schema
-	openapiSchema := &openapispec.Schema{}
-	err = apiservervalidation.ConvertToOpenAPITypes(&convertedCRD, openapiSchema)
-	require.NoError(t, err)
-	err = openapispec.ExpandSchema(openapiSchema, nil, nil)
-	require.NoError(t, err)
-	validator := validate.NewSchemaValidator(openapiSchema, nil, "", strfmt.Default)
+	validator, err := apiservervalidation.NewSchemaValidator(unversionedCRD.Spec.Validation)
 	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent(), validator)
 }
 

@@ -13,7 +13,6 @@ import (
 func TestScheme(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, addKnownTypes(scheme))
-	require.NoError(t, scheme.AddGeneratedDeepCopyFuncs(GetGeneratedDeepCopyFuncs()...))
 	require.NoError(t, AddToScheme(scheme))
 	require.NotNil(t, serializer.NewCodecFactory(scheme))
 

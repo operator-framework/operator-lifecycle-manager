@@ -3,7 +3,7 @@ package install
 import (
 	"testing"
 
-	extensions "k8s.io/api/extensions/v1beta1"
+	apps "k8s.io/api/apps/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -11,14 +11,14 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 	tests := []struct {
 		generation   int64
 		specReplicas int32
-		status       extensions.DeploymentStatus
+		status       apps.DeploymentStatus
 		msg          string
 		done         bool
 	}{
 		{
 			generation:   0,
 			specReplicas: 1,
-			status: extensions.DeploymentStatus{
+			status: apps.DeploymentStatus{
 				ObservedGeneration:  1,
 				Replicas:            1,
 				UpdatedReplicas:     0,
@@ -32,7 +32,7 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 		{
 			generation:   1,
 			specReplicas: 1,
-			status: extensions.DeploymentStatus{
+			status: apps.DeploymentStatus{
 				ObservedGeneration:  1,
 				Replicas:            2,
 				UpdatedReplicas:     1,
@@ -46,7 +46,7 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 		{
 			generation:   1,
 			specReplicas: 2,
-			status: extensions.DeploymentStatus{
+			status: apps.DeploymentStatus{
 				ObservedGeneration:  1,
 				Replicas:            2,
 				UpdatedReplicas:     2,
@@ -60,7 +60,7 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 		{
 			generation:   1,
 			specReplicas: 2,
-			status: extensions.DeploymentStatus{
+			status: apps.DeploymentStatus{
 				ObservedGeneration:  1,
 				Replicas:            2,
 				UpdatedReplicas:     2,
@@ -74,7 +74,7 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 		{
 			generation:   2,
 			specReplicas: 2,
-			status: extensions.DeploymentStatus{
+			status: apps.DeploymentStatus{
 				ObservedGeneration:  1,
 				Replicas:            2,
 				UpdatedReplicas:     2,
@@ -88,14 +88,14 @@ func TestDeploymentStatusViewerStatus(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		d := &extensions.Deployment{
+		d := &apps.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				Namespace:  "bar",
 				Name:       "foo",
 				UID:        "8764ae47-9092-11e4-8393-42010af018ff",
 				Generation: test.generation,
 			},
-			Spec: extensions.DeploymentSpec{
+			Spec: apps.DeploymentSpec{
 				Replicas: &test.specReplicas,
 			},
 			Status: test.status,

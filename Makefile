@@ -18,7 +18,8 @@ $(COVERUTIL):
 
 
 test:
-	go vet ./pkg/...
+    # disable copylocks check, k8s.io/code-generator generates code that doesn't pass that check
+	go vet -copylocks=false ./pkg/...
 	go test -v ./Documentation/...
 	go test -v -race ./pkg/...
 
@@ -73,8 +74,11 @@ DEP := $(GOPATH)/bin/dep
 $(DEP):
 	go get -u github.com/golang/dep/cmd/dep
 
+vendor:
+	$(DEP) ensure -v -vendor-only
+
 vendor-update:
-	$(GLIDE) ensure -v
+	$(DEP) ensure -v
 
 container: build
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
@@ -90,8 +94,16 @@ fmt-ci:
 gen-ci: fmt-ci
 	ffctl gen
 
-codegen:
-	./scripts/generate_groups.sh all github.com/coreos-inc/alm/pkg/client github.com/coreos-inc/alm/pkg/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1 uicatalogentry:v1alpha1"
+CODEGEN := ./vendor/k8s.io/code-generator/generate-groups.sh
+
+$(CODEGEN):
+    # dep doesn't currently support downloading dependencies that don't have go in the top-level dir.
+    # can move to managing with dep when merged: https://github.com/golang/dep/pull/1545
+	mkdir -p vendor/k8s.io/code-generator
+	git clone --branch release-1.9 git@github.com:kubernetes/code-generator.git vendor/k8s.io/code-generator
+
+codegen: $(CODEGEN)
+	$(CODEGEN) all github.com/coreos-inc/alm/pkg/client github.com/coreos-inc/alm/pkg/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1 uicatalogentry:v1alpha1"
 
 update-catalog:
 	./scripts/update-catalog.sh

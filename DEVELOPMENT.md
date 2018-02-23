@@ -95,10 +95,5 @@ dependencies, run:
 $ make vendor
 ```
 
-To update the dependencies, run:
-```sh
-$ make vendor-update
-```
-
 The Makefile recipes for testing and builds ensure the project's dependencies
 are properly installed and vendored before running.

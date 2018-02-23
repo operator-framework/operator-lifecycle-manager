@@ -56,4 +56,4 @@
 
 [[constraint]]
   name = "k8s.io/client-go"
-  version = "6.0.0"
+  version = "kubernetes-1.9.3"
