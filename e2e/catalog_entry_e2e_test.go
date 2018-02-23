@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -126,7 +126,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	}
 
 	for _, deploymentName := range []string{"etcd-operator", "vault-operator"} {
-		var deployment *extensions.Deployment
+		var deployment *appsv1beta2.Deployment
 		t.Logf("Looking for Deployment %s in %s\n", deploymentName, testNamespace)
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {

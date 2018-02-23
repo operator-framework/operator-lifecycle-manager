@@ -13,8 +13,8 @@ import (
 	"github.com/coreos-inc/alm/pkg/install"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
+	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -73,8 +73,8 @@ func createCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) (c
 
 }
 
-func newNginxDeployment() v1beta1.DeploymentSpec {
-	return v1beta1.DeploymentSpec{
+func newNginxDeployment() v1beta2.DeploymentSpec {
+	return v1beta2.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app": "nginx",

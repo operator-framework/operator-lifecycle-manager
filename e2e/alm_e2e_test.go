@@ -460,12 +460,12 @@ func TestPruneUICatalogEntry(t *testing.T) {
 	_, err = c.CreateConfigMap(testNamespace, &oldConfigMap)
 	require.NoError(t, err)
 	defer func() {
-		c.DeleteConfigMap(testNamespace, oldConfigMap.GetName())
+		c.DeleteConfigMap(testNamespace, oldConfigMap.GetName(), nil)
 	}()
 	_, err = c.CreateConfigMap(testNamespace, &newConfigMap)
 	require.NoError(t, err)
 	defer func() {
-		c.DeleteConfigMap(testNamespace, newConfigMap.GetName())
+		c.DeleteConfigMap(testNamespace, newConfigMap.GetName(), nil)
 	}()
 
 	catalogSource := catalogv1alpha1.CatalogSource{
