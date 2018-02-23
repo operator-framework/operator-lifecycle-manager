@@ -74,10 +74,10 @@ DEP := $(GOPATH)/bin/dep
 $(DEP):
 	go get -u github.com/golang/dep/cmd/dep
 
-vendor:
+vendor: $(DEP)
 	$(DEP) ensure -v -vendor-only
 
-vendor-update:
+vendor-update: $(DEP)
 	$(DEP) ensure -v
 
 container: build
