@@ -21,7 +21,7 @@ type UICatalogEntrySpec struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// Custom Resource of type "UICatalogEntrySpec" (UICatalogEntrySpec CRD created by ALM)
+// +genclient
 type UICatalogEntry struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
