@@ -92,6 +92,9 @@ $(CODEGEN):
 codegen: $(CODEGEN)
 	$(CODEGEN) all github.com/coreos-inc/alm/pkg/client github.com/coreos-inc/alm/pkg/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1 uicatalogentry:v1alpha1"
 
+verify-codegen: codegen
+	git diff --exit-code
+
 update-catalog:
 	./scripts/update-catalog.sh
 

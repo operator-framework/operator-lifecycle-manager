@@ -23,6 +23,8 @@ container-build:
   - mkdir -p $PWD/bin
   image: docker:git
   script:
+  - make verify-catalog
+  - make verify-codegen
   - 'docker build  --no-cache -f alm-ci.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   - 'docker build  --no-cache -f catalog-ci.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} . '
@@ -241,7 +243,6 @@ unit-tests:
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
   - make vendor
-  - make verify-catalog
   - make coverage
   stage: tests
   tags:
