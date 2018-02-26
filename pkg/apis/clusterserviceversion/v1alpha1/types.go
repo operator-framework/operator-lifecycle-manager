@@ -227,7 +227,7 @@ type ClusterServiceVersionStatus struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient:nonNamespaced
+// +genclient
 // ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.
 type ClusterServiceVersion struct {
 	metav1.TypeMeta   `json:",inline"`
