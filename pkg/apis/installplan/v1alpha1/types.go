@@ -205,7 +205,7 @@ func NewStepResourceFromCRD(crd *v1beta1.CustomResourceDefinition) (StepResource
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
+// +genclient:nonNamespaced
 type InstallPlan struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`

@@ -119,6 +119,9 @@ spec:
       - name: prometheus-operator
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              k8s-app: prometheus-operator
           template:
             metadata:
               labels:
