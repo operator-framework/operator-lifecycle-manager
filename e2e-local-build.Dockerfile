@@ -1,4 +1,4 @@
-FROM golang:1.9 as builder
+FROM golang:1.10 as builder
 WORKDIR /go/src/github.com/coreos-inc/alm
 COPY . .
 RUN make build && cp bin/alm /bin/alm && cp bin/catalog /bin/catalog

@@ -1,4 +1,4 @@
-FROM golang:1.10beta1 as builder
+FROM golang:1.10 as builder
 WORKDIR /go/src/github.com/coreos-inc/alm
 RUN apt-get update && apt-get install -y jq
 COPY pkg pkg
