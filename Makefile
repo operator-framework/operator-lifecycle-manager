@@ -7,7 +7,7 @@ IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
 PKG_DIR := pkg
 
-.PHONY: build test run clean vendor vendor-update coverage e2e
+.PHONY: build test vet test-docs run clean vendor vendor-update coverage e2e
 
 all: test build
 
@@ -16,16 +16,17 @@ COVERUTIL := $(GOPATH)/bin/gocoverutil
 $(COVERUTIL):
 	go get -u github.com/AlekSi/gocoverutil
 
-
-test:
-    # disable copylocks check, k8s.io/code-generator generates code that doesn't pass that check
+vet:
+	# disable copylocks check, k8s.io/code-generator generates code that doesn't pass that check
 	go vet -copylocks=false ./pkg/...
+
+test-docs:
 	go test -v ./Documentation/...
+
+test: vet test-docs
 	go test -v -race ./pkg/...
 
-test-cover: $(COVERUTIL)
-	go vet ./pkg/...
-	go test -v ./Documentation/...
+test-cover: $(COVERUTIL) vet test-docs
 	$(COVERUTIL) -coverprofile=cover.out test -v -race -covermode=atomic ./pkg/...
 	go tool cover -func=cover.out
 
