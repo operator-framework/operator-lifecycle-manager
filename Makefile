@@ -11,26 +11,16 @@ PKG_DIR := pkg
 
 all: test build
 
-COVERUTIL := $(GOPATH)/bin/gocoverutil
-
-$(COVERUTIL):
-	go get -u github.com/AlekSi/gocoverutil
-
 test-docs:
 	go test -v ./Documentation/...
 
 test: test-docs
-	go test -v -race ./pkg/...
+	go test -v -race -coverprofile=cover.out -covermode=count -coverpkg ./pkg/... ./pkg/...
 
-test-cover: $(COVERUTIL) test-docs
-	$(COVERUTIL) -coverprofile=cover.out test -v -race -covermode=atomic ./pkg/...
+coverage: test
 	go tool cover -func=cover.out
 
-cover: $(COVERUTIL)
-	$(COVERUTIL) -coverprofile=cover.out test -covermode=count ./pkg/...
-	go tool cover -func=cover.out
-
-coverage-html: cover
+coverage-html: test
 	go tool cover -html=cover.out
 
 run-local: update-catalog
@@ -104,6 +94,9 @@ codegen: $(CODEGEN)
 
 update-catalog:
 	./scripts/update-catalog.sh
+
+verify-catalog: update-catalog
+	git diff --exit-code
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):

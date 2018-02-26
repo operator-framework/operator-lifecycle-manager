@@ -240,9 +240,9 @@ unit-tests:
   coverage: /\d\d\.\d.$/
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
-  - make update-catalog && git diff --exit-code
   - make vendor
-  - make test-cover
+  - make verify-catalog
+  - make coverage
   stage: tests
   tags:
   - kubernetes

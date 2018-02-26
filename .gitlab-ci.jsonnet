@@ -86,9 +86,9 @@ local jobs = {
     'unit-tests': unittest_stage {
         coverage: @"/\d\d\.\d.$/",
         script: [
-            "make update-catalog && git diff --exit-code",
             "make vendor",
-            "make test-cover",
+            "make verify-catalog",
+            "make coverage",
         ],
     },
 
