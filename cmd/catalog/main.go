@@ -53,12 +53,12 @@ func main() {
 	})
 	go http.ListenAndServe(":8080", nil)
 
-	// Create an instance of a CatalogSource client.
-	catsrcClient, err := client.NewCatalogSourceClient(*kubeConfigPath)
+	// Create an instance of a client for accessing ALM types
+	crClient, err := client.NewClient(*kubeConfigPath)
 	if err != nil {
 		log.Fatalf("failed to bootstrap initial OCS catalog: %s", err)
 	}
-	err = catsrcClient.CreateCS(&v1alpha1.CatalogSource{
+	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tectonic-ocs",
 			Namespace: *catalogNamespace,

@@ -88,7 +88,7 @@ func (s uICatalogEntryNamespaceLister) Get(name string) (*v1alpha1.UICatalogEntr
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("uicatalogentry"), name)
+		return nil, errors.NewNotFound(v1alpha1.Resource("uicatalogentry-v1"), name)
 	}
 	return obj.(*v1alpha1.UICatalogEntry), nil
 }

@@ -63,18 +63,18 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			}
 			sub.Status.CurrentCSV = csv.GetName()
 		}
-		_, err := o.subscriptionClient.UpdateSubscription(sub)
+		_, err := o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
 		return err
 	}
 	if sub.Status.CurrentCSV == "" {
 
 	}
 	// check that desired CSV has been installed
-	csv, err := o.csvClient.GetCSVByName(sub.GetNamespace(), sub.Status.CurrentCSV)
+	csv, err := o.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
 	if err != nil || csv == nil {
 		log.Infof("error fetching CSV %s via k8s api: %v", sub.Status.CurrentCSV, err)
 		if sub.Status.Install != nil && sub.Status.Install.Name != "" {
-			ip, err := o.ipClient.GetInstallPlanByName(sub.GetNamespace(), sub.Status.Install.Name)
+			ip, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Get(sub.Status.Install.Name, metav1.GetOptions{})
 			if err != nil {
 				log.Errorf("get installplan %s error: %v", sub.Status.Install.Name, err)
 			}
@@ -104,7 +104,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		ip.SetOwnerReferences(owner)
 		ip.SetGenerateName(fmt.Sprintf("install-%s", sub.Status.CurrentCSV))
 		ip.SetNamespace(sub.GetNamespace())
-		res, err := o.ipClient.CreateInstallPlan(ip)
+		res, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Create(ip)
 		if err != nil {
 			return fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Status.CurrentCSV, err)
 		}
@@ -117,7 +117,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			APIVersion: res.APIVersion,
 			Kind:       res.Kind,
 		}
-		_, err = o.subscriptionClient.UpdateSubscription(sub)
+		_, err = o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
 		return err
 	}
 	// poll catalog for an update
@@ -132,6 +132,6 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	// update subscription with new latest
 	sub.Status.CurrentCSV = repl.GetName()
 	sub.Status.Install = nil
-	_, err = o.subscriptionClient.UpdateSubscription(sub)
+	_, err = o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
 	return err
 }

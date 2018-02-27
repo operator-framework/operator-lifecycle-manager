@@ -93,6 +93,18 @@ codegen: $(CODEGEN)
 	mkdir -p $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate
 	cp boilerplate.go.txt $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate/boilerplate.go.txt
 	$(CODEGEN) all github.com/coreos-inc/alm/pkg/client github.com/coreos-inc/alm/pkg/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1 uicatalogentry:v1alpha1"
+	# codegen doesn't respect pluralnames, so we manually set them here
+	find ./pkg/client -type f -exec sed -i.bak 's/\"catalogsource/\"catalogsource-v1/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"catalogsources/\"catalogsource-v1s/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"clusterserviceversion/\"clusterserviceversion-v1/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"clusterserviceversions/\"clusterserviceversion-v1s/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"installplan/\"installplan-v1/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"installplans/\"installplan-v1s/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"subscription/\"subscription-v1/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"subscriptions/\"subscription-v1s/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"uicatalogentry/\"uicatalogentry-v1/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/\"uicatalogentries/\"uicatalogentry-v1s/g' {} \; -exec rm {}.bak \;
+
 
 verify-codegen: codegen
 	git diff --exit-code

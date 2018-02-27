@@ -56,23 +56,23 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=catalogsource, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("catalogsources"):
+	case v1alpha1.SchemeGroupVersion.WithResource("catalogsource-v1s"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Catalogsource().V1alpha1().CatalogSources().Informer()}, nil
 
 		// Group=clusterserviceversion, Version=v1alpha1
-	case clusterserviceversion_v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions"):
+	case clusterserviceversion_v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversion-v1s"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusterserviceversion().V1alpha1().ClusterServiceVersions().Informer()}, nil
 
 		// Group=installplan, Version=v1alpha1
-	case installplan_v1alpha1.SchemeGroupVersion.WithResource("installplans"):
+	case installplan_v1alpha1.SchemeGroupVersion.WithResource("installplan-v1s"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Installplan().V1alpha1().InstallPlans().Informer()}, nil
 
 		// Group=subscription, Version=v1alpha1
-	case subscription_v1alpha1.SchemeGroupVersion.WithResource("subscriptions"):
+	case subscription_v1alpha1.SchemeGroupVersion.WithResource("subscription-v1s"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Subscription().V1alpha1().Subscriptions().Informer()}, nil
 
 		// Group=uicatalogentry, Version=v1alpha1
-	case uicatalogentry_v1alpha1.SchemeGroupVersion.WithResource("uicatalogentries"):
+	case uicatalogentry_v1alpha1.SchemeGroupVersion.WithResource("uicatalogentry-v1s"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Uicatalogentry().V1alpha1().UICatalogEntries().Informer()}, nil
 
 	}

@@ -63,7 +63,7 @@ func (c *uICatalogEntries) Get(name string, options v1.GetOptions) (result *v1al
 	result = &v1alpha1.UICatalogEntry{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -76,7 +76,7 @@ func (c *uICatalogEntries) List(opts v1.ListOptions) (result *v1alpha1.UICatalog
 	result = &v1alpha1.UICatalogEntryList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
@@ -88,7 +88,7 @@ func (c *uICatalogEntries) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
 }
@@ -98,7 +98,7 @@ func (c *uICatalogEntries) Create(uICatalogEntry *v1alpha1.UICatalogEntry) (resu
 	result = &v1alpha1.UICatalogEntry{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		Body(uICatalogEntry).
 		Do().
 		Into(result)
@@ -110,7 +110,7 @@ func (c *uICatalogEntries) Update(uICatalogEntry *v1alpha1.UICatalogEntry) (resu
 	result = &v1alpha1.UICatalogEntry{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		Name(uICatalogEntry.Name).
 		Body(uICatalogEntry).
 		Do().
@@ -125,7 +125,7 @@ func (c *uICatalogEntries) UpdateStatus(uICatalogEntry *v1alpha1.UICatalogEntry)
 	result = &v1alpha1.UICatalogEntry{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		Name(uICatalogEntry.Name).
 		SubResource("status").
 		Body(uICatalogEntry).
@@ -138,7 +138,7 @@ func (c *uICatalogEntries) UpdateStatus(uICatalogEntry *v1alpha1.UICatalogEntry)
 func (c *uICatalogEntries) Delete(name string, options *v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		Name(name).
 		Body(options).
 		Do().
@@ -149,7 +149,7 @@ func (c *uICatalogEntries) Delete(name string, options *v1.DeleteOptions) error 
 func (c *uICatalogEntries) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
 		Do().
@@ -161,7 +161,7 @@ func (c *uICatalogEntries) Patch(name string, pt types.PatchType, data []byte, s
 	result = &v1alpha1.UICatalogEntry{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("uicatalogentries").
+		Resource("uicatalogentry-v1s").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

@@ -88,7 +88,7 @@ func (s installPlanNamespaceLister) Get(name string) (*v1alpha1.InstallPlan, err
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("installplan"), name)
+		return nil, errors.NewNotFound(v1alpha1.Resource("installplan-v1"), name)
 	}
 	return obj.(*v1alpha1.InstallPlan), nil
 }

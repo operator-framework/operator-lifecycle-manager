@@ -1,5 +1,5 @@
 //go:generate counterfeiter deployment_install_client.go InstallStrategyDeploymentInterface
-package client
+package install
 
 import (
 	"github.com/coreos-inc/alm/pkg/ownerutil"

@@ -88,7 +88,7 @@ func (s catalogSourceNamespaceLister) Get(name string) (*v1alpha1.CatalogSource,
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("catalogsource"), name)
+		return nil, errors.NewNotFound(v1alpha1.Resource("catalogsource-v1"), name)
 	}
 	return obj.(*v1alpha1.CatalogSource), nil
 }

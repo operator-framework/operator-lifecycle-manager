@@ -13,7 +13,6 @@ import (
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
 	catsrcv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
@@ -21,6 +20,8 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/apis/subscription/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/client/clientset/versioned"
+	"github.com/coreos-inc/alm/pkg/client/informers/externalversions"
 	"github.com/coreos-inc/alm/pkg/registry"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -37,15 +38,11 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	ipClient           client.InstallPlanInterface
-	csvClient          client.ClusterServiceVersionInterface
-	uiceClient         client.UICatalogEntryInterface
-	catsrcClient       client.CatalogSourceInterface
-	subscriptionClient client.SubscriptionClientInterface
-	namespace          string
-	sources            map[string]registry.Source
-	sourcesLock        sync.Mutex
-	sourcesLastUpdate  metav1.Time
+	client            versioned.Interface
+	namespace         string
+	sources           map[string]registry.Source
+	sourcesLock       sync.Mutex
+	sourcesLastUpdate metav1.Time
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -55,89 +52,21 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		watchedNamespaces = []string{metav1.NamespaceAll}
 	}
 
-	// Create an instance of a CatalogSource client.
-	catsrcClient, err := client.NewCatalogSourceClient(kubeconfigPath)
+	// Create a new client for ALM types (CRs)
+	crClient, err := client.NewClient(kubeconfigPath)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create an instance of a CatalogEntry client.
-	uiceClient, err := client.NewUICatalogEntryClient(kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
+	sharedInformerFactory := externalversions.NewSharedInformerFactory(crClient, wakeupInterval)
 
-	// Create an informer for CatalogSources.
-	catsrcSharedIndexInformers := []cache.SharedIndexInformer{
-		cache.NewSharedIndexInformer(
-			cache.NewListWatchFromClient(
-				catsrcClient,
-				"catalogsource-v1s",
-				operatorNamespace,
-				fields.Everything(),
-			),
-			&catsrcv1alpha1.CatalogSource{},
-			wakeupInterval,
-			cache.Indexers{},
-		),
-	}
-
-	// Create an instance of an InstallPlan client.
-	ipClient, err := client.NewInstallPlanClient(kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create an instance of a CSV client.
-	csvClient, err := client.NewClusterServiceVersionClient(kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create an instance of a Subscription client
-	subscriptionClient, err := client.NewSubscriptionClient(kubeconfigPath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a watch for each namespace.
-	ipWatchers := []*cache.ListWatch{}
-	subscriptionWatchers := []*cache.ListWatch{}
-	for _, namespace := range watchedNamespaces {
-		ipWatchers = append(ipWatchers, cache.NewListWatchFromClient(
-			ipClient,
-			"installplan-v1s",
-			namespace,
-			fields.Everything(),
-		))
-
-		subscriptionWatchers = append(subscriptionWatchers, cache.NewListWatchFromClient(
-			subscriptionClient,
-			"subscription-v1s",
-			namespace,
-			fields.Everything(),
-		))
-
-	}
-
-	// Create an informer for each watch.
+	// Create an informer for each namespace.
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, ipWatcher := range ipWatchers {
-		ipSharedIndexInformers = append(ipSharedIndexInformers, cache.NewSharedIndexInformer(
-			ipWatcher,
-			&v1alpha1.InstallPlan{},
-			wakeupInterval,
-			cache.Indexers{},
-		))
-	}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, watcher := range subscriptionWatchers {
-		subSharedIndexInformers = append(subSharedIndexInformers, cache.NewSharedIndexInformer(
-			watcher,
-			&subscriptionv1alpha1.Subscription{},
-			wakeupInterval,
-			cache.Indexers{},
-		))
+	for _, namespace := range watchedNamespaces {
+		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
+		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Installplan().V1alpha1().InstallPlans().Informer())
+		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Subscription().V1alpha1().Subscriptions().Informer())
 	}
 
 	// Create a new queueinformer-based operator.
@@ -148,20 +77,18 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		Operator:           queueOperator,
-		ipClient:           ipClient,
-		csvClient:          csvClient,
-		uiceClient:         uiceClient,
-		catsrcClient:       catsrcClient,
-		subscriptionClient: subscriptionClient,
-		namespace:          operatorNamespace,
-		sources:            make(map[string]registry.Source),
+		Operator:  queueOperator,
+		client:    crClient,
+		namespace: operatorNamespace,
+		sources:   make(map[string]registry.Source),
 	}
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	catsrcQueueInformer := queueinformer.New(
 		catsrcQueue,
-		catsrcSharedIndexInformers,
+		[]cache.SharedIndexInformer{
+			sharedInformerFactory.Catalogsource().V1alpha1().CatalogSources().Informer(),
+		},
 		op.syncCatalogSources,
 		nil,
 	)
@@ -210,7 +137,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	log.Infof("syncing CatalogSource: %s", catsrc.SelfLink)
 	store := &registry.CustomResourceCatalogStore{
-		Client:    o.uiceClient,
+		Client:    o.client,
 		Namespace: o.namespace,
 	}
 	entries, err := store.Sync(src, catsrc)
@@ -238,7 +165,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	syncError = o.syncSubscription(sub)
 	sub.Status.LastUpdated = timeNow()
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.subscriptionClient.UpdateSubscription(sub); err != nil {
+	if _, err := o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub); err != nil {
 		updateErr := errors.New("error updating Subscription status: " + err.Error())
 		if syncError == nil {
 			log.Info(updateErr)
@@ -262,7 +189,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	syncError = transitionInstallPlanState(o, plan)
 
 	// Update CSV with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.ipClient.UpdateInstallPlan(plan); err != nil {
+	if _, err := o.client.InstallplanV1alpha1().InstallPlans(plan.GetNamespace()).Update(plan); err != nil {
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
 			log.Info(updateErr)
@@ -338,7 +265,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		}
 
 		// Look up the CatalogSource.
-		catsrc, err := o.catsrcClient.GetCS(o.namespace, sourceName)
+		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(sourceName, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -571,7 +498,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				// Attempt to create the CSV.
-				err = o.csvClient.CreateCSV(&csv)
+				_, err = o.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(&csv)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent

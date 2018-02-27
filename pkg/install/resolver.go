@@ -10,7 +10,6 @@ import (
 	operatorClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/ownerutil"
 )
 
@@ -46,7 +45,7 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorClient.Interface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	switch strategyName {
 	case InstallStrategyNameDeployment:
-		strategyClient := client.NewInstallStrategyDeploymentClient(opClient, owner.GetNamespace())
+		strategyClient := NewInstallStrategyDeploymentClient(opClient, owner.GetNamespace())
 		return NewStrategyDeploymentInstaller(strategyClient, owner, previousStrategy)
 	}
 

@@ -8,16 +8,18 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/coreos-inc/alm/pkg/annotator"
 	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/client/clientset/versioned"
+	"github.com/coreos-inc/alm/pkg/client/informers/externalversions"
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -30,7 +32,7 @@ const (
 type ALMOperator struct {
 	*queueinformer.Operator
 	csvQueue  workqueue.RateLimitingInterface
-	csvClient client.ClusterServiceVersionInterface
+	client    versioned.Interface
 	resolver  install.StrategyResolverInterface
 	annotator *annotator.Annotator
 }
@@ -42,10 +44,15 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 	if len(namespaces) < 1 {
 		namespaces = []string{metav1.NamespaceAll}
 	}
-	csvClient, err := client.NewClusterServiceVersionClient(kubeconfig)
+
+	// Create a new client for ALM types (CRs)
+	crClient, err := client.NewClient(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
+
+	sharedInformerFactory := externalversions.NewSharedInformerFactory(crClient, wakeupInterval)
+
 	queueOperator, err := queueinformer.NewOperator(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -54,7 +61,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 
 	op := &ALMOperator{
 		Operator:  queueOperator,
-		csvClient: csvClient,
+		client:    crClient,
 		resolver:  &install.StrategyResolver{},
 		annotator: namespaceAnnotator,
 	}
@@ -62,18 +69,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 	// if watching all namespaces, set up a watch to annotate new namespaces
 	if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
 		log.Debug("watching all namespaces, setting up queue")
-		namespaceWatcher := cache.NewListWatchFromClient(
-			queueOperator.OpClient.KubernetesInterface().CoreV1().RESTClient(),
-			"namespaces",
-			metav1.NamespaceAll,
-			fields.Everything(),
-		)
-		namespaceInformer := cache.NewSharedIndexInformer(
-			namespaceWatcher,
-			&corev1.Namespace{},
-			wakeupInterval,
-			cache.Indexers{},
-		)
+		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces().Informer()
 		queueInformer := queueinformer.NewInformer(
 			workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
 			namespaceInformer,
@@ -92,19 +88,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 	csvInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching for CSVs in namespace %s", namespace)
-		csvWatcher := cache.NewListWatchFromClient(
-			csvClient,
-			"clusterserviceversion-v1s",
-			namespace,
-			fields.Everything(),
-		)
-		csvInformer := cache.NewSharedIndexInformer(
-			csvWatcher,
-			&v1alpha1.ClusterServiceVersion{},
-			wakeupInterval,
-			cache.Indexers{},
-		)
-		csvInformers = append(csvInformers, csvInformer)
+		csvInformers = append(csvInformers, sharedInformerFactory.Clusterserviceversion().V1alpha1().ClusterServiceVersions().Informer())
 	}
 
 	// csvInformers for each namespace all use the same backing queue
@@ -147,7 +131,7 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 	syncError = a.transitionCSVState(clusterServiceVersion)
 
 	// Update CSV with status of transition. Log errors if we can't write them to the status.
-	if _, err := a.csvClient.UpdateCSV(clusterServiceVersion); err != nil {
+	if _, err := a.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Update(clusterServiceVersion); err != nil {
 		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
 		if syncError == nil {
 			log.Info(updateErr)

@@ -9,7 +9,8 @@ import (
 	catalogv1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/client"
+	"github.com/coreos-inc/alm/pkg/client/clientset/versioned"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -33,7 +34,7 @@ type CatalogSync struct {
 
 // CustomResourceCatalogStore stores service Catalog entries as CRDs in the cluster
 type CustomResourceCatalogStore struct {
-	Client             client.UICatalogEntryInterface
+	Client             versioned.Interface
 	Namespace          string
 	LastSuccessfulSync CatalogSync
 	LastAttemptedSync  CatalogSync
@@ -56,7 +57,18 @@ func (store *CustomResourceCatalogStore) Store(manifest v1alpha1.PackageManifest
 	labels[CatalogEntryVisibilityLabel] = visibility
 	resource.SetLabels(labels)
 	resource.SetOwnerReferences(ownerRefs)
-	return store.Client.UpdateEntry(resource)
+
+	old, err := store.Client.UicatalogentryV1alpha1().UICatalogEntries(resource.GetNamespace()).Get(resource.GetName(), metav1.GetOptions{})
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
+		return store.Client.UicatalogentryV1alpha1().UICatalogEntries(resource.GetNamespace()).Create(resource)
+	}
+	// Set the resource version.
+	resource.SetResourceVersion(old.GetResourceVersion())
+
+	return store.Client.UicatalogentryV1alpha1().UICatalogEntries(resource.GetNamespace()).Update(resource)
 }
 
 func (c CatalogSync) Error() string {
@@ -86,7 +98,7 @@ func (store *CustomResourceCatalogStore) Sync(catalog Source, source *catalogv1a
 	log.Debugf("Catalog Sync -- Packages found: %v", catalog.AllPackages())
 
 	// fetch existing UICatalogEntries to prune any old ones
-	existingEntries, err := store.Client.ListEntries(store.Namespace)
+	existingEntries, err := store.Client.UicatalogentryV1alpha1().UICatalogEntries(store.Namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +171,7 @@ func (store *CustomResourceCatalogStore) prune(source *catalogv1alpha1.CatalogSo
 
 	for name := range existingMap {
 		if _, ok := newMap[name]; !ok {
-			if err := store.Client.Delete(store.Namespace, name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDelete}); err != nil {
+			if err := store.Client.UicatalogentryV1alpha1().UICatalogEntries(store.Namespace).Delete(name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDelete}); err != nil {
 				log.Debugf("Catalog Sync -- err pruning %s: %s", name, err)
 				return err
 			}

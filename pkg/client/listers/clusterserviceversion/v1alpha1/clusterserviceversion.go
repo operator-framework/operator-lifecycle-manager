@@ -88,7 +88,7 @@ func (s clusterServiceVersionNamespaceLister) Get(name string) (*v1alpha1.Cluste
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("clusterserviceversion"), name)
+		return nil, errors.NewNotFound(v1alpha1.Resource("clusterserviceversion-v1"), name)
 	}
 	return obj.(*v1alpha1.ClusterServiceVersion), nil
 }
