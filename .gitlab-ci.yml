@@ -196,7 +196,18 @@ e2e_tests:
   variables:
     K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}
     NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}
+sanity-checks:
+  before_script:
+  - mkdir -p $GOPATH/src/github.com/coreos-inc/alm
+  - cp -a $CI_PROJECT_DIR/. $GOPATH/src/github.com/coreos-inc/alm
+  - cd $GOPATH/src/github.com/coreos-inc/alm
+  image: quay.io/coreos/alm-ci:base
+  script:
+  - make verify-catalog
+  - make verify-codegen
+  stage: sanity
 stages:
+- sanity
 - docker_base
 - docker_build
 - deploy_preview
