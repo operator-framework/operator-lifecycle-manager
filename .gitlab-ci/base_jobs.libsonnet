@@ -43,7 +43,7 @@ local appr = utils.appr;
             params: {
                 namespace: _vars.namespace,
                 "e2e.image.ref": vars.images.e2e.name,
-                "job_name": _vars.jobname,
+                job_name: _vars.jobname,
             },
             patch: "{\"imagePullSecrets\": [{\"name\": \"coreos-pull-secret\"}]}",
         },

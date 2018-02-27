@@ -47,11 +47,6 @@ local jobs = {
         stage: stages.docker_build,
         before_script+: ["mkdir -p $PWD/bin"],
         script:
-            // basic verifications before we build the containers
-            [
-            	"make verify-catalog",
-            	"make verify-codegen"
-            ] +
             docker.build_and_push(images.ci.alm.name,
                                   cache=false,
                                   extra_opts=["-f alm-ci.Dockerfile"]) +
@@ -92,6 +87,8 @@ local jobs = {
         coverage: @"/\d\d\.\d.$/",
         script: [
             "make vendor",
+            "make verify-catalog",
+            "make verify-codegen",
             "make coverage",
         ],
     },

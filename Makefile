@@ -1,4 +1,3 @@
-SHELL := /bin/sh
 ALM_PKG := github.com/coreos-inc/alm/cmd/alm
 ALM_EXECUTABLE := ./bin/alm
 CATALOG_PKG := github.com/coreos-inc/alm/cmd/catalog
@@ -75,8 +74,8 @@ clean:
 	rm $(CATALOG_EXECUTABLE)
 
 fmt-ci:
-	find . -iname "*.jsonnet" | xargs jsonnet fmt -i -n 4
-	find . -iname "*.libsonnet" | xargs jsonnet fmt -i -n 4
+	find . -iname "*.jsonnet" | xargs -L 1 jsonnet fmt -i -n 4
+	find . -iname "*.libsonnet" | xargs -L 1 jsonnet fmt -i -n 4
 
 gen-ci: fmt-ci
 	ffctl gen
