@@ -31,9 +31,9 @@ type FakeSubscriptions struct {
 	ns   string
 }
 
-var subscriptionsResource = schema.GroupVersionResource{Group: "subscription-v1", Version: "v1alpha1", Resource: "subscription-v1s"}
+var subscriptionsResource = schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "subscription-v1s"}
 
-var subscriptionsKind = schema.GroupVersionKind{Group: "subscription-v1", Version: "v1alpha1", Kind: "Subscription"}
+var subscriptionsKind = schema.GroupVersionKind{Group: "app.coreos.com", Version: "v1alpha1", Kind: "Subscription"}
 
 // Get takes name of the subscription, and returns the corresponding subscription object, and an error if there is any.
 func (c *FakeSubscriptions) Get(name string, options v1.GetOptions) (result *v1alpha1.Subscription, err error) {

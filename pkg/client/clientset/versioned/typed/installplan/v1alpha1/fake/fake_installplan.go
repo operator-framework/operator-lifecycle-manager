@@ -31,9 +31,9 @@ type FakeInstallPlans struct {
 	ns   string
 }
 
-var installplansResource = schema.GroupVersionResource{Group: "installplan-v1", Version: "v1alpha1", Resource: "installplan-v1s"}
+var installplansResource = schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"}
 
-var installplansKind = schema.GroupVersionKind{Group: "installplan-v1", Version: "v1alpha1", Kind: "InstallPlan"}
+var installplansKind = schema.GroupVersionKind{Group: "app.coreos.com", Version: "v1alpha1", Kind: "InstallPlan"}
 
 // Get takes name of the installPlan, and returns the corresponding installPlan object, and an error if there is any.
 func (c *FakeInstallPlans) Get(name string, options v1.GetOptions) (result *v1alpha1.InstallPlan, err error) {

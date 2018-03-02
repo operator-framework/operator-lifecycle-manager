@@ -1,4 +1,4 @@
-package install
+package client
 
 import (
 	"fmt"
@@ -40,7 +40,7 @@ func TestEnsureServiceAccount(t *testing.T) {
 			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "clusterserviceversion-owner",
+			Name:      "csv-owner",
 			Namespace: "test-namespace",
 		},
 	}

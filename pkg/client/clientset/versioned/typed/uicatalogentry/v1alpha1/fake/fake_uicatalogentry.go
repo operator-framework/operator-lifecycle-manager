@@ -31,9 +31,9 @@ type FakeUICatalogEntries struct {
 	ns   string
 }
 
-var uicatalogentriesResource = schema.GroupVersionResource{Group: "uicatalogentry-v1", Version: "v1alpha1", Resource: "uicatalogentry-v1s"}
+var uicatalogentriesResource = schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "uicatalogentry-v1s"}
 
-var uicatalogentriesKind = schema.GroupVersionKind{Group: "uicatalogentry-v1", Version: "v1alpha1", Kind: "UICatalogEntry"}
+var uicatalogentriesKind = schema.GroupVersionKind{Group: "app.coreos.com", Version: "v1alpha1", Kind: "UICatalogEntry"}
 
 // Get takes name of the uICatalogEntry, and returns the corresponding uICatalogEntry object, and an error if there is any.
 func (c *FakeUICatalogEntries) Get(name string, options v1.GetOptions) (result *v1alpha1.UICatalogEntry, err error) {

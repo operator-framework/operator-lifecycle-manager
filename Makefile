@@ -104,7 +104,11 @@ codegen: $(CODEGEN)
 	find ./pkg/client -type f -exec sed -i.bak 's/\"subscriptions/\"subscription-v1s/g' {} \; -exec rm {}.bak \;
 	find ./pkg/client -type f -exec sed -i.bak 's/\"uicatalogentry/\"uicatalogentry-v1/g' {} \; -exec rm {}.bak \;
 	find ./pkg/client -type f -exec sed -i.bak 's/\"uicatalogentries/\"uicatalogentry-v1s/g' {} \; -exec rm {}.bak \;
-
+	find ./pkg/client -type f -exec sed -i.bak 's/Group: \"catalogsource-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/Group: \"clusterserviceversion-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/Group: \"installplan-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/Group: \"subscription-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
+	find ./pkg/client -type f -exec sed -i.bak 's/Group: \"uicatalogentry-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
 
 verify-codegen: codegen
 	git diff --exit-code

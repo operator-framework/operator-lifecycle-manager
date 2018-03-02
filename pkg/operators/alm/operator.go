@@ -51,8 +51,6 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 		return nil, err
 	}
 
-	sharedInformerFactory := externalversions.NewSharedInformerFactory(crClient, wakeupInterval)
-
 	queueOperator, err := queueinformer.NewOperator(kubeconfig)
 	if err != nil {
 		return nil, err
@@ -88,6 +86,7 @@ func NewALMOperator(kubeconfig string, wakeupInterval time.Duration, annotations
 	csvInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching for CSVs in namespace %s", namespace)
+		sharedInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
 		csvInformers = append(csvInformers, sharedInformerFactory.Clusterserviceversion().V1alpha1().ClusterServiceVersions().Informer())
 	}
 

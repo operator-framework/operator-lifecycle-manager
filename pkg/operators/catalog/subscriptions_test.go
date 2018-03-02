@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -10,15 +9,26 @@ import (
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
 	ipv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/apis/subscription/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/client/clientfakes"
 	"github.com/coreos-inc/alm/pkg/registry"
 	"github.com/coreos-inc/alm/pkg/registry/registryfakes"
 
-	"github.com/golang/mock/gomock"
+	"github.com/coreos-inc/alm/pkg/client/clientset/versioned/fake"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	core "k8s.io/client-go/testing"
 )
+
+func RequireActions(t *testing.T, expected, actual []core.Action) {
+	require.EqualValues(t, len(expected), len(actual), "Expected\n\t%#v\ngot\n\t%#v", expected, actual)
+	for i, a := range actual {
+		e := expected[i]
+		require.True(t, equality.Semantic.DeepEqual(e, a), "Expected\n\t%#v\ngot\n\t%#v", e, a)
+	}
+}
 
 func TestSyncSubscription(t *testing.T) {
 	var (
@@ -154,6 +164,10 @@ func TestSyncSubscription(t *testing.T) {
 			initial: initial{
 				catalogName: "flying-unicorns",
 				findLatestCSVResult: &csvv1alpha1.ClusterServiceVersion{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       csvv1alpha1.ClusterServiceVersionKind,
+						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "latest-and-greatest",
 					},
@@ -174,6 +188,9 @@ func TestSyncSubscription(t *testing.T) {
 				packageName: "rainbows",
 				channelName: "magical",
 				subscription: &v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
+					},
 					Spec: &v1alpha1.SubscriptionSpec{
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
@@ -195,6 +212,10 @@ func TestSyncSubscription(t *testing.T) {
 				sourcesLastUpdate: earlierTime,
 			},
 			args: args{subscription: &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-subscription",
+					Namespace: "fairy-land",
+				},
 				Spec: &v1alpha1.SubscriptionSpec{
 					CatalogSource: "flying-unicorns",
 					Package:       "rainbows",
@@ -209,6 +230,11 @@ func TestSyncSubscription(t *testing.T) {
 			expected: expected{
 				namespace: "fairy-land",
 				subscription: &v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "fairy-land",
+						Name:      "test-subscription",
+						Labels:    map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
+					},
 					Spec: &v1alpha1.SubscriptionSpec{
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
@@ -246,6 +272,9 @@ func TestSyncSubscription(t *testing.T) {
 				packageName: "rainbows",
 				channelName: "magical",
 				subscription: &v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
+					},
 					Spec: &v1alpha1.SubscriptionSpec{
 						CatalogSource: "flying-unicorns",
 						Package:       "rainbows",
@@ -266,7 +295,8 @@ func TestSyncSubscription(t *testing.T) {
 				getCSVResult: nil,
 				getInstallPlanResult: &ipv1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "existing-install",
+						Namespace: "fairy-land",
+						Name:      "existing-install",
 					},
 				},
 			},
@@ -348,6 +378,7 @@ func TestSyncSubscription(t *testing.T) {
 				},
 				subscription: &v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
+						Labels:    map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
 						Namespace: "fairy-land",
 						Name:      "test-subscription",
 						UID:       types.UID("subscription-uid"),
@@ -419,6 +450,7 @@ func TestSyncSubscription(t *testing.T) {
 				},
 				subscription: &v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
+						Labels:    map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
 						Namespace: "fairy-land",
 						Name:      "test-subscription",
 						UID:       types.UID("subscription-uid"),
@@ -491,61 +523,20 @@ func TestSyncSubscription(t *testing.T) {
 			},
 		},
 		{
-			name:    "no csv or installplan",
-			subName: "installplan nil",
-			initial: initial{
-				catalogName:             "flying-unicorns",
-				getCSVResult:            nil,
-				getCSVError:             errors.New("GetCSVError"),
-				createInstallPlanError:  nil,
-				createInstallPlanResult: nil,
-			},
-			args: args{subscription: &v1alpha1.Subscription{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace: "fairy-land",
-					Name:      "test-subscription",
-					UID:       types.UID("subscription-uid"),
-				},
-				Spec: &v1alpha1.SubscriptionSpec{
-					CatalogSource: "flying-unicorns",
-					Package:       "rainbows",
-					Channel:       "magical",
-				},
-				Status: v1alpha1.SubscriptionStatus{
-					CurrentCSV: "pending",
-					Install:    nil,
-				},
-			}},
-			expected: expected{
-				csvName:   "pending",
-				namespace: "fairy-land",
-				installPlan: &ipv1alpha1.InstallPlan{
-					ObjectMeta: metav1.ObjectMeta{
-						GenerateName: "install-pending",
-						Namespace:    "fairy-land",
-						OwnerReferences: []metav1.OwnerReference{
-							{
-								APIVersion: "app.coreos.com/v1alpha1",
-								Kind:       "Subscription-v1",
-								Name:       "test-subscription",
-								UID:        types.UID("subscription-uid"),
-							},
-						},
-					},
-					Spec: ipv1alpha1.InstallPlanSpec{
-						ClusterServiceVersionNames: []string{"pending"},
-						Approval:                   ipv1alpha1.ApprovalAutomatic,
-					},
-				},
-				err: "unexpected installplan returned by k8s api on create: <nil>",
-			},
-		},
-		{
 			name:    "csv installed",
 			subName: "catalog error",
 			initial: initial{
-				catalogName:             "flying-unicorns",
-				getCSVResult:            &csvv1alpha1.ClusterServiceVersion{},
+				catalogName: "flying-unicorns",
+				getCSVResult: &csvv1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "toupgrade",
+						Namespace: "fairy-land",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       csvv1alpha1.ClusterServiceVersionKind,
+						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+					},
+				},
 				findReplacementCSVError: errors.New("CatalogError"),
 			},
 			args: args{subscription: &v1alpha1.Subscription{
@@ -576,8 +567,17 @@ func TestSyncSubscription(t *testing.T) {
 			name:    "csv installed",
 			subName: "catalog nil replacement",
 			initial: initial{
-				catalogName:  "flying-unicorns",
-				getCSVResult: &csvv1alpha1.ClusterServiceVersion{},
+				catalogName: "flying-unicorns",
+				getCSVResult: &csvv1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "toupgrade",
+						Namespace: "fairy-land",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       csvv1alpha1.ClusterServiceVersionKind,
+						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+					},
+				},
 			},
 			args: args{subscription: &v1alpha1.Subscription{
 				ObjectMeta: metav1.ObjectMeta{
@@ -607,8 +607,17 @@ func TestSyncSubscription(t *testing.T) {
 			name:    "csv installed",
 			subName: "sets upgrade version",
 			initial: initial{
-				catalogName:  "flying-unicorns",
-				getCSVResult: &csvv1alpha1.ClusterServiceVersion{},
+				catalogName: "flying-unicorns",
+				getCSVResult: &csvv1alpha1.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "toupgrade",
+						Namespace: "fairy-land",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       csvv1alpha1.ClusterServiceVersionKind,
+						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+					},
+				},
 				findReplacementCSVResult: &csvv1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "next",
@@ -641,6 +650,7 @@ func TestSyncSubscription(t *testing.T) {
 						Namespace: "fairy-land",
 						Name:      "test-subscription",
 						UID:       types.UID("subscription-uid"),
+						Labels:    map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
 					},
 					Spec: &v1alpha1.SubscriptionSpec{
 						CatalogSource: "flying-unicorns",
@@ -658,69 +668,113 @@ func TestSyncSubscription(t *testing.T) {
 	for _, tt := range table {
 		testName := fmt.Sprintf("%s: %s", tt.name, tt.subName)
 		t.Run(testName, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			defer ctrl.Finish()
+			// configure cluster state
+			existingObjects := []runtime.Object{}
+			expectedActions := []core.Action{}
 
-			csvClientFake := new(clientfakes.FakeClusterServiceVersionInterface)
+			if tt.initial.getCSVResult != nil {
+				existingObjects = append(existingObjects, tt.initial.getCSVResult)
+			}
+			if tt.initial.getInstallPlanResult != nil {
+				existingObjects = append(existingObjects, tt.initial.getInstallPlanResult)
+			}
+			if tt.args.subscription != nil {
+				existingObjects = append(existingObjects, tt.args.subscription)
+			}
+
+			clientFake := fake.NewSimpleClientset(existingObjects...)
+
+			// configure expected actions
 			if tt.expected.csvName != "" {
-				defer func() {
-					require.Equal(t, 1, csvClientFake.GetCSVByNameCallCount())
-					ns, name := csvClientFake.GetCSVByNameArgsForCall(0)
-					require.Equal(t, tt.expected.namespace, ns)
-					require.Equal(t, tt.expected.csvName, name)
-				}()
-				csvClientFake.GetCSVByNameReturns(tt.initial.getCSVResult, tt.initial.getCSVError)
+				expectedActions = append(expectedActions,
+					core.NewGetAction(
+						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversion-v1s"},
+						tt.expected.namespace,
+						tt.expected.csvName,
+					),
+				)
 			}
 
-			ipClientFake := new(clientfakes.FakeInstallPlanInterface)
+			if tt.initial.getInstallPlanError != nil {
+				expectedActions = append(expectedActions,
+					core.NewGetAction(
+						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"},
+						tt.args.subscription.GetNamespace(),
+						tt.args.subscription.Status.Install.Name,
+					),
+				)
+			}
+
 			if tt.expected.installPlan != nil {
-				defer func() {
-					require.Equal(t, 1, ipClientFake.CreateInstallPlanCallCount())
-					ip := ipClientFake.CreateInstallPlanArgsForCall(0)
-					require.Equal(t, tt.expected.installPlan, ip)
-				}()
-				ipClientFake.CreateInstallPlanReturns(tt.initial.createInstallPlanResult, tt.initial.createInstallPlanError)
+				expectedActions = append(expectedActions,
+					core.NewCreateAction(
+						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"},
+						tt.expected.namespace,
+						tt.expected.installPlan,
+					),
+				)
 			}
 
-			if tt.expected.existingInstallPlanName != "" {
-				defer func() {
-					require.Equal(t, 1, ipClientFake.GetInstallPlanByNameCallCount())
-					ns, name := ipClientFake.GetInstallPlanByNameArgsForCall(0)
-					require.Equal(t, tt.expected.namespace, ns)
-					require.Equal(t, tt.expected.existingInstallPlanName, name)
-				}()
-				ipClientFake.GetInstallPlanByNameReturns(tt.initial.getInstallPlanResult, tt.initial.getInstallPlanError)
-			}
-
-			subscriptionClientFake := new(clientfakes.FakeSubscriptionClientInterface)
 			if tt.expected.subscription != nil {
-				defer func() {
-					require.Equal(t, 1, subscriptionClientFake.UpdateSubscriptionCallCount())
-					sub := subscriptionClientFake.UpdateSubscriptionArgsForCall(0)
-					require.Equal(t, map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"}, sub.GetLabels())
-					require.Equal(t, tt.expected.subscription.Spec, sub.Spec)
-					require.Equal(t, tt.expected.subscription.Status, sub.Status)
-
-					m, _ := json.Marshal(tt.expected.subscription.Status)
-					raw := map[string]interface{}{}
-					json.Unmarshal(m, &raw)
-
-					if sub.Status.CurrentCSV == "" {
-						_, ok := raw["installedCSV"]
-						require.False(t, ok)
-					}
-					if sub.Status.Install == nil {
-						_, ok := raw["installplan"]
-						require.False(t, ok)
-					}
-					if sub.Status.State == "" {
-						_, ok := raw["state"]
-						require.False(t, ok)
-					}
-				}()
-				subscriptionClientFake.UpdateSubscriptionReturns(nil, tt.initial.updateSubscriptionError)
+				expectedActions = append(expectedActions,
+					core.NewUpdateAction(
+						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "subscription-v1s"},
+						tt.expected.namespace,
+						tt.expected.subscription,
+					),
+				)
 			}
 
+			if tt.args.subscription != nil {
+				if tt.args.subscription.Status.Install != nil && tt.initial.getInstallPlanError == nil {
+					expectedActions = append(expectedActions,
+						core.NewGetAction(
+							schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"},
+							tt.args.subscription.GetNamespace(),
+							tt.args.subscription.Status.Install.Name,
+						),
+					)
+				}
+			}
+
+			// fake api calls
+			if tt.initial.getCSVError != nil {
+				clientFake.PrependReactor("get", "clusterserviceversion-v1s", func(action core.Action) (bool, runtime.Object, error) {
+					if action.(core.GetAction).GetName() != tt.expected.csvName {
+						return false, nil, nil
+					}
+					return true, nil, tt.initial.getCSVError
+				})
+
+			}
+
+			if tt.initial.getInstallPlanError != nil {
+				clientFake.PrependReactor("get", "installplan-v1s", func(action core.Action) (bool, runtime.Object, error) {
+					if action.(core.GetAction).GetName() != tt.expected.existingInstallPlanName {
+						return false, nil, nil
+					}
+					return true, nil, tt.initial.getInstallPlanError
+				})
+			}
+
+			if tt.initial.updateSubscriptionError != nil {
+				clientFake.PrependReactor("update", "subscription-v1s", func(action core.Action) (bool, runtime.Object, error) {
+					return true, nil, tt.initial.updateSubscriptionError
+				})
+			}
+
+			if tt.initial.createInstallPlanResult != nil {
+				clientFake.PrependReactor("create", "installplan-v1s", func(action core.Action) (bool, runtime.Object, error) {
+					return true, tt.initial.createInstallPlanResult, nil
+				})
+			}
+			if tt.initial.createInstallPlanError != nil {
+				clientFake.PrependReactor("create", "installplan-v1s", func(action core.Action) (bool, runtime.Object, error) {
+					return true, nil, tt.initial.createInstallPlanError
+				})
+			}
+
+			// fake catalog
 			catalogFake := new(registryfakes.FakeSource)
 			if tt.expected.packageName != "" && tt.expected.channelName != "" {
 				if tt.expected.csvName == "" {
@@ -745,22 +799,52 @@ func TestSyncSubscription(t *testing.T) {
 			}
 
 			op := &Operator{
-				ipClient:           ipClientFake,
-				csvClient:          csvClientFake,
-				subscriptionClient: subscriptionClientFake,
-				namespace:          "ns",
+				client:    clientFake,
+				namespace: "ns",
 				sources: map[string]registry.Source{
 					tt.initial.catalogName: catalogFake,
 				},
 				sourcesLastUpdate: tt.initial.sourcesLastUpdate,
 			}
 
+			// run subscription sync
 			err := op.syncSubscription(tt.args.subscription)
 			if tt.expected.err != "" {
 				require.EqualError(t, err, tt.expected.err)
 			} else {
+				//t.Logf("%#v", clientFake.Actions())
+				//for _, a := range clientFake.Actions() {
+				//	if a.GetVerb() == "update" {
+				//		t.Logf("%#v", a.(core.UpdateAction).GetObject())
+				//	}
+				//}
 				require.Nil(t, err)
 			}
+
+			// verify subscription changes happened correctly
+			if tt.expected.subscription != nil {
+				sub, err := clientFake.SubscriptionV1alpha1().Subscriptions(tt.expected.subscription.GetNamespace()).Get(tt.expected.subscription.GetName(), metav1.GetOptions{})
+				require.NoError(t, err)
+
+				expectedActions = append(expectedActions,
+					core.NewGetAction(
+						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "subscription-v1s"},
+						tt.expected.subscription.GetNamespace(),
+						tt.expected.subscription.GetName(),
+					),
+				)
+
+				require.Equal(t, tt.expected.subscription.Spec, sub.Spec)
+
+				// If we fail to update the subscription these won't be set
+				if tt.initial.updateSubscriptionError == nil {
+					require.Equal(t, map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"}, sub.GetLabels())
+					require.Equal(t, tt.expected.subscription.Status, sub.Status)
+				}
+			}
+
+			// verify api interactions
+			RequireActions(t, expectedActions, clientFake.Actions())
 		})
 
 	}

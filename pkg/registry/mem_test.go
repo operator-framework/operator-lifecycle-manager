@@ -17,7 +17,7 @@ import (
 // compareResources compares resource equality then prints a diff for easier debugging
 func compareResources(t *testing.T, expected, actual interface{}) {
 	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
-		t.Fatalf("ClusterServiceVerson does not match expected value: %s",
+		t.Fatalf("Resource does not match expected value: %s",
 			diff.ObjectDiff(expected, actual))
 	}
 }

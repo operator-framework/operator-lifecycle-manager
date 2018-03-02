@@ -31,9 +31,9 @@ type FakeCatalogSources struct {
 	ns   string
 }
 
-var catalogsourcesResource = schema.GroupVersionResource{Group: "catalogsource-v1", Version: "v1alpha1", Resource: "catalogsource-v1s"}
+var catalogsourcesResource = schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "catalogsource-v1s"}
 
-var catalogsourcesKind = schema.GroupVersionKind{Group: "catalogsource-v1", Version: "v1alpha1", Kind: "CatalogSource"}
+var catalogsourcesKind = schema.GroupVersionKind{Group: "app.coreos.com", Version: "v1alpha1", Kind: "CatalogSource"}
 
 // Get takes name of the catalogSource, and returns the corresponding catalogSource object, and an error if there is any.
 func (c *FakeCatalogSources) Get(name string, options v1.GetOptions) (result *v1alpha1.CatalogSource, err error) {

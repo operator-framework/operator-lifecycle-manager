@@ -9,6 +9,7 @@ import (
 	rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/ownerutil"
 )
 
@@ -36,7 +37,7 @@ type StrategyDetailsDeployment struct {
 }
 
 type StrategyDeploymentInstaller struct {
-	strategyClient   InstallStrategyDeploymentInterface
+	strategyClient   client.InstallStrategyDeploymentInterface
 	owner            ownerutil.Owner
 	previousStrategy Strategy
 }
@@ -48,7 +49,7 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient InstallStrategyDeploymentInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient:   strategyClient,
 		owner:            owner,

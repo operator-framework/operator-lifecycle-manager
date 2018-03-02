@@ -31,9 +31,9 @@ type FakeClusterServiceVersions struct {
 	ns   string
 }
 
-var clusterserviceversionsResource = schema.GroupVersionResource{Group: "clusterserviceversion-v1", Version: "v1alpha1", Resource: "clusterserviceversion-v1s"}
+var clusterserviceversionsResource = schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversion-v1s"}
 
-var clusterserviceversionsKind = schema.GroupVersionKind{Group: "clusterserviceversion-v1", Version: "v1alpha1", Kind: "ClusterServiceVersion"}
+var clusterserviceversionsKind = schema.GroupVersionKind{Group: "app.coreos.com", Version: "v1alpha1", Kind: "ClusterServiceVersion"}
 
 // Get takes name of the clusterServiceVersion, and returns the corresponding clusterServiceVersion object, and an error if there is any.
 func (c *FakeClusterServiceVersions) Get(name string, options v1.GetOptions) (result *v1alpha1.ClusterServiceVersion, err error) {

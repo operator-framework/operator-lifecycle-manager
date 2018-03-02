@@ -66,9 +66,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		_, err := o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
 		return err
 	}
-	if sub.Status.CurrentCSV == "" {
 
-	}
 	// check that desired CSV has been installed
 	csv, err := o.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
 	if err != nil || csv == nil {

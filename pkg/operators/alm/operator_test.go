@@ -8,10 +8,10 @@ import (
 	"github.com/coreos-inc/alm/pkg/annotator"
 	"github.com/coreos-inc/alm/pkg/apis"
 	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/client/clientset/versioned/fake"
 	"github.com/coreos-inc/alm/pkg/install"
 	"github.com/coreos-inc/alm/pkg/queueinformer"
 
-	"github.com/coreos-inc/alm/pkg/client/clientfakes"
 	"github.com/coreos-inc/alm/pkg/install/installfakes"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
@@ -27,7 +27,7 @@ import (
 type MockALMOperator struct {
 	ALMOperator
 	MockQueueOperator    *queueinformer.MockOperator
-	CSVClientFake        *clientfakes.FakeClusterServiceVersionInterface
+	ClientFake           *fake.Clientset
 	MockOpClient         *opClient.MockInterface
 	TestQueueInformer    queueinformer.TestQueueInformer
 	StrategyResolverFake *installfakes.FakeStrategyResolverInterface
@@ -223,12 +223,12 @@ func withReplaces(csv *v1alpha1.ClusterServiceVersion, replaces string) *v1alpha
 }
 
 func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
-	csvClientFake := new(clientfakes.FakeClusterServiceVersionInterface)
+	clientFake := fake.NewSimpleClientset()
 	resolverFake := new(installfakes.FakeStrategyResolverInterface)
 
 	almOperator := ALMOperator{
-		csvClient: csvClientFake,
-		resolver:  resolverFake,
+		client:   clientFake,
+		resolver: resolverFake,
 	}
 	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "test-clusterserviceversions")
 	csvQueueInformer := queueinformer.NewTestQueueInformer(
@@ -244,7 +244,7 @@ func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
 	almOperator.csvQueue = queue
 	return &MockALMOperator{
 		ALMOperator:          almOperator,
-		CSVClientFake:        csvClientFake,
+		ClientFake:           clientFake,
 		MockQueueOperator:    qOp,
 		MockOpClient:         qOp.MockClient,
 		TestQueueInformer:    *csvQueueInformer,

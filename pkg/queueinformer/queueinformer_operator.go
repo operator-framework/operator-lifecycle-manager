@@ -105,7 +105,8 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 	}
 	defer queue.Done(key)
 
-	if err := o.sync(loop, key.(string)); err != nil {
+	// requeue five times on error
+	if err := o.sync(loop, key.(string)); err != nil && queue.NumRequeues(key.(string)) < 5 {
 		utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
 		queue.AddRateLimited(key)
 		return true
