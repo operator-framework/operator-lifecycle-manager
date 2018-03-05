@@ -28,26 +28,21 @@ spec:
           description: Spec for a Subscription
           required:
           - source
-          - apptype
-          - channel
-          - approval
+          - name
+          - startingCSV
           properties:
             source:
               type: string
               description: Name of a CatalogSource that defines where and how to find the channel
 
-            apptype:
+            name:
               type: string
-              description: Name of the AppType that this subscription tracks
+              description: Name of the package that defines the application
 
             channel:
               type: string
               description: Name of the channel to track
-
-            approval:
+            
+            startingCSV:
               type: string
-              description: Approval setting determines behavior when a new version is available.
-              enum:
-              - Automatic
-              - Update-Only # Will only apply an update if it updates existing packages only and doesn't add any new ones
-              - Manual
+              description: Name of the AppType that this subscription tracks
