@@ -20,6 +20,12 @@
   version = "v8"
 
 [[projects]]
+  branch = "master"
+  name = "github.com/beorn7/perks"
+  packages = ["quantile"]
+  revision = "4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9"
+
+[[projects]]
   name = "github.com/coreos-inc/tectonic-operators"
   packages = [
     "lib/manifest/diff",
@@ -96,7 +102,7 @@
   branch = "master"
   name = "github.com/go-openapi/spec"
   packages = ["."]
-  revision = "1de3e0542de65ad8d75452a595886fdd0befb363"
+  revision = "d8000b5bfbd1147255710505a27c735b6b2ae2ac"
 
 [[projects]]
   branch = "master"
@@ -108,7 +114,7 @@
   branch = "master"
   name = "github.com/go-openapi/swag"
   packages = ["."]
-  revision = "84f4bee7c0a6db40e3166044c7983c1c32125429"
+  revision = "ceb469cb0fdf2d792f28d771bc05da6c606f55e5"
 
 [[projects]]
   branch = "master"
@@ -178,13 +184,25 @@
   version = "v0.1.0"
 
 [[projects]]
+  name = "github.com/gorilla/context"
+  packages = ["."]
+  revision = "1ea25387ff6f684839d82767c1733ff4d4d15d0a"
+  version = "v1.1"
+
+[[projects]]
+  name = "github.com/gorilla/mux"
+  packages = ["."]
+  revision = "53c1911da2b537f792e7cafcb446b05ffe33b996"
+  version = "v1.6.1"
+
+[[projects]]
   branch = "master"
   name = "github.com/gregjones/httpcache"
   packages = [
     ".",
     "diskcache"
   ]
-  revision = "2bcd89a1743fd4b373f7370ce8ddc14dfbd18229"
+  revision = "9cad4c3443a7200dd6400aef47183728de563a38"
 
 [[projects]]
   branch = "master"
@@ -210,8 +228,8 @@
 [[projects]]
   name = "github.com/json-iterator/go"
   packages = ["."]
-  revision = "be70f29b04dea7efb4d82a8989c33aee989b74d1"
-  version = "1.1.0"
+  revision = "3353055b2a1a5ae1b6a8dfde887a524e7088f3a2"
+  version = "1.1.2"
 
 [[projects]]
   name = "github.com/juju/ratelimit"
@@ -227,13 +245,31 @@
     "jlexer",
     "jwriter"
   ]
-  revision = "32fa128f234d041f196a9f3e0fea5ac9772c08e1"
+  revision = "4a8a4c12c4d1b0c0a7de630426ce6dcb07141b17"
+
+[[projects]]
+  name = "github.com/matttproud/golang_protobuf_extensions"
+  packages = ["pbutil"]
+  revision = "3247c84500bff8d9fb6d579d800f20b3e091582c"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   revision = "00c29f56e2386353d58c599509e8dc3801b0d716"
+
+[[projects]]
+  name = "github.com/modern-go/concurrent"
+  packages = ["."]
+  revision = "bacd9c7ef1dd9b15be4a9909b8ac7a4e313eec94"
+  version = "1.0.3"
+
+[[projects]]
+  name = "github.com/modern-go/reflect2"
+  packages = ["."]
+  revision = "1df9eeb2bb81f327b96228865c5687bc2194af3f"
+  version = "1.0.0"
 
 [[projects]]
   branch = "master"
@@ -260,6 +296,59 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/pmorie/go-open-service-broker-client"
+  packages = ["v2"]
+  revision = "e8aa16c9036317bd59ced8921e9da6197ab577e3"
+  version = "0.0.5"
+
+[[projects]]
+  name = "github.com/pmorie/osb-broker-lib"
+  packages = [
+    "pkg/broker",
+    "pkg/metrics",
+    "pkg/rest",
+    "pkg/server"
+  ]
+  revision = "3b20fe86d6a7388d5d788bc1b532cad9a092ce25"
+  version = "0.0.3"
+
+[[projects]]
+  name = "github.com/prometheus/client_golang"
+  packages = [
+    "prometheus",
+    "prometheus/promhttp"
+  ]
+  revision = "c5b7fccd204277076155f10851dad72b76a49317"
+  version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/prometheus/client_model"
+  packages = ["go"]
+  revision = "99fa1f4be8e564e8a6b613da7fa6f46c9edafc6c"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/prometheus/common"
+  packages = [
+    "expfmt",
+    "internal/bitbucket.org/ww/goautoneg",
+    "model"
+  ]
+  revision = "6fb6fce6f8b75884b92e1889c150403fc0872c5e"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/prometheus/procfs"
+  packages = [
+    ".",
+    "internal/util",
+    "nfs",
+    "xfs"
+  ]
+  revision = "1c7ff3de94ae006f58cba483a4c9c6d7c61e1d98"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "d682213848ed68c0a260ca37d6dd5ace8423f5ba"
@@ -281,19 +370,10 @@
   version = "v1.2.1"
 
 [[projects]]
-  name = "github.com/v2pro/plz"
-  packages = [
-    "concurrent",
-    "reflect2"
-  ]
-  revision = "571356917fca907b069b7b47a14cd32ba0b340d4"
-  version = "0.9.0"
-
-[[projects]]
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
-  revision = "49796115aa4b964c318aad4f3084fdb41e9aa067"
+  revision = "c7dcf104e3a7a1417abc0230cb0d5240d764159d"
 
 [[projects]]
   branch = "master"
@@ -306,7 +386,7 @@
     "idna",
     "lex/httplex"
   ]
-  revision = "cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb"
+  revision = "d0aafc73d5cdc42264b0af071c261abac580695e"
 
 [[projects]]
   branch = "master"
@@ -324,7 +404,7 @@
     "unix",
     "windows"
   ]
-  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
+  revision = "7dca6fe1f43775aa6d1334576870ff63f978f539"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -378,10 +458,10 @@
   revision = "3f83fa5005286a7fe593b055f0d7771a7dce4655"
 
 [[projects]]
-  branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
+  revision = "7f97868eec74b32b0982dd158a51a446d1da7eb5"
+  version = "v2.1.1"
 
 [[projects]]
   branch = "release-1.9"
@@ -431,7 +511,7 @@
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
     "pkg/features"
   ]
-  revision = "b89f5ce12ce6e022fc3e9d7586d61346e694d56e"
+  revision = "0110c976a0aaacd41405b5c31924b86dbd9285c9"
 
 [[projects]]
   branch = "release-1.9"
@@ -492,7 +572,7 @@
     "pkg/storage/names",
     "pkg/util/feature"
   ]
-  revision = "40b00dd493d8fb98c255f0c6427f97fbf865a538"
+  revision = "5343f14b1d39e19add5eb0245eca715d8b37b164"
 
 [[projects]]
   branch = "release-6.0"
@@ -662,6 +742,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "17b6a09fccd2e2402e14619895908431550d2af48ae78f8404b75eb696fcadab"
+  inputs-digest = "35400b2dc2555c5bcc9c7630ffe8a47d358bfd13d09aa856d2a04bedbade2d8d"
   solver-name = "gps-cdcl"
   solver-version = 1
