@@ -1,11 +1,8 @@
-//+build !test
-
 package main
 
 import (
 	"flag"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -16,6 +13,7 @@ import (
 	"github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/client"
 	"github.com/coreos-inc/alm/pkg/operators/catalog"
+	"github.com/coreos-inc/alm/pkg/signals"
 )
 
 const (
@@ -23,24 +21,28 @@ const (
 	defaultCatalogNamespace = "tectonic-system"
 )
 
-func main() {
-	// Parse the command-line flags.
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	kubeConfigPath := flag.String(
+// config flags defined globally so that they appear on the test binary as well
+var (
+	kubeConfigPath = flag.String(
 		"kubeconfig", "", "absolute path to the kubeconfig file")
 
-	wakeupInterval := flag.Duration(
+	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wakeup interval")
 
-	watchedNamespaces := flag.String(
+	watchedNamespaces = flag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces that catalog watches, leave empty to watch all namespaces")
 
-	catalogNamespace := flag.String(
+	catalogNamespace = flag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
 
-	debug := flag.Bool(
+	debug = flag.Bool(
 		"debug", false, "use debug log level")
+)
+
+func main() {
+	stopCh := signals.SetupSignalHandler()
+
+	// Parse the command-line flags.
 	flag.Parse()
 
 	if *debug {
@@ -84,10 +86,5 @@ func main() {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
 
-	// TODO: Handle any signals to shutdown cleanly.
-	stop := make(chan struct{})
-	catalogOperator.Run(stop)
-	close(stop)
-
-	panic("unreachable")
+	catalogOperator.Run(stopCh)
 }

@@ -30,6 +30,9 @@ spec:
           - '-namespace'
           - {{ .Values.catalog_namespace }}
           - '-debug'
+          {{- if .Values.catalog.commandArgs }}
+          - {{ .Values.catalog.commandArgs }}
+          {{- end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

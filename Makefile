@@ -43,17 +43,19 @@ e2e-local-docker: update-catalog
 	./scripts/run_e2e_docker.sh
 
 $(ALM_EXECUTABLE):
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(ALM_EXECUTABLE) $(ALM_PKG)
 
 $(CATALOG_EXECUTABLE):
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
 build:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(ALM_EXECUTABLE) $(ALM_PKG)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -i -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(ALM_EXECUTABLE) $(ALM_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
-run: build
-	./bin/$(EXECUTABLE)
+# build versions of the binaries with coverage enabled
+build-coverage:
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(ALM_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(ALM_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(CATALOG_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(CATALOG_PKG)
 
 DEP := $(GOPATH)/bin/dep
 
@@ -83,13 +85,13 @@ gen-ci: fmt-ci
 CODEGEN := ./vendor/k8s.io/code-generator/generate-groups.sh
 
 $(CODEGEN):
-    # dep doesn't currently support downloading dependencies that don't have go in the top-level dir.
-    # can move to managing with dep when merged: https://github.com/golang/dep/pull/1545
+	# dep doesn't currently support downloading dependencies that don't have go in the top-level dir.
+	# can move to managing with dep when merged: https://github.com/golang/dep/pull/1545
 	mkdir -p vendor/k8s.io/code-generator
 	git clone --branch release-1.9 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 
 codegen: $(CODEGEN)
-    # codegen tools currently don't allow specifying custom boilerplate, so we move ours to the default location
+	# codegen tools currently don't allow specifying custom boilerplate, so we move ours to the default location
 	mkdir -p $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate
 	cp boilerplate.go.txt $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate/boilerplate.go.txt
 	$(CODEGEN) all github.com/coreos-inc/alm/pkg/client github.com/coreos-inc/alm/pkg/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1 uicatalogentry:v1alpha1"
@@ -128,6 +130,6 @@ generate-mock-client: $(counterfeiter)
 
 make gen-all: gen-ci codegen generate-mock-client
 
-# make ver=0.3.0 package
+# make ver=0.3.0 release
 make release: update-catalog
 	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml

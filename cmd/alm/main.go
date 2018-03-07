@@ -1,5 +1,3 @@
-//+build !test
-
 package main
 
 import (
@@ -13,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/coreos-inc/alm/pkg/operators/alm"
+	"github.com/coreos-inc/alm/pkg/signals"
 )
 
 const (
@@ -32,26 +31,26 @@ func envOrDie(varname, description string) string {
 	return val
 }
 
-// main function - entrypoint to ALM operator
-func main() {
-
-	// Parse the command-line flags.
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	kubeConfigPath := flag.String(
+// config flags defined globally so that they appear on the test binary as well
+var (
+	kubeConfigPath = flag.String(
 		"kubeconfig", "", "absolute path to the kubeconfig file")
 
-	wakeupInterval := flag.Duration(
+	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wake up interval")
-
-	watchedNamespaces := flag.String(
+	watchedNamespaces = flag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces for alm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
 			"alm operator will watch all namespaces in the cluster.")
-
-	debug := flag.Bool(
+	debug = flag.Bool(
 		"debug", false, "use debug log level")
+)
 
+// main function - entrypoint to ALM operator
+func main() {
+	stopCh := signals.SetupSignalHandler()
+
+	// Parse the command-line flags.
 	flag.Parse()
 
 	// Env Vars
@@ -87,10 +86,5 @@ func main() {
 	})
 	go http.ListenAndServe(":8080", nil)
 
-	// TODO: Handle any signals to shutdown cleanly.
-	stop := make(chan struct{})
-	almOperator.Run(stop)
-	close(stop)
-
-	panic("unreachable")
+	almOperator.Run(stopCh)
 }
