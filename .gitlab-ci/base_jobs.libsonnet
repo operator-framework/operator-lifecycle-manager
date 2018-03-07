@@ -10,9 +10,9 @@ local appr = utils.appr;
 
     sanityCheck: {
         before_script: [
-            "mkdir -p $GOPATH/src/%s" % vars.alm_repo,
-            "cp -a $CI_PROJECT_DIR/. $GOPATH/src/%s" % vars.alm_repo,
-            "cd $GOPATH/src/%s" % vars.alm_repo,
+            "mkdir -p %s" % vars.paths.alm.src,
+            "cp -a $CI_PROJECT_DIR/. %s" % vars.paths.alm.src,
+            "cd %s" % vars.paths.alm.src,
         ],
         // base job for running sanity checks before building containers
         image: vars.images.base.name,
@@ -32,9 +32,9 @@ local appr = utils.appr;
 
     AlmTest: {
         before_script: [
-            "mkdir -p $GOPATH/src/%s" % vars.alm_repo,
-            "cp -a $CI_PROJECT_DIR/* $GOPATH/src/%s" % vars.alm_repo,
-            "cd $GOPATH/src/%s" % vars.alm_repo,
+            "mkdir -p %s" % vars.paths.alm.src,
+            "cp -a $CI_PROJECT_DIR/* %s" % vars.paths.alm.src,
+            "cd %s" % vars.paths.alm.src,
         ],
         // base job to test the container
         image: vars.images.ci.alm.name,
