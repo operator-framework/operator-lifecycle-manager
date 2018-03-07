@@ -69,7 +69,9 @@ To update dependencies, run:
 
 ```sh
 $ make vendor-update
+# verify changes
 $ make test
+$ make e2e-local-docker
 ```
 
 The Makefile recipes for testing and builds ensure the project's dependencies
