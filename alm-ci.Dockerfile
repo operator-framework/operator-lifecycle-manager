@@ -1,7 +1,7 @@
 FROM quay.io/coreos/alm-ci:base
 
 # Cache Dep first
-COPY glide.yaml glide.lock Makefile ./
+COPY Gopkg.toml Gopkg.lock Makefile ./
 RUN make vendor
 
 # Build bin

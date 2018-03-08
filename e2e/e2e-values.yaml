@@ -5,6 +5,7 @@ alm:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
+  commandArgs: -test.coverprofile=/tmp/coverage/alm-coverage.cov
 
 catalog:
   replicaCount: 1
@@ -13,6 +14,7 @@ catalog:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
+  commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
 
 e2e:
   image:

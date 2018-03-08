@@ -3,24 +3,24 @@ package e2e
 import (
 	"testing"
 
-	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 
 	"encoding/json"
 
 	"fmt"
 
-	"github.com/coreos-inc/alm/pkg/apis"
-	"github.com/coreos-inc/alm/pkg/install"
+	"github.com/coreos-inc/alm/pkg/api/apis"
+	"github.com/coreos-inc/alm/pkg/controller/install"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
+	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -43,8 +43,7 @@ func createCSV(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) (cleanu
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
 	csv.Namespace = testNamespace
-	unstructuredConverter := conversion.NewConverter(true)
-	csvUnst, err := unstructuredConverter.ToUnstructured(&csv)
+	csvUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +73,8 @@ func createCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) (c
 
 }
 
-func newNginxDeployment() v1beta1.DeploymentSpec {
-	return v1beta1.DeploymentSpec{
+func newNginxDeployment() v1beta2.DeploymentSpec {
+	return v1beta2.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app": "nginx",
@@ -123,14 +122,13 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvCondit
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
-	unstructuredConverter := conversion.NewConverter(true)
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if err != nil {
 			return false, err
 		}
 
-		err = unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched)
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched)
 		require.NoError(t, err)
 		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
@@ -156,7 +154,6 @@ func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alp
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
-	unstructuredConverter := conversion.NewConverter(true)
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if errors.IsNotFound(err) {
@@ -165,7 +162,7 @@ func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alp
 		if err != nil {
 			return false, err
 		}
-		if err := unstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched); err == nil {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched); err == nil {
 			t.Logf("%s still exists", fetched.Name)
 		}
 		return false, nil
@@ -205,9 +202,11 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:    "not.in.cluster.com",
-						Version: "v1alpha1",
-						Kind:    "NotInCluster",
+						DisplayName: "Not In Cluster",
+						Description: "A CRD that is not currently in the cluster",
+						Name:        "not.in.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "NotInCluster",
 					},
 				},
 			},

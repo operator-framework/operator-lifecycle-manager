@@ -27,6 +27,9 @@ spec:
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}
           {{- end }}
+          {{- if .Values.alm.commandArgs }}
+          - {{ .Values.alm.commandArgs }}
+          {{- end }}
           image: {{ .Values.alm.image.ref }}
           imagePullPolicy: {{ .Values.alm.image.pullPolicy }}
           ports:

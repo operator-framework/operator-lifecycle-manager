@@ -8,6 +8,16 @@ local appr = utils.appr;
 {
     local job_tags = { tags: ["kubernetes"] },
 
+    sanityCheck: {
+        before_script: [
+            "mkdir -p %s" % vars.paths.alm.src,
+            "cp -a $CI_PROJECT_DIR/. %s" % vars.paths.alm.src,
+            "cd %s" % vars.paths.alm.src,
+        ],
+        // base job for running sanity checks before building containers
+        image: vars.images.base.name,
+    },
+
     dockerBuild: {
         // base job to manage containers (build / push)
         image: "docker:git",
@@ -22,9 +32,9 @@ local appr = utils.appr;
 
     AlmTest: {
         before_script: [
-            "mkdir -p $GOPATH/src/%s" % vars.alm_repo,
-            "cp -a $CI_PROJECT_DIR/* $GOPATH/src/%s" % vars.alm_repo,
-            "cd $GOPATH/src/%s" % vars.alm_repo,
+            "mkdir -p %s" % vars.paths.alm.src,
+            "cp -a $CI_PROJECT_DIR/* %s" % vars.paths.alm.src,
+            "cd %s" % vars.paths.alm.src,
         ],
         // base job to test the container
         image: vars.images.ci.alm.name,
@@ -43,7 +53,7 @@ local appr = utils.appr;
             params: {
                 namespace: _vars.namespace,
                 "e2e.image.ref": vars.images.e2e.name,
-                "job_name": _vars.jobname,
+                job_name: _vars.jobname,
             },
             patch: "{\"imagePullSecrets\": [{\"name\": \"coreos-pull-secret\"}]}",
         },

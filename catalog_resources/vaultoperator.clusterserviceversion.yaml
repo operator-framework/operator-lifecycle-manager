@@ -95,6 +95,9 @@ spec:
       - name: vault-operator
         spec:
           replicas: 1
+          selector:
+            matchLabels:
+              name: vault-operator
           template:
             metadata:
               labels:

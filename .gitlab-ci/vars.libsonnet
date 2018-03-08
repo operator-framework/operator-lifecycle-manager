@@ -8,6 +8,12 @@ local utils = import "utils.libsonnet";
         FAILFASTCI_NAMESPACE: "quay",
     },
 
+    paths: {
+        alm: {
+            src: "$GOPATH/src/%s" % $.alm_repo,
+        },
+    },
+
     // internal variables
     images: {
         // Quay initial image, used in the Dockerfile FROM clause

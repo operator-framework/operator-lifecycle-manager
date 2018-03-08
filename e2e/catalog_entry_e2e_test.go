@@ -4,22 +4,22 @@ import (
 	"strings"
 	"testing"
 
+	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/coreos-inc/alm/pkg/apis"
-	clusterserviceversionv1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/registry"
+	"github.com/coreos-inc/alm/pkg/api/apis"
+	clusterserviceversionv1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/controller/registry"
 
 	"github.com/stretchr/testify/require"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // This file contains tests that are for specific OCS services. They're a sanity check that we can always do the right
@@ -60,8 +60,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	}
 
 	// Create a new installplan for vault
-	unstructuredConverter := conversion.NewConverter(true)
-	vaultUnst, err := unstructuredConverter.ToUnstructured(&vaultInstallPlan)
+	vaultUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&vaultInstallPlan)
 	require.NoError(t, err)
 
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: vaultUnst})
@@ -127,7 +126,7 @@ func TestCreateInstallVaultPlanAndVerifyResources(t *testing.T) {
 	}
 
 	for _, deploymentName := range []string{"etcd-operator", "vault-operator"} {
-		var deployment *extensions.Deployment
+		var deployment *appsv1beta2.Deployment
 		t.Logf("Looking for Deployment %s in %s\n", deploymentName, testNamespace)
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {

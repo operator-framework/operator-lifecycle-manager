@@ -1,11 +1,8 @@
-//+build !test
-
 package main
 
 import (
 	"flag"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -13,9 +10,10 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/client"
-	"github.com/coreos-inc/alm/pkg/operators/catalog"
+	"github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/api/client"
+	"github.com/coreos-inc/alm/pkg/controller/operators/catalog"
+	"github.com/coreos-inc/alm/pkg/lib/signals"
 )
 
 const (
@@ -23,24 +21,28 @@ const (
 	defaultCatalogNamespace = "tectonic-system"
 )
 
-func main() {
-	// Parse the command-line flags.
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-
-	kubeConfigPath := flag.String(
+// config flags defined globally so that they appear on the test binary as well
+var (
+	kubeConfigPath = flag.String(
 		"kubeconfig", "", "absolute path to the kubeconfig file")
 
-	wakeupInterval := flag.Duration(
+	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wakeup interval")
 
-	watchedNamespaces := flag.String(
+	watchedNamespaces = flag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces that catalog watches, leave empty to watch all namespaces")
 
-	catalogNamespace := flag.String(
+	catalogNamespace = flag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
 
-	debug := flag.Bool(
+	debug = flag.Bool(
 		"debug", false, "use debug log level")
+)
+
+func main() {
+	stopCh := signals.SetupSignalHandler()
+
+	// Parse the command-line flags.
 	flag.Parse()
 
 	if *debug {
@@ -53,12 +55,12 @@ func main() {
 	})
 	go http.ListenAndServe(":8080", nil)
 
-	// Create an instance of a CatalogSource client.
-	catsrcClient, err := client.NewCatalogSourceClient(*kubeConfigPath)
+	// Create an instance of a client for accessing ALM types
+	crClient, err := client.NewClient(*kubeConfigPath)
 	if err != nil {
 		log.Fatalf("failed to bootstrap initial OCS catalog: %s", err)
 	}
-	err = catsrcClient.CreateCS(&v1alpha1.CatalogSource{
+	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tectonic-ocs",
 			Namespace: *catalogNamespace,
@@ -84,10 +86,5 @@ func main() {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
 
-	// TODO: Handle any signals to shutdown cleanly.
-	stop := make(chan struct{})
-	catalogOperator.Run(stop)
-	close(stop)
-
-	panic("unreachable")
+	catalogOperator.Run(stopCh)
 }

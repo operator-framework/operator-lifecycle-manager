@@ -6,6 +6,7 @@ local images = vars.images;
 local docker = utils.docker;
 local stages_list = [
     // gitlab-ci stages
+    'sanity',
     'docker_base',
     'docker_build',
     'deploy_preview',
@@ -39,6 +40,14 @@ local jobs = {
                                       args={ sshkey: vars.deploy_keys.operator_client },
                                       extra_opts=["-f base.Dockerfile"]),
         only: ["schedules", "tags"],
+    },
+
+    'sanity-checks': baseJob.sanityCheck {
+        stage: 'sanity',
+        script: [
+            "make verify-catalog",
+            "make verify-codegen",
+        ],
     },
 
     'container-build': baseJob.dockerBuild {
@@ -86,9 +95,10 @@ local jobs = {
     'unit-tests': unittest_stage {
         coverage: @"/\d\d\.\d.$/",
         script: [
-            "make update-catalog && git diff --exit-code",
             "make vendor",
-            "make test-cover",
+            "make verify-catalog",
+            "make verify-codegen",
+            "make coverage",
         ],
     },
 
