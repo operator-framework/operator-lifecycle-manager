@@ -22,9 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
-	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
+	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	uiv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"

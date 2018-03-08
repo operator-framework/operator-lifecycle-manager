@@ -11,10 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/coreos-inc/alm/pkg/apis"
-	clusterserviceversionv1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/registry"
+	"github.com/coreos-inc/alm/pkg/api/apis"
+	clusterserviceversionv1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/controller/registry"
 
 	"github.com/stretchr/testify/require"
 
