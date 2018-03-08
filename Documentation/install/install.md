@@ -2,12 +2,12 @@
 
 ALM deployment resources are templated so that they can be easily configured for different deployment environments.
 
-## Run locally with minikube 
+## Run locally with minikube
 
 This command starts minikube, builds the ALM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for ALM.
 ```
 make run-local
-``` 
+```
 
 You can verify that the ALM components have been successfully deployed by running `kubectl -n local get deployments`
 
@@ -20,7 +20,7 @@ make run-local-shift
 
 You can verify that the ALM components have been successfully deployed by running `kubectl -n local get deployments`
 
-## Building deployment resources for any cluster 
+## Building deployment resources for any cluster
 
 Deployments of ALM can be stamped out with different configurations by writing a `values.yaml` file and running commands to generate resources.
 
@@ -31,7 +31,7 @@ Here's an example `values.yaml`
 rbacApiVersion: rbac.authorization.k8s.io
 # namespace is the namespace the operators will _run_
 namespace: local
-# watchedNamespaces is a comma-separated list of namespaces the operators will _watch_ for ALM resources. 
+# watchedNamespaces is a comma-separated list of namespaces the operators will _watch_ for ALM resources.
 # Omit to enable ALM in all namespaces
 watchedNamespaces: local
 # catalog_namespace is the namespace where the catalog operator will look for global catalogs.
@@ -61,6 +61,19 @@ catalog:
   service:
     # port for readiness/liveness probes
     internalPort: 8080
+
+# alm service broker run configuration
+servicebroker:
+  # ALM Service Broker doesn't need to be HA; scale with load
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/alm-service-broker:local
+    pullPolicy: IfNotPresent
+  service:
+    # port for readiness/liveness probes
+    internalPort: 8080
+    # port exposing ALM's service broker API
+    brokerPort: 8005
 ```
 
 To configure a release of ALM for installation in a cluster:
@@ -93,7 +106,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: Subscription-v1
 metadata:
   name: etcd
-  namespace: local 
+  namespace: local
 spec:
   channel: alpha
   name: etcd
