@@ -2,6 +2,8 @@ ALM_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/alm
 ALM_EXECUTABLE := ./bin/alm
 CATALOG_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/catalog
 CATALOG_EXECUTABLE := ./bin/catalog
+SERVICE_BROKER_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/servicebroker
+SERVICE_BROKER_EXECUTABLE := ./bin/servicebroker
 IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
 PKG_DIR := pkg
@@ -51,14 +53,19 @@ $(ALM_EXECUTABLE):
 $(CATALOG_EXECUTABLE):
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
+$(SERVICE_BROKER_EXECUTABLE):
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(SERVICE_BROKER_EXECUTABLE) $(SERVICE_BROKER_PKG)
+
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(ALM_EXECUTABLE) $(ALM_PKG)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(SERVICE_BROKER_EXECUTABLE) $(SERVICE_BROKER_PKG)
 
 # build versions of the binaries with coverage enabled
 build-coverage:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(ALM_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(ALM_PKG)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(CATALOG_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(CATALOG_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(SERVICE_BROKER_EXECUTABLE) -c covermode=count -coverpkg ./pkg... $(SERVICE_BROKER_PKG)
 
 DEP := $(GOPATH)/bin/dep
 
@@ -77,6 +84,7 @@ container: build
 clean:
 	rm -f $(ALM_EXECUTABLE)
 	rm -f $(CATALOG_EXECUTABLE)
+	rm -f $(SERVICE_BROKER_EXECUTABLE)
 	rm -rf e2e/test-resources
 	rm -rf e2e/log
 

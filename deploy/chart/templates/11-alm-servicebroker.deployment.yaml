@@ -1,0 +1,48 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: alm-service-broker
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: alm-service-broker
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.servicebroker.replicaCount }}
+  selector:
+    matchLabels:
+      app: alm-service-broker
+  template:
+    metadata:
+      labels:
+        app: alm-service-broker
+    spec:
+      serviceAccountName: alm-operator-serviceaccount
+      containers:
+        - name: alm-service-broker
+          command:
+          - /bin/servicebroker
+          - '-debug'
+          image: {{ .Values.servicebroker.image.ref }}
+          imagePullPolicy: {{ .Values.servicebroker.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.servicebroker.service.internalPort }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.servicebroker.service.internalPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.servicebroker.service.internalPort }}
+          {{- if .Values.servicebroker.resources }}
+          resources:
+{{ toYaml .Values.servicebroker.resources | indent 12 }}
+          {{- end}}
+    {{- if .Values.servicebroker.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.servicebroker.nodeSelector | indent 8 }}
+    {{- end }}
+      imagePullSecrets:
+        - name: coreos-pull-secret
