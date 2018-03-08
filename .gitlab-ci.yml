@@ -27,12 +27,17 @@ container-build:
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   - 'docker build  --no-cache -f catalog-ci.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}
+  - 'docker build  --no-cache -f alm-service-broker-ci.Dockerfile -t quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG} . '
+  - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}
   - docker create quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/alm bin/alm
   - docker create quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/catalog bin/catalog
+  - docker create quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/servicebroker bin/servicebroker
   - 'docker build  --no-cache -f alm-pre.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f catalog-pre.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+  - 'docker build  --no-cache -f alm-service-broker-pre.Dockerfile -t quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre . '
+  - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} . '
   - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: docker_build
@@ -56,6 +61,9 @@ container-release:
   - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker pull quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm-service-broker:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker push quay.io/coreos/alm-service-broker:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
   - docker push quay.io/coreos/alm-e2e:latest
