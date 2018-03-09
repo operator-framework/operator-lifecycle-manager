@@ -63,6 +63,14 @@ func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.Reque
 }
 
 func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
+	ip, err := a.client.InstallplanV1alpha1().InstallPlans(a.namespace).Get(string(*request.OperationKey), metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	if ip == nil {
+		return nil, nil
+	}
+
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
