@@ -51,6 +51,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	if sub.Status.CurrentCSV == "" {
 		if sub.Spec.StartingCSV != "" {
 			sub.Status.CurrentCSV = sub.Spec.StartingCSV
+			sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		} else {
 			csv, err := catalog.FindCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel)
 			if err != nil {
@@ -62,6 +63,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 					sub.Spec.Package, sub.Spec.Channel)
 			}
 			sub.Status.CurrentCSV = csv.GetName()
+			sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		}
 		_, err := o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
 		return err
@@ -109,6 +111,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		if res == nil {
 			return errors.New("unexpected installplan returned by k8s api on create: <nil>")
 		}
+		sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
 			UID:        res.GetUID(),
 			Name:       res.GetName(),
@@ -130,6 +133,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	// update subscription with new latest
 	sub.Status.CurrentCSV = repl.GetName()
 	sub.Status.Install = nil
+	sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 	_, err = o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
 	return err
 }
