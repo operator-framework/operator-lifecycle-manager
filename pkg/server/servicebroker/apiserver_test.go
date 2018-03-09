@@ -1,4 +1,4 @@
-package broker
+package servicebroker
 
 import (
 	"testing"

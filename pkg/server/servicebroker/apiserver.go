@@ -1,4 +1,4 @@
-package broker
+package servicebroker
 
 import (
 	"errors"
@@ -47,57 +47,6 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 	return br, nil
 }
 
-func (b *ALMBroker) getCatalog() ([]v1alpha1.ClusterServiceVersion, error) {
-	csList, err := b.client.CatalogsourceV1alpha1().CatalogSources(b.namespace).List(metav1.ListOptions{})
-	if err != nil {
-		return []v1alpha1.ClusterServiceVersion{}, err
-	}
-	log.Debugf("found %d catalog sources", len(csList.Items))
-	if csList == nil || len(csList.Items) == 0 {
-		return []v1alpha1.ClusterServiceVersion{}, nil
-	}
-
-	loader := registry.ConfigMapCatalogResourceLoader{registry.NewInMem(), b.namespace, b.opClient}
-	for _, cs := range csList.Items {
-		loader.Namespace = cs.GetNamespace()
-		if err := loader.LoadCatalogResources(cs.Spec.ConfigMap); err != nil {
-			return []v1alpha1.ClusterServiceVersion{}, err
-		}
-	}
-	return loader.Catalog.ListServices()
-}
-
-func csvToService(csv *v1alpha1.ClusterServiceVersion) osb.Service {
-	free := true
-	bindable := false
-	serviceID := fmt.Sprintf("%s.clusterserviceversion", strings.ToLower(csv.GetName()))
-	service := osb.Service{
-		ID:                  serviceID,
-		Name:                csv.Spec.DisplayName,
-		Description:         csv.Spec.Description,
-		Tags:                csv.Spec.Keywords,
-		Requires:            []string{}, // TODO add permissions
-		Bindable:            false,      // TODO replace when binding implemented
-		BindingsRetrievable: false,      // TODO replace when binding implemented
-		Plans: []osb.Plan{
-			{
-				ID:               serviceID,
-				Name:             fmt.Sprintf("%sv%s-default", csv.Spec.DisplayName, csv.Spec.Version.String()),
-				Description:      fmt.Sprintf("Default service plan for %s version %s", csv.Spec.DisplayName, csv.Spec.Version.String()),
-				Free:             &free,
-				Bindable:         &bindable,
-				Metadata:         map[string]interface{}{},
-				ParameterSchemas: nil,
-			},
-		}, // TODO complete
-		Metadata: map[string]interface{}{
-			"Spec":   csv.Spec,
-			"Status": csv.Status,
-		},
-	}
-	return service
-}
-
 // ensure *almBroker implements osb-broker-lib interface
 var _ broker.Interface = &ALMBroker{}
 
@@ -108,10 +57,29 @@ func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
 
 // GetCatalog returns the CSVs in the catalog
 func (a *ALMBroker) GetCatalog(*broker.RequestContext) (*osb.CatalogResponse, error) {
-	csvs, err := a.getCatalog()
+	// find all CatalogSources
+	csList, err := a.client.CatalogsourceV1alpha1().CatalogSources(a.namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
+	if csList == nil {
+		return nil, errors.New("unexpected response fetching catalogsources - <nil>")
+	}
+
+	// load service definitions from configmaps into temp in memory service registry
+	loader := registry.ConfigMapCatalogResourceLoader{registry.NewInMem(), a.namespace, a.opClient}
+	for _, cs := range csList.Items {
+		loader.Namespace = cs.GetNamespace()
+		if err := loader.LoadCatalogResources(cs.Spec.ConfigMap); err != nil {
+			return nil, err
+		}
+	}
+	csvs, err := loader.ListServices()
+	if err != nil {
+		return nil, err
+	}
+
+	// convert ClusterServiceVersions into OpenServiceBroker API `Service` object
 	services := make([]osb.Service, len(csvs))
 	for i, csv := range csvs {
 		services[i] = csvToService(&csv)
@@ -122,22 +90,30 @@ func (a *ALMBroker) GetCatalog(*broker.RequestContext) (*osb.CatalogResponse, er
 func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*osb.ProvisionResponse, error) {
 	// install CSV if doesn't exist
 	ip := &ipv1alpha1.InstallPlan{
-		ObjectMeta: metav1.ObjectMeta{},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace:    a.namespace,
+			GenerateName: fmt.Sprintf("servicebroker-install-%s", request.ServiceID),
+		},
 		Spec: ipv1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{request.ServiceID},
 			Approval:                   ipv1alpha1.ApprovalAutomatic,
 		},
 	}
-	ip.SetGenerateName(fmt.Sprintf("install-%s", request.ServiceID))
-	ip.SetNamespace(request.SpaceGUID)
+	// use namespace from request if specified
+	if request.SpaceGUID != "" {
+		ip.SetNamespace(request.SpaceGUID)
+	}
+	if ip.GetNamespace() == "" {
+		return nil, NamespaceRequiredError
+	}
 	res, err := a.client.InstallplanV1alpha1().InstallPlans(request.SpaceGUID).Create(ip)
 	if err != nil {
 		return nil, err
 	}
 	if res == nil {
-		return nil, errors.New("unexpected installplan returned by k8s api on create: <nil>")
+		return nil, errors.New("unexpected response installing service plan")
 	}
-	opkey := osb.OperationKey(res.GetName())
+	opkey := osb.OperationKey(res.GetUUID())
 	response := osb.ProvisionResponse{
 		Async:        true,
 		OperationKey: &opkey,
