@@ -199,6 +199,7 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV:  "latest-and-greatest",
 						LastUpdated: earliestTime,
+						State:       v1alpha1.SubscriptionStateAtLatest,
 					},
 				},
 				err: "",
@@ -244,6 +245,7 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV:  "wayback",
 						LastUpdated: earliestTime,
+						State:       v1alpha1.SubscriptionStateAtLatest,
 					},
 				},
 				err: "",
@@ -282,6 +284,7 @@ func TestSyncSubscription(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
+						State:      v1alpha1.SubscriptionStateAtLatest,
 					},
 				},
 				err: "UpdateErr",
@@ -394,6 +397,7 @@ func TestSyncSubscription(t *testing.T) {
 							UID:  types.UID("UID-OK"),
 							Name: "installplan-1",
 						},
+						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
 				},
 				err: "",
@@ -466,6 +470,7 @@ func TestSyncSubscription(t *testing.T) {
 							UID:  types.UID("UID-OK"),
 							Name: "installplan-1",
 						},
+						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
 				},
 				csvName:   "latest-and-greatest",
@@ -660,6 +665,7 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "next",
 						Install:    nil,
+						State:      v1alpha1.SubscriptionStateAtLatest,
 					},
 				},
 			},
