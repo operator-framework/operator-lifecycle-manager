@@ -459,5 +459,5 @@ __pycache__/
 *.odx.cs
 *.xsd.cs
 vendor
-e2e/resources/*
 *.bak
+**/resources/*
