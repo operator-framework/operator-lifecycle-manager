@@ -7,7 +7,9 @@ import (
 
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	csvv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/controller/registry"
 )
 
 const (
@@ -16,6 +18,9 @@ const (
 )
 
 var (
+	True  = true
+	False = false
+
 	NamespaceRequiredError = osb.HTTPStatusCodeError{
 		StatusCode:   http.StatusBadRequest,
 		ErrorMessage: *NamespaceRequiredErrorMessage,
@@ -23,9 +28,11 @@ var (
 	}
 )
 
-func csvToService(csv *v1alpha1.ClusterServiceVersion) osb.Service {
-	free := true
-	bindable := false
+type ServicePlan struct {
+	CSVName string
+}
+
+func csvToService(csv *csvv1alpha1.ClusterServiceVersion) osb.Service {
 	serviceID := fmt.Sprintf("%s.clusterserviceversion", strings.ToLower(csv.GetName()))
 	service := osb.Service{
 		ID:                  serviceID,
@@ -52,4 +59,31 @@ func csvToService(csv *v1alpha1.ClusterServiceVersion) osb.Service {
 		},
 	}
 	return service
+}
+
+func findOSBServiceByPackageName(reg registry.Source, pkg string) *osb.Service {
+	plan := osb.Plan{
+		ID:          "",
+		Name:        "",
+		Description: "",
+		Free:        &True,
+		Bindable:    &False,
+		Metadata:    map[string]interface{}{},
+		ParameterSchemas: &osb.ParameterSchemas{
+			ServiceInstances: &osb.ServiceInstanceSchema{
+				Create: *InputParameters{
+					Parameters: map[string]interface{}{},
+				},
+				Update: *InputParameters{
+					Parameters: map[string]interface{}{},
+				},
+			},
+			ServiceBindings: &osb.ServiceBindingSchema{
+				Create: *InputParameters{
+					Parameters: map[string]interface{}{},
+				},
+			},
+		},
+	}
+	return &plan
 }
