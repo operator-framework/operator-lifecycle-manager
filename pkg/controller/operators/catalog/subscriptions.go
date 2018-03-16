@@ -36,7 +36,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	sub.SetLabels(labels)
 
 	// only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) {
+	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State == v1alpha1.SubscriptionStateAtLatest {
 		log.Infof("skipping sync: no new updates to catalog since last sync at %s",
 			sub.Status.LastUpdated.String())
 		return nil
