@@ -103,7 +103,7 @@ func TestSyncSubscription(t *testing.T) {
 		},
 		{
 			name:    "no updates",
-			subName: "subscription synced already since last catalog update",
+			subName: "subscription synced already since last catalog update and at latest CSV",
 			initial: initial{
 				catalogName:       "flying-unicorns",
 				sourcesLastUpdate: earliestTime,
@@ -114,9 +114,58 @@ func TestSyncSubscription(t *testing.T) {
 				},
 				Status: v1alpha1.SubscriptionStatus{
 					LastUpdated: earlierTime,
+					State:       v1alpha1.SubscriptionStateAtLatest,
 				},
 			}},
 			expected: expected{},
+		},
+		{
+			name:    "no updates",
+			subName: "subscription synced already since last catalog update but CSV install pending",
+			initial: initial{
+				catalogName: "flying-unicorns",
+				findLatestCSVResult: &csvv1alpha1.ClusterServiceVersion{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       csvv1alpha1.ClusterServiceVersionKind,
+						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "latest-and-greatest",
+					},
+				},
+				sourcesLastUpdate: earliestTime,
+			},
+			args: args{subscription: &v1alpha1.Subscription{
+				Spec: &v1alpha1.SubscriptionSpec{
+					CatalogSource: "flying-unicorns",
+					Package:       "rainbows",
+					Channel:       "magical",
+				},
+				Status: v1alpha1.SubscriptionStatus{
+					LastUpdated: earliestTime,
+					State:       v1alpha1.SubscriptionStateUpgradePending,
+				},
+			}},
+			expected: expected{
+				packageName: "rainbows",
+				channelName: "magical",
+				subscription: &v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource: "flying-unicorns",
+						Package:       "rainbows",
+						Channel:       "magical",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV:  "latest-and-greatest",
+						LastUpdated: earliestTime,
+						State:       v1alpha1.SubscriptionStateAtLatest,
+					},
+				},
+				err: "",
+			},
 		},
 		{
 			name:    "clean install",
