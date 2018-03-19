@@ -8,9 +8,11 @@ import (
 	"strings"
 
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
+	//log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 )
@@ -20,8 +22,8 @@ const (
 	kindKey    = "Kind"
 	crdNameKey = "Name"
 
-	namespaceKey = "namespace"
-
+	namespaceKey        = "namespace"
+	csvNameLabel        = "clusterserviceversion-name"
 	serviceClassIDLabel = "alm-service-broker-clusterserviceclass-id"
 	servicePlanIDLabel  = "alm-service-broker-clusterserviceplan-id"
 )
@@ -89,8 +91,9 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 		Plans:           plans,
 		DashboardClient: nil, // TODO
 		Metadata: map[string]interface{}{
-			"Spec":   csv.Spec,
-			"Status": csv.Status,
+			csvNameLabel: csv.GetName(),
+			"Spec":       csv.Spec,
+			"Status":     csv.Status,
 		},
 	}
 	return service, nil
@@ -111,37 +114,39 @@ type CustomResourceObject struct {
 	Spec map[string]interface{}
 }
 
-func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]interface{}) (unstructured.Unstructured, error) {
+func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]interface{}) (*unstructured.Unstructured, error) {
 	kind, ok := plan.Metadata[kindKey]
 	if !ok {
-		return unstructured.Unstructured{}, errors.New("missing required field: `Metadata[\"Kind\"]`")
+		return nil, errors.New("missing required field: `Metadata[\"Kind\"]`")
 	}
 	version, ok := plan.Metadata[versionKey]
 	if !ok {
-		return unstructured.Unstructured{}, errors.New("missing required field: `Metadata[\"Version\"]`")
+		return nil, errors.New("missing required field: `Metadata[\"Version\"]`")
 	}
+	crdName, ok := plan.Metadata[crdNameKey]
+	if !ok {
+		return nil, errors.New("missing required field: `Metadata[\"Name\"]`")
+	}
+	apiVersion := schema.ParseGroupResource(crdName.(string)).WithVersion(version.(string)).GroupVersion().String()
 	obj := CustomResourceObject{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       kind.(string),
-			APIVersion: version.(string),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
-			Labels: map[string]string{
-				servicePlanIDLabel: plan.ID,
-			},
-			Annotations: map[string]string{
-				// TODO store reference to plan as JSON string
-			},
-		},
 		Spec: spec,
 	}
+	//log.Debugf("planToCustomResourceObject: plan=%+v cr=%+v", plan, obj)
 	unstructuredCR, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&obj)
 	if err != nil {
-		return unstructured.Unstructured{}, err
+		return nil, err
 	}
-	return unstructured.Unstructured{Object: unstructuredCR}, nil
+	cr := &unstructured.Unstructured{Object: unstructuredCR}
+	cr.SetAPIVersion(apiVersion)
+	cr.SetKind(kind.(string))
+	cr.SetName(name)
+	cr.SetLabels(map[string]string{
+		servicePlanIDLabel: plan.ID,
+	})
+	return cr, nil
 }
+
+//'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
 func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 	bindable := len(crd.StatusDescriptors) > 0
 	plan := osb.Plan{
@@ -163,5 +168,6 @@ func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 			ServiceBindings: nil,
 		},
 	}
+	//log.Debugf("crdToServicePlan: crd=%+v plan=%+v", crd, plan)
 	return plan
 }

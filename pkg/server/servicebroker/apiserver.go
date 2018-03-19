@@ -3,6 +3,7 @@ package servicebroker
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
@@ -20,7 +22,12 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
-// Options passed in from cmd
+// default poll times for waiting on resources
+var (
+	pollInterval = 1 * time.Second
+	pollDuration = 5 * time.Minute
+)
+
 type Options struct {
 	Namespace string // restrict to resources within a namespace, default all namespaces
 }
@@ -104,7 +111,7 @@ func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*osb.CatalogResponse, 
 		}
 		services[i] = s
 	}
-	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Services=%#v", services)
+	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Services=%#v", len(services))
 	return &osb.CatalogResponse{services}, nil
 }
 
@@ -156,8 +163,6 @@ func ensureCSV(namespace string, csvName string, client versioned.Interface) err
 		return errors.New("unexpected response installing service plan")
 	}
 	// wait for installplan to finish
-	pollInterval := 1 * time.Second
-	pollDuration := 5 * time.Minute
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		pollIp, pollErr := client.InstallplanV1alpha1().InstallPlans(namespace).Get(ip.Name, metav1.GetOptions{})
 
@@ -189,20 +194,17 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	if err := ensureNamespace(namespace, a.opClient); err != nil {
 		return nil, err
 	}
-	csvName := request.ServiceID
-	logStep(request.PlanID, "EnsureCSV")
-	if err := ensureCSV(namespace, csvName, a.client); err != nil {
-		return nil, err
-	}
 	logStep(request.PlanID, "GetCatalog")
 	catalog, err := a.GetCatalog(nil)
 	if err != nil {
 		return nil, err
 	}
 	var plan osb.Plan
+	var csvName string
 	found := false
 	for _, s := range catalog.Services {
 		if s.ID == request.ServiceID {
+			csvName = s.Metadata[csvNameLabel].(string)
 			for _, p := range s.Plans {
 				if p.ID == request.PlanID {
 					plan = p
@@ -215,24 +217,35 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	if !found {
 		return nil, errors.New("unknown plan")
 	}
+	logStep(request.PlanID, "EnsureCSV")
+	if err := ensureCSV(namespace, csvName, a.client); err != nil {
+		return nil, err
+	}
 	logStep(request.PlanID, "CreateCR")
 	cr, err := planToCustomResourceObject(plan, request.InstanceID, request.Parameters)
 	if err != nil {
 		return nil, err
 	}
-
-	// cr.Namespace = namespace
-	if err := a.opClient.CreateCustomResource(&cr); err != nil {
+	cr.SetNamespace(namespace)
+	if err := a.opClient.CreateCustomResource(cr); err != nil && !apierrors.IsAlreadyExists(err) {
+		logStep(request.PlanID, fmt.Sprintf("CreateCR Status=FAIL CR=%+v Err=%v APIVersion:%s", cr, err, cr.GetAPIVersion()))
 		return nil, err
 	}
-	opkey := osb.OperationKey(cr.GetObjectKind().GroupVersionKind().String())
-	response := osb.ProvisionResponse{
+	logStep(request.PlanID, "GetCR")
+	gvk := cr.GroupVersionKind()
+	obj, err := a.opClient.GetCustomResource(gvk.Group, gvk.Version, namespace, gvk.Kind, cr.GetName())
+	if err != nil {
+		logStep(request.PlanID, fmt.Sprintf("GetCR Status=FAIL CR=%+v Err=%vs", cr, err))
+		return nil, err
+	}
+	opkey := osb.OperationKey(obj.GetSelfLink())
+	response := &osb.ProvisionResponse{
 		Async:        true,
 		OperationKey: &opkey,
 		DashboardURL: a.dashboardURL, // TODO make specific to created resource
 	}
-	logStep(request.PlanID, fmt.Sprintf("EndRequest OperationKey=%s", opkey))
-	return &response, nil
+	logStep(request.PlanID, fmt.Sprintf("EndRequest link=%s opKey=%+v &opKey=%+v Response=%+v", obj.GetSelfLink(), opkey, response.OperationKey, response))
+	return response, nil
 
 }
 
@@ -242,16 +255,65 @@ func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.Reque
 }
 
 func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
-	ip, err := a.client.InstallplanV1alpha1().InstallPlans(a.namespace).Get(string(*request.OperationKey), metav1.GetOptions{})
+	var object unstructured.Unstructured
+	var description string
+	if request == nil {
+		return nil, errors.New("invalid request: <nil>")
+	}
+
+	values := c.Request.URL.Query()
+	serviceID := values.Get("service_id")
+	planID := values.Get("plan_id")
+	instanceID := request.InstanceID
+	catalog, err := a.GetCatalog(nil)
 	if err != nil {
 		return nil, err
 	}
-	if ip == nil {
-		return nil, nil
+	var plan osb.Plan
+	found := false
+	for _, s := range catalog.Services {
+		if s.ID == serviceID {
+			for _, p := range s.Plans {
+				if p.ID == planID {
+					plan = p
+					found = true
+					break
+				}
+			}
+		}
+	}
+	if !found {
+		return nil, errors.New("unknown plan")
+	}
+	cr, err := planToCustomResourceObject(plan, instanceID, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	gvk := cr.GroupVersionKind()
+	uri := fmt.Sprintf("/apis/%s/%s/%ss",
+		strings.ToLower(gvk.Group),
+		strings.ToLower(gvk.Version),
+		strings.ToLower(gvk.Kind))
+	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
+		Get().RequestURI(uri).
+		Do().Into(&object)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return &osb.LastOperationResponse{State: osb.StateInProgress}, nil
+		}
+		msg := err.Error()
+		return &osb.LastOperationResponse{
+			State:       osb.StateFailed,
+			Description: &msg,
+		}, nil
 	}
 
-	// TODO implement
-	return nil, errors.New("not implemented")
+	log.Debugf("Component=ServiceBroker Endpoint=LastOperation service_id=%s plan_id=%s instance_id=%s obj=%#v", serviceID, planID, instanceID, object)
+	resp := &osb.LastOperationResponse{
+		State:       osb.StateSucceeded, // TODO
+		Description: &description,
+	}
+	return resp, nil
 }
 
 func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*osb.BindResponse, error) {
