@@ -39,6 +39,12 @@ run-local-shift: update-catalog
 	. ./scripts/install_local.sh local Documentation/install/resources
 	rm -rf Documentation/install/resources
 
+clean-shift:
+	kubectl delete clusterservicebrokers --all
+	kubectl delete clusterserviceclasses --all
+	kubectl delete clusterserviceplans --all
+	kubectl delete ns local
+
 e2e-local: update-catalog
 	./scripts/build_local.sh
 	./scripts/run_e2e_local.sh
