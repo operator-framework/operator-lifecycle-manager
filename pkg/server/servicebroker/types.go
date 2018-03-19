@@ -20,8 +20,8 @@ const (
 	kindKey    = "Kind"
 	crdNameKey = "Name"
 
-	namespaceKey = "namespace"
-
+	namespaceKey        = "namespace"
+	csvNameLabel        = "clusterserviceversion-name"
 	serviceClassIDLabel = "alm-service-broker-clusterserviceclass-id"
 	servicePlanIDLabel  = "alm-service-broker-clusterserviceplan-id"
 )
@@ -89,8 +89,9 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 		Plans:           plans,
 		DashboardClient: nil, // TODO
 		Metadata: map[string]interface{}{
-			"Spec":   csv.Spec,
-			"Status": csv.Status,
+			csvNameLabel: csv.GetName(),
+			"Spec":       csv.Spec,
+			"Status":     csv.Status,
 		},
 	}
 	return service, nil

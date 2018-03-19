@@ -189,20 +189,17 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	if err := ensureNamespace(namespace, a.opClient); err != nil {
 		return nil, err
 	}
-	csvName := request.ServiceID
-	logStep(request.PlanID, "EnsureCSV")
-	if err := ensureCSV(namespace, csvName, a.client); err != nil {
-		return nil, err
-	}
 	logStep(request.PlanID, "GetCatalog")
 	catalog, err := a.GetCatalog(nil)
 	if err != nil {
 		return nil, err
 	}
 	var plan osb.Plan
+	var csvName string
 	found := false
 	for _, s := range catalog.Services {
 		if s.ID == request.ServiceID {
+			csvName = s.Metadata[csvNameLabel].(string)
 			for _, p := range s.Plans {
 				if p.ID == request.PlanID {
 					plan = p
@@ -214,6 +211,10 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	}
 	if !found {
 		return nil, errors.New("unknown plan")
+	}
+	logStep(request.PlanID, "EnsureCSV")
+	if err := ensureCSV(namespace, csvName, a.client); err != nil {
+		return nil, err
 	}
 	logStep(request.PlanID, "CreateCR")
 	cr, err := planToCustomResourceObject(plan, request.InstanceID, request.Parameters)
