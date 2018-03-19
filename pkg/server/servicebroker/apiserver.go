@@ -173,7 +173,9 @@ func ensureCSV(namespace string, csvName string, client versioned.Interface) err
 	})
 	return err
 }
-
+func logStep(plan, step string) {
+	log.Debugf("Component=ServiceBroker Endpoint=Provision Plan=%s Step=%s", plan, step)
+}
 func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*osb.ProvisionResponse, error) {
 	log.Debugf("Component=ServiceBroker Endpoint=Provision Request=%#v", request)
 	namespace := a.namespace
@@ -183,14 +185,16 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	if namespace == "" {
 		return nil, NamespaceRequiredError
 	}
+	logStep(request.PlanID, "EnsureNamespace")
 	if err := ensureNamespace(namespace, a.opClient); err != nil {
 		return nil, err
 	}
 	csvName := request.ServiceID
+	logStep(request.PlanID, "EnsureCSV")
 	if err := ensureCSV(namespace, csvName, a.client); err != nil {
 		return nil, err
 	}
-
+	logStep(request.PlanID, "GetCatalog")
 	catalog, err := a.GetCatalog(nil)
 	if err != nil {
 		return nil, err
@@ -211,6 +215,7 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	if !found {
 		return nil, errors.New("unknown plan")
 	}
+	logStep(request.PlanID, "CreateCR")
 	cr, err := planToCustomResourceObject(plan, request.InstanceID, request.Parameters)
 	if err != nil {
 		return nil, err
@@ -226,6 +231,7 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 		OperationKey: &opkey,
 		DashboardURL: a.dashboardURL, // TODO make specific to created resource
 	}
+	logStep(request.PlanID, fmt.Sprintf("EndRequest OperationKey=%s", opkey))
 	return &response, nil
 
 }
