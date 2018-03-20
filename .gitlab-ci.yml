@@ -128,6 +128,35 @@ deploy-staging:
   variables:
     ALM_DOMAIN: alm-staging.k8s.devtable.com
     K8S_NAMESPACE: ci-alm-staging
+deploy-teamui:
+  before_script:
+  - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
+    \"namespace\": \"tectonic-system\", \"watchedNamespaces\": \"tectonic-system\"}" > params.json'
+  - cat params.json
+  environment:
+    name: teamui
+    url: https://teamui18.console.team.coreos.systems
+  image: quay.io/coreos/alm-ci-build:latest
+  only:
+  - master
+  script:
+  - echo $TEAMUI_KUBECONFIG | base64 -d > kubeconfig
+  - export KUBECONFIG=./kubeconfig
+  - kubectl create ns tectonic-system || true
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=tectonic-system
+    || true
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=tectonic-system
+    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
+    --set namespace=tectonic-system --set watchedNamespaces=tectonic-system > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+  - kubectl rollout status -w deployment/alm-operator --namespace=tectonic-system
+  - kubectl rollout status -w deployment/catalog-operator --namespace=tectonic-system
+  stage: deploy_staging
+  tags:
+  - kubernetes
+  variables:
+    ALM_DOMAIN: teamui18.console.team.coreos.systems
+    K8S_NAMESPACE: tectonic-system
 e2e-setup:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'

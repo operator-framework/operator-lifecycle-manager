@@ -153,11 +153,30 @@ local jobs = {
             namespace: "ci-alm-staging",
             channel: "staging",
             helm_opts: ["--force"],
+            kubeconfig: "$CD_KUBECONFIG",
         },
         stage: stages.deploy_staging,
         script+: [],
         environment+: {
             name: "staging",
+        },
+        only: ['master'],
+    },
+
+    "deploy-teamui": baseJob.Deploy {
+        local _vars = self.localvars,
+        localvars+:: {
+            image: images.release,
+            domain: "teamui18.console.team.coreos.systems",
+            namespace: "tectonic-system",
+            channel: "staging",
+            helm_opts: ["--force"],
+            kubeconfig: "$TEAMUI_KUBECONFIG",
+        },
+        stage: stages.deploy_staging,
+        script+: [],
+        environment+: {
+            name: "teamui",
         },
         only: ['master'],
     },

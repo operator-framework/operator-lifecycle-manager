@@ -100,6 +100,7 @@ local appr = utils.appr;
             image: vars.images.prerelease,
             channel: null,
             helm_opts: [],
+            kubeconfig: "$CD_KUBECONFIG",
             params: {
                 "alm.image.ref": _vars.image.alm.name,
                 "catalog.image.ref": _vars.image.catalog.name,
@@ -127,7 +128,7 @@ local appr = utils.appr;
         ],
 
         script:
-            k8s.setKubeConfig("$CD_KUBECONFIG") +
+            k8s.setKubeConfig(_vars.kubeconfig) +
             k8s.createNamespace(_vars.namespace) +
             k8s.createPullSecret("coreos-pull-secret",
                                  _vars.namespace,
@@ -146,7 +147,7 @@ local appr = utils.appr;
         },
         before_script: [],
         script:
-            k8s.setKubeConfig("$CD_KUBECONFIG") + [
+            k8s.setKubeConfig(self.localvars.kubeconfig) + [
                 "kubectl delete ns --ignore-not-found=true %s" % self.localvars.namespace,
                 "kubectl get pods -o wide -n %s" % self.localvars.namespace,
             ],
