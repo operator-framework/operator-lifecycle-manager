@@ -41,7 +41,7 @@ var options struct {
 
 func init() {
 	// Parse the command-line flags.
-	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	//flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
 	flag.IntVar(&options.Port,
 		"port", defaultPort, "specify the port for broker to listen on")
@@ -68,7 +68,6 @@ func main() {
 	if options.Debug {
 		log.SetLevel(log.DebugLevel)
 	}
-
 	if err := run(); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
 		log.Fatal(err)
 	}
@@ -79,6 +78,8 @@ func main() {
 func run() error {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
+	defer glog.Flush()
+
 	go cancelOnInterrupt(ctx, cancelFunc)
 
 	return runWithContext(ctx)
