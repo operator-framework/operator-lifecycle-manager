@@ -119,6 +119,7 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 	log.Infof("getting %s from queue", key)
 	obj, exists, err := loop.informer.GetIndexer().GetByKey(key)
 	if err != nil {
+		log.Debugf("Fetching object failed: %s", key)
 		return err
 	}
 
@@ -127,5 +128,6 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 		log.Infof("couldn't get %s from queue", key)
 		return nil
 	}
+	log.Debugf("Starting sync of %s", key)
 	return loop.syncHandler(obj)
 }
