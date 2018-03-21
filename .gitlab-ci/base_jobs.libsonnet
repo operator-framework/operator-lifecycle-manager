@@ -104,7 +104,6 @@ local appr = utils.appr;
             params: {
                 "alm.image.ref": _vars.image.alm.name,
                 "catalog.image.ref": _vars.image.catalog.name,
-                // FIXME(alecmerdler): `watchedNamespaces` should be configured separately from Operator namespace
                 watchedNamespaces: _vars.namespace,
                 catalog_namespace: _vars.catalog_namespace,
                 namespace: _vars.namespace,
