@@ -27,6 +27,15 @@ coverage: test
 coverage-html: test
 	go tool cover -html=cover.out
 
+CATALOG_CM := deploy/chart/templates/08-tectonicocs.configmap.yaml
+$(CATALOG_CM): catalog_resources/*.yaml
+	./scripts/build_catalog_configmap.sh $@
+
+run: $(CATALOG_CM) $(ALM_EXECUTABLE) $(CATALOG_EXECUTABLE) $(SERVICE_BROKER_EXECUTABLE)
+	. ./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values-shift.yaml
+	. ./scripts/build_local_shift.sh
+	. ./scripts/install_local.sh local Documentation/install/resources
+
 run-local: update-catalog
 	. ./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
 	. ./scripts/build_local.sh
