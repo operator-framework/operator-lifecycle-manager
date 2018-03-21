@@ -172,6 +172,9 @@ local jobs = {
             channel: "staging",
             helm_opts: ["--force"],
             kubeconfig: "$TEAMUI_KUBECONFIG",
+            params+:: {
+                watchedNamespaces: "",
+            },
         },
         stage: stages.deploy_staging,
         script+: [],
