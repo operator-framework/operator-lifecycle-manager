@@ -23,10 +23,10 @@ spec:
         - name: alm-operator
           command:
           - /bin/alm
-          {{- if .Values.watchedNamespaces }}
-          - -watchedNamespaces
-          - {{ .Values.watchedNamespaces }}
-          {{- end }}
+          # {{- if .Values.watchedNamespaces }}
+          # - -watchedNamespaces
+          # - {{ .Values.watchedNamespaces }}
+          # {{- end }}
           {{- if .Values.alm.commandArgs }}
           - {{ .Values.alm.commandArgs }}
           {{- end }}
