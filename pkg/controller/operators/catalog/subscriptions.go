@@ -21,9 +21,9 @@ const (
 	ChannelLabel = "alm-channel"
 )
 
-func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
+func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
 	if sub == nil || sub.Spec == nil {
-		return ErrNilSubscription
+		return nil, ErrNilSubscription
 	}
 
 	labels := sub.GetLabels()
@@ -39,13 +39,13 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State == v1alpha1.SubscriptionStateAtLatest {
 		log.Infof("skipping sync: no new updates to catalog since last sync at %s",
 			sub.Status.LastUpdated.String())
-		return nil
+		return sub, nil
 	}
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
 	catalog, ok := o.sources[sub.Spec.CatalogSource]
 	if !ok {
-		return fmt.Errorf("unknown catalog source %s", sub.Spec.CatalogSource)
+		return sub, fmt.Errorf("unknown catalog source %s", sub.Spec.CatalogSource)
 	}
 	// find latest CSV if no CSVs are installed already
 	if sub.Status.CurrentCSV == "" {
@@ -55,18 +55,15 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		} else {
 			csv, err := catalog.FindCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel)
 			if err != nil {
-				return fmt.Errorf("failed to find CSV for package %s in channel %s: %v",
-					sub.Spec.Package, sub.Spec.Channel, err)
+				return sub, fmt.Errorf("failed to find CSV for package %s in channel %s: %v", sub.Spec.Package, sub.Spec.Channel, err)
 			}
 			if csv == nil {
-				return fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV",
-					sub.Spec.Package, sub.Spec.Channel)
+				return sub, fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV", sub.Spec.Package, sub.Spec.Channel)
 			}
 			sub.Status.CurrentCSV = csv.GetName()
 			sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		}
-		_, err := o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
-		return err
+		return sub, nil
 	}
 
 	// check that desired CSV has been installed
@@ -80,7 +77,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			}
 			if err == nil && ip != nil {
 				log.Infof("installplan for %s already exists", sub.Status.CurrentCSV)
-				return nil
+				return sub, nil
 			}
 			log.Infof("installplan %s not found: creating new plan", sub.Status.Install.Name)
 			sub.Status.Install = nil
@@ -106,10 +103,10 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 		ip.SetNamespace(sub.GetNamespace())
 		res, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Create(ip)
 		if err != nil {
-			return fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Status.CurrentCSV, err)
+			return sub, fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Status.CurrentCSV, err)
 		}
 		if res == nil {
-			return errors.New("unexpected installplan returned by k8s api on create: <nil>")
+			return sub, errors.New("unexpected installplan returned by k8s api on create: <nil>")
 		}
 		sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
@@ -118,22 +115,20 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) error {
 			APIVersion: res.APIVersion,
 			Kind:       res.Kind,
 		}
-		_, err = o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
-		return err
+		return sub, nil
 	}
 	// poll catalog for an update
 	repl, err := catalog.FindReplacementCSVForPackageNameUnderChannel(
 		sub.Spec.Package, sub.Spec.Channel, sub.Status.CurrentCSV)
 	if err != nil {
-		return fmt.Errorf("failed to lookup replacement CSV for %s: %v", sub.Status.CurrentCSV, err)
+		return sub, fmt.Errorf("failed to lookup replacement CSV for %s: %v", sub.Status.CurrentCSV, err)
 	}
 	if repl == nil {
-		return fmt.Errorf("nil replacement CSV for %s returned from catalog", sub.Status.CurrentCSV)
+		return sub, fmt.Errorf("nil replacement CSV for %s returned from catalog", sub.Status.CurrentCSV)
 	}
 	// update subscription with new latest
 	sub.Status.CurrentCSV = repl.GetName()
 	sub.Status.Install = nil
 	sub.Status.State = v1alpha1.SubscriptionStateAtLatest
-	_, err = o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub)
-	return err
+	return sub, nil
 }

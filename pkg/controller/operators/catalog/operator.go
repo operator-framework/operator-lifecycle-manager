@@ -162,10 +162,11 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	log.Infof("syncing Subscription with catalog %s: %s on channel %s",
 		sub.Spec.CatalogSource, sub.Spec.Package, sub.Spec.Channel)
 
-	syncError = o.syncSubscription(sub)
-	sub.Status.LastUpdated = timeNow()
+	var updatedSub *subscriptionv1alpha1.Subscription
+	updatedSub, syncError = o.syncSubscription(sub)
+	updatedSub.Status.LastUpdated = timeNow()
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.SubscriptionV1alpha1().Subscriptions(sub.GetNamespace()).Update(sub); err != nil {
+	if _, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).Update(updatedSub); err != nil {
 		updateErr := errors.New("error updating Subscription status: " + err.Error())
 		if syncError == nil {
 			log.Info(updateErr)
