@@ -91,10 +91,17 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 		Plans:           plans,
 		DashboardClient: nil, // TODO
 		Metadata: map[string]interface{}{
-			csvNameLabel: csv.GetName(),
-			"Spec":       csv.Spec,
-			"Status":     csv.Status,
+			"displayName":         csv.Spec.DisplayName + " " + csv.Spec.Version.String(),
+			"longDescription":     csv.Spec.Description,
+			"providerDisplayName": csv.Spec.Provider.Name,
+			"supportURL":          csv.Spec.Provider.Name,
+			csvNameLabel:          csv.GetName(),
+			"Spec":                csv.Spec,
+			"Status":              csv.Status,
 		},
+	}
+	if len(csv.Spec.Icon) > 0 {
+		service.Metadata["imageUrl"] = fmt.Sprintf("data:%s;base64,%s", csv.Spec.Icon[0].MediaType, csv.Spec.Icon[0].Data)
 	}
 	return service, nil
 }
@@ -156,9 +163,10 @@ func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 		Free:        &defaultPlanFree,
 		Bindable:    &bindable,
 		Metadata: map[string]interface{}{
-			crdNameKey: crd.Name,
-			versionKey: crd.Version,
-			kindKey:    crd.Kind,
+			"displayName": crd.Kind,
+			crdNameKey:    crd.Name,
+			versionKey:    crd.Version,
+			kindKey:       crd.Kind,
 		},
 		ParameterSchemas: &osb.ParameterSchemas{
 			ServiceInstances: &osb.ServiceInstanceSchema{
