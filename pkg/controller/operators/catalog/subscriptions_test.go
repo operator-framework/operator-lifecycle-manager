@@ -301,45 +301,6 @@ func TestSyncSubscription(t *testing.T) {
 			},
 		},
 		{
-			name:    "clean install",
-			subName: "returns errors updating subscription",
-			initial: initial{
-				catalogName: "flying-unicorns",
-				findLatestCSVResult: &csvv1alpha1.ClusterServiceVersion{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "latest-and-greatest",
-					},
-				},
-				updateSubscriptionError: errors.New("UpdateErr"),
-			},
-			args: args{subscription: &v1alpha1.Subscription{
-				Spec: &v1alpha1.SubscriptionSpec{
-					CatalogSource: "flying-unicorns",
-					Package:       "rainbows",
-					Channel:       "magical",
-				},
-			}},
-			expected: expected{
-				packageName: "rainbows",
-				channelName: "magical",
-				subscription: &v1alpha1.Subscription{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
-					},
-					Spec: &v1alpha1.SubscriptionSpec{
-						CatalogSource: "flying-unicorns",
-						Package:       "rainbows",
-						Channel:       "magical",
-					},
-					Status: v1alpha1.SubscriptionStatus{
-						CurrentCSV: "latest-and-greatest",
-						State:      v1alpha1.SubscriptionStateAtLatest,
-					},
-				},
-				err: "UpdateErr",
-			},
-		},
-		{
 			name:    "install in progress",
 			subName: "NoOp",
 			initial: initial{
@@ -770,16 +731,6 @@ func TestSyncSubscription(t *testing.T) {
 				)
 			}
 
-			if tt.expected.subscription != nil {
-				expectedActions = append(expectedActions,
-					core.NewUpdateAction(
-						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "subscription-v1s"},
-						tt.expected.namespace,
-						tt.expected.subscription,
-					),
-				)
-			}
-
 			if tt.args.subscription != nil {
 				if tt.args.subscription.Status.Install != nil && tt.initial.getInstallPlanError == nil {
 					expectedActions = append(expectedActions,
@@ -863,7 +814,7 @@ func TestSyncSubscription(t *testing.T) {
 			}
 
 			// run subscription sync
-			err := op.syncSubscription(tt.args.subscription)
+			sub, err := op.syncSubscription(tt.args.subscription)
 			if tt.expected.err != "" {
 				require.EqualError(t, err, tt.expected.err)
 			} else {
@@ -872,17 +823,7 @@ func TestSyncSubscription(t *testing.T) {
 
 			// verify subscription changes happened correctly
 			if tt.expected.subscription != nil {
-				sub, err := clientFake.SubscriptionV1alpha1().Subscriptions(tt.expected.subscription.GetNamespace()).Get(tt.expected.subscription.GetName(), metav1.GetOptions{})
 				require.NoError(t, err)
-
-				expectedActions = append(expectedActions,
-					core.NewGetAction(
-						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "subscription-v1s"},
-						tt.expected.subscription.GetNamespace(),
-						tt.expected.subscription.GetName(),
-					),
-				)
-
 				require.Equal(t, tt.expected.subscription.Spec, sub.Spec)
 
 				// If we fail to update the subscription these won't be set
