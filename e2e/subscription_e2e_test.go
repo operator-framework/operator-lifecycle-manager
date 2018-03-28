@@ -4,24 +4,23 @@ import (
 	"encoding/json"
 	"testing"
 
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/api/extensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/coreos-inc/alm/pkg/apis/clusterserviceversion/v1alpha1"
-	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/apis/subscription/v1alpha1"
-	uiv1alpha1 "github.com/coreos-inc/alm/pkg/apis/uicatalogentry/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/install"
-	"github.com/coreos-inc/alm/pkg/registry"
-
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
+	"k8s.io/api/apps/v1beta2"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	conversion "k8s.io/apimachinery/pkg/conversion/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
+	csvv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/subscription/v1alpha1"
+	uiv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
+	"github.com/coreos-inc/alm/pkg/controller/install"
+	"github.com/coreos-inc/alm/pkg/controller/registry"
 )
 
 // Test Subscription behavior
@@ -131,7 +130,7 @@ var (
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: "dep1",
-				Spec: v1beta1.DeploymentSpec{
+				Spec: v1beta2.DeploymentSpec{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "nginx"},
 					},
@@ -169,8 +168,9 @@ var (
 			Name: catalogSourceName,
 		},
 		Spec: catalogsourcev1alpha1.CatalogSourceSpec{
-			Name:      catalogSourceName,
-			ConfigMap: catalogConfigMapName,
+			Name:       catalogSourceName,
+			SourceType: "internal",
+			ConfigMap:  catalogConfigMapName,
 		},
 	}
 )
@@ -205,7 +205,7 @@ func initCatalog(t *testing.T, c opClient.Interface) error {
 	}
 	// create CatalogSource custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
-	csUnst, err := conversion.NewConverter(true).ToUnstructured(&dummyCatalogSource)
+	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
 	if err != nil {
 		return err
 	}
@@ -233,8 +233,7 @@ func createSubscription(t *testing.T, c opClient.Interface, channel string) clea
 		},
 	}
 
-	unstructuredConverter := conversion.NewConverter(true)
-	ipUnst, err := unstructuredConverter.ToUnstructured(sub)
+	ipUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sub)
 	require.NoError(t, err)
 	require.NoError(t, c.CreateCustomResource(&unstructured.Unstructured{Object: ipUnst}))
 	return cleanupCustomResource(c, subscriptionv1alpha1.GroupVersion,
@@ -246,7 +245,7 @@ func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscr
 	if err != nil {
 		return nil, err
 	}
-	err = conversion.NewConverter(true).FromUnstructured(unstrSub.Object, &sub)
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrSub.Object, &sub)
 	return sub, err
 }
 func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.ClusterServiceVersion, error) {
@@ -255,7 +254,7 @@ func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.
 	if err != nil {
 		return nil, err
 	}
-	err = conversion.NewConverter(true).FromUnstructured(unstrCSV.Object, &csv)
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrCSV.Object, &csv)
 	return csv, err
 }
 
