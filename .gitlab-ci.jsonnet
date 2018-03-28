@@ -178,7 +178,7 @@ local jobs = {
         },
         stage: stages.deploy_staging,
         script+: [
-            'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}" https://hooks.slack.com/services/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',
+            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" https://hooks.slack.com/services/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",
         ],
         environment+: {
             name: "teamui",
