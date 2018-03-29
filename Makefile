@@ -75,8 +75,10 @@ container: build
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
 clean:
-	rm $(ALM_EXECUTABLE)
-	rm $(CATALOG_EXECUTABLE)
+	rm -f $(ALM_EXECUTABLE)
+	rm -f $(CATALOG_EXECUTABLE)
+	rm -rf e2e/test-resources
+	rm -rf e2e/log
 
 fmt-ci:
 	find . -iname "*.jsonnet" | xargs -L 1 jsonnet fmt -i -n 4
