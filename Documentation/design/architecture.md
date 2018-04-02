@@ -8,9 +8,9 @@ Each of these operators are responsible for managing the CRDs that are the basis
 |--------------------------|------------|---------|--------------------------------------------------------------------------------------------|
 | ClusterServiceVersion-v1 | CSV        | ALM     | application metadata: name, version, icon, required resources, installation, etc...        |
 | InstallPlan-v1           | IP         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
-| UICatalogEntry-v1        | UICE       | Catalog | indexed application metadata for UI discovery only                       |
-| CatalogSource-v1         | CS         | Catalog | a repository of CSVs, CRDs, and packages that define an application |
-| Subscription-v1          | Sub         | Catalog | used to keep CSVs up to date by tracking a channel in a package |
+| UICatalogEntry-v1        | UICE       | Catalog | indexed application metadata for UI discovery only                                         |
+| CatalogSource-v1         | CS         | Catalog | a repository of CSVs, CRDs, and packages that define an application                        |
+| Subscription-v1          | Sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
 
 Each of these operators are also responsible for creating resources:
 
@@ -61,7 +61,7 @@ None --> Pending --> InstallReady --> Installing -|
 \                                                                 /
  +---------------------------------------------------------------+
     |
-    V
+    v
 Replacing --> Deleting
 ```
 
@@ -69,12 +69,12 @@ Replacing --> Deleting
 |------------|------------------------------------------------------------------------------------------------------------------------|
 | None       | initial phase, once seen by the operator, it is immediately transitioned to `Pending`                                  |
 | Pending    | requirements in the CSV are not met, once they are this phase transitions to `Installing`                              |
-| InstallReady | all requirements in the CSV are present, the operator will begin executing the install strategy |
-| Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready          |
+| InstallReady | all requirements in the CSV are present, the operator will begin executing the install strategy                      |
+| Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready  |
 | Succeeded  | the execution of the Install Strategy was successful; if requirements disappear, this may transition back to `Pending` |
 | Failed     | upon failed execution of the Install Strategy, the CSV transitions to this terminal phase                              |
-| Replacing | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC | 
-| Deleting | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon. |
+| Replacing | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC       | 
+| Deleting | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon.                          |
 
 ### Namespace Control Loop
 
@@ -101,6 +101,22 @@ None --> Planning --> Installing --> Complete
 | Planning   | dependencies between resources are being resolved, to be stored in the InstallPlan-v1 `Status` |
 | Installing | resolved resources in the InstallPlan-v1 `Status` block are being created                      |
 | Complete   | all resolved resources in the `Status` block exist                                             |
+
+### Subscription-v1 Control Loop
+
+```
+None --> UpgradeAvailable --> UpgradePending --> AtLatestKnown -+
+         ^                                   |                  |
+         |                                   v                  v
+         +----------<---------------<--------+---------<--------+
+```
+
+| Phase            | Description                                                                                                   |
+|------------------|---------------------------------------------------------------------------------------------------------------|
+| None             | initial phase, once seen by the operator, it is immediately transitioned to `UpgradeAvailable`                |
+| UpgradeAvailable | catalog contains a CSV which replaces the `status.installedCSV`, but no `InstallPlan-v1` has been created yet |
+| UpgradePending   | `InstallPlan-v1` has been created (referenced in `status.installplan`) to install a new CSV                   |
+| AtLatestKnown    | `status.installedCSV` matches the latest available CSV in catalog                                             |
 
 
 ## Catalog (Registry) Design

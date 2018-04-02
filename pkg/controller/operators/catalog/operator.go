@@ -189,7 +189,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	syncError = transitionInstallPlanState(o, plan)
 
-	// Update CSV with status of transition. Log errors if we can't write them to the status.
+	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.client.InstallplanV1alpha1().InstallPlans(plan.GetNamespace()).Update(plan); err != nil {
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
@@ -257,12 +257,13 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
 
+	var notFoundErr error
 	for sourceName, source := range o.sources {
 		log.Debugf("resolving against source %v", sourceName)
 		plan.EnsureCatalogSource(sourceName)
-		err := resolveInstallPlan(sourceName, source, plan)
-		if err != nil {
-			return err
+		notFoundErr = resolveInstallPlan(sourceName, source, plan)
+		if notFoundErr != nil {
+			continue
 		}
 
 		// Look up the CatalogSource.
@@ -295,13 +296,10 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 				Status: status,
 			}}, plan.Status.Plan...)
 		}
-
-		// Intentionally return after the first source only.
-		// TODO(jzelinskie): update to check all sources.
 		return nil
 	}
 
-	return nil
+	return notFoundErr
 }
 
 func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
