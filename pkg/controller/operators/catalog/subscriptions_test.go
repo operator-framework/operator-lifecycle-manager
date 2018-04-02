@@ -675,7 +675,7 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "next",
 						Install:    nil,
-						State:      v1alpha1.SubscriptionStateAtLatest,
+						State:      v1alpha1.SubscriptionStateUpgradePending,
 					},
 				},
 			},
