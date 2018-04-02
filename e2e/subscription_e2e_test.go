@@ -233,12 +233,13 @@ func createSubscription(t *testing.T, c opClient.Interface, channel string) clea
 		},
 	}
 
-	ipUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sub)
+	unstrSub, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sub)
 	require.NoError(t, err)
-	require.NoError(t, c.CreateCustomResource(&unstructured.Unstructured{Object: ipUnst}))
+	require.NoError(t, c.CreateCustomResource(&unstructured.Unstructured{Object: unstrSub}))
 	return cleanupCustomResource(c, subscriptionv1alpha1.GroupVersion,
 		subscriptionv1alpha1.SubscriptionKind, testSubscriptionName)
 }
+
 func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscriptionv1alpha1.Subscription, error) {
 	var sub *subscriptionv1alpha1.Subscription
 	unstrSub, err := waitForAndFetchCustomResource(t, c, subscriptionv1alpha1.GroupVersion, subscriptionv1alpha1.SubscriptionKind, name)
@@ -248,6 +249,7 @@ func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscr
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrSub.Object, &sub)
 	return sub, err
 }
+
 func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.ClusterServiceVersion, error) {
 	var csv *csvv1alpha1.ClusterServiceVersion
 	unstrCSV, err := waitForAndFetchCustomResource(t, c, csvv1alpha1.GroupVersion, csvv1alpha1.ClusterServiceVersionKind, name)

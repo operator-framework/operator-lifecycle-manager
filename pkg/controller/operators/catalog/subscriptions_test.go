@@ -133,6 +133,11 @@ func TestSyncSubscription(t *testing.T) {
 						Name: "latest-and-greatest",
 					},
 				},
+				getInstallPlanResult: &ipv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "existing-install",
+					},
+				},
 				sourcesLastUpdate: earliestTime,
 			},
 			args: args{subscription: &v1alpha1.Subscription{
@@ -142,13 +147,14 @@ func TestSyncSubscription(t *testing.T) {
 					Channel:       "magical",
 				},
 				Status: v1alpha1.SubscriptionStatus{
+					CurrentCSV:  "latest-and-greatest",
 					LastUpdated: earliestTime,
 					State:       v1alpha1.SubscriptionStateUpgradePending,
+					Install:     &v1alpha1.InstallPlanReference{Name: "existing-install"},
 				},
 			}},
 			expected: expected{
-				packageName: "rainbows",
-				channelName: "magical",
+				csvName: "latest-and-greatest",
 				subscription: &v1alpha1.Subscription{
 					ObjectMeta: metav1.ObjectMeta{
 						Labels: map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
@@ -161,7 +167,8 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV:  "latest-and-greatest",
 						LastUpdated: earliestTime,
-						State:       v1alpha1.SubscriptionStateAtLatest,
+						State:       v1alpha1.SubscriptionStateUpgradePending,
+						Install:     &v1alpha1.InstallPlanReference{Name: "existing-install"},
 					},
 				},
 				err: "",
@@ -248,7 +255,8 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV:  "latest-and-greatest",
 						LastUpdated: earliestTime,
-						State:       v1alpha1.SubscriptionStateAtLatest,
+						Install:     nil,
+						State:       v1alpha1.SubscriptionStateUpgradeAvailable,
 					},
 				},
 				err: "",
@@ -294,7 +302,8 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV:  "wayback",
 						LastUpdated: earliestTime,
-						State:       v1alpha1.SubscriptionStateAtLatest,
+						Install:     nil,
+						State:       v1alpha1.SubscriptionStateUpgradeAvailable,
 					},
 				},
 				err: "",
@@ -373,7 +382,7 @@ func TestSyncSubscription(t *testing.T) {
 				namespace:               "fairy-land",
 				installPlan: &ipv1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
-						GenerateName: "install-latest-and-greatest",
+						GenerateName: "install-latest-and-greatest-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
@@ -446,7 +455,7 @@ func TestSyncSubscription(t *testing.T) {
 			expected: expected{
 				installPlan: &ipv1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
-						GenerateName: "install-latest-and-greatest",
+						GenerateName: "install-latest-and-greatest-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
@@ -518,7 +527,7 @@ func TestSyncSubscription(t *testing.T) {
 				namespace: "fairy-land",
 				installPlan: &ipv1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
-						GenerateName: "install-pending",
+						GenerateName: "install-pending-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
@@ -675,7 +684,7 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "next",
 						Install:    nil,
-						State:      v1alpha1.SubscriptionStateAtLatest,
+						State:      v1alpha1.SubscriptionStateUpgradeAvailable,
 					},
 				},
 			},
