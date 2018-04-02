@@ -94,6 +94,7 @@ func (m *InMem) FindReplacementCSVForPackageNameUnderChannel(packageName string,
 		return nil, err
 	}
 
+	// FIXME(alecmerdler): This doesn't seem like an error...
 	if latestCSV.GetName() == csvName {
 		return nil, fmt.Errorf("Channel is already up-to-date")
 	}

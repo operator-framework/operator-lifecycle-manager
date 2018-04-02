@@ -21,6 +21,7 @@ const (
 	ChannelLabel = "alm-channel"
 )
 
+// FIXME(alecmerdler): Rewrite this whole block to be more clear
 func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
 	if sub == nil || sub.Spec == nil {
 		return nil, ErrNilSubscription
@@ -51,7 +52,6 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 	if sub.Status.CurrentCSV == "" {
 		if sub.Spec.StartingCSV != "" {
 			sub.Status.CurrentCSV = sub.Spec.StartingCSV
-			sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		} else {
 			csv, err := catalog.FindCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel)
 			if err != nil {
@@ -61,8 +61,8 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 				return sub, fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV", sub.Spec.Package, sub.Spec.Channel)
 			}
 			sub.Status.CurrentCSV = csv.GetName()
-			sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		}
+		sub.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 		return sub, nil
 	}
 
@@ -83,6 +83,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 			sub.Status.Install = nil
 		}
 		// install CSV if doesn't exist
+		sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 		ip := &ipv1alpha1.InstallPlan{
 			ObjectMeta: metav1.ObjectMeta{},
 			Spec: ipv1alpha1.InstallPlanSpec{
@@ -108,7 +109,6 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 		if res == nil {
 			return sub, errors.New("unexpected installplan returned by k8s api on create: <nil>")
 		}
-		sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
 			UID:        res.GetUID(),
 			Name:       res.GetName(),
@@ -117,18 +117,30 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 		}
 		return sub, nil
 	}
+
 	// poll catalog for an update
-	repl, err := catalog.FindReplacementCSVForPackageNameUnderChannel(
-		sub.Spec.Package, sub.Spec.Channel, sub.Status.CurrentCSV)
+	repl, err := catalog.FindReplacementCSVForPackageNameUnderChannel(sub.Spec.Package, sub.Spec.Channel, sub.Status.CurrentCSV)
 	if err != nil {
+		sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		return sub, fmt.Errorf("failed to lookup replacement CSV for %s: %v", sub.Status.CurrentCSV, err)
 	}
 	if repl == nil {
+		sub.Status.State = v1alpha1.SubscriptionStateAtLatest
 		return sub, fmt.Errorf("nil replacement CSV for %s returned from catalog", sub.Status.CurrentCSV)
 	}
 	// update subscription with new latest
 	sub.Status.CurrentCSV = repl.GetName()
 	sub.Status.Install = nil
-	sub.Status.State = v1alpha1.SubscriptionStateAtLatest
+	sub.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 	return sub, nil
+}
+
+func ensureCSVInstalled(sub *v1alpha1.Subscription) *v1alpha1.Subscription {
+	// TODO(alecmerdler)
+	return nil
+}
+
+func ensureNoReplacementCSV(sub *v1alpha1.Subscription) *v1alpha1.Subscription {
+	// TODO(alecmerdler)
+	return nil
 }
