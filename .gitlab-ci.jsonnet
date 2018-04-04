@@ -105,8 +105,8 @@ local jobs = {
     'e2e-setup': baseJob.Deploy {
         local _vars = self.localvars,
         localvars+:: {
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
-            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
         },
         stage: stages.test_setup,
     },
@@ -114,8 +114,8 @@ local jobs = {
     'e2e-teardown': baseJob.DeployStop {
         local _vars = self.localvars,
         localvars+:: {
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
-            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}",
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
         },
         stage: stages.test_teardown,
     },
