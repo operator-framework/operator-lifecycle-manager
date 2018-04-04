@@ -1,7 +1,7 @@
 FROM golang:1.10 as builder
 WORKDIR /go/src/github.com/coreos/alm
 COPY . .
-RUN make build-coverage && cp bin/alm /bin/alm && cp bin/catalog /bin/catalog && bin/servicebroker /bin/servicebroker
+RUN make build-coverage && cp bin/alm /bin/alm && cp bin/catalog /bin/catalog && cp bin/servicebroker /bin/servicebroker
 
 FROM alpine:latest
 WORKDIR /
