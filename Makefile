@@ -65,7 +65,7 @@ build:
 build-coverage:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(ALM_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(ALM_PKG)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(CATALOG_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(CATALOG_PKG)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(SERVICE_BROKER_EXECUTABLE) -c covermode=count -coverpkg ./pkg... $(SERVICE_BROKER_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(SERVICE_BROKER_EXECUTABLE) -c -covermode=count -coverpkg ./pkg... $(SERVICE_BROKER_PKG)
 
 DEP := $(GOPATH)/bin/dep
 
