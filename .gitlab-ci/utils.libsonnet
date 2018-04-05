@@ -112,7 +112,7 @@
                 "do " +
                 "helm template --set namespace=%s %s -x templates/${f} %s > ${charttmpdir}/${f};" % [namespace, chartdir, std.join(" ", set_opts)] +
                 "done;" +
-                "kubectl apply -f ${charttmpdir}",
+                "kubectl apply --v=8 -f ${charttmpdir};",
             ]),
         ],
 
