@@ -16,7 +16,7 @@ container-base-build:
   - kubernetes
   variables:
     DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker-host.gitlab-runner.svc.cluster.local:2375
+    DOCKER_HOST: tcp://docker-host.gitlab.svc.cluster.local:2375
 container-build:
   before_script:
   - docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io
@@ -40,7 +40,7 @@ container-build:
   - kubernetes
   variables:
     DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker-host.gitlab-runner.svc.cluster.local:2375
+    DOCKER_HOST: tcp://docker-host.gitlab.svc.cluster.local:2375
 container-release:
   before_script:
   - docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io
@@ -64,7 +64,7 @@ container-release:
   - kubernetes
   variables:
     DOCKER_DRIVER: overlay2
-    DOCKER_HOST: tcp://docker-host.gitlab-runner.svc.cluster.local:2375
+    DOCKER_HOST: tcp://docker-host.gitlab.svc.cluster.local:2375
 deploy-preview:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
