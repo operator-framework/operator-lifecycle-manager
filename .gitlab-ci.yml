@@ -163,7 +163,7 @@ e2e-setup:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
   - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\",
-    \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\"}" > params.json'
+    \"interval\": \"30s\", \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\"}" > params.json'
   - cat params.json
   environment:
     name: review/e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
@@ -177,7 +177,7 @@ e2e-setup:
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    --set interval=30s --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: test_setup

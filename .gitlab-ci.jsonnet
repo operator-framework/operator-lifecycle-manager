@@ -107,6 +107,9 @@ local jobs = {
         localvars+:: {
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            params+:: {
+                interval: "30s",
+            },
         },
         stage: stages.test_setup,
     },
