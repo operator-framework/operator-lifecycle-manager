@@ -25,8 +25,6 @@ import (
 	fakeinstallplanv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/installplan/v1alpha1/fake"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/subscription/v1alpha1"
 	fakesubscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/subscription/v1alpha1/fake"
-	uicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/uicatalogentry/v1alpha1"
-	fakeuicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/uicatalogentry/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -105,14 +103,4 @@ func (c *Clientset) SubscriptionV1alpha1() subscriptionv1alpha1.SubscriptionV1al
 // Subscription retrieves the SubscriptionV1alpha1Client
 func (c *Clientset) Subscription() subscriptionv1alpha1.SubscriptionV1alpha1Interface {
 	return &fakesubscriptionv1alpha1.FakeSubscriptionV1alpha1{Fake: &c.Fake}
-}
-
-// UicatalogentryV1alpha1 retrieves the UicatalogentryV1alpha1Client
-func (c *Clientset) UicatalogentryV1alpha1() uicatalogentryv1alpha1.UicatalogentryV1alpha1Interface {
-	return &fakeuicatalogentryv1alpha1.FakeUicatalogentryV1alpha1{Fake: &c.Fake}
-}
-
-// Uicatalogentry retrieves the UicatalogentryV1alpha1Client
-func (c *Clientset) Uicatalogentry() uicatalogentryv1alpha1.UicatalogentryV1alpha1Interface {
-	return &fakeuicatalogentryv1alpha1.FakeUicatalogentryV1alpha1{Fake: &c.Fake}
 }

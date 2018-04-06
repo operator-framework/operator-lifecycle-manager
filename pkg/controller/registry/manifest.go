@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 
 	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	packagev1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
 	"github.com/ghodss/yaml"
 )
 
@@ -47,12 +46,12 @@ func LoadCSVFromFile(m *InMem, filepath string) (*v1alpha1.ClusterServiceVersion
 }
 
 // LoadPackageFromFile is a utility function for loading Package definitions
-func LoadPackageFromFile(m *InMem, filepath string) (*packagev1alpha1.PackageManifest, error) {
+func LoadPackageFromFile(m *InMem, filepath string) (*PackageManifest, error) {
 	data, err := ioutil.ReadFile(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to load package from file %s: %v", filepath, err)
 	}
-	pkg := packagev1alpha1.PackageManifest{}
+	pkg := PackageManifest{}
 
 	packageJson, err := yaml.YAMLToJSON(data)
 

@@ -27,13 +27,6 @@ kubectl apply -f ./custom-alm
     * medium term: stored in a seperate repo
     * longer term: something registry-like
 
-* UICatalogEntries
-    * How console knows what to display
-    * catalog operator generates them based on its internal catalog
-    * UI _only_, they are not used for installation or dependency resolution
-    * Console only reads entries in tectonic-system for display
-    * You can control generation namespace with `catalog_namespace` param
-
 # Updating a Service and testing updates
 
 * Install the initial version 

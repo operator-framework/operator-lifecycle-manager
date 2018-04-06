@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	uiv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/controller/registry"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
@@ -40,14 +39,14 @@ type FakeSource struct {
 		result1 *v1alpha1.ClusterServiceVersion
 		result2 error
 	}
-	AllPackagesStub        func() map[string]uiv1alpha1.PackageManifest
+	AllPackagesStub        func() map[string]registry.PackageManifest
 	allPackagesMutex       sync.RWMutex
 	allPackagesArgsForCall []struct{}
 	allPackagesReturns     struct {
-		result1 map[string]uiv1alpha1.PackageManifest
+		result1 map[string]registry.PackageManifest
 	}
 	allPackagesReturnsOnCall map[int]struct {
-		result1 map[string]uiv1alpha1.PackageManifest
+		result1 map[string]registry.PackageManifest
 	}
 	FindReplacementCSVForNameStub        func(name string) (*v1alpha1.ClusterServiceVersion, error)
 	findReplacementCSVForNameMutex       sync.RWMutex
@@ -221,7 +220,7 @@ func (fake *FakeSource) FindReplacementCSVForPackageNameUnderChannelReturnsOnCal
 	}{result1, result2}
 }
 
-func (fake *FakeSource) AllPackages() map[string]uiv1alpha1.PackageManifest {
+func (fake *FakeSource) AllPackages() map[string]registry.PackageManifest {
 	fake.allPackagesMutex.Lock()
 	ret, specificReturn := fake.allPackagesReturnsOnCall[len(fake.allPackagesArgsForCall)]
 	fake.allPackagesArgsForCall = append(fake.allPackagesArgsForCall, struct{}{})
@@ -242,22 +241,22 @@ func (fake *FakeSource) AllPackagesCallCount() int {
 	return len(fake.allPackagesArgsForCall)
 }
 
-func (fake *FakeSource) AllPackagesReturns(result1 map[string]uiv1alpha1.PackageManifest) {
+func (fake *FakeSource) AllPackagesReturns(result1 map[string]registry.PackageManifest) {
 	fake.AllPackagesStub = nil
 	fake.allPackagesReturns = struct {
-		result1 map[string]uiv1alpha1.PackageManifest
+		result1 map[string]registry.PackageManifest
 	}{result1}
 }
 
-func (fake *FakeSource) AllPackagesReturnsOnCall(i int, result1 map[string]uiv1alpha1.PackageManifest) {
+func (fake *FakeSource) AllPackagesReturnsOnCall(i int, result1 map[string]registry.PackageManifest) {
 	fake.AllPackagesStub = nil
 	if fake.allPackagesReturnsOnCall == nil {
 		fake.allPackagesReturnsOnCall = make(map[int]struct {
-			result1 map[string]uiv1alpha1.PackageManifest
+			result1 map[string]registry.PackageManifest
 		})
 	}
 	fake.allPackagesReturnsOnCall[i] = struct {
-		result1 map[string]uiv1alpha1.PackageManifest
+		result1 map[string]registry.PackageManifest
 	}{result1}
 }
 

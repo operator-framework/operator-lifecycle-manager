@@ -25,7 +25,6 @@ import (
 	installplan "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/installplan"
 	internalinterfaces "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/internalinterfaces"
 	subscription "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/subscription"
-	uicatalogentry "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/uicatalogentry"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -130,7 +129,6 @@ type SharedInformerFactory interface {
 	Clusterserviceversion() clusterserviceversion.Interface
 	Installplan() installplan.Interface
 	Subscription() subscription.Interface
-	Uicatalogentry() uicatalogentry.Interface
 }
 
 func (f *sharedInformerFactory) Catalogsource() catalogsource.Interface {
@@ -147,8 +145,4 @@ func (f *sharedInformerFactory) Installplan() installplan.Interface {
 
 func (f *sharedInformerFactory) Subscription() subscription.Interface {
 	return subscription.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Uicatalogentry() uicatalogentry.Interface {
-	return uicatalogentry.New(f, f.namespace, f.tweakListOptions)
 }

@@ -135,16 +135,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", catsrc.Spec.ConfigMap, err)
 	}
 
-	log.Infof("syncing CatalogSource: %s", catsrc.SelfLink)
-	store := &registry.CustomResourceCatalogStore{
-		Client:    o.client,
-		Namespace: o.namespace,
-	}
-	entries, err := store.Sync(src, catsrc)
-	if err != nil {
-		return fmt.Errorf("failed to created catalog entries for %s: %s", catsrc.Name, err)
-	}
-	log.Infof("created %d UICatalogEntry resources", len(entries))
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
 	o.sources[catsrc.Spec.Name] = src

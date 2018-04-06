@@ -24,7 +24,6 @@ import (
 	clusterserviceversion_v1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 	installplan_v1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
 	subscription_v1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/subscription/v1alpha1"
-	uicatalogentry_v1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -70,10 +69,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		// Group=subscription, Version=v1alpha1
 	case subscription_v1alpha1.SchemeGroupVersion.WithResource("subscription-v1s"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Subscription().V1alpha1().Subscriptions().Informer()}, nil
-
-		// Group=uicatalogentry, Version=v1alpha1
-	case uicatalogentry_v1alpha1.SchemeGroupVersion.WithResource("uicatalogentry-v1s"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Uicatalogentry().V1alpha1().UICatalogEntries().Informer()}, nil
 
 	}
 

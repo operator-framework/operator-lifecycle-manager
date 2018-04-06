@@ -20,7 +20,6 @@ import (
 	clusterserviceversionv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/installplan/v1alpha1"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/subscription/v1alpha1"
-	uicatalogentryv1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/uicatalogentry/v1alpha1"
 	glog "github.com/golang/glog"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -41,9 +40,6 @@ type Interface interface {
 	SubscriptionV1alpha1() subscriptionv1alpha1.SubscriptionV1alpha1Interface
 	// Deprecated: please explicitly pick a version if possible.
 	Subscription() subscriptionv1alpha1.SubscriptionV1alpha1Interface
-	UicatalogentryV1alpha1() uicatalogentryv1alpha1.UicatalogentryV1alpha1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Uicatalogentry() uicatalogentryv1alpha1.UicatalogentryV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -54,7 +50,6 @@ type Clientset struct {
 	clusterserviceversionV1alpha1 *clusterserviceversionv1alpha1.ClusterserviceversionV1alpha1Client
 	installplanV1alpha1           *installplanv1alpha1.InstallplanV1alpha1Client
 	subscriptionV1alpha1          *subscriptionv1alpha1.SubscriptionV1alpha1Client
-	uicatalogentryV1alpha1        *uicatalogentryv1alpha1.UicatalogentryV1alpha1Client
 }
 
 // CatalogsourceV1alpha1 retrieves the CatalogsourceV1alpha1Client
@@ -101,17 +96,6 @@ func (c *Clientset) Subscription() subscriptionv1alpha1.SubscriptionV1alpha1Inte
 	return c.subscriptionV1alpha1
 }
 
-// UicatalogentryV1alpha1 retrieves the UicatalogentryV1alpha1Client
-func (c *Clientset) UicatalogentryV1alpha1() uicatalogentryv1alpha1.UicatalogentryV1alpha1Interface {
-	return c.uicatalogentryV1alpha1
-}
-
-// Deprecated: Uicatalogentry retrieves the default version of UicatalogentryClient.
-// Please explicitly pick a version.
-func (c *Clientset) Uicatalogentry() uicatalogentryv1alpha1.UicatalogentryV1alpha1Interface {
-	return c.uicatalogentryV1alpha1
-}
-
 // Discovery retrieves the DiscoveryClient
 func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 	if c == nil {
@@ -144,10 +128,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.uicatalogentryV1alpha1, err = uicatalogentryv1alpha1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfig(&configShallowCopy)
 	if err != nil {
@@ -165,7 +145,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 	cs.clusterserviceversionV1alpha1 = clusterserviceversionv1alpha1.NewForConfigOrDie(c)
 	cs.installplanV1alpha1 = installplanv1alpha1.NewForConfigOrDie(c)
 	cs.subscriptionV1alpha1 = subscriptionv1alpha1.NewForConfigOrDie(c)
-	cs.uicatalogentryV1alpha1 = uicatalogentryv1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -178,7 +157,6 @@ func New(c rest.Interface) *Clientset {
 	cs.clusterserviceversionV1alpha1 = clusterserviceversionv1alpha1.New(c)
 	cs.installplanV1alpha1 = installplanv1alpha1.New(c)
 	cs.subscriptionV1alpha1 = subscriptionv1alpha1.New(c)
-	cs.uicatalogentryV1alpha1 = uicatalogentryv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
