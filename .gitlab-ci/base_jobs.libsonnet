@@ -7,6 +7,16 @@ local appr = utils.appr;
 
 {
     local job_tags = { tags: ["kubernetes"] },
+    dockerLogin: {
+        image: "docker:git",
+        variables: {
+            DOCKER_DRIVER: "overlay2",
+            DOCKER_HOST: "tcp://docker-host.gitlab-runner.svc.cluster.local:2375",
+        },
+        before_script: [
+            "docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io",
+        ],
+    } + job_tags,
 
     sanityCheck: {
         before_script: [

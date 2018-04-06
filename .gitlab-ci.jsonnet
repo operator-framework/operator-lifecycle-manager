@@ -6,6 +6,7 @@ local images = vars.images;
 local docker = utils.docker;
 local stages_list = [
     // gitlab-ci stages
+    'docker_login',
     'sanity',
     'docker_base',
     'docker_build',
@@ -31,6 +32,11 @@ local jobs = {
     local onlyBranch = {
         only: ['branches'],
         except: ['master', 'tags'],
+    },
+
+    'docker-login': baseJob.dockerBuild {
+        stage: 'docker_login',
+        script: "docker pull quay.io/coreos/alm-ci:base",
     },
 
     'container-base-build': baseJob.dockerBuild {
