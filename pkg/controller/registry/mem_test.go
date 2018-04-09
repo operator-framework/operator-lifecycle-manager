@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 
 	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	uiv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
 )
 
 // compareResources compares resource equality then prints a diff for easier debugging
@@ -110,9 +109,9 @@ func TestFindCSVForPackageNameUnderChannel(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceAlpha)
 	catalog.AddOrReplaceService(testCSVResourceStable)
 
-	catalog.addPackageManifest(uiv1alpha1.PackageManifest{
+	catalog.addPackageManifest(PackageManifest{
 		PackageName: "mockservice",
-		Channels: []uiv1alpha1.PackageChannel{
+		Channels: []PackageChannel{
 			{
 				Name:           "alpha",
 				CurrentCSVName: testCSVName + testCSVAlphaVersion,
@@ -144,9 +143,9 @@ func TestFindCSVForPackageNameUnderChannel(t *testing.T) {
 func TestInvalidPackageManifest(t *testing.T) {
 	catalog := NewInMem()
 
-	err := catalog.addPackageManifest(uiv1alpha1.PackageManifest{
+	err := catalog.addPackageManifest(PackageManifest{
 		PackageName: "mockservice",
-		Channels: []uiv1alpha1.PackageChannel{
+		Channels: []PackageChannel{
 			{
 				Name:           "alpha",
 				CurrentCSVName: "somecsv",
@@ -255,10 +254,10 @@ func TestFindReplacementCSVForPackageNameUnderChannel(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceStable)
 	catalog.AddOrReplaceService(testCSVResourceReplaced)
 
-	catalog.addPackageManifest(uiv1alpha1.PackageManifest{
+	catalog.addPackageManifest(PackageManifest{
 		PackageName:        "mockservice",
 		DefaultChannelName: "stable",
-		Channels: []uiv1alpha1.PackageChannel{
+		Channels: []PackageChannel{
 			{
 				Name:           "stable",
 				CurrentCSVName: testStableCSVName,
@@ -375,10 +374,10 @@ func TestListLatestCSVsForCRD(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceStable)
 	catalog.AddOrReplaceService(testCSVResourceReplaced)
 
-	catalog.addPackageManifest(uiv1alpha1.PackageManifest{
+	catalog.addPackageManifest(PackageManifest{
 		PackageName:        "mockservice",
 		DefaultChannelName: "stable",
-		Channels: []uiv1alpha1.PackageChannel{
+		Channels: []PackageChannel{
 			{
 				Name:           "stable",
 				CurrentCSVName: testStableCSVName,

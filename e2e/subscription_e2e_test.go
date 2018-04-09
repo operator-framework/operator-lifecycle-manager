@@ -18,7 +18,6 @@ import (
 	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
 	csvv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/subscription/v1alpha1"
-	uiv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/uicatalogentry/v1alpha1"
 	"github.com/coreos-inc/alm/pkg/controller/install"
 	"github.com/coreos-inc/alm/pkg/controller/registry"
 )
@@ -64,12 +63,12 @@ const (
 )
 
 var (
-	dummyManifest = []uiv1alpha1.PackageManifest{uiv1alpha1.PackageManifest{
+	dummyManifest = []registry.PackageManifest{registry.PackageManifest{
 		PackageName: testPackageName,
-		Channels: []uiv1alpha1.PackageChannel{
-			uiv1alpha1.PackageChannel{Name: stableChannel, CurrentCSVName: stable},
-			uiv1alpha1.PackageChannel{Name: betaChannel, CurrentCSVName: beta},
-			uiv1alpha1.PackageChannel{Name: alphaChannel, CurrentCSVName: alpha},
+		Channels: []registry.PackageChannel{
+			registry.PackageChannel{Name: stableChannel, CurrentCSVName: stable},
+			registry.PackageChannel{Name: betaChannel, CurrentCSVName: beta},
+			registry.PackageChannel{Name: alphaChannel, CurrentCSVName: alpha},
 		},
 		DefaultChannelName: stableChannel,
 	}}

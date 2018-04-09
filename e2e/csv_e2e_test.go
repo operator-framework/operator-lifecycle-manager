@@ -123,12 +123,12 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvCondit
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
+		fetchedCSVUnstr, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if err != nil {
 			return false, err
 		}
 
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched)
+		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedCSVUnstr.Object, &fetched)
 		require.NoError(t, err)
 		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
@@ -155,14 +155,14 @@ func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alp
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
+		fetchedCSVUnstr, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
 		if err != nil {
 			return false, err
 		}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetched); err == nil {
+		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedCSVUnstr.Object, &fetched); err == nil {
 			t.Logf("%s still exists", fetched.Name)
 		}
 		return false, nil
