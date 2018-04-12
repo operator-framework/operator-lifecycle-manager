@@ -33,8 +33,8 @@ container-build:
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f catalog-pre.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} . '
-  - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} . '
+  - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
   stage: docker_build
   tags:
   - kubernetes
@@ -51,13 +51,13 @@ container-release:
   - tags
   script:
   - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+  - docker push quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
   - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
+  - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+  - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+  - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+  - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} quay.io/coreos/alm-e2e:latest
   - docker push quay.io/coreos/alm-e2e:latest
   stage: docker_release
   tags:
@@ -102,8 +102,8 @@ deploy-preview:
 deploy-staging:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
-    \"namespace\": \"ci-alm-staging\", \"watchedNamespaces\": \"ci-alm-staging\"}" > params.json'
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\", \"catalog_namespace\":
+    \"tectonic-system\", \"namespace\": \"ci-alm-staging\", \"watchedNamespaces\": \"ci-alm-staging\"}" > params.json'
   - cat params.json
   environment:
     name: staging
@@ -118,8 +118,8 @@ deploy-staging:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=ci-alm-staging
-    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
-    --set namespace=ci-alm-staging --set watchedNamespaces=ci-alm-staging > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set
+    catalog_namespace=tectonic-system --set namespace=ci-alm-staging --set watchedNamespaces=ci-alm-staging > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging
   stage: deploy_staging
@@ -131,8 +131,8 @@ deploy-staging:
 deploy-teamui:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
-    \"namespace\": \"tectonic-system\", \"watchedNamespaces\": \"\"}" > params.json'
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\", \"catalog_namespace\":
+    \"tectonic-system\", \"namespace\": \"tectonic-system\", \"watchedNamespaces\": \"\"}" > params.json'
   - cat params.json
   environment:
     name: teamui
@@ -147,11 +147,11 @@ deploy-teamui:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=tectonic-system
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=tectonic-system
-    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
-    --set namespace=tectonic-system --set watchedNamespaces= > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set
+    catalog_namespace=tectonic-system --set namespace=tectonic-system --set watchedNamespaces= > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - kubectl rollout status -w deployment/alm-operator --namespace=tectonic-system
   - kubectl rollout status -w deployment/catalog-operator --namespace=tectonic-system
-  - 'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
+  - 'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
     https://hooks.slack.com/services/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'
   stage: deploy_staging
   tags:
@@ -162,72 +162,72 @@ deploy-teamui:
 e2e-setup:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\",
-    \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\"}" > params.json'
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\",
+    \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}\"}" > params.json'
   - cat params.json
   environment:
-    name: review/e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    name: review/e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
     url: https://alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
   image: quay.io/coreos/alm-ci-build:latest
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create ns e2e-${CI_COMMIT_REF_SLUG}-${SHA8} || true
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - kubectl create ns e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} || true
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
     || true
-  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
-  - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-  - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+    --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+  - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+  - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
   stage: test_setup
   tags:
   - kubernetes
   variables:
     ALM_DOMAIN: alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
-    K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
 e2e-teardown:
   before_script: []
   environment:
     action: stop
-    name: review/e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    name: review/e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
     url: https://alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
   image: quay.io/coreos/alm-ci-build:latest
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl delete ns --ignore-not-found=true e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-  - kubectl get pods -o wide -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - kubectl delete ns --ignore-not-found=true e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+  - kubectl get pods -o wide -n e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
   stage: test_teardown
   tags:
   - kubernetes
   variables:
     ALM_DOMAIN: alm-${CI_COMMIT_REF_SLUG}.k8s.devtable.com
     GIT_STRATEGY: none
-    K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
 e2e_tests:
   image: quay.io/coreos/alm-ci-build:latest
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
     || true
-  - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'''
-  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}:default --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'''
+  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}:default --namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
     || true
-  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd e2e/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    e2e/chart -x templates/${f} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set job_name=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd e2e/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+    e2e/chart -x templates/${f} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set job_name=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
     > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
-  - until kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
-  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} -f
-  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > e2e.log
+  - until kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} logs job/e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
+  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} logs job/e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} -f
+  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} logs job/e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} > e2e.log
   - if cat e2e.log | grep -q '^not'; then echo 'err' && exit 1; else echo 'no err' && exit 0; fi
   stage: tests
   tags:
   - kubernetes
   variables:
-    K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
+    NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}
 sanity-checks:
   before_script:
   - mkdir -p $GOPATH/src/github.com/coreos-inc/alm

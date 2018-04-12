@@ -105,8 +105,8 @@ local jobs = {
     'e2e-setup': baseJob.Deploy {
         local _vars = self.localvars,
         localvars+:: {
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
+            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
         },
         stage: stages.test_setup,
     },
@@ -114,8 +114,8 @@ local jobs = {
     'e2e-teardown': baseJob.DeployStop {
         local _vars = self.localvars,
         localvars+:: {
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
+            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
         },
         stage: stages.test_teardown,
     },
@@ -178,7 +178,7 @@ local jobs = {
         },
         stage: stages.deploy_staging,
         script+: [
-            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" https://hooks.slack.com/services/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",
+            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" https://hooks.slack.com/services/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",
         ],
         environment+: {
             name: "teamui",
