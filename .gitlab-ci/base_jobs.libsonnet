@@ -23,7 +23,7 @@ local appr = utils.appr;
         image: "docker:git",
         variables: {
             DOCKER_DRIVER: "overlay2",
-            DOCKER_HOST: "tcp://docker-host.gitlab-runner.svc.cluster.local:2375",
+            DOCKER_HOST: "tcp://docker-host.gitlab.svc.cluster.local:2375",
         },
         before_script: [
             "docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io",
@@ -45,8 +45,8 @@ local appr = utils.appr;
         local _vars = self.localvars,
         localvars:: {
             appname: self.namespace,
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
+            jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
             chart: "e2e/chart",
             appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
             helm_opts: [],
