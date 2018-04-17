@@ -154,16 +154,19 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 
 	var updatedSub *subscriptionv1alpha1.Subscription
 	updatedSub, syncError = o.syncSubscription(sub)
-	updatedSub.Status.LastUpdated = timeNow()
-	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).Update(updatedSub); err != nil {
-		updateErr := errors.New("error updating Subscription status: " + err.Error())
-		if syncError == nil {
-			log.Info(updateErr)
-			return updateErr
+
+	if updatedSub != nil {
+		updatedSub.Status.LastUpdated = timeNow()
+		// Update Subscription with status of transition. Log errors if we can't write them to the status.
+		if _, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).Update(updatedSub); err != nil {
+			updateErr := errors.New("error updating Subscription status: " + err.Error())
+			if syncError == nil {
+				log.Info(updateErr)
+				return updateErr
+			}
+			syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
+			log.Info(syncError)
 		}
-		syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
-		log.Info(syncError)
 	}
 	return
 }
