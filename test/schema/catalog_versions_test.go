@@ -1,4 +1,4 @@
-package deploy
+package schema
 
 import (
 	"io/ioutil"
@@ -17,7 +17,8 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-const manifestDir = "./tectonic-alm-operator/manifests"
+var manifestDir = os.Getenv("GOPATH") + "/src/github.com/coreos-inc/alm" +
+	"/deploy/tectonic-alm-operator/manifests"
 
 // BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,
 // which is how manifest directories are stored

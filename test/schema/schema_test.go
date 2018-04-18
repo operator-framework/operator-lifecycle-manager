@@ -1,4 +1,4 @@
-package design
+package schema
 
 import (
 	"bufio"
@@ -289,5 +289,5 @@ func (d *DirectoryResourceValidator) ValidateResource(path string, f os.FileInfo
 
 func TestCatalogResources(t *testing.T) {
 	directoryTester := DirectoryResourceValidator{t}
-	directoryTester.ValidateResources("../../catalog_resources")
+	directoryTester.ValidateResources(os.Getenv("GOPATH") + "/src/github.com/coreos-inc/alm/catalog_resources")
 }
