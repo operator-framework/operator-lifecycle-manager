@@ -1,74 +1,89 @@
-ALM_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/alm
-ALM_EXECUTABLE := ./bin/alm
-CATALOG_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/catalog
-CATALOG_EXECUTABLE := ./bin/catalog
-SERVICE_BROKER_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/servicebroker
-SERVICE_BROKER_EXECUTABLE := ./bin/servicebroker
+##########################
+#  OLM - Build and Test  #
+##########################
+
+SHELL := /bin/bash
+PKG   := github.com/operator-framework/operator-lifecycle-manager
+CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -l basename))
 IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
-PKG_DIR := pkg
 
-.PHONY: build test test-docs run clean vendor vendor-update coverage e2e
+.PHONY: build test run clean vendor schema-check \
+	vendor-update coverage coverage-html e2e
 
 all: test build
 
-test-docs:
-	go test -v ./Documentation/...
+test: schema-check cover.out
 
-test-catalog:
-	go test -v ./deploy/...
+schema-check:
+	go test -v ./test/schema
 
-test: test-docs test-catalog
-	go test -v -race -coverprofile=cover.out -covermode=atomic -coverpkg ./pkg/controller/... ./pkg/...
+cover.out: schema-check
+	go test -v -race -coverprofile=cover.out -covermode=atomic \
+		-coverpkg ./pkg/controller/... ./pkg/...
 
-coverage: test
+coverage: cover.out
 	go tool cover -func=cover.out
 
-coverage-html: test
+coverage-html: cover.out
 	go tool cover -html=cover.out
 
-run-local: update-catalog
-	. ./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
+build: $(CMDS)
+
+$(CMDS):
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+		go build -o $@ $(PKG)/cmd/$(shell basename $@)
+
+CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
+CATALOG_RELEASE:=catalog_resources/tectonicocs.configmap.yaml
+
+$(CATALOG_CHART) $(CATALOG_RELEASE): catalog_resources/*.crd.yaml \
+	catalog_resources/*.clusterserviceversion.yaml \
+	catalog_resources/*.package.yaml
+	. ./scripts/build_catalog_configmap.sh $@
+
+build/chart/values.yaml: deploy/chart/values.yaml
+	mkdir -p build/chart
+	cp deploy/chart/values.yaml build/chart/values.yaml
+
+build/chart/Chart.yaml: deploy/chart/Chart.yaml
+	mkdir -p build/chart
+	cp deploy/chart/Chart.yaml build/chart/Chart.yaml
+	echo "version: ver=1.0.0-local" >> build/chart/Chart.yaml
+
+RESOURCES:=$(shell ls deploy/chart/templates/*yaml | xargs -l basename)
+CHARTS:=$(addprefix build/chart/templates/,$(RESOURCES))
+MANIFESTS:=$(addprefix build/resources/,$(RESOURCES))
+build/chart/templates/%.yaml: deploy/chart/templates/%.yaml
+	mkdir -p build/chart/templates
+	cp $< $@
+
+$(MANIFESTS): $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml \
+	Documentation/install/local-values.yaml
+	mkdir -p build/resources
+	helm template -n olm -f Documentation/install/local-values.yaml \
+		-x templates/$(shell basename $@) build/chart > $@
+
+rc: $(CATALOG_CHART) $(MANIFESTS)
+
+run-local: release
 	. ./scripts/build_local.sh
-	. ./scripts/install_local.sh local Documentation/install/resources
-	rm -rf Documentation/install/resources
+	. ./scripts/install_local.sh local build/resources
 
-run-local-shift: update-catalog
-	. ./scripts/package-release.sh ver=1.0.0-localshift Documentation/install/resources Documentation/install/local-values-shift.yaml
+run-local-shift: rc
+	sed -i 's/rbac.authorization.k8s.io/authorization.openshift.io/' build/resources/02-alm-operator.rolebinding.yaml
 	. ./scripts/build_local_shift.sh
-	. ./scripts/install_local.sh local Documentation/install/resources
-	rm -rf Documentation/install/resources
+	. ./scripts/install_local.sh local build/resources
 
-e2e-local: update-catalog
+e2e-local: rc
 	./scripts/build_local.sh
 	./scripts/run_e2e_local.sh
 
-e2e-local-docker: update-catalog
+e2e-local-docker: rc
 	./scripts/build_local.sh
 	./scripts/run_e2e_docker.sh
 
-$(ALM_EXECUTABLE):
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(ALM_EXECUTABLE) $(ALM_PKG)
-
-$(CATALOG_EXECUTABLE):
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
-
-$(SERVICE_BROKER_EXECUTABLE):
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(SERVICE_BROKER_EXECUTABLE) $(SERVICE_BROKER_PKG)
-
-build:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(ALM_EXECUTABLE) $(ALM_PKG)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(SERVICE_BROKER_EXECUTABLE) $(SERVICE_BROKER_PKG)
-
-# build versions of the binaries with coverage enabled
-build-coverage:
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(ALM_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(ALM_PKG)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(CATALOG_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(CATALOG_PKG)
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(SERVICE_BROKER_EXECUTABLE) -c -covermode=count -coverpkg ./pkg... $(SERVICE_BROKER_PKG)
-
 DEP := $(GOPATH)/bin/dep
-
 $(DEP):
 	go get -u github.com/golang/dep/cmd/dep
 
@@ -82,17 +97,16 @@ container: build
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
 clean:
-	rm -f $(ALM_EXECUTABLE)
-	rm -f $(CATALOG_EXECUTABLE)
-	rm -f $(SERVICE_BROKER_EXECUTABLE)
-	rm -rf e2e/test-resources
-	rm -rf e2e/log
+	rm -rf bin
+	rm -rf test/e2e/test-resources
+	rm -rf test/e2e/log
+	rm -rf build
 
-fmt-ci:
-	find . -iname "*.jsonnet" | xargs -L 1 jsonnet fmt -i -n 4
-	find . -iname "*.libsonnet" | xargs -L 1 jsonnet fmt -i -n 4
+CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
+$(CI):
+	jsonnet fmt -i -n 4 $@
 
-gen-ci: fmt-ci
+.gitlab-ci.yml: $(CI)
 	ffctl gen
 
 CODEGEN := ./vendor/k8s.io/code-generator/generate-groups.sh
@@ -102,33 +116,28 @@ $(CODEGEN):
 	# can move to managing with dep when merged: https://github.com/golang/dep/pull/1545
 	mkdir -p vendor/k8s.io/code-generator
 	git clone --branch release-1.9 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
-
-codegen: $(CODEGEN)
 	# codegen tools currently don't allow specifying custom boilerplate, so we move ours to the default location
 	mkdir -p $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate
 	cp boilerplate.go.txt $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate/boilerplate.go.txt
-	$(CODEGEN) all github.com/operator-framework/operator-lifecycle-manager/pkg/api/client github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
+
+define replace
+@find ./pkg/api/client -type f -exec \
+		sed -i.bak 's/\(\"'$(1)'\)\(s\)*/\1-v1\2/g' {} \; -exec rm {}.bak \;
+@find ./pkg/api/client -type f -exec \
+		sed -i.bak 's/Group: \"'$(1)'-v1\"/Group: \"app.coreos.com\"/g' {} \; -exec rm {}.bak \;
+endef
+codegen: $(CODEGEN)
+	$(CODEGEN) all $(PKG)/api/client $(PKG)/pkg/api/apis \
+		"catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
 	# codegen doesn't respect pluralnames, so we manually set them here
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"catalogsource/\"catalogsource-v1/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"catalogsources/\"catalogsource-v1s/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"clusterserviceversion/\"clusterserviceversion-v1/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"clusterserviceversions/\"clusterserviceversion-v1s/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"installplan/\"installplan-v1/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"installplans/\"installplan-v1s/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"subscription/\"subscription-v1/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/\"subscriptions/\"subscription-v1s/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/Group: \"catalogsource-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/Group: \"clusterserviceversion-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/Group: \"installplan-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
-	find ./pkg/api/client -type f -exec sed -i.bak 's/Group: \"subscription-v1\"/Group: \"app.coreos.com"/g' {} \; -exec rm {}.bak \;
+	$(call replace,"catalogsource")
+	$(call replace,"clusterserviceversion")
+	$(call replace,"installplan")
 
 verify-codegen: codegen
 	git diff --exit-code
 
-update-catalog:
-	./scripts/update-catalog.sh
-
-verify-catalog: update-catalog
+verify-catalog: $(CATALOG_CHART)
 	git diff --exit-code
 
 counterfeiter := $(GOBIN)/counterfeiter
@@ -141,5 +150,6 @@ generate-mock-client: $(counterfeiter)
 make gen-all: gen-ci codegen generate-mock-client
 
 # make ver=0.3.0 release
-make release: update-catalog
-	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
+make release: $(CATALOG_RELEASE)
+	mkdir -p build/tectonic-alm-operator/manifests/$(ver)
+	./scripts/package-release.sh $(ver) build/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml

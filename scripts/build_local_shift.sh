@@ -4,9 +4,7 @@
 # This is used to start and build services for running e2e tests
 
 set -e
-MINISHIFT_ENABLE_EXPERIMENTAL=y minishift start --openshift-version=v3.7.1 \
-                             --service-catalog --extra-clusterup-flags "--service-catalog" \
-    || { echo 'Cannot start shift.'; exit 1; }
+oc cluster up --service-catalog || { echo 'Cannot start shift.'; exit 1; }
 
 eval $(minishift docker-env) \
     || { echo 'Cannot switch to minishift docker'; exit 1; }
