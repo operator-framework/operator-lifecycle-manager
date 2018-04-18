@@ -5,7 +5,7 @@ local utils = import "utils.libsonnet";
     alm_repo: "github.com/coreos-inc/alm",
     global: {
         // .gitlab-ci.yaml top `variables` key
-        FAILFASTCI_NAMESPACE: "quay",
+        FAILFASTCI_NAMESPACE: "coreos-apps",
     },
 
     paths: {

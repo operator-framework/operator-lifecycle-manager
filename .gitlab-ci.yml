@@ -291,4 +291,4 @@ unit-tests:
   tags:
   - kubernetes
 variables:
-  FAILFASTCI_NAMESPACE: quay
+  FAILFASTCI_NAMESPACE: coreos-apps
