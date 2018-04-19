@@ -45,8 +45,8 @@ local appr = utils.appr;
         local _vars = self.localvars,
         localvars:: {
             appname: self.namespace,
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
-            jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA}",
+            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
+            jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             chart: "e2e/chart",
             appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
             helm_opts: [],
