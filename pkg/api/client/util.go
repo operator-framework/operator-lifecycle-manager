@@ -18,7 +18,7 @@ func getConfig(kubeconfig string) (*rest.Config, error) {
 		if len(os.Getenv("KUBERNETES_SERVICE_HOST")) == 0 {
 			addrs, err := net.LookupHost("kubernetes.default.svc")
 			if err != nil {
-				panic(err)
+				return nil, err
 			}
 
 			os.Setenv("KUBERNETES_SERVICE_HOST", addrs[0])

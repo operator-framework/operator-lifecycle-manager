@@ -2,6 +2,8 @@ ALM_PKG := github.com/coreos-inc/alm/cmd/alm
 ALM_EXECUTABLE := ./bin/alm
 CATALOG_PKG := github.com/coreos-inc/alm/cmd/catalog
 CATALOG_EXECUTABLE := ./bin/catalog
+SERVICE_BROKER_PKG := github.com/coreos-inc/alm/cmd/servicebroker
+SERVICE_BROKER_EXECUTABLE := ./bin/servicebroker
 IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
 PKG_DIR := pkg
@@ -25,6 +27,15 @@ coverage: test
 coverage-html: test
 	go tool cover -html=cover.out
 
+CATALOG_CM := deploy/chart/templates/08-tectonicocs.configmap.yaml
+$(CATALOG_CM): catalog_resources/*.yaml
+	./scripts/build_catalog_configmap.sh $@
+
+run: $(CATALOG_CM) $(ALM_EXECUTABLE) $(CATALOG_EXECUTABLE) $(SERVICE_BROKER_EXECUTABLE)
+	. ./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values-shift.yaml
+	. ./scripts/build_local_shift.sh
+	. ./scripts/install_local.sh local Documentation/install/resources
+
 run-local: update-catalog
 	. ./scripts/package-release.sh ver=1.0.0-local Documentation/install/resources Documentation/install/local-values.yaml
 	. ./scripts/build_local.sh
@@ -36,6 +47,12 @@ run-local-shift: update-catalog
 	. ./scripts/build_local_shift.sh
 	. ./scripts/install_local.sh local Documentation/install/resources
 	rm -rf Documentation/install/resources
+
+clean-shift:
+	kubectl delete clusterservicebrokers --all
+	kubectl delete clusterserviceclasses --all
+	kubectl delete clusterserviceplans --all
+	kubectl delete ns local
 
 e2e-local: update-catalog
 	./scripts/build_local.sh
@@ -51,14 +68,19 @@ $(ALM_EXECUTABLE):
 $(CATALOG_EXECUTABLE):
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
 
+$(SERVICE_BROKER_EXECUTABLE):
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(SERVICE_BROKER_EXECUTABLE) $(SERVICE_BROKER_PKG)
+
 build:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(ALM_EXECUTABLE) $(ALM_PKG)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(CATALOG_EXECUTABLE) $(CATALOG_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $(SERVICE_BROKER_EXECUTABLE) $(SERVICE_BROKER_PKG)
 
 # build versions of the binaries with coverage enabled
 build-coverage:
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(ALM_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(ALM_PKG)
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(CATALOG_EXECUTABLE) -c -covermode=count -coverpkg ./pkg/... $(CATALOG_PKG)
+	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $(SERVICE_BROKER_EXECUTABLE) -c -covermode=count -coverpkg ./pkg... $(SERVICE_BROKER_PKG)
 
 DEP := $(GOPATH)/bin/dep
 
@@ -77,6 +99,7 @@ container: build
 clean:
 	rm -f $(ALM_EXECUTABLE)
 	rm -f $(CATALOG_EXECUTABLE)
+	rm $(SERVICE_BROKER_EXECUTABLE)
 	rm -rf e2e/test-resources
 	rm -rf e2e/log
 

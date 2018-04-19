@@ -27,12 +27,17 @@ container-build:
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   - 'docker build  --no-cache -f catalog-ci.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}
+  - 'docker build  --no-cache -f alm-service-broker-ci.Dockerfile -t quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG} . '
+  - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}
   - docker create quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/alm bin/alm
   - docker create quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/catalog bin/catalog
+  - docker create quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/servicebroker bin/servicebroker
   - 'docker build  --no-cache -f alm-pre.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f catalog-pre.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+  - 'docker build  --no-cache -f alm-service-broker-pre.Dockerfile -t quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre . '
+  - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} . '
   - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: docker_build
@@ -56,6 +61,9 @@ container-release:
   - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker pull quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm-service-broker:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker push quay.io/coreos/alm-service-broker:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
   - docker push quay.io/coreos/alm-e2e:latest
@@ -89,9 +97,10 @@ deploy-preview:
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=ci-alm-${CI_COMMIT_REF_SLUG}
     deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=tectonic-system
-    --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG} > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG} > ${charttmpdir}/${f};done;kubectl apply --v=8 -f ${charttmpdir};
   - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
+  - kubectl rollout status -w deployment/alm-service-broker --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview
   tags:
   - kubernetes
@@ -119,9 +128,10 @@ deploy-staging:
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=ci-alm-staging
     deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
-    --set namespace=ci-alm-staging --set watchedNamespaces=ci-alm-staging > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    --set namespace=ci-alm-staging --set watchedNamespaces=ci-alm-staging > ${charttmpdir}/${f};done;kubectl apply --v=8 -f ${charttmpdir};
   - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging
+  - kubectl rollout status -w deployment/alm-service-broker --namespace=ci-alm-staging
   stage: deploy_staging
   tags:
   - kubernetes
@@ -148,9 +158,10 @@ deploy-teamui:
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=tectonic-system
     deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
-    --set namespace=tectonic-system --set watchedNamespaces= > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    --set namespace=tectonic-system --set watchedNamespaces= > ${charttmpdir}/${f};done;kubectl apply --v=8 -f ${charttmpdir};
   - kubectl rollout status -w deployment/alm-operator --namespace=tectonic-system
   - kubectl rollout status -w deployment/catalog-operator --namespace=tectonic-system
+  - kubectl rollout status -w deployment/alm-service-broker --namespace=tectonic-system
   - 'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
     https://hooks.slack.com/services/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'
   stage: deploy_staging
@@ -177,9 +188,10 @@ e2e-setup:
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > ${charttmpdir}/${f};done;kubectl apply --v=8 -f ${charttmpdir};
   - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - kubectl rollout status -w deployment/alm-service-broker --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: test_setup
   tags:
   - kubernetes
@@ -215,9 +227,10 @@ e2e_tests:
   - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'''
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}:default --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     || true
+  - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} create rolebinding e2e-catalog-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}:default --namespace=catalog || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd e2e/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     e2e/chart -x templates/${f} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set job_name=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
+    > ${charttmpdir}/${f};done;kubectl apply --v=8 -f ${charttmpdir};
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} -f
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} > e2e.log

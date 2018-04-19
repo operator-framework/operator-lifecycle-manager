@@ -23,10 +23,10 @@ spec:
         - name: catalog-operator
           command:
           - /bin/catalog
-          {{- if .Values.watchedNamespaces }}
-          - -watchedNamespaces
-          - {{ .Values.watchedNamespaces }}
-          {{- end }}
+          # {{- if .Values.watchedNamespaces }}
+          # - -watchedNamespaces
+          # - {{ .Values.watchedNamespaces }}
+          # {{- end }}
           - '-namespace'
           - {{ .Values.catalog_namespace }}
           - '-debug'
