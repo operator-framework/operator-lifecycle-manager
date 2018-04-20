@@ -6,8 +6,6 @@ Please use [releases] instead of the `master` branch in order to get stable bina
 
 [releases]: https://github.com/coreos-inc/alm/releases
 
-![logo-placeholder](https://user-images.githubusercontent.com/343539/30085003-bc6e757c-9262-11e7-86e3-2433b3a884a5.png)
-
 ALM is a project that creates an opinionated framework for managing applications in Kubernetes.
 
 This project enables users to do the following:
