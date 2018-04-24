@@ -1,10 +1,5 @@
 # ALM
-[![Docker Repository on Quay](https://quay.io/repository/coreos/tectonic-alm-operator/status?token=2659a703-bf11-411a-aa63-d1b99f800988 "Docker Repository on Quay")](https://quay.io/repository/coreos/tectonic-alm-operator)
-
-**Note**: The `master` branch may be in an *unstable or even broken state* during development.
-Please use [releases] instead of the `master` branch in order to get stable binaries.
-
-[releases]: https://github.com/coreos-inc/alm/releases
+[![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) [![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog)
 
 ![logo-placeholder](https://user-images.githubusercontent.com/343539/30085003-bc6e757c-9262-11e7-86e3-2433b3a884a5.png)
 
@@ -23,13 +18,14 @@ This project does not:
 
 ## Getting Started
 
-* Learn the ALM project [architecture]
+* Learn the ALM project [architecture] and [philosophy]
 * Follow the [installation guide]
 * Understand the YAML resources for the [ALM itself]
 * Review the YAML resources for the [existing applications] leveraging the ALM framework
 * Learn to [debug] services running with ALM
 
 [architecture]: /Documentation/design/architecture.md
+[philosophy]: /Documentation/design/philosophy.md
 [debug]: /Documentation/design/debugging.md
 [installation guide]: /Documentation/install/install.md
 [ALM itself]: /Documentation/design/resources
