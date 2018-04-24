@@ -58,8 +58,10 @@ func main() {
 	// Create an instance of a client for accessing ALM types
 	crClient, err := client.NewClient(*kubeConfigPath)
 	if err != nil {
-		log.Fatalf("failed to bootstrap initial OCS catalog: %s", err)
+		log.Fatalf("failed to bootstrap initial catalogs: %s", err)
 	}
+
+	// TODO: catalog sources must be hardcoded because x-operator does not support CR creation. fix.
 	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "tectonic-ocs",
@@ -77,7 +79,26 @@ func main() {
 		},
 	})
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
-		log.Fatalf("failed to bootstrap initial OCS catalog: %s", err)
+		log.Fatalf("failed to bootstrap initial catalogs: %s", err)
+	}
+	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tectonic-components",
+			Namespace: *catalogNamespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			Name:        "tectonic-components",
+			DisplayName: "Tectonic Components",
+			Publisher:   "CoreOS, Inc.",
+			SourceType:  "internal",
+			ConfigMap:   "tectonic-components",
+			Secrets: []string{
+				"coreos-pull-secret",
+			},
+		},
+	})
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		log.Fatalf("failed to bootstrap initial catalogs: %s", err)
 	}
 
 	// Create a new instance of the operator.

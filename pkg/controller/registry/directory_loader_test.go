@@ -30,7 +30,7 @@ func TestDirectoryLoaderHiddenDirs(t *testing.T) {
 	err = os.Mkdir(path.Join(tmpdir, ".hidden_dir"), 0755)
 	require.NoError(t, err)
 
-	dirinfo, err := os.Open("../../../catalog_resources")
+	dirinfo, err := os.Open("../../../catalog_resources/ocs")
 	require.NoError(t, err)
 	defer dirinfo.Close()
 
@@ -38,7 +38,7 @@ func TestDirectoryLoaderHiddenDirs(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, filename := range dirnames {
-		oldfile, err := os.Open(path.Join("../../../catalog_resources", filename))
+		oldfile, err := os.Open(path.Join("../../../catalog_resources/ocs", filename))
 		require.NoError(t, err)
 		defer oldfile.Close()
 
