@@ -8,8 +8,8 @@ import (
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/pmorie/osb-broker-lib/pkg/broker"
 
-	"github.com/coreos-inc/alm/pkg/api/client"
-	"github.com/coreos-inc/alm/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 )
 
 // Options passed in from cmd

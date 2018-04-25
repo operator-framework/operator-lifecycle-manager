@@ -20,7 +20,7 @@ import (
 	prom "github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/coreos-inc/alm/pkg/server/servicebroker"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/server/servicebroker"
 )
 
 const (
