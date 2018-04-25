@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coreos-inc/alm/pkg/api/apis"
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/controller/registry"
+	"github.com/coreos/alm/pkg/api/apis"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	installplanv1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
+	"github.com/coreos/alm/pkg/controller/registry"
 
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"

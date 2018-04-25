@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	installplan_v1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
-	versioned "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned"
-	internalinterfaces "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/coreos-inc/alm/pkg/api/client/listers/installplan/v1alpha1"
+	installplan_v1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
+	versioned "github.com/coreos/alm/pkg/api/client/clientset/versioned"
+	internalinterfaces "github.com/coreos/alm/pkg/api/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/coreos/alm/pkg/api/client/listers/installplan/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

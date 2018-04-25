@@ -5,7 +5,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/coreos-inc/alm/pkg/api/apis"
+	"github.com/coreos/alm/pkg/api/apis"
 )
 
 var (

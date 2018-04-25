@@ -15,11 +15,11 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	subscriptionv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/subscription/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/controller/install"
-	"github.com/coreos-inc/alm/pkg/controller/registry"
+	catalogsourcev1alpha1 "github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
+	csvv1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	subscriptionv1alpha1 "github.com/coreos/alm/pkg/api/apis/subscription/v1alpha1"
+	"github.com/coreos/alm/pkg/controller/install"
+	"github.com/coreos/alm/pkg/controller/registry"
 )
 
 // Test Subscription behavior

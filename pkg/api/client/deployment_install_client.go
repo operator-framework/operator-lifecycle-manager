@@ -2,7 +2,7 @@
 package client
 
 import (
-	"github.com/coreos-inc/alm/pkg/lib/ownerutil"
+	"github.com/coreos/alm/pkg/lib/ownerutil"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"

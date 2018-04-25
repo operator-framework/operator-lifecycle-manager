@@ -9,8 +9,8 @@ import (
 	rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/coreos-inc/alm/pkg/api/client"
-	"github.com/coreos-inc/alm/pkg/lib/ownerutil"
+	"github.com/coreos/alm/pkg/api/client"
+	"github.com/coreos/alm/pkg/lib/ownerutil"
 )
 
 const (

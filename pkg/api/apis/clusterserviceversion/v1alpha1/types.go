@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/coreos-inc/alm/pkg/api/apis"
+	"github.com/coreos/alm/pkg/api/apis"
 	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

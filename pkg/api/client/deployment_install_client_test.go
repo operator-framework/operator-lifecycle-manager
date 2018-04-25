@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/pkg/errors"

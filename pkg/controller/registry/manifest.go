@@ -9,7 +9,7 @@ import (
 
 	"encoding/json"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 	"github.com/ghodss/yaml"
 )
 

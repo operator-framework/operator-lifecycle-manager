@@ -8,7 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"k8s.io/api/core/v1"
 )

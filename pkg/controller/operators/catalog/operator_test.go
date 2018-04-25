@@ -10,9 +10,9 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	csvv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/controller/registry"
+	csvv1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
+	"github.com/coreos/alm/pkg/controller/registry"
 )
 
 type mockTransitioner struct {

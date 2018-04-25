@@ -7,7 +7,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 
 	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 )
