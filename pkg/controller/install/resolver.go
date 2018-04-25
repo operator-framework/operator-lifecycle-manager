@@ -9,9 +9,9 @@ import (
 
 	operatorClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/client"
-	"github.com/coreos-inc/alm/pkg/lib/ownerutil"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/api/client"
+	"github.com/coreos/alm/pkg/lib/ownerutil"
 )
 
 type Strategy interface {

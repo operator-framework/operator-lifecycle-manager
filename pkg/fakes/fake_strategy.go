@@ -4,7 +4,7 @@ package fakes
 import (
 	"sync"
 
-	"github.com/coreos-inc/alm/pkg/controller/install"
+	"github.com/coreos/alm/pkg/controller/install"
 )
 
 type FakeStrategy struct {

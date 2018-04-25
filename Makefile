@@ -3,7 +3,7 @@
 ##########################
 
 SHELL := /bin/bash
-PKG   := github.com/coreos-inc/alm
+PKG   := github.com/coreos/alm
 CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -l basename))
 
 IMAGE_REPO := quay.io/coreos/alm

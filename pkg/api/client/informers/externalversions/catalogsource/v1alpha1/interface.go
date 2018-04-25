@@ -19,7 +19,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	internalinterfaces "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/coreos/alm/pkg/api/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

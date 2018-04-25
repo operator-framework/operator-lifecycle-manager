@@ -10,14 +10,14 @@ import (
 
 	"encoding/json"
 
-	"github.com/coreos-inc/alm/pkg/controller/registry"
+	"github.com/coreos/alm/pkg/controller/registry"
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 )
 
-var manifestDir = os.Getenv("GOPATH") + "/src/github.com/coreos-inc/alm" +
+var manifestDir = os.Getenv("GOPATH") + "/src/github.com/coreos/alm" +
 	"/deploy/tectonic-alm-operator/manifests"
 
 // BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,

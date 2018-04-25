@@ -19,8 +19,8 @@ limitations under the License.
 package installplan
 
 import (
-	v1alpha1 "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/installplan/v1alpha1"
-	internalinterfaces "github.com/coreos-inc/alm/pkg/api/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/coreos/alm/pkg/api/client/informers/externalversions/installplan/v1alpha1"
+	internalinterfaces "github.com/coreos/alm/pkg/api/client/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

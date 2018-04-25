@@ -22,9 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	catalogsourcev1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/controller/registry"
+	catalogsourcev1alpha1 "github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/coreos/alm/pkg/controller/registry"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -289,5 +289,5 @@ func (d *DirectoryResourceValidator) ValidateResource(path string, f os.FileInfo
 
 func TestCatalogResources(t *testing.T) {
 	directoryTester := DirectoryResourceValidator{t}
-	directoryTester.ValidateResources(os.Getenv("GOPATH") + "/src/github.com/coreos-inc/alm/catalog_resources")
+	directoryTester.ValidateResources(os.Getenv("GOPATH") + "/src/github.com/coreos/alm/catalog_resources")
 }
