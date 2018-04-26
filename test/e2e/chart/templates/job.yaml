@@ -9,7 +9,7 @@ spec:
       containers:
       - name: e2e
         image:  {{ .Values.e2e.image.ref }}
-        command: ["./e2e/e2e.sh"]
+        command: ["./test/e2e/e2e.sh"]
         env:
         - name: NAMESPACE
           valueFrom:
