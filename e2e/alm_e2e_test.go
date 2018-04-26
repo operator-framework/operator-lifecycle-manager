@@ -26,6 +26,7 @@ const (
 	expectedPrometheusSize = 3
 	vaultClusterSize       = 2
 	ocsConfigMap           = "tectonic-ocs"
+	ocsCatalogSource       = "tectonic-alm-ocs-catalog"
 )
 
 type installPlanConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool

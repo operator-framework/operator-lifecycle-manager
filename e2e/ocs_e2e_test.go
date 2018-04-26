@@ -50,7 +50,7 @@ func fetchCatalogSource(t *testing.T, c opClient.Interface, name string) (*catal
 func TestInstallEtcdOCS(t *testing.T) {
 	c := newKubeClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
+	catalogSource, err := fetchCatalogSource(t, c, ocsCatalogSource)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, catalogSource.Spec.ConfigMap)
@@ -187,7 +187,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 func TestInstallPrometheusOCS(t *testing.T) {
 	c := newKubeClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
+	catalogSource, err := fetchCatalogSource(t, c, ocsCatalogSource)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, catalogSource.Spec.ConfigMap)
@@ -332,7 +332,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 func TestInstallVaultOCS(t *testing.T) {
 	c := newKubeClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
+	catalogSource, err := fetchCatalogSource(t, c, ocsCatalogSource)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, catalogSource.Spec.ConfigMap)
