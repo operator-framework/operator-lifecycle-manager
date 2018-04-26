@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	ipv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/apis/subscription/v1alpha1"
+	ipv1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/subscription/v1alpha1"
 
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

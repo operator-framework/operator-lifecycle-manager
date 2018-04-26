@@ -2,7 +2,7 @@ local utils = import "utils.libsonnet";
 
 {
     deploy_keys: { operator_client: "$OPERATORCLENT_RSA_B64" },
-    alm_repo: "github.com/coreos-inc/alm",
+    alm_repo: "github.com/coreos/alm",
     global: {
         // .gitlab-ci.yaml top `variables` key
         FAILFASTCI_NAMESPACE: "coreos-apps",

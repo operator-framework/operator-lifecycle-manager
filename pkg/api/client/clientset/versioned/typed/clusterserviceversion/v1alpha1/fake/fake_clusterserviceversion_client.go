@@ -16,7 +16,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/typed/clusterserviceversion/v1alpha1"
+	v1alpha1 "github.com/coreos/alm/pkg/api/client/clientset/versioned/typed/clusterserviceversion/v1alpha1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

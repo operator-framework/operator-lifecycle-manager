@@ -1,5 +1,5 @@
 FROM quay.io/coreos/alm-ci:base
-WORKDIR /go/src/github.com/coreos-inc/alm
+WORKDIR /go/src/github.com/coreos/alm
 RUN apt-get update && apt-get install -y jq
 COPY . .
 RUN make vendor

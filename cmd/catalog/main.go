@@ -10,10 +10,10 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/alm/pkg/api/apis/catalogsource/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/client"
-	"github.com/coreos-inc/alm/pkg/controller/operators/catalog"
-	"github.com/coreos-inc/alm/pkg/lib/signals"
+	"github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
+	"github.com/coreos/alm/pkg/api/client"
+	"github.com/coreos/alm/pkg/controller/operators/catalog"
+	"github.com/coreos/alm/pkg/lib/signals"
 )
 
 const (

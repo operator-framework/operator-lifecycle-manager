@@ -14,12 +14,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	core "k8s.io/client-go/testing"
 
-	csvv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	ipv1alpha1 "github.com/coreos-inc/alm/pkg/api/apis/installplan/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/apis/subscription/v1alpha1"
-	"github.com/coreos-inc/alm/pkg/api/client/clientset/versioned/fake"
-	"github.com/coreos-inc/alm/pkg/controller/registry"
-	"github.com/coreos-inc/alm/pkg/fakes"
+	csvv1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	ipv1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
+	"github.com/coreos/alm/pkg/api/apis/subscription/v1alpha1"
+	"github.com/coreos/alm/pkg/api/client/clientset/versioned/fake"
+	"github.com/coreos/alm/pkg/controller/registry"
+	"github.com/coreos/alm/pkg/fakes"
 )
 
 func RequireActions(t *testing.T, expected, actual []core.Action) {

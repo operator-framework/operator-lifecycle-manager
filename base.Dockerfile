@@ -1,5 +1,5 @@
 FROM golang:1.10 as builder
-WORKDIR /go/src/github.com/coreos-inc/alm
+WORKDIR /go/src/github.com/coreos/alm
 
 # SSH key to fetch operator-client dependency. should be base64 encoded
 # "--build-arg sshkey=`cat ~/.ssh/robot_rsa | base64 -w0`"

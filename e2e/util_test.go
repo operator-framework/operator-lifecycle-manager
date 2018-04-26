@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
 
-	"github.com/coreos-inc/alm/pkg/api/apis"
+	"github.com/coreos/alm/pkg/api/apis"
 )
 
 const (

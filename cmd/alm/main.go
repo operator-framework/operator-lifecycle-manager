@@ -10,8 +10,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/coreos-inc/alm/pkg/controller/operators/alm"
-	"github.com/coreos-inc/alm/pkg/lib/signals"
+	"github.com/coreos/alm/pkg/controller/operators/alm"
+	"github.com/coreos/alm/pkg/lib/signals"
 )
 
 const (
