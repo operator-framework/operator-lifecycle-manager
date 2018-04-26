@@ -3,6 +3,7 @@ package servicebroker
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -22,10 +23,19 @@ import (
 	"github.com/coreos/alm/pkg/controller/registry"
 )
 
-// default poll times for waiting on resources
 var (
+	// default poll times for waiting on resources
 	pollInterval = 1 * time.Second
 	pollDuration = 5 * time.Minute
+
+	asyncOnlyErrorMessage     = "AsyncOnlySupported"
+	asyncOnlyErrorDescription = "Only asynchronous operations supported"
+
+	AsyncOnlyError = osb.HTTPStatusCodeError{
+		StatusCode:   http.StatusUnprocessableEntity,
+		ErrorMessage: &asyncOnlyErrorMessage,
+		Description:  &asyncOnlyErrorDescription,
+	}
 )
 
 type Options struct {
@@ -250,9 +260,116 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 
 }
 
+// TEMP
+// alm-service-broker-clusterserviceplan-id: couchbase-operator-v0-8-0-couchbasecluster
+// \---
+
 func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*osb.DeprovisionResponse, error) {
-	// TODO implement
-	return nil, errors.New("not implemented")
+	log.Debugf("Component=ServiceBroker Endpoint=DeProvision Request=%#v", request)
+	var (
+		object unstructured.Unstructured
+
+		plan osb.Plan
+
+		serviceID  string
+		planID     string
+		instanceID string
+	)
+
+	//
+	// Validate request
+	//
+	if request == nil || c.Request == nil {
+		return nil, errors.New("invalid request: <nil>")
+	}
+	values := c.Request.URL.Query()
+
+	serviceID = values.Get("service_id")
+	planID = values.Get("plan_id")
+	instanceID = request.InstanceID
+
+	if serviceID == "" {
+		return nil, errors.New("invalid request: missing required `service_id` query parameter")
+	}
+	if planID == "" {
+		return nil, errors.New("invalid request: missing required `plan_id` query parameter")
+	}
+	if instanceID == "" {
+		return nil, errors.New("invalid request: missing required url paramter for instance id")
+	}
+	if values.Get("accepts_incomplete") == "" {
+		// Only accept requests with `accepts_incomplete` since deprovisioning is async.
+		// ALM deletes the CustomResource and the operator is responsible for removing the instance.
+		// See OpenServiveBroker API spec:
+		//   https://github.com/openservicebrokerapi/servicebroker/blob/v2.13/spec.md#parameters-4
+		return nil, AsyncOnlyError
+	}
+
+	//
+	// Fetch plan definition from catalog
+	//
+	catalog, err := a.GetCatalog(nil)
+	if err != nil {
+		return nil, err
+	}
+FindPlan:
+	for _, s := range catalog.Services {
+		if s.ID != serviceID {
+			continue FindPlan
+		}
+		for _, p := range s.Plans {
+			if p.ID == planID {
+				plan = p
+				goto Deprovisioning
+			}
+		}
+		return nil, errors.New("unknown plan")
+	}
+	return nil, errors.New("unknown service")
+Deprovisioning:
+	cr, err := planToCustomResourceObject(plan, instanceID, map[string]interface{}{})
+	if err != nil {
+		return nil, err
+	}
+	gvk := cr.GroupVersionKind()
+	uri := strings.ToLower(fmt.Sprintf("/apis/%s/%s/%ss", gvk.Group, gvk.Version, gvk.Kind))
+	opkey := osb.OperationKey(uri)
+
+	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
+		Get().RequestURI(uri).
+		Do().Into(&object)
+	log.Debugf("Component=ServiceBroker Endpoint=Deprovision GetCR uri=%s err=%v vobject=%+v", uri, err, object)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return &osb.DeprovisionResponse{
+				Async:        false,
+				OperationKey: &opkey,
+			}, nil
+		}
+		return nil, err
+	}
+	if object.IsList() {
+		field, ok := object.Object["items"]
+		if !ok {
+			return nil, errors.New("no resources found")
+		}
+		items, ok := field.([]interface{})
+		if !ok || len(items) < 1 {
+			return nil, errors.New("no resources found")
+		}
+		object = items[0]
+	}
+	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
+		Delete().Namespace(object.GetNamespace()).RequestURI(uri).Do().Error()
+	log.Debugf("Component=ServiceBroker Endpoint=Deprovision DeleteCR ns='%s' uri=%s err=%v object=%#v", object.GetNamespace(), uri, err, object)
+	if err != nil && !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	log.Debugf("Component=ServiceBroker Endpoint=Deprovision EndRequest opKey=%+v object=%+v", opkey, object)
+	return &osb.DeprovisionResponse{
+		Async:        true,
+		OperationKey: &opkey,
+	}, nil
 }
 
 func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
