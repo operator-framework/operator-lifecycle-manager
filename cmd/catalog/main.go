@@ -6,14 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos-inc/alm/pkg/controller/operators/catalog"
+	"github.com/coreos-inc/alm/pkg/lib/signals"
 	log "github.com/sirupsen/logrus"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
-	"github.com/coreos/alm/pkg/api/client"
-	"github.com/coreos/alm/pkg/controller/operators/catalog"
-	"github.com/coreos/alm/pkg/lib/signals"
 )
 
 const (
@@ -54,52 +49,6 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 	go http.ListenAndServe(":8080", nil)
-
-	// Create an instance of a client for accessing ALM types
-	crClient, err := client.NewClient(*kubeConfigPath)
-	if err != nil {
-		log.Fatalf("failed to bootstrap initial catalogs: %s", err)
-	}
-
-	// TODO: catalog sources must be hardcoded because x-operator does not support CR creation. fix.
-	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tectonic-ocs",
-			Namespace: *catalogNamespace,
-		},
-		Spec: v1alpha1.CatalogSourceSpec{
-			Name:        "tectonic-ocs",
-			DisplayName: "Tectonic Open Cloud Services",
-			Publisher:   "CoreOS, Inc.",
-			SourceType:  "internal",
-			ConfigMap:   "tectonic-ocs",
-			Secrets: []string{
-				"coreos-pull-secret",
-			},
-		},
-	})
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
-		log.Fatalf("failed to bootstrap initial catalogs: %s", err)
-	}
-	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "tectonic-components",
-			Namespace: *catalogNamespace,
-		},
-		Spec: v1alpha1.CatalogSourceSpec{
-			Name:        "tectonic-components",
-			DisplayName: "Tectonic Components",
-			Publisher:   "CoreOS, Inc.",
-			SourceType:  "internal",
-			ConfigMap:   "tectonic-components",
-			Secrets: []string{
-				"coreos-pull-secret",
-			},
-		},
-	})
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
-		log.Fatalf("failed to bootstrap initial catalogs: %s", err)
-	}
 
 	// Create a new instance of the operator.
 	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, *catalogNamespace, strings.Split(*watchedNamespaces, ",")...)

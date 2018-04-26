@@ -1,12 +1,12 @@
 ---
-# Source: alm/templates/11-catalog-operator.deployment.yaml
+# Source: alm/templates/12-alm-operator.deployment.yaml
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: catalog-operator
+  name: alm-operator
   namespace: tectonic-system
   labels:
-    app: catalog-operator
+    app: alm-operator
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   strategy:
@@ -14,21 +14,18 @@ spec:
   replicas: 1
   selector:
     matchLabels:
-      app: catalog-operator
+      app: alm-operator
   template:
     metadata:
       labels:
-        app: catalog-operator
+        app: alm-operator
     spec:
       serviceAccountName: alm-operator-serviceaccount
       containers:
-        - name: catalog-operator
+        - name: alm-operator
           command:
-          - /bin/catalog
-          - '-namespace'
-          - tectonic-system
-          - '-debug'
-          image: quay.io/coreos/catalog@sha256:e0b5e4c6f1d89122780f6d98c7052b8426c3b94d35655538f562d8849bcbbc66
+          - /bin/alm
+          image: quay.io/coreos/alm@sha256:d3c8a14835602da60011e2a7db7bdf546f7f0116fb10c11313cd9af68bfd484a
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -40,6 +37,13 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
+          env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            value: alm-operator
       imagePullSecrets:
         - name: coreos-pull-secret
 
