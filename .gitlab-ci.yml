@@ -223,8 +223,8 @@ e2e_tests:
   - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'' || true'
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}:default --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     || true
-  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd e2e/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    e2e/chart -x templates/${f} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set job_name=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd test/e2e/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    test/e2e/chart -x templates/${f} --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} --set job_name=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} -f

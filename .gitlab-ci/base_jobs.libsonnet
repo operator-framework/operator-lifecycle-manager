@@ -47,7 +47,7 @@ local appr = utils.appr;
             appname: self.namespace,
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            chart: "e2e/chart",
+            chart: "test/e2e/chart",
             appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
             helm_opts: [],
             params: {
