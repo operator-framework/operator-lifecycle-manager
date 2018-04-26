@@ -4,7 +4,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1
 metadata:
   name: tectonic-alm-ocs-catalog
-  namespace: tectonic-system
+  namespace: {{ .Values.catalog_namespace }}
 spec:
   name: tectonic-components
   sourceType: internal
