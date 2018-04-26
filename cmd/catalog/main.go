@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos-inc/alm/pkg/controller/operators/catalog"
-	"github.com/coreos-inc/alm/pkg/lib/signals"
+	"github.com/coreos/alm/pkg/controller/operators/catalog"
+	"github.com/coreos/alm/pkg/lib/signals"
 	log "github.com/sirupsen/logrus"
 )
 
