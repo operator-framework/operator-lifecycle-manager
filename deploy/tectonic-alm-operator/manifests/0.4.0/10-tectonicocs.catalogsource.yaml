@@ -7,6 +7,8 @@ kind: CatalogSource-v1
 metadata:
   name: tectonic-alm-ocs-catalog
   namespace: tectonic-system
+  annotations:
+    tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
 spec:
   name: tectonic-ocs
   sourceType: internal
