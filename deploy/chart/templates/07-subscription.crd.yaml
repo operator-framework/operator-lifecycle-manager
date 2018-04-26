@@ -29,7 +29,6 @@ spec:
           required:
           - source
           - name
-          - startingCSV
           properties:
             source:
               type: string
