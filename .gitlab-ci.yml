@@ -235,6 +235,7 @@ sanity-checks:
   - cd $GOPATH/src/github.com/coreos/alm
   image: quay.io/coreos/alm-ci:base
   script:
+  - make vendor
   - make verify-catalog
   - make verify-codegen
   stage: sanity

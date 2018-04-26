@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1
 metadata:
-  name: tectonic-alm-components-catalog
+  name: tectonic-components
   namespace: {{ .Values.catalog_namespace }}
   annotations:
     tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
