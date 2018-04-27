@@ -148,7 +148,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	require.Zero(t, vaultResourcesPresent)
 }
 
-// This captures the current state of ALM where Failed InstallPlans aren't implemented and should be removed in the future
+// This captures the current state of OLM where Failed InstallPlans aren't implemented and should be removed in the future
 func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t *testing.T) {
 	c := newKubeClient(t)
 
@@ -179,10 +179,9 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 	})
 
 	// InstallPlans don't have a failed status, they end up in a Planning state with a "false" resolved state
-	require.Equal(t, fetchedInstallPlan.Status.Conditions[0].Type, installplanv1alpha1.InstallPlanResolved)
-	require.Equal(t, fetchedInstallPlan.Status.Conditions[0].Status, corev1.ConditionFalse)
-	require.Equal(t, fetchedInstallPlan.Status.Conditions[0].Reason, installplanv1alpha1.InstallPlanReasonDependencyConflict)
-
+	require.Equal(t, installplanv1alpha1.InstallPlanResolved, fetchedInstallPlan.Status.Conditions[0].Type)
+	require.Equal(t, corev1.ConditionFalse, fetchedInstallPlan.Status.Conditions[0].Status)
+	require.Equal(t, installplanv1alpha1.InstallPlanReasonInstallCheckFailed, fetchedInstallPlan.Status.Conditions[0].Reason)
 }
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
@@ -213,5 +212,5 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), installPlanFailedChecker)
 	require.NoError(t, err)
 
-	require.Equal(t, fetchedInstallPlan.Status.Phase, installplanv1alpha1.InstallPlanPhaseFailed)
+	require.Equal(t, installplanv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
 }
