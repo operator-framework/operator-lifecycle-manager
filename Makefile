@@ -35,12 +35,12 @@ $(CMDS):
 		go build -o $@ $(PKG)/cmd/$(shell basename $@)
 
 CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
-CATALOG_RELEASE:=catalog_resources/tectonicocs.configmap.yaml
+CATALOG_RELEASE:=catalog_resources/ocs/tectonicocs.configmap.yaml
 
-$(CATALOG_CHART) $(CATALOG_RELEASE): catalog_resources/*.crd.yaml \
-	catalog_resources/*.clusterserviceversion.yaml \
-	catalog_resources/*.package.yaml
-	. ./scripts/build_catalog_configmap.sh $@
+$(CATALOG_CHART) $(CATALOG_RELEASE): catalog_resources/ocs/*.crd.yaml \
+	catalog_resources/ocs/*.clusterserviceversion.yaml \
+	catalog_resources/ocs/*.package.yaml
+	. ./scripts/build_catalog_configmap.sh catalog_resources/ocs 'tectonic-ocs' $@
 
 build/chart/values.yaml: deploy/chart/values.yaml
 	mkdir -p build/chart
