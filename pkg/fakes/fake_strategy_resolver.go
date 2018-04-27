@@ -4,9 +4,9 @@ package fakes
 import (
 	"sync"
 
-	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos/alm/pkg/controller/install"
-	"github.com/coreos/alm/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	operatorClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 )
 

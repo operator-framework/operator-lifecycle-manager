@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 
-	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 )
 
 // compareResources compares resource equality then prints a diff for easier debugging

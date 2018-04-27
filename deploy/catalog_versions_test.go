@@ -10,7 +10,7 @@ import (
 
 	"encoding/json"
 
-	"github.com/coreos/alm/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"

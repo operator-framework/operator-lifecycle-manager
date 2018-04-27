@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 
-	csvv1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 )
 
 const (

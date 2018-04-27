@@ -1,7 +1,7 @@
 package client
 
 import (
-	"github.com/coreos/alm/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"k8s.io/client-go/rest"
 )
 

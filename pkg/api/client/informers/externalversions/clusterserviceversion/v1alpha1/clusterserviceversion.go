@@ -19,10 +19,10 @@ limitations under the License.
 package v1alpha1
 
 import (
-	clusterserviceversion_v1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	versioned "github.com/coreos/alm/pkg/api/client/clientset/versioned"
-	internalinterfaces "github.com/coreos/alm/pkg/api/client/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/coreos/alm/pkg/api/client/listers/clusterserviceversion/v1alpha1"
+	clusterserviceversion_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/clusterserviceversion/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

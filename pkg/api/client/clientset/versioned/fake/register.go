@@ -16,10 +16,10 @@ limitations under the License.
 package fake
 
 import (
-	catalogsourcev1alpha1 "github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
-	clusterserviceversionv1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
-	subscriptionv1alpha1 "github.com/coreos/alm/pkg/api/apis/subscription/v1alpha1"
+	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
+	clusterserviceversionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

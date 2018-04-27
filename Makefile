@@ -1,6 +1,6 @@
-ALM_PKG := github.com/coreos/alm/cmd/alm
+ALM_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/alm
 ALM_EXECUTABLE := ./bin/alm
-CATALOG_PKG := github.com/coreos/alm/cmd/catalog
+CATALOG_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/catalog
 CATALOG_EXECUTABLE := ./bin/catalog
 IMAGE_REPO := quay.io/coreos/alm
 IMAGE_TAG ?= "dev"
@@ -99,7 +99,7 @@ codegen: $(CODEGEN)
 	# codegen tools currently don't allow specifying custom boilerplate, so we move ours to the default location
 	mkdir -p $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate
 	cp boilerplate.go.txt $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate/boilerplate.go.txt
-	$(CODEGEN) all github.com/coreos/alm/pkg/api/client github.com/coreos/alm/pkg/api/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
+	$(CODEGEN) all github.com/operator-framework/operator-lifecycle-manager/pkg/api/client github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis "catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
 	# codegen doesn't respect pluralnames, so we manually set them here
 	find ./pkg/api/client -type f -exec sed -i.bak 's/\"catalogsource/\"catalogsource-v1/g' {} \; -exec rm {}.bak \;
 	find ./pkg/api/client -type f -exec sed -i.bak 's/\"catalogsources/\"catalogsource-v1s/g' {} \; -exec rm {}.bak \;
