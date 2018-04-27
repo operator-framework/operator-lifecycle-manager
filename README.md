@@ -1,6 +1,6 @@
 # Operator Lifecycle Manager (OLM)
 
-[![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) [![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog)
+[![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) [![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog)[![pipeline status](https://gitlab.com/operator-framework/operator-lifecycle-manager/badges/master/pipeline.svg)](https://gitlab.com/operator-framework/operator-lifecycle-manager/commits/master)
 
 OLM extends Kubernetes to provide a declarative way to install, manage, and upgrade operators and their dependencies in a cluster.
 
