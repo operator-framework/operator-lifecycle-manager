@@ -51,37 +51,37 @@ func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
 }
 
 // GetCatalog returns the CSVs in the catalog
-func (a *ALMBroker) GetCatalog(*broker.RequestContext) (*osb.CatalogResponse, error) {
+func (a *ALMBroker) GetCatalog(*broker.RequestContext) (*broker.CatalogResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*osb.ProvisionResponse, error) {
+func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*osb.DeprovisionResponse, error) {
+func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
+func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*broker.LastOperationResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*osb.BindResponse, error) {
+func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*osb.UnbindResponse, error) {
+func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*osb.UpdateInstanceResponse, error) {
+func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
