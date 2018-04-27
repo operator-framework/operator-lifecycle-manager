@@ -230,9 +230,9 @@ e2e_tests:
     NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
 sanity-checks:
   before_script:
-  - mkdir -p $GOPATH/src/github.com/coreos/alm
-  - cp -a $CI_PROJECT_DIR/. $GOPATH/src/github.com/coreos/alm
-  - cd $GOPATH/src/github.com/coreos/alm
+  - mkdir -p $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
+  - cp -a $CI_PROJECT_DIR/. $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
+  - cd $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
   image: quay.io/coreos/alm-ci:base
   script:
   - make vendor
@@ -278,9 +278,9 @@ stop-preview:
   when: manual
 unit-tests:
   before_script:
-  - mkdir -p $GOPATH/src/github.com/coreos/alm
-  - cp -a $CI_PROJECT_DIR/* $GOPATH/src/github.com/coreos/alm
-  - cd $GOPATH/src/github.com/coreos/alm
+  - mkdir -p $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
+  - cp -a $CI_PROJECT_DIR/* $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
+  - cd $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
   coverage: /\d\d\.\d.$/
   image: quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   script:
@@ -292,4 +292,4 @@ unit-tests:
   tags:
   - kubernetes
 variables:
-  FAILFASTCI_NAMESPACE: coreos-apps
+  FAILFASTCI_NAMESPACE: operator-framework
