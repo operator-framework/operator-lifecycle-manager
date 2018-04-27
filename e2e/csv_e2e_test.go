@@ -73,18 +73,18 @@ func createCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) (c
 
 }
 
-func newNginxDeployment() v1beta2.DeploymentSpec {
+func newNginxDeployment(name string) v1beta2.DeploymentSpec {
 	return v1beta2.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"app": "nginx",
+				"app": name,
 			},
 		},
 		Replicas: &singleInstance,
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
-					"app": "nginx",
+					"app": name,
 				},
 			},
 			Spec: v1.PodSpec{
@@ -179,7 +179,7 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep"),
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -233,7 +233,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep"),
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -333,7 +333,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep"),
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -429,7 +429,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 				// Same name
 				Name: strategy.DeploymentSpecs[0].Name,
 				// Different spec
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -507,7 +507,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep"),
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -579,7 +579,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep2"),
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}

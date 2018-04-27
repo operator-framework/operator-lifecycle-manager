@@ -91,6 +91,7 @@ func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker i
 
 // This test is skipped until manual approval is implemented
 func TestCreateInstallPlanManualApproval(t *testing.T) {
+	t.Skip()
 	c := newKubeClient(t)
 
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
@@ -143,7 +144,6 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	}
 
 	// Result: Ensure that the InstallPlan actually creates no vault resources
-	t.Skip()
 	t.Logf("%d Vault Resources present", vaultResourcesPresent)
 	require.Zero(t, vaultResourcesPresent)
 }
