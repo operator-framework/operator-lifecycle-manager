@@ -54,6 +54,12 @@ func TestTransitionInstallPlan(t *testing.T) {
 			Reason:  v1alpha1.InstallPlanReasonComponentFailed,
 			Message: errMsg,
 		}
+		notFound = &v1alpha1.InstallPlanCondition{
+			Type:    v1alpha1.InstallPlanResolved,
+			Status:  corev1.ConditionTrue,
+			Reason:  v1alpha1.InstallPlanResonNotFound,
+			Message: errMsg,
+		}
 	)
 	var table = []struct {
 		initial    v1alpha1.InstallPlanPhase
@@ -66,6 +72,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 
 		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.InstallPlanPhaseInstalling, resolved},
 		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.InstallPlanPhaseFailed, unresolved},
+		{v1alpha1.InstallPlanPhasePlanning, CatalogSourceError(errors.New(errMsg)), v1alpha1.InstallPlanPhaseFailed, notFound},
 
 		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.InstallPlanPhaseComplete, installed},
 		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.InstallPlanPhaseFailed, failed},

@@ -63,6 +63,7 @@ type InstallPlanConditionReason string
 
 const (
 	InstallPlanReasonPlanUnknown        InstallPlanConditionReason = "PlanUnknown"
+	InstallPlanResonNotFound            InstallPlanConditionReason = "NotFound"
 	InstallPlanReasonDependencyConflict InstallPlanConditionReason = "DependenciesConflict"
 	InstallPlanReasonComponentFailed    InstallPlanConditionReason = "InstallComponentFailed"
 	InstallPlanReasonInstallCheckFailed InstallPlanConditionReason = "InstallCheckFailed"
@@ -98,7 +99,7 @@ type InstallPlanStatus struct {
 // an InstallPlan.
 type InstallPlanCondition struct {
 	Type               InstallPlanConditionType   `json:"type,omitempty"`
-	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True False or Unknown
+	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True, False, or Unknown
 	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
 	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
 	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
