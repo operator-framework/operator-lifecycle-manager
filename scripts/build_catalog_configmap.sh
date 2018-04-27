@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 
-OUTFILE=${1:-'catalog_resources/tectonicocs.configmap.yaml'}
-NAMESPACE=${2:-'{{ .Values.catalog_namespace }}'}
+DIR=${1:-'catalog_resources/ocs'}
+NAME=${2:-'tectonic-ocs'}
+OUTFILE=${3:-'catalog_resources/tectonicocs.configmap.yaml'}
+NAMESPACE=${4:-'{{ .Values.catalog_namespace }}'}
 
 cat <<EOF > $OUTFILE
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: tectonic-ocs
+  name: $NAME
   namespace: $NAMESPACE
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
@@ -15,7 +17,7 @@ data:
   customResourceDefinitions: |-
 EOF
 
-for crd in catalog_resources/*.crd.yaml
+for crd in $DIR/*.crd.yaml
 do
   printf "    - " >> $OUTFILE
   head -n 1 $crd >> $OUTFILE
@@ -26,7 +28,7 @@ done
 
 printf '  clusterServiceVersions: |-\n' >> $OUTFILE
 
-for csv in catalog_resources/*.clusterserviceversion.yaml
+for csv in $DIR/*.clusterserviceversion.yaml
 do
   printf "    - " >> $OUTFILE
   head -n 3 $csv | tail -n 1 >> $OUTFILE
@@ -37,7 +39,7 @@ done
 
 printf '  packages: |-\n' >> $OUTFILE
 
-for csv in catalog_resources/*.package.yaml
+for csv in $DIR/*.package.yaml
 do
   printf "    - " >> $OUTFILE
   head -n 2 $csv | tail -n 1 >> $OUTFILE

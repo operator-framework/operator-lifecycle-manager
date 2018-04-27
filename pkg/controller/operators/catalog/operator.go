@@ -137,7 +137,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
-	o.sources[catsrc.Spec.Name] = src
+	o.sources[catsrc.GetName()] = src
 	o.sourcesLastUpdate = timeNow()
 	return err
 }

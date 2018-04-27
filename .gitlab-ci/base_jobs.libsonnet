@@ -66,7 +66,7 @@ local appr = utils.appr;
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
             [
-                'kubectl -n %s patch serviceaccount default -p %s' % [_vars.namespace, std.escapeStringBash(_vars.patch)],
+                'kubectl -n %s patch serviceaccount default -p %s || true' % [_vars.namespace, std.escapeStringBash(_vars.patch)],
             ] +
             [
                 'kubectl -n %s create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=%s:default --namespace=%s || true' % [_vars.namespace, _vars.namespace, _vars.namespace],

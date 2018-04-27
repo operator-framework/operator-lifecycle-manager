@@ -3,8 +3,10 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1
 metadata:
-  name: tectonic-alm-ocs-catalog
-  namespace: tectonic-system
+  name: tectonic-ocs
+  namespace: {{ .Values.catalog_namespace }}
+  annotations:
+    tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
 spec:
   name: tectonic-ocs
   sourceType: internal

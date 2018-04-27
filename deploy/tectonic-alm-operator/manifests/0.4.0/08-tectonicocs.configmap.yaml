@@ -1,8 +1,10 @@
+---
+# Source: alm/templates/08-tectonicocs.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
 metadata:
   name: tectonic-ocs
-  namespace: {{ .Values.catalog_namespace }}
+  namespace: tectonic-system
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 data:
@@ -1773,3 +1775,4 @@ data:
       channels:
       - name: alpha
         currentCSV: vault-operator.0.1.9
+
