@@ -45,6 +45,7 @@ local jobs = {
     'sanity-checks': baseJob.sanityCheck {
         stage: 'sanity',
         script: [
+            "make vendor",
             "make verify-catalog",
             "make verify-codegen",
         ],

@@ -9,9 +9,9 @@ import (
 
 	"fmt"
 
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/coreos/alm/pkg/api/apis"
 	"github.com/coreos/alm/pkg/controller/install"
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
@@ -73,18 +73,18 @@ func createCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) (c
 
 }
 
-func newNginxDeployment() v1beta2.DeploymentSpec {
+func newNginxDeployment(name string) v1beta2.DeploymentSpec {
 	return v1beta2.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
-				"app": "nginx",
+				"app": name,
 			},
 		},
 		Replicas: &singleInstance,
 		Template: v1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
-					"app": "nginx",
+					"app": name,
 				},
 			},
 			Spec: v1.PodSpec{
@@ -178,8 +178,8 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep"),
-				Spec: newNginxDeployment(),
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -232,8 +232,8 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep"),
-				Spec: newNginxDeployment(),
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -249,7 +249,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "csv1",
+			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
@@ -306,6 +306,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	c := newKubeClient(t)
 
+	nginxName := genName("nginx-")
 	// create "current" CSV
 	strategy := install.StrategyDetailsDeployment{
 		Permissions: []install.StrategyDeploymentPermissions{
@@ -332,8 +333,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: "dep1",
-				Spec: newNginxDeployment(),
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(nginxName),
 			},
 		},
 	}
@@ -346,7 +347,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "csv1",
+			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
@@ -427,9 +428,9 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				// Same name
-				Name: "dep1",
+				Name: strategy.DeploymentSpecs[0].Name,
 				// Different spec
-				Spec: newNginxDeployment(),
+				Spec: newNginxDeployment(nginxName),
 			},
 		},
 	}
@@ -442,7 +443,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "csv2",
+			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csv.Name,
@@ -506,8 +507,8 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: "dep1",
-				Spec: newNginxDeployment(),
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -520,7 +521,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "csv1",
+			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
@@ -578,8 +579,8 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	strategyNew := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: "dep2",
-				Spec: newNginxDeployment(),
+				Name: genName("dep2"),
+				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
@@ -592,7 +593,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "csv2",
+			Name: genName("csv2"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csv.Name,

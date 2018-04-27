@@ -31,8 +31,15 @@ func (s BySemverDir) Less(i, j int) bool {
 	return semverA.LessThan(*semverB)
 }
 
+// LoadedCatalog wraps an in mem catalog with version metadata
+type LoadedCatalog struct {
+	Registry *registry.InMem
+	Name     string
+	Version  string
+}
+
 // loadCatalogFromFile loads an in memory catalog from a file path. Only used for testing.
-func loadCatalogFromFile(path string) (*registry.InMem, error) {
+func loadCatalogFromFile(path string) (*LoadedCatalog, error) {
 	loader := registry.ConfigMapCatalogResourceLoader{
 		Catalog: registry.NewInMem(),
 	}
@@ -53,7 +60,10 @@ func loadCatalogFromFile(path string) (*registry.InMem, error) {
 	if err != nil {
 		return nil, err
 	}
-	return loader.Catalog, nil
+	return &LoadedCatalog{
+		Registry: loader.Catalog,
+		Name:     currentConfigMap.Name,
+	}, nil
 }
 
 func TestCatalogVersions(t *testing.T) {
@@ -75,8 +85,8 @@ func TestCatalogVersions(t *testing.T) {
 	// versions before this don't contain the catalog
 	oldestVersion := semver.New("0.2.1")
 
-	// collect catalog configmaps
-	catalogConfigMaps := []string{}
+	// load all available catalogs
+	catalogNameVersions := map[string][]*LoadedCatalog{}
 	for _, versioned := range versionDirs {
 
 		// ignore old versions that don't have the catalog
@@ -90,28 +100,33 @@ func TestCatalogVersions(t *testing.T) {
 		require.NoError(t, err)
 		for _, f := range manifestFiles {
 			if strings.HasSuffix(f.Name(), "configmap.yaml") {
-				catalogConfigMaps = append(catalogConfigMaps, path.Join(manifestDir, versioned.Name(), f.Name()))
+				loadedCatalog, err := loadCatalogFromFile(path.Join(manifestDir, versioned.Name(), f.Name()))
+				require.NoError(t, err)
+				loadedCatalog.Version = semverDirName.String()
+				if _, ok := catalogNameVersions[loadedCatalog.Name]; !ok {
+					catalogNameVersions[loadedCatalog.Name] = []*LoadedCatalog{}
+				}
+				catalogNameVersions[loadedCatalog.Name] = append(catalogNameVersions[loadedCatalog.Name], loadedCatalog)
 			}
 		}
 	}
 
 	// ensure services in <version> that have a `replaces` field replace something in <version - 1>
-	for i := 0; i < len(catalogConfigMaps)-1; i++ {
-		t.Logf("comparing %s and %s", catalogConfigMaps[i], catalogConfigMaps[i+1])
+	for catalogName, catalogVersions := range catalogNameVersions {
+		for i := 0; i < len(catalogVersions)-1; i++ {
+			currentCatalog := catalogVersions[i]
+			nextCatalog := catalogVersions[i+1]
 
-		currentCatalog, err := loadCatalogFromFile(catalogConfigMaps[i])
-		require.NoError(t, err)
+			t.Logf("comparing %s version %s to %s", catalogName, currentCatalog.Version, nextCatalog.Version)
 
-		nextCatalog, err := loadCatalogFromFile(catalogConfigMaps[i+1])
-		require.NoError(t, err)
-
-		nextServices, err := nextCatalog.ListServices()
-		require.NoError(t, err)
-		for _, csv := range nextServices {
-			if csv.Spec.Replaces != "" {
-				oldCSV, err := currentCatalog.FindCSVByName(csv.Spec.Replaces)
-				require.NoError(t, err)
-				require.NotNil(t, oldCSV)
+			nextServices, err := nextCatalog.Registry.ListServices()
+			require.NoError(t, err)
+			for _, csv := range nextServices {
+				if csv.Spec.Replaces != "" {
+					oldCSV, err := currentCatalog.Registry.FindCSVByName(csv.Spec.Replaces)
+					require.NoError(t, err)
+					require.NotNil(t, oldCSV)
+				}
 			}
 		}
 	}

@@ -128,7 +128,7 @@ var (
 	strategyNew = install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: "dep1",
+				Name: genName("dep-"),
 				Spec: v1beta2.DeploymentSpec{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "nginx"},
