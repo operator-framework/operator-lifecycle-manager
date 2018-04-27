@@ -6,9 +6,14 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
+	"github.com/coreos/alm/pkg/api/client"
 	"github.com/coreos/alm/pkg/controller/operators/catalog"
 	"github.com/coreos/alm/pkg/lib/signals"
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -49,6 +54,31 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 	})
 	go http.ListenAndServe(":8080", nil)
+
+	// Create an instance of a client for accessing ALM types
+	crClient, err := client.NewClient(*kubeConfigPath)
+	if err != nil {
+		log.Fatalf("failed to bootstrap initial OCS catalog: %s", err)
+	}
+	_, err = crClient.CatalogsourceV1alpha1().CatalogSources(*catalogNamespace).Create(&v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "tectonic-ocs",
+			Namespace: *catalogNamespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			Name:        "tectonic-ocs",
+			DisplayName: "Tectonic Open Cloud Services",
+			Publisher:   "CoreOS, Inc.",
+			SourceType:  "internal",
+			ConfigMap:   "tectonic-ocs",
+			Secrets: []string{
+				"coreos-pull-secret",
+			},
+		},
+	})
+	if err != nil && !k8serrors.IsAlreadyExists(err) {
+		log.Fatalf("failed to bootstrap initial OCS catalog: %s", err)
+	}
 
 	// Create a new instance of the operator.
 	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, *catalogNamespace, strings.Split(*watchedNamespaces, ",")...)

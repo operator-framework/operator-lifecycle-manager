@@ -2,7 +2,7 @@
 
 DIR=${1:-'catalog_resources/ocs'}
 NAME=${2:-'tectonic-ocs'}
-OUTFILE=${3:-'catalog_resources/tectonicocs.configmap.yaml'}
+OUTFILE=${3:-'catalog_resources/ocs/tectonicocs.configmap.yaml'}
 NAMESPACE=${4:-'{{ .Values.catalog_namespace }}'}
 
 cat <<EOF > $OUTFILE
