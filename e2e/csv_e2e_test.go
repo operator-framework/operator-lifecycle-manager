@@ -178,7 +178,7 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep"),
+				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
@@ -232,7 +232,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep"),
+				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
@@ -332,7 +332,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep"),
+				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
@@ -506,7 +506,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep"),
+				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
