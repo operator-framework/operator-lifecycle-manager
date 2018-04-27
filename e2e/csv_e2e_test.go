@@ -306,6 +306,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	c := newKubeClient(t)
 
+	nginxName := genName("nginx-")
 	// create "current" CSV
 	strategy := install.StrategyDetailsDeployment{
 		Permissions: []install.StrategyDeploymentPermissions{
@@ -333,7 +334,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
+				Spec: newNginxDeployment(nginxName),
 			},
 		},
 	}
@@ -429,7 +430,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 				// Same name
 				Name: strategy.DeploymentSpecs[0].Name,
 				// Different spec
-				Spec: newNginxDeployment(genName("nginx-")),
+				Spec: newNginxDeployment(nginxName),
 			},
 		},
 	}
