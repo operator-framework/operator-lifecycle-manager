@@ -11,12 +11,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/coreos/alm/pkg/api/apis"
 	catalogv1alpha1 "github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
 	clusterserviceversionv1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
 	"github.com/coreos/alm/pkg/controller/registry"
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 
 	"github.com/stretchr/testify/require"
 
