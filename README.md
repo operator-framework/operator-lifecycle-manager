@@ -1,13 +1,14 @@
-# ALM
+# Operator Lifecycle Manager (OLM)
+
 [![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) [![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog)
 
-![logo-placeholder](https://user-images.githubusercontent.com/343539/30085003-bc6e757c-9262-11e7-86e3-2433b3a884a5.png)
+OLM extends Kubernetes to provide a declarative way to install, manage, and upgrade operators and their dependencies in a cluster.
 
-ALM is a project that creates an opinionated framework for managing applications in Kubernetes.
+It also enforces some constraints on the components it manages in order to ensure a good user experience.
 
 This project enables users to do the following:
 
-* Define applications as a single Kubernetes resource that encapsulates requirements and dashboarding metadata
+* Define applications as a single Kubernetes resource that encapsulates requirements and metadata
 * Install applications automatically with dependency resolution or manually with nothing but `kubectl`
 * Upgrade applications automatically with different approval policies
 
@@ -16,22 +17,88 @@ This project does not:
 * Replace [Helm](https://github.com/kubernetes/helm)
 * Turn Kubernetes into a [PaaS](https://en.wikipedia.org/wiki/Platform_as_a_service)
 
-## Getting Started
+## Getting Started 
 
-* Learn the ALM project [architecture] and [philosophy]
-* Follow the [installation guide]
-* Understand the YAML resources for the [ALM itself]
-* Review the YAML resources for the [existing applications] leveraging the ALM framework
-* Learn to [debug] services running with ALM
+#### Installation
+
+Install OLM on a Kubernenetes or OpenShift cluster by following the [installation guide].
+
+For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started).
+
+#### Kubernetes-native Applications
+
+An Operator is an application-specific controller that extends the Kubernetes API to create, configure, manage, and operate instances of complex applications on behalf of a user.
+
+OLM requires that applications be managed by an operator, but that doesn't mean that each application must write one from scratch. Depending on the level of control required you may:
+
+- Package up an existing set of resources for OLM with [helm-app-operator-kit](https://github.com/operator-framework/helm-app-operator-kit) without writing a single line of go.
+- Use the [operator-sdk](https://github.com/operator-framework/operator-sdk) to quickly build an operator from scratch.
+
+Once you have an application packaged for OLM, you can deploy it with OLM by writing a `ClusterServiceVersion`.
+
+ClusterServiceVersions can be collected into `CatalogSource`s which will allow automated installation and dependency resolution via an `InstallPlan`, and can be kept up-to-date with a `Subscription`.
+
+Learn more about the components used by OLM by reading about the [architecture] and [philosophy].
 
 [architecture]: /Documentation/design/architecture.md
 [philosophy]: /Documentation/design/philosophy.md
-[debug]: /Documentation/design/debugging.md
 [installation guide]: /Documentation/install/install.md
-[ALM itself]: /Documentation/design/resources
-[existing applications]: /catalog_resources
 
-## Contact
 
-- Slack: #team-apps
-- Bugs: [JIRA](https://jira.prod.coreos.systems/projects/ALM/summary)
+# Key Concepts
+
+## CustomResourceDefinitions
+
+OLM standardizes interactions with operators by requiring that the interface to an operator be via the Kubernetes API. Because we expect users to define the interfaces to their applications, OLM currently uses CRDs to define the Kubernetes API interactions.  
+
+Examples: [EtcdCluster CRD](catalog_resources/ocs/etcdcluster.crd.yaml), [EtcdBackup CRD](catalog_resources/ocs/etcdbackup.crd.yaml)
+
+## Descriptors
+
+OLM introduces the notion of “descriptors” of both `spec` and `status` fields in kubernetes API responses. Descriptors are intended to indicate various properties of a field in order to make decisions about their content. For example, this can drive connecting two operators together (e.g. connecting the connection string from a mysql instance to a consuming application) and be used to drive rich interactions in a UI.
+
+[See an example of a ClusterServiceVersion with descriptors](catalog_resources/ocs/etcdoperator.v0.9.2.clusterserviceversion.yaml)
+
+## Dependency Resolution
+
+To minimize the effort required to run an application on kubernetes, OLM handles dependency discovery and resolution of applications running on OLM.
+
+This is achieved through additional metadata on the application definition. Each operator must define:
+
+ - The CRDs that it is responsible for managing. 
+   - e.g., the etcd operator manages `EtcdCluster`.
+ - The CRDs that it depends on. 
+   - e.g., the vault operator depends on `EtcdCluster`, because Vault is backed by etcd.
+
+Basic dependency resolution then possible by finding, for each “required” CRD, the corresponding operator that manages it and installing it as well. Dependency resolution can be further constrained by the way a user interacts with catalogs.
+
+### Granularity
+
+Dependency resolution is driven through the `(Group, Version, Kind)` of CRDs. This means that no updates can occur to a given CRD (of a particular Group, Version, Kind) unless they are completely backward compatible.
+
+There is no way to express a dependency on a particular version of an operator (e.g. `etcd-operator v0.9.0`) or application instance (e.g. `etcd v3.2.1`). This encourages application authors to depend on the interface and not the implementation.
+
+## Discovery, Catalogs, and Automated Upgrades
+OLM has the concept of catalogs, which are repositories of application definitions and CRDs. 	
+
+Catalogs contain a set of Packages, which map “channels” to a particular application definition. Channels allow package authors write different upgrade paths for different users (e.g. alpha vs. stable). 
+
+Example: [etcd package](catalog_resources/ocs/etcd.package.yaml)
+
+Users can subscribe to channels and have their operators automatically updated when new versions are released.
+
+Here's an example of a subscription:
+
+```yaml
+apiVersion: app.coreos.com/v1alpha1
+kind: Subscription-v1
+metadata:
+  name: etcd
+  namespace: local 
+spec:
+  channel: alpha
+  name: etcd
+  source: tectonic-ocs
+```
+
+This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.
