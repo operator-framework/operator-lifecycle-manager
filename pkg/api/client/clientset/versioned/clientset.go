@@ -16,11 +16,11 @@ limitations under the License.
 package versioned
 
 import (
+	glog "github.com/golang/glog"
 	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/catalogsource/v1alpha1"
 	clusterserviceversionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/installplan/v1alpha1"
 	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/subscription/v1alpha1"
-	glog "github.com/golang/glog"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
