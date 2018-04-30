@@ -51,8 +51,8 @@ container-release:
   - tags
   script:
   - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker push quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
@@ -102,7 +102,7 @@ deploy-preview:
 deploy-staging:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
     \"namespace\": \"ci-alm-staging\", \"watchedNamespaces\": \"ci-alm-staging\"}" > params.json'
   - cat params.json
   environment:
@@ -118,7 +118,7 @@ deploy-staging:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=ci-alm-staging
-    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
+    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
     --set namespace=ci-alm-staging --set watchedNamespaces=ci-alm-staging > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging
@@ -131,7 +131,7 @@ deploy-staging:
 deploy-teamui:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"tectonic-system\",
     \"namespace\": \"tectonic-system\", \"watchedNamespaces\": \"\"}" > params.json'
   - cat params.json
   environment:
@@ -147,11 +147,11 @@ deploy-teamui:
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=tectonic-system
     || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};pushd deploy/chart/templates;filenames=$(ls *.yaml);popd;for f in ${filenames};do helm template --set namespace=tectonic-system
-    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
+    deploy/chart -x templates/${f} --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=tectonic-system
     --set namespace=tectonic-system --set watchedNamespaces= > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - kubectl rollout status -w deployment/alm-operator --namespace=tectonic-system
   - kubectl rollout status -w deployment/catalog-operator --namespace=tectonic-system
-  - 'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/alm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
+  - 'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
     ${TEAMUI_SLACK_URL}'
   stage: deploy_staging
   tags:

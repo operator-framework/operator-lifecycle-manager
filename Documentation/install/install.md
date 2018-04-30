@@ -44,7 +44,7 @@ alm:
   replicaCount: 1
   # The image to run. If not building a local image, use sha256 image references
   image:
-    ref: quay.io/coreos/alm:local
+    ref: quay.io/coreos/olm:local
     pullPolicy: IfNotPresent
   service:
     # port for readiness/liveness probes

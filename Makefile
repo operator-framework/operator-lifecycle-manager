@@ -2,7 +2,7 @@ ALM_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/alm
 ALM_EXECUTABLE := ./bin/alm
 CATALOG_PKG := github.com/operator-framework/operator-lifecycle-manager/cmd/catalog
 CATALOG_EXECUTABLE := ./bin/catalog
-IMAGE_REPO := quay.io/coreos/alm
+IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
 PKG_DIR := pkg
 
