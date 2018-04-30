@@ -9,4 +9,4 @@ MINISHIFT_ENABLE_EXPERIMENTAL=y minishift start --service-catalog --openshift-ve
 eval $(minishift docker-env) || { echo 'Cannot switch to minishift docker'; exit 1; }
 eval $(minishift oc-env) || { echo 'Cannot configure oc env'; exit 1; }
 oc login -u system:admin
-docker build -t quay.io/coreos/catalog:local -t quay.io/coreos/alm:local -f e2e-local-shift.Dockerfile .
+docker build -t quay.io/coreos/catalog:local -t quay.io/coreos/olm:local -f e2e-local-shift.Dockerfile .

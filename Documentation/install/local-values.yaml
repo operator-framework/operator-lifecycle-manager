@@ -5,7 +5,7 @@ catalog_namespace: local
 alm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/alm:local
+    ref: quay.io/coreos/olm:local
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080

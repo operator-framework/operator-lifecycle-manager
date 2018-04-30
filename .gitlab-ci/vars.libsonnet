@@ -28,7 +28,7 @@ local utils = import "utils.libsonnet";
         // release is a copy of the quayci image to the 'prod' repository
         release: {
             alm: {
-                repo: "quay.io/coreos/alm",
+                repo: "quay.io/coreos/olm",
                 tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
                 name: utils.containerName(self.repo, self.tag),
             },

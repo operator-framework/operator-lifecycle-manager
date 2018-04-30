@@ -4,7 +4,7 @@ catalog_namespace: tectonic-system
 alm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/alm:master
+    ref: quay.io/coreos/olm:master
     pullPolicy: Always
   service:
     internalPort: 8080
