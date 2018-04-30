@@ -6,6 +6,8 @@ local utils = import "utils.libsonnet";
     global: {
         // .gitlab-ci.yaml top `variables` key
         FAILFASTCI_NAMESPACE: "operator-framework",
+        // increase attempts to handle occational auth failures against gitlab.com
+        GET_SOURCES_ATTEMPTS: "10",
     },
 
     paths: {

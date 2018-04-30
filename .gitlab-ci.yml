@@ -293,3 +293,4 @@ unit-tests:
   - kubernetes
 variables:
   FAILFASTCI_NAMESPACE: operator-framework
+  GET_SOURCES_ATTEMPTS: '10'
