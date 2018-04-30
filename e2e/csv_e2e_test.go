@@ -3,15 +3,15 @@ package e2e
 import (
 	"testing"
 
-	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 
 	"encoding/json"
 
 	"fmt"
 
 	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-	"github.com/coreos/alm/pkg/api/apis"
-	"github.com/coreos/alm/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"

@@ -20,10 +20,10 @@ package externalversions
 
 import (
 	"fmt"
-	v1alpha1 "github.com/coreos/alm/pkg/api/apis/catalogsource/v1alpha1"
-	clusterserviceversion_v1alpha1 "github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplan_v1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
-	subscription_v1alpha1 "github.com/coreos/alm/pkg/api/apis/subscription/v1alpha1"
+	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
+	clusterserviceversion_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	installplan_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	subscription_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

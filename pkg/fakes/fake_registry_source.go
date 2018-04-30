@@ -4,8 +4,8 @@ package fakes
 import (
 	"sync"
 
-	"github.com/coreos/alm/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/coreos/alm/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 

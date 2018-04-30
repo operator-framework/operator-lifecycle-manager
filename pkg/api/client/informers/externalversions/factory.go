@@ -19,12 +19,12 @@ limitations under the License.
 package externalversions
 
 import (
-	versioned "github.com/coreos/alm/pkg/api/client/clientset/versioned"
-	catalogsource "github.com/coreos/alm/pkg/api/client/informers/externalversions/catalogsource"
-	clusterserviceversion "github.com/coreos/alm/pkg/api/client/informers/externalversions/clusterserviceversion"
-	installplan "github.com/coreos/alm/pkg/api/client/informers/externalversions/installplan"
-	internalinterfaces "github.com/coreos/alm/pkg/api/client/informers/externalversions/internalinterfaces"
-	subscription "github.com/coreos/alm/pkg/api/client/informers/externalversions/subscription"
+	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	catalogsource "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/catalogsource"
+	clusterserviceversion "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/clusterserviceversion"
+	installplan "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/installplan"
+	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
+	subscription "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/subscription"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

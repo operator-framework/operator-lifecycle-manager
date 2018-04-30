@@ -2,10 +2,12 @@ local utils = import "utils.libsonnet";
 
 {
     deploy_keys: { operator_client: "$OPERATORCLENT_RSA_B64" },
-    alm_repo: "github.com/coreos/alm",
+    alm_repo: "github.com/operator-framework/operator-lifecycle-manager",
     global: {
         // .gitlab-ci.yaml top `variables` key
-        FAILFASTCI_NAMESPACE: "coreos-apps",
+        FAILFASTCI_NAMESPACE: "operator-framework",
+        // increase attempts to handle occational auth failures against gitlab.com
+        GET_SOURCES_ATTEMPTS: "10",
     },
 
     paths: {

@@ -4,8 +4,8 @@ package clientfakes
 import (
 	"sync"
 
-	"github.com/coreos/alm/pkg/api/client"
-	"github.com/coreos/alm/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
