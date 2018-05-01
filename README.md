@@ -23,7 +23,7 @@ This project does not:
 
 #### Installation
 
-Install OLM on a Kubernenetes or OpenShift cluster by following the [installation guide].
+Install OLM on a Kubernetes or OpenShift cluster by following the [installation guide].
 
 For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started).
 
