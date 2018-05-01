@@ -1,28 +1,28 @@
-# Installing ALM
+# Installing OLM
 
-ALM deployment resources are templated so that they can be easily configured for different deployment environments.
+OLM deployment resources are templated so that they can be easily configured for different deployment environments.
 
-## Run locally with minikube 
+## Run locally with minikube
 
-This command starts minikube, builds the ALM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for ALM.
+This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
 ```
 make run-local
-``` 
+```
 
-You can verify that the ALM components have been successfully deployed by running `kubectl -n local get deployments`
+You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
 
 ## Run locally with minishift
 
-This command starts minishift, builds the ALM containers locally with the minishift-provided docker, and uses the local configuration in [local-values-shift.yaml](local-values-shift.yaml) to build localized deployment resources for ALM.
+This command starts minishift, builds the OLM containers locally with the minishift-provided docker, and uses the local configuration in [local-values-shift.yaml](local-values-shift.yaml) to build localized deployment resources for OLM.
 ```
 make run-local-shift
 ```
 
-You can verify that the ALM components have been successfully deployed by running `kubectl -n local get deployments`
+You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
 
-## Building deployment resources for any cluster 
+## Building deployment resources for any cluster
 
-Deployments of ALM can be stamped out with different configurations by writing a `values.yaml` file and running commands to generate resources.
+Deployments of OLM can be stamped out with different configurations by writing a `values.yaml` file and running commands to generate resources.
 
 Here's an example `values.yaml`
 
@@ -31,16 +31,16 @@ Here's an example `values.yaml`
 rbacApiVersion: rbac.authorization.k8s.io
 # namespace is the namespace the operators will _run_
 namespace: local
-# watchedNamespaces is a comma-separated list of namespaces the operators will _watch_ for ALM resources. 
-# Omit to enable ALM in all namespaces
+# watchedNamespaces is a comma-separated list of namespaces the operators will _watch_ for OLM resources.
+# Omit to enable OLM in all namespaces
 watchedNamespaces: local
 # catalog_namespace is the namespace where the catalog operator will look for global catalogs.
 # entries in global catalogs can be resolved in any watched namespace
 catalog_namespace: local
 
-# alm operator run configuration
+# OLM operator run configuration
 alm:
-  # ALM operator doesn't do any leader election (yet), set to 1
+  # OLM operator doesn't do any leader election (yet), set to 1
   replicaCount: 1
   # The image to run. If not building a local image, use sha256 image references
   image:
@@ -63,7 +63,7 @@ catalog:
     internalPort: 8080
 ```
 
-To configure a release of ALM for installation in a cluster:
+To configure a release of OLM for installation in a cluster:
 
 1. Create a `my-values.yaml` like the example above with the desired configuration or choose an existing one from this repository. The latest production values can be found in [deploy/tectonic-alm-operator/values.yaml](../../deploy/tectonic-alm-operator/values.yaml).
 1. Generate deployment files from the templates and the `my-values.yaml` using `package-release.sh`
@@ -71,13 +71,10 @@ To configure a release of ALM for installation in a cluster:
    # first arg must be a semver-compatible version string
    # second arg is the output directory
    # third arg is the values.yaml file
-   ./scripts/package-release.sh 0.4.0-myalm ./my-alm-deployment my-values.yaml
+   ./scripts/package-release.sh 0.4.0-myOLM ./my-OLM-deployment my-values.yaml
    ```
-1. Deploy to kubernetes: `kubectl apply -f ./my-alm-deployment`
+1. Deploy to kubernetes: `kubectl apply -f ./my-OLM-deployment`
 
-Additional steps if using official (private images):
-
-1. Create [coreos-pull-secret](coreos-pull-secret.yml) in the namespace ALM/Catalog will run (`namespace` field in `values.yaml`)
 
 The above steps are automated for official releases with `make ver=0.3.0 release`, which will output new versions of manifests in `deploy/tectonic-alm-operator/manifests/$(ver)`.
 
