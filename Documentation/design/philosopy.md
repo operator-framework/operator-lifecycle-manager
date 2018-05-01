@@ -1,6 +1,6 @@
 # Goals
 
-The goal of the Application Lifecycle Manager and Cloud Service Catalog is to manage common aspects of open cloud services, including: 
+The goal of the Operator Lifecycle Manager and Cloud Service Catalog is to manage common aspects of open cloud services, including:
 
 **Lifecycle** 
 
@@ -40,7 +40,7 @@ These are our requirements:
 
  * Operators will only need to worry about packaging themselves and the resources they manage, not linking in the world in order to run. 
 
- * Dynamic libraries, not fat binaries. As an example, the vault operator container should not also include the etcd operator container, but should rather take a dependency on Etcd that ALM will resolve. This is analogous to dynamic vs. static linking.
+ * Dynamic libraries, not fat binaries. As an example, the vault operator container should not also include the etcd operator container, but should rather take a dependency on Etcd that OLM will resolve. This is analogous to dynamic vs. static linking.
 
  * To achieve this, operators will need to define their dependencies.
 
@@ -70,7 +70,7 @@ These are our requirements:
 
 # Implementation
 
-ALM defines packaging formats for operators. These are:
+OLM defines packaging formats for operators. These are:
 
  **ClusterServiceVersion**
 
@@ -96,7 +96,7 @@ ALM defines packaging formats for operators. These are:
 
  * Provides an Install Strategy 
 
-     * The install strategy tells ALM how to actually create resources in the cluster. 
+     * The install strategy tells OLM how to actually create resources in the cluster.
 
      * Currently the only strategy is "deployment", but planned are: image, helm, and <whatever upstream solutions are created>
 
@@ -108,7 +108,7 @@ ALM defines packaging formats for operators. These are:
 
  * The install plan gets "resolved" to a concrete set of resources
 
-     * Much like apt reads the dependency information from dpkgs to come up with a set of things to install, ALM reads the dependency graph from ClusterServiceVersions to come up with a set of resources to install
+     * Much like apt reads the dependency information from dpkgs to come up with a set of things to install, OLM reads the dependency graph from ClusterServiceVersions to come up with a set of resources to install
 
  * The resolved set of resources is written back to the InstallPlan
 
@@ -134,7 +134,7 @@ ALM defines packaging formats for operators. These are:
 
 We have two major components that handle the resources described above
 
- **ALM Operator**
+ **OLM Operator**
 
  * Watches for ClusterServiceVersions in a namespace and checks that requirements are met. If so, runs the service install strategy for the ClusterServiceVersion (e.g: installs deployment)
 
@@ -160,7 +160,7 @@ We have two major components that handle the resources described above
 
 **What if I want lifecycle/packaging/discovery for kubernetes, but don't want to write an operator?**
 
-If you don't want to write an operator, the thing you want to package probably fits one of the standard shapes of software that can be deployed on a cluster. You can take advantage of ALM  by writing a package the binds your application to one of our standard operators, like [helm-app-operator-kit](https://github.com/coreos/helm-app-operator-kit).
+If you don't want to write an operator, the thing you want to package probably fits one of the standard shapes of software that can be deployed on a cluster. You can take advantage of OLM by writing a package the binds your application to one of our standard operators, like [helm-app-operator-kit](https://github.com/coreos/helm-app-operator-kit).
 
 If your use-case doesn't fit one of our standard operators, that means you have domain-specific operational knowledge you need to encode into an operator, and you can take advantage of our Operator SDK for common operator tasks.
 
@@ -176,7 +176,7 @@ The CRD definitions are kept in the service catalog cache. During InstallPlan re
 
 **How are updates handled?**
 
-An operator can be updated by updating the service catalog cache and running a new install plan. ClusterServiceVersions specify the version they replace, so that ALM knows to run both old and new simultaneously while resource ownership is transitioned. This is done with OwnerReferences in kubernetes. ALM garbage collects old versions of the operator.
+An operator can be updated by updating the service catalog cache and running a new install plan. ClusterServiceVersions specify the version they replace, so that OLM knows to run both old and new simultaneously while resource ownership is transitioned. This is done with OwnerReferences in kubernetes. OLM garbage collects old versions of the operator.
 
 This requires operators being aware of owner references, and in particular the `controller` flag and gc policy options. 
 

@@ -1,15 +1,15 @@
- # Setting up a namespaced ALM for development
+ # Setting up a namespaced OLM for development
  
- * Disable global alm/catalog if the cluster is only for testing
+ * Disable global olm/catalog if the cluster is only for testing
     * spin `tectonic-alm-operator` down to 0
     * delete `alm-operator` and `catalog-operator` deployments from `tectonic-system`
  * Make any config customizations by editing `example-values.yaml`
- * Deploy a namespaced copy of ALM
+ * Deploy a namespaced copy of OLM
 ```sh
-./scripts/package-release.sh 1.0.0-custom custom-alm ./Documentation/install/example-values.yaml
-kubectl create ns alm-testing
-kubectl get secrets -n tectonic-system -o yaml coreos-pull-secret | sed 's/tectonic-system/alm-testing/g' | kubectl create -f -
-kubectl apply -f ./custom-alm
+./scripts/package-release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
+kubectl create ns olm-testing
+kubectl get secrets -n tectonic-system -o yaml coreos-pull-secret | sed 's/tectonic-system/olm-testing/g' | kubectl create -f -
+kubectl apply -f ./custom-olm
 ```
 
 * ALM config
@@ -17,7 +17,7 @@ kubectl apply -f ./custom-alm
     * `watchedNamespaces` - namespaces to watch and operate on
     * `catalog_namespace` - namespace that catalog resources are created in
     * ALM annotates the namespaces it's configured to watch and ignores namespaces annotated with another ALM instance
-        * taking control of an existing namespace (i.e. if you've left the global alm running) may require manually editing namespace annotations
+        * taking control of an existing namespace (i.e. if you've left the global olm running) may require manually editing namespace annotations
 
 * Catalog generation
     * Files in `catalog_resources` get collected into a configmap
@@ -46,7 +46,7 @@ kubectl apply -f ./custom-alm
         * update any references to CRDs that are required
         * update any permissions needed
 * Save new CSV and kubectl create it
-* Watch alm operator logs and verify state you want has happened
+* Watch olm operator logs and verify state you want has happened
 
 
 # Updating a catalog entry
@@ -58,8 +58,8 @@ kubectl apply -f ./custom-alm
 * either apply the new configmap on it's own and restart catalog or, easier, just run:
 
 ```sh
-./scripts/package-release.sh 1.0.0-custom custom-alm ./Documentation/install/example-values.yaml
-kubectl apply -f ./custom-alm
+./scripts/package-release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
+kubectl apply -f ./custom-olm
 ```
 
 * You can validate the update process by creating an `InstallPlan` with the previous version, letting it install, and then creating an `InstallPlan` with the updated version and verifying the update succeeds.
@@ -72,7 +72,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: InstallPlan-v1
 metadata:
   namespace: default
-  name: alm-testing
+  name: olm-testing
 spec:
   clusterServiceVersionNames:
   - etcdoperator.v0.7.2
