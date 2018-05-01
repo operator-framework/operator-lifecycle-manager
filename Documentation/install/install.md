@@ -2,6 +2,17 @@
 
 OLM deployment resources are templated so that they can be easily configured for different deployment environments.
 
+## Install the latest released version of OLM
+
+Releases live in versioned folders in the [manifests directory](/deploy/tectonic-alm-operator/manifests). The simplest way to install OLM in a cluster is to:
+
+```sh
+# Packaged releases of OLM are installed in tectonic-system by default
+kubectl create namespace tectonic-system
+# Install the release
+kubectl apply -f deploy/tectonic-alm-operator/manifests/0.4.0
+```
+
 ## Run locally with minikube
 
 This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
@@ -71,9 +82,9 @@ To configure a release of OLM for installation in a cluster:
    # first arg must be a semver-compatible version string
    # second arg is the output directory
    # third arg is the values.yaml file
-   ./scripts/package-release.sh 0.4.0-myOLM ./my-OLM-deployment my-values.yaml
+   ./scripts/package-release.sh 1.0.0-myolm ./my-olm-deployment my-values.yaml
    ```
-1. Deploy to kubernetes: `kubectl apply -f ./my-OLM-deployment`
+1. Deploy to kubernetes: `kubectl apply -f ./my-olm-deployment`
 
 
 The above steps are automated for official releases with `make ver=0.3.0 release`, which will output new versions of manifests in `deploy/tectonic-alm-operator/manifests/$(ver)`.
