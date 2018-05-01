@@ -246,8 +246,6 @@ spec:
                     requests:
                       cpu: 50m
                       memory: 50Mi
-                imagePullSecrets:
-                - name: coreos-pull-secret
                 restartPolicy: Always
                 serviceAccount: chargeback-helm-operator
                 terminationGracePeriodSeconds: 30

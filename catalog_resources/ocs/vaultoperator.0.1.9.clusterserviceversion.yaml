@@ -129,8 +129,6 @@ spec:
                   valueFrom:
                     fieldRef:
                       fieldPath: metadata.name
-              imagePullSecrets:
-              - name: coreos-pull-secret
   version: 0.1.9
   replaces: vault-operator.0.1.5
   maturity: alpha
