@@ -13,8 +13,6 @@ spec:
   name: tectonic-ocs
   sourceType: internal
   configMap: tectonic-ocs
-  secrets:
-  - coreos-pull-secret
   displayName: Tectonic Open Cloud Services
   publisher: CoreOS, Inc.
 
