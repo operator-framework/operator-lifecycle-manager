@@ -1,8 +1,6 @@
-# Operator Lifecycle Manager (OLM)
-
 [![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) [![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog)[![pipeline status](https://gitlab.com/operator-framework/operator-framework_operator-lifecycle-manager/badges/master/pipeline.svg)](https://gitlab.com/operator-framework/operator-framework_operator-lifecycle-manager/pipelines)
 
-<img src="/logo.svg" height="125px"></img>
+<img src="/logo.svg" height="125px" alt="Operator Lifecycle Manager"></img>
 
 This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://coreos.com/blog/introducing-operator-framework).
 
