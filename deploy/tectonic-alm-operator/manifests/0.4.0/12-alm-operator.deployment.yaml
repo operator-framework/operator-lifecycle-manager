@@ -25,7 +25,7 @@ spec:
         - name: alm-operator
           command:
           - /bin/alm
-          image: quay.io/coreos/alm@sha256:d3c8a14835602da60011e2a7db7bdf546f7f0116fb10c11313cd9af68bfd484a
+          image: quay.io/coreos/olm@sha256:351f0c4973a88a4ea606721555829776429b0ecb53d5a2bfee6bce459d109e5b
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

@@ -13,8 +13,6 @@ spec:
   name: tectonic-components
   sourceType: internal
   configMap: tectonic-components
-  secrets:
-  - coreos-pull-secret
   displayName: Tectonic Cluster Components
   publisher: CoreOS, Inc.
 
