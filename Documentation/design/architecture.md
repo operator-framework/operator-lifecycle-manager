@@ -2,7 +2,7 @@
 
 OLM is composed of two operators: the OLM operator and the Catalog operator.
 
-Each of these operators are responsible for managing the CRDs that are the basis for the ALM framework:
+Each of these operators are responsible for managing the CRDs that are the basis for the OLM framework:
 
 | Resource                 | Short Name | Owner   | Description                                                                                |
 |--------------------------|------------|---------|--------------------------------------------------------------------------------------------|
