@@ -3,7 +3,7 @@
 We have a ClusterServiceVersion that is failing to report as avialable.
 
 ```sh
-$ kubectl -n ci-alm-pr-188-gc-csvs get clusterserviceversion-v1s etcdoperator.v0.8.1 -o yaml
+$ kubectl -n ci-olm-pr-188-gc-csvs get clusterserviceversion-v1s etcdoperator.v0.8.1 -o yaml
 ...
   lastTransitionTime: 2018-01-22T15:48:13Z
   lastUpdateTime: 2018-01-22T15:51:09Z
@@ -17,13 +17,13 @@ $ kubectl -n ci-alm-pr-188-gc-csvs get clusterserviceversion-v1s etcdoperator.v0
 The message tells us install can't complete because the etcd-operator deployment isn't available yet. Now we check on that deployment:
 
 ```sh
-$ kubectl -n ci-alm-pr-188-gc-csvs get deployments etcd-operator -o yaml
+$ kubectl -n ci-olm-pr-188-gc-csvs get deployments etcd-operator -o yaml
 ...
 spec:
   template:
     metadata:
       labels:
-        name: etcd-operator-alm-owned
+        name: etcd-operator-olm-owned
 ...
 status:
   unavailableReplicas: 1
@@ -33,11 +33,11 @@ status:
 We see that 1 of the replicas is unavailable, and the spec tells us the label query to use to find the failing pods:
 
 ```sh
-$ kubectl -n ci-alm-pr-188-gc-csvs get pods -l name=etcd-operator-alm-owned                                                                                         1 ↵
+$ kubectl -n ci-olm-pr-188-gc-csvs get pods -l name=etcd-operator-olm-owned                                                                                         1 ↵
 NAME                             READY     STATUS             RESTARTS   AGE
 etcd-operator-6c7c8ccb56-9scrz   2/3       CrashLoopBackOff   820        2d
 
-$ kubectl -n ci-alm-pr-188-gc-csvs get pods etcd-operator-6c7c8ccb56-9scrz -o yaml
+$ kubectl -n ci-olm-pr-188-gc-csvs get pods etcd-operator-6c7c8ccb56-9scrz -o yaml
 ...
  containerStatuses:
   - containerID: docker://aa7ee0902228247c32b9198be13fc826dfaf4901a70ee84f31582c284721a110
@@ -55,7 +55,7 @@ $ kubectl -n ci-alm-pr-188-gc-csvs get pods etcd-operator-6c7c8ccb56-9scrz -o ya
     restartCount: 820
     state:
       waiting:
-        message: Back-off 5m0s restarting failed container=etcd-backup-operator pod=etcd-operator-6c7c8ccb56-9scrz_ci-alm-pr-188-gc-csvs(3084f195-fd38-11e7-b3ea-0aae23d78648)
+        message: Back-off 5m0s restarting failed container=etcd-backup-operator pod=etcd-operator-6c7c8ccb56-9scrz_ci-olm-pr-188-gc-csvs(3084f195-fd38-11e7-b3ea-0aae23d78648)
         reason: CrashLoopBackOff
 ...
 ```
@@ -63,12 +63,12 @@ $ kubectl -n ci-alm-pr-188-gc-csvs get pods etcd-operator-6c7c8ccb56-9scrz -o ya
 One of the pods in the deployment, `etcd-backup-operator` is crash looping for some reason. Now we check the logs of that container:
 
 ```sh
-$ kubectl -n ci-alm-pr-188-gc-csvs logs etcd-operator-6c7c8ccb56-9scrz etcd-backup-operator                                                                         1 ↵
+$ kubectl -n ci-olm-pr-188-gc-csvs logs etcd-operator-6c7c8ccb56-9scrz etcd-backup-operator                                                                         1 ↵
 time="2018-01-22T15:55:16Z" level=info msg="Go Version: go1.9.2"
 time="2018-01-22T15:55:16Z" level=info msg="Go OS/Arch: linux/amd64"
 time="2018-01-22T15:55:16Z" level=info msg="etcd-backup-operator Version: 0.8.1"
 time="2018-01-22T15:55:16Z" level=info msg="Git SHA: b97d9305"
-time="2018-01-22T15:55:16Z" level=info msg="Event(v1.ObjectReference{Kind:"Endpoints", Namespace:"ci-alm-pr-188-gc-csvs", Name:"etcd-backup-operator", UID:"328b063e-fd38-11e7-b021-122952f9fac4", APIVersion:"v1", ResourceVersion:"11570590", FieldPath:""}): type: 'Normal' reason: 'LeaderElection' etcd-operator-6c7c8ccb56-9scrz became leader"
+time="2018-01-22T15:55:16Z" level=info msg="Event(v1.ObjectReference{Kind:"Endpoints", Namespace:"ci-olm-pr-188-gc-csvs", Name:"etcd-backup-operator", UID:"328b063e-fd38-11e7-b021-122952f9fac4", APIVersion:"v1", ResourceVersion:"11570590", FieldPath:""}): type: 'Normal' reason: 'LeaderElection' etcd-operator-6c7c8ccb56-9scrz became leader"
 time="2018-01-22T15:55:16Z" level=info msg="starting backup controller" pkg=controller
 time="2018-01-22T15:55:16Z" level=fatal msg="unknown StorageType: "
 ```
@@ -83,8 +83,8 @@ The primary way an InstallPlan can fail is by not resolving the resources needed
 apiVersion: app.coreos.com/v1alpha1
 kind: InstallPlan-v1
 metadata:
-  namespace: ci-alm-pr-188-gc-csvs
-  name: alm-testing
+  namespace: ci-olm-pr-188-gc-csvs
+  name: olm-testing
 spec:
   clusterServiceVersionNames:
   - etcdoperator123
@@ -94,7 +94,7 @@ spec:
 This installplan will fail because `etcdoperator123` is not in the catalog. We can see this in its status:
 
 ```sh
-$ kubectl get -n ci-alm-pr-188-gc-csvs installplan-v1s alm-testing -o yaml
+$ kubectl get -n ci-olm-pr-188-gc-csvs installplan-v1s olm-testing -o yaml
 apiVersion: app.coreos.com/v1alpha1
 kind: InstallPlan-v1
 metadata:

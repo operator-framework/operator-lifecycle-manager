@@ -1,12 +1,12 @@
 # Architecture
 
-ALM is composed of two operators: the ALM operator and the Catalog operator.
+OLM is composed of two operators: the OLM operator and the Catalog operator.
 
 Each of these operators are responsible for managing the CRDs that are the basis for the ALM framework:
 
 | Resource                 | Short Name | Owner   | Description                                                                                |
 |--------------------------|------------|---------|--------------------------------------------------------------------------------------------|
-| ClusterServiceVersion-v1 | CSV        | ALM     | application metadata: name, version, icon, required resources, installation, etc...        |
+| ClusterServiceVersion-v1 | CSV        | OLM     | application metadata: name, version, icon, required resources, installation, etc...        |
 | InstallPlan-v1           | IP         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
 | CatalogSource-v1         | CS         | Catalog | a repository of CSVs, CRDs, and packages that define an application                        |
 | Subscription-v1          | Sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
@@ -15,17 +15,17 @@ Each of these operators are also responsible for creating resources:
 
 | Operator | Creatable Resources        |
 |----------|----------------------------|
-| ALM      | Deployment                 |
-| ALM      | Service Account            |
-| ALM      | Roles                      |
-| ALM      | RoleBindings               |
+| OLM      | Deployment                 |
+| OLM      | Service Account            |
+| OLM      | Roles                      |
+| OLM      | RoleBindings               |
 | Catalog  | Custom Resource Definition |
 | Catalog  | ClusterServiceVersion-v1   |
 
 
 ## What is a ClusterServiceVersion?
 
-ClusterServiceVersion combines metadata and runtime information about a service that allows ALM to manage it.
+ClusterServiceVersion combines metadata and runtime information about a service that allows OLM to manage it.
 
 ClusterServiceVersion:
  - Metadata (name, description, version, links, labels, icon, etc)
@@ -41,13 +41,13 @@ ClusterServiceVersion:
    - Descriptors - annotate CRD spec and status fields to provide semantic information
 
 
-## ALM Operator
+## OLM Operator
 
-The ALM operator is responsible to deploying applications defined by ClusterServiceVersion-v1 resources once the required resources specified in the ClusterServiceVersion-v1 are present in the cluster.
-The ALM operator is not concerned with the creation of the required resources; users can choose to manually create these resources using `kubectl` or users can choose to create these resources using the Catalog operator.
-This separation of concern enables users incremental buy-in in terms of how much of the ALM framework they choose to leverage for their application.
+The OLM operator is responsible to deploying applications defined by ClusterServiceVersion-v1 resources once the required resources specified in the ClusterServiceVersion-v1 are present in the cluster.
+The OLM operator is not concerned with the creation of the required resources; users can choose to manually create these resources using `kubectl` or users can choose to create these resources using the Catalog operator.
+This separation of concern enables users incremental buy-in in terms of how much of the OLM framework they choose to leverage for their application.
 
-While the ALM operator is often configured to watch all namespaces, it can also be operated alongside other ALM operators so long as they all manage separate namespaces.
+While the OLM operator is often configured to watch all namespaces, it can also be operated alongside other OLM operators so long as they all manage separate namespaces.
 
 ### ClusterServiceVersion-v1 Control Loop
 
@@ -77,16 +77,16 @@ Replacing --> Deleting
 
 ### Namespace Control Loop
 
-In addition to watching the creation of ClusterServiceVersion-v1s in a set of namespaces, the ALM operator also watches those namespaces themselves.
-If a namespace that the ALM operator is configured to watch is created, the ALM operator will annotate that namespace with the `alm-manager` key.
-This enables dashboards and users of `kubectl` to filter namespaces based on what ALM is managing.
+In addition to watching the creation of ClusterServiceVersion-v1s in a set of namespaces, the OLM operator also watches those namespaces themselves.
+If a namespace that the OLM operator is configured to watch is created, the OLM operator will annotate that namespace with the `alm-manager` key.
+This enables dashboards and users of `kubectl` to filter namespaces based on what OLM is managing.
 
 ## Catalog Operator
 
 The Catalog operator is responsible for resolving and installing ClusterServiceVersion-v1s and the required resources they specify. It is also responsible for watching catalog sources for updates to packages in channels, and upgrading them (optionally automatically) to the latest available versions.
 A user that wishes to track a package in a channel creates a Subscription-v1 resource configuring the desired package, channel, and the catalog source from which to pull updates. When updates are found, an appropriate InstallPlan-v1 is written into the namespace on behalf of the user.
 Users can also create an InstallPlan-v1 resource directly, containing the names of the desired ClusterServiceVersion-v1s and an approval strategy and the Catalog operator will create an execution plan for the creation of all of the required resources.
-Once approved, the Catalog operator will create all of the resources in an InstallPlan-v1; this should then independently satisfy the ALM operator, which will proceed to install the ClusterServiceVersion-v1s.
+Once approved, the Catalog operator will create all of the resources in an InstallPlan-v1; this should then independently satisfy the OLM operator, which will proceed to install the ClusterServiceVersion-v1s.
 
 ### InstallPlan-v1 Control Loop
 
