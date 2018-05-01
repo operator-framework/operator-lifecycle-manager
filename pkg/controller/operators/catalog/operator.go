@@ -34,6 +34,8 @@ const (
 //for test stubbing and for ensuring standardization of timezones to UTC
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
+type CatalogSourceError error
+
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
@@ -202,6 +204,7 @@ type installPlanTransitioner interface {
 
 var _ installPlanTransitioner = &Operator{}
 
+// TODO(alecmerdler): `InstallPlanReasonInstallCheckFailed` is not used
 func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1alpha1.InstallPlan) error {
 	switch plan.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
@@ -211,15 +214,22 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 
 	case v1alpha1.InstallPlanPhasePlanning:
 		log.Debug("plan phase Planning, attempting to resolve")
-		if err := transitioner.ResolvePlan(plan); err != nil {
+		err := transitioner.ResolvePlan(plan)
+		if err == nil {
+			plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
+			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			return nil
+		}
+
+		switch err.(type) {
+		case CatalogSourceError:
+			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
+				v1alpha1.InstallPlanResonNotFound, err))
+		default:
 			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
 				v1alpha1.InstallPlanReasonDependencyConflict, err))
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-			return err
 		}
-		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-		return nil
+		return err
 
 	case v1alpha1.InstallPlanPhaseInstalling:
 		log.Debug("plan phase Installing, attempting to install")
@@ -262,7 +272,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		// Look up the CatalogSource.
 		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(sourceName, metav1.GetOptions{})
 		if err != nil {
-			return err
+			return CatalogSourceError(err)
 		}
 
 		for _, secretName := range catsrc.Spec.Secrets {
