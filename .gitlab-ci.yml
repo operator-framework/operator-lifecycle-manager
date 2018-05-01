@@ -151,7 +151,7 @@ deploy-teamui:
     --set namespace=tectonic-system --set watchedNamespaces= > ${charttmpdir}/${f};done;kubectl apply -f ${charttmpdir}
   - kubectl rollout status -w deployment/alm-operator --namespace=tectonic-system
   - kubectl rollout status -w deployment/catalog-operator --namespace=tectonic-system
-  - 'curl -X POST --data-urlencode "payload={\"text\": \"New ALM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
+  - 'curl -X POST --data-urlencode "payload={\"text\": \"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\"}"
     ${TEAMUI_SLACK_URL}'
   stage: deploy_staging
   tags:
