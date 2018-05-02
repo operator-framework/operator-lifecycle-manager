@@ -213,7 +213,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		log.Debug("plan phase Planning, attempting to resolve")
 		if err := transitioner.ResolvePlan(plan); err != nil {
 			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
-				v1alpha1.InstallPlanReasonDependencyConflict, err))
+				v1alpha1.InstallPlanReasonInstallCheckFailed, err))
 			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 			return err
 		}

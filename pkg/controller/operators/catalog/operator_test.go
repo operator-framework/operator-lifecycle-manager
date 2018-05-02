@@ -41,7 +41,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		unresolved = &v1alpha1.InstallPlanCondition{
 			Type:    v1alpha1.InstallPlanResolved,
 			Status:  corev1.ConditionFalse,
-			Reason:  v1alpha1.InstallPlanReasonDependencyConflict,
+			Reason:  v1alpha1.InstallPlanReasonInstallCheckFailed,
 			Message: errMsg,
 		}
 		installed = &v1alpha1.InstallPlanCondition{
