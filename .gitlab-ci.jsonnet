@@ -179,7 +179,7 @@ local jobs = {
         },
         stage: stages.deploy_staging,
         script+: [
-            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to https://teamui18.console.team.coreos.systems/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
+            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${TEAMUI_HOST}/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
         ],
         environment+: {
             name: "teamui",
