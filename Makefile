@@ -4,7 +4,7 @@
 
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
-CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -l basename))
+CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -I{} basename {}))
 IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
 
@@ -51,7 +51,7 @@ build/chart/Chart.yaml: deploy/chart/Chart.yaml
 	cp deploy/chart/Chart.yaml build/chart/Chart.yaml
 	echo "version: ver=1.0.0-local" >> build/chart/Chart.yaml
 
-RESOURCES:=$(shell ls deploy/chart/templates/*yaml | xargs -l basename)
+RESOURCES:=$(shell ls deploy/chart/templates/*yaml | xargs -I basename)
 CHARTS:=$(addprefix build/chart/templates/,$(RESOURCES))
 MANIFESTS:=$(addprefix build/resources/,$(RESOURCES))
 build/chart/templates/%.yaml: deploy/chart/templates/%.yaml
