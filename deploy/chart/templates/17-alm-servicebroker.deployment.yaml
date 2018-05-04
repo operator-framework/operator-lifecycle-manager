@@ -1,3 +1,4 @@
+{{ if .Values.servicebroker }}
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
@@ -46,3 +47,4 @@ spec:
     {{- end }}
       imagePullSecrets:
         - name: coreos-pull-secret
+{{end}}
