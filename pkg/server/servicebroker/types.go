@@ -157,7 +157,7 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 
 //'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
 func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
-	bindable := len(crd.StatusDescriptors) > 0
+	bindable := false // no binding support implemented
 	plan := osb.Plan{
 		ID:          planID(service, crd),
 		Name:        planName(service, crd),
