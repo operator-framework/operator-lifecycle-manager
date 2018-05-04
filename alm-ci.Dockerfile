@@ -8,7 +8,7 @@ RUN make vendor
 
 # Build bin
 COPY . .
-RUN make build && cp bin/alm /bin/alm
+RUN make clean build && cp bin/alm /bin/alm
 
 EXPOSE 8080
 CMD ["/bin/alm"]

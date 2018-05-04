@@ -37,17 +37,15 @@ $(CMDS): .FORCE
 		go build -o $@ $(PKG)/cmd/$(shell basename $@)
 
 OCS_CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
-OCS_CATALOG_RELEASE:=catalog_resources/ocs/tectonicocs.configmap.yaml
 
 COMPONENT_CATALOG_CHART:=deploy/chart/templates/09-tectoniccomponents.configmap.yaml
-COMPONENT_CATALOG_RELEASE:=catalog_resources/ocs/tectoniccomponents.configmap.yaml
 
-$(OCS_CATALOG_CHART) $(OCS_CATALOG_RELEASE): .FORCE catalog_resources/ocs/*.crd.yaml \
+$(OCS_CATALOG_CHART): .FORCE catalog_resources/ocs/*.crd.yaml \
 	catalog_resources/ocs/*.clusterserviceversion.yaml \
 	catalog_resources/ocs/*.package.yaml
 	. ./scripts/build_catalog_configmap.sh catalog_resources/ocs 'tectonic-ocs' $@
 
-$(COMPONENT_CATALOG_CHART) $(COMPONENT_CATALOG_RELEASE): .FORCE catalog_resources/components/*.crd.yaml \
+$(COMPONENT_CATALOG_CHART): .FORCE catalog_resources/components/*.crd.yaml \
 	catalog_resources/components/*.clusterserviceversion.yaml \
 	catalog_resources/components/*.package.yaml
 	. ./scripts/build_catalog_configmap.sh catalog_resources/components 'tectonic-components' $@
@@ -72,7 +70,9 @@ $(MANIFESTS): $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml \
 	Documentation/install/local-values.yaml
 	mkdir -p build/resources
 	helm template -n olm -f Documentation/install/local-values.yaml \
-		-x templates/$(shell basename $@) build/chart > $@
+		-x templates/$(shell basename $@) build/chart --output-dir $@
+
+
 
 rc: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(MANIFESTS)
 
@@ -168,5 +168,4 @@ make gen-all: gen-ci codegen generate-mock-client
 
 # make ver=0.3.0 release
 make release: $(OCS_CATALOG_RELEASE) $(COMPONENT_CATALOG_RELEASE)
-	mkdir -p build/tectonic-alm-operator/manifests/$(ver)
-	./scripts/package-release.sh $(ver) build/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
+	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml

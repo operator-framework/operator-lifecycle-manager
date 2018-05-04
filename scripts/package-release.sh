@@ -23,12 +23,7 @@ echo "version: $1" >> ${charttmpdir}/Chart.yaml
 
 mkdir ${chartdir}
 
-pushd ${charttmpdir}/templates
-filenames=$(ls *.yaml)
-popd
+helm template -n olm -f ${values} ${charttmpdir} --output-dir ${charttmpdir}
 
-for f in ${filenames}
-do
-  echo "Processing $f file..."
-  helm template -n alm -f ${values} -x templates/${f} ${charttmpdir} > ${chartdir}/${f}
-done
+cp -R ${charttmpdir}/olm/templates/ ${chartdir}
+

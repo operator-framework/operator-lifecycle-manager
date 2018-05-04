@@ -16,12 +16,3 @@ catalog:
     pullPolicy: Always
   service:
     internalPort: 8080
-
-servicebroker:
-  replicaCount: 1
-  image:
-    ref: quay.io/coreos/alm-service-broker:master
-    pullPolicy: Always
-  service:
-    internalPort: 8080
-    brokerPort: 8005
