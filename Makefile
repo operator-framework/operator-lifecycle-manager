@@ -36,13 +36,21 @@ $(CMDS): .FORCE
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
 		go build -o $@ $(PKG)/cmd/$(shell basename $@)
 
-CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
-CATALOG_RELEASE:=catalog_resources/ocs/tectonicocs.configmap.yaml
+OCS_CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
+OCS_CATALOG_RELEASE:=catalog_resources/ocs/tectonicocs.configmap.yaml
 
-$(CATALOG_CHART) $(CATALOG_RELEASE): catalog_resources/ocs/*.crd.yaml \
+COMPONENT_CATALOG_CHART:=deploy/chart/templates/09-tectoniccomponents.configmap.yaml
+COMPONENT_CATALOG_RELEASE:=catalog_resources/ocs/tectoniccomponents.configmap.yaml
+
+$(OCS_CATALOG_CHART) $(OCS_CATALOG_RELEASE): .FORCE catalog_resources/ocs/*.crd.yaml \
 	catalog_resources/ocs/*.clusterserviceversion.yaml \
 	catalog_resources/ocs/*.package.yaml
 	. ./scripts/build_catalog_configmap.sh catalog_resources/ocs 'tectonic-ocs' $@
+
+$(COMPONENT_CATALOG_CHART) $(COMPONENT_CATALOG_RELEASE): .FORCE catalog_resources/components/*.crd.yaml \
+	catalog_resources/components/*.clusterserviceversion.yaml \
+	catalog_resources/components/*.package.yaml
+	. ./scripts/build_catalog_configmap.sh catalog_resources/components 'tectonic-components' $@
 
 build/chart/values.yaml: deploy/chart/values.yaml
 	mkdir -p build/chart
@@ -66,7 +74,7 @@ $(MANIFESTS): $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml \
 	helm template -n olm -f Documentation/install/local-values.yaml \
 		-x templates/$(shell basename $@) build/chart > $@
 
-rc: $(CATALOG_CHART) $(MANIFESTS)
+rc: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(MANIFESTS)
 
 run-local: release
 	. ./scripts/build_local.sh
@@ -144,8 +152,10 @@ codegen: $(CODEGEN)
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog: $(CATALOG_CHART)
+verify-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART)
 	git diff --exit-code
+
+update-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART)
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
@@ -157,6 +167,6 @@ generate-mock-client: $(counterfeiter)
 make gen-all: gen-ci codegen generate-mock-client
 
 # make ver=0.3.0 release
-make release: $(CATALOG_RELEASE)
+make release: $(OCS_CATALOG_RELEASE) $(COMPONENT_CATALOG_RELEASE)
 	mkdir -p build/tectonic-alm-operator/manifests/$(ver)
 	./scripts/package-release.sh $(ver) build/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
