@@ -23,21 +23,15 @@ container-build:
   - mkdir -p $PWD/bin
   image: docker:git
   script:
-  - 'docker build  --no-cache -f alm-ci.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} . '
-  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
-  - 'docker build  --no-cache -f catalog-ci.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} . '
-  - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}
-  - 'docker build  --no-cache -f alm-service-broker-ci.Dockerfile -t quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG} . '
-  - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}
-  - docker create quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/alm bin/alm
-  - docker create quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/catalog bin/catalog
-  - docker create quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG} | xargs -I{} docker cp {}:/bin/servicebroker bin/servicebroker
-  - 'docker build  --no-cache -f alm-pre.Dockerfile -t quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre . '
-  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - 'docker build  --no-cache -f catalog-pre.Dockerfile -t quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre . '
-  - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - 'docker build  --no-cache -f alm-service-broker-pre.Dockerfile -t quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre . '
+  - docker build -f Dockerfile .
+  - "docker tag $(docker images --filter 'label=broker=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre"
+  - "docker tag $(docker images --filter 'label=builder=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}"
+  - "docker tag $(docker images --filter 'label=catalog=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre"
+  - "docker tag $(docker images --filter 'label=olm=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre"
   - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
+  - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} . '
   - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: docker_build

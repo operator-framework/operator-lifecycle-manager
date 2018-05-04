@@ -37,7 +37,6 @@ $(CMDS): .FORCE
 		go build -o $@ $(PKG)/cmd/$(shell basename $@)
 
 OCS_CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
-
 COMPONENT_CATALOG_CHART:=deploy/chart/templates/09-tectoniccomponents.configmap.yaml
 
 $(OCS_CATALOG_CHART): .FORCE catalog_resources/ocs/*.crd.yaml \
@@ -120,7 +119,7 @@ CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
 $(CI):
 	jsonnet fmt -i -n 4 $@
 
-.gitlab-ci.yml: $(CI)
+gen-ci: $(CI)
 	ffctl gen
 
 CODEGEN := ./vendor/k8s.io/code-generator/generate-groups.sh

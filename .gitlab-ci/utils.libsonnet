@@ -54,7 +54,6 @@
         login(server, user, password):: [
             "docker login -u %s -p %s %s" % [user, password, server],
         ],
-
         cp(image, src, dest):: [
             "docker create %s | xargs -I{} docker cp {}:%s %s" % [image, src, dest],
         ],
@@ -69,7 +68,22 @@
             Docker.push(image)
         ),
 
-        build(image, cache=true, args={}, extra_opts=[]):: [
+        multibuild_and_push(dockerfile, labelImageMap={}):: (
+            Docker.build_file(dockerfile) +
+            Docker.tag_from_labels(labelImageMap) +
+            Docker.push_all([labelImageMap[label] for label in std.objectFields(labelImageMap)])
+        ),
+
+        build_file(dockerfile):: [
+            'docker build -f %s .' % [dockerfile],
+        ],
+
+        tag_from_labels(labelImageMap={}):: [
+            "docker tag $(docker images --filter 'label=%s=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) %s"
+            % [label, labelImageMap[label]] for label in std.objectFields(labelImageMap)
+        ],
+
+        build(image, cache=true, args={},extra_opts=[]):: [
             local cache_opt = if cache == false
             then '--no-cache'
             else if std.type(cache) == 'boolean'
@@ -86,6 +100,10 @@
         push(image):: [
             'docker push %s' % image,
         ],
+        
+        push_all(images=[]):: (
+            ['docker push %s' % image for image in images]
+        ),
 
         rename(src, dest):: [
             'docker pull %s' % src,

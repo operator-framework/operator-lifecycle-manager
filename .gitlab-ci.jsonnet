@@ -57,27 +57,12 @@ local jobs = {
         stage: stages.docker_build,
         before_script+: ["mkdir -p $PWD/bin"],
         script:
-            docker.build_and_push(images.ci.alm.name,
-                                  cache=false,
-                                  extra_opts=["-f alm-ci.Dockerfile"]) +
-            docker.build_and_push(images.ci.catalog.name,
-                                  cache=false,
-                                  extra_opts=["-f catalog-ci.Dockerfile"]) +
-            docker.build_and_push(images.ci.servicebroker.name,
-                                  cache=false,
-                                  extra_opts=["-f alm-service-broker-ci.Dockerfile"]) +
-            docker.cp(images.ci.alm.name, src="/bin/alm", dest="bin/alm") +
-            docker.cp(images.ci.catalog.name, src="/bin/catalog", dest="bin/catalog") +
-            docker.cp(images.ci.servicebroker.name, src="/bin/servicebroker", dest="bin/servicebroker") +
-            docker.build_and_push(images.prerelease.alm.name,
-                                  cache=false,
-                                  extra_opts=["-f alm-pre.Dockerfile"]) +
-            docker.build_and_push(images.prerelease.catalog.name,
-                                  cache=false,
-                                  extra_opts=["-f catalog-pre.Dockerfile"]) +
-            docker.build_and_push(images.prerelease.servicebroker.name,
-                                  cache=false,
-                                  extra_opts=["-f alm-service-broker-pre.Dockerfile"]) +
+            docker.multibuild_and_push("Dockerfile", labelImageMap={
+                'builder': images.ci.alm.name,
+                'olm': images.prerelease.alm.name,
+                'catalog': images.prerelease.catalog.name,
+                'broker': images.prerelease.servicebroker.name,
+            })+
             docker.build_and_push(images.e2e.name,
                                   cache=false,
                                   extra_opts=["-f e2e-run.Dockerfile"]),
