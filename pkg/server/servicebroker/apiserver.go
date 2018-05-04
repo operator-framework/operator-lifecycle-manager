@@ -345,7 +345,7 @@ Deprovisioning:
 	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
 		Get().RequestURI(uri).
 		Do().Into(&object)
-	log.Debugf("Component=ServiceBroker Endpoint=Deprovision GetCR uri=%s err=%v vobject=%+v", uri, err, object)
+	log.Debugf("Component=ServiceBroker Endpoint=Deprovision GetCR uri=%s err=%v object=%+v", uri, err, object)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return &broker.DeprovisionResponse{osb.DeprovisionResponse{
@@ -355,6 +355,7 @@ Deprovisioning:
 		}
 		return nil, err
 	}
+	namespace := ""
 	if object.IsList() {
 		field, ok := object.Object["items"]
 		if !ok {
@@ -364,10 +365,12 @@ Deprovisioning:
 		if !ok || len(items) < 1 {
 			return nil, errors.New("no resources found")
 		}
-		object = items[0].(unstructured.Unstructured)
+		namespace = items[0].(map[string]interface{})["metadata"].(map[string]interface{})["namespace"].(string)
+	} else {
+		namespace = object.GetNamespace()
 	}
 	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
-		Delete().Namespace(object.GetNamespace()).RequestURI(uri).Do().Error()
+		Delete().Namespace(namespace).RequestURI(uri).Do().Error()
 	log.Debugf("Component=ServiceBroker Endpoint=Deprovision DeleteCR ns='%s' uri=%s err=%v object=%#v", object.GetNamespace(), uri, err, object)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
