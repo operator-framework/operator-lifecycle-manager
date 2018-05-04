@@ -8,16 +8,6 @@ local appr = utils.appr;
 {
     local job_tags = { tags: ["kubernetes"] },
 
-    sanityCheck: {
-        before_script: [
-            "mkdir -p %s" % vars.paths.alm.src,
-            "cp -a $CI_PROJECT_DIR/. %s" % vars.paths.alm.src,
-            "cd %s" % vars.paths.alm.src,
-        ],
-        // base job for running sanity checks before building containers
-        image: vars.images.base.name,
-    },
-
     dockerBuild: {
         // base job to manage containers (build / push)
         image: "docker:git",

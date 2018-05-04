@@ -27,13 +27,14 @@ container-build:
   - "docker tag $(docker images --filter 'label=broker=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre"
   - "docker tag $(docker images --filter 'label=builder=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}"
   - "docker tag $(docker images --filter 'label=catalog=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre"
+  - "docker tag $(docker images --filter 'label=e2e=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}"
   - "docker tag $(docker images --filter 'label=olm=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre"
   - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - 'docker build  --no-cache -f e2e-run.Dockerfile -t quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} . '
   - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker run  quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} make verify-codegen verify-catalog
   stage: docker_build
   tags:
   - kubernetes
@@ -230,19 +231,7 @@ e2e_tests:
   variables:
     K8S_NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     NAMESPACE: e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-sanity-checks:
-  before_script:
-  - mkdir -p $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
-  - cp -a $CI_PROJECT_DIR/. $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
-  - cd $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager
-  image: quay.io/coreos/alm-ci:base
-  script:
-  - make vendor
-  - make verify-catalog
-  - make verify-codegen
-  stage: sanity
 stages:
-- sanity
 - docker_base
 - docker_build
 - deploy_preview

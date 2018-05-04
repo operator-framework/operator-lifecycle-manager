@@ -6,7 +6,6 @@ local images = vars.images;
 local docker = utils.docker;
 local stages_list = [
     // gitlab-ci stages
-    'sanity',
     'docker_base',
     'docker_build',
     'deploy_preview',
@@ -42,30 +41,24 @@ local jobs = {
         only: ["schedules", "tags"],
     },
 
-    'sanity-checks': baseJob.sanityCheck {
-        stage: 'sanity',
-        script: [
-            "make vendor",
-            "make verify-catalog",
-            "make verify-codegen",
-        ],
-    },
-
     'container-build': baseJob.dockerBuild {
         // Build and push the alm container.
         // Docker Tag is the branch/tag name
         stage: stages.docker_build,
-        before_script+: ["mkdir -p $PWD/bin"],
-        script:
-            docker.multibuild_and_push("Dockerfile", labelImageMap={
-                'builder': images.ci.alm.name,
-                'olm': images.prerelease.alm.name,
-                'catalog': images.prerelease.catalog.name,
-                'broker': images.prerelease.servicebroker.name,
-            })+
-            docker.build_and_push(images.e2e.name,
-                                  cache=false,
-                                  extra_opts=["-f e2e-run.Dockerfile"]),
+        before_script+: [
+        	"mkdir -p $PWD/bin",
+        ],
+
+        // builds a single multistage dockerfile and tags images based on labels
+        // on the intermediate builds
+        script: docker.multibuild_and_push("Dockerfile", labelImageMap={
+            'builder': images.ci.alm.name,
+            'olm': images.prerelease.alm.name,
+            'catalog': images.prerelease.catalog.name,
+            'broker': images.prerelease.servicebroker.name,
+            'e2e': images.e2e.name,
+        }) +
+        docker.run(images.ci.alm.name, "make verify-codegen verify-catalog")
     },
 
     'container-release': baseJob.dockerBuild {
