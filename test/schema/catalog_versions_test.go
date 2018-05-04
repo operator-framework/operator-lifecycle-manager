@@ -17,7 +17,7 @@ import (
 	"k8s.io/api/core/v1"
 )
 
-var manifestDir = os.Getenv("GOPATH") + "/src/github.com/coreos-inc/alm" +
+var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager" +
 	"/deploy/tectonic-alm-operator/manifests"
 
 // BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,
