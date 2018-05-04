@@ -76,10 +76,7 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 	for i, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
 		plans[i] = crdToServicePlan(name, crdDef)
 	}
-	description := csv.Spec.Description
-	if description == "" {
-		description = fmt.Sprintf("OpenCloudService for %s", name) // TODO better default msg
-	}
+	description := fmt.Sprintf("%s %s (%s) by %s", csv.Spec.DisplayName, csv.Spec.Version.String(), csv.Spec.Maturity, csv.Spec.Provider.Name) // TODO better default msg
 
 	service := osb.Service{
 		Name:            serviceClassName(csv),
