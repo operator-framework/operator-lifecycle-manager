@@ -3,8 +3,6 @@ package servicebroker
 import (
 	"errors"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/pmorie/osb-broker-lib/pkg/broker"
 
@@ -19,7 +17,6 @@ type Options struct {
 
 // ALMBroker contains the clients and logic for fetching the catalog and creating instances
 type ALMBroker struct {
-	opClient opClient.Interface // TODO remove operator-client dependency
 	client   versioned.Interface
 
 	namespace string
@@ -34,7 +31,6 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 	}
 	// Allocate the new instance of an ALMBroker
 	br := &ALMBroker{
-		opClient:  opClient.NewClient(kubeconfigPath),
 		client:    versionedClient,
 		namespace: options.Namespace,
 	}
@@ -51,37 +47,37 @@ func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
 }
 
 // GetCatalog returns the CSVs in the catalog
-func (a *ALMBroker) GetCatalog(*broker.RequestContext) (*broker.CatalogResponse, error) {
+func (a *ALMBroker) GetCatalog(*broker.RequestContext) (*osb.CatalogResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
+func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*osb.ProvisionResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
+func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*osb.DeprovisionResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*broker.LastOperationResponse, error) {
+func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
+func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*osb.BindResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
+func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*osb.UnbindResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
+func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*osb.UpdateInstanceResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }

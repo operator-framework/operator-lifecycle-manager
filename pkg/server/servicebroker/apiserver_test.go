@@ -3,8 +3,7 @@ package servicebroker
 import (
 	"testing"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -16,7 +15,6 @@ const (
 
 func mockALMBroker(ctrl *gomock.Controller) *ALMBroker {
 	return &ALMBroker{
-		opClient:  opClient.NewMockInterface(ctrl),
 		client:    fake.NewSimpleClientset(),
 		namespace: testNamespace,
 	}
