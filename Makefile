@@ -8,8 +8,10 @@ CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -I{} basename {}))
 IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
 
+.FORCE:
+
 .PHONY: build test run clean vendor schema-check \
-	vendor-update coverage coverage-html e2e
+	vendor-update coverage coverage-html e2e .FORCE
 
 all: test build
 
@@ -30,7 +32,7 @@ coverage-html: cover.out
 
 build: $(CMDS)
 
-$(CMDS):
+$(CMDS): .FORCE
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
 		go build -o $@ $(PKG)/cmd/$(shell basename $@)
 
