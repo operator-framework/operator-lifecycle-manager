@@ -12,6 +12,7 @@ import (
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
@@ -20,7 +21,12 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
-// Options passed in from cmd
+// default poll times for waiting on resources
+var (
+	pollInterval = 1 * time.Second
+	pollDuration = 5 * time.Minute
+)
+
 type Options struct {
 	Namespace string // restrict to resources within a namespace, default all namespaces
 }
@@ -104,7 +110,7 @@ func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*osb.CatalogResponse, 
 		}
 		services[i] = s
 	}
-	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Services=%#v", services)
+	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Services=%#v", len(services))
 	return &osb.CatalogResponse{services}, nil
 }
 
@@ -156,8 +162,6 @@ func ensureCSV(namespace string, csvName string, client versioned.Interface) err
 		return errors.New("unexpected response installing service plan")
 	}
 	// wait for installplan to finish
-	pollInterval := 1 * time.Second
-	pollDuration := 5 * time.Minute
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		pollIp, pollErr := client.InstallplanV1alpha1().InstallPlans(namespace).Get(ip.Name, metav1.GetOptions{})
 
@@ -222,11 +226,12 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 		return nil, err
 	}
 
-	// cr.Namespace = namespace
-	if err := a.opClient.CreateCustomResource(&cr); err != nil {
+	cr.SetNamespace(namespace)
+	if err := a.opClient.CreateCustomResource(cr); err != nil {
+		logStep(request.PlanID, fmt.Sprintf("CreateCR Status=FAIL CR=%+v Err=%v APIVersion:%s", cr, err, cr.GetAPIVersion()))
 		return nil, err
 	}
-	opkey := osb.OperationKey(cr.GetObjectKind().GroupVersionKind().String())
+	opkey := osb.OperationKey(cr.GetSelfLink())
 	response := osb.ProvisionResponse{
 		Async:        true,
 		OperationKey: &opkey,
@@ -243,16 +248,23 @@ func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.Reque
 }
 
 func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
-	ip, err := a.client.InstallplanV1alpha1().InstallPlans(a.namespace).Get(string(*request.OperationKey), metav1.GetOptions{})
+	var object unstructured.Unstructured
+	var description string
+
+	uri := string(*request.OperationKey)
+	err := a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().Get().
+		RequestURI(uri).
+		Do().
+		Into(&object)
 	if err != nil {
 		return nil, err
 	}
-	if ip == nil {
-		return nil, nil
-	}
 
-	// TODO implement
-	return nil, errors.New("not implemented")
+	resp := &osb.LastOperationResponse{
+		State:       osb.StateSucceeded, // TODO
+		Description: &description,
+	}
+	return resp, nil
 }
 
 func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*osb.BindResponse, error) {
