@@ -17,10 +17,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	ipv1alpha1 "github.com/coreos/alm/pkg/api/apis/installplan/v1alpha1"
-	"github.com/coreos/alm/pkg/api/client"
-	"github.com/coreos/alm/pkg/api/client/clientset/versioned"
-	"github.com/coreos/alm/pkg/controller/registry"
+	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 var (
