@@ -215,6 +215,7 @@ func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {
 
 	switch kind {
 	case "ClusterServiceVersion":
+		// TODO(alecmerdler): Validate `spec.customresourcedefinitions.resources` ownership chain
 		csv := v1alpha1.ClusterServiceVersion{}
 		err = json.Unmarshal(exampleFileBytesJson, &csv)
 		require.NoError(t, err)
