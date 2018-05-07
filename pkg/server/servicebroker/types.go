@@ -76,7 +76,10 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 	for i, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
 		plans[i] = crdToServicePlan(name, crdDef)
 	}
-	description := fmt.Sprintf("%s %s (%s) by %s", csv.Spec.DisplayName, csv.Spec.Version.String(), csv.Spec.Maturity, csv.Spec.Provider.Name) // TODO better default msg
+	description := csv.Spec.Description
+	if description == "" {
+		description = fmt.Sprintf("OpenCloudService for %s", name) // TODO better default msg
+	}
 
 	service := osb.Service{
 		Name:            serviceClassName(csv),
@@ -91,6 +94,7 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 			"displayName":         csv.Spec.DisplayName + " " + csv.Spec.Version.String(),
 			"longDescription":     csv.Spec.Description,
 			"providerDisplayName": csv.Spec.Provider.Name,
+			"supportURL":          csv.Spec.Provider.Name,
 			csvNameLabel:          csv.GetName(),
 			"Spec":                csv.Spec,
 			"Status":              csv.Status,
@@ -99,18 +103,15 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 	if len(csv.Spec.Icon) > 0 {
 		service.Metadata["imageUrl"] = fmt.Sprintf("data:%s;base64,%s", csv.Spec.Icon[0].MediaType, csv.Spec.Icon[0].Data)
 	}
-	if len(csv.Spec.Links) > 0 {
-		service.Metadata["supportURL"] = csv.Spec.Links[0].URL
-	}
 	return service, nil
 }
 
-func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParametersSchema {
+func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParameters {
 	parameters := map[string]csvv1alpha1.SpecDescriptor{}
 	for _, s := range specs {
 		parameters[s.Path] = s
 	}
-	return &osb.InputParametersSchema{parameters}
+	return &osb.InputParameters{parameters}
 }
 
 type CustomResourceObject struct {
@@ -154,7 +155,7 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 
 //'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
 func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
-	bindable := false // no binding support implemented
+	bindable := len(crd.StatusDescriptors) > 0
 	plan := osb.Plan{
 		ID:          planID(service, crd),
 		Name:        planName(service, crd),
@@ -167,12 +168,12 @@ func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 			versionKey:    crd.Version,
 			kindKey:       crd.Kind,
 		},
-		Schemas: &osb.Schemas{
-			ServiceInstance: &osb.ServiceInstanceSchema{
+		ParameterSchemas: &osb.ParameterSchemas{
+			ServiceInstances: &osb.ServiceInstanceSchema{
 				Create: specDescriptorsToInputParameters(crd.SpecDescriptors),
 				Update: specDescriptorsToInputParameters(crd.SpecDescriptors),
 			},
-			ServiceBinding: nil,
+			ServiceBindings: nil,
 		},
 	}
 	//log.Debugf("crdToServicePlan: crd=%+v plan=%+v", crd, plan)
