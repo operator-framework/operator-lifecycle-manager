@@ -4,7 +4,8 @@
 # This is used to start and build services for running e2e tests
 
 set -e
-oc cluster up --service-catalog || { echo 'Cannot start shift.'; exit 1; }
+MINISHIFT_ENABLE_EXPERIMENTAL=y minishift start --service-catalog \
+    || { echo 'Cannot start shift.'; exit 1; }
 
 eval $(minishift docker-env) \
     || { echo 'Cannot switch to minishift docker'; exit 1; }
