@@ -106,12 +106,12 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 	return service, nil
 }
 
-func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParameters {
+func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParametersSchema {
 	parameters := map[string]csvv1alpha1.SpecDescriptor{}
 	for _, s := range specs {
 		parameters[s.Path] = s
 	}
-	return &osb.InputParameters{parameters}
+	return &osb.InputParametersSchema{parameters}
 }
 
 type CustomResourceObject struct {
@@ -168,12 +168,12 @@ func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 			versionKey:    crd.Version,
 			kindKey:       crd.Kind,
 		},
-		ParameterSchemas: &osb.ParameterSchemas{
-			ServiceInstances: &osb.ServiceInstanceSchema{
+		Schemas: &osb.Schemas{
+			ServiceInstance: &osb.ServiceInstanceSchema{
 				Create: specDescriptorsToInputParameters(crd.SpecDescriptors),
 				Update: specDescriptorsToInputParameters(crd.SpecDescriptors),
 			},
-			ServiceBindings: nil,
+			ServiceBinding: nil,
 		},
 	}
 	//log.Debugf("crdToServicePlan: crd=%+v plan=%+v", crd, plan)
