@@ -16,6 +16,16 @@ catalog:
     internalPort: 8080
   commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
 
+servicebroker:
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/alm-service-broker:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+    brokerPort: 8005
+  commandArgs: -test.coverprofile=/tmp/service-broker-coverage.cov
+
 e2e:
   image:
     ref: quay.io/coreos/alm-e2e:local

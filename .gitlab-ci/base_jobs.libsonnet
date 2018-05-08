@@ -8,16 +8,6 @@ local appr = utils.appr;
 {
     local job_tags = { tags: ["kubernetes"] },
 
-    sanityCheck: {
-        before_script: [
-            "mkdir -p %s" % vars.paths.alm.src,
-            "cp -a $CI_PROJECT_DIR/. %s" % vars.paths.alm.src,
-            "cd %s" % vars.paths.alm.src,
-        ],
-        // base job for running sanity checks before building containers
-        image: vars.images.base.name,
-    },
-
     dockerBuild: {
         // base job to manage containers (build / push)
         image: "docker:git",
@@ -47,7 +37,7 @@ local appr = utils.appr;
             appname: self.namespace,
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            chart: "e2e/chart",
+            chart: "test/e2e/chart",
             appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
             helm_opts: [],
             params: {
