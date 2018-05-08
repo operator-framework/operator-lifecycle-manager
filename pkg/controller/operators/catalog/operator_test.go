@@ -58,21 +58,36 @@ func TestTransitionInstallPlan(t *testing.T) {
 	var table = []struct {
 		initial    v1alpha1.InstallPlanPhase
 		transError error
+		approval   v1alpha1.Approval
+		approved   bool
 		expected   v1alpha1.InstallPlanPhase
 		condition  *v1alpha1.InstallPlanCondition
 	}{
-		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.InstallPlanPhasePlanning, nil},
-		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.InstallPlanPhasePlanning, nil},
+		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhasePlanning, nil},
+		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhasePlanning, nil},
+		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhasePlanning, nil},
+		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhasePlanning, nil},
 
-		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.InstallPlanPhaseInstalling, resolved},
-		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.InstallPlanPhaseFailed, unresolved},
+		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseInstalling, resolved},
+		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseInstalling, resolved},
+		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, unresolved},
+		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, unresolved},
 
-		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.InstallPlanPhaseComplete, installed},
-		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.InstallPlanPhaseFailed, failed},
+		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseComplete, installed},
+		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseComplete, installed},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, failed},
+		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, failed},
+
+		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, nil},
+		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhasePlanning, nil},
 	}
 	for _, tt := range table {
 		// Create a plan in the provided initial phase.
 		plan := &v1alpha1.InstallPlan{
+			Spec: v1alpha1.InstallPlanSpec{
+				Approval: tt.approval,
+				Approved: tt.approved,
+			},
 			Status: v1alpha1.InstallPlanStatus{
 				Phase:      tt.initial,
 				Conditions: []v1alpha1.InstallPlanCondition{},

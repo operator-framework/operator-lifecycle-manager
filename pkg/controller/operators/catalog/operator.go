@@ -203,14 +203,25 @@ type installPlanTransitioner interface {
 var _ installPlanTransitioner = &Operator{}
 
 func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1alpha1.InstallPlan) error {
+	if plan.Spec.Approval == v1alpha1.ApprovalManual && plan.Spec.Approved != true {
+		log.Debugf("plan %s is not approved, skipping sync", plan.SelfLink)
+		plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+		return nil
+	}
+
 	switch plan.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
-		log.Debug("plan phase unrecognized, setting to Planning")
+		log.Debugf("plan %s phase unrecognized, setting to Planning", plan.SelfLink)
+		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
+		return nil
+
+	case v1alpha1.InstallPlanPhaseRequiresApproval:
+		log.Debugf("plan %s approved, setting to Planning", plan.SelfLink)
 		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 		return nil
 
 	case v1alpha1.InstallPlanPhasePlanning:
-		log.Debug("plan phase Planning, attempting to resolve")
+		log.Debugf("plan %s phase Planning, attempting to resolve", plan.SelfLink)
 		if err := transitioner.ResolvePlan(plan); err != nil {
 			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
 				v1alpha1.InstallPlanReasonInstallCheckFailed, err))
@@ -222,7 +233,7 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 		return nil
 
 	case v1alpha1.InstallPlanPhaseInstalling:
-		log.Debug("plan phase Installing, attempting to install")
+		log.Debugf("plan %s phase Installing, attempting to install", plan.SelfLink)
 		if err := transitioner.ExecutePlan(plan); err != nil {
 			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
 				v1alpha1.InstallPlanReasonComponentFailed, err))

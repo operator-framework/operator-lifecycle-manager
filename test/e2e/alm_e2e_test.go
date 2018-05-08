@@ -38,6 +38,10 @@ var installPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseFailed
 }
 
+var installPlanRequiresApprovalChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
+	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseRequiresApproval
+}
+
 func buildInstallPlanCleanupFunc(c opClient.Interface, installPlan *installplanv1alpha1.InstallPlan) cleanupFunc {
 	return func() {
 		for _, step := range installPlan.Status.Plan {
@@ -89,9 +93,7 @@ func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker i
 	return fetchedInstallPlan, err
 }
 
-// This test is skipped until manual approval is implemented
 func TestCreateInstallPlanManualApproval(t *testing.T) {
-	t.Skip()
 	c := newKubeClient(t)
 
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
@@ -108,6 +110,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 		Spec: installplanv1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{latestVaultCSV.GetName()},
 			Approval:                   installplanv1alpha1.ApprovalManual,
+			Approved:                   false,
 		},
 	}
 
@@ -117,9 +120,9 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	defer cleanup()
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanRequiresApprovalChecker)
 	require.NoError(t, err)
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, installplanv1alpha1.InstallPlanPhaseRequiresApproval, fetchedInstallPlan.Status.Phase)
 
 	vaultResourcesPresent := 0
 
@@ -130,12 +133,12 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 			_, err := c.GetCustomResourceDefinition(step.Resource.Name)
 
 			require.NoError(t, err)
-			vaultResourcesPresent++
+			vaultResourcesPresent = vaultResourcesPresent + 1
 		} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
 			_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
 
 			require.NoError(t, err)
-			vaultResourcesPresent++
+			vaultResourcesPresent = vaultResourcesPresent + 1
 		} else if step.Resource.Kind == "Secret" {
 			_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
 
