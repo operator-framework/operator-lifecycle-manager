@@ -32,9 +32,17 @@ coverage-html: cover.out
 
 build: $(CMDS)
 
+# build versions of the binaries with coverage enabled
+build-coverage: GENCOVER=true
+build-coverage: $(CMDS)
+
 $(CMDS): .FORCE
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
-		go build -o $@ $(PKG)/cmd/$(shell basename $@)
+	if [ 1$(GENCOVER) = 1true ]; then \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $@ -c -covermode=count -coverpkg ./pkg/... $(PKG)/cmd/$(shell basename $@); \
+	else \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ $(PKG)/cmd/$(shell basename $@); \
+	fi
+
 
 OCS_CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
 COMPONENT_CATALOG_CHART:=deploy/chart/templates/09-tectoniccomponents.configmap.yaml
@@ -49,49 +57,49 @@ $(COMPONENT_CATALOG_CHART): .FORCE catalog_resources/components/*.crd.yaml \
 	catalog_resources/components/*.package.yaml
 	. ./scripts/build_catalog_configmap.sh catalog_resources/components 'tectonic-components' $@
 
-build/chart/values.yaml: deploy/chart/values.yaml
+build/chart/values.yaml: $(values_file)
 	mkdir -p build/chart
-	cp deploy/chart/values.yaml build/chart/values.yaml
+	cp $(values_file) build/chart/values.yaml
 
 build/chart/Chart.yaml: deploy/chart/Chart.yaml
 	mkdir -p build/chart
 	cp deploy/chart/Chart.yaml build/chart/Chart.yaml
 	echo "version: ver=1.0.0-local" >> build/chart/Chart.yaml
 
-RESOURCES:=$(shell ls deploy/chart/templates/*yaml | xargs -I basename)
+RESOURCES:=$(shell ls deploy/chart/templates/*yaml |  xargs -I{} basename {})
 CHARTS:=$(addprefix build/chart/templates/,$(RESOURCES))
-MANIFESTS:=$(addprefix build/resources/,$(RESOURCES))
 build/chart/templates/%.yaml: deploy/chart/templates/%.yaml
 	mkdir -p build/chart/templates
 	cp $< $@
 
-$(MANIFESTS): $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml \
-	Documentation/install/local-values.yaml
+manifests: $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml
 	mkdir -p build/resources
-	helm template -n olm -f Documentation/install/local-values.yaml \
-		-x templates/$(shell basename $@) build/chart --output-dir $@
+	helm template -n olm -f build/chart/values.yaml build/chart --output-dir build/resources
 
+rc: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) manifests
 
-
-rc: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(MANIFESTS)
-
+run-local: values_file = Documentation/install/local-values.yaml
 run-local: release
 	. ./scripts/build_local.sh
 	. ./scripts/install_local.sh local build/resources
 
+run-local-shift: values_file = Documentation/install/local-values-shift.yaml
 run-local-shift: rc
 	sed -i 's/rbac.authorization.k8s.io/authorization.openshift.io/' build/resources/02-alm-operator.rolebinding.yaml
 	. ./scripts/build_local_shift.sh
 	. ./scripts/install_local.sh local build/resources
 
+e2e-local: values_file = test/e2e/e2e-values.yaml
 e2e-local: rc
 	./scripts/build_local.sh
 	./scripts/run_e2e_local.sh
 
+e2e-local-shift: values_file = test/e2e/e2e-values.yaml
 e2e-local-shift: rc
 	./scripts/build_local_shift.sh
 	./scripts/run_e2e_local.sh
 
+e2e-local-docker: values_file = test/e2e/e2e-values.yaml
 e2e-local-docker: rc
 	./scripts/build_local.sh
 	./scripts/run_e2e_docker.sh
