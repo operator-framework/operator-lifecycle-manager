@@ -11,6 +11,7 @@ import (
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/pmorie/osb-broker-lib/pkg/broker"
 	log "github.com/sirupsen/logrus"
+	stripmd "github.com/writeas/go-strip-markdown"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,7 +116,7 @@ func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*osb.CatalogResponse, 
 	// convert ClusterServiceVersions into OpenServiceBroker API `Service` object
 	services := make([]osb.Service, len(csvs))
 	for i, csv := range csvs {
-		s, err := csvToService(csv)
+		s, err := csvToService(csv, stripmd.Strip)
 		if err != nil {
 			log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
 			return nil, err
@@ -253,9 +254,9 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	}
 	opkey := osb.OperationKey(obj.GetSelfLink())
 	response := &osb.ProvisionResponse{
-			Async:        true,
-			OperationKey: &opkey,
-			DashboardURL: a.dashboardURL, // TODO make specific to created resource
+		Async:        true,
+		OperationKey: &opkey,
+		DashboardURL: a.dashboardURL, // TODO make specific to created resource
 	}
 	logStep(request.PlanID, fmt.Sprintf("EndRequest link=%s opKey=%+v &opKey=%+v Response=%+v", obj.GetSelfLink(), opkey, response.OperationKey, response))
 	return response, nil
