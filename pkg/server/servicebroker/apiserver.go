@@ -71,7 +71,7 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 var _ broker.Interface = &ALMBroker{}
 
 func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
-	ok, supported := supportedOSBVersions[version]
+	supported, ok := supportedOSBVersions[version]
 	log.Debugf("Component=ServiceBroker Endpoint=ValidateBrokerAPIVersion Version=%s Supported=%s",
 		version, ok)
 	if !ok {
