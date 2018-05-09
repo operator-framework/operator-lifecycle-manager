@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -108,12 +108,46 @@ func waitForAndFetchCustomResource(t *testing.T, c opClient.Interface, version s
 
 	return res, err
 }
-func cleanupCustomResource(c opClient.Interface, group, kind, name string) cleanupFunc {
-	return func() {
-		err := c.DeleteCustomResource(apis.GroupName, group, testNamespace, kind, name)
+
+/// waitForAndFetchCustomResource is same as pollForCustomResource but returns the fetched unstructured resource
+func waitForAndFetchChildren(t *testing.T, c opClient.Interface, version string, kind string, owner ownerutil.Owner, count int) ([]*unstructured.Unstructured, error) {
+	t.Logf("Looking for %d %s in %s\n", count, kind, testNamespace)
+	var res []*unstructured.Unstructured
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		crList, err := c.ListCustomResource(apis.GroupName, version, testNamespace, kind)
 		if err != nil {
-			fmt.Printf("ERROR cleaning up - DeleteCustomResource(%s, %s, %s, %s, %s) err=%v\n",
-				apis.GroupName, group, testNamespace, kind, name, err)
+			t.Log(err)
+			return false, nil
 		}
+
+		owned := 0
+		for _, obj := range crList.Items {
+			t.Log(obj.GetName())
+			t.Log(obj.GetOwnerReferences())
+			t.Log(owner)
+			t.Log(owner.GetUID())
+			if ownerutil.IsOwnedBy(obj, owner) {
+				owned += 1
+				res = append(res, obj)
+			}
+		}
+		t.Log(owned)
+
+		// waiting for count number of objects to exist
+		if owned != count {
+			return false, nil
+		}
+		return true, nil
+	})
+
+	return res, err
+}
+
+func cleanupCustomResource(t *testing.T, c opClient.Interface, group, kind, name string) cleanupFunc {
+	return func() {
+		t.Log("deleting %s %s", kind, name)
+		require.NoError(t, c.DeleteCustomResource(apis.GroupName, group, testNamespace, kind, name))
 	}
 }
