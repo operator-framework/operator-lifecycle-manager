@@ -499,6 +499,83 @@ func TestSyncSubscription(t *testing.T) {
 		},
 		{
 			name:    "no csv or installplan",
+			subName: "creates installplan successfully with manual approval",
+			initial: initial{
+				catalogName:  "flying-unicorns",
+				getCSVResult: nil,
+				createInstallPlanResult: &ipv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "installplan-1",
+						UID:  types.UID("UID-OK"),
+					},
+				},
+				createInstallPlanError: nil,
+			},
+			args: args{subscription: &v1alpha1.Subscription{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "fairy-land",
+					Name:      "test-subscription",
+					UID:       types.UID("subscription-uid"),
+				},
+				Spec: &v1alpha1.SubscriptionSpec{
+					CatalogSource:       "flying-unicorns",
+					Package:             "rainbows",
+					Channel:             "magical",
+					InstallPlanApproval: ipv1alpha1.ApprovalManual,
+				},
+				Status: v1alpha1.SubscriptionStatus{
+					CurrentCSV: "latest-and-greatest",
+					Install:    nil,
+				},
+			}},
+			expected: expected{
+				installPlan: &ipv1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						GenerateName: "install-latest-and-greatest-",
+						Namespace:    "fairy-land",
+						OwnerReferences: []metav1.OwnerReference{
+							{
+								APIVersion: "app.coreos.com/v1alpha1",
+								Kind:       "Subscription-v1",
+								Name:       "test-subscription",
+								UID:        types.UID("subscription-uid"),
+							},
+						},
+					},
+					Spec: ipv1alpha1.InstallPlanSpec{
+						ClusterServiceVersionNames: []string{"latest-and-greatest"},
+						Approval:                   ipv1alpha1.ApprovalManual,
+					},
+				},
+				subscription: &v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels:    map[string]string{PackageLabel: "rainbows", CatalogLabel: "flying-unicorns", ChannelLabel: "magical"},
+						Namespace: "fairy-land",
+						Name:      "test-subscription",
+						UID:       types.UID("subscription-uid"),
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSource:       "flying-unicorns",
+						Package:             "rainbows",
+						Channel:             "magical",
+						InstallPlanApproval: ipv1alpha1.ApprovalManual,
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CurrentCSV: "latest-and-greatest",
+						Install: &v1alpha1.InstallPlanReference{
+							UID:  types.UID("UID-OK"),
+							Name: "installplan-1",
+						},
+						State: v1alpha1.SubscriptionStateUpgradePending,
+					},
+				},
+				csvName:   "latest-and-greatest",
+				namespace: "fairy-land",
+				err:       "",
+			},
+		},
+		{
+			name:    "no csv or installplan",
 			subName: "installplan error",
 			initial: initial{
 				catalogName:            "flying-unicorns",
