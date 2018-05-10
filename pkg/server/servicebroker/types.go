@@ -9,6 +9,7 @@ import (
 
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	//log "github.com/sirupsen/logrus"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -66,7 +67,7 @@ func planName(service string, plan csvv1alpha1.CRDDescription) string {
 	return strings.ToLower(invalidServiceNameChars.ReplaceAllString(service+"-"+plan.Kind, "-"))
 }
 
-func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
+func csvToService(csv csvv1alpha1.ClusterServiceVersion, parseDesc ParseDescription) (osb.Service, error) {
 	// validate CSV can be converted into a valid OpenServiceBroker ServiceInstance
 	name := csv.GetName()
 	if ok := validServiceName.MatchString(name); !ok {
@@ -76,9 +77,9 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion) (osb.Service, error) {
 	for i, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
 		plans[i] = crdToServicePlan(name, crdDef)
 	}
-	description := csv.Spec.Description
+	description := parseDesc(csv.Spec.Description)
 	if description == "" {
-		description = fmt.Sprintf("OpenCloudService for %s", name) // TODO better default msg
+		description = fmt.Sprintf("Cloud Service for %s", name)
 	}
 
 	service := osb.Service{
