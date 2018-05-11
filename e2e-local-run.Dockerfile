@@ -4,6 +4,6 @@ RUN apt-get update
 RUN apt-get install -y jq
 COPY pkg pkg
 COPY vendor vendor
-COPY e2e e2e
+COPY test/e2e test/e2e
 RUN go test -c -o /bin/e2e ./test/e2e/...
 CMD ["./test/e2e/e2e.sh"]

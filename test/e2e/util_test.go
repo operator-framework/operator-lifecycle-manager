@@ -124,16 +124,11 @@ func waitForAndFetchChildren(t *testing.T, c opClient.Interface, version string,
 
 		owned := 0
 		for _, obj := range crList.Items {
-			t.Log(obj.GetName())
-			t.Log(obj.GetOwnerReferences())
-			t.Log(owner)
-			t.Log(owner.GetUID())
 			if ownerutil.IsOwnedBy(obj, owner) {
 				owned += 1
 				res = append(res, obj)
 			}
 		}
-		t.Log(owned)
 
 		// waiting for count number of objects to exist
 		if owned != count {
@@ -147,7 +142,7 @@ func waitForAndFetchChildren(t *testing.T, c opClient.Interface, version string,
 
 func cleanupCustomResource(t *testing.T, c opClient.Interface, group, kind, name string) cleanupFunc {
 	return func() {
-		t.Log("deleting %s %s", kind, name)
+		t.Logf("deleting %s %s", kind, name)
 		require.NoError(t, c.DeleteCustomResource(apis.GroupName, group, testNamespace, kind, name))
 	}
 }

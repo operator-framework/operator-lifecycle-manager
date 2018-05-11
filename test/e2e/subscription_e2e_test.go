@@ -78,8 +78,19 @@ var (
 		Kind:       csvv1alpha1.ClusterServiceVersionKind,
 		APIVersion: csvv1alpha1.GroupVersion,
 	}
+
+	strategy = install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(genName("nginx-")),
+			},
+		},
+	}
+	strategyRaw, _  = json.Marshal(strategy)
 	installStrategy = csvv1alpha1.NamedInstallStrategy{
-		StrategyName: install.InstallStrategyNameDeployment,
+		StrategyName:    install.InstallStrategyNameDeployment,
+		StrategySpecRaw: strategyRaw,
 	}
 	outdatedCSV = csvv1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
@@ -207,9 +218,7 @@ func initCatalog(t *testing.T, c opClient.Interface) error {
 	// create CatalogSource custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
 	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
-	if err != nil {
-		return err
-	}
+	require.NoError(t, err)
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csUnst})
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
@@ -245,9 +254,7 @@ func createSubscription(t *testing.T, c opClient.Interface, channel string, name
 func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscriptionv1alpha1.Subscription, error) {
 	var sub *subscriptionv1alpha1.Subscription
 	unstrSub, err := waitForAndFetchCustomResource(t, c, subscriptionv1alpha1.GroupVersion, subscriptionv1alpha1.SubscriptionKind, name)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrSub.Object, &sub)
 	return sub, err
 }
@@ -255,9 +262,7 @@ func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscr
 func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.ClusterServiceVersion, error) {
 	var csv *csvv1alpha1.ClusterServiceVersion
 	unstrCSV, err := waitForAndFetchCustomResource(t, c, csvv1alpha1.GroupVersion, csvv1alpha1.ClusterServiceVersionKind, name)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrCSV.Object, &csv)
 	return csv, err
 }
@@ -265,11 +270,9 @@ func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.
 func checkForInstallPlan(t *testing.T, c opClient.Interface, owner ownerutil.Owner) (*v1alpha1.InstallPlan, error) {
 	var installPlan *v1alpha1.InstallPlan
 	installPlans, err := waitForAndFetchChildren(t, c, v1alpha1.GroupVersion, v1alpha1.InstallPlanKind, owner, 1)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(installPlans[0].Object, &installPlan)
-	return installPlan, nil
+	return installPlan, err
 }
 
 //   I. Creating a new subscription
@@ -291,7 +294,7 @@ func TestCreateNewSubscription(t *testing.T) {
 
 	// Deleting subscription / installplan doesn't clean up the CSV
 	cleanupCustomResource(t, c, csvv1alpha1.GroupVersion,
-		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())
+		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())()
 }
 
 //   I. Creating a new subscription
@@ -299,10 +302,9 @@ func TestCreateNewSubscription(t *testing.T) {
 //         version
 func TestCreateNewSubscriptionAgain(t *testing.T) {
 	c := newKubeClient(t)
-
 	require.NoError(t, initCatalog(t, c))
 
-	csvCleanup, err := createCSV(c, stableCSV)
+	csvCleanup, err := createCSV(t, c, stableCSV, true)
 	require.NoError(t, err)
 	defer csvCleanup()
 
@@ -319,16 +321,16 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 
 	// Deleting subscription / installplan doesn't clean up the CSV
 	cleanupCustomResource(t, c, csvv1alpha1.GroupVersion,
-		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())
+		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())()
 }
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
-func TestCreateSubscriptionManualApproval(t *testing.T) {
+func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	c := newKubeClient(t)
 
 	require.NoError(t, initCatalog(t, c))
 
-	subscriptionCleanup := createSubscription(t, c, alphaChannel, "manual-subscription", v1alpha1.ApprovalManual)
+	subscriptionCleanup := createSubscription(t, c, stableChannel, "manual-subscription", v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, c, "manual-subscription")
@@ -340,4 +342,5 @@ func TestCreateSubscriptionManualApproval(t *testing.T) {
 	require.NotNil(t, installPlan)
 
 	require.Equal(t, v1alpha1.ApprovalManual, installPlan.Spec.Approval)
+	require.Equal(t, v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 }

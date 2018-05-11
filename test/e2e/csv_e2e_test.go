@@ -30,28 +30,26 @@ type cleanupFunc func()
 
 var immediateDeleteGracePeriod int64 = 0
 
-func buildCSVCleanupFunc(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) cleanupFunc {
+func buildCSVCleanupFunc(t *testing.T, c opClient.Interface, csv v1alpha1.ClusterServiceVersion, deleteCRDs bool) cleanupFunc {
 	return func() {
-		err := c.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csv.GetName())
-		if err != nil {
-			fmt.Println(err)
+		require.NoError(t, c.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csv.GetName()))
+		if deleteCRDs {
+			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
+				require.NoError(t, c.DeleteCustomResourceDefinition(crd.Name, &metav1.DeleteOptions{}))
+			}
 		}
 	}
 }
 
-func createCSV(c opClient.Interface, csv v1alpha1.ClusterServiceVersion) (cleanupFunc, error) {
+func createCSV(t *testing.T, c opClient.Interface, csv v1alpha1.ClusterServiceVersion, cleanupCRDs bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
 	csv.Namespace = testNamespace
 	csvUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csvUnst})
-	if err != nil {
-		return nil, err
-	}
-	return buildCSVCleanupFunc(c, csv), nil
+	require.NoError(t, err)
+	return buildCSVCleanupFunc(t, c, csv, cleanupCRDs), nil
 
 }
 
@@ -139,11 +137,14 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvCondit
 
 func waitForDeploymentToDelete(t *testing.T, c opClient.Interface, name string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		t.Logf("waiting for deployment %s to delete", name)
 		_, err := c.GetDeployment(testNamespace, name)
 		if errors.IsNotFound(err) {
+			t.Logf("deleted %s", name)
 			return true, nil
 		}
 		if err != nil {
+			t.Logf("err trying to delete %s: %s", name, err)
 			return false, err
 		}
 		return false, nil
@@ -213,7 +214,7 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 		},
 	}
 
-	cleanupCSV, err := createCSV(c, csv)
+	cleanupCSV, err := createCSV(t, c, csv, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -290,7 +291,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	cleanupCSV, err := createCSV(c, csv)
+	cleanupCSV, err := createCSV(t, c, csv, true)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -388,9 +389,9 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	cleanupCSV, err := createCSV(c, csv)
+	// don't need to cleanup this CSV, it will be deleted by the upgrade process
+	_, err = createCSV(t, c, csv, true)
 	require.NoError(t, err)
-	defer cleanupCSV()
 
 	// Wait for current CSV to succeed
 	_, err = fetchCSV(t, c, csv.Name, csvSucceededChecker)
@@ -465,7 +466,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(c, csvNew)
+	cleanupNewCSV, err := createCSV(t, c, csvNew, true)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
@@ -562,9 +563,9 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	cleanupCSV, err := createCSV(c, csv)
+	// don't need to clean up this CSV, it will be deleted by the upgrade process
+	_, err = createCSV(t, c, csv, true)
 	require.NoError(t, err)
-	defer cleanupCSV()
 
 	// Wait for current CSV to succeed
 	_, err = fetchCSV(t, c, csv.Name, csvSucceededChecker)
@@ -615,7 +616,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(c, csvNew)
+	cleanupNewCSV, err := createCSV(t, c, csvNew, true)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
