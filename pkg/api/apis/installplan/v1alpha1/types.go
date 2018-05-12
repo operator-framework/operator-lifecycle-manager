@@ -26,9 +26,8 @@ const (
 type Approval string
 
 const (
-	ApprovalAutomatic  Approval = "Automatic"
-	ApprovalUpdateOnly Approval = "Update-Only"
-	ApprovalManual     Approval = "Manual"
+	ApprovalAutomatic Approval = "Automatic"
+	ApprovalManual    Approval = "Manual"
 )
 
 // InstallPlanSpec defines a set of Application resources to be installed

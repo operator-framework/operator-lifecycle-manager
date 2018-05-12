@@ -91,18 +91,18 @@ run-local-shift: rc
 
 e2e-local: values_file = test/e2e/e2e-values.yaml
 e2e-local: rc
-	./scripts/build_local.sh
-	./scripts/run_e2e_local.sh
+	. ./scripts/build_local.sh
+	. ./scripts/run_e2e_local.sh
 
 e2e-local-shift: values_file = test/e2e/e2e-values.yaml
 e2e-local-shift: rc
-	./scripts/build_local_shift.sh
-	./scripts/run_e2e_local.sh
+	. ./scripts/build_local_shift.sh
+	. ./scripts/run_e2e_local.sh
 
 e2e-local-docker: values_file = test/e2e/e2e-values.yaml
 e2e-local-docker: rc
-	./scripts/build_local.sh
-	./scripts/run_e2e_docker.sh
+	. ./scripts/build_local.sh
+	. ./scripts/run_e2e_docker.sh
 
 DEP := $(GOPATH)/bin/dep
 $(DEP):

@@ -84,7 +84,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 			ObjectMeta: metav1.ObjectMeta{},
 			Spec: ipv1alpha1.InstallPlanSpec{
 				ClusterServiceVersionNames: []string{sub.Status.CurrentCSV},
-				Approval:                   ipv1alpha1.ApprovalAutomatic,
+				Approval:                   sub.GetInstallPlanApproval(),
 			},
 		}
 		owner := []metav1.OwnerReference{

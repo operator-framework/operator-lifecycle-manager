@@ -38,20 +38,10 @@ trap cleanupAndExit SIGINT SIGTERM EXIT
 ./scripts/install_local.sh ${namespace} test/e2e/resources
 
 mkdir -p test/e2e/test-resources
-
-pushd test/e2e/chart/templates
-filenames=$(ls *.yaml)
-popd
-
-for f in ${filenames}
-do
-  echo "Processing $f file..."
-  helm template --set namespace=${namespace} -f test/e2e/e2e-values.yaml -x templates/${f} test/e2e/chart > test/e2e/test-resources/${f}
-done
+helm template --set namespace=${namespace}  -f test/e2e/e2e-values.yaml test/e2e/chart  --output-dir test/e2e/test-resources
 
 eval $(minikube docker-env) || { echo 'Cannot switch to minikube docker'; exit 1; }
-docker build --no-cache -t quay.io/coreos/alm-e2e:local -f e2e-local-run.Dockerfile .
-kubectl apply -f test/e2e/test-resources
+kubectl apply -f test/e2e/test-resources/alm-e2e/templates
 until kubectl -n ${namespace} logs job/e2e | grep -v "ContainerCreating"; do echo "waiting for job to run" && sleep 1; done
 kubectl -n ${namespace} logs job/e2e -f
 
