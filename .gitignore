@@ -458,7 +458,8 @@ __pycache__/
 *.btm.cs
 *.odx.cs
 *.xsd.cs
-vendor
+
+# project-specific
 *.bak
 **/resources/*
 build
