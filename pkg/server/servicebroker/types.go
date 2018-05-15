@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
-	//log "github.com/sirupsen/logrus"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -107,12 +105,12 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion, parseDesc ParseDescript
 	return service, nil
 }
 
-func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParameters {
+func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParametersSchema {
 	parameters := map[string]csvv1alpha1.SpecDescriptor{}
 	for _, s := range specs {
 		parameters[s.Path] = s
 	}
-	return &osb.InputParameters{parameters}
+	return &osb.InputParametersSchema{parameters}
 }
 
 type CustomResourceObject struct {
@@ -139,7 +137,6 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 	obj := CustomResourceObject{
 		Spec: spec,
 	}
-	//log.Debugf("planToCustomResourceObject: plan=%+v cr=%+v", plan, obj)
 	unstructuredCR, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&obj)
 	if err != nil {
 		return nil, err
@@ -154,7 +151,6 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 	return cr, nil
 }
 
-//'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
 func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 	bindable := len(crd.StatusDescriptors) > 0
 	plan := osb.Plan{
@@ -169,14 +165,13 @@ func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
 			versionKey:    crd.Version,
 			kindKey:       crd.Kind,
 		},
-		ParameterSchemas: &osb.ParameterSchemas{
-			ServiceInstances: &osb.ServiceInstanceSchema{
+		Schemas: &osb.Schemas{
+			ServiceInstance: &osb.ServiceInstanceSchema{
 				Create: specDescriptorsToInputParameters(crd.SpecDescriptors),
 				Update: specDescriptorsToInputParameters(crd.SpecDescriptors),
 			},
-			ServiceBindings: nil,
+			ServiceBinding: nil,
 		},
 	}
-	//log.Debugf("crdToServicePlan: crd=%+v plan=%+v", crd, plan)
 	return plan
 }

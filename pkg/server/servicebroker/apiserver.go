@@ -85,7 +85,7 @@ func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
 }
 
 // GetCatalog returns the CSVs in the catalog
-func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*osb.CatalogResponse, error) {
+func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*broker.CatalogResponse, error) {
 	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Context=%#v", b)
 	// find all CatalogSources
 	csList, err := a.client.CatalogsourceV1alpha1().CatalogSources(a.namespace).List(metav1.ListOptions{})
@@ -124,7 +124,7 @@ func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*osb.CatalogResponse, 
 		services[i] = s
 	}
 	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Services=%#v", len(services))
-	return &osb.CatalogResponse{services}, nil
+	return &broker.CatalogResponse{CatalogResponse: osb.CatalogResponse{services}}, nil
 }
 
 func ensureNamespace(ns string, client opClient.Interface) error {
@@ -193,7 +193,7 @@ func ensureCSV(namespace string, csvName string, client versioned.Interface) err
 func logStep(plan, step string) {
 	log.Debugf("Component=ServiceBroker Endpoint=Provision Plan=%s Step=%s", plan, step)
 }
-func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*osb.ProvisionResponse, error) {
+func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
 	log.Debugf("Component=ServiceBroker Endpoint=Provision Request=%#v", request)
 	namespace := a.namespace
 	if n, ok := request.Context[namespaceKey]; ok {
@@ -253,10 +253,15 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 		return nil, err
 	}
 	opkey := osb.OperationKey(obj.GetSelfLink())
-	response := &osb.ProvisionResponse{
-		Async:        true,
-		OperationKey: &opkey,
-		DashboardURL: a.dashboardURL, // TODO make specific to created resource
+	response := &broker.ProvisionResponse{
+		ProvisionResponse: osb.ProvisionResponse{
+			Async:        true,
+			OperationKey: &opkey,
+			DashboardURL: a.dashboardURL, // TODO make specific to created resource
+		},
+
+		//TODO: implement exists
+		Exists: false,
 	}
 	logStep(request.PlanID, fmt.Sprintf("EndRequest link=%s opKey=%+v &opKey=%+v Response=%+v", obj.GetSelfLink(), opkey, response.OperationKey, response))
 	return response, nil
@@ -267,7 +272,7 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 // alm-service-broker-clusterserviceplan-id: couchbase-operator-v0-8-0-couchbasecluster
 // \---
 
-func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*osb.DeprovisionResponse, error) {
+func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
 	log.Debugf("Component=ServiceBroker Endpoint=DeProvision Request=%#v", request)
 	var (
 		object unstructured.Unstructured
@@ -344,9 +349,11 @@ Deprovisioning:
 	log.Debugf("Component=ServiceBroker Endpoint=Deprovision GetCR uri=%s err=%v object=%+v", uri, err, object)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return &osb.DeprovisionResponse{
-				Async:        false,
-				OperationKey: &opkey,
+			return &broker.DeprovisionResponse{
+				DeprovisionResponse: osb.DeprovisionResponse{
+					Async:        false,
+					OperationKey: &opkey,
+				},
 			}, nil
 		}
 		return nil, err
@@ -372,13 +379,15 @@ Deprovisioning:
 		return nil, err
 	}
 	log.Debugf("Component=ServiceBroker Endpoint=Deprovision EndRequest opKey=%+v object=%+v", opkey, object)
-	return &osb.DeprovisionResponse{
-		Async:        true,
-		OperationKey: &opkey,
+	return &broker.DeprovisionResponse{
+		DeprovisionResponse: osb.DeprovisionResponse{
+			Async:        true,
+			OperationKey: &opkey,
+		},
 	}, nil
 }
 
-func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*osb.LastOperationResponse, error) {
+func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.RequestContext) (*broker.LastOperationResponse, error) {
 	var object unstructured.Unstructured
 	var description string
 	if request == nil {
@@ -423,36 +432,42 @@ func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.R
 		Do().Into(&object)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return &osb.LastOperationResponse{
-				State: osb.StateInProgress,
+			return &broker.LastOperationResponse{
+				LastOperationResponse: osb.LastOperationResponse{
+					State: osb.StateInProgress,
+				},
 			}, nil
 		}
 		msg := err.Error()
-		return &osb.LastOperationResponse{
-			State:       osb.StateFailed,
-			Description: &msg,
+		return &broker.LastOperationResponse{
+			LastOperationResponse: osb.LastOperationResponse{
+				State:       osb.StateFailed,
+				Description: &msg,
+			},
 		}, nil
 	}
 
 	log.Debugf("Component=ServiceBroker Endpoint=LastOperation service_id=%s plan_id=%s instance_id=%s obj=%#v", serviceID, planID, instanceID, object)
-	resp := &osb.LastOperationResponse{
-		State:       osb.StateSucceeded, // TODO
-		Description: &description,
+	resp := &broker.LastOperationResponse{
+		LastOperationResponse: osb.LastOperationResponse{
+			State:       osb.StateSucceeded, // TODO
+			Description: &description,
+		},
 	}
 	return resp, nil
 }
 
-func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*osb.BindResponse, error) {
+func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*osb.UnbindResponse, error) {
+func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
 
-func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*osb.UpdateInstanceResponse, error) {
+func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
 	// TODO implement
 	return nil, errors.New("not implemented")
 }
