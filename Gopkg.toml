@@ -3,6 +3,11 @@
   go-tests = true
   non-go = true
 
+  [[prune.project]]
+    name = "k8s.io/apimachinery"
+    # apimachinary needed for codegen
+    unused-packages = false
+
 [[constraint]]
   name = "github.com/coreos-inc/tectonic-operators"
   version = "beryllium-m1"
