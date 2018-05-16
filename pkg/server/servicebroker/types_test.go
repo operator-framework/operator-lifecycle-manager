@@ -20,14 +20,31 @@ func mockCSV() csvv1alpha1.ClusterServiceVersion {
 	}
 }
 
-func TestCSVToServiceParsesDescription(t *testing.T) {
-	var parseDesc = func(desc string) string {
-		require.Equal(t, mockCSV().Spec.Description, desc)
-
-		return ""
+func TestServiceClassLongDescription(t *testing.T) {
+	type tester struct {
+		InputCSV            csvv1alpha1.ClusterServiceVersion
+		ExpectedDescription string
 	}
-
-	_, err := csvToService(mockCSV(), parseDesc)
-
-	require.NoError(t, err)
+	tests := []tester{
+		{
+			InputCSV: csvv1alpha1.ClusterServiceVersion{
+				Spec: csvv1alpha1.ClusterServiceVersionSpec{
+					Description: "A cool description of this service",
+				},
+			},
+			ExpectedDescription: "A cool description of this service",
+		},
+		{
+			InputCSV: csvv1alpha1.ClusterServiceVersion{
+				Spec: csvv1alpha1.ClusterServiceVersionSpec{
+					Description: "# A cool description of this service",
+				},
+			},
+			ExpectedDescription: "A cool description of this service",
+		},
+	}
+	for _, tt := range tests {
+		desc := serviceClassLongDescription(tt.InputCSV)
+		require.Equal(t, tt.ExpectedDescription, desc)
+	}
 }

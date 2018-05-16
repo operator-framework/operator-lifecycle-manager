@@ -11,7 +11,6 @@ import (
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/pmorie/osb-broker-lib/pkg/broker"
 	log "github.com/sirupsen/logrus"
-	stripmd "github.com/writeas/go-strip-markdown"
 	"k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,6 +46,7 @@ type Options struct {
 type ALMBroker struct {
 	opClient opClient.Interface
 	client   versioned.Interface
+	catalog  catalogLoader
 
 	namespace    string
 	dashboardURL *string // URL of a web-based management UI for services
@@ -59,10 +59,15 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 	if err != nil {
 		return nil, err
 	}
+	almOpClient := opClient.NewClient(kubeconfigPath)
 	// Allocate the new instance of an ALMBroker
 	br := &ALMBroker{
-		opClient:  opClient.NewClient(kubeconfigPath),
-		client:    versionedClient,
+		client:   versionedClient,
+		opClient: almOpClient,
+		catalog: &inClusterCatalog{
+			client:   versionedClient,
+			opClient: almOpClient,
+		},
 		namespace: options.Namespace,
 	}
 	return br, nil
@@ -70,6 +75,38 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 
 // ensure *almBroker implements osb-broker-lib interface
 var _ broker.Interface = &ALMBroker{}
+
+type catalogLoader interface {
+	Load(namespace string) (registry.Source, error)
+}
+type inClusterCatalog struct {
+	client   versioned.Interface
+	opClient opClient.Interface
+}
+
+func (c *inClusterCatalog) Load(namespace string) (registry.Source, error) {
+	// find all CatalogSources
+	csList, err := c.client.CatalogsourceV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
+		return nil, err
+	}
+	if csList == nil {
+		log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", "<nil> catalog source")
+		return nil, errors.New("unexpected response fetching catalogsources - <nil>")
+	}
+
+	// load service definitions from configmaps into temp in memory service registry
+	loader := registry.ConfigMapCatalogResourceLoader{registry.NewInMem(), namespace, c.opClient}
+	for _, cs := range csList.Items {
+		loader.Namespace = cs.GetNamespace()
+		if err := loader.LoadCatalogResources(cs.Spec.ConfigMap); err != nil {
+			log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
+			return nil, err
+		}
+	}
+	return loader.Catalog, nil
+}
 
 func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
 	supported, ok := supportedOSBVersions[version]
@@ -86,45 +123,40 @@ func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {
 
 // GetCatalog returns the CSVs in the catalog
 func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*broker.CatalogResponse, error) {
-	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Context=%#v", b)
-	// find all CatalogSources
-	csList, err := a.client.CatalogsourceV1alpha1().CatalogSources(a.namespace).List(metav1.ListOptions{})
+	// Load Catalog
+	catalog, err := a.catalog.Load(a.namespace)
 	if err != nil {
-		log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
 		return nil, err
 	}
-	if csList == nil {
-		log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", "<nil> catalog source")
-		return nil, errors.New("unexpected response fetching catalogsources - <nil>")
-	}
-
-	// load service definitions from configmaps into temp in memory service registry
-	loader := registry.ConfigMapCatalogResourceLoader{registry.NewInMem(), a.namespace, a.opClient}
-	for _, cs := range csList.Items {
-		loader.Namespace = cs.GetNamespace()
-		if err := loader.LoadCatalogResources(cs.Spec.ConfigMap); err != nil {
-			log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
-			return nil, err
+	// List Packages in catalog and convert ClusterServiceVersions from default channel for each
+	// package into OpenServiceBroker API `Service` object
+	pkgs := catalog.AllPackages()
+	services := []osb.Service{}
+	for _, pkg := range pkgs {
+		channel := pkg.GetDefaultChannel()
+		if channel == "" {
+			log.Warnf("Skipping Package %s - no default channel found", pkg.PackageName)
+			continue
 		}
-	}
-	csvs, err := loader.Catalog.ListServices()
-	if err != nil {
-		log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
-		return nil, err
-	}
-
-	// convert ClusterServiceVersions into OpenServiceBroker API `Service` object
-	services := make([]osb.Service, len(csvs))
-	for i, csv := range csvs {
-		s, err := csvToService(csv, stripmd.Strip)
+		csv, err := catalog.FindCSVForPackageNameUnderChannel(pkg.PackageName, channel)
 		if err != nil {
-			log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
-			return nil, err
+			log.Warnf("Skipping Package %s - error finding CSV in %s channel: %s", pkg.PackageName, channel, err)
+			continue
 		}
-		services[i] = s
+		if csv == nil {
+			log.Warnf("Skipping Package %s - no CSV found in %s channel", pkg.PackageName, channel)
+			continue
+		}
+		service, err := csvToService(*csv, catalog)
+		if err != nil {
+			log.Warnf("Skipping Package %s - error converting CSV %s to serviceclass: %s", pkg.PackageName, csv.GetName(), err)
+			continue
+		}
+		log.Debugf("Loaded Service for package %s from channel - CSV name: %s", pkg.PackageName, channel, csv.GetName())
+		services = append(services, service)
 	}
 	log.Debugf("Component=ServiceBroker Endpoint=GetCatalog Services=%#v", len(services))
-	return &broker.CatalogResponse{CatalogResponse: osb.CatalogResponse{services}}, nil
+	return &broker.CatalogResponse{osb.CatalogResponse{services}}, nil
 }
 
 func ensureNamespace(ns string, client opClient.Interface) error {
@@ -190,9 +222,7 @@ func ensureCSV(namespace string, csvName string, client versioned.Interface) err
 	})
 	return err
 }
-func logStep(plan, step string) {
-	log.Debugf("Component=ServiceBroker Endpoint=Provision Plan=%s Step=%s", plan, step)
-}
+
 func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestContext) (*broker.ProvisionResponse, error) {
 	log.Debugf("Component=ServiceBroker Endpoint=Provision Request=%#v", request)
 	namespace := a.namespace
@@ -202,19 +232,18 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 	if namespace == "" {
 		return nil, NamespaceRequiredError
 	}
-	logStep(request.PlanID, "EnsureNamespace")
 	if err := ensureNamespace(namespace, a.opClient); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to ensure namespace '%s' for plan '%s': %v", namespace, request.PlanID, err)
 	}
-	logStep(request.PlanID, "GetCatalog")
-	catalog, err := a.GetCatalog(nil)
+	resp, err := a.GetCatalog(nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to fetch catalog to provision plan '%s': %v", request.PlanID, err)
 	}
+
 	var plan osb.Plan
 	var csvName string
 	found := false
-	for _, s := range catalog.Services {
+	for _, s := range resp.CatalogResponse.Services {
 		if s.ID == request.ServiceID {
 			csvName = s.Metadata[csvNameLabel].(string)
 			for _, p := range s.Plans {
@@ -227,30 +256,27 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 		}
 	}
 	if !found {
-		return nil, errors.New("unknown plan")
+		return nil, fmt.Errorf("unknown plan '%s'", request.PlanID)
 	}
-	logStep(request.PlanID, "EnsureCSV")
 	if err := ensureCSV(namespace, csvName, a.client); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to ensure CSV '%s' exists in namspace '%s' for plan '%s': %v", csvName, namespace, request.PlanID, err)
 	}
-	logStep(request.PlanID, "CreateCR")
 	cr, err := planToCustomResourceObject(plan, request.InstanceID, request.Parameters)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not convert plan '%s' to a custom resource: %v", request.PlanID, err)
 	}
 	cr.SetNamespace(namespace)
+	exists := false
 	if err := a.opClient.CreateCustomResource(cr); err != nil {
 		if !apierrors.IsAlreadyExists(err) {
-			logStep(request.PlanID, fmt.Sprintf("CreateCR Status=FAIL CR=%+v Err=%v APIVersion:%s", cr, err, cr.GetAPIVersion()))
-			return nil, err
+			return nil, fmt.Errorf("failed to create custom resource for provisioning plan '%s': %v", request.PlanID, err)
 		}
+		exists = true
 	}
-	logStep(request.PlanID, "GetCR")
 	gvk := cr.GroupVersionKind()
 	obj, err := a.opClient.GetCustomResource(gvk.Group, gvk.Version, namespace, gvk.Kind, cr.GetName())
 	if err != nil {
-		logStep(request.PlanID, fmt.Sprintf("GetCR Status=FAIL CR=%+v Err=%vs", cr, err))
-		return nil, err
+		return nil, fmt.Errorf("failed to find newly provisioned custom resource %s: %v", gvk.String(), err)
 	}
 	opkey := osb.OperationKey(obj.GetSelfLink())
 	response := &broker.ProvisionResponse{
@@ -259,11 +285,8 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 			OperationKey: &opkey,
 			DashboardURL: a.dashboardURL, // TODO make specific to created resource
 		},
-
-		//TODO: implement exists
-		Exists: false,
+		Exists: exists,
 	}
-	logStep(request.PlanID, fmt.Sprintf("EndRequest link=%s opKey=%+v &opKey=%+v Response=%+v", obj.GetSelfLink(), opkey, response.OperationKey, response))
 	return response, nil
 
 }
@@ -273,7 +296,6 @@ func (a *ALMBroker) Provision(request *osb.ProvisionRequest, c *broker.RequestCo
 // \---
 
 func (a *ALMBroker) Deprovision(request *osb.DeprovisionRequest, c *broker.RequestContext) (*broker.DeprovisionResponse, error) {
-	log.Debugf("Component=ServiceBroker Endpoint=DeProvision Request=%#v", request)
 	var (
 		object unstructured.Unstructured
 
@@ -346,17 +368,17 @@ Deprovisioning:
 	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
 		Get().RequestURI(uri).
 		Do().Into(&object)
-	log.Debugf("Component=ServiceBroker Endpoint=Deprovision GetCR uri=%s err=%v object=%+v", uri, err, object)
+
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return &broker.DeprovisionResponse{
-				DeprovisionResponse: osb.DeprovisionResponse{
-					Async:        false,
-					OperationKey: &opkey,
-				},
-			}, nil
+		if !apierrors.IsNotFound(err) {
+			return nil, err
 		}
-		return nil, err
+		return &broker.DeprovisionResponse{
+			DeprovisionResponse: osb.DeprovisionResponse{
+				Async:        false,
+				OperationKey: &opkey,
+			},
+		}, nil
 	}
 	namespace := ""
 	if object.IsList() {
@@ -374,11 +396,18 @@ Deprovisioning:
 	}
 	err = a.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().RESTClient().
 		Delete().Namespace(namespace).RequestURI(uri).Do().Error()
-	log.Debugf("Component=ServiceBroker Endpoint=Deprovision DeleteCR ns='%s' uri=%s err=%v object=%#v", object.GetNamespace(), uri, err, object)
-	if err != nil && !apierrors.IsNotFound(err) {
-		return nil, err
+
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		return &broker.DeprovisionResponse{
+			DeprovisionResponse: osb.DeprovisionResponse{
+				Async:        false,
+				OperationKey: &opkey,
+			},
+		}, nil
 	}
-	log.Debugf("Component=ServiceBroker Endpoint=Deprovision EndRequest opKey=%+v object=%+v", opkey, object)
 	return &broker.DeprovisionResponse{
 		DeprovisionResponse: osb.DeprovisionResponse{
 			Async:        true,
@@ -447,7 +476,6 @@ func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.R
 		}, nil
 	}
 
-	log.Debugf("Component=ServiceBroker Endpoint=LastOperation service_id=%s plan_id=%s instance_id=%s obj=%#v", serviceID, planID, instanceID, object)
 	resp := &broker.LastOperationResponse{
 		LastOperationResponse: osb.LastOperationResponse{
 			State:       osb.StateSucceeded, // TODO
@@ -459,15 +487,15 @@ func (a *ALMBroker) LastOperation(request *osb.LastOperationRequest, c *broker.R
 
 func (a *ALMBroker) Bind(request *osb.BindRequest, c *broker.RequestContext) (*broker.BindResponse, error) {
 	// TODO implement
-	return nil, errors.New("not implemented")
+	return nil, errors.New("not supported")
 }
 
 func (a *ALMBroker) Unbind(request *osb.UnbindRequest, c *broker.RequestContext) (*broker.UnbindResponse, error) {
 	// TODO implement
-	return nil, errors.New("not implemented")
+	return nil, errors.New("not supported")
 }
 
 func (a *ALMBroker) Update(request *osb.UpdateInstanceRequest, c *broker.RequestContext) (*broker.UpdateInstanceResponse, error) {
 	// TODO implement
-	return nil, errors.New("not implemented")
+	return nil, errors.New("not supported")
 }

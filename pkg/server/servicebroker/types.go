@@ -8,12 +8,16 @@ import (
 	"strings"
 
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
+	stripmd "github.com/writeas/go-strip-markdown"
+
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 const (
@@ -56,16 +60,26 @@ func serviceClassName(csv csvv1alpha1.ClusterServiceVersion) string {
 func serviceClassID(csv csvv1alpha1.ClusterServiceVersion) string {
 	return invalidServiceNameChars.ReplaceAllString(strings.ToLower(csv.GetName()), "-")
 }
-
+func serviceClassDescription(csv csvv1alpha1.ClusterServiceVersion) string {
+	// TODO better short description
+	return fmt.Sprintf("%s %s (%s) by %s", csv.Spec.DisplayName, csv.Spec.Version.String(),
+		csv.Spec.Maturity, csv.Spec.Provider.Name)
+}
+func serviceClassLongDescription(csv csvv1alpha1.ClusterServiceVersion) string {
+	description := stripmd.Strip(csv.Spec.Description)
+	if description == "" {
+		description = fmt.Sprintf("Cloud Service for %s", csv.GetName())
+	}
+	return description
+}
 func planID(service string, plan csvv1alpha1.CRDDescription) string {
 	return strings.ToLower(invalidServiceNameChars.ReplaceAllString(service+"-"+plan.Kind, "-"))
 }
-
 func planName(service string, plan csvv1alpha1.CRDDescription) string {
 	return strings.ToLower(invalidServiceNameChars.ReplaceAllString(service+"-"+plan.Kind, "-"))
 }
 
-func csvToService(csv csvv1alpha1.ClusterServiceVersion, parseDesc ParseDescription) (osb.Service, error) {
+func csvToService(csv csvv1alpha1.ClusterServiceVersion, catalog registry.Source) (osb.Service, error) {
 	// validate CSV can be converted into a valid OpenServiceBroker ServiceInstance
 	name := csv.GetName()
 	if ok := validServiceName.MatchString(name); !ok {
@@ -73,17 +87,22 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion, parseDesc ParseDescript
 	}
 	plans := make([]osb.Plan, len(csv.Spec.CustomResourceDefinitions.Owned))
 	for i, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
-		plans[i] = crdToServicePlan(name, crdDef)
-	}
-	description := parseDesc(csv.Spec.Description)
-	if description == "" {
-		description = fmt.Sprintf("Cloud Service for %s", name)
+		key := registry.CRDKey{
+			Kind:    crdDef.Kind,
+			Name:    crdDef.Name,
+			Version: crdDef.Version,
+		}
+		crd, err := catalog.FindCRDByKey(key)
+		if err != nil {
+			return osb.Service{}, fmt.Errorf("missing CRD '%s' for service %s", key.String(), name)
+		}
+		plans[i] = crdToServicePlan(name, crdDef, crd)
 	}
 
 	service := osb.Service{
 		Name:            serviceClassName(csv),
 		ID:              serviceClassID(csv),
-		Description:     description,
+		Description:     serviceClassDescription(csv),
 		Tags:            csv.Spec.Keywords,
 		Requires:        []string{}, // not relevant to k8s
 		Bindable:        false,      // overwritten by plan if CRD has specDescriptors defined
@@ -91,9 +110,8 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion, parseDesc ParseDescript
 		DashboardClient: nil, // TODO
 		Metadata: map[string]interface{}{
 			"displayName":         csv.Spec.DisplayName + " " + csv.Spec.Version.String(),
-			"longDescription":     csv.Spec.Description,
+			"longDescription":     serviceClassLongDescription(csv),
 			"providerDisplayName": csv.Spec.Provider.Name,
-			"supportURL":          csv.Spec.Provider.Name,
 			csvNameLabel:          csv.GetName(),
 			"Spec":                csv.Spec,
 			"Status":              csv.Status,
@@ -102,15 +120,10 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion, parseDesc ParseDescript
 	if len(csv.Spec.Icon) > 0 {
 		service.Metadata["imageUrl"] = fmt.Sprintf("data:%s;base64,%s", csv.Spec.Icon[0].MediaType, csv.Spec.Icon[0].Data)
 	}
-	return service, nil
-}
-
-func specDescriptorsToInputParameters(specs []csvv1alpha1.SpecDescriptor) *osb.InputParametersSchema {
-	parameters := map[string]csvv1alpha1.SpecDescriptor{}
-	for _, s := range specs {
-		parameters[s.Path] = s
+	if len(csv.Spec.Links) > 0 {
+		service.Metadata["supportURL"] = csv.Spec.Links[0].URL
 	}
-	return &osb.InputParametersSchema{parameters}
+	return service, nil
 }
 
 type CustomResourceObject struct {
@@ -137,6 +150,7 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 	obj := CustomResourceObject{
 		Spec: spec,
 	}
+	//log.Debugf("planToCustomResourceObject: plan=%+v cr=%+v", plan, obj)
 	unstructuredCR, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&obj)
 	if err != nil {
 		return nil, err
@@ -151,27 +165,44 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 	return cr, nil
 }
 
-func crdToServicePlan(service string, crd csvv1alpha1.CRDDescription) osb.Plan {
-	bindable := len(crd.StatusDescriptors) > 0
+type openshiftFormDefinition struct {
+	serviceInstance struct {
+		create struct {
+			params []string `json:"openshift_form_definition,omitempty"`
+		} `json:"create,omitempty"`
+	} `json:"service_instance,omitempty"`
+}
+
+//'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
+func crdToServicePlan(service string, crdDesc csvv1alpha1.CRDDescription, crd *v1beta1.CustomResourceDefinition) osb.Plan {
+	bindable := false // when binding implemented, change to `len(crd.StatusDescriptors) > 0`
 	plan := osb.Plan{
-		ID:          planID(service, crd),
-		Name:        planName(service, crd),
-		Description: crd.Description,
+		ID:          planID(service, crdDesc),
+		Name:        planName(service, crdDesc),
+		Description: crdDesc.Description,
 		Free:        &defaultPlanFree,
 		Bindable:    &bindable,
 		Metadata: map[string]interface{}{
-			"displayName": crd.Kind,
-			crdNameKey:    crd.Name,
-			versionKey:    crd.Version,
-			kindKey:       crd.Kind,
+			"displayName": crdDesc.DisplayName,
+			// !!! REQUIRED by olm-service-broker for proper provisioning !!!
+			crdNameKey: crdDesc.Name,
+			versionKey: crdDesc.Version,
+			kindKey:    crdDesc.Kind,
 		},
 		Schemas: &osb.Schemas{
-			ServiceInstance: &osb.ServiceInstanceSchema{
-				Create: specDescriptorsToInputParameters(crd.SpecDescriptors),
-				Update: specDescriptorsToInputParameters(crd.SpecDescriptors),
-			},
-			ServiceBinding: nil,
+			ServiceInstance: &osb.ServiceInstanceSchema{},
 		},
+	}
+	if crd.Spec.Validation != nil && crd.Spec.Validation.OpenAPIV3Schema != nil {
+		plan.Schemas.ServiceInstance.Create = &osb.InputParametersSchema{
+			Parameters: crd.Spec.Validation.OpenAPIV3Schema,
+		}
+		osSchema := openshiftFormDefinition{}
+		osSchema.serviceInstance.create.params = crd.Spec.Validation.OpenAPIV3Schema.Required
+		plan.Metadata["schemas"] = osSchema
+
 	}
 	return plan
 }
+
+//func getServiceClassForPackage(catalog registry.Source, pkg registry.PackageManifest) (osb.Service, error) {
