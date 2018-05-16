@@ -1,3 +1,13 @@
+[prune]
+  unused-packages = true
+  go-tests = true
+  non-go = true
+
+  [[prune.project]]
+    name = "k8s.io/apimachinery"
+    # apimachinary needed for codegen
+    unused-packages = false
+
 [[constraint]]
   name = "github.com/coreos-inc/tectonic-operators"
   version = "beryllium-m1"
@@ -9,18 +19,6 @@
 [[constraint]]
   name = "github.com/ghodss/yaml"
   version = "1.0.0"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/go-openapi/spec"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/go-openapi/strfmt"
-
-[[constraint]]
-  branch = "master"
-  name = "github.com/go-openapi/validate"
 
 [[constraint]]
   name = "github.com/golang/mock"
