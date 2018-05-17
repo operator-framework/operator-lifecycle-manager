@@ -113,15 +113,13 @@ func csvToService(csv csvv1alpha1.ClusterServiceVersion, catalog registry.Source
 			"longDescription":     serviceClassLongDescription(csv),
 			"providerDisplayName": csv.Spec.Provider.Name,
 			csvNameLabel:          csv.GetName(),
-			"Spec":                csv.Spec,
-			"Status":              csv.Status,
 		},
 	}
 	if len(csv.Spec.Icon) > 0 {
 		service.Metadata["imageUrl"] = fmt.Sprintf("data:%s;base64,%s", csv.Spec.Icon[0].MediaType, csv.Spec.Icon[0].Data)
 	}
 	if len(csv.Spec.Links) > 0 {
-		service.Metadata["supportURL"] = csv.Spec.Links[0].URL
+		service.Metadata["supportUrl"] = csv.Spec.Links[0].URL
 	}
 	return service, nil
 }
@@ -165,12 +163,14 @@ func planToCustomResourceObject(plan osb.Plan, name string, spec map[string]inte
 	return cr, nil
 }
 
+type formAction struct {
+	params []string `json:"openshift_form_definition,omitempty"`
+}
+type formResource struct {
+	create formAction `json:"create,omitempty"`
+}
 type openshiftFormDefinition struct {
-	serviceInstance struct {
-		create struct {
-			params []string `json:"openshift_form_definition,omitempty"`
-		} `json:"create,omitempty"`
-	} `json:"service_instance,omitempty"`
+	serviceInstance formResource `json:"service_instance,omitempty"`
 }
 
 //'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
@@ -197,10 +197,13 @@ func crdToServicePlan(service string, crdDesc csvv1alpha1.CRDDescription, crd *v
 		plan.Schemas.ServiceInstance.Create = &osb.InputParametersSchema{
 			Parameters: crd.Spec.Validation.OpenAPIV3Schema,
 		}
-		osSchema := openshiftFormDefinition{}
-		osSchema.serviceInstance.create.params = crd.Spec.Validation.OpenAPIV3Schema.Required
-		plan.Metadata["schemas"] = osSchema
-
+		plan.Metadata["schemas"] = openshiftFormDefinition{
+			serviceInstance: formResource{
+				create: formAction{
+					params: crd.Spec.Validation.OpenAPIV3Schema.Required,
+				},
+			},
+		}
 	}
 	return plan
 }
