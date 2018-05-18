@@ -154,6 +154,11 @@ generate-mock-client: $(counterfeiter)
 
 make gen-all: gen-ci codegen generate-mock-client
 
+# make ver=0.3.0 tectonic-release
+make tectonic-release:
+	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
+
 # make ver=0.3.0 release
 make release:
-	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
+	./scripts/package-release.sh $(ver) deploy/upstream/manifests/$(ver) deploy/upstream/values.yaml
+

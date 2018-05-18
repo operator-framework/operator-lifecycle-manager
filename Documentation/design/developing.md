@@ -20,7 +20,7 @@ kubectl apply -f ./custom-olm
         * taking control of an existing namespace (i.e. if you've left the global olm running) may require manually editing namespace annotations
 
 * Catalog generation
-    * Files in `catalog_resources` get collected into a configmap
+    * Files in `deploy/chart/catalog_resources/<catalogname>` get collected into a configmap
     * on startup, catalog operator reads the configmap and writes out a CatalogSource pointing to it
         * hack because x-operator can't write out CatalogSource
     * short term: catalogsource -> configmap, no generation
@@ -53,7 +53,7 @@ kubectl apply -f ./custom-olm
 
 * Once the CSV is verified as correct and updates work properly, add it to `catalog_resources`
     * do not overwrite the old one
-* Add any new CRDs to `catalog_resources`
+* Add any new CRDs to `deploy/chart/catalog_resources/<catalog>`
 * run `make update-catalog` to regen the catalog configmap
 * either apply the new configmap on it's own and restart catalog or, easier, just run:
 

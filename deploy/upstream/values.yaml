@@ -1,0 +1,23 @@
+rbacApiVersion: rbac.authorization.k8s.io
+namespace: kube-system
+catalog_namespace: kube-system
+alm:
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/olm@sha256:351f0c4973a88a4ea606721555829776429b0ecb53d5a2bfee6bce459d109e5b
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+
+catalog:
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/catalog@sha256:54571e25474a9a063a144922e7321203e5aa5e63d03f748682d559341359a916
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+
+catalog_sources:
+ - tectonic-ocs
+ - tectonic-components
+ - upstream-components
