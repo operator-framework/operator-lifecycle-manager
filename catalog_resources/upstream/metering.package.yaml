@@ -1,5 +1,0 @@
-#! package-manifest: ../../catalog_resources/components/metering.0.6.0.clusterserviceversion.yaml
-packageName: metering
-channels:
-- currentCSV: metering-helm-operator.v0.6.0
-  name: alpha

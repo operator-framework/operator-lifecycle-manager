@@ -4,6 +4,7 @@ apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
   name: metering-helm-operator.v0.6.0
+  namespace: placeholder
   annotations:
     tectonic-visibility: tectonic-feature
   labels:

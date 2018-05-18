@@ -43,26 +43,6 @@ $(CMDS): .FORCE
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ $(PKG)/cmd/$(shell basename $@); \
 	fi
 
-
-OCS_CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
-COMPONENT_CATALOG_CHART:=deploy/chart/templates/09-tectoniccomponents.configmap.yaml
-UPSTREAM_CATALOG_CHART:=deploy/chart/templates/18-upstreamcomponents.configmap.yaml
-
-$(OCS_CATALOG_CHART): .FORCE catalog_resources/ocs/*.crd.yaml \
-	catalog_resources/ocs/*.clusterserviceversion.yaml \
-	catalog_resources/ocs/*.package.yaml
-	. ./scripts/build_catalog_configmap.sh catalog_resources/ocs 'tectonic-ocs' $@
-
-$(COMPONENT_CATALOG_CHART): .FORCE catalog_resources/components/*.crd.yaml \
-	catalog_resources/components/*.clusterserviceversion.yaml \
-	catalog_resources/components/*.package.yaml
-	. ./scripts/build_catalog_configmap.sh catalog_resources/components 'tectonic-components' $@
-
-$(UPSTREAM_CATALOG_CHART): .FORCE catalog_resources/upstream/*.crd.yaml \
-	catalog_resources/upstream/*.clusterserviceversion.yaml \
-	catalog_resources/upstream/*.package.yaml
-	. ./scripts/build_catalog_configmap.sh catalog_resources/upstream 'upstream-components' $@
-
 build/chart/values.yaml: $(values_file)
 	mkdir -p build/chart
 	cp $(values_file) build/chart/values.yaml
@@ -82,31 +62,29 @@ manifests: $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml
 	mkdir -p build/resources
 	helm template -n olm -f build/chart/values.yaml build/chart --output-dir build/resources
 
-rc: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) manifests
-
 run-local: values_file = Documentation/install/local-values.yaml
 run-local: release
 	. ./scripts/build_local.sh
 	. ./scripts/install_local.sh local build/resources
 
 run-local-shift: values_file = Documentation/install/local-values-shift.yaml
-run-local-shift: rc
+run-local-shift: manifests
 	sed -i 's/rbac.authorization.k8s.io/authorization.openshift.io/' build/resources/02-alm-operator.rolebinding.yaml
 	. ./scripts/build_local_shift.sh
 	. ./scripts/install_local.sh local build/resources
 
 e2e-local: values_file = test/e2e/e2e-values.yaml
-e2e-local: rc
+e2e-local: manifests
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh
 
 e2e-local-shift: values_file = test/e2e/e2e-values.yaml
-e2e-local-shift: rc
+e2e-local-shift: manifests
 	. ./scripts/build_local_shift.sh
 	. ./scripts/run_e2e_local.sh
 
 e2e-local-docker: values_file = test/e2e/e2e-values.yaml
-e2e-local-docker: rc
+e2e-local-docker: manifests
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh
 
@@ -165,10 +143,7 @@ codegen: $(CODEGEN)
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(UPSTREAM_CATALOG_CHART)
-	git diff --exit-code
-
-update-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(UPSTREAM_CATALOG_CHART)
+verify-catalog: schema-check
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
