@@ -16,3 +16,8 @@ catalog:
     pullPolicy: Always
   service:
     internalPort: 8080
+
+catalog_sources:
+ - tectonic-ocs
+ - tectonic-components
+ - upstream-components

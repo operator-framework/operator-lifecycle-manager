@@ -46,6 +46,7 @@ $(CMDS): .FORCE
 
 OCS_CATALOG_CHART:=deploy/chart/templates/08-tectonicocs.configmap.yaml
 COMPONENT_CATALOG_CHART:=deploy/chart/templates/09-tectoniccomponents.configmap.yaml
+UPSTREAM_CATALOG_CHART:=deploy/chart/templates/18-upstreamcomponents.configmap.yaml
 
 $(OCS_CATALOG_CHART): .FORCE catalog_resources/ocs/*.crd.yaml \
 	catalog_resources/ocs/*.clusterserviceversion.yaml \
@@ -56,6 +57,11 @@ $(COMPONENT_CATALOG_CHART): .FORCE catalog_resources/components/*.crd.yaml \
 	catalog_resources/components/*.clusterserviceversion.yaml \
 	catalog_resources/components/*.package.yaml
 	. ./scripts/build_catalog_configmap.sh catalog_resources/components 'tectonic-components' $@
+
+$(UPSTREAM_CATALOG_CHART): .FORCE catalog_resources/upstream/*.crd.yaml \
+	catalog_resources/upstream/*.clusterserviceversion.yaml \
+	catalog_resources/upstream/*.package.yaml
+	. ./scripts/build_catalog_configmap.sh catalog_resources/upstream 'upstream-components' $@
 
 build/chart/values.yaml: $(values_file)
 	mkdir -p build/chart
@@ -159,10 +165,10 @@ codegen: $(CODEGEN)
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART)
+verify-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(UPSTREAM_CATALOG_CHART)
 	git diff --exit-code
 
-update-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART)
+update-catalog: $(OCS_CATALOG_CHART) $(COMPONENT_CATALOG_CHART) $(UPSTREAM_CATALOG_CHART)
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
@@ -174,5 +180,5 @@ generate-mock-client: $(counterfeiter)
 make gen-all: gen-ci codegen generate-mock-client
 
 # make ver=0.3.0 release
-make release: $(OCS_CATALOG_RELEASE) $(COMPONENT_CATALOG_RELEASE)
+make release:
 	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml

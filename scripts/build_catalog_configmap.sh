@@ -6,6 +6,7 @@ OUTFILE=${3:-'catalog_resources/ocs/tectonicocs.configmap.yaml'}
 NAMESPACE=${4:-'{{ .Values.catalog_namespace }}'}
 
 cat <<EOF > $OUTFILE
+{{- if ( has "$NAME" .Values.catalog_sources ) }}
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -47,3 +48,5 @@ do
   tail -n +3 $csv | sed 's/^/      /' >> $OUTFILE
   sed -E -i.bak 's/[[:space:]]*$//' $OUTFILE # trim trailing whitespace
 done
+
+echo "{{ end }}" >> $OUTFILE

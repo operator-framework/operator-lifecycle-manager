@@ -1,8 +1,8 @@
-{{- if ( has "tectonic-components" .Values.catalog_sources ) }}
+{{- if ( has "upstream-components" .Values.catalog_sources ) }}
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: tectonic-components
+  name: upstream-components
   namespace: {{ .Values.catalog_namespace }}
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
@@ -11,7 +11,7 @@ data:
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
-        name: chargebacks.chargeback.coreos.com
+        name: meterings.chargeback.coreos.com
         annotations:
           catalog.app.coreos.com/description: An instance of Chargeback
           catalog.app.coreos.com/displayName: Chargeback
@@ -20,10 +20,10 @@ data:
         version: v1alpha1
         scope: Namespaced
         names:
-          plural: chargebacks
-          singular: chargeback
-          kind: Chargeback
-          listKind: ChargebackList
+          plural: meterings
+          singular: metering
+          kind: Metering
+          listKind: MeteringList
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
@@ -130,15 +130,17 @@ data:
     - apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
       metadata:
-        name: chargeback-helm-operator.v0.5.1
-        namespace: placeholder
+        name: metering-helm-operator.v0.6.0
         annotations:
           tectonic-visibility: tectonic-feature
+        labels:
+          alm-catalog: tectonic-feature
+          operator-metering: "true"
       spec:
-        displayName: Chargeback
-        description: Chargeback can generate reports based on historical usage data from a cluster, providing accountability for how resources have been used.
-        keywords: [chargeback metrics reporting coreos]
-        version: 0.5.1
+        displayName: Metering
+        description: Metering can generate reports based on historical usage data from a cluster, providing accountability for how resources have been used.
+        keywords: [metering metrics reporting coreos]
+        version: 0.6.0
         maturity: alpha
         maintainers:
           - email: support@coreos.com
@@ -146,11 +148,11 @@ data:
         provider:
           name: CoreOS, Inc
         labels:
-          alm-owner-chargeback: chargeback-helm-operator
-          alm-status-descriptors: chargeback-helm-operator.v0.5.1
+          alm-owner-metering: metering-helm-operator
+          alm-status-descriptors: metering-helm-operator.v0.6.0
         selector:
           matchLabels:
-            alm-owner-chargeback: chargeback-helm-operator
+            alm-owner-metering: metering-helm-operator
         install:
           strategy: deployment
           spec:
@@ -216,6 +218,14 @@ data:
                   - get
                   - list
                   - watch
+                - apiGroups:
+                  - ""
+                  resources:
+                  - events
+                  verbs:
+                  - create
+                  - update
+                  - patch
                 - apiGroups:
                   - ""
                   resources:
@@ -287,27 +297,31 @@ data:
                   - patch
                   - update
                   - watch
-                serviceAccountName: chargeback-helm-operator
+                serviceAccountName: metering-helm-operator
             deployments:
-              - name: chargeback-helm-operator
+              - name: metering-helm-operator
                 spec:
                   replicas: 1
-                  strategy:
-                    type: Recreate
                   selector:
                     matchLabels:
-                      app: chargeback-helm-operator
+                      app: metering-helm-operator
+                  strategy:
+                    type: Recreate
                   template:
                     metadata:
                       labels:
-                        app: chargeback-helm-operator
+                        app: metering-helm-operator
                     spec:
                       containers:
-                      - env:
+                      - args:
+                        - run-operator.sh
+                        env:
                         - name: HELM_RELEASE_CRD_NAME
-                          value: Chargeback
+                          value: Metering
                         - name: HELM_RELEASE_CRD_API_GROUP
                           value: chargeback.coreos.com
+                        - name: HELM_CHART_PATH
+                          value: /operator-metering-0.1.0.tgz
                         - name: MY_POD_NAME
                           valueFrom:
                             fieldRef:
@@ -318,17 +332,15 @@ data:
                               fieldPath: metadata.namespace
                         - name: HELM_HOST
                           value: 127.0.0.1:44134
-                        - name: SET_OWNER_REFERENCE_VALUE
-                          value: "true"
                         - name: HELM_WAIT
                           value: "false"
                         - name: HELM_RECONCILE_INTERVAL_SECONDS
-                          value: "120"
+                          value: "30"
                         - name: RELEASE_HISTORY_LIMIT
                           value: "3"
-                        image: quay.io/coreos/chargeback-helm-operator:0.5.1
+                        image: quay.io/coreos/chargeback-helm-operator:0.6.0
                         imagePullPolicy: Always
-                        name: chargeback-helm-operator
+                        name: metering-helm-operator
                         resources:
                           limits:
                             cpu: 50m
@@ -336,14 +348,16 @@ data:
                           requests:
                             cpu: 50m
                             memory: 25Mi
-                      - env:
+                      - args:
+                        - /tiller
+                        env:
                         - name: TILLER_NAMESPACE
                           valueFrom:
                             fieldRef:
                               fieldPath: metadata.namespace
                         - name: TILLER_HISTORY_MAX
                           value: "3"
-                        image: gcr.io/kubernetes-helm/tiller:v2.6.2
+                        image: quay.io/coreos/chargeback-helm-operator:0.6.0
                         imagePullPolicy: Always
                         livenessProbe:
                           failureThreshold: 3
@@ -373,25 +387,23 @@ data:
                           requests:
                             cpu: 50m
                             memory: 50Mi
+                      imagePullSecrets: []
                       restartPolicy: Always
-                      serviceAccount: chargeback-helm-operator
+                      securityContext:
+                        runAsNonRoot: true
+                      serviceAccount: metering-helm-operator
                       terminationGracePeriodSeconds: 30
         customresourcedefinitions:
           owned:
-          - description: An instance of Chargeback
-            displayName: Chargeback
-            kind: Chargeback
-            name: chargebacks.chargeback.coreos.com
+          - description: An instance of Metering
+            displayName: Metering
+            kind: Metering
+            name: meterings.chargeback.coreos.com
             version: v1alpha1
           - description: A table within PrestoDB
             displayName: Chargeback Presto Table
             kind: PrestoTable
             name: prestotables.chargeback.coreos.com
-            version: v1alpha1
-          - description: A chargeback report for a specific time interval
-            displayName: Chargeback Report
-            kind: Report
-            name: reports.chargeback.coreos.com
             version: v1alpha1
           - description: A resource describing a source of data for usage by Report Generation
               Queries
@@ -409,6 +421,11 @@ data:
             kind: ReportPrometheusQuery
             name: reportprometheusqueries.chargeback.coreos.com
             version: v1alpha1
+          - description: A chargeback report for a specific time interval
+            displayName: Chargeback Report
+            kind: Report
+            name: reports.chargeback.coreos.com
+            version: v1alpha1
           - description: A chargeback report that runs on a scheduled interval
             displayName: Chargeback Scheduled Report
             kind: ScheduledReport
@@ -421,8 +438,8 @@ data:
             name: storagelocations.chargeback.coreos.com
             version: v1alpha1
   packages: |-
-    - packageName: chargeback
+    - packageName: metering
       channels:
-      - name: alpha
-        currentCSV: chargeback-helm-operator.v0.5.1
+      - currentCSV: metering-helm-operator.v0.6.0
+        name: alpha
 {{ end }}
