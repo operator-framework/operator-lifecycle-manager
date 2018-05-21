@@ -2,9 +2,15 @@
 
 OLM deployment resources are templated so that they can be easily configured for different deployment environments.
 
-## Install the latest released version of OLM
+## Install the latest released version of OLM for upstream Kubernetes
 
-Releases live in versioned folders in the [manifests directory](/deploy/tectonic-alm-operator/manifests). The simplest way to install OLM in a cluster is to:
+```sh
+kubectl apply -f deploy/upstream/manifests/0.4.0
+```
+
+## Install the latest released version of OLM for Tectonic
+
+Tectonic releases live in versioned folders in the [manifests directory](/deploy/tectonic-alm-operator/manifests). The simplest way to install OLM in a cluster is to:
 
 ```sh
 # Packaged releases of OLM are installed in tectonic-system by default

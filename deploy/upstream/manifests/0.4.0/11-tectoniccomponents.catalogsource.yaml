@@ -1,11 +1,13 @@
-{{- if ( has "tectonic-components" .Values.catalog_sources ) }}
+##---
+# Source: olm/templates/11-tectoniccomponents.catalogsource.yaml
+
 #! validate-crd: ../../deploy/chart/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1
 metadata:
   name: tectonic-components
-  namespace: {{ .Values.catalog_namespace }}
+  namespace: kube-system
   annotations:
     tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
 spec:
@@ -14,4 +16,4 @@ spec:
   configMap: tectonic-components
   displayName: Tectonic Cluster Components
   publisher: CoreOS, Inc.
-{{ end }}
+

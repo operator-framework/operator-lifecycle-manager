@@ -1,17 +1,19 @@
-{{- if ( has "tectonic-components" .Values.catalog_sources ) }}
+##---
+# Source: olm/templates/19-upstreamcomponents.catalogsource.yaml
+
 #! validate-crd: ../../deploy/chart/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1
 metadata:
-  name: tectonic-components
-  namespace: {{ .Values.catalog_namespace }}
+  name: upstream-components
+  namespace: kube-system
   annotations:
     tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
 spec:
-  name: tectonic-components
+  name: upstream-components
   sourceType: internal
-  configMap: tectonic-components
-  displayName: Tectonic Cluster Components
+  configMap: upstream-components
+  displayName: OLM Upstream Components
   publisher: CoreOS, Inc.
-{{ end }}
+

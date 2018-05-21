@@ -1,17 +1,19 @@
-{{- if ( has "tectonic-components" .Values.catalog_sources ) }}
+##---
+# Source: olm/templates/10-tectonicocs.catalogsource.yaml
+
 #! validate-crd: ../../deploy/chart/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1
 metadata:
-  name: tectonic-components
-  namespace: {{ .Values.catalog_namespace }}
+  name: tectonic-ocs
+  namespace: kube-system
   annotations:
     tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
 spec:
-  name: tectonic-components
+  name: tectonic-ocs
   sourceType: internal
-  configMap: tectonic-components
-  displayName: Tectonic Cluster Components
+  configMap: tectonic-ocs
+  displayName: Tectonic Open Cloud Services
   publisher: CoreOS, Inc.
-{{ end }}
+

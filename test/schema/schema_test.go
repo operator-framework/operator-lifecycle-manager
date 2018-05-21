@@ -289,5 +289,5 @@ func (d *DirectoryResourceValidator) ValidateResource(path string, f os.FileInfo
 
 func TestCatalogResources(t *testing.T) {
 	directoryTester := DirectoryResourceValidator{t}
-	directoryTester.ValidateResources(os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/catalog_resources")
+	directoryTester.ValidateResources(os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/chart/catalog_resources")
 }

@@ -1,0 +1,5 @@
+#! package-manifest: ../../deploy/chart/catalog_resources/components/chargeback.v0.5.1.clusterserviceversion.yaml
+packageName: chargeback
+channels:
+- name: alpha
+  currentCSV: chargeback-helm-operator.v0.5.1

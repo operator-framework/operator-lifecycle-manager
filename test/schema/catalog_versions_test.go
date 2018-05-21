@@ -10,9 +10,9 @@ import (
 
 	"encoding/json"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 )
@@ -101,6 +101,7 @@ func TestCatalogVersions(t *testing.T) {
 		require.NoError(t, err)
 		for _, f := range manifestFiles {
 			if strings.HasSuffix(f.Name(), "configmap.yaml") {
+				t.Logf("loading %s", f.Name())
 				loadedCatalog, err := loadCatalogFromFile(path.Join(manifestDir, versioned.Name(), f.Name()))
 				require.NoError(t, err)
 				loadedCatalog.Version = semverDirName.String()

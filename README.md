@@ -53,7 +53,7 @@ Learn more about the components used by OLM by reading about the [architecture] 
 
 OLM standardizes interactions with operators by requiring that the interface to an operator be via the Kubernetes API. Because we expect users to define the interfaces to their applications, OLM currently uses CRDs to define the Kubernetes API interactions.  
 
-Examples: [EtcdCluster CRD](catalog_resources/ocs/etcdcluster.crd.yaml), [EtcdBackup CRD](catalog_resources/ocs/etcdbackup.crd.yaml)
+Examples: [EtcdCluster CRD](deploy/chart/catalog_resources/ocs/etcdcluster.crd.yaml), [EtcdBackup CRD](deploy/chart/catalog_resources/ocs/etcdbackup.crd.yaml)
 
 ## Descriptors
 
@@ -85,7 +85,7 @@ OLM has the concept of catalogs, which are repositories of application definitio
 
 Catalogs contain a set of Packages, which map “channels” to a particular application definition. Channels allow package authors write different upgrade paths for different users (e.g. alpha vs. stable). 
 
-Example: [etcd package](catalog_resources/ocs/etcd.package.yaml)
+Example: [etcd package](deploy/chart/catalog_resources/ocs/etcd.package.yaml)
 
 Users can subscribe to channels and have their operators automatically updated when new versions are released.
 

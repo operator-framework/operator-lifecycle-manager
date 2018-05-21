@@ -21,7 +21,7 @@ charttmpdir=${charttmpdir}/chart
 cp -R deploy/chart/ ${charttmpdir}
 echo "version: $1" >> ${charttmpdir}/Chart.yaml
 
-mkdir ${chartdir}
+mkdir -p ${chartdir}
 
 helm template -n olm -f ${values} ${charttmpdir} --output-dir ${charttmpdir}
 

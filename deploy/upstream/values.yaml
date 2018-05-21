@@ -1,6 +1,6 @@
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: tectonic-system
-catalog_namespace: tectonic-system
+namespace: kube-system
+catalog_namespace: kube-system
 alm:
   replicaCount: 1
   image:
@@ -20,3 +20,4 @@ catalog:
 catalog_sources:
  - tectonic-ocs
  - tectonic-components
+ - upstream-components
