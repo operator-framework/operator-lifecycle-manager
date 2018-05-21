@@ -106,8 +106,8 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 			return sub, errors.New("unexpected installplan returned by k8s api on create: <nil>")
 		}
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
-			UID:        res.GetUID(),
-			Name:       res.GetName(),
+			UID:        res.UID,
+			Name:       res.Name,
 			APIVersion: res.APIVersion,
 			Kind:       res.Kind,
 		}
