@@ -103,7 +103,7 @@ To configure a release of OLM for installation in a cluster:
    # third arg is the values.yaml file
    ./scripts/package-release.sh 1.0.0-myolm ./my-olm-deployment my-values.yaml
    ```
-1. Deploy to kubernetes: `kubectl apply -f ./my-olm-deployment`
+1. Deploy to kubernetes: `kubectl apply -f ./my-olm-deployment/templates/`
 
 
 The above steps are automated for official releases with `make ver=0.3.0 release`, which will output new versions of manifests in `deploy/tectonic-alm-operator/manifests/$(ver)`.
