@@ -33,7 +33,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State == v1alpha1.SubscriptionStateAtLatest {
 		log.Infof("skipping sync: no new updates to catalog since last sync at %s",
 			sub.Status.LastUpdated.String())
-		return sub, nil
+		return nil, nil
 	}
 
 	o.sourcesLock.Lock()
