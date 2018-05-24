@@ -21,3 +21,8 @@ e2e:
     ref: quay.io/coreos/olm-e2e:local
 
 job_name: e2e
+
+catalog_sources:
+ - tectonic-ocs
+ - tectonic-components
+ - upstream-components
