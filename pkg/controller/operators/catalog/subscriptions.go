@@ -108,8 +108,8 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
 			UID:        res.GetUID(),
 			Name:       res.GetName(),
-			APIVersion: res.APIVersion,
-			Kind:       res.Kind,
+			APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+			Kind:       ipv1alpha1.InstallPlanKind,
 		}
 		return sub, nil
 	}

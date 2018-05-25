@@ -150,7 +150,11 @@ func TestSyncSubscription(t *testing.T) {
 					CurrentCSV:  "latest-and-greatest",
 					LastUpdated: earliestTime,
 					State:       v1alpha1.SubscriptionStateUpgradePending,
-					Install:     &v1alpha1.InstallPlanReference{Name: "existing-install"},
+					Install: &v1alpha1.InstallPlanReference{
+						Kind:       ipv1alpha1.InstallPlanKind,
+						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Name:       "existing-install",
+					},
 				},
 			}},
 			expected: expected{
@@ -168,7 +172,11 @@ func TestSyncSubscription(t *testing.T) {
 						CurrentCSV:  "latest-and-greatest",
 						LastUpdated: earliestTime,
 						State:       v1alpha1.SubscriptionStateUpgradePending,
-						Install:     &v1alpha1.InstallPlanReference{Name: "existing-install"},
+						Install: &v1alpha1.InstallPlanReference{
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							Name:       "existing-install",
+						},
 					},
 				},
 				err: "",
@@ -333,7 +341,11 @@ func TestSyncSubscription(t *testing.T) {
 				},
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "pending",
-					Install:    &v1alpha1.InstallPlanReference{Name: "existing-install"},
+					Install: &v1alpha1.InstallPlanReference{
+						Kind:       ipv1alpha1.InstallPlanKind,
+						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Name:       "existing-install",
+					},
 				},
 			}},
 			expected: expected{
@@ -372,7 +384,9 @@ func TestSyncSubscription(t *testing.T) {
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "latest-and-greatest",
 					Install: &v1alpha1.InstallPlanReference{
-						Name: "dead-install",
+						Kind:       ipv1alpha1.InstallPlanKind,
+						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Name:       "dead-install",
 					},
 				},
 			}},
@@ -413,8 +427,10 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							UID:  types.UID("UID-OK"),
-							Name: "installplan-1",
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							UID:        types.UID("UID-OK"),
+							Name:       "installplan-1",
 						},
 						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
@@ -486,8 +502,10 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							UID:  types.UID("UID-OK"),
-							Name: "installplan-1",
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							UID:        types.UID("UID-OK"),
+							Name:       "installplan-1",
 						},
 						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
@@ -563,8 +581,10 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							UID:  types.UID("UID-OK"),
-							Name: "installplan-1",
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							UID:        types.UID("UID-OK"),
+							Name:       "installplan-1",
 						},
 						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
