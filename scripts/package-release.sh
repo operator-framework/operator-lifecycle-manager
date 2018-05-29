@@ -3,7 +3,7 @@
 # requires helm to be installed
 
 if [[ ${#@} < 3 ]]; then
-    echo "Usage: $0 version alm-sha catalog-sha"
+    echo "Usage: $0 semver chart values"
     echo "* semver: semver-formatted version for this package"
     echo "* chart: the directory to output the chart"
     echo "* values: the values file"

@@ -1,0 +1,3 @@
+[submodule "deploy/aos-olm/openshift-ansible"]
+	path = deploy/aos-olm/openshift-ansible
+	url = https://github.com/openshift/openshift-ansible
