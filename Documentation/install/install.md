@@ -19,6 +19,17 @@ kubectl create namespace tectonic-system
 kubectl apply -f deploy/tectonic-alm-operator/manifests/0.4.0
 ```
 
+## Install with Ansible for openshift
+
+OLM should be installed via [openshift-ansible](https://github.com/openshift/openshift-ansible). The playbook in this
+repo is periodically synced with openshift-ansible and should only be used for testing releases.
+
+The playbook assumes that the hosts file has the same format as [openshift-ansible](https://github.com/openshift/openshift-ansible)
+
+```sh
+ansible-playbook -i path/to/hosts deploy/aos-olm/playbook/config.yaml
+```
+
 ## Run locally with minikube
 
 This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
