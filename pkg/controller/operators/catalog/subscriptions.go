@@ -7,6 +7,7 @@ import (
 	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -87,15 +88,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 				Approval:                   sub.GetInstallPlanApproval(),
 			},
 		}
-		owner := []metav1.OwnerReference{
-			{
-				APIVersion: v1alpha1.SchemeGroupVersion.String(),
-				Kind:       v1alpha1.SubscriptionKind,
-				Name:       sub.GetName(),
-				UID:        sub.GetUID(),
-			},
-		}
-		ip.SetOwnerReferences(owner)
+		ownerutil.AddNonBlockingOwner(ip, sub)
 		ip.SetGenerateName(fmt.Sprintf("install-%s-", sub.Status.CurrentCSV))
 		ip.SetNamespace(sub.GetNamespace())
 		res, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Create(ip)
