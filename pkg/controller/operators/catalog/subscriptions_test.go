@@ -20,12 +20,25 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
+	"k8s.io/apimachinery/pkg/util/diff"
+)
+
+var (
+	blockOwnerDeletion = false
+	isController       = false
 )
 
 func RequireActions(t *testing.T, expected, actual []core.Action) {
 	require.EqualValues(t, len(expected), len(actual), "Expected\n\t%#v\ngot\n\t%#v", expected, actual)
 	for i, a := range actual {
 		e := expected[i]
+		switch c := e.(type) {
+		case core.CreateActionImpl:
+			ac := a.(core.CreateActionImpl)
+			cObj := c.Object
+			acObj := ac.Object
+			require.True(t, equality.Semantic.DeepEqual(cObj, acObj), "Expected\n\t%#v\ngot\n\t%#v\n\tdiff:%s", cObj, acObj, diff.ObjectDiff(cObj, acObj))
+		}
 		require.True(t, equality.Semantic.DeepEqual(e, a), "Expected\n\t%#v\ngot\n\t%#v", e, a)
 	}
 }
@@ -150,7 +163,11 @@ func TestSyncSubscription(t *testing.T) {
 					CurrentCSV:  "latest-and-greatest",
 					LastUpdated: earliestTime,
 					State:       v1alpha1.SubscriptionStateUpgradePending,
-					Install:     &v1alpha1.InstallPlanReference{Name: "existing-install"},
+					Install: &v1alpha1.InstallPlanReference{
+						Kind:       ipv1alpha1.InstallPlanKind,
+						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Name:       "existing-install",
+					},
 				},
 			}},
 			expected: expected{
@@ -168,7 +185,11 @@ func TestSyncSubscription(t *testing.T) {
 						CurrentCSV:  "latest-and-greatest",
 						LastUpdated: earliestTime,
 						State:       v1alpha1.SubscriptionStateUpgradePending,
-						Install:     &v1alpha1.InstallPlanReference{Name: "existing-install"},
+						Install: &v1alpha1.InstallPlanReference{
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							Name:       "existing-install",
+						},
 					},
 				},
 				err: "",
@@ -333,7 +354,11 @@ func TestSyncSubscription(t *testing.T) {
 				},
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "pending",
-					Install:    &v1alpha1.InstallPlanReference{Name: "existing-install"},
+					Install: &v1alpha1.InstallPlanReference{
+						Kind:       ipv1alpha1.InstallPlanKind,
+						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Name:       "existing-install",
+					},
 				},
 			}},
 			expected: expected{
@@ -372,7 +397,9 @@ func TestSyncSubscription(t *testing.T) {
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "latest-and-greatest",
 					Install: &v1alpha1.InstallPlanReference{
-						Name: "dead-install",
+						Kind:       ipv1alpha1.InstallPlanKind,
+						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Name:       "dead-install",
 					},
 				},
 			}},
@@ -386,10 +413,12 @@ func TestSyncSubscription(t *testing.T) {
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: "app.coreos.com/v1alpha1",
-								Kind:       "Subscription-v1",
-								Name:       "test-subscription",
-								UID:        types.UID("subscription-uid"),
+								APIVersion:         "app.coreos.com/v1alpha1",
+								Kind:               "Subscription-v1",
+								Name:               "test-subscription",
+								UID:                types.UID("subscription-uid"),
+								BlockOwnerDeletion: &blockOwnerDeletion,
+								Controller:         &isController,
 							},
 						},
 					},
@@ -413,8 +442,10 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							UID:  types.UID("UID-OK"),
-							Name: "installplan-1",
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							UID:        types.UID("UID-OK"),
+							Name:       "installplan-1",
 						},
 						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
@@ -459,10 +490,12 @@ func TestSyncSubscription(t *testing.T) {
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: "app.coreos.com/v1alpha1",
-								Kind:       "Subscription-v1",
-								Name:       "test-subscription",
-								UID:        types.UID("subscription-uid"),
+								APIVersion:         "app.coreos.com/v1alpha1",
+								Kind:               "Subscription-v1",
+								Name:               "test-subscription",
+								UID:                types.UID("subscription-uid"),
+								BlockOwnerDeletion: &blockOwnerDeletion,
+								Controller:         &isController,
 							},
 						},
 					},
@@ -486,8 +519,10 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							UID:  types.UID("UID-OK"),
-							Name: "installplan-1",
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							UID:        types.UID("UID-OK"),
+							Name:       "installplan-1",
 						},
 						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
@@ -535,10 +570,12 @@ func TestSyncSubscription(t *testing.T) {
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: "app.coreos.com/v1alpha1",
-								Kind:       "Subscription-v1",
-								Name:       "test-subscription",
-								UID:        types.UID("subscription-uid"),
+								APIVersion:         "app.coreos.com/v1alpha1",
+								Kind:               "Subscription-v1",
+								Name:               "test-subscription",
+								UID:                types.UID("subscription-uid"),
+								BlockOwnerDeletion: &blockOwnerDeletion,
+								Controller:         &isController,
 							},
 						},
 					},
@@ -563,8 +600,10 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							UID:  types.UID("UID-OK"),
-							Name: "installplan-1",
+							Kind:       ipv1alpha1.InstallPlanKind,
+							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							UID:        types.UID("UID-OK"),
+							Name:       "installplan-1",
 						},
 						State: v1alpha1.SubscriptionStateUpgradePending,
 					},
@@ -608,10 +647,12 @@ func TestSyncSubscription(t *testing.T) {
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion: "app.coreos.com/v1alpha1",
-								Kind:       "Subscription-v1",
-								Name:       "test-subscription",
-								UID:        types.UID("subscription-uid"),
+								APIVersion:         "app.coreos.com/v1alpha1",
+								Kind:               "Subscription-v1",
+								Name:               "test-subscription",
+								UID:                types.UID("subscription-uid"),
+								BlockOwnerDeletion: &blockOwnerDeletion,
+								Controller:         &isController,
 							},
 						},
 					},
