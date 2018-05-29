@@ -169,15 +169,18 @@ $(YQ):
 
 # make ver=0.3.0 ansible-release
 ansible-release: $(YQ)
+	# ansible release uses openshift-ansible submodule
+	git submodule init
+	git submodule update
 	# copy base role to versioned release
 	mkdir -p deploy/aos-olm/$(ver)
-	cp -R deploy/role/ deploy/aos-olm/$(ver)/
+	cp -R deploy/role/. deploy/aos-olm/$(ver)/
 	# copy manifest files into release
 	./scripts/package-release.sh $(ver) deploy/aos-olm/$(ver)/files deploy/aos-olm/values.yaml
 	# generate install/remove tasks based on manifest files
 	./scripts/k8s_yaml_to_ansible_install.sh deploy/aos-olm/$(ver)/files deploy/aos-olm/$(ver)/tasks/install.yaml
 	./scripts/k8s_yaml_to_ansible_remove.sh deploy/aos-olm/$(ver)/files deploy/aos-olm/$(ver)/tasks/remove_components.yaml
 	# link newest release into playbook
-	ln -sF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
+	ln -sfF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
 
 release: tectonic-release upstream-release ansible-release
