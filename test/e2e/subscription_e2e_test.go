@@ -292,6 +292,10 @@ func TestCreateNewSubscription(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
+	// Fetch subscription again to check for unnecessary control loops
+	sameSubscription, err := fetchSubscription(t, c, testSubscriptionName)
+	compareResources(t, subscription, sameSubscription)
+
 	// Deleting subscription / installplan doesn't clean up the CSV
 	cleanupCustomResource(t, c, csvv1alpha1.GroupVersion,
 		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())()
@@ -343,4 +347,8 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 
 	require.Equal(t, v1alpha1.ApprovalManual, installPlan.Spec.Approval)
 	require.Equal(t, v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
+
+	// Fetch subscription again to check for unnecessary control loops
+	sameSubscription, err := fetchSubscription(t, c, "manual-subscription")
+	compareResources(t, subscription, sameSubscription)
 }
