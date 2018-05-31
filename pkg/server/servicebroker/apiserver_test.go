@@ -27,18 +27,18 @@ type mockCatalogLoader struct {
 
 func (m *mockCatalogLoader) Load(namespace string) (registry.Source, error) {
 	loader := registry.ConfigMapCatalogResourceLoader{
-		Catalog:   registry.NewInMem(),
 		Namespace: namespace,
 	}
+	catalog := registry.NewInMem()
 	for _, cm := range m.configMaps {
 		if namespace != "" && cm.GetNamespace() != namespace {
 			continue
 		}
-		if err := loader.LoadCatalogResourcesFromConfigMap(&cm); err != nil {
+		if err := loader.LoadCatalogResourcesFromConfigMap(catalog, &cm); err != nil {
 			return nil, err
 		}
 	}
-	return loader.Catalog, nil
+	return catalog, nil
 }
 
 func mockALMBroker(ctrl *gomock.Controller, namespace string, configMaps []v1.ConfigMap, objects []runtime.Object) *ALMBroker {

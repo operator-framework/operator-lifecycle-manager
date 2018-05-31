@@ -41,9 +41,7 @@ type LoadedCatalog struct {
 
 // loadCatalogFromFile loads an in memory catalog from a file path. Only used for testing.
 func loadCatalogFromFile(path string) (*LoadedCatalog, error) {
-	loader := registry.ConfigMapCatalogResourceLoader{
-		Catalog: registry.NewInMem(),
-	}
+	loader := registry.ConfigMapCatalogResourceLoader{}
 	currentBytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -57,12 +55,13 @@ func loadCatalogFromFile(path string) (*LoadedCatalog, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = loader.LoadCatalogResourcesFromConfigMap(&currentConfigMap)
+	catalog := registry.NewInMem()
+	err = loader.LoadCatalogResourcesFromConfigMap(catalog, &currentConfigMap)
 	if err != nil {
 		return nil, err
 	}
 	return &LoadedCatalog{
-		Registry: loader.Catalog,
+		Registry: catalog,
 		Name:     currentConfigMap.Name,
 	}, nil
 }
