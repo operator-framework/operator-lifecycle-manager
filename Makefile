@@ -17,6 +17,7 @@ all: test build
 
 test: schema-check cover.out
 
+# TODO(alecmerdler): Move this to `cmd/validator` so it can be used for external catalogs
 schema-check:
 	go test -v ./test/schema
 
