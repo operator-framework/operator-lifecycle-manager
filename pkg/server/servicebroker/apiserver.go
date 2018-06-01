@@ -97,15 +97,16 @@ func (c *inClusterCatalog) Load(namespace string) (registry.Source, error) {
 	}
 
 	// load service definitions from configmaps into temp in memory service registry
-	loader := registry.ConfigMapCatalogResourceLoader{registry.NewInMem(), namespace, c.opClient}
+	catalog := registry.NewInMem()
+	loader := registry.ConfigMapCatalogResourceLoader{namespace, c.opClient}
 	for _, cs := range csList.Items {
 		loader.Namespace = cs.GetNamespace()
-		if err := loader.LoadCatalogResources(cs.Spec.ConfigMap); err != nil {
+		if err := loader.LoadCatalogResources(catalog, cs.Spec.ConfigMap); err != nil {
 			log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
 			return nil, err
 		}
 	}
-	return loader.Catalog, nil
+	return catalog, nil
 }
 
 func (a *ALMBroker) ValidateBrokerAPIVersion(version string) error {

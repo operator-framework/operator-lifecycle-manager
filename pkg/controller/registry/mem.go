@@ -51,11 +51,12 @@ func NewInMemoryFromDirectory(directory string) (*InMem, error) {
 
 func NewInMemoryFromConfigMap(cmClient client.ConfigMapClient, namespace, cmName string) (*InMem, error) {
 	log.Infof("loading ui catalog entries from a configmap: %s", cmName)
-	loader := ConfigMapCatalogResourceLoader{NewInMem(), namespace, cmClient}
-	if err := loader.LoadCatalogResources(cmName); err != nil {
+	loader := ConfigMapCatalogResourceLoader{namespace, cmClient}
+	catalog := NewInMem()
+	if err := loader.LoadCatalogResources(catalog, cmName); err != nil {
 		return nil, err
 	}
-	return loader.Catalog, nil
+	return catalog, nil
 }
 
 // NewInMem returns a ptr to a new InMem instance

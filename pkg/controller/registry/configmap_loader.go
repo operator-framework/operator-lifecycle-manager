@@ -8,8 +8,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 	"k8s.io/api/core/v1"
 )
 
@@ -21,12 +21,11 @@ const (
 
 // ConfigMapCatalogResourceLoader loads a ConfigMap of resources into the in-memory catalog
 type ConfigMapCatalogResourceLoader struct {
-	Catalog   *InMem
 	Namespace string
 	CMClient  client.ConfigMapClient
 }
 
-func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName string) error {
+func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(catalog *InMem, configMapName string) error {
 	log.Debugf("Load ConfigMap     -- BEGIN %s", configMapName)
 
 	cm, err := d.CMClient.GetConfigMap(d.Namespace, configMapName)
@@ -34,10 +33,10 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(configMapName stri
 		log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
 		return fmt.Errorf("error loading catalog from ConfigMap %s: %s", configMapName, err)
 	}
-	return d.LoadCatalogResourcesFromConfigMap(cm)
+	return d.LoadCatalogResourcesFromConfigMap(catalog, cm)
 }
 
-func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(cm *v1.ConfigMap) error {
+func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(catalog *InMem, cm *v1.ConfigMap) error {
 	configMapName := cm.GetName()
 	found := false
 	crdListYaml, ok := cm.Data[ConfigMapCRDName]
@@ -57,7 +56,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(cm *v
 
 		for _, crd := range parsedCRDList {
 			found = true
-			d.Catalog.SetCRDDefinition(crd)
+			catalog.SetCRDDefinition(crd)
 		}
 	}
 
@@ -78,7 +77,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(cm *v
 
 		for _, csv := range parsedCSVList {
 			found = true
-			d.Catalog.setCSVDefinition(csv)
+			catalog.setCSVDefinition(csv)
 		}
 	}
 
@@ -99,11 +98,11 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(cm *v
 		}
 		for _, packageManifest := range parsedPackageManifests {
 			found = true
-			if err := d.Catalog.addPackageManifest(packageManifest); err != nil {
+			if err := catalog.addPackageManifest(packageManifest); err != nil {
 				return err
 			}
 		}
-		log.Debugf("Load ConfigMap      -- Found packages: %v", d.Catalog.packages)
+		log.Debugf("Load ConfigMap      -- Found packages: %v", catalog.packages)
 	}
 
 	if !found {

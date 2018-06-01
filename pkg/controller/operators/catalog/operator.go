@@ -58,15 +58,20 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		return nil, err
 	}
 
-	sharedInformerFactory := externalversions.NewSharedInformerFactory(crClient, wakeupInterval)
-
-	// Create an informer for each namespace.
+	// Create an informer for each watched namespace.
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range watchedNamespaces {
 		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
 		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Installplan().V1alpha1().InstallPlans().Informer())
 		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Subscription().V1alpha1().Subscriptions().Informer())
+	}
+
+	// Create an informer for each catalog namespace
+	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
+	for _, namespace := range []string{operatorNamespace} {
+		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
+		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Catalogsource().V1alpha1().CatalogSources().Informer())
 	}
 
 	// Create a new queueinformer-based operator.
@@ -86,9 +91,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	catsrcQueueInformer := queueinformer.New(
 		catsrcQueue,
-		[]cache.SharedIndexInformer{
-			sharedInformerFactory.Catalogsource().V1alpha1().CatalogSources().Informer(),
-		},
+		catsrcSharedIndexInformers,
 		op.syncCatalogSources,
 		nil,
 	)
@@ -139,7 +142,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	defer o.sourcesLock.Unlock()
 	o.sources[catsrc.GetName()] = src
 	o.sourcesLastUpdate = timeNow()
-	return err
+	return nil
 }
 
 func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
