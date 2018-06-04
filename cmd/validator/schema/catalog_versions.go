@@ -1,25 +1,22 @@
 package schema
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
 	"sort"
 	"strings"
-	"testing"
 
 	"encoding/json"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 )
 
-// FIXME(alecmerdler): Needs to support validating any directory
-var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager" +
-	"/deploy/tectonic-alm-operator/manifests"
+// var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/tectonic-alm-operator/manifests"
 
 // BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,
 // which is how manifest directories are stored
@@ -67,11 +64,13 @@ func loadCatalogFromFile(path string) (*LoadedCatalog, error) {
 	}, nil
 }
 
-func TestCatalogVersions(t *testing.T) {
+func TestCatalogVersions(manifestDir string) {
 	// for each version of the catalog, load (version-1) and verify that each OCS that has a replaces field
 	// points to an OCS in the previous version of the catalog
 	files, err := ioutil.ReadDir(manifestDir)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	versionDirs := []os.FileInfo{}
 	for _, f := range files {
@@ -98,12 +97,16 @@ func TestCatalogVersions(t *testing.T) {
 
 		// get the path of each version of the catalog
 		manifestFiles, err := ioutil.ReadDir(path.Join(manifestDir, versioned.Name()))
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 		for _, f := range manifestFiles {
 			if strings.HasSuffix(f.Name(), "configmap.yaml") {
-				t.Logf("loading %s", f.Name())
+				fmt.Printf("loading %s", f.Name())
 				loadedCatalog, err := loadCatalogFromFile(path.Join(manifestDir, versioned.Name(), f.Name()))
-				require.NoError(t, err)
+				if err != nil {
+					panic(err)
+				}
 				loadedCatalog.Version = semverDirName.String()
 				if _, ok := catalogNameVersions[loadedCatalog.Name]; !ok {
 					catalogNameVersions[loadedCatalog.Name] = []*LoadedCatalog{}
@@ -119,15 +122,21 @@ func TestCatalogVersions(t *testing.T) {
 			currentCatalog := catalogVersions[i]
 			nextCatalog := catalogVersions[i+1]
 
-			t.Logf("comparing %s version %s to %s", catalogName, currentCatalog.Version, nextCatalog.Version)
+			fmt.Printf("comparing %s version %s to %s", catalogName, currentCatalog.Version, nextCatalog.Version)
 
 			nextServices, err := nextCatalog.Registry.ListServices()
-			require.NoError(t, err)
+			if err != nil {
+				panic(err)
+			}
 			for _, csv := range nextServices {
 				if csv.Spec.Replaces != "" {
 					oldCSV, err := currentCatalog.Registry.FindCSVByName(csv.Spec.Replaces)
-					require.NoError(t, err)
-					require.NotNil(t, oldCSV)
+					if err != nil {
+						panic(err)
+					}
+					if oldCSV == nil {
+						panic(oldCSV)
+					}
 				}
 			}
 		}

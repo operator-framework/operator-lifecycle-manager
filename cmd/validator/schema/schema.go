@@ -9,10 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 
 	"github.com/ghodss/yaml"
-	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation"
@@ -29,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+// var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/chart/catalog_resources"
 
 func ReadPragmas(fileBytes []byte) (pragmas []string, err error) {
 	fileReader := bytes.NewReader(fileBytes)
@@ -80,7 +80,7 @@ func (in *Meta) DeepCopyObject() runtime.Object {
 	}
 }
 
-func ValidateKubectlable(t *testing.T, fileBytes []byte) error {
+func ValidateKubectlable(fileBytes []byte) error {
 	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
 	if err != nil {
 		return err
@@ -106,64 +106,74 @@ func ValidateKubectlable(t *testing.T, fileBytes []byte) error {
 	return nil
 }
 
-func ValidateUsingPragma(t *testing.T, pragma string, fileBytes []byte) (bool, error) {
+func ValidateUsingPragma(pragma string, fileBytes []byte) (bool, error) {
 	const ValidateCRDPrefix = "validate-crd:"
 	const ParseAsKindPrefix = "parse-kind:"
 	const PackageManifest = "package-manifest:"
 
 	switch {
 	case strings.HasPrefix(pragma, ValidateCRDPrefix):
-		return true, ValidateCRD(t, strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
+		return true, ValidateCRD(strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
 	case strings.HasPrefix(pragma, ParseAsKindPrefix):
-		return true, ValidateKind(t, strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
+		return true, ValidateKind(strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
 	case strings.HasPrefix(pragma, PackageManifest):
 		csvFilenames := strings.Split(strings.TrimSpace(strings.TrimPrefix(pragma, PackageManifest)), ",")
-		return false, ValidatePackageManifest(t, fileBytes, csvFilenames)
+		return false, ValidatePackageManifest(fileBytes, csvFilenames)
 	}
 	return false, nil
 }
 
-func ValidatePackageManifest(t *testing.T, fileBytes []byte, csvFilenames []string) error {
+func ValidatePackageManifest(fileBytes []byte, csvFilenames []string) error {
 	manifestBytesJson, err := yaml.YAMLToJSON(fileBytes)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	var packageManifest registry.PackageManifest
 	err = json.Unmarshal(manifestBytesJson, &packageManifest)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	if len(packageManifest.Channels) < 1 {
-		t.Errorf("Package manifest validation failure for package %s: Missing channels", packageManifest.PackageName)
+		fmt.Errorf("Package manifest validation failure for package %s: Missing channels", packageManifest.PackageName)
 	}
 
 	// Collect the defined CSV names.
 	csvNames := map[string]bool{}
 	for _, csvFilename := range csvFilenames {
 		csvBytes, err := ioutil.ReadFile(csvFilename)
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 
 		csvBytesJson, err := yaml.YAMLToJSON(csvBytes)
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 
 		csv := v1alpha1.ClusterServiceVersion{}
 		err = json.Unmarshal(csvBytesJson, &csv)
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 
 		csvNames[csv.Name] = true
 	}
 
 	if len(packageManifest.PackageName) == 0 {
-		t.Errorf("Empty package name")
+		fmt.Errorf("Empty package name")
 	}
 
 	// Make sure that each channel name is unique and that the referenced CSV exists.
 	channelMap := make(map[string]bool, len(packageManifest.Channels))
 	for _, channel := range packageManifest.Channels {
 		if _, exists := channelMap[channel.Name]; exists {
-			t.Errorf("Channel %s declared twice in package manifest", channel.Name)
+			fmt.Errorf("Channel %s declared twice in package manifest", channel.Name)
 		}
 
 		if _, ok := csvNames[channel.CurrentCSVName]; !ok {
-			t.Errorf("Missing CSV with name %s", channel.CurrentCSVName)
+			fmt.Errorf("Missing CSV with name %s", channel.CurrentCSVName)
 		}
 
 		channelMap[channel.Name] = true
@@ -172,27 +182,39 @@ func ValidatePackageManifest(t *testing.T, fileBytes []byte, csvFilenames []stri
 	return nil
 }
 
-func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
+func ValidateCRD(schemaFileName string, fileBytes []byte) error {
 	schemaBytes, err := ioutil.ReadFile(schemaFileName)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	schemaBytesJson, err := yaml.YAMLToJSON(schemaBytes)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	crd := v1beta1.CustomResourceDefinition{}
 	json.Unmarshal(schemaBytesJson, &crd)
 
 	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	unstructured := unstructured.Unstructured{}
 	err = json.Unmarshal(exampleFileBytesJson, &unstructured)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	// Validate CRD definition statically
 	scheme := runtime.NewScheme()
 	err = apiextensions.AddToScheme(scheme)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	err = v1beta1.AddToScheme(scheme)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	unversionedCRD := apiextensions.CustomResourceDefinition{}
 	scheme.Converter().Convert(&crd, &unversionedCRD, conversion.SourceToDest, nil)
@@ -201,7 +223,7 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 		for _, ferr := range errList {
 			fmt.Println(ferr)
 		}
-		t.Errorf("CRD failed validation: %s. Errors: %s", schemaFileName, errList)
+		fmt.Errorf("CRD failed validation: %s. Errors: %s", schemaFileName, errList)
 	}
 
 	// Validate CR against CRD schema
@@ -209,20 +231,26 @@ func ValidateCRD(t *testing.T, schemaFileName string, fileBytes []byte) error {
 	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent(), validator)
 }
 
-func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {
+func ValidateKind(kind string, fileBytes []byte) error {
 	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	switch kind {
 	case "ClusterServiceVersion":
 		csv := v1alpha1.ClusterServiceVersion{}
 		err = json.Unmarshal(exampleFileBytesJson, &csv)
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 		return err
 	case "CatalogSource":
 		cs := catalogsourcev1alpha1.CatalogSource{}
 		err = json.Unmarshal(exampleFileBytesJson, &cs)
-		require.NoError(t, err)
+		if err != nil {
+			panic(err)
+		}
 		return err
 	default:
 		return fmt.Errorf("didn't recognize validate-kind directive: %s", kind)
@@ -230,64 +258,69 @@ func ValidateKind(t *testing.T, kind string, fileBytes []byte) error {
 	return nil
 }
 
-func ValidateResource(t *testing.T, path string, f os.FileInfo, err error) error {
-	require.NoError(t, err)
+func ValidateResource(path string, f os.FileInfo, err error) error {
+	if err != nil {
+		panic(err)
+	}
 
 	exampleFileReader, err := os.Open(path)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	defer exampleFileReader.Close()
 
 	fileReader := bufio.NewReader(exampleFileReader)
 	fileBytes, err := ioutil.ReadAll(fileReader)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 	pragmas, err := ReadPragmas(fileBytes)
-	require.NoError(t, err)
+	if err != nil {
+		panic(err)
+	}
 
 	isKubResource := false
 	for _, pragma := range pragmas {
 		fileReader.Reset(exampleFileReader)
-		isKub, err := ValidateUsingPragma(t, pragma, fileBytes)
+		isKub, err := ValidateUsingPragma(pragma, fileBytes)
 		if err != nil {
-			t.Errorf("validating %s: %v", path, err)
+			fmt.Errorf("validating %s: %v", path, err)
 		}
 		isKubResource = isKubResource || isKub
 	}
 
 	if isKubResource {
-		err = ValidateKubectlable(t, fileBytes)
+		err = ValidateKubectlable(fileBytes)
 		if err != nil {
-			t.Errorf("validating %s: %v", path, err)
+			fmt.Errorf("validating %s: %v", path, err)
 		}
 	}
 
 	return nil
 }
 
-type DirectoryResourceValidator struct {
-	t *testing.T
-}
+func ValidateResources(directory string) {
+	err := filepath.Walk(directory, func(path string, f os.FileInfo, err error) error {
+		if f.IsDir() {
+			return nil
+		}
 
-func (d *DirectoryResourceValidator) ValidateResources(directory string) {
-	err := filepath.Walk(directory, d.ValidateResource)
-	require.NoError(d.t, err)
-}
+		if !strings.HasSuffix(path, ".yaml") {
+			return nil
+		}
 
-func (d *DirectoryResourceValidator) ValidateResource(path string, f os.FileInfo, err error) error {
-	if f.IsDir() {
+		fmt.Sprintf("validate %s", path)
+		if ValidateResource(path, f, err) != nil {
+			panic(err)
+		}
+
 		return nil
-	}
-
-	if !strings.HasSuffix(path, ".yaml") {
-		return nil
-	}
-
-	d.t.Run(fmt.Sprintf("validate %s", path), func(t *testing.T) {
-		require.NoError(t, ValidateResource(t, path, f, err))
 	})
-	return nil
+	if err != nil {
+		panic(err)
+	}
 }
 
-func TestCatalogResources(t *testing.T) {
-	directoryTester := DirectoryResourceValidator{t}
-	directoryTester.ValidateResources(os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/chart/catalog_resources")
+func TestCatalogResources(manifestDir string) {
+	ValidateResources(manifestDir)
 }
