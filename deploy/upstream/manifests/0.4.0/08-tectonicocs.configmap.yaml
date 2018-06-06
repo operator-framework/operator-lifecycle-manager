@@ -183,7 +183,7 @@ data:
             - vaultsrv
       
   clusterServiceVersions: |-
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -359,7 +359,7 @@ data:
                 x-descriptors:
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -642,7 +642,7 @@ data:
                 x-descriptors: 
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -925,7 +925,7 @@ data:
                 x-descriptors: 
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -1167,7 +1167,7 @@ data:
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -1433,7 +1433,7 @@ data:
               x-descriptors:
                 - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -1622,7 +1622,7 @@ data:
             displayName: etcd Restore
             description: Represents one try of restoring etcd cluster from previous backup
       
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -1789,19 +1789,19 @@ data:
             description: Represents a cluster of etcd nodes.
       
   packages: |-
-    - #! package-manifest: ../../deploy/chart/catalog_resources/ocs/etcdoperator.v0.9.2.clusterserviceversion.yaml
+    - #! package-manifest: ./deploy/chart/catalog_resources/ocs/etcdoperator.v0.9.2.clusterserviceversion.yaml
       packageName: etcd
       channels:
       - name: alpha
         currentCSV: etcdoperator.v0.9.2
       
-    - #! package-manifest: ../../deploy/chart/catalog_resources/ocs/prometheusoperator.0.15.0.clusterserviceversion.yaml
+    - #! package-manifest: ./deploy/chart/catalog_resources/ocs/prometheusoperator.0.15.0.clusterserviceversion.yaml
       packageName: prometheus
       channels:
       - name: alpha
         currentCSV: prometheusoperator.0.15.0
       
-    - #! package-manifest: ../../deploy/chart/catalog_resources/ocs/vaultoperator.0.1.9.clusterserviceversion.yaml
+    - #! package-manifest: ./deploy/chart/catalog_resources/ocs/vaultoperator.0.1.9.clusterserviceversion.yaml
       packageName: vault
       channels:
       - name: alpha

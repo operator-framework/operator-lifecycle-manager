@@ -65,8 +65,8 @@ func loadCatalogFromFile(path string) (*LoadedCatalog, error) {
 }
 
 func TestCatalogVersions(manifestDir string) {
-	// for each version of the catalog, load (version-1) and verify that each OCS that has a replaces field
-	// points to an OCS in the previous version of the catalog
+	// For each version of the catalog, load (version-1) and verify that each OCS that has a replaces field
+	// which points to an OCS in the previous version of the catalog
 	files, err := ioutil.ReadDir(manifestDir)
 	if err != nil {
 		panic(err)

@@ -1,4 +1,4 @@
-#! package-manifest: ../../deploy/chart/catalog_resources/upstream/metering.0.6.0.clusterserviceversion.yaml
+#! package-manifest: ./deploy/chart/catalog_resources/upstream/metering.0.6.0.clusterserviceversion.yaml
 packageName: metering
 channels:
 - currentCSV: metering-helm-operator.v0.6.0

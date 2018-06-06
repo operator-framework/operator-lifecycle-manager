@@ -18,7 +18,7 @@ all: test build
 test: schema-check cover.out
 
 schema-check:
-	go run ./cmd/validator ./deploy/chart/catalog_resources
+	go run ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
 	go test -v -race -coverprofile=cover.out -covermode=atomic \

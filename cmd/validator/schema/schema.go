@@ -30,7 +30,7 @@ import (
 
 // var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/chart/catalog_resources"
 
-func ReadPragmas(fileBytes []byte) (pragmas []string, err error) {
+func readPragmas(fileBytes []byte) (pragmas []string, err error) {
 	fileReader := bytes.NewReader(fileBytes)
 	fileBufReader := bufio.NewReader(fileReader)
 	for {
@@ -80,7 +80,7 @@ func (in *Meta) DeepCopyObject() runtime.Object {
 	}
 }
 
-func ValidateKubectlable(fileBytes []byte) error {
+func validateKubectlable(fileBytes []byte) error {
 	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
 	if err != nil {
 		return err
@@ -106,24 +106,24 @@ func ValidateKubectlable(fileBytes []byte) error {
 	return nil
 }
 
-func ValidateUsingPragma(pragma string, fileBytes []byte) (bool, error) {
-	const ValidateCRDPrefix = "validate-crd:"
+func validateUsingPragma(pragma string, fileBytes []byte) (bool, error) {
+	const validateCRDPrefix = "validate-crd:"
 	const ParseAsKindPrefix = "parse-kind:"
 	const PackageManifest = "package-manifest:"
 
 	switch {
-	case strings.HasPrefix(pragma, ValidateCRDPrefix):
-		return true, ValidateCRD(strings.TrimSpace(strings.TrimPrefix(pragma, ValidateCRDPrefix)), fileBytes)
+	case strings.HasPrefix(pragma, validateCRDPrefix):
+		return true, validateCRD(strings.TrimSpace(strings.TrimPrefix(pragma, validateCRDPrefix)), fileBytes)
 	case strings.HasPrefix(pragma, ParseAsKindPrefix):
-		return true, ValidateKind(strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
+		return true, validateKind(strings.TrimSpace(strings.TrimPrefix(pragma, ParseAsKindPrefix)), fileBytes)
 	case strings.HasPrefix(pragma, PackageManifest):
 		csvFilenames := strings.Split(strings.TrimSpace(strings.TrimPrefix(pragma, PackageManifest)), ",")
-		return false, ValidatePackageManifest(fileBytes, csvFilenames)
+		return false, validatePackageManifest(fileBytes, csvFilenames)
 	}
 	return false, nil
 }
 
-func ValidatePackageManifest(fileBytes []byte, csvFilenames []string) error {
+func validatePackageManifest(fileBytes []byte, csvFilenames []string) error {
 	manifestBytesJson, err := yaml.YAMLToJSON(fileBytes)
 	if err != nil {
 		panic(err)
@@ -182,7 +182,7 @@ func ValidatePackageManifest(fileBytes []byte, csvFilenames []string) error {
 	return nil
 }
 
-func ValidateCRD(schemaFileName string, fileBytes []byte) error {
+func validateCRD(schemaFileName string, fileBytes []byte) error {
 	schemaBytes, err := ioutil.ReadFile(schemaFileName)
 	if err != nil {
 		panic(err)
@@ -231,7 +231,7 @@ func ValidateCRD(schemaFileName string, fileBytes []byte) error {
 	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent(), validator)
 }
 
-func ValidateKind(kind string, fileBytes []byte) error {
+func validateKind(kind string, fileBytes []byte) error {
 	exampleFileBytesJson, err := yaml.YAMLToJSON(fileBytes)
 	if err != nil {
 		panic(err)
@@ -258,7 +258,7 @@ func ValidateKind(kind string, fileBytes []byte) error {
 	return nil
 }
 
-func ValidateResource(path string, f os.FileInfo, err error) error {
+func validateResource(path string, f os.FileInfo, err error) error {
 	if err != nil {
 		panic(err)
 	}
@@ -274,7 +274,7 @@ func ValidateResource(path string, f os.FileInfo, err error) error {
 	if err != nil {
 		panic(err)
 	}
-	pragmas, err := ReadPragmas(fileBytes)
+	pragmas, err := readPragmas(fileBytes)
 	if err != nil {
 		panic(err)
 	}
@@ -282,7 +282,7 @@ func ValidateResource(path string, f os.FileInfo, err error) error {
 	isKubResource := false
 	for _, pragma := range pragmas {
 		fileReader.Reset(exampleFileReader)
-		isKub, err := ValidateUsingPragma(pragma, fileBytes)
+		isKub, err := validateUsingPragma(pragma, fileBytes)
 		if err != nil {
 			fmt.Errorf("validating %s: %v", path, err)
 		}
@@ -290,7 +290,7 @@ func ValidateResource(path string, f os.FileInfo, err error) error {
 	}
 
 	if isKubResource {
-		err = ValidateKubectlable(fileBytes)
+		err = validateKubectlable(fileBytes)
 		if err != nil {
 			fmt.Errorf("validating %s: %v", path, err)
 		}
@@ -299,7 +299,7 @@ func ValidateResource(path string, f os.FileInfo, err error) error {
 	return nil
 }
 
-func ValidateResources(directory string) {
+func validateResources(directory string) {
 	err := filepath.Walk(directory, func(path string, f os.FileInfo, err error) error {
 		if f.IsDir() {
 			return nil
@@ -309,8 +309,8 @@ func ValidateResources(directory string) {
 			return nil
 		}
 
-		fmt.Sprintf("validate %s", path)
-		if ValidateResource(path, f, err) != nil {
+		fmt.Printf("validate %s\n", path)
+		if validateResource(path, f, err) != nil {
 			panic(err)
 		}
 
@@ -322,5 +322,5 @@ func ValidateResources(directory string) {
 }
 
 func TestCatalogResources(manifestDir string) {
-	ValidateResources(manifestDir)
+	validateResources(manifestDir)
 }
