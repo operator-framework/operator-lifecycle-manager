@@ -114,7 +114,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 		},
 	}
 
-	// Create a new installplan for vault with manual approval
+	// Create a new InstallPlan for Vault with manual approval
 	cleanup, err := decorateCommonAndCreateInstallPlan(c, vaultInstallPlan)
 	require.NoError(t, err)
 	defer cleanup()
@@ -122,33 +122,65 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	// Get InstallPlan and verify status
 	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanRequiresApprovalChecker)
 	require.NoError(t, err)
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseRequiresApproval, fetchedInstallPlan.Status.Phase)
 
-	vaultResourcesPresent := 0
+	var verifyResources = func(installPlan *installplanv1alpha1.InstallPlan, shouldBeCreated bool) int {
+		resourcesPresent := 0
+		// Step through the InstallPlan and check if resources have been created or not
+		for _, step := range installPlan.Status.Plan {
+			t.Logf("Verifiying that %s %s is not present", step.Resource.Kind, step.Resource.Name)
+			if step.Resource.Kind == "CustomResourceDefinition" {
+				// _, err := c.GetCustomResourceDefinition(step.Resource.Name)
 
-	// Step through the InstallPlan and check if resources have been created
-	for _, step := range fetchedInstallPlan.Status.Plan {
-		t.Logf("Verifiying that %s %s is not present", step.Resource.Kind, step.Resource.Name)
-		if step.Resource.Kind == "CustomResourceDefinition" {
-			_, err := c.GetCustomResourceDefinition(step.Resource.Name)
+				// FIXME: CI cluster will already have the CRDs so this will always fail
+				if shouldBeCreated {
+					// require.NoError(t, err)
+					// resourcesPresent = resourcesPresent + 1
+				} else {
+					// require.Error(t, err)
+				}
+			} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
+				_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
 
-			require.NoError(t, err)
-			vaultResourcesPresent = vaultResourcesPresent + 1
-		} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
-			_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
+				if shouldBeCreated {
+					require.NoError(t, err)
+					resourcesPresent = resourcesPresent + 1
+				} else {
+					require.Error(t, err)
+				}
+			} else if step.Resource.Kind == "Secret" {
+				_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
 
-			require.NoError(t, err)
-			vaultResourcesPresent = vaultResourcesPresent + 1
-		} else if step.Resource.Kind == "Secret" {
-			_, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(step.Resource.Name, metav1.GetOptions{})
-
-			require.NoError(t, err)
+				if shouldBeCreated {
+					require.NoError(t, err)
+					resourcesPresent = resourcesPresent + 1
+				} else {
+					require.Error(t, err)
+				}
+			}
 		}
+		return resourcesPresent
 	}
 
-	// Result: Ensure that the InstallPlan actually creates no vault resources
+	vaultResourcesPresent := verifyResources(fetchedInstallPlan, false)
+	// Result: Ensure that the InstallPlan does not actually create Vault resources
 	t.Logf("%d Vault Resources present", vaultResourcesPresent)
 	require.Zero(t, vaultResourcesPresent)
+
+	// Approve InstallPlan and update
+	fetchedInstallPlan.Spec.Approved = true
+	ipUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&fetchedInstallPlan)
+	require.NoError(t, err)
+	err = c.UpdateCustomResource(&unstructured.Unstructured{Object: ipUnst})
+	require.NoError(t, err)
+
+	approvedInstallPlan, err := fetchInstallPlan(t, c, fetchedInstallPlan.GetName(), installPlanCompleteChecker)
+	require.NoError(t, err)
+
+	vaultResourcesPresent = verifyResources(approvedInstallPlan, true)
+	// Result: Ensure that the InstallPlan actually creates Vault resources
+	t.Logf("%d Vault Resources present", vaultResourcesPresent)
+	require.NotZero(t, vaultResourcesPresent)
+
 }
 
 // This captures the current state of OLM where Failed InstallPlans aren't implemented and should be removed in the future
