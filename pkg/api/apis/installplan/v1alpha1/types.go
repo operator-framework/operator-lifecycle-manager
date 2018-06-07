@@ -54,7 +54,6 @@ type InstallPlanConditionType string
 
 const (
 	InstallPlanResolved  InstallPlanConditionType = "Resolved"
-	InstallPlanApproved  InstallPlanConditionType = "Approved"
 	InstallPlanInstalled InstallPlanConditionType = "Installed"
 )
 

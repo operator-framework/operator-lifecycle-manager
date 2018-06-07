@@ -204,6 +204,7 @@ var _ installPlanTransitioner = &Operator{}
 
 func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1alpha1.InstallPlan) error {
 	if plan.Spec.Approval == v1alpha1.ApprovalManual && plan.Spec.Approved != true {
+		// FIXME(alecmerdler): Need to add `status.plan` even if not approved to show dry run UI
 		log.Debugf("plan %s is not approved, skipping sync", plan.SelfLink)
 		plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
 		return nil
