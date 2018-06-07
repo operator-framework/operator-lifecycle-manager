@@ -206,20 +206,9 @@ type installPlanTransitioner interface {
 var _ installPlanTransitioner = &Operator{}
 
 func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1alpha1.InstallPlan) error {
-	if plan.Spec.Approval == v1alpha1.ApprovalManual && plan.Spec.Approved != true {
-		log.Debugf("plan %s is not approved, skipping sync", plan.SelfLink)
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
-		return nil
-	}
-
 	switch plan.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
 		log.Debugf("plan %s phase unrecognized, setting to Planning", plan.SelfLink)
-		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
-		return nil
-
-	case v1alpha1.InstallPlanPhaseRequiresApproval:
-		log.Debugf("plan %s approved, setting to Planning", plan.SelfLink)
 		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 		return nil
 
@@ -232,7 +221,21 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1al
 			return err
 		}
 		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+
+		if plan.Spec.Approval == v1alpha1.ApprovalManual && plan.Spec.Approved != true {
+			plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+		} else {
+			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		}
+		return nil
+
+	case v1alpha1.InstallPlanPhaseRequiresApproval:
+		if plan.Spec.Approved {
+			log.Debugf("plan %s approved, setting to Planning", plan.SelfLink)
+			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		} else {
+			log.Debugf("plan %s is not approved, skipping sync", plan.SelfLink)
+		}
 		return nil
 
 	case v1alpha1.InstallPlanPhaseInstalling:

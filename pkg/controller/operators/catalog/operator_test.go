@@ -70,6 +70,8 @@ func TestTransitionInstallPlan(t *testing.T) {
 
 		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseInstalling, resolved},
 		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseInstalling, resolved},
+		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, resolved},
+		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhaseInstalling, resolved},
 		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, unresolved},
 		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, unresolved},
 
@@ -79,7 +81,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, failed},
 
 		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, nil},
-		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhasePlanning, nil},
+		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhaseInstalling, nil},
 	}
 	for _, tt := range table {
 		// Create a plan in the provided initial phase.
