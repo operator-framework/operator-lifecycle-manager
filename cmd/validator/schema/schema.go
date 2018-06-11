@@ -28,8 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-// var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/chart/catalog_resources"
-
 func readPragmas(fileBytes []byte) (pragmas []string, err error) {
 	fileReader := bytes.NewReader(fileBytes)
 	fileBufReader := bufio.NewReader(fileReader)

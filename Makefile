@@ -1,6 +1,6 @@
-################################
-#  OLM - Build, Test, and Run  #
-################################
+##########################
+#  OLM - Build and Test  #
+##########################
 
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
@@ -145,7 +145,8 @@ codegen: $(CODEGEN)
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog: schema-check
+verify-catalog:
+	go test -v ./test/schema/catalog_versions_test.go
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
