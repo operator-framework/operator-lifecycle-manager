@@ -63,11 +63,13 @@ manifests: $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml
 	helm template -n olm -f build/chart/values.yaml build/chart --output-dir build/resources
 
 run-local: values_file = Documentation/install/local-values.yaml
+run-local: ver=0.0.0-local
 run-local: release
 	. ./scripts/build_local.sh
 	. ./scripts/install_local.sh local build/resources
 
 run-local-shift: values_file = Documentation/install/local-values-shift.yaml
+run-local-shift: ver=0.0.0-local
 run-local-shift: manifests
 	sed -i 's/rbac.authorization.k8s.io/authorization.openshift.io/' build/resources/02-alm-operator.rolebinding.yaml
 	. ./scripts/build_local_shift.sh
