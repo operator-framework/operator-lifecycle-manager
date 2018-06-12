@@ -145,7 +145,7 @@ codegen: $(CODEGEN)
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog:
+verify-catalog: schema-check
 	go test -v ./test/schema/catalog_versions_test.go
 
 counterfeiter := $(GOBIN)/counterfeiter

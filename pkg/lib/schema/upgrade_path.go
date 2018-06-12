@@ -14,38 +14,41 @@ import (
 type Files map[string][]byte
 
 // Glob searches the `/manifests` directory for files matching the pattern and returns them.
-func Glob(pattern string) Files {
+func Glob(pattern string) (Files, error) {
 	matching := map[string][]byte{}
 	files, err := filepath.Glob(pattern)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	for _, name := range files {
 		bytes, err := ioutil.ReadFile(name)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		matching[name] = bytes
 	}
 
-	return matching
+	return matching, nil
 }
 
-// TestUpgradePath checks that every ClusterServiceVersion in a package directory has a valid `spec.replaces` field.
-func TestUpgradePath(packageDir string) {
+// CheckUpgradePath checks that every ClusterServiceVersion in a package directory has a valid `spec.replaces` field.
+func CheckUpgradePath(packageDir string) error {
 	replaces := map[string]string{}
-	csvFiles := Glob(filepath.Join(packageDir, "**.clusterserviceversion.yaml"))
+	csvFiles, err := Glob(filepath.Join(packageDir, "**.clusterserviceversion.yaml"))
+	if err != nil {
+		return err
+	}
 
 	for _, bytes := range csvFiles {
 		jsonBytes, err := yaml.YAMLToJSON(bytes)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		var csv csvv1alpha1.ClusterServiceVersion
 		err = json.Unmarshal(jsonBytes, &csv)
 		if err != nil {
-			panic(err)
+			return err
 		}
 		replaces[csv.ObjectMeta.Name] = csv.Spec.Replaces
 	}
@@ -55,7 +58,8 @@ func TestUpgradePath(packageDir string) {
 
 		if _, ok := replaces[replaced]; replaced != "" && !ok {
 			err := fmt.Errorf("%s should replace %s, which does not exist", replacing, replaced)
-			panic(err)
+			return err
 		}
 	}
+	return nil
 }
