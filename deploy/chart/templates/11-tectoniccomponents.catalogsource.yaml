@@ -1,5 +1,5 @@
 {{- if ( has "tectonic-components" .Values.catalog_sources ) }}
-#! validate-crd: ../../deploy/chart/templates/05-catalogsource.crd.yaml
+#! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: app.coreos.com/v1alpha1
 kind: CatalogSource-v1

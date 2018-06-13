@@ -1,4 +1,4 @@
-#! package-manifest: ../../deploy/chart/catalog_resources/ocs/vaultoperator.0.1.9.clusterserviceversion.yaml
+#! package-manifest: ./deploy/chart/catalog_resources/ocs/vaultoperator.0.1.9.clusterserviceversion.yaml
 packageName: vault
 channels:
 - name: alpha

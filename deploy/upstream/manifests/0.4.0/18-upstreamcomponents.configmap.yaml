@@ -138,7 +138,7 @@ data:
           kind: StorageLocation
       
   clusterServiceVersions: |-
-    - #! validate-crd: ../../deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: app.coreos.com/v1alpha1
       kind: ClusterServiceVersion-v1
@@ -453,7 +453,7 @@ data:
             version: v1alpha1
       
   packages: |-
-    - #! package-manifest: ../../deploy/chart/catalog_resources/upstream/metering.0.6.0.clusterserviceversion.yaml
+    - #! package-manifest: ./deploy/chart/catalog_resources/upstream/metering.0.6.0.clusterserviceversion.yaml
       packageName: metering
       channels:
       - currentCSV: metering-helm-operator.v0.6.0

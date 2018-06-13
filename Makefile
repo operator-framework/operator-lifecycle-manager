@@ -18,7 +18,7 @@ all: test build
 test: schema-check cover.out
 
 schema-check:
-	go test -v ./test/schema
+	go run ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
 	go test -v -race -coverprofile=cover.out -covermode=atomic \
@@ -146,6 +146,7 @@ verify-codegen: codegen
 	git diff --exit-code
 
 verify-catalog: schema-check
+	go test -v ./test/schema/catalog_versions_test.go
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
