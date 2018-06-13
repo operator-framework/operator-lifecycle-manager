@@ -26,16 +26,6 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
-  name = "github.com/coreos-inc/tectonic-operators"
-  packages = [
-    "lib/manifest/diff",
-    "operator-client/pkg/client",
-    "operator-client/pkg/types"
-  ]
-  revision = "ce8f852845eb091e00f22718ba6f84113271b1f7"
-  version = "beryllium-m1"
-
-[[projects]]
   name = "github.com/coreos/go-semver"
   packages = ["semver"]
   revision = "8ab6407b697782a06568d4b7f1db25550ec2e4c6"
@@ -136,12 +126,6 @@
   name = "github.com/golang/glog"
   packages = ["."]
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/golang/groupcache"
-  packages = ["lru"]
-  revision = "24b0969c4cb722950103eed87108c8d291a8df00"
 
 [[projects]]
   name = "github.com/golang/mock"
@@ -513,8 +497,10 @@
     "pkg/apis/apiextensions/validation",
     "pkg/apiserver/validation",
     "pkg/client/clientset/clientset",
+    "pkg/client/clientset/clientset/fake",
     "pkg/client/clientset/clientset/scheme",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
+    "pkg/client/clientset/clientset/typed/apiextensions/v1beta1/fake",
     "pkg/features"
   ]
   revision = "57b18d0a31ddcb1b50670da5be8488cb1871eb61"
@@ -719,11 +705,8 @@
     "tools/clientcmd/api",
     "tools/clientcmd/api/latest",
     "tools/clientcmd/api/v1",
-    "tools/leaderelection",
-    "tools/leaderelection/resourcelock",
     "tools/metrics",
     "tools/pager",
-    "tools/record",
     "tools/reference",
     "transport",
     "util/buffer",
@@ -748,6 +731,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "670fb2eee0078b14ff3a6ae5e0ca1bae59eb2bfdb887e7482b7b6a4ce99dfb49"
+  inputs-digest = "c734a0505cfdef192b476eeb0317adb0421644b3eb69b6c8f8e50927b6e9a873"
   solver-name = "gps-cdcl"
   solver-version = 1
