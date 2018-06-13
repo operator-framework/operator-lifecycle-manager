@@ -9,9 +9,9 @@ import (
 
 	"fmt"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
@@ -30,18 +30,18 @@ type cleanupFunc func()
 
 var immediateDeleteGracePeriod int64 = 0
 
-func buildCSVCleanupFunc(t *testing.T, c opClient.Interface, csv v1alpha1.ClusterServiceVersion, deleteCRDs bool) cleanupFunc {
+func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, csv v1alpha1.ClusterServiceVersion, deleteCRDs bool) cleanupFunc {
 	return func() {
 		require.NoError(t, c.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csv.GetName()))
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
-				require.NoError(t, c.DeleteCustomResourceDefinition(crd.Name, &metav1.DeleteOptions{}))
+				require.NoError(t, c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{}))
 			}
 		}
 	}
 }
 
-func createCSV(t *testing.T, c opClient.Interface, csv v1alpha1.ClusterServiceVersion, cleanupCRDs bool) (cleanupFunc, error) {
+func createCSV(t *testing.T, c operatorclient.ClientInterface, csv v1alpha1.ClusterServiceVersion, cleanupCRDs bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
 	csv.Namespace = testNamespace
@@ -53,17 +53,17 @@ func createCSV(t *testing.T, c opClient.Interface, csv v1alpha1.ClusterServiceVe
 
 }
 
-func buildCRDCleanupFunc(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) cleanupFunc {
+func buildCRDCleanupFunc(c operatorclient.ClientInterface, crd extv1beta1.CustomResourceDefinition) cleanupFunc {
 	return func() {
-		err := c.DeleteCustomResourceDefinition(crd.Name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
+		err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
 		if err != nil {
 			fmt.Println(err)
 		}
 	}
 }
 
-func createCRD(c opClient.Interface, crd extv1beta1.CustomResourceDefinition) (cleanupFunc, error) {
-	err := c.CreateCustomResourceDefinition(&crd)
+func createCRD(c operatorclient.ClientInterface, crd extv1beta1.CustomResourceDefinition) (cleanupFunc, error) {
+	_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ var csvReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting
 }
 
-func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+func fetchCSV(t *testing.T, c operatorclient.ClientInterface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
@@ -135,7 +135,7 @@ func fetchCSV(t *testing.T, c opClient.Interface, name string, checker csvCondit
 	return fetched, err
 }
 
-func waitForDeploymentToDelete(t *testing.T, c opClient.Interface, name string) error {
+func waitForDeploymentToDelete(t *testing.T, c operatorclient.ClientInterface, name string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("waiting for deployment %s to delete", name)
 		_, err := c.GetDeployment(testNamespace, name)
@@ -151,7 +151,7 @@ func waitForDeploymentToDelete(t *testing.T, c opClient.Interface, name string) 
 	})
 }
 
-func waitForCSVToDelete(t *testing.T, c opClient.Interface, name string) (*v1alpha1.ClusterServiceVersion, error) {
+func waitForCSVToDelete(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 

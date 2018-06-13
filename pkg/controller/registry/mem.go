@@ -8,8 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-
-	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // InMem - catalog source implementation that stores the data in memory in golang maps
@@ -49,7 +48,7 @@ func NewInMemoryFromDirectory(directory string) (*InMem, error) {
 	return loader.Catalog, nil
 }
 
-func NewInMemoryFromConfigMap(cmClient client.ConfigMapClient, namespace, cmName string) (*InMem, error) {
+func NewInMemoryFromConfigMap(cmClient operatorclient.ClientInterface, namespace, cmName string) (*InMem, error) {
 	log.Infof("loading ui catalog entries from a configmap: %s", cmName)
 	loader := ConfigMapCatalogResourceLoader{namespace, cmClient}
 	catalog := NewInMem()

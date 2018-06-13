@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // MockListWatcher mocks k8s.io/client-go/tools/cache.ListerWatcher.
@@ -28,12 +28,12 @@ func (l *MockListWatcher) Watch(options metav1.ListOptions) (watch.Interface, er
 type MockOperator struct {
 	Operator
 	testQueueInformers []*TestQueueInformer
-	MockClient         *opClient.MockInterface
+	MockClient         *operatorclient.MockClientInterface
 }
 
 // NewMockOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
 func NewMockOperator(gomockCtrl *gomock.Controller, testQueueInformers ...*TestQueueInformer) *MockOperator {
-	mockClient := opClient.NewMockInterface(gomockCtrl)
+	mockClient := operatorclient.NewMockClientInterface(gomockCtrl)
 
 	if testQueueInformers == nil {
 		testQueueInformers = []*TestQueueInformer{}

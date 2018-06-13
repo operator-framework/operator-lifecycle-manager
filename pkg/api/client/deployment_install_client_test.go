@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -404,7 +404,7 @@ func TestEnsureServiceAccount(t *testing.T) {
 		testName := fmt.Sprintf("%s: %s", tt.name, tt.subname)
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockOpClient := opClient.NewMockInterface(ctrl)
+			mockOpClient := operatorclient.NewMockClientInterface(ctrl)
 			client := NewInstallStrategyDeploymentClient(mockOpClient, tt.state.namespace)
 
 			mockOpClient.EXPECT().

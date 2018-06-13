@@ -6,8 +6,8 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	operatorClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 )
 
 type FakeStrategyResolverInterface struct {
@@ -24,11 +24,11 @@ type FakeStrategyResolverInterface struct {
 		result1 install.Strategy
 		result2 error
 	}
-	InstallerForStrategyStub        func(strategyName string, opClient operatorClient.Interface, owner ownerutil.Owner, previousStrategy install.Strategy) install.StrategyInstaller
+	InstallerForStrategyStub        func(strategyName string, opClient operatorclient.ClientInterface, owner ownerutil.Owner, previousStrategy install.Strategy) install.StrategyInstaller
 	installerForStrategyMutex       sync.RWMutex
 	installerForStrategyArgsForCall []struct {
 		strategyName     string
-		opClient         operatorClient.Interface
+		opClient         operatorclient.ClientInterface
 		owner            ownerutil.Owner
 		previousStrategy install.Strategy
 	}
@@ -93,12 +93,12 @@ func (fake *FakeStrategyResolverInterface) UnmarshalStrategyReturnsOnCall(i int,
 	}{result1, result2}
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategy(strategyName string, opClient operatorClient.Interface, owner ownerutil.Owner, previousStrategy install.Strategy) install.StrategyInstaller {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, owner ownerutil.Owner, previousStrategy install.Strategy) install.StrategyInstaller {
 	fake.installerForStrategyMutex.Lock()
 	ret, specificReturn := fake.installerForStrategyReturnsOnCall[len(fake.installerForStrategyArgsForCall)]
 	fake.installerForStrategyArgsForCall = append(fake.installerForStrategyArgsForCall, struct {
 		strategyName     string
-		opClient         operatorClient.Interface
+		opClient         operatorclient.ClientInterface
 		owner            ownerutil.Owner
 		previousStrategy install.Strategy
 	}{strategyName, opClient, owner, previousStrategy})
@@ -119,7 +119,7 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategyCallCount() int {
 	return len(fake.installerForStrategyArgsForCall)
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int) (string, operatorClient.Interface, ownerutil.Owner, install.Strategy) {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int) (string, operatorclient.ClientInterface, ownerutil.Owner, install.Strategy) {
 	fake.installerForStrategyMutex.RLock()
 	defer fake.installerForStrategyMutex.RUnlock()
 	return fake.installerForStrategyArgsForCall[i].strategyName, fake.installerForStrategyArgsForCall[i].opClient, fake.installerForStrategyArgsForCall[i].owner, fake.installerForStrategyArgsForCall[i].previousStrategy

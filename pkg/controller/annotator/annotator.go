@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -13,11 +13,11 @@ import (
 
 // Annotator talks to kubernetes and adds annotations to objects.
 type Annotator struct {
-	OpClient    opClient.Interface
+	OpClient    operatorclient.ClientInterface
 	Annotations map[string]string
 }
 
-func NewAnnotator(opClient opClient.Interface, annotations map[string]string) *Annotator {
+func NewAnnotator(opClient operatorclient.ClientInterface, annotations map[string]string) *Annotator {
 	return &Annotator{
 		OpClient:    opClient,
 		Annotations: annotations,

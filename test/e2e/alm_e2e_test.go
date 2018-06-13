@@ -8,8 +8,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,7 +42,7 @@ var installPlanRequiresApprovalChecker = func(fip *installplanv1alpha1.InstallPl
 	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseRequiresApproval
 }
 
-func buildInstallPlanCleanupFunc(c opClient.Interface, installPlan *installplanv1alpha1.InstallPlan) cleanupFunc {
+func buildInstallPlanCleanupFunc(c operatorclient.ClientInterface, installPlan *installplanv1alpha1.InstallPlan) cleanupFunc {
 	return func() {
 		for _, step := range installPlan.Status.Plan {
 			if step.Resource.Kind == v1alpha1.ClusterServiceVersionKind {
@@ -59,7 +59,7 @@ func buildInstallPlanCleanupFunc(c opClient.Interface, installPlan *installplanv
 	}
 }
 
-func decorateCommonAndCreateInstallPlan(c opClient.Interface, plan installplanv1alpha1.InstallPlan) (cleanupFunc, error) {
+func decorateCommonAndCreateInstallPlan(c operatorclient.ClientInterface, plan installplanv1alpha1.InstallPlan) (cleanupFunc, error) {
 	plan.Kind = installplanv1alpha1.InstallPlanKind
 	plan.APIVersion = installplanv1alpha1.SchemeGroupVersion.String()
 	plan.Namespace = testNamespace
@@ -74,7 +74,7 @@ func decorateCommonAndCreateInstallPlan(c opClient.Interface, plan installplanv1
 	return buildInstallPlanCleanupFunc(c, &plan), nil
 }
 
-func fetchInstallPlan(t *testing.T, c opClient.Interface, name string, checker installPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
+func fetchInstallPlan(t *testing.T, c operatorclient.ClientInterface, name string, checker installPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
 	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
 	var err error
 

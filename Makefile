@@ -151,8 +151,14 @@ counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
 	go install github.com/maxbrunsfeld/counterfeiter
 
+mockgen := $(GOBIN)/mockgen
+$(mockgen):
+	go install github.com/golang/mock/mockgen
+
+
 generate-mock-client: $(counterfeiter)
 	go generate ./$(PKG_DIR)/...
+	mockgen -source ./pkg/lib/operatorclient/client.go -destination ./pkg/lib/operatorclient/mock_client.go -package operatorclient
 
 gen-all: gen-ci codegen generate-mock-client
 

@@ -2,8 +2,8 @@
 package client
 
 import (
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/pkg/errors"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
@@ -26,13 +26,13 @@ type InstallStrategyDeploymentInterface interface {
 }
 
 type InstallStrategyDeploymentClientForNamespace struct {
-	opClient  opClient.Interface
+	opClient  operatorclient.ClientInterface
 	Namespace string
 }
 
 var _ InstallStrategyDeploymentInterface = &InstallStrategyDeploymentClientForNamespace{}
 
-func NewInstallStrategyDeploymentClient(opClient opClient.Interface, namespace string) InstallStrategyDeploymentInterface {
+func NewInstallStrategyDeploymentClient(opClient operatorclient.ClientInterface, namespace string) InstallStrategyDeploymentInterface {
 	return &InstallStrategyDeploymentClientForNamespace{
 		opClient:  opClient,
 		Namespace: namespace,

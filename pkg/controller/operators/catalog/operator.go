@@ -484,8 +484,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
+				// TODO: check that names are accepted
 				// Attempt to create the CRD.
-				err = o.OpClient.CreateCustomResourceDefinition(&crd)
+				_, err = o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent

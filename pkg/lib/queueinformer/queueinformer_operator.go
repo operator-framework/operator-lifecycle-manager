@@ -3,7 +3,7 @@ package queueinformer
 import (
 	"fmt"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -14,12 +14,12 @@ import (
 // OpClient is used to establish the connection to kubernetes
 type Operator struct {
 	queueInformers []*QueueInformer
-	OpClient       opClient.Interface
+	OpClient       operatorclient.ClientInterface
 }
 
 // NewOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
 func NewOperator(kubeconfig string, queueInformers ...*QueueInformer) (*Operator, error) {
-	opClient := opClient.NewClient(kubeconfig)
+	opClient := operatorclient.NewClient(kubeconfig)
 	if queueInformers == nil {
 		queueInformers = []*QueueInformer{}
 	}
