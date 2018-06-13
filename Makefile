@@ -58,22 +58,21 @@ build/chart/templates/%.yaml: deploy/chart/templates/%.yaml
 	mkdir -p build/chart/templates
 	cp $< $@
 
-manifests: $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml
+manifests: clean $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml
 	mkdir -p build/resources
 	helm template -n olm -f build/chart/values.yaml build/chart --output-dir build/resources
 
 run-local: values_file = Documentation/install/local-values.yaml
 run-local: ver=0.0.0-local
-run-local: release
+run-local: manifests
 	. ./scripts/build_local.sh
-	. ./scripts/install_local.sh local build/resources
+	. ./scripts/install_local.sh local build/resources/olm/templates
 
 run-local-shift: values_file = Documentation/install/local-values-shift.yaml
 run-local-shift: ver=0.0.0-local
 run-local-shift: manifests
-	sed -i 's/rbac.authorization.k8s.io/authorization.openshift.io/' build/resources/02-alm-operator.rolebinding.yaml
 	. ./scripts/build_local_shift.sh
-	. ./scripts/install_local.sh local build/resources
+	. ./scripts/install_local.sh local build/resources/olm/templates
 
 e2e-local: values_file = test/e2e/e2e-values.yaml
 e2e-local: manifests
@@ -192,4 +191,5 @@ ansible-release: $(YQ)
 	# link newest release into playbook
 	ln -sfF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
 
+# make ver=0.3.0 release
 release: tectonic-release upstream-release ansible-release

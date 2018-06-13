@@ -26,3 +26,7 @@ servicebroker:
   service:
     internalPort: 8080
     brokerPort: 8005
+
+catalog_sources:
+ - tectonic-ocs
+ - upstream-components
