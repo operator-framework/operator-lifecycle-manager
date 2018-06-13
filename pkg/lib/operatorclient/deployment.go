@@ -1,4 +1,4 @@
-package client
+package operatorclient
 
 import (
 	"errors"
@@ -54,7 +54,7 @@ func (c *Client) PatchDeployment(original, modified *appsv1beta2.Deployment) (*a
 
 	current, err := c.AppsV1beta2().Deployments(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		return nil, false, fmt.Errorf("error getting existing Deployment %s for patch: %v", name, err)
+		return nil, false, err
 	}
 	if modified == nil {
 		return nil, false, errors.New("modified cannot be nil")
@@ -77,7 +77,7 @@ func (c *Client) PatchDeployment(original, modified *appsv1beta2.Deployment) (*a
 // RollingUpdateDeployment performs a rolling update on the given Deployment. It requires that the
 // Deployment uses the RollingUpdateDeploymentStrategyType update strategy.
 func (c *Client) RollingUpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
-	return c.RollingUpdateDeploymentMigrations(dep.Namespace, dep.Name, Update(dep), UpdateOpts{})
+	return c.RollingUpdateDeploymentMigrations(dep.Namespace, dep.Name, Update(dep))
 }
 
 // RollingUpdateDeploymentMigrations performs a rolling update on the given Deployment. It
@@ -85,9 +85,9 @@ func (c *Client) RollingUpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1be
 //
 // RollingUpdateDeploymentMigrations will run any before / during / after migrations that have been
 // specified in the upgrade options.
-func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction, opts UpdateOpts) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*appsv1beta2.Deployment, bool, error) {
 	glog.V(4).Infof("[ROLLING UPDATE Deployment]: %s:%s", namespace, name)
-	return c.RollingPatchDeploymentMigrations(namespace, name, updateToPatch(f), opts)
+	return c.RollingPatchDeploymentMigrations(namespace, name, updateToPatch(f))
 }
 
 // RollingPatchDeployment performs a 3-way patch merge followed by rolling update on the given
@@ -97,7 +97,7 @@ func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f Upd
 // RollingPatchDeployment will run any before / after migrations that have been specified in the
 // upgrade options.
 func (c *Client) RollingPatchDeployment(original, modified *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
-	return c.RollingPatchDeploymentMigrations(modified.Namespace, modified.Name, Patch(original, modified), UpdateOpts{})
+	return c.RollingPatchDeploymentMigrations(modified.Namespace, modified.Name, Patch(original, modified))
 }
 
 // RollingPatchDeploymentMigrations performs a 3-way patch merge followed by rolling update on
@@ -106,26 +106,15 @@ func (c *Client) RollingPatchDeployment(original, modified *appsv1beta2.Deployme
 //
 // RollingPatchDeploymentMigrations will run any before / after migrations that have been specified
 // in the upgrade options.
-func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction, opts UpdateOpts) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1beta2.Deployment, bool, error) {
 	glog.V(4).Infof("[ROLLING PATCH Deployment]: %s:%s", namespace, name)
 
 	current, err := c.AppsV1beta2().Deployments(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
-		return nil, false, fmt.Errorf("error getting existing Deployment %s for patch: %v", name, err)
+		return nil, false, err
 	}
 	if err := checkDeploymentRollingUpdateEnabled(current); err != nil {
 		return nil, false, err
-	}
-
-	if opts.Migrations != nil && len(opts.Migrations.Before) != 0 {
-		if err := opts.Migrations.RunBeforeMigrations(c, namespace, name); err != nil {
-			return nil, false, err
-		}
-		// Get object again as things may have changed during migrations.
-		current, err = c.GetDeployment(namespace, name)
-		if err != nil {
-			return nil, false, err
-		}
 	}
 
 	originalObj, modifiedObj, err := f(current.DeepCopy())
@@ -158,17 +147,6 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 	}
 	if err = c.waitForDeploymentRollout(updated); err != nil {
 		return nil, false, err
-	}
-
-	if opts.Migrations != nil && len(opts.Migrations.After) != 0 {
-		if err := opts.Migrations.RunAfterMigrations(c, namespace, name); err != nil {
-			return nil, false, err
-		}
-		// Get object again as things may have changed during migrations.
-		updated, err = c.GetDeployment(namespace, name)
-		if err != nil {
-			return nil, false, err
-		}
 	}
 
 	return updated, current.GetResourceVersion() != updated.GetResourceVersion(), nil

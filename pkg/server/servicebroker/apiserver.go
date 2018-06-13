@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/pmorie/osb-broker-lib/pkg/broker"
 	log "github.com/sirupsen/logrus"
@@ -44,7 +44,7 @@ type Options struct {
 
 // ALMBroker contains the clients and logic for fetching the catalog and creating instances
 type ALMBroker struct {
-	opClient opClient.Interface
+	opClient operatorclient.ClientInterface
 	client   versioned.Interface
 	catalog  catalogLoader
 
@@ -59,7 +59,7 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 	if err != nil {
 		return nil, err
 	}
-	almOpClient := opClient.NewClient(kubeconfigPath)
+	almOpClient := operatorclient.NewClient(kubeconfigPath)
 	// Allocate the new instance of an ALMBroker
 	br := &ALMBroker{
 		client:   versionedClient,
@@ -81,7 +81,7 @@ type catalogLoader interface {
 }
 type inClusterCatalog struct {
 	client   versioned.Interface
-	opClient opClient.Interface
+	opClient operatorclient.ClientInterface
 }
 
 func (c *inClusterCatalog) Load(namespace string) (registry.Source, error) {
@@ -98,9 +98,8 @@ func (c *inClusterCatalog) Load(namespace string) (registry.Source, error) {
 
 	// load service definitions from configmaps into temp in memory service registry
 	catalog := registry.NewInMem()
-	loader := registry.ConfigMapCatalogResourceLoader{namespace, c.opClient}
 	for _, cs := range csList.Items {
-		loader.Namespace = cs.GetNamespace()
+		loader := registry.NewConfigMapCatalogResourceLoader(cs.GetNamespace(), c.opClient)
 		if err := loader.LoadCatalogResources(catalog, cs.Spec.ConfigMap); err != nil {
 			log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
 			return nil, err
@@ -160,7 +159,7 @@ func (a *ALMBroker) GetCatalog(b *broker.RequestContext) (*broker.CatalogRespons
 	return &broker.CatalogResponse{osb.CatalogResponse{services}}, nil
 }
 
-func ensureNamespace(ns string, client opClient.Interface) error {
+func ensureNamespace(ns string, client operatorclient.ClientInterface) error {
 	_, err := client.KubernetesInterface().CoreV1().Namespaces().Get(ns, metav1.GetOptions{})
 	if err == nil {
 		return err

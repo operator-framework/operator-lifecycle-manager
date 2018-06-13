@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"testing"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
@@ -21,6 +20,7 @@ import (
 	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -208,10 +208,10 @@ func init() {
 	dummyCatalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 }
 
-func initCatalog(t *testing.T, c opClient.Interface) error {
+func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
 	// create ConfigMap containing catalog
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
-	_, err := c.CreateConfigMap(testNamespace, dummyCatalogConfigMap)
+	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
@@ -226,7 +226,7 @@ func initCatalog(t *testing.T, c opClient.Interface) error {
 	return nil
 }
 
-func createSubscription(t *testing.T, c opClient.Interface, channel string, name string, approval v1alpha1.Approval) cleanupFunc {
+func createSubscription(t *testing.T, c operatorclient.ClientInterface, channel string, name string, approval v1alpha1.Approval) cleanupFunc {
 	sub := &subscriptionv1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       subscriptionv1alpha1.SubscriptionKind,
@@ -251,7 +251,7 @@ func createSubscription(t *testing.T, c opClient.Interface, channel string, name
 		subscriptionv1alpha1.SubscriptionKind, name)
 }
 
-func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscriptionv1alpha1.Subscription, error) {
+func fetchSubscription(t *testing.T, c operatorclient.ClientInterface, name string) (*subscriptionv1alpha1.Subscription, error) {
 	var sub *subscriptionv1alpha1.Subscription
 	unstrSub, err := waitForAndFetchCustomResource(t, c, subscriptionv1alpha1.GroupVersion, subscriptionv1alpha1.SubscriptionKind, name)
 	require.NoError(t, err)
@@ -259,7 +259,7 @@ func fetchSubscription(t *testing.T, c opClient.Interface, name string) (*subscr
 	return sub, err
 }
 
-func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.ClusterServiceVersion, error) {
+func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*csvv1alpha1.ClusterServiceVersion, error) {
 	var csv *csvv1alpha1.ClusterServiceVersion
 	unstrCSV, err := waitForAndFetchCustomResource(t, c, csvv1alpha1.GroupVersion, csvv1alpha1.ClusterServiceVersionKind, name)
 	require.NoError(t, err)
@@ -267,7 +267,7 @@ func checkForCSV(t *testing.T, c opClient.Interface, name string) (*csvv1alpha1.
 	return csv, err
 }
 
-func checkForInstallPlan(t *testing.T, c opClient.Interface, owner ownerutil.Owner) (*v1alpha1.InstallPlan, error) {
+func checkForInstallPlan(t *testing.T, c operatorclient.ClientInterface, owner ownerutil.Owner) (*v1alpha1.InstallPlan, error) {
 	var installPlan *v1alpha1.InstallPlan
 	installPlans, err := waitForAndFetchChildren(t, c, v1alpha1.GroupVersion, v1alpha1.InstallPlanKind, owner, 1)
 	require.NoError(t, err)

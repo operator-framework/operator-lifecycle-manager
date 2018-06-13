@@ -5,30 +5,31 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
 type MockALMOperator struct {
 	ALMOperator
 	MockQueueOperator    *queueinformer.MockOperator
 	ClientFake           *fake.Clientset
-	MockOpClient         *opClient.MockInterface
+	MockOpClient         *operatorclient.MockClientInterface
 	TestQueueInformer    queueinformer.TestQueueInformer
 	StrategyResolverFake *fakes.FakeStrategyResolverInterface
 }
@@ -37,22 +38,25 @@ type Expect func()
 
 // Helpers
 
-func mockCRDExistence(mockClient opClient.MockInterface, crdDescriptions []v1alpha1.CRDDescription) {
+func mockCRDExistence(mockClient operatorclient.MockClientInterface, crdDescriptions []v1alpha1.CRDDescription) {
 	for _, crd := range crdDescriptions {
 		if strings.HasPrefix(crd.Name, "nonExistent") {
-			mockClient.EXPECT().
-				GetCustomResourceDefinition(crd.Name).
-				Return(nil, fmt.Errorf("Requirement not found"))
+			mockClient.EXPECT().ApiextensionsV1beta1Interface().Return(apiextensionsfake.NewSimpleClientset())
 		}
 		if strings.HasPrefix(crd.Name, "found") {
-			mockClient.EXPECT().
-				GetCustomResourceDefinition(crd.Name).
-				Return(&v1beta1.CustomResourceDefinition{}, nil)
+			crd := v1beta1.CustomResourceDefinition{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: crd.Name,
+				},
+			}
+			var objects []runtime.Object
+			objects = append(objects, &crd)
+			mockClient.EXPECT().ApiextensionsV1beta1Interface().Return(apiextensionsfake.NewSimpleClientset(objects...))
 		}
 	}
 }
 
-func mockIntermediates(t *testing.T, mockOpClient *opClient.MockInterface, resolverFake *fakes.FakeStrategyResolverInterface, current *v1alpha1.ClusterServiceVersion, intermediates []*v1alpha1.ClusterServiceVersion) Expect {
+func mockIntermediates(t *testing.T, mockOpClient *operatorclient.MockClientInterface, resolverFake *fakes.FakeStrategyResolverInterface, current *v1alpha1.ClusterServiceVersion, intermediates []*v1alpha1.ClusterServiceVersion) Expect {
 	mockCSVsInNamespace(t, mockOpClient, current.GetNamespace(), intermediates, nil)
 	prevCSV := current
 
@@ -83,7 +87,7 @@ func mockIntermediates(t *testing.T, mockOpClient *opClient.MockInterface, resol
 	}
 }
 
-func mockIsReplacing(t *testing.T, mockOpClient *opClient.MockInterface, prevCSV *v1alpha1.ClusterServiceVersion, currentCSV *v1alpha1.ClusterServiceVersion, csvQueryErr error) {
+func mockIsReplacing(t *testing.T, mockOpClient *operatorclient.MockClientInterface, prevCSV *v1alpha1.ClusterServiceVersion, currentCSV *v1alpha1.ClusterServiceVersion, csvQueryErr error) {
 	var unstructuredOldCSV *unstructured.Unstructured = nil
 	if prevCSV != nil {
 		unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(prevCSV)
@@ -98,14 +102,14 @@ func mockIsReplacing(t *testing.T, mockOpClient *opClient.MockInterface, prevCSV
 	}
 }
 
-func mockCSVsInNamespace(t *testing.T, mockOpClient *opClient.MockInterface, namespace string, csvsInNamespace []*v1alpha1.ClusterServiceVersion, csvQueryErr error) {
+func mockCSVsInNamespace(t *testing.T, mockOpClient *operatorclient.MockClientInterface, namespace string, csvsInNamespace []*v1alpha1.ClusterServiceVersion, csvQueryErr error) {
 	unstructuredCSVs := []*unstructured.Unstructured{}
 	for _, csv := range csvsInNamespace {
 		unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(csv)
 		require.NoError(t, err)
 		unstructuredCSVs = append(unstructuredCSVs, &unstructured.Unstructured{Object: unst})
 	}
-	csvList := &opClient.CustomResourceList{Items: unstructuredCSVs}
+	csvList := &operatorclient.CustomResourceList{Items: unstructuredCSVs}
 
 	mockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, namespace, v1alpha1.ClusterServiceVersionKind).Return(csvList, csvQueryErr)
 }
@@ -276,7 +280,7 @@ func TestCSVStateTransitionsFromNone(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		mockOp := NewMockALMOperator(ctrl)
 
-		mockOp.MockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&opClient.CustomResourceList{}, nil)
+		mockOp.MockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&operatorclient.CustomResourceList{}, nil)
 
 		// Test the transition
 		t.Run(tt.description, func(t *testing.T) {
@@ -454,7 +458,7 @@ func TestCSVStateTransitionsFromPending(t *testing.T) {
 
 		mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Owned)
 		mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Required)
-		mockOp.MockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&opClient.CustomResourceList{}, nil)
+		mockOp.MockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&operatorclient.CustomResourceList{}, nil)
 
 		// Test the transition
 		t.Run(tt.description, func(t *testing.T) {

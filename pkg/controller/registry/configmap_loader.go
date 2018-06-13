@@ -7,9 +7,10 @@ import (
 	"github.com/ghodss/yaml"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"k8s.io/api/core/v1"
 )
 
@@ -21,14 +22,21 @@ const (
 
 // ConfigMapCatalogResourceLoader loads a ConfigMap of resources into the in-memory catalog
 type ConfigMapCatalogResourceLoader struct {
-	Namespace string
-	CMClient  client.ConfigMapClient
+	namespace string
+	opClient  operatorclient.ClientInterface
+}
+
+func NewConfigMapCatalogResourceLoader(namespace string, opClient operatorclient.ClientInterface) ConfigMapCatalogResourceLoader {
+	return ConfigMapCatalogResourceLoader{
+		namespace: namespace,
+		opClient:  opClient,
+	}
 }
 
 func (d *ConfigMapCatalogResourceLoader) LoadCatalogResources(catalog *InMem, configMapName string) error {
 	log.Debugf("Load ConfigMap     -- BEGIN %s", configMapName)
 
-	cm, err := d.CMClient.GetConfigMap(d.Namespace, configMapName)
+	cm, err := d.opClient.KubernetesInterface().CoreV1().ConfigMaps(d.namespace).Get(configMapName, metav1.GetOptions{})
 	if err != nil {
 		log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", configMapName, err)
 		return fmt.Errorf("error loading catalog from ConfigMap %s: %s", configMapName, err)

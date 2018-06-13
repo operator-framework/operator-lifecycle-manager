@@ -11,12 +11,12 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
 	catalogv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
 	clusterserviceversionv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +28,7 @@ import (
 // thing with catalog resources we need in Tectonic. As such, they should be expected to be brittle compared to other
 // e2e tests. They should eventually be removed, as they test functionality beyond the scope of ALM.
 
-func fetchCatalogSource(t *testing.T, c opClient.Interface, name string) (*catalogv1alpha1.CatalogSource, error) {
+func fetchCatalogSource(t *testing.T, c operatorclient.ClientInterface, name string) (*catalogv1alpha1.CatalogSource, error) {
 	var fetchedCatalogSource *catalogv1alpha1.CatalogSource
 	var err error
 
@@ -115,7 +115,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 		require.Contains(t, crdNames, name)
 
 		t.Logf("Ensuring CRD %s is present in cluster", name)
-		_, err := c.GetCustomResourceDefinition(name)
+		_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 		require.NoError(t, err)
 	}
 
@@ -252,7 +252,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 		require.Contains(t, crdNames, name)
 
 		t.Logf("Ensuring CRD %s is present in cluster", name)
-		_, err := c.GetCustomResourceDefinition(name)
+		_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 		require.NoError(t, err)
 	}
 
@@ -397,7 +397,7 @@ func TestInstallVaultOCS(t *testing.T) {
 		require.Contains(t, crdNames, name)
 
 		t.Logf("Ensuring CRD %s is present in cluster", name)
-		_, err := c.GetCustomResourceDefinition(name)
+		_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(name, metav1.GetOptions{})
 		require.NoError(t, err)
 	}
 

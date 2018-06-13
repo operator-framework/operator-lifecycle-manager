@@ -1,9 +1,8 @@
-package client
+package operatorclient
 
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
@@ -13,9 +12,49 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-
-	"github.com/coreos-inc/tectonic-operators/lib/manifest/diff"
 )
+
+// UpdateFunction defines a function that updates an object in an Update* function. The function
+// provides the current instance of the object retrieved from the apiserver. The function should
+// return the updated object to be applied.
+type UpdateFunction func(current metav1.Object) (metav1.Object, error)
+
+// Update returns a default UpdateFunction implementation that passes its argument through to the
+// Update* function directly, ignoring the current object.
+//
+// Example usage:
+//
+// client.UpdateDaemonSet(namespace, name, types.Update(obj))
+func Update(obj metav1.Object) UpdateFunction {
+	return func(_ metav1.Object) (metav1.Object, error) {
+		return obj, nil
+	}
+}
+
+// PatchFunction defines a function that is used to provide patch objects for a 3-way merge. The
+// function provides the current instance of the object retrieved from the apiserver. The function
+// should return the "original" and "modified" objects (in that order) for 3-way patch computation.
+type PatchFunction func(current metav1.Object) (metav1.Object, metav1.Object, error)
+
+// Patch returns a default PatchFunction implementation that passes its arguments through to the
+// patcher directly, ignoring the current object.
+//
+// Example usage:
+//
+// client.PatchDaemonSet(namespace, name, types.Patch(original, current))
+func Patch(original metav1.Object, modified metav1.Object) PatchFunction {
+	return func(_ metav1.Object) (metav1.Object, metav1.Object, error) {
+		return original, modified, nil
+	}
+}
+
+// updateToPatch wraps an UpdateFunction as a PatchFunction.
+func updateToPatch(f UpdateFunction) PatchFunction {
+	return func(obj metav1.Object) (metav1.Object, metav1.Object, error) {
+		obj, err := f(obj)
+		return nil, obj, err
+	}
+}
 
 func createPatch(original, modified runtime.Object) ([]byte, error) {
 	originalData, err := json.Marshal(original)
@@ -61,10 +100,6 @@ func createThreeWayMergePatchPreservingCommands(original, modified, current runt
 	}
 	// Perform 3-way merge of annotations and labels.
 	if err := mergeAnnotationsAndLabels(original, modified, current); err != nil {
-		return nil, err
-	}
-	// Perform 3-way merge of container commands.
-	if err := mergeContainerCommands(original, modified, current); err != nil {
 		return nil, err
 	}
 	// Construct 3-way JSON merge patch.
@@ -134,210 +169,6 @@ func cloneAndNormalizeObject(obj runtime.Object) (runtime.Object, error) {
 		return nil, fmt.Errorf("unhandled type: %T", obj)
 	}
 	return obj, nil
-}
-
-func cloneContainers(src []v1.Container) []v1.Container {
-	dst := make([]v1.Container, len(src))
-	copy(dst, src)
-	return dst
-}
-
-func mergeContainerCommands(original, modified, current runtime.Object) error {
-	// Extract containers from Deployments/DaemonSets.
-	originalCs := extractContainers(original)
-	modifiedCs := extractContainers(modified)
-	currentCs := extractContainers(current)
-
-	// Union all container names.
-	names := make(map[string]interface{}, len(originalCs)+len(modifiedCs)+len(currentCs))
-	for _, c := range originalCs {
-		names[c.Name] = struct{}{}
-	}
-	for _, c := range modifiedCs {
-		names[c.Name] = struct{}{}
-	}
-	for _, c := range currentCs {
-		names[c.Name] = struct{}{}
-	}
-
-	// Perform 3-way merge on Command slices for each container by name.
-	for name := range names {
-		originalC := lookupContainer(originalCs, name)
-		modifiedC := lookupContainer(modifiedCs, name)
-		currentC := lookupContainer(currentCs, name)
-
-		if err := mergeContainerCommand(originalC, modifiedC, currentC); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func lookupContainer(containers []v1.Container, name string) *v1.Container {
-	for i := range containers {
-		if containers[i].Name == name {
-			return &containers[i]
-		}
-	}
-	return nil
-}
-
-// mergeContainerCommand performs a 3-way merge for the Command slices in a single container.
-func mergeContainerCommand(original, modified, current *v1.Container) error {
-	var originalCommand, modifiedCommand, currentCommand []string
-	if original != nil {
-		originalCommand = original.Command
-	}
-	if modified != nil {
-		modifiedCommand = modified.Command
-	}
-	if current != nil {
-		currentCommand = current.Command
-	}
-	// Perform the 3-way merge.
-	merged, err := mergeCommands(originalCommand, modifiedCommand, currentCommand)
-	if err != nil {
-		return err
-	}
-	// If the flags are unchanged do nothing.
-	if len(merged) == len(currentCommand) {
-		commandChanged := false
-		for i := range merged {
-			if merged[i] != currentCommand[i] {
-				commandChanged = true
-				break
-			}
-		}
-		if !commandChanged {
-			if modified != nil {
-				modified.Command = merged
-			}
-			return nil
-		}
-	}
-	// To ensure that the merged commands are used by the JSON 3-way patch logic, we make sure that
-	// only `modified` (or `current` if `modified` is nil) has the slice of commands, and all others are nil.
-	if original != nil {
-		original.Command = nil
-	}
-	if current != nil {
-		current.Command = nil
-	}
-	if modified != nil {
-		modified.Command = merged
-	} else if current != nil {
-		current.Command = merged
-	}
-	return nil
-}
-
-func extractContainers(obj runtime.Object) []v1.Container {
-	switch obj := obj.(type) {
-	case *appsv1beta2.DaemonSet:
-		if obj == nil {
-			return nil
-		}
-		return obj.Spec.Template.Spec.Containers
-	case *appsv1beta2.Deployment:
-		if obj == nil {
-			return nil
-		}
-		return obj.Spec.Template.Spec.Containers
-	default:
-		return nil
-	}
-}
-
-// mergeCommands performs a 3-way diff preserving templated values from currentCommand.
-func mergeCommands(originalCommand, modifiedCommand, currentCommand []string) ([]string, error) {
-	// Normalize commands & extract template vars.
-	vars := make(map[string]string)
-	original := make([]diff.Eq, len(originalCommand))
-	for i, c := range originalCommand {
-		f := parseCommand(c)
-		original[i] = f
-		if f.templated {
-			vars[f.key] = "${undefined}"
-		}
-	}
-	modified := make([]diff.Eq, len(modifiedCommand))
-	for i, c := range modifiedCommand {
-		f := parseCommand(c)
-		modified[i] = f
-		if f.templated {
-			vars[f.key] = "${undefined}"
-		}
-	}
-	current := make([]diff.Eq, len(currentCommand))
-	for i, c := range currentCommand {
-		f := parseCommand(c)
-		current[i] = f
-		if _, ok := vars[f.key]; ok {
-			vars[f.key] = f.val
-		}
-	}
-	// Perform 3-way diff merge.
-	merged, err := diff.Diff3Merge(original, modified, current)
-	if err != nil {
-		return nil, err
-	}
-	// Construct output, re-insterting template values.
-	out := make([]string, len(merged))
-	for i := range merged {
-		f := merged[i].(command)
-		if f.templated {
-			val, ok := vars[f.key]
-			if !ok || strings.HasPrefix(val, "${") {
-				return nil, fmt.Errorf("no value found for templated command %q", f.key)
-			}
-			f.val = val
-		}
-		out[i] = f.String()
-	}
-	return out, nil
-}
-
-type command struct {
-	key       string
-	val       string
-	keyval    bool
-	templated bool
-}
-
-func parseCommand(strCommand string) command {
-	parts := strings.SplitN(strCommand, "=", 2)
-	key := parts[0]
-	val := ""
-	keyval := len(parts) > 1
-	templated := false
-	if keyval {
-		val = parts[1]
-		templated = strings.Contains(val, "${")
-	}
-	return command{
-		key:       key,
-		val:       val,
-		keyval:    keyval,
-		templated: templated,
-	}
-}
-
-func (f command) Eq(e diff.Eq) bool {
-	o := e.(command)
-	if f.keyval != o.keyval {
-		return false
-	}
-	if f.templated != o.templated {
-		return f.key == o.key
-	}
-	return f.key == o.key && f.val == o.val
-}
-
-func (f command) String() string {
-	if f.keyval {
-		return fmt.Sprintf("%s=%s", f.key, f.val)
-	}
-	return f.key
 }
 
 // mergeAnnotationsAndLabels performs a 3-way merge of all annotations and labels using custom

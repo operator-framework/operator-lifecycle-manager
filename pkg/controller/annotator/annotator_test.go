@@ -5,8 +5,8 @@ import (
 
 	"fmt"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/golang/mock/gomock"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,8 +18,8 @@ import (
 	clientgoTesting "k8s.io/client-go/testing"
 )
 
-func NewMockNamespaceClient(ctrl *gomock.Controller, currentNamespaces []corev1.Namespace) (*opClient.MockInterface, kubernetes.Interface) {
-	mockClient := opClient.NewMockInterface(ctrl)
+func NewMockNamespaceClient(ctrl *gomock.Controller, currentNamespaces []corev1.Namespace) (*operatorclient.MockClientInterface, kubernetes.Interface) {
+	mockClient := operatorclient.NewMockClientInterface(ctrl)
 	fakeKubernetesInterface := fake.NewSimpleClientset(&corev1.NamespaceList{Items: currentNamespaces})
 	return mockClient, fakeKubernetesInterface
 }
@@ -28,7 +28,7 @@ func TestNewAnnotator(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := opClient.NewMockInterface(ctrl)
+	mockClient := operatorclient.NewMockClientInterface(ctrl)
 	annotator := NewAnnotator(mockClient, map[string]string{})
 	require.IsType(t, &Annotator{}, annotator)
 }
@@ -106,7 +106,7 @@ func TestGetNamespacesErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockClient := opClient.NewMockInterface(ctrl)
+	mockClient := operatorclient.NewMockClientInterface(ctrl)
 	fakeKubernetesClient := fake.NewSimpleClientset()
 	fakeNamespaces := fakeKubernetesClient.CoreV1().Namespaces().(*fakeCoreV1.FakeNamespaces)
 	reactionFunc := func(action clientgoTesting.Action) (handled bool, ret runtime.Object, err error) {

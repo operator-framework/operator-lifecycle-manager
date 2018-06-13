@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 	osb "github.com/pmorie/go-open-service-broker-client/v2"
 	"github.com/pmorie/osb-broker-lib/pkg/broker"
 	"github.com/stretchr/testify/require"
@@ -15,6 +14,7 @@ import (
 	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 const (
@@ -26,9 +26,7 @@ type mockCatalogLoader struct {
 }
 
 func (m *mockCatalogLoader) Load(namespace string) (registry.Source, error) {
-	loader := registry.ConfigMapCatalogResourceLoader{
-		Namespace: namespace,
-	}
+	loader := registry.NewConfigMapCatalogResourceLoader(namespace, nil)
 	catalog := registry.NewInMem()
 	for _, cm := range m.configMaps {
 		if namespace != "" && cm.GetNamespace() != namespace {
@@ -43,7 +41,7 @@ func (m *mockCatalogLoader) Load(namespace string) (registry.Source, error) {
 
 func mockALMBroker(ctrl *gomock.Controller, namespace string, configMaps []v1.ConfigMap, objects []runtime.Object) *ALMBroker {
 	return &ALMBroker{
-		opClient:  opClient.NewMockInterface(ctrl),
+		opClient:  operatorclient.NewMockClientInterface(ctrl),
 		client:    fake.NewSimpleClientset(objects...),
 		catalog:   &mockCatalogLoader{configMaps},
 		namespace: namespace,

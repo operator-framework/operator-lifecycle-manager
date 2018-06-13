@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	opClient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -16,6 +15,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -37,17 +37,17 @@ func init() {
 }
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
-func newKubeClient(t *testing.T) opClient.Interface {
+func newKubeClient(t *testing.T) operatorclient.ClientInterface {
 	kubeconfigPath := os.Getenv("KUBECONFIG")
 	if kubeconfigPath == "" {
 		t.Log("using in-cluster config")
 	}
 	// TODO: impersonate ALM serviceaccount
-	return opClient.NewClient(kubeconfigPath)
+	return operatorclient.NewClient(kubeconfigPath)
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
-func awaitPods(t *testing.T, c opClient.Interface, selector string, expectedCount int) (*corev1.PodList, error) {
+func awaitPods(t *testing.T, c operatorclient.ClientInterface, selector string, expectedCount int) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
 
@@ -74,7 +74,7 @@ func awaitPods(t *testing.T, c opClient.Interface, selector string, expectedCoun
 }
 
 // pollForCustomResource waits for a CR to exist in the cluster, returning an error if we fail to retrieve the CR after its been created
-func pollForCustomResource(t *testing.T, c opClient.Interface, group string, version string, kind string, name string) error {
+func pollForCustomResource(t *testing.T, c operatorclient.ClientInterface, group string, version string, kind string, name string) error {
 	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
 
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -93,7 +93,7 @@ func pollForCustomResource(t *testing.T, c opClient.Interface, group string, ver
 }
 
 /// waitForAndFetchCustomResource is same as pollForCustomResource but returns the fetched unstructured resource
-func waitForAndFetchCustomResource(t *testing.T, c opClient.Interface, version string, kind string, name string) (*unstructured.Unstructured, error) {
+func waitForAndFetchCustomResource(t *testing.T, c operatorclient.ClientInterface, version string, kind string, name string) (*unstructured.Unstructured, error) {
 	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
 	var res *unstructured.Unstructured
 	var err error
@@ -110,7 +110,7 @@ func waitForAndFetchCustomResource(t *testing.T, c opClient.Interface, version s
 }
 
 /// waitForAndFetchCustomResource is same as pollForCustomResource but returns the fetched unstructured resource
-func waitForAndFetchChildren(t *testing.T, c opClient.Interface, version string, kind string, owner ownerutil.Owner, count int) ([]*unstructured.Unstructured, error) {
+func waitForAndFetchChildren(t *testing.T, c operatorclient.ClientInterface, version string, kind string, owner ownerutil.Owner, count int) ([]*unstructured.Unstructured, error) {
 	t.Logf("Looking for %d %s in %s\n", count, kind, testNamespace)
 	var res []*unstructured.Unstructured
 	var err error
@@ -140,7 +140,7 @@ func waitForAndFetchChildren(t *testing.T, c opClient.Interface, version string,
 	return res, err
 }
 
-func cleanupCustomResource(t *testing.T, c opClient.Interface, group, kind, name string) cleanupFunc {
+func cleanupCustomResource(t *testing.T, c operatorclient.ClientInterface, group, kind, name string) cleanupFunc {
 	return func() {
 		t.Logf("deleting %s %s", kind, name)
 		require.NoError(t, c.DeleteCustomResource(apis.GroupName, group, testNamespace, kind, name))
