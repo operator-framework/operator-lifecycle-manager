@@ -181,9 +181,15 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	t.Logf("%d Vault Resources present", vaultResourcesPresent)
 	require.NotZero(t, vaultResourcesPresent)
 
+	// Fetch installplan again to check for unnecessary control loops
+	_, err = fetchInstallPlan(t, c, approvedInstallPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+		compareResources(t, approvedInstallPlan, fip)
+		return true
+	})
+	require.NoError(t, err)
+
 }
 
-// This captures the current state of OLM where Failed InstallPlans aren't implemented and should be removed in the future
 func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t *testing.T) {
 	c := newKubeClient(t)
 
@@ -213,7 +219,14 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 			fip.Status.Conditions[0].Reason == installplanv1alpha1.InstallPlanReasonDependencyConflict
 	})
 
-	// InstallPlans don't have a failed status, they end up in a Planning state with a "false" resolved state
+	// Fetch installplan again to check for unnecessary control loops
+	_, err = fetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+		compareResources(t, fetchedInstallPlan, fip)
+		return true
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, installplanv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
 	require.Equal(t, installplanv1alpha1.InstallPlanResolved, fetchedInstallPlan.Status.Conditions[0].Type)
 	require.Equal(t, corev1.ConditionFalse, fetchedInstallPlan.Status.Conditions[0].Status)
 	require.Equal(t, installplanv1alpha1.InstallPlanReasonInstallCheckFailed, fetchedInstallPlan.Status.Conditions[0].Reason)
@@ -248,4 +261,11 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, installplanv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
+
+	// Fetch installplan again to check for unnecessary control loops
+	_, err = fetchInstallPlan(t, c, fetchedInstallPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+		compareResources(t, fetchedInstallPlan, fip)
+		return true
+	})
+	require.NoError(t, err)
 }

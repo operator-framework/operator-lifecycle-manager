@@ -295,13 +295,18 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, c, csv.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, c, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should create deployment
 	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.Equal(t, strategy.DeploymentSpecs[0].Name, dep.Name)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err := fetchCSV(t, c, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
 }
 
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
@@ -471,7 +476,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	_, err = fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// should have csv-sa and old-csv-sa
@@ -499,6 +504,11 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	// csv-sa shouldn't have been GC'd
 	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
 	require.NoError(t, err)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err := fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
 }
 
 func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
@@ -621,8 +631,13 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	_, err = fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
 	require.NoError(t, err)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err := fetchCSV(t, c, csvNew.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
 
 	// Should have created new deployment and deleted old
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
