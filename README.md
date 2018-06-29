@@ -72,7 +72,7 @@ This is achieved through additional metadata on the application definition. Each
  - The CRDs that it depends on. 
    - e.g., the vault operator depends on `EtcdCluster`, because Vault is backed by etcd.
 
-Basic dependency resolution then possible by finding, for each “required” CRD, the corresponding operator that manages it and installing it as well. Dependency resolution can be further constrained by the way a user interacts with catalogs.
+Basic dependency resolution is then possible by finding, for each “required” CRD, the corresponding operator that manages it and installing it as well. Dependency resolution can be further constrained by the way a user interacts with catalogs.
 
 ### Granularity
 
