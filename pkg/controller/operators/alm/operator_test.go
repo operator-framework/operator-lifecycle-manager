@@ -296,12 +296,12 @@ func TestCSVStateTransitionsFromNone(t *testing.T) {
 
 func TestCSVStateTransitionsFromPending(t *testing.T) {
 	type clusterState struct {
-		crdDescriptons []*v1alpha1.CRDDescription
+		csvs []*v1alpha1.ClusterServiceVersion
 	}
 	tests := []struct {
 		in          *v1alpha1.ClusterServiceVersion
 		out         *v1alpha1.ClusterServiceVersion
-		state       clusterState
+		state       *clusterState
 		err         error
 		description string
 	}{
@@ -414,6 +414,9 @@ func TestCSVStateTransitionsFromPending(t *testing.T) {
 				Message: "all requirements found, attempting install",
 				Reason:  v1alpha1.CSVReasonRequirementsMet,
 			}),
+			state: &clusterState{
+				csvs: []*v1alpha1.ClusterServiceVersion{},
+			},
 			description: "RequirementsMet/OwnedAndRequiredFound",
 		},
 		{
@@ -431,6 +434,9 @@ func TestCSVStateTransitionsFromPending(t *testing.T) {
 				Message: "all requirements found, attempting install",
 				Reason:  v1alpha1.CSVReasonRequirementsMet,
 			}),
+			state: &clusterState{
+				csvs: []*v1alpha1.ClusterServiceVersion{},
+			},
 			description: "RequirementsMet/OwnedFound",
 		},
 		{
@@ -448,27 +454,144 @@ func TestCSVStateTransitionsFromPending(t *testing.T) {
 				Message: "all requirements found, attempting install",
 				Reason:  v1alpha1.CSVReasonRequirementsMet,
 			}),
+			state: &clusterState{
+				csvs: []*v1alpha1.ClusterServiceVersion{},
+			},
 			description: "RequirementsMet/RequiredFound",
+		},
+		{
+			in: withStatus(withSpec(testCSV(""),
+				&v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Owned:    makeCRDDescriptions("found1", "found2"),
+						Required: makeCRDDescriptions("found3", "found4"),
+					},
+				}),
+				&v1alpha1.ClusterServiceVersionStatus{
+					Phase: v1alpha1.CSVPhasePending,
+				}),
+			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
+				Phase:   v1alpha1.CSVPhaseFailed,
+				Message: "owner conflict: test-csv and existing-owner both own found1, but there is no replacement chain linking them",
+				Reason:  v1alpha1.CSVReasonOwnerConflict,
+			}),
+			state: &clusterState{
+				csvs: []*v1alpha1.ClusterServiceVersion{withSpec(testCSV("existing-owner"),
+					&v1alpha1.ClusterServiceVersionSpec{
+						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+							Owned: makeCRDDescriptions("found1"),
+						},
+					})},
+			},
+			description: "RequirementsMet/OwnedAndRequiredFound/CRDAlreadyOwnedNoReplacementChain",
+			err:         fmt.Errorf("test-csv and existing-owner both own found1, but there is no replacement chain linking them"),
+		},
+		{
+			in: withStatus(withSpec(testCSV(""),
+				&v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Owned:    makeCRDDescriptions("found1", "found2"),
+						Required: makeCRDDescriptions("found3", "found4"),
+					},
+					Replaces: "existing-owner-2",
+				}),
+				&v1alpha1.ClusterServiceVersionStatus{
+					Phase: v1alpha1.CSVPhasePending,
+				}),
+			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
+				Phase:   v1alpha1.CSVPhaseInstallReady,
+				Message: "all requirements found, attempting install",
+				Reason:  v1alpha1.CSVReasonRequirementsMet,
+			}),
+			state: &clusterState{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					withSpec(testCSV("existing-owner-1"),
+						&v1alpha1.ClusterServiceVersionSpec{
+							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+								Owned: makeCRDDescriptions("found1"),
+							},
+						}),
+					withSpec(testCSV("existing-owner-2"),
+						&v1alpha1.ClusterServiceVersionSpec{
+							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+								Owned: makeCRDDescriptions("found1", "found2"),
+							},
+							Replaces: "existing-owner-1",
+						}),
+				},
+			},
+			description: "RequirementsMet/OwnedAndRequiredFound/CRDOwnedInReplacementChain",
+		},
+		{
+			in: withStatus(withSpec(testCSV(""),
+				&v1alpha1.ClusterServiceVersionSpec{
+					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+						Owned:    makeCRDDescriptions("found1", "found2"),
+						Required: makeCRDDescriptions("found3", "found4"),
+					},
+					Replaces: "existing-owner-2",
+				}),
+				&v1alpha1.ClusterServiceVersionStatus{
+					Phase: v1alpha1.CSVPhasePending,
+				}),
+			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
+				Phase:   v1alpha1.CSVPhaseInstallReady,
+				Message: "all requirements found, attempting install",
+				Reason:  v1alpha1.CSVReasonRequirementsMet,
+			}),
+			state: &clusterState{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					withSpec(testCSV("existing-owner-1"),
+						&v1alpha1.ClusterServiceVersionSpec{
+							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+								Owned: makeCRDDescriptions("found1"),
+							},
+							Replaces: "existing-owner-3",
+						}),
+					withSpec(testCSV("existing-owner-2"),
+						&v1alpha1.ClusterServiceVersionSpec{
+							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+								Owned: makeCRDDescriptions("found1", "found2"),
+							},
+							Replaces: "existing-owner-1",
+						}),
+					withSpec(testCSV("existing-owner-3"),
+						&v1alpha1.ClusterServiceVersionSpec{
+							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+								Owned: makeCRDDescriptions("found1", "found2"),
+							},
+							Replaces: "existing-owner-2",
+						}),
+				},
+			},
+			description: "RequirementsMet/OwnedAndRequiredFound/CRDOwnedInReplacementChainLoop",
 		},
 	}
 
 	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Owned)
-		mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Required)
-		mockOp.MockOpClient.EXPECT().ListCustomResource(apis.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&operatorclient.CustomResourceList{}, nil)
-
 		// Test the transition
 		t.Run(tt.description, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			mockOp := NewMockALMOperator(ctrl)
+
+			mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Owned)
+			mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Required)
+
+			// mock for call to short-circuit when replacing
+			mockCSVsInNamespace(t, mockOp.MockQueueOperator.MockClient, tt.in.Namespace, nil, nil)
+
+			// mock for pending, check that no other CSV owns the CRDs (unless being replaced)
+			if tt.state != nil {
+				mockCSVsInNamespace(t, mockOp.MockQueueOperator.MockClient, tt.in.Namespace, tt.state.csvs, nil)
+			}
+
 			err := mockOp.transitionCSVState(tt.in)
 			require.EqualValues(t, tt.err, err)
 			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
 			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
 			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			ctrl.Finish()
 		})
-		ctrl.Finish()
 	}
 }
 

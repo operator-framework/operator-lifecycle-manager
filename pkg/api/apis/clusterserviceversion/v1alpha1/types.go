@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"sort"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
 	"github.com/coreos/go-semver/semver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -153,6 +153,7 @@ const (
 	CSVReasonRequirementsUnknown ConditionReason = "RequirementsUnknown"
 	CSVReasonRequirementsNotMet  ConditionReason = "RequirementsNotMet"
 	CSVReasonRequirementsMet     ConditionReason = "AllRequirementsMet"
+	CSVReasonOwnerConflict       ConditionReason = "OwnerConflict"
 	CSVReasonComponentFailed     ConditionReason = "InstallComponentFailed"
 	CSVReasonInvalidStrategy     ConditionReason = "InvalidInstallStrategy"
 	CSVReasonWaiting             ConditionReason = "InstallWaiting"

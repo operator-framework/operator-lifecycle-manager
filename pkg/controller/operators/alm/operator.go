@@ -155,18 +155,23 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 		csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
 	case v1alpha1.CSVPhasePending:
 		met, statuses := a.requirementStatus(csv)
+		csv.SetRequirementStatus(statuses)
 
 		if !met {
 			log.Info("requirements were not met")
 			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
-			csv.SetRequirementStatus(statuses)
 			syncError = ErrRequirementsNotMet
+			return
+		}
+
+		// check for CRD ownership conflicts
+		if syncError = a.crdOwnerConflicts(csv, a.csvsInNamespace(csv.GetNamespace())); syncError != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("owner conflict: %s", syncError))
 			return
 		}
 
 		log.Infof("scheduling ClusterServiceVersion for install: %s", csv.SelfLink)
 		csv.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
-		csv.SetRequirementStatus(statuses)
 	case v1alpha1.CSVPhaseInstallReady:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
 		if strategy == nil {
@@ -174,13 +179,14 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 			return
 		}
 
-		syncError = installer.Install(strategy)
-		if syncError == nil {
-			csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
-			a.requeueCSV(csv)
+		if syncError = installer.Install(strategy); syncError != nil {
+			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
 			return
 		}
-		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
+
+		csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
+		a.requeueCSV(csv)
+		return
 	case v1alpha1.CSVPhaseInstalling:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
 		if strategy == nil {
@@ -364,6 +370,34 @@ func (a *ALMOperator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (me
 		statuses = append(statuses, status)
 	}
 	return
+}
+
+func (a *ALMOperator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace []*v1alpha1.ClusterServiceVersion) error {
+	for _, crd := range in.Spec.CustomResourceDefinitions.Owned {
+		for _, csv := range csvsInNamespace {
+			if csv.OwnsCRD(crd.Name) {
+				// two csvs own the same CRD, only valid if there's a replacing chain between them
+				// TODO: this and the other replacement checking should just load the replacement chain DAG into memory
+				current := csv
+				for {
+					if in.Spec.Replaces == current.GetName() {
+						return nil
+					}
+					next := a.isBeingReplaced(current, csvsInNamespace)
+					if next != nil {
+						current = next
+						continue
+					}
+					if in.Name == csv.Name {
+						return nil
+					}
+					// couldn't find a chain between the two csvs
+					return fmt.Errorf("%s and %s both own %s, but there is no replacement chain linking them", in.Name, csv.Name, crd.Name)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // annotateNamespace is the method that gets called when we see a namespace event in the cluster
