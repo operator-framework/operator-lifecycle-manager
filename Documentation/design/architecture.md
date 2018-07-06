@@ -126,7 +126,7 @@ None --> UpgradeAvailable --> UpgradePending --> AtLatestKnown -+
 
 The Catalog Registry stores CSVs and CRDs for creation in a cluster, and stores metadata about packages and channels.
 
-A package manifest is an entry in the catalog registry that associates a package identity with sets of ClusterServiceVersion-v1s. Within a package, channels which point to a particular CSV. Because CSVs explicitly reference the CSV that they replace, a package manifest provides the catalog Operator needs to update a CSV to the latest version in a channel (stepping through each intermediate version).
+A package manifest is an entry in the catalog registry that associates a package identity with sets of ClusterServiceVersion-v1s. Within a package, channels point to a particular CSV. Because CSVs explicitly reference the CSV that they replace, a package manifest provides the catalog Operator all of the information that is required to update a CSV to the latest version in a channel (stepping through each intermediate version).
 
 ```
 Package {name}
