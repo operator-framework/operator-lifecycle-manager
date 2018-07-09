@@ -14,6 +14,7 @@ local stages_list = [
     'test_teardown',
     'integration',
     'docker_release',
+    'tag_release',
     'deploy_staging',
     'teardown',
 ];
@@ -27,10 +28,26 @@ local jobs = {
         only: ['master', 'tags'],
     },
 
+    local onlyTags = {
+        only: ['tags'],
+    },
+
     local onlyBranch = {
         only: ['branches'],
         except: ['master', 'tags'],
     },
+
+    'tag-release': baseJob.dockerBuild {
+        // ! Only tags
+        // push the tagged release container to the 'prod' repository
+        stage: stages.tag_release,
+        before_script+: ["mkdir -p $PWD/bin"],
+        script:
+            docker.rename(images.prerelease.alm.name, images.tagRelease.alm.name) +
+            docker.rename(images.prerelease.catalog.name, images.tagRelease.catalog.name) +
+            docker.rename(images.prerelease.servicebroker.name, images.tagRelease.servicebroker.name) +
+            docker.rename(images.e2elatest.name, images.tagRelease.e2e.name),
+    } + onlyTags,
 
     'container-base-build': baseJob.dockerBuild {
         stage: stages.docker_base,
@@ -71,7 +88,6 @@ local jobs = {
             docker.rename(images.prerelease.catalog.name, images.release.catalog.name) +
             docker.rename(images.prerelease.servicebroker.name, images.release.servicebroker.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
-
     } + onlyMaster,
 
     // Unit-tests
