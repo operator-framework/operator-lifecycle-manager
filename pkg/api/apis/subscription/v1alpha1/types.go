@@ -26,11 +26,12 @@ const (
 
 // SubscriptionSpec defines an Application that can be installed
 type SubscriptionSpec struct {
-	CatalogSource       string            `json:"source"`
-	Package             string            `json:"name"`
-	Channel             string            `json:"channel,omitempty"`
-	StartingCSV         string            `json:"startingCSV,omitempty"`
-	InstallPlanApproval v1alpha1.Approval `json:"installPlanApproval,omitempty"`
+	CatalogSource          string            `json:"source"`
+	CatalogSourceNamespace string            `json:"sourceNamespace"`
+	Package                string            `json:"name"`
+	Channel                string            `json:"channel,omitempty"`
+	StartingCSV            string            `json:"startingCSV,omitempty"`
+	InstallPlanApproval    v1alpha1.Approval `json:"installPlanApproval,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
