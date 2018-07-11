@@ -10,3 +10,7 @@ WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 COPY . .
 
 RUN make build
+
+RUN cp ./bin/alm /bin/alm
+RUN cp ./bin/catalog /bin/catalog
+EXPOSE 8080

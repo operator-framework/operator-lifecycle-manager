@@ -207,7 +207,8 @@ endif
 	yaml w -i deploy/tectonic-alm-operator/values.yaml catalog.image.ref $(CATALOG_REF)
 	$(MAKE) tectonic-release upstream-release
 
-OLM_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)-rhel)
+# These are built from the same image, and repodigests are ordered alphabetically, so olm is ref 1 and catalog ref 2
+OLM_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel)
 CATALOG_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel)
 
 # this will build locally on rhel
@@ -215,9 +216,9 @@ release-rh:
 ifndef ver
 	$(error ver is undefined)
 endif
-	docker build -f Dockerfile.rhel7 -t quay.io/coreos/olm:$(ver)-rhel -t quay.io/coreos/catalog:$(ver)-rhel .
-	docker push quay.io/coreos/olm:$(ver)-rhel
-	docker push quay.io/coreos/catalog:$(ver)-rhel
+	./scripts/pull_or_build_rh.sh $(ver)
+	echo $(OLM_REF_RH)
+	docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)-rhel
 	yaml w -i deploy/aos-olm/values.yaml alm.image.ref $(OLM_REF_RH)
 	yaml w -i deploy/aos-olm/values.yaml catalog.image.ref $(CATALOG_REF_RH)
 	$(MAKE) ansible-release
