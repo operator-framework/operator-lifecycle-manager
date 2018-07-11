@@ -44,6 +44,30 @@ local utils = import "utils.libsonnet";
             },
         },
 
+        // tagRelease is a copy of the quayci image to the 'prod' repository for tags
+        tagRelease: {
+            alm: {
+                repo: "quay.io/coreos/olm",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            catalog: {
+                repo: "quay.io/coreos/catalog",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            servicebroker: {
+                repo: "quay.io/coreos/alm-service-broker",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            e2e: {
+                repo: "quay.io/coreos/alm-e2e",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+        },
+
         ci: {
             alm: {
                 repo: "quay.io/coreos/alm-ci",

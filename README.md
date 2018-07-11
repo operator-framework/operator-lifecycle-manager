@@ -104,3 +104,12 @@ spec:
 ```
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.
+
+# Contributing
+
+## Making a Release
+
+1. Tag release in github with a semver tag (e.g. `0.4.0`)
+2. Wait for containers to build
+3. Run `make ver=x.x.x release` locally and verify commit shas
+4. Make a PR containing the new release artifacts.
