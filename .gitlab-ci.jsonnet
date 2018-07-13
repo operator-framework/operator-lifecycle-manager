@@ -154,7 +154,7 @@ local jobs = {
         local _vars = self.localvars,
         localvars+:: {
             image: images.release,
-            domain: "teamui18.console.team.coreos.systems",
+            domain: "teamui.console.team.coreos.systems",
             namespace: "tectonic-system",
             channel: "staging",
             helm_opts: ["--force"],
@@ -169,6 +169,29 @@ local jobs = {
         ],
         environment+: {
             name: "teamui",
+        },
+        only: ['master'],
+    },
+
+    "deploy-openshift": baseJob.Deploy {
+        local _vars = self.localvars,
+        localvars+:: {
+            image: images.release,
+            domain: "console.apps.ui-preserve.origin-gce.dev.openshift.com",
+            namespace: "openshift",
+            channel: "staging",
+            helm_opts: ["--force"],
+            kubeconfig: "$OPENSHIFT_KUBECONFIG",
+            params+:: {
+                watchedNamespaces: "",
+            },
+        },
+        stage: stages.deploy_staging,
+        script+: [
+            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${OPENSHIFT_HOST}/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
+        ],
+        environment+: {
+            name: "openshift",
         },
         only: ['master'],
     },
