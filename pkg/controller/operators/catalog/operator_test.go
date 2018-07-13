@@ -141,6 +141,8 @@ func TestResolveInstallPlan(t *testing.T) {
 		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 3},
 	}
 
+	resolver := &SingleSourceResolver{}
+
 	for _, tt := range table {
 		t.Run(tt.description, func(t *testing.T) {
 			log.SetLevel(log.DebugLevel)
@@ -159,8 +161,14 @@ func TestResolveInstallPlan(t *testing.T) {
 				src.AddOrReplaceService(csv(names.name, names.owned, names.required))
 			}
 
+			key := sourceKey{"tectonic-ocs", plan.Namespace}
+
+			srcMap := map[sourceKey]registry.Source{
+				key: src,
+			}
+
 			// Resolve the plan.
-			err := resolveInstallPlan("tectonic-ocs", src, &plan)
+			err := resolver.ResolveInstallPlan(key, srcMap, &plan)
 
 			// Assert the error is as expected.
 			if tt.expectedErr == nil {

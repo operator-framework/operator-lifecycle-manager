@@ -574,3 +574,269 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 	return nil
 }
+
+// DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
+// should behave
+type DependencyResolver interface {
+	ResolveInstallPlan(firstSourceKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error
+	ResolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error)
+	ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error)
+}
+
+// SingleSourceResolver resolves dependencies from a single CatalogSource
+type SingleSourceResolver struct{}
+
+// ResolveInstallPlan resolves all dependencies for an InstallPlan
+func (resolver *SingleSourceResolver) ResolveInstallPlan(firstSourceKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error {
+	srm := make(stepResourceMap)
+	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
+		csvSRM, err := resolveCSV(csvName, plan.Namespace, firstSourceKey.name, sources[firstSourceKey])
+		if err != nil {
+			return err
+		}
+
+		srm.Combine(csvSRM)
+	}
+
+	plan.Status.Plan = srm.Plan()
+	return nil
+}
+
+// ResolveCSV resolves all dependencies for a given CSV
+func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error) {
+	log.Debugf("resolving CSV with name: %s", csvName)
+
+	steps := make(stepResourceMap)
+	csvNamesToBeResolved := []string{csvName}
+
+	for len(csvNamesToBeResolved) != 0 {
+		// Pop off a CSV name.
+		currentName := csvNamesToBeResolved[0]
+		csvNamesToBeResolved = csvNamesToBeResolved[1:]
+
+		// If this CSV is already resolved, continue.
+		if _, exists := steps[currentName]; exists {
+			continue
+		}
+
+		// Get the full CSV object for the name.
+		csv, err := source.FindCSVByName(currentName)
+		if err != nil {
+			return nil, err
+		}
+		log.Debugf("found %#v", csv)
+
+		// Resolve each owned or required CRD for the CSV.
+		for _, crdDesc := range csv.GetAllCRDDescriptions() {
+			step, owner, err := resolveCRDDescription(crdDesc, sourceName, source, csv.OwnsCRD(crdDesc.Name))
+			if err != nil {
+				return nil, err
+			}
+
+			// If a different owner was resolved, add it to the list.
+			if owner != "" && owner != currentName {
+				csvNamesToBeResolved = append(csvNamesToBeResolved, owner)
+				continue
+			}
+
+			// Add the resolved step to the plan.
+			steps[currentName] = append(steps[currentName], step)
+		}
+
+		// Manually override the namespace and create the final step for the CSV,
+		// which is for the CSV itself.
+		csv.SetNamespace(namespace)
+
+		// Add the sourcename as a label on the CSV, so that we know where it came from
+		labels := csv.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[CatalogLabel] = sourceName
+		csv.SetLabels(labels)
+
+		step, err := v1alpha1.NewStepResourceFromCSV(csv)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the CatalogSource field
+		step.CatalogSource = sourceName
+
+		// Add the final step for the CSV to the plan.
+		log.Infof("finished step: %v", step)
+		steps[currentName] = append(steps[currentName], step)
+	}
+
+	return steps, nil
+}
+
+// ResolveCRDDescription resolves the description of a given CRD
+func (resolver *SingleSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
+	log.Debugf("resolving %#v", crdDesc)
+
+	crdKey := registry.CRDKey{
+		Kind:    crdDesc.Kind,
+		Name:    crdDesc.Name,
+		Version: crdDesc.Version,
+	}
+
+	crd, err := source.FindCRDByKey(crdKey)
+	if err != nil {
+		return v1alpha1.StepResource{}, "", err
+	}
+	log.Debugf("found %#v", crd)
+
+	if owned {
+		// Label CRD with catalog source
+		labels := crd.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[CatalogLabel] = sourceName
+		crd.SetLabels(labels)
+
+		// Add CRD Step
+		step, err := v1alpha1.NewStepResourceFromCRD(crd)
+		return step, "", err
+	}
+
+	csvs, err := source.ListLatestCSVsForCRD(crdKey)
+	if err != nil {
+		return v1alpha1.StepResource{}, "", err
+	}
+	if len(csvs) == 0 {
+		return v1alpha1.StepResource{}, "", fmt.Errorf("Unknown CRD %s", crdKey)
+	}
+
+	// TODO: Change to lookup the CSV from the preferred or default channel.
+	log.Infof("found %v owner %s", crdKey, csvs[0].CSV.Name)
+	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
+}
+
+type MultiDependencyResolver struct{}
+
+func (resolver *MultiDependencyResolver) ResolveInstallPlan(firstSourceName string, sources map[string]registry.Source, plan *v1alpha1.InstallPlan) error {
+	srm := make(stepResourceMap)
+	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
+		csvSRM, err := resolveCSV(csvName, plan.Namespace, firstSourceName, sources[firstSourceName])
+		if err != nil {
+			return err
+		}
+
+		srm.Combine(csvSRM)
+	}
+
+	plan.Status.Plan = srm.Plan()
+	return nil
+}
+
+func (resolver *MultiDependencyResolver) ResolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error) {
+	log.Debugf("resolving CSV with name: %s", csvName)
+
+	steps := make(stepResourceMap)
+	csvNamesToBeResolved := []string{csvName}
+
+	for len(csvNamesToBeResolved) != 0 {
+		// Pop off a CSV name.
+		currentName := csvNamesToBeResolved[0]
+		csvNamesToBeResolved = csvNamesToBeResolved[1:]
+
+		// If this CSV is already resolved, continue.
+		if _, exists := steps[currentName]; exists {
+			continue
+		}
+
+		// Get the full CSV object for the name.
+		csv, err := source.FindCSVByName(currentName)
+		if err != nil {
+			return nil, err
+		}
+		log.Debugf("found %#v", csv)
+
+		// Resolve each owned or required CRD for the CSV.
+		for _, crdDesc := range csv.GetAllCRDDescriptions() {
+			step, owner, err := resolveCRDDescription(crdDesc, sourceName, source, csv.OwnsCRD(crdDesc.Name))
+			if err != nil {
+				return nil, err
+			}
+
+			// If a different owner was resolved, add it to the list.
+			if owner != "" && owner != currentName {
+				csvNamesToBeResolved = append(csvNamesToBeResolved, owner)
+				continue
+			}
+
+			// Add the resolved step to the plan.
+			steps[currentName] = append(steps[currentName], step)
+		}
+
+		// Manually override the namespace and create the final step for the CSV,
+		// which is for the CSV itself.
+		csv.SetNamespace(namespace)
+
+		// Add the sourcename as a label on the CSV, so that we know where it came from
+		labels := csv.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[CatalogLabel] = sourceName
+		csv.SetLabels(labels)
+
+		step, err := v1alpha1.NewStepResourceFromCSV(csv)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the CatalogSource field
+		step.CatalogSource = sourceName
+
+		// Add the final step for the CSV to the plan.
+		log.Infof("finished step: %v", step)
+		steps[currentName] = append(steps[currentName], step)
+	}
+
+	return steps, nil
+}
+
+func (resolver *MultiDependencyResolver) ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
+	log.Debugf("resolving %#v", crdDesc)
+
+	crdKey := registry.CRDKey{
+		Kind:    crdDesc.Kind,
+		Name:    crdDesc.Name,
+		Version: crdDesc.Version,
+	}
+
+	crd, err := source.FindCRDByKey(crdKey)
+	if err != nil {
+		return v1alpha1.StepResource{}, "", err
+	}
+	log.Debugf("found %#v", crd)
+
+	if owned {
+		// Label CRD with catalog source
+		labels := crd.GetLabels()
+		if labels == nil {
+			labels = map[string]string{}
+		}
+		labels[CatalogLabel] = sourceName
+		crd.SetLabels(labels)
+
+		// Add CRD Step
+		step, err := v1alpha1.NewStepResourceFromCRD(crd)
+		return step, "", err
+	}
+
+	csvs, err := source.ListLatestCSVsForCRD(crdKey)
+	if err != nil {
+		return v1alpha1.StepResource{}, "", err
+	}
+	if len(csvs) == 0 {
+		return v1alpha1.StepResource{}, "", fmt.Errorf("Unknown CRD %s", crdKey)
+	}
+
+	// TODO: Change to lookup the CSV from the preferred or default channel.
+	log.Infof("found %v owner %s", crdKey, csvs[0].CSV.Name)
+	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
+}

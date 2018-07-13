@@ -135,6 +135,7 @@ func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionR
 		Message: err.Error(),
 	}
 }
+
 func ConditionMet(cond InstallPlanConditionType) InstallPlanCondition {
 	return InstallPlanCondition{
 		Type:   cond,
@@ -152,11 +153,12 @@ type Step struct {
 // StepResource represents the status of a resource to be tracked by an
 // InstallPlan.
 type StepResource struct {
-	Group    string `json:"group"`
-	Version  string `json:"version"`
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-	Manifest string `json:"manifest,omitempty"`
+	CatalogSource string `json:"sourceName"`
+	Group         string `json:"group"`
+	Version       string `json:"version"`
+	Kind          string `json:"kind"`
+	Name          string `json:"name"`
+	Manifest      string `json:"manifest,omitempty"`
 }
 
 // NewStepResourceFromCSV creates an unresolved Step for the provided CSV.
