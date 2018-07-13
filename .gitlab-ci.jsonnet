@@ -179,6 +179,7 @@ local jobs = {
             image: images.release,
             domain: "console.apps.ui-preserve.origin-gce.dev.openshift.com",
             namespace: "openshift",
+            catalog_namespace: "openshift",
             channel: "staging",
             helm_opts: ["--force"],
             kubeconfig: "$OPENSHIFT_KUBECONFIG",
