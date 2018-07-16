@@ -31,7 +31,7 @@ type Icon struct {
 	Data      string `json:"base64data"`
 }
 type CatalogSourceStatus struct {
-	ConfigMapResource *ConfigMapResourceReference `json:"configMapReeference,omitempty"`
+	ConfigMapResource *ConfigMapResourceReference `json:"configMapReference,omitempty"`
 	LastSync          metav1.Time                 `json:"lastSync,omitempty"`
 }
 type ConfigMapResourceReference struct {
