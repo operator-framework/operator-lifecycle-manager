@@ -468,19 +468,19 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 // DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
 // should behave
 type DependencyResolver interface {
-	ResolveInstallPlan(firstSourceKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error
-	ResolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error)
-	ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error)
+	ResolveInstallPlan(firstSrcKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error
+	ResolveCSV(csvName string, firstSrcKey sourceKey, sources map[sourceKey]registry.Source) (stepResourceMap, error)
+	ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, firstSrcKey sourceKey, sources map[sourceKey]registry.Source, owned bool) (v1alpha1.StepResource, string, error)
 }
 
 // SingleSourceResolver resolves dependencies from a single CatalogSource
 type SingleSourceResolver struct{}
 
 // ResolveInstallPlan resolves all dependencies for an InstallPlan
-func (resolver *SingleSourceResolver) ResolveInstallPlan(firstSourceKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error {
+func (resolver *SingleSourceResolver) ResolveInstallPlan(firstSrcKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, err := resolveCSV(csvName, plan.Namespace, firstSourceKey.name, sources[firstSourceKey])
+		csvSRM, err := resolver.ResolveCSV(csvName, firstSrcKey, sources)
 		if err != nil {
 			return err
 		}
@@ -492,8 +492,8 @@ func (resolver *SingleSourceResolver) ResolveInstallPlan(firstSourceKey sourceKe
 	return nil
 }
 
-// ResolveCSV resolves all dependencies for a given CSV
-func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error) {
+// ResolveCSV resolves all dependencies for a given CSV with one source
+func (resolver *SingleSourceResolver) ResolveCSV(csvName string, firstSrcKey sourceKey, sources map[sourceKey]registry.Source) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -510,7 +510,7 @@ func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName 
 		}
 
 		// Get the full CSV object for the name.
-		csv, err := source.FindCSVByName(currentName)
+		csv, err := sources[firstSrcKey].FindCSVByName(currentName)
 		if err != nil {
 			return nil, err
 		}
@@ -518,7 +518,7 @@ func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName 
 
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
-			step, owner, err := resolveCRDDescription(crdDesc, sourceName, source, csv.OwnsCRD(crdDesc.Name))
+			step, owner, err := resolver.ResolveCRDDescription(crdDesc, firstSrcKey, sources, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, err
 			}
@@ -535,14 +535,14 @@ func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName 
 
 		// Manually override the namespace and create the final step for the CSV,
 		// which is for the CSV itself.
-		csv.SetNamespace(namespace)
+		csv.SetNamespace(firstSrcKey.namespace)
 
 		// Add the sourcename as a label on the CSV, so that we know where it came from
 		labels := csv.GetLabels()
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[CatalogLabel] = sourceName
+		labels[CatalogLabel] = firstSrcKey.name
 		csv.SetLabels(labels)
 
 		step, err := v1alpha1.NewStepResourceFromCSV(csv)
@@ -551,7 +551,7 @@ func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName 
 		}
 
 		// Set the CatalogSource field
-		step.CatalogSource = sourceName
+		step.CatalogSource = firstSrcKey.name
 
 		// Add the final step for the CSV to the plan.
 		log.Infof("finished step: %v", step)
@@ -562,7 +562,7 @@ func (resolver *SingleSourceResolver) ResolveCSV(csvName, namespace, sourceName 
 }
 
 // ResolveCRDDescription resolves the description of a given CRD
-func (resolver *SingleSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
+func (resolver *SingleSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, firstSrcKey sourceKey, sources map[sourceKey]registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
 	crdKey := registry.CRDKey{
@@ -571,7 +571,7 @@ func (resolver *SingleSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.
 		Version: crdDesc.Version,
 	}
 
-	crd, err := source.FindCRDByKey(crdKey)
+	crd, err := sources[firstSrcKey].FindCRDByKey(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
@@ -583,15 +583,19 @@ func (resolver *SingleSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[CatalogLabel] = sourceName
+		labels[CatalogLabel] = firstSrcKey.name
 		crd.SetLabels(labels)
 
 		// Add CRD Step
 		step, err := v1alpha1.NewStepResourceFromCRD(crd)
+
+		// Set the Step's CatalogSource
+		step.CatalogSource = firstSrcKey.name
+
 		return step, "", err
 	}
 
-	csvs, err := source.ListLatestCSVsForCRD(crdKey)
+	csvs, err := sources[firstSrcKey].ListLatestCSVsForCRD(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
@@ -604,24 +608,40 @@ func (resolver *SingleSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.
 	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
 }
 
-type MultiDependencyResolver struct{}
+// MultiSourceResolver resolves resolves dependencies from multiple CatalogSources
+type MultiSourceResolver struct{}
 
-func (resolver *MultiDependencyResolver) ResolveInstallPlan(firstSourceName string, sources map[string]registry.Source, plan *v1alpha1.InstallPlan) error {
+// ResolveInstallPlan resolves the given InstallPlan with all available sources
+func (resolver *MultiSourceResolver) ResolveInstallPlan(firstSrcKey sourceKey, sources map[sourceKey]registry.Source, plan *v1alpha1.InstallPlan) error {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, err := resolveCSV(csvName, plan.Namespace, firstSourceName, sources[firstSourceName])
-		if err != nil {
-			return err
+
+		// Attempt to resolve from the first CatalogSource
+		csvSRM, err := resolver.ResolveCSV(csvName, firstSrcKey, sources)
+
+		if err == nil {
+			srm.Combine(csvSRM)
+			continue
 		}
 
-		srm.Combine(csvSRM)
+		// Attempt to resolve from any other CatalogSource
+		for srcKey := range sources {
+			if srcKey != firstSrcKey {
+				csvSRM, err = resolver.ResolveCSV(csvName, srcKey, sources)
+				if err == nil {
+					srm.Combine(csvSRM)
+					break
+				}
+			}
+		}
 	}
 
 	plan.Status.Plan = srm.Plan()
 	return nil
 }
 
-func (resolver *MultiDependencyResolver) ResolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error) {
+// ResolveCSV resolves all dependencies for a given CSV with all available sources
+func (resolver *MultiSourceResolver) ResolveCSV(csvName string, firstSrcKey sourceKey, sources map[sourceKey]registry.Source) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -637,16 +657,37 @@ func (resolver *MultiDependencyResolver) ResolveCSV(csvName, namespace, sourceNa
 			continue
 		}
 
-		// Get the full CSV object for the name.
-		csv, err := source.FindCSVByName(currentName)
+		// sourceKey for the source containing the CSV
+		csvSrcKey := firstSrcKey
+
+		// Attempt to Get the full CSV object for the name from the first CatalogSource
+		csv, err := sources[firstSrcKey].FindCSVByName(currentName)
 		if err != nil {
+			// Search other Catalogs for the CSV
+			for srcKey := range sources {
+				if srcKey != firstSrcKey {
+					csv, err = sources[firstSrcKey].FindCSVByName(currentName)
+
+					if err == nil {
+						// Found CSV
+						csvSrcKey = srcKey
+						break
+					}
+				}
+			}
+		}
+
+		if err != nil {
+			// Couldn't find CSV in any CatalogSource
 			return nil, err
 		}
+
 		log.Debugf("found %#v", csv)
 
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
-			step, owner, err := resolveCRDDescription(crdDesc, sourceName, source, csv.OwnsCRD(crdDesc.Name))
+			// Attempt to get the CRD
+			step, owner, err := resolver.ResolveCRDDescription(crdDesc, firstSrcKey, sources, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, err
 			}
@@ -654,23 +695,23 @@ func (resolver *MultiDependencyResolver) ResolveCSV(csvName, namespace, sourceNa
 			// If a different owner was resolved, add it to the list.
 			if owner != "" && owner != currentName {
 				csvNamesToBeResolved = append(csvNamesToBeResolved, owner)
-				continue
+			} else {
+				// Add the resolved step to the plan.
+				steps[currentName] = append(steps[currentName], step)
 			}
 
-			// Add the resolved step to the plan.
-			steps[currentName] = append(steps[currentName], step)
 		}
 
 		// Manually override the namespace and create the final step for the CSV,
 		// which is for the CSV itself.
-		csv.SetNamespace(namespace)
+		csv.SetNamespace(csvSrcKey.namespace)
 
 		// Add the sourcename as a label on the CSV, so that we know where it came from
 		labels := csv.GetLabels()
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[CatalogLabel] = sourceName
+		labels[CatalogLabel] = csvSrcKey.name
 		csv.SetLabels(labels)
 
 		step, err := v1alpha1.NewStepResourceFromCSV(csv)
@@ -679,7 +720,7 @@ func (resolver *MultiDependencyResolver) ResolveCSV(csvName, namespace, sourceNa
 		}
 
 		// Set the CatalogSource field
-		step.CatalogSource = sourceName
+		step.CatalogSource = csvSrcKey.name
 
 		// Add the final step for the CSV to the plan.
 		log.Infof("finished step: %v", step)
@@ -689,7 +730,8 @@ func (resolver *MultiDependencyResolver) ResolveCSV(csvName, namespace, sourceNa
 	return steps, nil
 }
 
-func (resolver *MultiDependencyResolver) ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
+// ResolveCRDDescription resolves the given CRDDescription over all given sources
+func (resolver *MultiSourceResolver) ResolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, firstSrcKey sourceKey, sources map[sourceKey]registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
 	crdKey := registry.CRDKey{
@@ -698,10 +740,30 @@ func (resolver *MultiDependencyResolver) ResolveCRDDescription(crdDesc csvv1alph
 		Version: crdDesc.Version,
 	}
 
-	crd, err := source.FindCRDByKey(crdKey)
+	// sourceKey for source found to contain the CRD
+	crdSrcKey := firstSrcKey
+
+	// Attempt to get the the CRD in the first SourceCatalog
+	crd, err := sources[firstSrcKey].FindCRDByKey(crdKey)
+	if err != nil {
+		// Attempt to find the CRD in any other source
+		for srcKey := range sources {
+			if srcKey != firstSrcKey {
+				crd, err = sources[srcKey].FindCRDByKey(crdKey)
+
+				if err == nil {
+					// Found the CRD
+					crdSrcKey = srcKey
+					break
+				}
+			}
+		}
+	}
+
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
+
 	log.Debugf("found %#v", crd)
 
 	if owned {
@@ -710,15 +772,19 @@ func (resolver *MultiDependencyResolver) ResolveCRDDescription(crdDesc csvv1alph
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[CatalogLabel] = sourceName
+		labels[CatalogLabel] = crdSrcKey.name
 		crd.SetLabels(labels)
 
 		// Add CRD Step
 		step, err := v1alpha1.NewStepResourceFromCRD(crd)
+
+		// Set the Step's CatalogSource
+		step.CatalogSource = firstSrcKey.name
+
 		return step, "", err
 	}
 
-	csvs, err := source.ListLatestCSVsForCRD(crdKey)
+	csvs, err := sources[crdSrcKey].ListLatestCSVsForCRD(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
@@ -729,4 +795,5 @@ func (resolver *MultiDependencyResolver) ResolveCRDDescription(crdDesc csvv1alph
 	// TODO: Change to lookup the CSV from the preferred or default channel.
 	log.Infof("found %v owner %s", crdKey, csvs[0].CSV.Name)
 	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
+
 }

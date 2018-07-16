@@ -160,14 +160,14 @@ func TestResolveInstallPlanWithSingleSource(t *testing.T) {
 				src.AddOrReplaceService(csv(names.name, names.owned, names.required))
 			}
 
-			key := sourceKey{"tectonic-ocs", plan.Namespace}
+			srcKey := sourceKey{"tectonic-ocs", plan.Namespace}
 
 			srcMap := map[sourceKey]registry.Source{
-				key: src,
+				srcKey: src,
 			}
 
 			// Resolve the plan.
-			err := resolver.ResolveInstallPlan(key, srcMap, &plan)
+			err := resolver.ResolveInstallPlan(srcKey, srcMap, &plan)
 
 			// Assert the error is as expected.
 			if tt.expectedErr == nil {
