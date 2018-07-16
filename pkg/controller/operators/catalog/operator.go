@@ -634,6 +634,10 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(firstSrcKey sourceKey, s
 				}
 			}
 		}
+
+		if err != nil {
+			return err
+		}
 	}
 
 	plan.Status.Plan = srm.Plan()
