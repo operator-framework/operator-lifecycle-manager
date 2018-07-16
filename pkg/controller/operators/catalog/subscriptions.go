@@ -40,9 +40,13 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
 
-	catalog, ok := o.sources[sub.Spec.CatalogSource]
+	catalogNamespace := sub.Spec.CatalogSourceNamespace
+	if catalogNamespace == "" {
+		catalogNamespace = o.namespace
+	}
+	catalog, ok := o.sources[sourceKey{name: sub.Spec.CatalogSource, namespace: catalogNamespace}]
 	if !ok {
-		return sub, fmt.Errorf("unknown catalog source %s", sub.Spec.CatalogSource)
+		return sub, fmt.Errorf("unknown catalog source %s in namespace %s", sub.Spec.CatalogSource, catalogNamespace)
 	}
 
 	// Find latest CSV if no CSVs are installed already

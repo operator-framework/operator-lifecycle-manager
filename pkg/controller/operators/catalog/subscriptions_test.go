@@ -112,7 +112,7 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 				},
 			}},
-			expected: expected{err: "unknown catalog source flying-unicorns"},
+			expected: expected{err: "unknown catalog source flying-unicorns in namespace ns"},
 		},
 		{
 			name:    "no updates",
@@ -934,8 +934,8 @@ func TestSyncSubscription(t *testing.T) {
 			op := &Operator{
 				client:    clientFake,
 				namespace: "ns",
-				sources: map[string]registry.Source{
-					tt.initial.catalogName: catalogFake,
+				sources: map[sourceKey]registry.Source{
+					sourceKey{name: tt.initial.catalogName, namespace: "ns"}: catalogFake,
 				},
 				sourcesLastUpdate: tt.initial.sourcesLastUpdate,
 			}

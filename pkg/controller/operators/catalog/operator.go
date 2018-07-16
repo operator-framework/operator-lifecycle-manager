@@ -34,13 +34,18 @@ const (
 //for test stubbing and for ensuring standardization of timezones to UTC
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
+type sourceKey struct {
+	name      string
+	namespace string
+}
+
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
 	client            versioned.Interface
 	namespace         string
-	sources           map[string]registry.Source
+	sources           map[sourceKey]registry.Source
 	sourcesLock       sync.Mutex
 	sourcesLastUpdate metav1.Time
 }
@@ -85,7 +90,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		Operator:  queueOperator,
 		client:    crClient,
 		namespace: operatorNamespace,
-		sources:   make(map[string]registry.Source),
+		sources:   make(map[sourceKey]registry.Source),
 	}
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
@@ -140,7 +145,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
-	o.sources[catsrc.GetName()] = src
+	o.sources[sourceKey{name: catsrc.GetName(), namespace: catsrc.GetNamespace()}] = src
 	o.sourcesLastUpdate = timeNow()
 	return nil
 }
@@ -268,16 +273,16 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	defer o.sourcesLock.Unlock()
 
 	var notFoundErr error
-	for sourceName, source := range o.sources {
-		log.Debugf("resolving against source %v", sourceName)
-		plan.EnsureCatalogSource(sourceName)
-		notFoundErr = resolveInstallPlan(sourceName, source, plan)
+	for key, source := range o.sources {
+		log.Debugf("resolving against source %v", key)
+		plan.EnsureCatalogSource(key.name)
+		notFoundErr = resolveInstallPlan(key.name, source, plan)
 		if notFoundErr != nil {
 			continue
 		}
 
 		// Look up the CatalogSource.
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(sourceName, metav1.GetOptions{})
+		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(key.namespace).Get(key.name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
