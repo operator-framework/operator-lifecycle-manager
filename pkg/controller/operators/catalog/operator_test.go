@@ -167,7 +167,8 @@ func TestResolveInstallPlanWithSingleSource(t *testing.T) {
 			}
 
 			// Resolve the plan.
-			err := resolver.ResolveInstallPlan(srcKey, srcMap, &plan)
+			steps, err := resolver.ResolveInstallPlan(srcMap, srcKey, &plan)
+			plan.Status.Plan = steps
 
 			// Assert the error is as expected.
 			if tt.expectedErr == nil {
