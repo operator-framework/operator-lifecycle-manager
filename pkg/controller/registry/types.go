@@ -31,6 +31,11 @@ type Source interface {
 	ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error)
 }
 
+type SourceKey struct {
+	Name      string
+	Namespace string
+}
+
 // CRDKey contains metadata needed to uniquely identify a CRD
 type CRDKey struct {
 	Kind    string
