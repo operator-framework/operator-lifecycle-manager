@@ -117,8 +117,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		}
 	}
 }
-
-func TestResolveInstallPlan(t *testing.T) {
+func TestResolveInstallPlanWithSingleSource(t *testing.T) {
 	type csvNames struct {
 		name     string
 		owned    []string
@@ -161,14 +160,14 @@ func TestResolveInstallPlan(t *testing.T) {
 				src.AddOrReplaceService(csv(names.name, names.owned, names.required))
 			}
 
-			key := sourceKey{"tectonic-ocs", plan.Namespace}
+			srcKey := sourceKey{"tectonic-ocs", plan.Namespace}
 
 			srcMap := map[sourceKey]registry.Source{
-				key: src,
+				srcKey: src,
 			}
 
 			// Resolve the plan.
-			err := resolver.ResolveInstallPlan(key, srcMap, &plan)
+			err := resolver.ResolveInstallPlan(srcKey, srcMap, &plan)
 
 			// Assert the error is as expected.
 			if tt.expectedErr == nil {
@@ -179,6 +178,11 @@ func TestResolveInstallPlan(t *testing.T) {
 
 			// Assert the number of items in the plan are equal.
 			require.Equal(t, tt.expectedPlanLen, len(plan.Status.Plan))
+
+			// Assert that all StepResources have the have the correct CatalogSource set
+			for _, step := range plan.Status.Plan {
+				require.Equal(t, step.Resource.CatalogSource, "tectonic-ocs")
+			}
 		})
 	}
 }
