@@ -153,12 +153,13 @@ type Step struct {
 // StepResource represents the status of a resource to be tracked by an
 // InstallPlan.
 type StepResource struct {
-	CatalogSource string `json:"sourceName"`
-	Group         string `json:"group"`
-	Version       string `json:"version"`
-	Kind          string `json:"kind"`
-	Name          string `json:"name"`
-	Manifest      string `json:"manifest,omitempty"`
+	CatalogSource          string `json:"sourceName"`
+	CatalogSourceNamespace string `json:"sourceNamespace"`
+	Group                  string `json:"group"`
+	Version                string `json:"version"`
+	Kind                   string `json:"kind"`
+	Name                   string `json:"name"`
+	Manifest               string `json:"manifest,omitempty"`
 }
 
 // NewStepResourceFromCSV creates an unresolved Step for the provided CSV.

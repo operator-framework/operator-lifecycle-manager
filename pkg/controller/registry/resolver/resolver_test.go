@@ -57,7 +57,10 @@ func TestSingleSourceResolveInstallPlan(t *testing.T) {
 				src.AddOrReplaceService(csv(names.name, names.owned, names.required))
 			}
 
-			srcKey := registry.SourceKey{"tectonic-ocs", plan.Namespace}
+			srcKey := registry.SourceKey{
+				Name:      "tectonic-ocs",
+				Namespace: plan.Namespace,
+			}
 
 			srcMap := map[registry.SourceKey]registry.Source{
 				srcKey: src,
@@ -77,9 +80,10 @@ func TestSingleSourceResolveInstallPlan(t *testing.T) {
 			// Assert the number of items in the plan are equal.
 			require.Equal(t, tt.expectedPlanLen, len(plan.Status.Plan))
 
-			// Assert that all StepResources have the have the correct CatalogSource set
+			// Assert that all StepResources have the have the correct catalog source name and namespace set
 			for _, step := range plan.Status.Plan {
 				require.Equal(t, step.Resource.CatalogSource, "tectonic-ocs")
+				require.Equal(t, step.Resource.CatalogSourceNamespace, plan.Namespace)
 			}
 		})
 	}

@@ -100,8 +100,9 @@ func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]
 			return nil, err
 		}
 
-		// Set the CatalogSource field
+		// Set the catalog source name and namespace
 		step.CatalogSource = firstSrcKey.Name
+		step.CatalogSourceNamespace = firstSrcKey.Namespace
 
 		// Add the final step for the CSV to the plan.
 		log.Infof("finished step: %v", step)
@@ -144,8 +145,9 @@ func (resolver *SingleSourceResolver) resolveCRDDescription(sources map[registry
 		// Add CRD Step
 		step, err := v1alpha1.NewStepResourceFromCRD(crd)
 
-		// Set the Step's CatalogSource
+		// Set the catalog source name and namespace
 		step.CatalogSource = firstSrcKey.Name
+		step.CatalogSourceNamespace = firstSrcKey.Namespace
 
 		return step, "", err
 	}
@@ -281,8 +283,9 @@ func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]r
 			return nil, err
 		}
 
-		// Set the CatalogSource field
+		// Set the catalog source name and namespace
 		step.CatalogSource = csvSrcKey.Name
+		step.CatalogSourceNamespace = csvSrcKey.Namespace
 
 		// Add the final step for the CSV to the plan.
 		log.Infof("finished step: %v", step)
@@ -345,8 +348,9 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sources map[registry.
 		// Add CRD Step
 		step, err := v1alpha1.NewStepResourceFromCRD(crd)
 
-		// Set the Step's CatalogSource
-		step.CatalogSource = firstSrcKey.Name
+		// Set the catalog source name and namespace
+		step.CatalogSource = crdSrcKey.Name
+		step.CatalogSourceNamespace = crdSrcKey.Namespace
 
 		return step, "", err
 	}
