@@ -6,6 +6,7 @@ import (
 
 	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	log "github.com/sirupsen/logrus"
@@ -44,7 +45,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 	if catalogNamespace == "" {
 		catalogNamespace = o.namespace
 	}
-	catalog, ok := o.sources[sourceKey{name: sub.Spec.CatalogSource, namespace: catalogNamespace}]
+	catalog, ok := o.sources[registry.SourceKey{Name: sub.Spec.CatalogSource, Namespace: catalogNamespace}]
 	if !ok {
 		return sub, fmt.Errorf("unknown catalog source %s in namespace %s", sub.Spec.CatalogSource, catalogNamespace)
 	}

@@ -19,6 +19,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"k8s.io/apimachinery/pkg/util/diff"
 )
@@ -934,10 +935,11 @@ func TestSyncSubscription(t *testing.T) {
 			op := &Operator{
 				client:    clientFake,
 				namespace: "ns",
-				sources: map[sourceKey]registry.Source{
-					sourceKey{name: tt.initial.catalogName, namespace: "ns"}: catalogFake,
+				sources: map[registry.SourceKey]registry.Source{
+					registry.SourceKey{Name: tt.initial.catalogName, Namespace: "ns"}: catalogFake,
 				},
-				sourcesLastUpdate: tt.initial.sourcesLastUpdate,
+				sourcesLastUpdate:  tt.initial.sourcesLastUpdate,
+				dependencyResolver: &resolver.SingleSourceResolver{},
 			}
 
 			// run subscription sync

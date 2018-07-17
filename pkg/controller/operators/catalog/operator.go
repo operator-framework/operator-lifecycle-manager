@@ -22,6 +22,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -34,20 +35,16 @@ const (
 //for test stubbing and for ensuring standardization of timezones to UTC
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
-type sourceKey struct {
-	name      string
-	namespace string
-}
-
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	client            versioned.Interface
-	namespace         string
-	sources           map[sourceKey]registry.Source
-	sourcesLock       sync.Mutex
-	sourcesLastUpdate metav1.Time
+	client             versioned.Interface
+	namespace          string
+	sources            map[registry.SourceKey]registry.Source
+	sourcesLock        sync.RWMutex
+	sourcesLastUpdate  metav1.Time
+	dependencyResolver resolver.DependencyResolver
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -87,10 +84,11 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		Operator:  queueOperator,
-		client:    crClient,
-		namespace: operatorNamespace,
-		sources:   make(map[sourceKey]registry.Source),
+		Operator:           queueOperator,
+		client:             crClient,
+		namespace:          operatorNamespace,
+		sources:            make(map[registry.SourceKey]registry.Source),
+		dependencyResolver: &resolver.SingleSourceResolver{},
 	}
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
@@ -145,7 +143,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
-	o.sources[sourceKey{name: catsrc.GetName(), namespace: catsrc.GetNamespace()}] = src
+	o.sources[registry.SourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}] = src
 	o.sourcesLastUpdate = timeNow()
 	return nil
 }
@@ -269,20 +267,30 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	if len(o.sources) == 0 {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
-	o.sourcesLock.Lock()
-	defer o.sourcesLock.Unlock()
+
+	// Copy the sources for resolution
+	o.sourcesLock.RLock()
+	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
+	for key, source := range o.sources {
+		sourcesSnapshot[key] = source
+	}
+	o.sourcesLock.RUnlock()
 
 	var notFoundErr error
-	for key, source := range o.sources {
-		log.Debugf("resolving against source %v", key)
-		plan.EnsureCatalogSource(key.name)
-		notFoundErr = resolveInstallPlan(key.name, source, plan)
+	var steps []v1alpha1.Step
+	for srcKey := range sourcesSnapshot {
+		log.Debugf("resolving against source %v", srcKey)
+		plan.EnsureCatalogSource(srcKey.Name)
+		steps, notFoundErr = o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, srcKey, CatalogLabel, plan)
 		if notFoundErr != nil {
 			continue
 		}
 
+		// Set the resolved steps
+		plan.Status.Plan = steps
+
 		// Look up the CatalogSource.
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(key.namespace).Get(key.name, metav1.GetOptions{})
+		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(srcKey.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -315,156 +323,6 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	return notFoundErr
-}
-
-func resolveCRDDescription(crdDesc csvv1alpha1.CRDDescription, sourceName string, source registry.Source, owned bool) (v1alpha1.StepResource, string, error) {
-	log.Debugf("resolving %#v", crdDesc)
-
-	crdKey := registry.CRDKey{
-		Kind:    crdDesc.Kind,
-		Name:    crdDesc.Name,
-		Version: crdDesc.Version,
-	}
-
-	crd, err := source.FindCRDByKey(crdKey)
-	if err != nil {
-		return v1alpha1.StepResource{}, "", err
-	}
-	log.Debugf("found %#v", crd)
-
-	if owned {
-		// Label CRD with catalog source
-		labels := crd.GetLabels()
-		if labels == nil {
-			labels = map[string]string{}
-		}
-		labels[CatalogLabel] = sourceName
-		crd.SetLabels(labels)
-
-		// Add CRD Step
-		step, err := v1alpha1.NewStepResourceFromCRD(crd)
-		return step, "", err
-	}
-
-	csvs, err := source.ListLatestCSVsForCRD(crdKey)
-	if err != nil {
-		return v1alpha1.StepResource{}, "", err
-	}
-	if len(csvs) == 0 {
-		return v1alpha1.StepResource{}, "", fmt.Errorf("Unknown CRD %s", crdKey)
-	}
-
-	// TODO: Change to lookup the CSV from the preferred or default channel.
-	log.Infof("found %v owner %s", crdKey, csvs[0].CSV.Name)
-	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
-}
-
-type stepResourceMap map[string][]v1alpha1.StepResource
-
-func (srm stepResourceMap) Plan() []v1alpha1.Step {
-	steps := make([]v1alpha1.Step, 0)
-	for csvName, stepResSlice := range srm {
-		for _, stepRes := range stepResSlice {
-			steps = append(steps, v1alpha1.Step{
-				Resolving: csvName,
-				Resource:  stepRes,
-				Status:    v1alpha1.StepStatusUnknown,
-			})
-		}
-	}
-
-	return steps
-}
-
-func (srm stepResourceMap) Combine(y stepResourceMap) {
-	for csvName, stepResSlice := range y {
-		// Skip any redundant steps.
-		if _, alreadyExists := srm[csvName]; alreadyExists {
-			continue
-		}
-
-		srm[csvName] = stepResSlice
-	}
-}
-
-func resolveCSV(csvName, namespace, sourceName string, source registry.Source) (stepResourceMap, error) {
-	log.Debugf("resolving CSV with name: %s", csvName)
-
-	steps := make(stepResourceMap)
-	csvNamesToBeResolved := []string{csvName}
-
-	for len(csvNamesToBeResolved) != 0 {
-		// Pop off a CSV name.
-		currentName := csvNamesToBeResolved[0]
-		csvNamesToBeResolved = csvNamesToBeResolved[1:]
-
-		// If this CSV is already resolved, continue.
-		if _, exists := steps[currentName]; exists {
-			continue
-		}
-
-		// Get the full CSV object for the name.
-		csv, err := source.FindCSVByName(currentName)
-		if err != nil {
-			return nil, err
-		}
-		log.Debugf("found %#v", csv)
-
-		// Resolve each owned or required CRD for the CSV.
-		for _, crdDesc := range csv.GetAllCRDDescriptions() {
-			step, owner, err := resolveCRDDescription(crdDesc, sourceName, source, csv.OwnsCRD(crdDesc.Name))
-			if err != nil {
-				return nil, err
-			}
-
-			// If a different owner was resolved, add it to the list.
-			if owner != "" && owner != currentName {
-				csvNamesToBeResolved = append(csvNamesToBeResolved, owner)
-				continue
-			}
-
-			// Add the resolved step to the plan.
-			steps[currentName] = append(steps[currentName], step)
-		}
-
-		// Manually override the namespace and create the final step for the CSV,
-		// which is for the CSV itself.
-		csv.SetNamespace(namespace)
-
-		// Add the sourcename as a label on the CSV, so that we know where it came from
-		labels := csv.GetLabels()
-		if labels == nil {
-			labels = map[string]string{}
-		}
-		labels[CatalogLabel] = sourceName
-		csv.SetLabels(labels)
-
-		step, err := v1alpha1.NewStepResourceFromCSV(csv)
-		if err != nil {
-			return nil, err
-		}
-
-		// Add the final step for the CSV to the plan.
-		log.Infof("finished step: %v", step)
-		steps[currentName] = append(steps[currentName], step)
-	}
-
-	return steps, nil
-}
-
-func resolveInstallPlan(sourceName string, source registry.Source, plan *v1alpha1.InstallPlan) error {
-	srm := make(stepResourceMap)
-	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, err := resolveCSV(csvName, plan.Namespace, sourceName, source)
-		if err != nil {
-			return err
-		}
-
-		srm.Combine(csvSRM)
-	}
-
-	plan.Status.Plan = srm.Plan()
-	return nil
 }
 
 // ExecutePlan applies a planned InstallPlan to a namespace.
