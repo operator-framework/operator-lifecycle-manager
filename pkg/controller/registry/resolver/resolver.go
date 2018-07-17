@@ -167,7 +167,7 @@ func (resolver *SingleSourceResolver) resolveCRDDescription(sources map[registry
 type MultiSourceResolver struct{}
 
 // ResolveInstallPlan resolves the given InstallPlan with all available sources
-func (resolver *MultiSourceResolver) ResolveInstallPlan(firstSrcKey registry.SourceKey, sources map[registry.SourceKey]registry.Source, catalogLabel string, plan *v1alpha1.InstallPlan) error {
+func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error) {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
 
@@ -191,12 +191,11 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(firstSrcKey registry.Sou
 		}
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	plan.Status.Plan = srm.Plan()
-	return nil
+	return srm.Plan(), nil
 }
 
 func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel, csvName string) (stepResourceMap, error) {

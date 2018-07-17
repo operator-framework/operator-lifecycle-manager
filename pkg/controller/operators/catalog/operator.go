@@ -278,17 +278,10 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 
 	var notFoundErr error
 	var steps []v1alpha1.Step
-<<<<<<< HEAD
-	for key := range sourcesSnapshot {
-		log.Debugf("resolving against source %v", key)
-		plan.EnsureCatalogSource(key.name)
-		steps, notFoundErr = resolver.ResolveInstallPlan(sourcesSnapshot, key, plan)
-=======
 	for srcKey := range sourcesSnapshot {
 		log.Debugf("resolving against source %v", srcKey)
 		plan.EnsureCatalogSource(srcKey.Name)
 		steps, notFoundErr = o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, srcKey, CatalogLabel, plan)
->>>>>>> 5ed3cd1... refactor resolver to be in separate package
 		if notFoundErr != nil {
 			continue
 		}
@@ -297,11 +290,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		plan.Status.Plan = steps
 
 		// Look up the CatalogSource.
-<<<<<<< HEAD
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(key.name, metav1.GetOptions{})
-=======
 		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(srcKey.Name, metav1.GetOptions{})
->>>>>>> 5ed3cd1... refactor resolver to be in separate package
 		if err != nil {
 			return err
 		}
