@@ -14,19 +14,19 @@ import (
 // DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
 // should behave
 type DependencyResolver interface {
-	ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error)
-	resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel, csvName string) (stepResourceMap, error)
-	resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error)
+	ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error)
+	resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, csvName string) (stepResourceMap, error)
+	resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error)
 }
 
 // SingleSourceResolver resolves dependencies from a single CatalogSource
 type SingleSourceResolver struct{}
 
 // ResolveInstallPlan resolves all dependencies for an InstallPlan
-func (resolver *SingleSourceResolver) ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error) {
+func (resolver *SingleSourceResolver) ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error) {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabel, csvName)
+		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabelKey, csvName)
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +37,7 @@ func (resolver *SingleSourceResolver) ResolveInstallPlan(sources map[registry.So
 	return srm.Plan(), nil
 }
 
-func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel, csvName string) (stepResourceMap, error) {
+func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, csvName string) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -68,7 +68,7 @@ func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]
 
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
-			step, owner, err := resolver.resolveCRDDescription(sources, firstSrcKey, catalogLabel, crdDesc, csv.OwnsCRD(crdDesc.Name))
+			step, owner, err := resolver.resolveCRDDescription(sources, firstSrcKey, catalogLabelKey, crdDesc, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, err
 			}
@@ -92,7 +92,7 @@ func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[catalogLabel] = firstSrcKey.Name
+		labels[catalogLabelKey] = firstSrcKey.Name
 		csv.SetLabels(labels)
 
 		step, err := v1alpha1.NewStepResourceFromCSV(csv)
@@ -111,7 +111,7 @@ func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]
 	return steps, nil
 }
 
-func (resolver *SingleSourceResolver) resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
+func (resolver *SingleSourceResolver) resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
 	crdKey := registry.CRDKey{
@@ -138,7 +138,7 @@ func (resolver *SingleSourceResolver) resolveCRDDescription(sources map[registry
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[catalogLabel] = firstSrcKey.Name
+		labels[catalogLabelKey] = firstSrcKey.Name
 		crd.SetLabels(labels)
 
 		// Add CRD Step
@@ -167,12 +167,12 @@ func (resolver *SingleSourceResolver) resolveCRDDescription(sources map[registry
 type MultiSourceResolver struct{}
 
 // ResolveInstallPlan resolves the given InstallPlan with all available sources
-func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error) {
+func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error) {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
 
 		// Attempt to resolve from the first CatalogSource
-		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabel, csvName)
+		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabelKey, csvName)
 
 		if err == nil {
 			srm.Combine(csvSRM)
@@ -182,7 +182,7 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.Sou
 		// Attempt to resolve from any other CatalogSource
 		for srcKey := range sources {
 			if srcKey != firstSrcKey {
-				csvSRM, err = resolver.resolveCSV(sources, srcKey, catalogLabel, csvName)
+				csvSRM, err = resolver.resolveCSV(sources, srcKey, catalogLabelKey, csvName)
 				if err == nil {
 					srm.Combine(csvSRM)
 					break
@@ -198,7 +198,7 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.Sou
 	return srm.Plan(), nil
 }
 
-func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel, csvName string) (stepResourceMap, error) {
+func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, csvName string) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -249,7 +249,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]r
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
 			// Attempt to get the CRD
-			step, owner, err := resolver.resolveCRDDescription(sources, firstSrcKey, catalogLabel, crdDesc, csv.OwnsCRD(crdDesc.Name))
+			step, owner, err := resolver.resolveCRDDescription(sources, firstSrcKey, catalogLabelKey, crdDesc, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, err
 			}
@@ -273,7 +273,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]r
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[catalogLabel] = csvSrcKey.Name
+		labels[catalogLabelKey] = csvSrcKey.Name
 		csv.SetLabels(labels)
 
 		step, err := v1alpha1.NewStepResourceFromCSV(csv)
@@ -292,7 +292,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]r
 	return steps, nil
 }
 
-func (resolver *MultiSourceResolver) resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabel string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
+func (resolver *MultiSourceResolver) resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 
 	crdKey := registry.CRDKey{
@@ -339,7 +339,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sources map[registry.
 		if labels == nil {
 			labels = map[string]string{}
 		}
-		labels[catalogLabel] = crdSrcKey.Name
+		labels[catalogLabelKey] = crdSrcKey.Name
 		crd.SetLabels(labels)
 
 		// Add CRD Step
