@@ -15,8 +15,6 @@ import (
 // should behave
 type DependencyResolver interface {
 	ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error)
-	resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, planNamespace, csvName string) (stepResourceMap, error)
-	resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error)
 }
 
 // SingleSourceResolver resolves dependencies from a single CatalogSource

@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSingleSourceResolveInstallPlan(t *testing.T) {
+func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 	type csvNames struct {
 		name     string
 		owned    []string
@@ -36,8 +36,6 @@ func TestSingleSourceResolveInstallPlan(t *testing.T) {
 		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 2},
 		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 3},
 	}
-
-	resolver := &SingleSourceResolver{}
 
 	for _, tt := range table {
 		t.Run(tt.description, func(t *testing.T) {
@@ -66,18 +64,18 @@ func TestSingleSourceResolveInstallPlan(t *testing.T) {
 				srcKey: src,
 			}
 
-			// Resolve the plan.
+			// Resolve the plan
 			steps, err := resolver.ResolveInstallPlan(srcMap, srcKey, "alm-catalog", &plan)
 			plan.Status.Plan = steps
 
-			// Assert the error is as expected.
+			// Assert the error is as expected
 			if tt.expectedErr == nil {
 				require.Nil(t, err)
 			} else {
 				require.Equal(t, tt.expectedErr, err)
 			}
 
-			// Assert the number of items in the plan are equal.
+			// Assert the number of items in the plan are equal
 			require.Equal(t, tt.expectedPlanLen, len(plan.Status.Plan))
 
 			// Assert that all StepResources have the have the correct catalog source name and namespace set
@@ -87,6 +85,16 @@ func TestSingleSourceResolveInstallPlan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestSingleSourceResolveInstallPlan(t *testing.T) {
+	resolver := &SingleSourceResolver{}
+	resolveInstallPlan(t, resolver)
+}
+
+func TestMultiSourceResolveInstallPlan(t *testing.T) {
+	resolver := &MultiSourceResolver{}
+	resolveInstallPlan(t, resolver)
 }
 
 func installPlan(names ...string) v1alpha1.InstallPlan {
