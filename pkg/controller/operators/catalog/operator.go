@@ -269,12 +269,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	// Copy the sources for resolution
-	o.sourcesLock.RLock()
-	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
-	for key, source := range o.sources {
-		sourcesSnapshot[key] = source
-	}
-	o.sourcesLock.RUnlock()
+	sourcesSnapshot := o.getSourcesSnapshot()
 
 	var notFoundErr error
 	var steps []v1alpha1.Step
@@ -431,4 +426,15 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	return nil
+}
+
+func (o *Operator) getSourcesSnapshot() map[registry.SourceKey]registry.Source {
+	o.sourcesLock.RLock()
+	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
+	for key, source := range o.sources {
+		sourcesSnapshot[key] = source
+	}
+	o.sourcesLock.RUnlock()
+
+	return sourcesSnapshot
 }
