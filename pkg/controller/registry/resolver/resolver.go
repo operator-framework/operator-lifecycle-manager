@@ -15,7 +15,7 @@ import (
 // should behave
 type DependencyResolver interface {
 	ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error)
-	resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, csvName string) (stepResourceMap, error)
+	resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, planNamespace, csvName string) (stepResourceMap, error)
 	resolveCRDDescription(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error)
 }
 
@@ -26,7 +26,7 @@ type SingleSourceResolver struct{}
 func (resolver *SingleSourceResolver) ResolveInstallPlan(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, error) {
 	srm := make(stepResourceMap)
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabelKey, csvName)
+		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabelKey, plan.Namespace, csvName)
 		if err != nil {
 			return nil, err
 		}
@@ -37,7 +37,7 @@ func (resolver *SingleSourceResolver) ResolveInstallPlan(sources map[registry.So
 	return srm.Plan(), nil
 }
 
-func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, csvName string) (stepResourceMap, error) {
+func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, planNamespace, csvName string) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -85,7 +85,7 @@ func (resolver *SingleSourceResolver) resolveCSV(sources map[registry.SourceKey]
 
 		// Manually override the namespace and create the final step for the CSV,
 		// which is for the CSV itself.
-		csv.SetNamespace(firstSrcKey.Namespace)
+		csv.SetNamespace(planNamespace)
 
 		// Add the sourcename as a label on the CSV, so that we know where it came from
 		labels := csv.GetLabels()
