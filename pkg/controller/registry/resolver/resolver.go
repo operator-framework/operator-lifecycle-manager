@@ -248,8 +248,8 @@ func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]r
 
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
-			// Attempt to get the CRD
-			step, owner, err := resolver.resolveCRDDescription(sources, firstSrcKey, catalogLabelKey, crdDesc, csv.OwnsCRD(crdDesc.Name))
+			// Attempt to get CRD from same catalog source CSV was found in
+			step, owner, err := resolver.resolveCRDDescription(sources, csvSrcKey, catalogLabelKey, crdDesc, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, err
 			}
@@ -313,15 +313,17 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sources map[registry.
 
 	// Attempt to get the the CRD in the first SourceCatalog
 	crd, err := source.FindCRDByKey(crdKey)
-	if err != nil {
-		// Attempt to find the CRD in any other source
-		for srcKey, source := range sources {
+
+	if err != nil && !owned {
+		// Attempt to find the CRD in any other source if the CRD is not owned
+		for srcKey, src := range sources {
 			if srcKey != firstSrcKey {
-				crd, err = source.FindCRDByKey(crdKey)
+				crd, err = src.FindCRDByKey(crdKey)
 
 				if err == nil {
 					// Found the CRD
 					crdSrcKey = srcKey
+					source = src
 					break
 				}
 			}
@@ -353,7 +355,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sources map[registry.
 		return step, "", err
 	}
 
-	csvs, err := sources[crdSrcKey].ListLatestCSVsForCRD(crdKey)
+	csvs, err := source.ListLatestCSVsForCRD(crdKey)
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
