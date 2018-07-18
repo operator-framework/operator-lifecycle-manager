@@ -172,7 +172,7 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.Sou
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
 
 		// Attempt to resolve from the first CatalogSource
-		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabelKey, csvName)
+		csvSRM, err := resolver.resolveCSV(sources, firstSrcKey, catalogLabelKey, plan.Namespace, csvName)
 
 		if err == nil {
 			srm.Combine(csvSRM)
@@ -182,7 +182,7 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.Sou
 		// Attempt to resolve from any other CatalogSource
 		for srcKey := range sources {
 			if srcKey != firstSrcKey {
-				csvSRM, err = resolver.resolveCSV(sources, srcKey, catalogLabelKey, csvName)
+				csvSRM, err = resolver.resolveCSV(sources, srcKey, catalogLabelKey, plan.Namespace, csvName)
 				if err == nil {
 					srm.Combine(csvSRM)
 					break
@@ -198,7 +198,7 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(sources map[registry.Sou
 	return srm.Plan(), nil
 }
 
-func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, csvName string) (stepResourceMap, error) {
+func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]registry.Source, firstSrcKey registry.SourceKey, catalogLabelKey, planNamespace, csvName string) (stepResourceMap, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
@@ -266,7 +266,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sources map[registry.SourceKey]r
 
 		// Manually override the namespace and create the final step for the CSV,
 		// which is for the CSV itself.
-		csv.SetNamespace(csvSrcKey.Namespace)
+		csv.SetNamespace(planNamespace)
 
 		// Add the sourcename as a label on the CSV, so that we know where it came from
 		labels := csv.GetLabels()
