@@ -21,6 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	registry "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -138,7 +139,7 @@ func (in *InstallPlanStatus) DeepCopyInto(out *InstallPlanStatus) {
 	}
 	if in.CatalogSources != nil {
 		in, out := &in.CatalogSources, &out.CatalogSources
-		*out = make([]string, len(*in))
+		*out = make([]registry.SourceKey, len(*in))
 		copy(*out, *in)
 	}
 	if in.Plan != nil {

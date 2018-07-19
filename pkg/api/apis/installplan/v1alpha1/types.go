@@ -12,6 +12,7 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 
 	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 const (
@@ -89,7 +90,7 @@ var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
 type InstallPlanStatus struct {
 	Phase          InstallPlanPhase       `json:"phase"`
 	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
-	CatalogSources []string               `json:"catalogSources"`
+	CatalogSources []registry.SourceKey   `json:"catalogSources"`
 	Plan           []Step                 `json:"plan,omitempty"`
 }
 
@@ -218,14 +219,14 @@ type InstallPlan struct {
 
 // EnsureCatalogSource ensures that a CatalogSource is present in the Status
 // block of an InstallPlan.
-func (p *InstallPlan) EnsureCatalogSource(catalogSourceName string) {
-	for _, source := range p.Status.CatalogSources {
-		if source == catalogSourceName {
+func (p *InstallPlan) EnsureCatalogSource(sourceKey registry.SourceKey) {
+	for _, srcKey := range p.Status.CatalogSources {
+		if srcKey == sourceKey {
 			return
 		}
 	}
 
-	p.Status.CatalogSources = append(p.Status.CatalogSources, catalogSourceName)
+	p.Status.CatalogSources = append(p.Status.CatalogSources, sourceKey)
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
