@@ -44,6 +44,8 @@ type Operator struct {
 	sources            map[registry.SourceKey]registry.Source
 	sourcesLock        sync.RWMutex
 	sourcesLastUpdate  metav1.Time
+	subscriptions      map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription
+	subscriptionsLock  sync.RWMutex
 	dependencyResolver resolver.DependencyResolver
 }
 
@@ -88,8 +90,10 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		client:             crClient,
 		namespace:          operatorNamespace,
 		sources:            make(map[registry.SourceKey]registry.Source),
+		subscriptions:      make(map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription),
 		dependencyResolver: &resolver.MultiSourceResolver{},
 	}
+
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	catsrcQueueInformer := queueinformer.New(
@@ -172,6 +176,11 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 			}
 			syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
 			log.Info(syncError)
+		} else {
+			// map subcription
+			o.subscriptionsLock.Lock()
+			defer o.subscriptionsLock.Unlock()
+			o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSub
 		}
 	}
 	return
@@ -271,16 +280,11 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	// Copy the sources for resolution
 	sourcesSnapshot := o.getSourcesSnapshot()
 
-	// Set a first source key
-	var firstSrcKey registry.SourceKey
-	for srcKey := range sourcesSnapshot {
-		// Get the first key (arbitrary)
-		firstSrcKey = srcKey
-		break
-	}
+	// Get the preferred source key (owning subscription's source)
+	preferredSouceKey := o.getPreferredSourceKey(plan)
 
 	// Attempt to resolve the InstallPlan
-	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, firstSrcKey, CatalogLabel, plan)
+	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, preferredSouceKey, CatalogLabel, plan)
 	if notFoundErr != nil {
 		return notFoundErr
 	}
@@ -435,11 +439,55 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 func (o *Operator) getSourcesSnapshot() map[registry.SourceKey]registry.Source {
 	o.sourcesLock.RLock()
+	defer o.sourcesLock.RUnlock()
 	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
 	for key, source := range o.sources {
 		sourcesSnapshot[key] = source
 	}
-	o.sourcesLock.RUnlock()
 
 	return sourcesSnapshot
+}
+
+func (o *Operator) getPreferredSourceKey(plan *v1alpha1.InstallPlan) registry.SourceKey {
+	// Attempt to get the owning subscription
+	ownerRefs := plan.ObjectMeta.GetOwnerReferences()
+	var ownerSub metav1.OwnerReference
+
+	for _, ref := range ownerRefs {
+		if ref.Kind == subscriptionv1alpha1.SubscriptionKind {
+			ownerSub = ref
+			break
+		}
+	}
+
+	// Form the subscription key (owning subcription must be in the same namespace as the install plan)
+	subKey := registry.SubscriptionKey{Name: ownerSub.Name, Namespace: plan.Namespace}
+
+	o.subscriptionsLock.RLock()
+	sub, ok := o.subscriptions[subKey]
+	o.subscriptionsLock.RUnlock()
+
+	var preferredSourceKey registry.SourceKey
+
+	o.sourcesLock.RLock()
+	defer o.sourcesLock.RUnlock()
+
+	if ok {
+		// Attempt to get the subscription's source
+		preferredSourceKey = registry.SourceKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace}
+		_, ok := o.sources[preferredSourceKey]
+		if ok {
+			return preferredSourceKey
+		}
+	}
+
+	// Pick any source
+	for srcKey := range o.sources {
+		// Get the first key (arbitrary)
+		preferredSourceKey = srcKey
+		break
+	}
+
+	return preferredSourceKey
+
 }
