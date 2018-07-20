@@ -107,3 +107,8 @@ type PackageChannel struct {
 func (pc PackageChannel) IsDefaultChannel(pm PackageManifest) bool {
 	return pc.Name == pm.DefaultChannelName || len(pm.Channels) == 1
 }
+
+type SubscriptionKey struct {
+	Name      string
+	Namespace string
+}
