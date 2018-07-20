@@ -3,7 +3,7 @@
 apiVersion: app.coreos.com/v1alpha1
 kind: ClusterServiceVersion-v1
 metadata:
-  name: prometheusoperator.0.22.0
+  name: prometheusoperator.0.22.1
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
@@ -60,7 +60,7 @@ spec:
     url: https://github.com/coreos/prometheus-operator
 
   labels:
-    alm-status-descriptors: prometheusoperator.0.22.0
+    alm-status-descriptors: prometheusoperator.0.22.1
     alm-owner-prometheus: prometheusoperator
 
   selector:
@@ -88,7 +88,7 @@ spec:
           resources:
           - configmaps
           verbs: ["get"]
-      - serviceAccountName: prometheus-operator-0-22-0
+      - serviceAccountName: prometheus-operator-0-22-1
         rules:
         - apiGroups:
           - apiextensions.k8s.io
@@ -162,16 +162,16 @@ spec:
               labels:
                 k8s-app: prometheus-operator
             spec:
-              serviceAccount: prometheus-operator-0-22-0
+              serviceAccount: prometheus-operator-0-22-1
               containers:
               - name: prometheus-operator
-                image: quay.io/coreos/prometheus-operator@sha256:96541fa4ea179ba11b46be66e6b2beb4bf6781140fed937b25fa58a134cd3386
+                image: quay.io/coreos/prometheus-operator@sha256:cb2c481cd7ed121034d2345f2a5938e878537fc5464dcc16df8c771b2c6a2efd
                 args:
                 - --namespace=$K8S_NAMESPACE
-                - --kubelet-service=kube-system/kubelet
+                - --manage-crds=false
                 - -logtostderr=true
                 - --config-reloader-image=quay.io/coreos/configmap-reload@sha256:e2fd60ff0ae4500a75b80ebaa30e0e7deba9ad107833e8ca53f0047c42c5a057
-                - --prometheus-config-reloader=quay.io/coreos/prometheus-config-reloader@sha256:e2c6629751de63df9620c549c26524ddf1d1fab65890e728cf96f030394b69b1
+                - --prometheus-config-reloader=quay.io/coreos/prometheus-config-reloader@sha256:02f000a3af117e5dee0d5af443aca18b45e81d1f6c2210b41bb2cebdcb166445
                 env:
                   - name: K8S_NAMESPACE
                     valueFrom:
@@ -196,7 +196,7 @@ spec:
                 runAsNonRoot: true
                 runAsUser: 65534
   maturity: alpha
-  version: 0.22.0
+  version: 0.22.1
   customresourcedefinitions:
     owned:
     - name: prometheuses.monitoring.coreos.com
