@@ -280,35 +280,25 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	// Attempt to resolve the InstallPlan
-	steps, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, firstSrcKey, CatalogLabel, plan)
+	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, firstSrcKey, CatalogLabel, plan)
 	if notFoundErr != nil {
 		return notFoundErr
 	}
 
 	// Set the resolved steps
 	plan.Status.Plan = steps
-
-	// Get used catalog sources
-	usedSourceSet := map[registry.SourceKey]bool{}
-	for _, step := range plan.Status.Plan {
-		srcKey := registry.SourceKey{
-			Name:      step.Resource.CatalogSource,
-			Namespace: step.Resource.CatalogSourceNamespace,
-		}
-
-		usedSourceSet[srcKey] = true
-	}
+	plan.Status.CatalogSources = usedSources
 
 	// Add secrets for each used catalog source
-	for srcKey := range usedSourceSet {
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(srcKey.Namespace).Get(srcKey.Name, metav1.GetOptions{})
+	for _, sourceKey := range plan.Status.CatalogSources {
+		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
 		for _, secretName := range catsrc.Spec.Secrets {
 			// Attempt to look up the secret.
-			_, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(srcKey.Namespace).Get(secretName, metav1.GetOptions{})
+			_, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(sourceKey.Namespace).Get(secretName, metav1.GetOptions{})
 			status := v1alpha1.StepStatusUnknown
 			if k8serrors.IsNotFound(err) {
 				status = v1alpha1.StepStatusNotPresent

@@ -14,6 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	crdKind = "CustomResourceDefinition"
+	csvKind = csvv1alpha1.ClusterServiceVersionKind
+)
+
 func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 	type csvNames struct {
 		name     string
@@ -67,8 +72,9 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			}
 
 			// Resolve the plan
-			steps, err := resolver.ResolveInstallPlan(srcMap, srcKey, "alm-catalog", &plan)
+			steps, usedSources, err := resolver.ResolveInstallPlan(srcMap, srcKey, "alm-catalog", &plan)
 			plan.Status.Plan = steps
+			plan.Status.CatalogSources = usedSources
 
 			// Assert the error is as expected
 			if tt.expectedErr == nil {
@@ -96,6 +102,10 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 	sourceB := registry.SourceKey{Namespace: "default", Name: "tectonic-ocs-b"}
 	sourceC := registry.SourceKey{Namespace: "default", Name: "tectonic-ocs-c"}
 
+	type resourceKey struct {
+		name string
+		kind string
+	}
 	type csvName struct {
 		name     string
 		owned    []string
@@ -107,45 +117,80 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		srcKey registry.SourceKey
 	}
 	var table = []struct {
-		description string
-		planCSVName string
-		csvs        map[string]csvName
-		crds        map[string]crdName
-		srcKeys     []registry.SourceKey
-		expectedErr error
+		description       string
+		csvs              []csvName
+		crds              []crdName
+		srcKeys           []registry.SourceKey
+		expectedErr       error
+		expectedResources map[resourceKey]registry.SourceKey
 	}{
 		{
-			"TwoCSVsOneCRDSameCatalogSource",
-			"name",
-			map[string]csvName{
-				"name":     {"name", nil, []string{"CRD"}, sourceA},
-				"crdOwner": {"crdOwner", []string{"CRD"}, nil, sourceA},
+			"SingleCRDSameCatalog",
+			[]csvName{
+				{"main", nil, []string{"CRD"}, sourceA},
+				{"crdOwner", []string{"CRD"}, nil, sourceA},
 			},
-			map[string]crdName{"CRD": {"CRD", sourceA}},
+			[]crdName{{"CRD", sourceA}},
 			[]registry.SourceKey{sourceA},
 			nil,
+			map[resourceKey]registry.SourceKey{
+				resourceKey{"main", csvKind}:     sourceA,
+				resourceKey{"crdOwner", csvKind}: sourceA,
+				resourceKey{"CRD", crdKind}:      sourceA,
+			},
 		},
 		{
-			"TwoCSVsOneCRDDifferentCatalogSources",
-			"name",
-			map[string]csvName{
-				"name":     {"name", nil, []string{"CRD"}, sourceA},
-				"crdOwner": {"crdOwner", []string{"CRD"}, nil, sourceB},
+			"SingleCRDDifferentCatalog",
+			[]csvName{
+				{"main", nil, []string{"CRD"}, sourceA},
+				{"crdOwner", []string{"CRD"}, nil, sourceB},
 			},
-			map[string]crdName{"CRD": {"CRD", sourceB}},
+			[]crdName{{"CRD", sourceB}},
 			[]registry.SourceKey{sourceA, sourceB},
 			nil,
+			map[resourceKey]registry.SourceKey{
+				resourceKey{"main", csvKind}:     sourceA,
+				resourceKey{"crdOwner", csvKind}: sourceB,
+				resourceKey{"CRD", crdKind}:      sourceB,
+			},
 		},
 		{
-			"TwoCSVsOneCRDInSeparateCatalogSourceThanOwner",
-			"name",
-			map[string]csvName{
-				"name":     {"name", nil, []string{"CRD"}, sourceA},
-				"crdOwner": {"crdOwner", []string{"CRD"}, nil, sourceB},
+			"RequiredCRDNotInOwnersCatalog",
+			[]csvName{
+				{"main", nil, []string{"CRD"}, sourceA},
+				{"crdOwner", []string{"CRD"}, nil, sourceB},
 			},
-			map[string]crdName{"CRD": {"CRD", sourceC}},
+			[]crdName{{"CRD", sourceC}},
 			[]registry.SourceKey{sourceA, sourceB, sourceC},
 			errors.New("not found: CRD CRD/CRD/v1"),
+			map[resourceKey]registry.SourceKey{
+				resourceKey{"main", csvKind}:     sourceA,
+				resourceKey{"crdOwner", csvKind}: sourceB,
+				resourceKey{"CRD", crdKind}:      sourceC,
+			},
+		},
+		{
+			"MultipleTransitiveDependenciesInDifferentCatalogs",
+			[]csvName{
+				{"main", nil, []string{"CRD-0"}, sourceA},
+				{"crdOwner-0", []string{"CRD-0"}, []string{"CRD-1"}, sourceB},
+				{"crdOwner-1", []string{"CRD-1", "CRD-2"}, nil, sourceC},
+			},
+			[]crdName{
+				{"CRD-0", sourceB},
+				{"CRD-1", sourceC},
+				{"CRD-2", sourceC},
+			},
+			[]registry.SourceKey{sourceA, sourceB, sourceC},
+			nil,
+			map[resourceKey]registry.SourceKey{
+				resourceKey{"main", csvKind}:       sourceA,
+				resourceKey{"crdOwner-0", csvKind}: sourceB,
+				resourceKey{"crdOwner-1", csvKind}: sourceC,
+				resourceKey{"CRD-0", crdKind}:      sourceB,
+				resourceKey{"CRD-1", crdKind}:      sourceC,
+				resourceKey{"CRD-2", crdKind}:      sourceC,
+			},
 		},
 	}
 
@@ -153,7 +198,7 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		t.Run(tt.description, func(t *testing.T) {
 			log.SetLevel(log.DebugLevel)
 			// Create a plan that is attempting to install the planCSVName.
-			plan := installPlan("test-namespace", tt.planCSVName)
+			plan := installPlan("default", "main")
 
 			// Create catalog sources for all given srcKeys
 			sources := map[registry.SourceKey]*registry.InMem{}
@@ -183,8 +228,11 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			}
 
 			// Resolve the plan.
-			steps, err := resolver.ResolveInstallPlan(srcMap, firstSrcKey, "alm-catalog", &plan)
+			steps, usedSources, err := resolver.ResolveInstallPlan(srcMap, firstSrcKey, "alm-catalog", &plan)
+
+			// Set the plan and used Sources
 			plan.Status.Plan = steps
+			plan.Status.CatalogSources = usedSources
 
 			// Assert the error is as expected
 			if tt.expectedErr == nil {
@@ -195,21 +243,11 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 
 			// Assert that all StepResources have the have the correct CatalogSource set
 			for _, step := range plan.Status.Plan {
-				name := step.Resource.Name
-				var srcKey registry.SourceKey
+				resourceKey := resourceKey{step.Resource.Name, step.Resource.Kind}
+				expectedSource := tt.expectedResources[resourceKey]
 
-				// Assume a CRD and a CSV will never have the same name
-				if csv, ok := tt.csvs[name]; ok {
-					srcKey = csv.srcKey
-				}
-
-				if crd, ok := tt.crds[name]; ok {
-					srcKey = crd.srcKey
-				}
-
-				require.Equal(t, step.Resource.CatalogSource, srcKey.Name)
-				require.Equal(t, step.Resource.CatalogSourceNamespace, srcKey.Namespace)
-
+				require.Equal(t, step.Resource.CatalogSource, expectedSource.Name)
+				require.Equal(t, step.Resource.CatalogSourceNamespace, expectedSource.Namespace)
 			}
 		})
 	}
@@ -258,6 +296,9 @@ func csv(name, namespace string, owned, required []string) csvv1alpha1.ClusterSe
 			Name:      name,
 			Namespace: namespace,
 		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: csvv1alpha1.ClusterServiceVersionKind,
+		},
 		Spec: csvv1alpha1.ClusterServiceVersionSpec{
 			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
 				Owned:    ownedCRDDescs,
@@ -272,6 +313,9 @@ func crd(name, namespace string) v1beta1.CustomResourceDefinition {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: crdKind,
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
 			Group:   name + "group",
