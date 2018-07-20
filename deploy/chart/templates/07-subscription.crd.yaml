@@ -34,6 +34,10 @@ spec:
               type: string
               description: Name of a CatalogSource that defines where and how to find the channel
 
+            sourceNamespace:
+              type: string
+              description: The Kubernetes namespace where the CatalogSource used is located
+
             name:
               type: string
               description: Name of the package that defines the application
