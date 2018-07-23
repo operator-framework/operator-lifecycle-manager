@@ -277,11 +277,15 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
 
-	// Copy the sources for resolution
-	sourcesSnapshot := o.getSourcesSnapshot()
+	// Copy the sources for resolution from the included namespaces
+	includedNamespaces := map[string]bool{
+		o.namespace:    true,
+		plan.Namespace: true,
+	}
+	sourcesSnapshot := o.getSourcesSnapshot(includedNamespaces)
 
 	// Get the preferred source key (owning subscription's source)
-	preferredSouceKey := o.getPreferredSourceKey(plan)
+	preferredSouceKey := o.getPreferredSourceKey(plan, includedNamespaces)
 
 	// Attempt to resolve the InstallPlan
 	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, preferredSouceKey, CatalogLabel, plan)
@@ -437,55 +441,40 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-func (o *Operator) getSourcesSnapshot() map[registry.SourceKey]registry.Source {
+func (o *Operator) getSourcesSnapshot(includedNamespaces map[string]bool) map[registry.SourceKey]registry.Source {
 	o.sourcesLock.RLock()
 	defer o.sourcesLock.RUnlock()
 	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
 	for key, source := range o.sources {
-		sourcesSnapshot[key] = source
+		// Only copy catalog sources in included namespaces
+		if _, ok := includedNamespaces[key.Namespace]; ok {
+			sourcesSnapshot[key] = source
+		}
 	}
 
 	return sourcesSnapshot
 }
 
-func (o *Operator) getPreferredSourceKey(plan *v1alpha1.InstallPlan) registry.SourceKey {
-	// Attempt to get the owning subscription
-	ownerRefs := plan.ObjectMeta.GetOwnerReferences()
-	var ownerSub metav1.OwnerReference
-
-	for _, ref := range ownerRefs {
-		if ref.Kind == subscriptionv1alpha1.SubscriptionKind {
-			ownerSub = ref
-			break
-		}
-	}
-
-	// Form the subscription key (owning subcription must be in the same namespace as the install plan)
-	subKey := registry.SubscriptionKey{Name: ownerSub.Name, Namespace: plan.Namespace}
-
-	o.subscriptionsLock.RLock()
-	sub, ok := o.subscriptions[subKey]
-	o.subscriptionsLock.RUnlock()
-
-	var preferredSourceKey registry.SourceKey
-
+func (o *Operator) getPreferredSourceKey(plan *v1alpha1.InstallPlan, includedNamespaces map[string]bool) registry.SourceKey {
 	o.sourcesLock.RLock()
 	defer o.sourcesLock.RUnlock()
 
-	if ok {
-		// Attempt to get the subscription's source
-		preferredSourceKey = registry.SourceKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace}
-		_, ok := o.sources[preferredSourceKey]
-		if ok {
+	var preferredSourceKey registry.SourceKey
+
+	// Attempt to get the plan's source
+	if _, ok := includedNamespaces[plan.Spec.CatalogSource]; ok {
+		preferredSourceKey = registry.SourceKey{Name: plan.Spec.CatalogSource, Namespace: plan.Spec.CatalogSourceNamespace}
+		if _, ok = o.sources[preferredSourceKey]; ok {
 			return preferredSourceKey
 		}
 	}
 
-	// Pick any source
+	// Get the first source that exists in an included namespace
 	for srcKey := range o.sources {
-		// Get the first key (arbitrary)
-		preferredSourceKey = srcKey
-		break
+		if _, ok := includedNamespaces[srcKey.Namespace]; ok {
+			preferredSourceKey = srcKey
+			break
+		}
 	}
 
 	return preferredSourceKey
