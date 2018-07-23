@@ -257,7 +257,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	}
 
 	// * I should see service accounts for Prometheus with permissions matching what’s listed in the ClusterServiceVersion
-	for _, accountName := range []string{"prometheus-operator-0-14-0"} {
+	for _, accountName := range []string{"prometheus-operator-0-22-0"} {
 		var sa *corev1.ServiceAccount
 		t.Logf("Looking for ServiceAccount %s in %s\n", accountName, testNamespace)
 
