@@ -191,5 +191,36 @@ ansible-release: $(YQ)
 	# link newest release into playbook
 	ln -sfF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
 
-# make ver=0.3.0 release
-release: tectonic-release upstream-release ansible-release
+OLM_REF:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
+CATALOG_REF:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver))
+
+# must have already tagged a version release in github so that the docker images are available
+release:
+ifndef ver
+	$(error ver is undefined)
+endif
+	docker pull quay.io/coreos/olm:$(ver)
+	docker pull quay.io/coreos/catalog:$(ver)
+	yaml w -i deploy/upstream/values.yaml alm.image.ref $(OLM_REF)
+	yaml w -i deploy/upstream/values.yaml catalog.image.ref $(CATALOG_REF)
+	yaml w -i deploy/tectonic-alm-operator/values.yaml alm.image.ref $(OLM_REF)
+	yaml w -i deploy/tectonic-alm-operator/values.yaml catalog.image.ref $(CATALOG_REF)
+	$(MAKE) tectonic-release upstream-release
+
+# These are built from the same image, and repodigests are ordered alphabetically, so olm is ref 1 and catalog ref 2
+OLM_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel)
+CATALOG_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel)
+
+# this will build locally on rhel
+release-rh:
+ifndef ver
+	$(error ver is undefined)
+endif
+	./scripts/pull_or_build_rh.sh $(ver)
+	echo $(OLM_REF_RH)
+	docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)-rhel
+	yaml w -i deploy/aos-olm/values.yaml alm.image.ref $(OLM_REF_RH)
+	yaml w -i deploy/aos-olm/values.yaml catalog.image.ref $(CATALOG_REF_RH)
+	$(MAKE) ansible-release
+
+release-all: release release-rh

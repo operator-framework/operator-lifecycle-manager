@@ -4,19 +4,17 @@ catalog_namespace: operator-lifecycle-manager
 alm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:351f0c4973a88a4ea606721555829776429b0ecb53d5a2bfee6bce459d109e5b
+    ref: quay.io/coreos/olm@sha256:d19b64d801a08fd4838ed4bd9752712688ac9f2a26fab89bcb4f28b1bbdcab16
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
-
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/catalog@sha256:54571e25474a9a063a144922e7321203e5aa5e63d03f748682d559341359a916
+    ref: quay.io/coreos/catalog@sha256:299a9cd6b34c9ccb601d6fffa8b6a633658165510940ed8c5481ce6acdad46b1
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
-
 catalog_sources:
- - tectonic-ocs
- - upstream-components
+- tectonic-ocs
+- upstream-components
