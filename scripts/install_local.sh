@@ -18,7 +18,7 @@ chart=$2
 kubectl create ns ${namespace} || { echo 'ns exists'; }
 
 # create alm
-kubectl apply -f ${chart}
+kubectl apply -f ${chart}/templates
 
 # wait for deployments to be ready (loop can be removed when rollout status -w actually works)
 n=0
