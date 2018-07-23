@@ -424,6 +424,8 @@ func TestSyncSubscription(t *testing.T) {
 						},
 					},
 					Spec: ipv1alpha1.InstallPlanSpec{
+						CatalogSource:              "flying-unicorns",
+						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"latest-and-greatest"},
 						Approval:                   ipv1alpha1.ApprovalAutomatic,
 					},
@@ -501,6 +503,8 @@ func TestSyncSubscription(t *testing.T) {
 						},
 					},
 					Spec: ipv1alpha1.InstallPlanSpec{
+						CatalogSource:              "flying-unicorns",
+						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"latest-and-greatest"},
 						Approval:                   ipv1alpha1.ApprovalAutomatic,
 					},
@@ -581,6 +585,8 @@ func TestSyncSubscription(t *testing.T) {
 						},
 					},
 					Spec: ipv1alpha1.InstallPlanSpec{
+						CatalogSource:              "flying-unicorns",
+						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"latest-and-greatest"},
 						Approval:                   ipv1alpha1.ApprovalManual,
 					},
@@ -658,6 +664,8 @@ func TestSyncSubscription(t *testing.T) {
 						},
 					},
 					Spec: ipv1alpha1.InstallPlanSpec{
+						CatalogSource:              "flying-unicorns",
+						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"pending"},
 						Approval:                   ipv1alpha1.ApprovalAutomatic,
 					},

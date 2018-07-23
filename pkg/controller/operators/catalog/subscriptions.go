@@ -97,6 +97,11 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 		ownerutil.AddNonBlockingOwner(ip, sub)
 		ip.SetGenerateName(fmt.Sprintf("install-%s-", sub.Status.CurrentCSV))
 		ip.SetNamespace(sub.GetNamespace())
+
+		// Inherit the subscription's catalog source
+		ip.Spec.CatalogSource = sub.Spec.CatalogSource
+		ip.Spec.CatalogSourceNamespace = sub.Spec.CatalogSourceNamespace
+
 		res, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Create(ip)
 		if err != nil {
 			return sub, fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Status.CurrentCSV, err)
