@@ -30,6 +30,12 @@ spec:
           - clusterServiceVersionNames
           - approval
           properties:
+            source:
+              type: string
+              description: Name of the preferred CatalogSource
+            sourceNamespace:
+              type: string
+              description: Namespace that contains the preffered CatalogSource
             clusterServiceVersionNames:
               type: array
               description: A list of the names of the Cluster Services
