@@ -1,0 +1,41 @@
+{{- if ( has "prometheus" .Values.catalog_sources ) }}
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: prometheus
+  namespace: {{ .Values.catalog_namespace }}
+  labels:
+    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
+{{ $root := . }}
+data:
+  customResourceDefinitions: |-
+{{- range $path, $bytes := .Files.Glob "catalog_resources/prometheus/**.crd.yaml" }}
+  {{- range $index, $line  := $root.Files.Lines $path }}
+    {{- if eq $index 0 }}
+{{- $line | printf "%s%s" "- " | nindent 4 }}
+    {{- else }}
+{{- $line | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+  clusterServiceVersions: |-
+{{- range $path, $bytes := .Files.Glob "catalog_resources/prometheus/**.clusterserviceversion.yaml" }}
+  {{- range $index, $line  := $root.Files.Lines $path }}
+    {{- if eq $index 0 }}
+{{- $line | printf "%s%s" "- " | nindent 4 }}
+    {{- else }}
+{{- $line | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+  packages: |-
+{{- range $path, $bytes := .Files.Glob "catalog_resources/prometheus/**.package.yaml" }}
+  {{- range $index, $line  := $root.Files.Lines $path }}
+    {{- if eq $index 0 }}
+{{- $line | printf "%s%s" "- " | nindent 4 }}
+    {{- else }}
+{{- $line | nindent 6 }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+{{ end }}
