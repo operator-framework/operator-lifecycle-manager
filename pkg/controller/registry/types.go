@@ -36,6 +36,12 @@ type SourceKey struct {
 	Namespace string
 }
 
+// SourceRef associates a Source with it's SourceKey
+type SourceRef struct {
+	SourceKey SourceKey
+	Source    Source
+}
+
 // CRDKey contains metadata needed to uniquely identify a CRD
 type CRDKey struct {
 	Kind    string

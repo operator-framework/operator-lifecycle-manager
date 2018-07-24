@@ -67,12 +67,15 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				Namespace: plan.Namespace,
 			}
 
-			srcMap := map[registry.SourceKey]registry.Source{
-				srcKey: src,
+			srcRef := registry.SourceRef{
+				Source:    src,
+				SourceKey: srcKey,
 			}
+			// Generate an ordered list of source refs
+			srcRefs := []registry.SourceRef{srcRef}
 
 			// Resolve the plan
-			steps, usedSources, err := resolver.ResolveInstallPlan(srcMap, srcKey, "alm-catalog", &plan)
+			steps, usedSources, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
 			plan.Status.Plan = steps
 			plan.Status.CatalogSources = usedSources
 
@@ -202,9 +205,7 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 
 			// Create catalog sources for all given srcKeys
 			sources := map[registry.SourceKey]*registry.InMem{}
-			var firstSrcKey registry.SourceKey
 			for _, srcKey := range tt.srcKeys {
-				firstSrcKey = srcKey
 				src := registry.NewInMem()
 				sources[srcKey] = src
 			}
@@ -221,14 +222,19 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				source.AddOrReplaceService(csv(name.name, name.srcKey.Namespace, name.owned, name.required))
 			}
 
-			// Generate a map of (registry.SourceKey -> registrySource)
-			srcMap := map[registry.SourceKey]registry.Source{}
+			// Generate an ordered list of source refs
+			srcRefs := make([]registry.SourceRef, len(sources))
+			i := 0
 			for srcKey, source := range sources {
-				srcMap[srcKey] = source
+				srcRefs[i] = registry.SourceRef{
+					Source:    source,
+					SourceKey: srcKey,
+				}
+				i++
 			}
 
 			// Resolve the plan.
-			steps, usedSources, err := resolver.ResolveInstallPlan(srcMap, firstSrcKey, "alm-catalog", &plan)
+			steps, usedSources, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
 
 			// Set the plan and used Sources
 			plan.Status.Plan = steps
@@ -251,11 +257,6 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			}
 		})
 	}
-}
-
-func TestSingleSourceResolveInstallPlan(t *testing.T) {
-	resolver := &SingleSourceResolver{}
-	resolveInstallPlan(t, resolver)
 }
 
 func TestMultiSourceResolveInstallPlan(t *testing.T) {

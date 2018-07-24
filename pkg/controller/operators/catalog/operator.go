@@ -282,13 +282,10 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		o.namespace:    struct{}{},
 		plan.Namespace: struct{}{},
 	}
-	sourcesSnapshot := o.getSourcesSnapshot(includedNamespaces)
-
-	// Get the preferred source key (owning subscription's source)
-	preferredSouceKey := getPreferredSourceKey(plan, sourcesSnapshot)
+	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 
 	// Attempt to resolve the InstallPlan
-	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, preferredSouceKey, CatalogLabel, plan)
+	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, CatalogLabel, plan)
 	if notFoundErr != nil {
 		return notFoundErr
 	}
@@ -441,36 +438,27 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-func (o *Operator) getSourcesSnapshot(includedNamespaces map[string]struct{}) map[registry.SourceKey]registry.Source {
+func (o *Operator) getSourcesSnapshot(plan *v1alpha1.InstallPlan, includedNamespaces map[string]struct{}) []registry.SourceRef {
 	o.sourcesLock.RLock()
 	defer o.sourcesLock.RUnlock()
-	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
+	sourcesSnapshot := []registry.SourceRef{}
+
 	for key, source := range o.sources {
 		// Only copy catalog sources in included namespaces
 		if _, ok := includedNamespaces[key.Namespace]; ok {
-			sourcesSnapshot[key] = source
+			ref := registry.SourceRef{
+				Source:    source,
+				SourceKey: key,
+			}
+			if key.Name == plan.Spec.CatalogSource && key.Namespace == plan.Spec.CatalogSourceNamespace {
+				// Prepend preffered catalog source
+				sourcesSnapshot = append([]registry.SourceRef{ref}, sourcesSnapshot...)
+			} else {
+				// Append the catalog source
+				sourcesSnapshot = append(sourcesSnapshot, ref)
+			}
 		}
 	}
 
 	return sourcesSnapshot
-}
-
-func getPreferredSourceKey(plan *v1alpha1.InstallPlan, sourcesSnapshot map[registry.SourceKey]registry.Source) registry.SourceKey {
-
-	var preferredSourceKey registry.SourceKey
-
-	// Attempt to get the plan's source
-	preferredSourceKey = registry.SourceKey{Name: plan.Spec.CatalogSource, Namespace: plan.Spec.CatalogSourceNamespace}
-	if _, ok := sourcesSnapshot[preferredSourceKey]; ok {
-		return preferredSourceKey
-	}
-
-	// Get the first source that exists in an included namespace
-	for srcKey := range sourcesSnapshot {
-		preferredSourceKey = srcKey
-		break
-
-	}
-
-	return preferredSourceKey
 }
