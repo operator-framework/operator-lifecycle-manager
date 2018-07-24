@@ -155,7 +155,7 @@ local jobs = {
         localvars+:: {
             image: images.release,
             domain: "teamui.console.team.coreos.systems",
-            namespace: "tectonic-system",
+            namespace: "operator-lifecycle-manager",
             channel: "staging",
             helm_opts: ["--force"],
             kubeconfig: "$TEAMUI_KUBECONFIG",
@@ -165,7 +165,7 @@ local jobs = {
         },
         stage: stages.deploy_staging,
         script+: [
-            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${TEAMUI_HOST}/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
+            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${TEAMUI_HOST}/k8s/ns/operator-lifecycle-manager/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
         ],
         environment+: {
             name: "teamui",
@@ -178,8 +178,8 @@ local jobs = {
         localvars+:: {
             image: images.release,
             domain: "console.apps.ui-preserve.origin-gce.dev.openshift.com",
-            namespace: "openshift",
-            catalog_namespace: "openshift",
+            namespace: "operator-lifecycle-manager",
+            catalog_namespace: "operator-lifecycle-manager",
             channel: "staging",
             helm_opts: ["--force"],
             kubeconfig: "$OPENSHIFT_KUBECONFIG",
@@ -189,7 +189,7 @@ local jobs = {
         },
         stage: stages.deploy_staging,
         script+: [
-            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${OPENSHIFT_HOST}/k8s/ns/tectonic-system/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
+            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${OPENSHIFT_HOST}/k8s/ns/operator-lifecycle-manager/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
         ],
         environment+: {
             name: "openshift",
