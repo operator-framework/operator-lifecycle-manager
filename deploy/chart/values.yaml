@@ -19,6 +19,5 @@ catalog:
 
 catalog_sources:
  - tectonic-ocs
- - prometheus
  - tectonic-components
  - upstream-components
