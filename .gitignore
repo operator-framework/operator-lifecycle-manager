@@ -161,9 +161,6 @@ tags
 
 ### VisualStudioCode ###
 .vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/extensions.json
 .history
 
 ### VisualStudio ###

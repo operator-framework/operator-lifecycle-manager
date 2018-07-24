@@ -44,6 +44,8 @@ type Operator struct {
 	sources            map[registry.SourceKey]registry.Source
 	sourcesLock        sync.RWMutex
 	sourcesLastUpdate  metav1.Time
+	subscriptions      map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription
+	subscriptionsLock  sync.RWMutex
 	dependencyResolver resolver.DependencyResolver
 }
 
@@ -88,8 +90,10 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		client:             crClient,
 		namespace:          operatorNamespace,
 		sources:            make(map[registry.SourceKey]registry.Source),
-		dependencyResolver: &resolver.SingleSourceResolver{},
+		subscriptions:      make(map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription),
+		dependencyResolver: &resolver.MultiSourceResolver{},
 	}
+
 	// Register CatalogSource informers.
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	catsrcQueueInformer := queueinformer.New(
@@ -172,6 +176,11 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 			}
 			syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
 			log.Info(syncError)
+		} else {
+			// map subcription
+			o.subscriptionsLock.Lock()
+			defer o.subscriptionsLock.Unlock()
+			o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSub
 		}
 	}
 	return
@@ -268,36 +277,33 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
 
-	// Copy the sources for resolution
-	o.sourcesLock.RLock()
-	sourcesSnapshot := make(map[registry.SourceKey]registry.Source)
-	for key, source := range o.sources {
-		sourcesSnapshot[key] = source
+	// Copy the sources for resolution from the included namespaces
+	includedNamespaces := map[string]struct{}{
+		o.namespace:    struct{}{},
+		plan.Namespace: struct{}{},
 	}
-	o.sourcesLock.RUnlock()
+	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 
-	var notFoundErr error
-	var steps []v1alpha1.Step
-	for srcKey := range sourcesSnapshot {
-		log.Debugf("resolving against source %v", srcKey)
-		plan.EnsureCatalogSource(srcKey.Name)
-		steps, notFoundErr = o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, srcKey, CatalogLabel, plan)
-		if notFoundErr != nil {
-			continue
-		}
+	// Attempt to resolve the InstallPlan
+	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, CatalogLabel, plan)
+	if notFoundErr != nil {
+		return notFoundErr
+	}
 
-		// Set the resolved steps
-		plan.Status.Plan = steps
+	// Set the resolved steps
+	plan.Status.Plan = steps
+	plan.Status.CatalogSources = usedSources
 
-		// Look up the CatalogSource.
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(o.namespace).Get(srcKey.Name, metav1.GetOptions{})
+	// Add secrets for each used catalog source
+	for _, sourceKey := range plan.Status.CatalogSources {
+		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
 		for _, secretName := range catsrc.Spec.Secrets {
 			// Attempt to look up the secret.
-			_, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Get(secretName, metav1.GetOptions{})
+			_, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(sourceKey.Namespace).Get(secretName, metav1.GetOptions{})
 			status := v1alpha1.StepStatusUnknown
 			if k8serrors.IsNotFound(err) {
 				status = v1alpha1.StepStatusNotPresent
@@ -319,10 +325,9 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 				Status: status,
 			}}, plan.Status.Plan...)
 		}
-		return nil
 	}
 
-	return notFoundErr
+	return nil
 }
 
 // ExecutePlan applies a planned InstallPlan to a namespace.
@@ -431,4 +436,29 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	return nil
+}
+
+func (o *Operator) getSourcesSnapshot(plan *v1alpha1.InstallPlan, includedNamespaces map[string]struct{}) []registry.SourceRef {
+	o.sourcesLock.RLock()
+	defer o.sourcesLock.RUnlock()
+	sourcesSnapshot := []registry.SourceRef{}
+
+	for key, source := range o.sources {
+		// Only copy catalog sources in included namespaces
+		if _, ok := includedNamespaces[key.Namespace]; ok {
+			ref := registry.SourceRef{
+				Source:    source,
+				SourceKey: key,
+			}
+			if key.Name == plan.Spec.CatalogSource && key.Namespace == plan.Spec.CatalogSourceNamespace {
+				// Prepend preffered catalog source
+				sourcesSnapshot = append([]registry.SourceRef{ref}, sourcesSnapshot...)
+			} else {
+				// Append the catalog source
+				sourcesSnapshot = append(sourcesSnapshot, ref)
+			}
+		}
+	}
+
+	return sourcesSnapshot
 }

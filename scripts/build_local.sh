@@ -5,7 +5,7 @@
 
 set -e
 
-minikube start --extra-config=apiserver.Authorization.Mode=RBAC || { echo 'Cannot start minikube.'; exit 1; }
+minikube start || { echo 'Cannot start minikube.'; exit 1; }
 eval $(minikube docker-env) || { echo 'Cannot switch to minikube docker'; exit 1; }
 kubectl config use-context minikube
 docker build -f e2e.Dockerfile .

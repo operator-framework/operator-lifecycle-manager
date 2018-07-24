@@ -36,6 +36,12 @@ type SourceKey struct {
 	Namespace string
 }
 
+// SourceRef associates a Source with it's SourceKey
+type SourceRef struct {
+	SourceKey SourceKey
+	Source    Source
+}
+
 // CRDKey contains metadata needed to uniquely identify a CRD
 type CRDKey struct {
 	Kind    string
@@ -106,4 +112,9 @@ type PackageChannel struct {
 // IsDefaultChannel returns true if the PackageChennel is the default for the PackageManifest
 func (pc PackageChannel) IsDefaultChannel(pm PackageManifest) bool {
 	return pc.Name == pm.DefaultChannelName || len(pm.Channels) == 1
+}
+
+type SubscriptionKey struct {
+	Name      string
+	Namespace string
 }

@@ -15,7 +15,7 @@ import (
 var _ Source = &InMem{}
 
 type InMem struct {
-	// map ClusterServiceVersion name to to their resource definition
+	// map ClusterServiceVersion name to their resource definition
 	clusterservices map[string]v1alpha1.ClusterServiceVersion
 
 	// map ClusterServiceVersions by name to metadata for the CSV that replaces it

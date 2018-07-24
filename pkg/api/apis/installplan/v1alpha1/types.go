@@ -12,6 +12,7 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 
 	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 const (
@@ -32,6 +33,8 @@ const (
 
 // InstallPlanSpec defines a set of Application resources to be installed
 type InstallPlanSpec struct {
+	CatalogSource              string   `json:"source"`
+	CatalogSourceNamespace     string   `json:"sourceNamespace"`
 	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
 	Approval                   Approval `json:"approval"`
 	Approved                   bool     `json:"approved"`
@@ -89,7 +92,7 @@ var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
 type InstallPlanStatus struct {
 	Phase          InstallPlanPhase       `json:"phase"`
 	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
-	CatalogSources []string               `json:"catalogSources"`
+	CatalogSources []registry.SourceKey   `json:"catalogSources"`
 	Plan           []Step                 `json:"plan,omitempty"`
 }
 
@@ -153,12 +156,13 @@ type Step struct {
 // StepResource represents the status of a resource to be tracked by an
 // InstallPlan.
 type StepResource struct {
-	CatalogSource string `json:"sourceName"`
-	Group         string `json:"group"`
-	Version       string `json:"version"`
-	Kind          string `json:"kind"`
-	Name          string `json:"name"`
-	Manifest      string `json:"manifest,omitempty"`
+	CatalogSource          string `json:"sourceName"`
+	CatalogSourceNamespace string `json:"sourceNamespace"`
+	Group                  string `json:"group"`
+	Version                string `json:"version"`
+	Kind                   string `json:"kind"`
+	Name                   string `json:"name"`
+	Manifest               string `json:"manifest,omitempty"`
 }
 
 // NewStepResourceFromCSV creates an unresolved Step for the provided CSV.
@@ -217,14 +221,14 @@ type InstallPlan struct {
 
 // EnsureCatalogSource ensures that a CatalogSource is present in the Status
 // block of an InstallPlan.
-func (p *InstallPlan) EnsureCatalogSource(catalogSourceName string) {
-	for _, source := range p.Status.CatalogSources {
-		if source == catalogSourceName {
+func (p *InstallPlan) EnsureCatalogSource(sourceKey registry.SourceKey) {
+	for _, srcKey := range p.Status.CatalogSources {
+		if srcKey == sourceKey {
 			return
 		}
 	}
 
-	p.Status.CatalogSources = append(p.Status.CatalogSources, catalogSourceName)
+	p.Status.CatalogSources = append(p.Status.CatalogSources, sourceKey)
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
