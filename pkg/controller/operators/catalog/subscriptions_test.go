@@ -947,7 +947,7 @@ func TestSyncSubscription(t *testing.T) {
 					registry.SourceKey{Name: tt.initial.catalogName, Namespace: "ns"}: catalogFake,
 				},
 				sourcesLastUpdate:  tt.initial.sourcesLastUpdate,
-				dependencyResolver: &resolver.SingleSourceResolver{},
+				dependencyResolver: &resolver.MultiSourceResolver{},
 			}
 
 			// run subscription sync
