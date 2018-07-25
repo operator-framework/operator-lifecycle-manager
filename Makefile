@@ -45,17 +45,17 @@ $(CMDS): .FORCE
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ $(PKG)/cmd/$(shell basename $@); \
 	fi
 
-run-local: values_file = Documentation/install/local-values.yaml
-run-local: ver=0.0.0-local
 run-local:
 	. ./scripts/build_local.sh
-	. ./scripts/install_local.sh local build/resources/olm/templates
+	mkdir -p build/resources
+	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values.yaml
+	. ./scripts/install_local.sh local build/resources
 
-run-local-shift: values_file = Documentation/install/local-values-shift.yaml
-run-local-shift: ver=0.0.0-local
 run-local-shift:
 	. ./scripts/build_local_shift.sh
-	. ./scripts/install_local.sh local build/resources/olm/templates
+	mkdir -p build/resources
+	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values-shift.yaml
+	. ./scripts/install_local.sh local build/resources
 
 e2e-local:
 	. ./scripts/build_local.sh
