@@ -292,17 +292,21 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 
 	// Set the resolved steps
 	plan.Status.Plan = steps
-	plan.Status.CatalogSources = usedSources
+	plan.Status.CatalogSources = []string{}
 
 	// Add secrets for each used catalog source
-	for _, sourceKey := range plan.Status.CatalogSources {
+	for _, sourceKey := range usedSources {
+		// Append the used catalog source
+		plan.Status.CatalogSources = append(plan.Status.CatalogSources, sourceKey.Name)
+
+		// Get the catalog source
 		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
 
 		for _, secretName := range catsrc.Spec.Secrets {
-			// Attempt to look up the secret.
+			// Attempt to look up the secret
 			_, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(sourceKey.Namespace).Get(secretName, metav1.GetOptions{})
 			status := v1alpha1.StepStatusUnknown
 			if k8serrors.IsNotFound(err) {
@@ -313,7 +317,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 				return err
 			}
 
-			// Prepend any required secrets to the plan for that Catalog Source.
+			// Prepend any required secrets to the plan for that catalog source
 			plan.Status.Plan = append([]v1alpha1.Step{{
 				Resolving: "",
 				Resource: v1alpha1.StepResource{
