@@ -114,7 +114,7 @@
     },
 
     helm: {
-        templateApply(chartdir, namespace, vars={}):: [
+        templateApply(name, chartdir, namespace, vars={}):: [
             local set_opts = [
                 "--set %s=%s" % [key, vars[key]]
                 for key in std.objectFields(vars)
@@ -123,14 +123,13 @@
             std.join(" ", [
                 "charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;" +
                 "mkdir -p ${charttmpdir};" +
-                "pushd %s/templates;" % chartdir +
-                "filenames=$(ls *.yaml);" +
-                "popd;" +
-                "for f in ${filenames};" +
-                "do " +
-                "helm template --set namespace=%s %s -x templates/${f} %s > ${charttmpdir}/${f};" % [namespace, chartdir, std.join(" ", set_opts)] +
-                "done;" +
-                "kubectl replace --force=true -f ${charttmpdir}",
+                "helm template -n %s --set namespace=%s %s %s --output-dir ${charttmpdir};" % [name, namespace, chartdir, std.join(" ", set_opts)] +
+                "chartfilenames=$(ls ${charttmpdir}/%s/templates/*.yaml);" % name +
+                "echo ${chartfilenames};" +
+                "for f in ${chartfilenames};" +
+                "do "+
+                "kubectl replace --force -f ${f};" +
+                "done;"
             ]),
         ],
 
