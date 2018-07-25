@@ -75,9 +75,8 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			srcRefs := []registry.SourceRef{srcRef}
 
 			// Resolve the plan
-			steps, usedSources, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
+			steps, _, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
 			plan.Status.Plan = steps
-			plan.Status.CatalogSources = usedSources
 
 			// Assert the error is as expected
 			if tt.expectedErr == nil {
@@ -234,11 +233,10 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			}
 
 			// Resolve the plan.
-			steps, usedSources, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
+			steps, _, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
 
 			// Set the plan and used Sources
 			plan.Status.Plan = steps
-			plan.Status.CatalogSources = usedSources
 
 			// Assert the error is as expected
 			if tt.expectedErr == nil {
