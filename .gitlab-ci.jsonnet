@@ -156,6 +156,7 @@ local jobs = {
             image: images.release,
             domain: "teamui.console.team.coreos.systems",
             namespace: "operator-lifecycle-manager",
+            catalog_namespace: "operator-lifecycle-manager",
             channel: "staging",
             helm_opts: ["--force"],
             kubeconfig: "$TEAMUI_KUBECONFIG",
