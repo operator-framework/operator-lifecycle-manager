@@ -1,0 +1,144 @@
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1alpha1.packages.apps.redhat.com
+spec:
+  insecureSkipTLSVerify: true
+  group: packages.apps.redhat.com
+  groupPriorityMinimum: 2000
+  versionPriority: 15
+  service:
+    name: api
+    namespace: {{ .Values.namespace }}
+  version: v1alpha1
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: packagemanifest-apiserver
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packagemanifest:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: packagemanifest-apiserver
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: packagemanifest-auth-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: packagemanifest-apiserver
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packagemanifest-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+- kind: ServiceAccount
+  name: packagemanifest-apiserver
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: package-apiserver-clusterrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aggregated-apiserver-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: packagemanifest-apiserver
+  namespace: {{ .Values.namespace }}
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: package-apiserver-clusterviewrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aggregate-olm-view
+subjects:
+- kind: ServiceAccount
+  name: packagemanifest-apiserver
+  namespace: {{ .Values.namespace }}
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: package-server
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: package-server
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: {{ .Values.packageserver.replicaCount }}
+  selector:
+    matchLabels:
+      app: package-server
+  template:
+    metadata:
+      labels:
+        app: package-server
+    spec:
+      serviceAccountName: packagemanifest-apiserver
+      containers:
+      - name: package-server
+        command:
+        - /bin/package-server
+        - -v=4
+        {{- if .Values.watchedNamespaces }}
+        - \--watched-namespaces {{ .Values.watchedNamespaces }}
+        {{- end }}
+        {{- if .Values.packageserver.commandArgs }}
+        - {{ .Values.packageserver.commandArgs }}
+        {{- end }}
+        image: {{ .Values.packageserver.image.ref }}
+        imagePullPolicy: {{ .Values.packageserver.image.pullPolicy }}
+        ports:
+            - containerPort: {{ .Values.packageserver.service.internalPort }}
+        livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: {{ .Values.packageserver.service.internalPort }}
+        readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: {{ .Values.packageserver.service.internalPort }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: {{ .Values.namespace }}
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: package-server

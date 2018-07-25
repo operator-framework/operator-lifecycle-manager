@@ -35,4 +35,3 @@ EXPOSE 8080
 LABEL io.k8s.display-name="OpenShift Operator Lifecycle Manager" \
       io.k8s.description="This is a component of OpenShift Container Platform and manages the lifecycle of operators." \
       maintainer="Odin Team <aos-odin@redhat.com>"
-

@@ -55,12 +55,14 @@ run-local:
 	mkdir -p build/resources
 	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh local build/resources
+	rm -rf build
 
 run-local-shift:
 	. ./scripts/build_local_shift.sh
 	mkdir -p build/resources
 	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values-shift.yaml
 	. ./scripts/install_local.sh local build/resources
+	rm -rf build
 
 e2e-local:
 	. ./scripts/build_local.sh
@@ -107,8 +109,17 @@ $(CODEGEN):
 	mkdir -p vendor/k8s.io/code-generator
 	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 
+pkg/package-server/generated/openapi/zz_generated.openapi.go:
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1 -p github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi/ -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
+
+clean-openapi:
+	rm -rf pkg/package-server/generated/openapi
+
+codegen-openapi: clean-openapi pkg/package-server/generated/openapi/zz_generated.openapi.go
+
 codegen: $(CODEGEN)
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1"
+	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis "packagemanifest:v1alpha1"
 
 verify-codegen: codegen
 	git diff --exit-code
@@ -124,12 +135,11 @@ mockgen := $(GOBIN)/mockgen
 $(mockgen):
 	go install github.com/golang/mock/mockgen
 
-
 generate-mock-client: $(counterfeiter)
 	go generate ./$(PKG_DIR)/...
 	mockgen -source ./pkg/lib/operatorclient/client.go -destination ./pkg/lib/operatorclient/mock_client.go -package operatorclient
 
-gen-all: gen-ci codegen generate-mock-client
+gen-all: gen-ci codegen generate-mock-client codegen-openapi
 
 # must have already tagged a version release in github so that the docker images are available
 # make ver=0.3.0 release
