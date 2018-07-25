@@ -35,6 +35,5 @@ job_name: e2e
 
 catalog_sources:
  - tectonic-ocs
- - prometheus
  - tectonic-components
  - upstream-components

@@ -272,6 +272,7 @@ func checkForInstallPlan(t *testing.T, c operatorclient.ClientInterface, owner o
 	installPlans, err := waitForAndFetchChildren(t, c, v1alpha1.GroupVersion, v1alpha1.InstallPlanKind, owner, 1)
 	require.NoError(t, err)
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(installPlans[0].Object, &installPlan)
+	t.Log(err)
 	return installPlan, err
 }
 

@@ -40,7 +40,7 @@ type packageAndChannel struct {
 }
 
 func NewInMemoryFromDirectory(directory string) (*InMem, error) {
-	log.Infof("loading alpha entries from directory: %s", directory)
+	log.Infof("loading catalog from directory: %s", directory)
 	loader := DirectoryCatalogResourceLoader{NewInMem()}
 	if err := loader.LoadCatalogResources(directory); err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func NewInMemoryFromDirectory(directory string) (*InMem, error) {
 }
 
 func NewInMemoryFromConfigMap(cmClient operatorclient.ClientInterface, namespace, cmName string) (*InMem, error) {
-	log.Infof("loading ui catalog entries from a configmap: %s", cmName)
+	log.Infof("loading catalog from a configmap: %s", cmName)
 	loader := ConfigMapCatalogResourceLoader{namespace, cmClient}
 	catalog := NewInMem()
 	if err := loader.LoadCatalogResources(catalog, cmName); err != nil {

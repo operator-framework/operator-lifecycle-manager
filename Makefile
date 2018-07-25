@@ -37,55 +37,35 @@ build-coverage: GENCOVER=true
 build-coverage: $(CMDS)
 
 $(CMDS): .FORCE
-	if [ 1$(GENCOVER) = 1true ]; then \
+	@if [ cover-$(GENCOVER) = cover-true ]; then \
+		echo "building bin/$(shell basename $@)" with coverage; \
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $@ -c -covermode=count -coverpkg ./pkg/... $(PKG)/cmd/$(shell basename $@); \
 	else \
+		echo "building bin/$(shell basename $@)"; \
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ $(PKG)/cmd/$(shell basename $@); \
 	fi
 
-build/chart/values.yaml: $(values_file)
-	mkdir -p build/chart
-	cp $(values_file) build/chart/values.yaml
-
-build/chart/Chart.yaml: deploy/chart/Chart.yaml
-	mkdir -p build/chart
-	cp deploy/chart/Chart.yaml build/chart/Chart.yaml
-	echo "version: ver=1.0.0-local" >> build/chart/Chart.yaml
-
-RESOURCES:=$(shell ls deploy/chart/templates/*yaml |  xargs -I{} basename {})
-CHARTS:=$(addprefix build/chart/templates/,$(RESOURCES))
-build/chart/templates/%.yaml: deploy/chart/templates/%.yaml
-	mkdir -p build/chart/templates
-	cp $< $@
-
-manifests: clean $(CHARTS) build/chart/Chart.yaml build/chart/values.yaml
-	mkdir -p build/resources
-	helm template -n olm -f build/chart/values.yaml build/chart --output-dir build/resources
-
 run-local: values_file = Documentation/install/local-values.yaml
 run-local: ver=0.0.0-local
-run-local: manifests
+run-local:
 	. ./scripts/build_local.sh
 	. ./scripts/install_local.sh local build/resources/olm/templates
 
 run-local-shift: values_file = Documentation/install/local-values-shift.yaml
 run-local-shift: ver=0.0.0-local
-run-local-shift: manifests
+run-local-shift:
 	. ./scripts/build_local_shift.sh
 	. ./scripts/install_local.sh local build/resources/olm/templates
 
-e2e-local: values_file = test/e2e/e2e-values.yaml
-e2e-local: manifests
+e2e-local:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh
 
-e2e-local-shift: values_file = test/e2e/e2e-values.yaml
-e2e-local-shift: manifests
+e2e-local-shift:
 	. ./scripts/build_local_shift.sh
 	. ./scripts/run_e2e_local.sh
 
-e2e-local-docker: values_file = test/e2e/e2e-values.yaml
-e2e-local-docker: manifests
+e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh
 
@@ -106,7 +86,6 @@ clean:
 	rm -rf bin
 	rm -rf test/e2e/test-resources
 	rm -rf test/e2e/log
-	rm -rf build
 
 CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
 $(CI):
@@ -191,10 +170,10 @@ ansible-release: $(YQ)
 	# link newest release into playbook
 	ln -sfF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
 
-OLM_REF:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
-CATALOG_REF:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver))
 
 # must have already tagged a version release in github so that the docker images are available
+release: OLM_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
+release: CATALOG_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver))
 release:
 ifndef ver
 	$(error ver is undefined)
@@ -207,11 +186,11 @@ endif
 	yaml w -i deploy/tectonic-alm-operator/values.yaml catalog.image.ref $(CATALOG_REF)
 	$(MAKE) tectonic-release upstream-release
 
-# These are built from the same image, and repodigests are ordered alphabetically, so olm is ref 1 and catalog ref 2
-OLM_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel)
-CATALOG_REF_RH:=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel)
 
 # this will build locally on rhel
+# These are built from the same image, and repodigests are ordered alphabetically, so olm is ref 1 and catalog ref 2
+release-rh: OLM_REF_RH=$(shell docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel)
+release-rh: CATALOG_REF_RH=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel)
 release-rh:
 ifndef ver
 	$(error ver is undefined)

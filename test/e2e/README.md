@@ -1,6 +1,6 @@
 # Backend end to end tests
 
-This runs a series of tests against the Kubernetes API to verify that ALM is functioning properly.
+This runs a series of tests against the Kubernetes API to verify that OLM is functioning properly.
 
 ## Requirements
 
