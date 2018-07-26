@@ -346,7 +346,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
 			log.Debugf("resource kind: %s", step.Resource.Kind)
-			log.Debugf("resource name %s", step.Resource.Name)
+			log.Debugf("resource name: %s", step.Resource.Name)
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.

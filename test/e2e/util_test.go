@@ -226,7 +226,5 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 	}
 	t.Logf("Catalog source %s created", name)
 
-	// Attempt to get catalog source
-
 	return &catalogSource, nil
 }
