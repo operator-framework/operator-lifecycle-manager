@@ -220,19 +220,6 @@ func (m *InMem) setOrReplaceCRDDefinition(crd v1beta1.CustomResourceDefinition) 
 func (m *InMem) findServiceConflicts(csv v1alpha1.ClusterServiceVersion) []error {
 	errs := []error{}
 
-	// validate required CRDs
-	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Required {
-		key := CRDKey{
-			Kind:    crdReq.Kind,
-			Name:    crdReq.Name,
-			Version: crdReq.Version,
-		}
-		// validate CRD definition stored
-		if _, ok := m.crds[key]; !ok {
-			errs = append(errs, fmt.Errorf("missing definition for required CRD %v", key))
-		}
-	}
-
 	// validate owned CRDs
 	for _, crdReq := range csv.Spec.CustomResourceDefinitions.Owned {
 		key := CRDKey{
