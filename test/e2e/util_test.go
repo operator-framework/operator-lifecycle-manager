@@ -2,23 +2,29 @@ package e2e
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/ghodss/yaml"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
+	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
+	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -155,4 +161,72 @@ func compareResources(t *testing.T, expected, actual interface{}) {
 		t.Fatalf("Resource does not match expected value: %s",
 			diff.ObjectDiff(expected, actual))
 	}
+}
+
+func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []v1beta1.CustomResourceDefinition, csvs []csvv1alpha1.ClusterServiceVersion) (*catalogsourcev1alpha1.CatalogSource, error) {
+	// Create a config map containing the PackageManifests and CSVs
+	configMapName := fmt.Sprintf("%s-configmap", name)
+	catalogConfigMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: configMapName,
+		},
+		Data: map[string]string{},
+	}
+	catalogConfigMap.SetNamespace(namespace)
+
+	// Add raw manifests
+	if manifests != nil {
+		manifestsRaw, err := yaml.Marshal(manifests)
+		require.NoError(t, err)
+		catalogConfigMap.Data[registry.ConfigMapPackageName] = string(manifestsRaw)
+	}
+
+	// Add raw CRDs
+	if crds != nil {
+		crdsRaw, err := yaml.Marshal(crds)
+		require.NoError(t, err)
+		catalogConfigMap.Data[registry.ConfigMapCRDName] = string(crdsRaw)
+	}
+
+	// Add raw CSVs
+	if csvs != nil {
+		csvsRaw, err := yaml.Marshal(csvs)
+		require.NoError(t, err)
+		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
+	}
+
+	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
+	if err != nil && !errors.IsAlreadyExists(err) {
+		return nil, err
+	}
+
+	// Create an internal CatalogSource custom resource pointing to the ConfigMap
+	catalogSource := catalogsourcev1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       catalogsourcev1alpha1.CatalogSourceKind,
+			APIVersion: catalogsourcev1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: catalogsourcev1alpha1.CatalogSourceSpec{
+			Name:       name,
+			SourceType: "internal",
+			ConfigMap:  configMapName,
+		},
+	}
+	catalogSource.SetNamespace(namespace)
+
+	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&catalogSource)
+	require.NoError(t, err)
+	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
+	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csUnst})
+	if err != nil && !errors.IsAlreadyExists(err) {
+		return nil, err
+	}
+	t.Logf("Catalog source %s created", name)
+
+	// Attempt to get catalog source
+
+	return &catalogSource, nil
 }
