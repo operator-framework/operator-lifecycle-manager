@@ -277,9 +277,9 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestCreatePlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
-	mainPackageName := "myapp"
-	dependentPackageName := "myappdep"
+func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
+	mainPackageName := "nginx"
+	dependentPackageName := "nginxdep"
 
 	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
