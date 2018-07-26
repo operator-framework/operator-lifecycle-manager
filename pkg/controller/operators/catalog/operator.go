@@ -194,7 +194,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}
 
 	log.Infof("syncing InstallPlan: %s", plan.SelfLink)
-
 	syncError = transitionInstallPlanState(o, plan)
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
@@ -347,6 +346,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
 			log.Debugf("resource kind: %s", step.Resource.Kind)
+			log.Debugf("resource name %s", step.Resource.Name)
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.
