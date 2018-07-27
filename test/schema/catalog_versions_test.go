@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,10 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"encoding/json"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
@@ -20,6 +17,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager" +
