@@ -15,6 +15,10 @@ spec:
     listKind: ClusterServiceVersionList-v1
   group: app.coreos.com
   version: v1alpha1
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
   scope: Namespaced
   validation:
     openAPIV3Schema:

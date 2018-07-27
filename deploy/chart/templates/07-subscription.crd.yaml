@@ -10,6 +10,10 @@ metadata:
 spec:
   group: app.coreos.com
   version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
   scope: Namespaced
   names:
     plural: subscription-v1s
