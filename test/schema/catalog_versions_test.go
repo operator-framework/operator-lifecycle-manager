@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -10,9 +11,13 @@ import (
 
 	"encoding/json"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 )
@@ -66,6 +71,47 @@ func loadCatalogFromFile(path string) (*LoadedCatalog, error) {
 	}, nil
 }
 
+// resolveCatalogs attempts to resolve every CSV for all given catalog sources
+func resolveCatalogs(t *testing.T, catalogs []registry.SourceRef, dependencyResolver resolver.DependencyResolver) error {
+	var err error
+
+	// Attempt to resolve every CSV for each catalog
+	for _, catalog := range catalogs {
+		t.Logf("Resolving CSVs for catalog source %s...", catalog.SourceKey.Name)
+
+		// Get CSV names
+		csvs, err := catalog.Source.ListServices()
+		if err != nil {
+			return err
+		}
+		csvNames := make([]string, len(csvs))
+		for i, csv := range csvs {
+			csvNames[i] = csv.GetName()
+		}
+
+		// Create an install plan that depends on all CSVs in the catalog
+		plan := &v1alpha1.InstallPlan{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.InstallPlanCRDName,
+				APIVersion: v1alpha1.InstallPlanCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "install-everything",
+				Namespace: "default",
+			},
+			Spec: v1alpha1.InstallPlanSpec{
+				ClusterServiceVersionNames: csvNames,
+			},
+		}
+
+		// Attempt to resolve the install plan
+		_, _, err = dependencyResolver.ResolveInstallPlan(catalogs, "", plan)
+
+	}
+
+	return err
+}
+
 func TestCatalogVersions(t *testing.T) {
 	// for each version of the catalog, load (version-1) and verify that each OCS that has a replaces field
 	// points to an OCS in the previous version of the catalog
@@ -87,6 +133,7 @@ func TestCatalogVersions(t *testing.T) {
 
 	// load all available catalogs
 	catalogNameVersions := map[string][]*LoadedCatalog{}
+	catalogVersionBundles := map[string][]registry.SourceRef{}
 	for _, versioned := range versionDirs {
 
 		// ignore old versions that don't have the catalog
@@ -107,7 +154,19 @@ func TestCatalogVersions(t *testing.T) {
 				if _, ok := catalogNameVersions[loadedCatalog.Name]; !ok {
 					catalogNameVersions[loadedCatalog.Name] = []*LoadedCatalog{}
 				}
+
+				// Store by name
 				catalogNameVersions[loadedCatalog.Name] = append(catalogNameVersions[loadedCatalog.Name], loadedCatalog)
+
+				// Store by version
+				sourceRef := registry.SourceRef{
+					SourceKey: registry.SourceKey{
+						Name:      loadedCatalog.Name,
+						Namespace: "default", // namespace is irrelevant (everything is loaded from files)
+					},
+					Source: loadedCatalog.Registry,
+				}
+				catalogVersionBundles[loadedCatalog.Version] = append(catalogVersionBundles[loadedCatalog.Version], sourceRef)
 			}
 		}
 	}
@@ -130,5 +189,20 @@ func TestCatalogVersions(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	// Ensure all resources are resolvable for all catalogs of each version
+	multiSourceResolver := resolver.MultiSourceResolver{}
+	for version, catalogs := range catalogVersionBundles {
+		// capture range variables in lexical scope
+		c := catalogs
+		v := version
+		testName := fmt.Sprintf("ResolvingResourcesForCatalogsInVersion-%s", version)
+		t.Run(testName, func(t *testing.T) {
+			t.Parallel()
+			t.Logf("Resolving resources for catalogs in version %s...", v)
+			err := resolveCatalogs(t, c, &multiSourceResolver)
+			require.NoError(t, err)
+		})
 	}
 }
