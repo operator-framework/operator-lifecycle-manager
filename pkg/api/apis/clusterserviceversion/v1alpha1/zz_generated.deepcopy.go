@@ -375,8 +375,16 @@ func (in *SpecDescriptor) DeepCopyInto(out *SpecDescriptor) {
 	}
 	if in.Value != nil {
 		in, out := &in.Value, &out.Value
-		*out = make(json.RawMessage, len(*in))
-		copy(*out, *in)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(json.RawMessage)
+			if **in != nil {
+				in, out := *in, *out
+				*out = make([]byte, len(*in))
+				copy(*out, *in)
+			}
+		}
 	}
 	return
 }
@@ -401,8 +409,16 @@ func (in *StatusDescriptor) DeepCopyInto(out *StatusDescriptor) {
 	}
 	if in.Value != nil {
 		in, out := &in.Value, &out.Value
-		*out = make(json.RawMessage, len(*in))
-		copy(*out, *in)
+		if *in == nil {
+			*out = nil
+		} else {
+			*out = new(json.RawMessage)
+			if **in != nil {
+				in, out := *in, *out
+				*out = make([]byte, len(*in))
+				copy(*out, *in)
+			}
+		}
 	}
 	return
 }

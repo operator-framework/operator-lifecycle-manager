@@ -28,20 +28,20 @@ type NamedInstallStrategy struct {
 
 // StatusDescriptor describes a field in a status block of a CRD so that ALM can consume it
 type StatusDescriptor struct {
-	Path         string          `json:"path"`
-	DisplayName  string          `json:"displayName,omitempty"`
-	Description  string          `json:"description,omitempty"`
-	XDescriptors []string        `json:"x-descriptors,omitempty"`
-	Value        json.RawMessage `json:"value,omitempty"`
+	Path         string           `json:"path"`
+	DisplayName  string           `json:"displayName,omitempty"`
+	Description  string           `json:"description,omitempty"`
+	XDescriptors []string         `json:"x-descriptors,omitempty"`
+	Value        *json.RawMessage `json:"value,omitempty"`
 }
 
 // SpecDescriptor describes a field in a spec block of a CRD so that ALM can consume it
 type SpecDescriptor struct {
-	Path         string          `json:"path"`
-	DisplayName  string          `json:"displayName,omitempty"`
-	Description  string          `json:"description,omitempty"`
-	XDescriptors []string        `json:"x-descriptors,omitempty"`
-	Value        json.RawMessage `json:"value,omitempty"`
+	Path         string           `json:"path"`
+	DisplayName  string           `json:"displayName,omitempty"`
+	Description  string           `json:"description,omitempty"`
+	XDescriptors []string         `json:"x-descriptors,omitempty"`
+	Value        *json.RawMessage `json:"value,omitempty"`
 }
 
 // CRDDescription provides details to ALM about the CRDs
