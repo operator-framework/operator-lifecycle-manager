@@ -225,7 +225,7 @@ func validateCRD(schemaFileName string, fileBytes []byte) error {
 	}
 
 	// Validate CR against CRD schema
-	validator, err := apiservervalidation.NewSchemaValidator(unversionedCRD.Spec.Validation)
+	validator, _, err := apiservervalidation.NewSchemaValidator(unversionedCRD.Spec.Validation)
 	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent(), validator)
 }
 
