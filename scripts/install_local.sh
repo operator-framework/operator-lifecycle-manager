@@ -7,7 +7,7 @@ set -e
 if [[ ${#@} < 2 ]]; then
     echo "Usage: $0 namespace chart"
     echo "* namespace: namespace to install into"
-    echo "* chart: directory of chart to install"
+    echo "* chart: directory of chart manifests to install"
     exit 1
 fi
 
@@ -18,7 +18,10 @@ chart=$2
 kubectl create ns ${namespace} || { echo 'ns exists'; }
 
 # create alm
-kubectl apply -f ${chart}/templates
+for f in ${chart}/*.yaml
+do
+	kubectl replace --force -f ${f}
+done
 
 # wait for deployments to be ready (loop can be removed when rollout status -w actually works)
 n=0

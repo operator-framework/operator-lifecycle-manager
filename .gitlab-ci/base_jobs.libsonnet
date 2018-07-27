@@ -61,7 +61,7 @@ local appr = utils.appr;
             [
                 'kubectl -n %s create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=%s:default --namespace=%s || true' % [_vars.namespace, _vars.namespace, _vars.namespace],
             ] +
-            helm.templateApply(_vars.chart, _vars.namespace, _vars.params) +
+            helm.templateApply("alm-e2e", _vars.chart, _vars.namespace, _vars.params) +
             [
                 "until kubectl -n %s logs job/%s | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % [_vars.namespace, _vars.jobname],
                 "kubectl -n %s logs job/%s -f" % [_vars.namespace, _vars.jobname],
@@ -125,7 +125,7 @@ local appr = utils.appr;
                                  "quay.io",
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
-            helm.templateApply(_vars.chart, _vars.namespace, _vars.params) +
+            helm.templateApply("olm", _vars.chart, _vars.namespace, _vars.params) +
             k8s.waitForDeployment("alm-operator", _vars.namespace) +
             k8s.waitForDeployment("catalog-operator", _vars.namespace),
     } + job_tags,

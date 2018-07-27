@@ -96,7 +96,6 @@ func fetchInstallPlan(t *testing.T, c operatorclient.ClientInterface, name strin
 
 		return checker(fetchedInstallPlan), nil
 	})
-
 	return fetchedInstallPlan, err
 }
 
