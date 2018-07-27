@@ -100,7 +100,7 @@ $(CODEGEN):
 	# dep doesn't currently support downloading dependencies that don't have go in the top-level dir.
 	# can move to managing with dep when merged: https://github.com/golang/dep/pull/1545
 	mkdir -p vendor/k8s.io/code-generator
-	git clone --branch release-1.9 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
+	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 	# codegen tools currently don't allow specifying custom boilerplate, so we move ours to the default location
 	mkdir -p $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate
 	cp boilerplate.go.txt $(GOPATH)/src/k8s.io/kubernetes/hack/boilerplate/boilerplate.go.txt
