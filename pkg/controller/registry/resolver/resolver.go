@@ -121,7 +121,8 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		step.CatalogSourceNamespace = csvSourceKey.Namespace
 
 		// Add the final step for the CSV to the plan.
-		log.Infof("finished step: %v", step)
+		log.Infof("finished step: %s", step.Name)
+		log.Debugf("step %s content: %v", step.Name, step)
 		steps[currentName] = append(steps[currentName], step)
 	}
 
