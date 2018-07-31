@@ -124,88 +124,103 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
+	logger := log.WithFields(log.Fields{
+		"sync": "ClusterServiceVersion",
+	})
 
-	log.Infof("syncing ClusterServiceVersion: %s", clusterServiceVersion.SelfLink)
+	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
-	syncError = a.transitionCSVState(clusterServiceVersion)
+	// no changes in status, don't update
+	if outCSV.Status.Phase == clusterServiceVersion.Status.Phase && outCSV.Status.Reason == clusterServiceVersion.Status.Reason && outCSV.Status.Message == clusterServiceVersion.Status.Message {
+		return
+	}
 
 	// Update CSV with status of transition. Log errors if we can't write them to the status.
-	if _, err := a.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Update(clusterServiceVersion); err != nil {
+	_, err := a.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).UpdateStatus(outCSV)
+	if err != nil {
 		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
 		if syncError == nil {
-			log.Info(updateErr)
+			logger.Info(updateErr)
 			return updateErr
 		}
 		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
-		log.Info(syncError)
 	}
 	return
 }
 
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
 // state.
-func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (syncError error) {
+func (a *ALMOperator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v1alpha1.ClusterServiceVersion, syncError error) {
+	logger := log.WithFields(log.Fields{
+		"csv":       in.GetName(),
+		"namespace": in.GetNamespace(),
+		"phase":     in.Status.Phase,
+	})
+
+	out = in.DeepCopy()
+
 	// check if the current CSV is being replaced, return with replacing status if so
-	if err := a.checkReplacementsAndUpdateStatus(csv); err != nil {
+	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
 		return
 	}
-	switch csv.Status.Phase {
+
+	switch out.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
-		log.Infof("scheduling ClusterServiceVersion for requirement verification: %s", csv.SelfLink)
-		csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
+		logger.Infof("scheduling ClusterServiceVersion for requirement verification")
+		out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
 	case v1alpha1.CSVPhasePending:
-		met, statuses := a.requirementStatus(csv)
-		csv.SetRequirementStatus(statuses)
+		met, statuses := a.requirementStatus(out)
+		out.SetRequirementStatus(statuses)
 
 		if !met {
-			log.Info("requirements were not met")
-			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
+			logger.Info("requirements were not met")
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
 			syncError = ErrRequirementsNotMet
 			return
 		}
 
 		// check for CRD ownership conflicts
-		if syncError = a.crdOwnerConflicts(csv, a.csvsInNamespace(csv.GetNamespace())); syncError != nil {
-			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("owner conflict: %s", syncError))
+		if syncError = a.crdOwnerConflicts(out, a.csvsInNamespace(out.GetNamespace())); syncError != nil {
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("owner conflict: %s", syncError))
 			return
 		}
 
-		log.Infof("scheduling ClusterServiceVersion for install: %s", csv.SelfLink)
-		csv.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
+		logger.Info("scheduling ClusterServiceVersion for install")
+		out.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
 	case v1alpha1.CSVPhaseInstallReady:
-		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
+		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
 
 		if syncError = installer.Install(strategy); syncError != nil {
-			csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
 			return
 		}
 
-		csv.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
-		a.requeueCSV(csv)
+		out.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
+		a.requeueCSV(out)
 		return
 	case v1alpha1.CSVPhaseInstalling:
-		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
+		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
 
-		if installErr := a.updateInstallStatus(csv, installer, strategy, v1alpha1.CSVReasonWaiting); installErr == nil {
-			log.Infof("%s install strategy successful for %s", csv.Spec.InstallStrategy.StrategyName, csv.SelfLink)
+		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVReasonWaiting); installErr == nil {
+			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("install strategy successful")
 		}
 
 	case v1alpha1.CSVPhaseSucceeded:
-		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(csv)
+		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
-		if installErr := a.updateInstallStatus(csv, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
-			log.Infof("%s has an unhealthy component: %s", csv.GetName(), installErr)
+		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
+			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("unhealthy component: %s", installErr)
 		}
 	case v1alpha1.CSVPhaseReplacing:
 		// determine CSVs that are safe to delete by finding a replacement chain to a CSV that's running
@@ -213,23 +228,24 @@ func (a *ALMOperator) transitionCSVState(csv *v1alpha1.ClusterServiceVersion) (s
 
 		// if this isn't the earliest csv in a replacement chain, skip gc.
 		// marking an intermediate for deletion will break the replacement chain
-		if prev := a.isReplacing(csv); prev != nil {
-			log.Debugf("%s is being replaced, but is not a leaf. skipping gc", csv.GetName())
+		if prev := a.isReplacing(out); prev != nil {
+			logger.Debugf("being replaced, but is not a leaf. skipping gc")
 			return
 		}
 
 		// if we can find a newer version that's successfully installed, we're safe to mark all intermediates
-		for _, csv := range a.findIntermediatesForDeletion(csv) {
+		for _, csv := range a.findIntermediatesForDeletion(out) {
+			// TODO fix this
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
 			csv.SetPhase(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.")
 		}
 
 		// if there's no newer version, requeue for processing (likely will be GCable before resync)
-		a.requeueCSV(csv)
+		a.requeueCSV(out)
 	case v1alpha1.CSVPhaseDeleting:
-		syncError := a.OpClient.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, csv.GetNamespace(), v1alpha1.ClusterServiceVersionKind, csv.GetName())
+		syncError := a.OpClient.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, out.GetNamespace(), v1alpha1.ClusterServiceVersionKind, out.GetName())
 		if syncError != nil {
-			log.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
+			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
 		}
 	}
 

@@ -98,7 +98,6 @@ func (o *Operator) worker(loop *QueueInformer) {
 func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 	queue := loop.queue
 	key, quit := queue.Get()
-	log.Infof("processing %s", key)
 
 	if quit {
 		return false
@@ -107,6 +106,7 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 
 	// requeue five times on error
 	if err := o.sync(loop, key.(string)); err != nil && queue.NumRequeues(key.(string)) < 5 {
+		log.Infof("retrying %s", key)
 		utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
 		queue.AddRateLimited(key)
 		return true

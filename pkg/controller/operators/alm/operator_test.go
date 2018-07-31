@@ -284,11 +284,12 @@ func TestCSVStateTransitionsFromNone(t *testing.T) {
 
 		// Test the transition
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
+			t.Log(out)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 		})
 		ctrl.Finish()
 	}
@@ -585,11 +586,11 @@ func TestCSVStateTransitionsFromPending(t *testing.T) {
 				mockCSVsInNamespace(t, mockOp.MockQueueOperator.MockClient, tt.in.Namespace, tt.state.csvs, nil)
 			}
 
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 			ctrl.Finish()
 		})
 	}
@@ -766,11 +767,11 @@ func TestCSVStateTransitionsFromInstallReady(t *testing.T) {
 		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 		})
 		ctrl.Finish()
 	}
@@ -1016,11 +1017,11 @@ func TestCSVStateTransitionsFromInstalling(t *testing.T) {
 		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 		})
 		ctrl.Finish()
 	}
@@ -1154,11 +1155,11 @@ func TestCSVStateTransitionsFromSucceeded(t *testing.T) {
 		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
 
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 		})
 		ctrl.Finish()
 	}
@@ -1407,11 +1408,11 @@ func TestCSVStateTransitionsFromReplacing(t *testing.T) {
 		}
 
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 		})
 		ctrl.Finish()
 	}
@@ -1492,11 +1493,11 @@ func TestCSVStateTransitionsFromDeleting(t *testing.T) {
 			Return(tt.state.deleteErr)
 
 		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.transitionCSVState(tt.in)
+			out, err := mockOp.transitionCSVState(*tt.in)
 			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
+			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
+			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
+			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
 		})
 		ctrl.Finish()
 	}
