@@ -66,7 +66,7 @@ func (c *clusterServiceVersions) Get(name string, options v1.GetOptions) (result
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -79,7 +79,7 @@ func (c *clusterServiceVersions) List(opts v1.ListOptions) (result *v1alpha1.Clu
 	result = &v1alpha1.ClusterServiceVersionList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
@@ -91,7 +91,7 @@ func (c *clusterServiceVersions) Watch(opts v1.ListOptions) (watch.Interface, er
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
 }
@@ -101,7 +101,7 @@ func (c *clusterServiceVersions) Create(clusterServiceVersion *v1alpha1.ClusterS
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		Body(clusterServiceVersion).
 		Do().
 		Into(result)
@@ -113,7 +113,7 @@ func (c *clusterServiceVersions) Update(clusterServiceVersion *v1alpha1.ClusterS
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		Name(clusterServiceVersion.Name).
 		Body(clusterServiceVersion).
 		Do().
@@ -128,7 +128,7 @@ func (c *clusterServiceVersions) UpdateStatus(clusterServiceVersion *v1alpha1.Cl
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		Name(clusterServiceVersion.Name).
 		SubResource("status").
 		Body(clusterServiceVersion).
@@ -141,7 +141,7 @@ func (c *clusterServiceVersions) UpdateStatus(clusterServiceVersion *v1alpha1.Cl
 func (c *clusterServiceVersions) Delete(name string, options *v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		Name(name).
 		Body(options).
 		Do().
@@ -152,7 +152,7 @@ func (c *clusterServiceVersions) Delete(name string, options *v1.DeleteOptions) 
 func (c *clusterServiceVersions) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
 		Do().
@@ -164,7 +164,7 @@ func (c *clusterServiceVersions) Patch(name string, pt types.PatchType, data []b
 	result = &v1alpha1.ClusterServiceVersion{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("clusterserviceversion-v1s").
+		Resource("clusterserviceversions").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

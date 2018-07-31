@@ -13,10 +13,10 @@ import (
 
 const (
 	GroupVersion                    = "v1alpha1" // used in registering ClusterServiceVersion scheme
-	ClusterServiceVersionPluralName = "clusterserviceversion-v1s"
+	ClusterServiceVersionPluralName = "clusterserviceversion"
 	ClusterServiceVersionCRDName    = ClusterServiceVersionPluralName + "." + apis.GroupName
 	ClusterServiceVersionAPIVersion = apis.GroupName + "/" + GroupVersion
-	ClusterServiceVersionKind       = "ClusterServiceVersion-v1"
+	ClusterServiceVersionKind       = "ClusterServiceVersion"
 )
 
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource

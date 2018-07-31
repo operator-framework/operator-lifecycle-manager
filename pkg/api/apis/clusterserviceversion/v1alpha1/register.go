@@ -28,7 +28,7 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ClusterServiceVersion{},
 	)
 	scheme.AddKnownTypeWithName(
-		SchemeGroupVersion.WithKind("ClusterServiceVersionList-v1"),
+		SchemeGroupVersion.WithKind("ClusterServiceVersionList"),
 		&ClusterServiceVersionList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
