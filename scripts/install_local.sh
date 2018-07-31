@@ -39,11 +39,3 @@ do
   n=$[$n+1]
   sleep 1
 done
-
-n=0
-until [ $n -ge 5 ]
-do
-  kubectl rollout status -w deployment/alm-service-broker --namespace=${namespace} && break
-  n=$[$n+1]
-  sleep 1
-done
