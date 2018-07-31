@@ -6,34 +6,6 @@ spec:
   group: etcd.database.coreos.com
   version: v1beta2
   scope: Namespaced
-  validation:
-    openAPIv3:
-      type: object
-      description: Represents a single instance of etcd
-      additionalProperties: false
-      required:
-      - version
-      properties:
-        version:
-          type: string
-          description: Version string
-          pattern: ^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
-          x-descriptors:
-          - urn:alm:descriptor:versioning:semver
-        size:
-          type: number
-          description: The size of the etcd cluster
-          min: 1
-          max: 9
-          x-descriptors:
-          - urn:alm:descriptor:pod:count
-          - urn:alm:descriptor:number:integer
-        template:
-          type: object
-          description: Template for fields of subresources
-          labels:
-            type: object
-            description: Labels to apply to associated resources
   names:
     plural: etcdclusters
     singular: etcdcluster
