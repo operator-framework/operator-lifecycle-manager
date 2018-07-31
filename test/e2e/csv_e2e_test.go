@@ -26,32 +26,42 @@ type cleanupFunc func()
 
 var immediateDeleteGracePeriod int64 = 0
 
-func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, deleteCRDs bool) cleanupFunc {
+func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs bool) cleanupFunc {
 	return func() {
-		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csv.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{}))
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
-				require.NoError(t, c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{}))
+				buildCRDCleanupFunc(c, crd.Name)()
 			}
 		}
+
+		require.NoError(t, waitForDelete(func() error {
+			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
+			return err
+		}))
 	}
 }
 
-func createCSV(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, cleanupCRDs bool) (cleanupFunc, error) {
+func createCSV(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
-	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&csv)
+	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(&csv)
 	require.NoError(t, err)
-	return buildCSVCleanupFunc(t, c, crc, csv, cleanupCRDs), nil
+	return buildCSVCleanupFunc(t, c, crc, csv, namespace, cleanupCRDs), nil
 
 }
 
-func buildCRDCleanupFunc(c operatorclient.ClientInterface, crd extv1beta1.CustomResourceDefinition) cleanupFunc {
+func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
-		err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
+		err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crdName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
 		if err != nil {
 			fmt.Println(err)
 		}
+
+		waitForDelete(func() error {
+			_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			return err
+		})
 	}
 }
 
@@ -60,8 +70,8 @@ func createCRD(c operatorclient.ClientInterface, crd extv1beta1.CustomResourceDe
 	if err != nil {
 		return nil, err
 	}
-	return buildCRDCleanupFunc(c, crd), nil
 
+	return buildCRDCleanupFunc(c, crd.GetName()), nil
 }
 
 func newNginxDeployment(name string) appsv1.DeploymentSpec {
@@ -107,6 +117,10 @@ var csvSucceededChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 
 var csvReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
 	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting
+}
+
+var csvAnyChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
+	return csvPendingChecker(csv) || csvSucceededChecker(csv) || csvReplacingChecker(csv)
 }
 
 func fetchCSV(t *testing.T, c versioned.Interface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
@@ -202,7 +216,7 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 		},
 	}
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, false)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -280,7 +294,7 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, true)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -385,7 +399,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	defer cleanupCRD()
 
 	// don't need to cleanup this CSV, it will be deleted by the upgrade process
-	_, err = createCSV(t, c, crc, csv, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -467,7 +481,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
@@ -565,7 +579,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupCRD()
 
 	// don't need to clean up this CSV, it will be deleted by the upgrade process
-	_, err = createCSV(t, c, crc, csv, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -617,7 +631,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
@@ -712,7 +726,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	defer cleanupCRD()
 
 	// don't need to clean up this CSV, it will be deleted by the upgrade process
-	_, err = createCSV(t, c, crc, csv, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -764,7 +778,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 

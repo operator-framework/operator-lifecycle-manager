@@ -109,7 +109,7 @@ func TestFindCSVForPackageNameUnderChannel(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceAlpha)
 	catalog.AddOrReplaceService(testCSVResourceStable)
 
-	catalog.addPackageManifest(PackageManifest{
+	catalog.AddPackageManifest(PackageManifest{
 		PackageName: "mockservice",
 		Channels: []PackageChannel{
 			{
@@ -143,7 +143,7 @@ func TestFindCSVForPackageNameUnderChannel(t *testing.T) {
 func TestInvalidPackageManifest(t *testing.T) {
 	catalog := NewInMem()
 
-	err := catalog.addPackageManifest(PackageManifest{
+	err := catalog.AddPackageManifest(PackageManifest{
 		PackageName: "mockservice",
 		Channels: []PackageChannel{
 			{
@@ -254,7 +254,7 @@ func TestFindReplacementCSVForPackageNameUnderChannel(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceStable)
 	catalog.AddOrReplaceService(testCSVResourceReplaced)
 
-	catalog.addPackageManifest(PackageManifest{
+	catalog.AddPackageManifest(PackageManifest{
 		PackageName:        "mockservice",
 		DefaultChannelName: "stable",
 		Channels: []PackageChannel{
@@ -374,7 +374,7 @@ func TestListLatestCSVsForCRD(t *testing.T) {
 	catalog.AddOrReplaceService(testCSVResourceStable)
 	catalog.AddOrReplaceService(testCSVResourceReplaced)
 
-	catalog.addPackageManifest(PackageManifest{
+	catalog.AddPackageManifest(PackageManifest{
 		PackageName:        "mockservice",
 		DefaultChannelName: "stable",
 		Channels: []PackageChannel{

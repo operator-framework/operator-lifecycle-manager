@@ -140,7 +140,7 @@ func (m *InMem) FindCSVForPackageNameUnderChannel(packageName string, channelNam
 }
 
 // addPackageManifest adds a new package manifest to the in memory catalog.
-func (m *InMem) addPackageManifest(pkg PackageManifest) error {
+func (m *InMem) AddPackageManifest(pkg PackageManifest) error {
 	if len(pkg.PackageName) == 0 {
 		return fmt.Errorf("Empty package name")
 	}

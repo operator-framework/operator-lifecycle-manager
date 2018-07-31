@@ -106,7 +106,7 @@ func (d *ConfigMapCatalogResourceLoader) LoadCatalogResourcesFromConfigMap(catal
 		}
 		for _, packageManifest := range parsedPackageManifests {
 			found = true
-			if err := catalog.addPackageManifest(packageManifest); err != nil {
+			if err := catalog.AddPackageManifest(packageManifest); err != nil {
 				return err
 			}
 		}

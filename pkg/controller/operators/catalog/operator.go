@@ -39,10 +39,10 @@ type Operator struct {
 	*queueinformer.Operator
 	client             versioned.Interface
 	namespace          string
-	sources            map[registry.SourceKey]registry.Source
+	sources            map[registry.ResourceKey]registry.Source
 	sourcesLock        sync.RWMutex
 	sourcesLastUpdate  metav1.Time
-	subscriptions      map[registry.SubscriptionKey]v1alpha1.Subscription
+	subscriptions      map[registry.ResourceKey]v1alpha1.Subscription
 	subscriptionsLock  sync.RWMutex
 	dependencyResolver resolver.DependencyResolver
 	subQueue           workqueue.RateLimitingInterface
@@ -88,8 +88,8 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		Operator:           queueOperator,
 		client:             crClient,
 		namespace:          operatorNamespace,
-		sources:            make(map[registry.SourceKey]registry.Source),
-		subscriptions:      make(map[registry.SubscriptionKey]v1alpha1.Subscription),
+		sources:            make(map[registry.ResourceKey]registry.Source),
+		subscriptions:      make(map[registry.ResourceKey]v1alpha1.Subscription),
 		dependencyResolver: &resolver.MultiSourceResolver{},
 	}
 
@@ -147,7 +147,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
-	o.sources[registry.SourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}] = src
+	o.sources[registry.ResourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}] = src
 	o.sourcesLastUpdate = timeNow()
 	return nil
 }
@@ -181,7 +181,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 
 	updatedSub.Status.LastUpdated = timeNow()
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	if updatedSubFromApi, err := o.client.OperatorsV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
+	if updatedSubFromAPI, err := o.client.OperatorsV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
 		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating Subscription status: " + err.Error())
 		if syncError == nil {
@@ -194,7 +194,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 		// map subscription
 		o.subscriptionsLock.Lock()
 		defer o.subscriptionsLock.Unlock()
-		o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSubFromApi
+		o.subscriptions[registry.ResourceKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSubFromAPI
 	}
 	return
 }
@@ -332,10 +332,16 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	}
 	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 
+	// Copy the subscriptions belonging to the install plans namespace
+	existingCRDOwners, err := o.getExistingCRDOwners(plan.Namespace)
+	if err != nil {
+		return err
+	}
+
 	// Attempt to resolve the InstallPlan
-	steps, usedSources, notFoundErr := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, CatalogLabel, plan)
-	if notFoundErr != nil {
-		return notFoundErr
+	steps, usedSources, err := o.dependencyResolver.ResolveInstallPlan(sourcesSnapshot, existingCRDOwners, CatalogLabel, plan)
+	if err != nil {
+		return err
 	}
 
 	// Set the resolved steps
@@ -514,4 +520,23 @@ func (o *Operator) getSourcesSnapshot(plan *v1alpha1.InstallPlan, includedNamesp
 	}
 
 	return sourcesSnapshot
+}
+
+// getExistingCRDOwners creates a map of CRD names to existing owner CSVs in the given namespace
+func (o *Operator) getExistingCRDOwners(namespace string) (map[string][]string, error) {
+	// Get a list of CSV CRs in the namespace
+	csvList, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	// Map CRD names to existing owner CSV CRs in the namespace
+	owners := make(map[string][]string)
+	for _, csv := range csvList.Items {
+		for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
+			owners[crd.Name] = append(owners[crd.Name], csv.GetName())
+		}
+	}
+
+	return owners, nil
 }

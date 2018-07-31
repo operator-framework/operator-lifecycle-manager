@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	log "github.com/sirupsen/logrus"
@@ -61,7 +62,7 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				src.AddOrReplaceService(csv(names.name, namespace, names.owned, names.required))
 			}
 
-			srcKey := registry.SourceKey{
+			srcKey := registry.ResourceKey{
 				Name:      "ocs",
 				Namespace: plan.Namespace,
 			}
@@ -73,8 +74,11 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			// Generate an ordered list of source refs
 			srcRefs := []registry.SourceRef{srcRef}
 
+			// No existing CSVs in the install plan namespace
+			existingCSVNames := make(map[string][]string)
+
 			// Resolve the plan
-			steps, _, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
+			steps, _, err := resolver.ResolveInstallPlan(srcRefs, existingCSVNames, "alm-catalog", &plan)
 			plan.Status.Plan = steps
 
 			// Assert the error is as expected
@@ -99,9 +103,9 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 
 	// Define some source keys representing different catalog sources (all in same namespace for now)
-	sourceA := registry.SourceKey{Namespace: "default", Name: "ocs-a"}
-	sourceB := registry.SourceKey{Namespace: "default", Name: "ocs-b"}
-	sourceC := registry.SourceKey{Namespace: "default", Name: "ocs-c"}
+	sourceA := registry.ResourceKey{Namespace: "default", Name: "ocs-a"}
+	sourceB := registry.ResourceKey{Namespace: "default", Name: "ocs-b"}
+	sourceC := registry.ResourceKey{Namespace: "default", Name: "ocs-c"}
 
 	type resourceKey struct {
 		name string
@@ -111,19 +115,19 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		name     string
 		owned    []string
 		required []string
-		srcKey   registry.SourceKey
+		srcKey   registry.ResourceKey
 	}
 	type crdName struct {
 		name   string
-		srcKey registry.SourceKey
+		srcKey registry.ResourceKey
 	}
 	var table = []struct {
 		description       string
 		csvs              []csvName
 		crds              []crdName
-		srcKeys           []registry.SourceKey
+		srcKeys           []registry.ResourceKey
 		expectedErr       error
-		expectedResources map[resourceKey]registry.SourceKey
+		expectedResources map[resourceKey]registry.ResourceKey
 	}{
 		{
 			"SingleCRDSameCatalog",
@@ -132,9 +136,9 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				{"crdOwner", []string{"CRD"}, nil, sourceA},
 			},
 			[]crdName{{"CRD", sourceA}},
-			[]registry.SourceKey{sourceA},
+			[]registry.ResourceKey{sourceA},
 			nil,
-			map[resourceKey]registry.SourceKey{
+			map[resourceKey]registry.ResourceKey{
 				resourceKey{"main", csvKind}:     sourceA,
 				resourceKey{"crdOwner", csvKind}: sourceA,
 				resourceKey{"CRD", crdKind}:      sourceA,
@@ -147,9 +151,9 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				{"crdOwner", []string{"CRD"}, nil, sourceB},
 			},
 			[]crdName{{"CRD", sourceB}},
-			[]registry.SourceKey{sourceA, sourceB},
+			[]registry.ResourceKey{sourceA, sourceB},
 			nil,
-			map[resourceKey]registry.SourceKey{
+			map[resourceKey]registry.ResourceKey{
 				resourceKey{"main", csvKind}:     sourceA,
 				resourceKey{"crdOwner", csvKind}: sourceB,
 				resourceKey{"CRD", crdKind}:      sourceB,
@@ -162,13 +166,9 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				{"crdOwner", []string{"CRD"}, nil, sourceB},
 			},
 			[]crdName{{"CRD", sourceC}},
-			[]registry.SourceKey{sourceA, sourceB, sourceC},
+			[]registry.ResourceKey{sourceA, sourceB, sourceC},
 			errors.New("not found: CRD CRD/CRD/v1"),
-			map[resourceKey]registry.SourceKey{
-				resourceKey{"main", csvKind}:     sourceA,
-				resourceKey{"crdOwner", csvKind}: sourceB,
-				resourceKey{"CRD", crdKind}:      sourceC,
-			},
+			nil,
 		},
 		{
 			"MultipleTransitiveDependenciesInDifferentCatalogs",
@@ -182,9 +182,9 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				{"CRD-1", sourceC},
 				{"CRD-2", sourceC},
 			},
-			[]registry.SourceKey{sourceA, sourceB, sourceC},
+			[]registry.ResourceKey{sourceA, sourceB, sourceC},
 			nil,
-			map[resourceKey]registry.SourceKey{
+			map[resourceKey]registry.ResourceKey{
 				resourceKey{"main", csvKind}:       sourceA,
 				resourceKey{"crdOwner-0", csvKind}: sourceB,
 				resourceKey{"crdOwner-1", csvKind}: sourceC,
@@ -202,7 +202,7 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			plan := installPlan("default", "main")
 
 			// Create catalog sources for all given srcKeys
-			sources := map[registry.SourceKey]*registry.InMem{}
+			sources := map[registry.ResourceKey]*registry.InMem{}
 			for _, srcKey := range tt.srcKeys {
 				src := registry.NewInMem()
 				sources[srcKey] = src
@@ -231,8 +231,11 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				i++
 			}
 
+			// No existing CSVs in the install plan namespace
+			existingCSVNames := make(map[string][]string)
+
 			// Resolve the plan.
-			steps, _, err := resolver.ResolveInstallPlan(srcRefs, "alm-catalog", &plan)
+			steps, _, err := resolver.ResolveInstallPlan(srcRefs, existingCSVNames, "alm-catalog", &plan)
 
 			// Set the plan and used Sources
 			plan.Status.Plan = steps
@@ -243,6 +246,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			} else {
 				require.Equal(t, tt.expectedErr, err)
 			}
+
+			require.Equal(t, len(tt.expectedResources), len(plan.Status.Plan))
 
 			// Assert that all StepResources have the have the correct CatalogSource set
 			for _, step := range plan.Status.Plan {
@@ -256,6 +261,237 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 	}
 }
 
+func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
+
+	type csvName struct {
+		name     string
+		owned    []string
+		required []string
+	}
+	var table = []struct {
+		description       string
+		namespace         string
+		mainCSV           string
+		csvs              []csvName
+		crds              []string
+		packageManifests  []registry.PackageManifest
+		existingCRDOwners map[string][]string
+		expectedErr       error
+		expectedResources map[registry.ResourceKey]struct{}
+	}{
+		{
+			"MultipleCRDOwners",
+			"default",
+			"macaroni-stable",
+			[]csvName{
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}},
+				{"cheese-alpha", []string{"cheese"}, nil},
+				{"cheese-beta", []string{"cheese"}, nil},
+				{"cheese-stable", []string{"cheese"}, nil},
+			},
+			[]string{"macaroni", "cheese"},
+			[]registry.PackageManifest{
+				registry.PackageManifest{
+					PackageName: "cheese",
+					Channels: []registry.PackageChannel{
+						registry.PackageChannel{
+							Name:           "alpha",
+							CurrentCSVName: "cheese-alpha",
+						},
+						registry.PackageChannel{
+							Name:           "beta",
+							CurrentCSVName: "cheese-beta",
+						},
+						registry.PackageChannel{
+							Name:           "stable",
+							CurrentCSVName: "cheese-stable",
+						},
+					},
+					DefaultChannelName: "stable",
+				},
+				registry.PackageManifest{
+					PackageName: "macaroni",
+					Channels: []registry.PackageChannel{
+						registry.PackageChannel{
+							Name:           "stable",
+							CurrentCSVName: "macaroni-stable",
+						},
+					},
+					DefaultChannelName: "stable",
+				},
+			},
+			nil,
+			nil,
+			map[registry.ResourceKey]struct{}{
+				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}: struct{}{},
+				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:        struct{}{},
+				registry.ResourceKey{Name: "cheese-stable", Kind: csvKind}:   struct{}{},
+				registry.ResourceKey{Name: "cheese", Kind: crdKind}:          struct{}{},
+			},
+		},
+		{
+			"MultipleCRDOwnersWithOnePreExisting",
+			"default",
+			"macaroni-stable",
+			[]csvName{
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}},
+				{"cheese-alpha", []string{"cheese"}, nil},
+				{"cheese-beta", []string{"cheese"}, nil},
+				{"cheese-stable", []string{"cheese"}, nil},
+			},
+			[]string{"macaroni", "cheese"},
+			[]registry.PackageManifest{
+				registry.PackageManifest{
+					PackageName: "cheese",
+					Channels: []registry.PackageChannel{
+						registry.PackageChannel{
+							Name:           "alpha",
+							CurrentCSVName: "cheese-alpha",
+						},
+						registry.PackageChannel{
+							Name:           "beta",
+							CurrentCSVName: "cheese-beta",
+						},
+						registry.PackageChannel{
+							Name:           "stable",
+							CurrentCSVName: "cheese-stable",
+						},
+					},
+					DefaultChannelName: "stable",
+				},
+				registry.PackageManifest{
+					PackageName: "macaroni",
+					Channels: []registry.PackageChannel{
+						registry.PackageChannel{
+							Name:           "stable",
+							CurrentCSVName: "macaroni-stable",
+						},
+					},
+					DefaultChannelName: "stable",
+				},
+			},
+			map[string][]string{
+				"cheese": []string{"cheese-alpha"},
+			},
+			nil,
+			map[registry.ResourceKey]struct{}{
+				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}: struct{}{},
+				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:        struct{}{},
+				registry.ResourceKey{Name: "cheese-alpha", Kind: csvKind}:    struct{}{},
+				registry.ResourceKey{Name: "cheese", Kind: crdKind}:          struct{}{},
+			},
+		},
+		{
+			"MultipleCRDOwnersWithTwoPreExisting",
+			"default",
+			"macaroni-stable",
+			[]csvName{
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}},
+				{"cheese-alpha", []string{"cheese"}, nil},
+				{"cheese-beta", []string{"cheese"}, nil},
+				{"cheese-stable", []string{"cheese"}, nil},
+			},
+			[]string{"macaroni", "cheese"},
+			[]registry.PackageManifest{
+				registry.PackageManifest{
+					PackageName: "cheese",
+					Channels: []registry.PackageChannel{
+						registry.PackageChannel{
+							Name:           "alpha",
+							CurrentCSVName: "cheese-alpha",
+						},
+						registry.PackageChannel{
+							Name:           "beta",
+							CurrentCSVName: "cheese-beta",
+						},
+						registry.PackageChannel{
+							Name:           "stable",
+							CurrentCSVName: "cheese-stable",
+						},
+					},
+					DefaultChannelName: "stable",
+				},
+				registry.PackageManifest{
+					PackageName: "macaroni",
+					Channels: []registry.PackageChannel{
+						registry.PackageChannel{
+							Name:           "stable",
+							CurrentCSVName: "macaroni-stable",
+						},
+					},
+					DefaultChannelName: "stable",
+				},
+			},
+			map[string][]string{
+				"cheese": []string{"cheese-alpha", "cheese-beta"},
+			},
+			fmt.Errorf("More than one existing owner for CRD %s in namespace %s found: %v", "cheese", "default", []string{"cheese-alpha", "cheese-beta"}),
+			nil,
+		},
+	}
+
+	for _, tt := range table {
+		t.Run(tt.description, func(t *testing.T) {
+			log.SetLevel(log.DebugLevel)
+
+			// Create a plan that is attempting to install the planCSVName.
+			plan := installPlan(tt.namespace, "macaroni-stable")
+
+			// Create catalog source
+			source := registry.NewInMem()
+
+			// Add CRDs and CSVs
+			for _, name := range tt.crds {
+				err := source.SetCRDDefinition(crd(name, tt.namespace))
+				require.NoError(t, err)
+			}
+			for _, name := range tt.csvs {
+				// We add unsafe so that we can test invalid states
+				source.AddOrReplaceService(csv(name.name, tt.namespace, name.owned, name.required))
+			}
+
+			// Add all package manifests to the catalog
+			for _, manifest := range tt.packageManifests {
+				require.NoError(t, source.AddPackageManifest(manifest))
+			}
+
+			// Generate an ordered list of source refs
+			srcRefs := []registry.SourceRef{
+				registry.SourceRef{
+					SourceKey: registry.ResourceKey{
+						Name:      "pasta-source",
+						Namespace: tt.namespace,
+					},
+					Source: source,
+				},
+			}
+
+			// Resolve the plan
+			steps, _, err := resolver.ResolveInstallPlan(srcRefs, tt.existingCRDOwners, "alm-catalog", &plan)
+
+			// Set the plan and used Sources
+			plan.Status.Plan = steps
+
+			// Assert the error is as expected
+			if tt.expectedErr == nil {
+				require.Nil(t, err)
+			} else {
+				require.Equal(t, tt.expectedErr, err)
+			}
+
+			require.Equal(t, len(tt.expectedResources), len(plan.Status.Plan))
+
+			// Assert that all steps are expected
+			for _, step := range plan.Status.Plan {
+				resourceKey := registry.ResourceKey{Name: step.Resource.Name, Kind: step.Resource.Kind}
+				_, ok := tt.expectedResources[resourceKey]
+				require.Equal(t, true, ok)
+			}
+		})
+	}
+
+}
+
 func TestMultiSourceResolveInstallPlan(t *testing.T) {
 	resolver := &MultiSourceResolver{}
 
@@ -264,6 +500,10 @@ func TestMultiSourceResolveInstallPlan(t *testing.T) {
 
 	// Test multiple catalog source resolution
 	multiSourceResolveInstallPlan(t, resolver)
+
+	// Test namespace and channel awareness
+	namespaceAndChannelAwareResolveInstallPlan(t, resolver)
+
 }
 
 func installPlan(namespace string, names ...string) v1alpha1.InstallPlan {

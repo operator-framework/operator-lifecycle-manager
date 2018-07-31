@@ -9,6 +9,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -19,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
@@ -161,7 +161,39 @@ func compareResources(t *testing.T, expected, actual interface{}) {
 	}
 }
 
-func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []v1beta1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, error) {
+type checkResourceFunc func() error
+
+func waitForDelete(checkResource checkResourceFunc) error {
+	var err error
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		err := checkResource()
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		return false, nil
+	})
+
+	return err
+}
+
+func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
+	return func() {
+		t.Logf("Deleting catalog source %s...", catalogSource.GetName())
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(catalogSource.GetName(), &metav1.DeleteOptions{}))
+	}
+}
+
+func buildConfigMapCleanupFunc(t *testing.T, c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
+	return func() {
+		t.Logf("Deleting config map %s...", configMap.GetName())
+		require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(configMap.GetName(), &metav1.DeleteOptions{}))
+	}
+}
+
+func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []v1beta1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc, error) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -195,11 +227,11 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 
 	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
 	if err != nil && !errors.IsAlreadyExists(err) {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
-	catalogSource := v1alpha1.CatalogSource{
+	catalogSource := &v1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.CatalogSourceKind,
 			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
@@ -214,14 +246,16 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 	}
 	catalogSource.SetNamespace(namespace)
 
-	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&catalogSource)
-	require.NoError(t, err)
 	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csUnst})
+	catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(catalogSource)
 	if err != nil && !errors.IsAlreadyExists(err) {
-		return nil, err
+		return nil, nil, err
 	}
 	t.Logf("Catalog source %s created", name)
 
-	return &catalogSource, nil
+	cleanupInternalCatalogSource := func() {
+		buildConfigMapCleanupFunc(t, c, namespace, catalogConfigMap)()
+		buildCatalogSourceCleanupFunc(t, crc, namespace, catalogSource)()
+	}
+	return catalogSource, cleanupInternalCatalogSource, nil
 }

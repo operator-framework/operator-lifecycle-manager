@@ -13,19 +13,19 @@ import (
 // DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
 // should behave
 type DependencyResolver interface {
-	ResolveInstallPlan(sourceRefs []registry.SourceRef, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, []registry.SourceKey, error)
+	ResolveInstallPlan(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, []registry.ResourceKey, error)
 }
 
 // MultiSourceResolver resolves resolves dependencies from multiple CatalogSources
 type MultiSourceResolver struct{}
 
 // ResolveInstallPlan resolves the given InstallPlan with all available sources
-func (resolver *MultiSourceResolver) ResolveInstallPlan(sourceRefs []registry.SourceRef, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, []registry.SourceKey, error) {
+func (resolver *MultiSourceResolver) ResolveInstallPlan(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, []registry.ResourceKey, error) {
 	srm := make(stepResourceMap)
-	var usedSourceKeys []registry.SourceKey
+	var usedSourceKeys []registry.ResourceKey
 
 	for _, csvName := range plan.Spec.ClusterServiceVersionNames {
-		csvSRM, used, err := resolver.resolveCSV(sourceRefs, catalogLabelKey, plan.Namespace, csvName)
+		csvSRM, used, err := resolver.resolveCSV(sourceRefs, existingCRDOwners, catalogLabelKey, plan.Namespace, csvName)
 		if err != nil {
 			// Could not resolve CSV in any source
 			return nil, nil, err
@@ -38,12 +38,12 @@ func (resolver *MultiSourceResolver) ResolveInstallPlan(sourceRefs []registry.So
 	return srm.Plan(), usedSourceKeys, nil
 }
 
-func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef, catalogLabelKey, planNamespace, csvName string) (stepResourceMap, []registry.SourceKey, error) {
+func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey, planNamespace, csvName string) (stepResourceMap, []registry.ResourceKey, error) {
 	log.Debugf("resolving CSV with name: %s", csvName)
 
 	steps := make(stepResourceMap)
 	csvNamesToBeResolved := []string{csvName}
-	var usedSourceKeys []registry.SourceKey
+	var usedSourceKeys []registry.ResourceKey
 
 	for len(csvNamesToBeResolved) != 0 {
 		// Pop off a CSV name.
@@ -55,7 +55,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 			continue
 		}
 
-		var csvSourceKey registry.SourceKey
+		var csvSourceKey registry.ResourceKey
 		var csv *v1alpha1.ClusterServiceVersion
 		var err error
 
@@ -82,7 +82,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
 			// Attempt to get CRD from same catalog source CSV was found in
-			step, owner, err := resolver.resolveCRDDescription(sourceRefs, catalogLabelKey, crdDesc, csv.OwnsCRD(crdDesc.Name))
+			step, owner, err := resolver.resolveCRDDescription(sourceRefs, existingCRDOwners, catalogLabelKey, planNamespace, crdDesc, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -126,15 +126,16 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 	return steps, usedSourceKeys, nil
 }
 
-func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, catalogLabelKey string, crdDesc v1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
-	logger := log.WithFields(log.Fields{"kind": crdDesc.Kind, "name": crdDesc.Name, "version": crdDesc.Version})
+func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey, planNamespace string, crdDesc v1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
+	log.Debugf("resolving %#v", crdDesc)
+
 	crdKey := registry.CRDKey{
 		Kind:    crdDesc.Kind,
 		Name:    crdDesc.Name,
 		Version: crdDesc.Version,
 	}
-	logger.Debug("resolving")
-	var crdSourceKey registry.SourceKey
+
+	var crdSourceKey registry.ResourceKey
 	var crd *v1beta1.CustomResourceDefinition
 	var source registry.Source
 	var err error
@@ -154,8 +155,6 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	if err != nil {
 		return v1alpha1.StepResource{}, "", err
 	}
-
-	logger.Debugf("found")
 
 	if owned {
 		// Label CRD with catalog source
@@ -184,9 +183,32 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 		return v1alpha1.StepResource{}, "", fmt.Errorf("Unknown CRD %s", crdKey)
 	}
 
-	// TODO: Change to lookup the CSV from the preferred or default channel.
-	logger.WithField("owner", csvs[0].CSV.Name).Info("found owner")
-	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
+	var ownerName string
+	if owners, ok := existingCRDOwners[crdKey.Name]; ok && len(owners) > 0 {
+		if len(owners) > 1 {
+			return v1alpha1.StepResource{}, "", fmt.Errorf("More than one existing owner for CRD %s in namespace %s found: %v", crdKey.Name, planNamespace, owners)
+		}
+
+		// Pre-existing owner found
+		ownerName = owners[0]
+	} else {
+		// No pre-existing owner found
+		for _, csv := range csvs {
+			// Check for the default channel
+			if csv.IsDefaultChannel {
+				ownerName = csv.CSV.Name
+			}
+		}
+	}
+
+	// Check empty name
+	if ownerName == "" {
+		log.Infof("No preexisting CSV or default channel found for owners of CRD %v", crdKey)
+		ownerName = csvs[0].CSV.Name
+	}
+
+	log.Infof("Found %v owner %s", crdKey, ownerName)
+	return v1alpha1.StepResource{}, ownerName, nil
 
 }
 

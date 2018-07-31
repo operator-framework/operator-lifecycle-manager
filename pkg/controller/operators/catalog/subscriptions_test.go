@@ -947,8 +947,8 @@ func TestSyncSubscription(t *testing.T) {
 			op := &Operator{
 				client:    clientFake,
 				namespace: "ns",
-				sources: map[registry.SourceKey]registry.Source{
-					registry.SourceKey{Name: tt.initial.catalogName, Namespace: "ns"}: catalogFake,
+				sources: map[registry.ResourceKey]registry.Source{
+					registry.ResourceKey{Name: tt.initial.catalogName, Namespace: "ns"}: catalogFake,
 				},
 				sourcesLastUpdate:  tt.initial.sourcesLastUpdate,
 				dependencyResolver: &resolver.MultiSourceResolver{},

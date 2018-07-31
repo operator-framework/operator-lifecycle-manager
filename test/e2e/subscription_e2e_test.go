@@ -270,7 +270,7 @@ func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscri
 			// Get installplan and create/execute cleanup function
 			installPlan, err := crc.OperatorsV1alpha1().InstallPlans(subscription.GetNamespace()).Get(installPlanRef.Name, metav1.GetOptions{})
 			if err == nil {
-				buildInstallPlanCleanupFunc(crc, installPlan)()
+				buildInstallPlanCleanupFunc(crc, subscription.GetNamespace(), installPlan)()
 			} else {
 				t.Logf("Could not get installplan %s while building subscription %s's cleanup function", installPlan.GetName(), subscription.GetName())
 			}
@@ -357,7 +357,7 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	require.NoError(t, initCatalog(t, c))
 
 	// Will be cleaned up by the upgrade process
-	_, err := createCSV(t, c, crc, stableCSV, true)
+	_, err := createCSV(t, c, crc, stableCSV, testNamespace, true)
 	require.NoError(t, err)
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, alphaChannel, v1alpha1.ApprovalAutomatic)
