@@ -113,7 +113,6 @@ codegen: $(CODEGEN)
 		"catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
 	# codegen doesn't respect pluralnames, so we manually set them here
 	$(call replace,"catalogsource")
-	$(call replace,"installplan")
 	$(call replace,"subscription")
 
 verify-codegen: codegen

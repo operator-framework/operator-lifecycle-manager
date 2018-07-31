@@ -66,7 +66,7 @@ func (c *installPlans) Get(name string, options v1.GetOptions) (result *v1alpha1
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -79,7 +79,7 @@ func (c *installPlans) List(opts v1.ListOptions) (result *v1alpha1.InstallPlanLi
 	result = &v1alpha1.InstallPlanList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
@@ -91,7 +91,7 @@ func (c *installPlans) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
 }
@@ -101,7 +101,7 @@ func (c *installPlans) Create(installPlan *v1alpha1.InstallPlan) (result *v1alph
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		Body(installPlan).
 		Do().
 		Into(result)
@@ -113,7 +113,7 @@ func (c *installPlans) Update(installPlan *v1alpha1.InstallPlan) (result *v1alph
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		Name(installPlan.Name).
 		Body(installPlan).
 		Do().
@@ -128,7 +128,7 @@ func (c *installPlans) UpdateStatus(installPlan *v1alpha1.InstallPlan) (result *
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		Name(installPlan.Name).
 		SubResource("status").
 		Body(installPlan).
@@ -141,7 +141,7 @@ func (c *installPlans) UpdateStatus(installPlan *v1alpha1.InstallPlan) (result *
 func (c *installPlans) Delete(name string, options *v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		Name(name).
 		Body(options).
 		Do().
@@ -152,7 +152,7 @@ func (c *installPlans) Delete(name string, options *v1.DeleteOptions) error {
 func (c *installPlans) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
 		Do().
@@ -164,7 +164,7 @@ func (c *installPlans) Patch(name string, pt types.PatchType, data []byte, subre
 	result = &v1alpha1.InstallPlan{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("installplan-v1s").
+		Resource("installplans").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

@@ -64,7 +64,7 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusterserviceversion().V1alpha1().ClusterServiceVersions().Informer()}, nil
 
 		// Group=installplan, Version=v1alpha1
-	case installplan_v1alpha1.SchemeGroupVersion.WithResource("installplan-v1s"):
+	case installplan_v1alpha1.SchemeGroupVersion.WithResource("installplans"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Installplan().V1alpha1().InstallPlans().Informer()}, nil
 
 		// Group=subscription, Version=v1alpha1
