@@ -66,7 +66,7 @@ func (c *catalogSources) Get(name string, options v1.GetOptions) (result *v1alph
 	result = &v1alpha1.CatalogSource{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -79,7 +79,7 @@ func (c *catalogSources) List(opts v1.ListOptions) (result *v1alpha1.CatalogSour
 	result = &v1alpha1.CatalogSourceList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
@@ -91,7 +91,7 @@ func (c *catalogSources) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
 }
@@ -101,7 +101,7 @@ func (c *catalogSources) Create(catalogSource *v1alpha1.CatalogSource) (result *
 	result = &v1alpha1.CatalogSource{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		Body(catalogSource).
 		Do().
 		Into(result)
@@ -113,7 +113,7 @@ func (c *catalogSources) Update(catalogSource *v1alpha1.CatalogSource) (result *
 	result = &v1alpha1.CatalogSource{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		Name(catalogSource.Name).
 		Body(catalogSource).
 		Do().
@@ -128,7 +128,7 @@ func (c *catalogSources) UpdateStatus(catalogSource *v1alpha1.CatalogSource) (re
 	result = &v1alpha1.CatalogSource{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		Name(catalogSource.Name).
 		SubResource("status").
 		Body(catalogSource).
@@ -141,7 +141,7 @@ func (c *catalogSources) UpdateStatus(catalogSource *v1alpha1.CatalogSource) (re
 func (c *catalogSources) Delete(name string, options *v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		Name(name).
 		Body(options).
 		Do().
@@ -152,7 +152,7 @@ func (c *catalogSources) Delete(name string, options *v1.DeleteOptions) error {
 func (c *catalogSources) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
 		Do().
@@ -164,7 +164,7 @@ func (c *catalogSources) Patch(name string, pt types.PatchType, data []byte, sub
 	result = &v1alpha1.CatalogSource{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("catalogsource-v1s").
+		Resource("catalogsources").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

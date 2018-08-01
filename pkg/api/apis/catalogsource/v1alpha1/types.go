@@ -6,10 +6,9 @@ import (
 )
 
 const (
-	CatalogSourceCRDName       = "catalogsource-v1s"
 	CatalogSourceCRDAPIVersion = "app.coreos.com/v1alpha1" // API version w/ CRD support
-	CatalogSourceKind          = "CatalogSource-v1"
-	CatalogSourceListKind      = "CatalogSourceList-v1"
+	CatalogSourceKind          = "CatalogSource"
+	CatalogSourceListKind      = "CatalogSourceList"
 	GroupVersion               = "v1alpha1"
 )
 

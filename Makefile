@@ -102,17 +102,9 @@ $(CODEGEN):
 	mkdir -p vendor/k8s.io/code-generator
 	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 
-define replace
-@find ./pkg/api/client -type f -exec \
-		sed -i.bak 's/\(\"'$(1)'\)\(-v1\)*\(s\)*/\1-v1\3/g' {} \; -exec rm {}.bak \;
-@find ./pkg/api/client -type f -exec \
-		sed -i.bak 's/Group: \"'$(1)'-v1\"/Group: \"app.coreos.com\"/g' {} \; -exec rm {}.bak \;
-endef
 codegen: $(CODEGEN)
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis \
 		"catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
-	# codegen doesn't respect pluralnames, so we manually set them here
-	$(call replace,"catalogsource")
 
 verify-codegen: codegen
 	git diff --exit-code
