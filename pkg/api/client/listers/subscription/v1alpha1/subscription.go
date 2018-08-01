@@ -88,7 +88,7 @@ func (s subscriptionNamespaceLister) Get(name string) (*v1alpha1.Subscription, e
 		return nil, err
 	}
 	if !exists {
-		return nil, errors.NewNotFound(v1alpha1.Resource("subscription-v1"), name)
+		return nil, errors.NewNotFound(v1alpha1.Resource("subscription"), name)
 	}
 	return obj.(*v1alpha1.Subscription), nil
 }

@@ -66,7 +66,7 @@ func (c *subscriptions) Get(name string, options v1.GetOptions) (result *v1alpha
 	result = &v1alpha1.Subscription{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
 		Do().
@@ -79,7 +79,7 @@ func (c *subscriptions) List(opts v1.ListOptions) (result *v1alpha1.Subscription
 	result = &v1alpha1.SubscriptionList{}
 	err = c.client.Get().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Do().
 		Into(result)
@@ -91,7 +91,7 @@ func (c *subscriptions) Watch(opts v1.ListOptions) (watch.Interface, error) {
 	opts.Watch = true
 	return c.client.Get().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Watch()
 }
@@ -101,7 +101,7 @@ func (c *subscriptions) Create(subscription *v1alpha1.Subscription) (result *v1a
 	result = &v1alpha1.Subscription{}
 	err = c.client.Post().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		Body(subscription).
 		Do().
 		Into(result)
@@ -113,7 +113,7 @@ func (c *subscriptions) Update(subscription *v1alpha1.Subscription) (result *v1a
 	result = &v1alpha1.Subscription{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		Name(subscription.Name).
 		Body(subscription).
 		Do().
@@ -128,7 +128,7 @@ func (c *subscriptions) UpdateStatus(subscription *v1alpha1.Subscription) (resul
 	result = &v1alpha1.Subscription{}
 	err = c.client.Put().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		Name(subscription.Name).
 		SubResource("status").
 		Body(subscription).
@@ -141,7 +141,7 @@ func (c *subscriptions) UpdateStatus(subscription *v1alpha1.Subscription) (resul
 func (c *subscriptions) Delete(name string, options *v1.DeleteOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		Name(name).
 		Body(options).
 		Do().
@@ -152,7 +152,7 @@ func (c *subscriptions) Delete(name string, options *v1.DeleteOptions) error {
 func (c *subscriptions) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	return c.client.Delete().
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
 		Body(options).
 		Do().
@@ -164,7 +164,7 @@ func (c *subscriptions) Patch(name string, pt types.PatchType, data []byte, subr
 	result = &v1alpha1.Subscription{}
 	err = c.client.Patch(pt).
 		Namespace(c.ns).
-		Resource("subscription-v1s").
+		Resource("subscriptions").
 		SubResource(subresources...).
 		Name(name).
 		Body(data).

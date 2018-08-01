@@ -130,14 +130,13 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 }
 
 func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
-	log.Debugf("resolving %#v", crdDesc)
-
+	logger := log.WithFields(log.Fields{"kind": crdDesc.Kind, "name": crdDesc.Name, "version": crdDesc.Version})
 	crdKey := registry.CRDKey{
 		Kind:    crdDesc.Kind,
 		Name:    crdDesc.Name,
 		Version: crdDesc.Version,
 	}
-
+	logger.Debug("resolving")
 	var crdSourceKey registry.SourceKey
 	var crd *v1beta1.CustomResourceDefinition
 	var source registry.Source
@@ -159,7 +158,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 		return v1alpha1.StepResource{}, "", err
 	}
 
-	log.Debugf("found %#v", crd)
+	logger.Debugf("found")
 
 	if owned {
 		// Label CRD with catalog source
@@ -189,7 +188,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	}
 
 	// TODO: Change to lookup the CSV from the preferred or default channel.
-	log.Infof("found %v owner %s", crdKey, csvs[0].CSV.Name)
+	logger.WithField("owner", csvs[0].CSV.Name).Info("found owner")
 	return v1alpha1.StepResource{}, csvs[0].CSV.Name, nil
 
 }

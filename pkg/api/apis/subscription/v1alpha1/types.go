@@ -8,9 +8,8 @@ import (
 
 const (
 	GroupVersion              = "v1alpha1" // version used in the Scheme for subscriptions
-	SubscriptionKind          = "Subscription-v1"
-	SubscriptionListKind      = "SubscriptionList-v1"
-	SubscriptionCRDName       = "subscription-v1s"
+	SubscriptionKind          = "Subscription"
+	SubscriptionListKind      = "SubscriptionList"
 	SubscriptionCRDAPIVersion = "app.coreos.com/v1alpha1" // API version w/ CRD support
 )
 
