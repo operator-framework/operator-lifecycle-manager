@@ -3,13 +3,11 @@ package resolver
 import (
 	"fmt"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
-	log "github.com/sirupsen/logrus"
-
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 // DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
@@ -58,7 +56,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		}
 
 		var csvSourceKey registry.SourceKey
-		var csv *csvv1alpha1.ClusterServiceVersion
+		var csv *v1alpha1.ClusterServiceVersion
 		var err error
 
 		// Attempt to Get the full CSV object for the name from any
@@ -129,7 +127,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 	return steps, usedSourceKeys, nil
 }
 
-func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, catalogLabelKey string, crdDesc csvv1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
+func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, catalogLabelKey string, crdDesc v1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
 	logger := log.WithFields(log.Fields{"kind": crdDesc.Kind, "name": crdDesc.Name, "version": crdDesc.Version})
 	crdKey := registry.CRDKey{
 		Kind:    crdDesc.Kind,

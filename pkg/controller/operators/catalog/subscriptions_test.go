@@ -14,9 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	core "k8s.io/client-go/testing"
 
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
@@ -55,21 +53,21 @@ func TestSyncSubscription(t *testing.T) {
 	type initial struct {
 		catalogName         string
 		sourcesLastUpdate   metav1.Time
-		findLatestCSVResult *csvv1alpha1.ClusterServiceVersion
+		findLatestCSVResult *v1alpha1.ClusterServiceVersion
 		findLatestCSVError  error
 
-		findReplacementCSVResult *csvv1alpha1.ClusterServiceVersion
+		findReplacementCSVResult *v1alpha1.ClusterServiceVersion
 		findReplacementCSVError  error
 
-		getInstallPlanResult *ipv1alpha1.InstallPlan
+		getInstallPlanResult *v1alpha1.InstallPlan
 		getInstallPlanError  error
 
-		createInstallPlanResult *ipv1alpha1.InstallPlan
+		createInstallPlanResult *v1alpha1.InstallPlan
 		createInstallPlanError  error
 
 		updateSubscriptionError error
 
-		getCSVResult *csvv1alpha1.ClusterServiceVersion
+		getCSVResult *v1alpha1.ClusterServiceVersion
 		getCSVError  error
 	}
 	type args struct {
@@ -81,7 +79,7 @@ func TestSyncSubscription(t *testing.T) {
 		packageName             string
 		channelName             string
 		subscription            *v1alpha1.Subscription
-		installPlan             *ipv1alpha1.InstallPlan
+		installPlan             *v1alpha1.InstallPlan
 		existingInstallPlanName string
 		err                     string
 	}
@@ -138,18 +136,24 @@ func TestSyncSubscription(t *testing.T) {
 			subName: "subscription synced already since last catalog update but CSV install pending",
 			initial: initial{
 				catalogName: "flying-unicorns",
-				findLatestCSVResult: &csvv1alpha1.ClusterServiceVersion{
+				findLatestCSVResult: &v1alpha1.ClusterServiceVersion{
 					TypeMeta: metav1.TypeMeta{
-						Kind:       csvv1alpha1.ClusterServiceVersionKind,
-						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+						Kind:       v1alpha1.ClusterServiceVersionKind,
+						APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "latest-and-greatest",
+						Name:      "latest-and-greatest",
+						Namespace: "fairy-land",
 					},
 				},
-				getInstallPlanResult: &ipv1alpha1.InstallPlan{
+				getInstallPlanResult: &v1alpha1.InstallPlan{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.InstallPlanKind,
+						APIVersion: v1alpha1.InstallPlanAPIVersion,
+					},
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "existing-install",
+						Name:      "existing-install",
+						Namespace: "fairy-land",
 					},
 				},
 				sourcesLastUpdate: earliestTime,
@@ -165,8 +169,8 @@ func TestSyncSubscription(t *testing.T) {
 					LastUpdated: earliestTime,
 					State:       v1alpha1.SubscriptionStateUpgradePending,
 					Install: &v1alpha1.InstallPlanReference{
-						Kind:       ipv1alpha1.InstallPlanKind,
-						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Kind:       v1alpha1.InstallPlanKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
 						Name:       "existing-install",
 					},
 				},
@@ -187,8 +191,8 @@ func TestSyncSubscription(t *testing.T) {
 						LastUpdated: earliestTime,
 						State:       v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
-							Kind:       ipv1alpha1.InstallPlanKind,
-							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
 							Name:       "existing-install",
 						},
 					},
@@ -241,10 +245,10 @@ func TestSyncSubscription(t *testing.T) {
 			subName: "successfully sets latest version",
 			initial: initial{
 				catalogName: "flying-unicorns",
-				findLatestCSVResult: &csvv1alpha1.ClusterServiceVersion{
+				findLatestCSVResult: &v1alpha1.ClusterServiceVersion{
 					TypeMeta: metav1.TypeMeta{
-						Kind:       csvv1alpha1.ClusterServiceVersionKind,
-						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+						Kind:       v1alpha1.ClusterServiceVersionKind,
+						APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "latest-and-greatest",
@@ -337,7 +341,7 @@ func TestSyncSubscription(t *testing.T) {
 			initial: initial{
 				catalogName:  "flying-unicorns",
 				getCSVResult: nil,
-				getInstallPlanResult: &ipv1alpha1.InstallPlan{
+				getInstallPlanResult: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						Namespace: "fairy-land",
 						Name:      "existing-install",
@@ -356,8 +360,8 @@ func TestSyncSubscription(t *testing.T) {
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "pending",
 					Install: &v1alpha1.InstallPlanReference{
-						Kind:       ipv1alpha1.InstallPlanKind,
-						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Kind:       v1alpha1.InstallPlanKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
 						Name:       "existing-install",
 					},
 				},
@@ -377,7 +381,7 @@ func TestSyncSubscription(t *testing.T) {
 				getCSVResult:        nil,
 				getCSVError:         errors.New("GetCSVError"),
 				getInstallPlanError: errors.New("GetInstallPlanError"),
-				createInstallPlanResult: &ipv1alpha1.InstallPlan{
+				createInstallPlanResult: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "installplan-1",
 						UID:  types.UID("UID-OK"),
@@ -398,8 +402,8 @@ func TestSyncSubscription(t *testing.T) {
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "latest-and-greatest",
 					Install: &v1alpha1.InstallPlanReference{
-						Kind:       ipv1alpha1.InstallPlanKind,
-						APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+						Kind:       v1alpha1.InstallPlanKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
 						Name:       "dead-install",
 					},
 				},
@@ -408,14 +412,14 @@ func TestSyncSubscription(t *testing.T) {
 				csvName:                 "latest-and-greatest",
 				existingInstallPlanName: "dead-install",
 				namespace:               "fairy-land",
-				installPlan: &ipv1alpha1.InstallPlan{
+				installPlan: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "install-latest-and-greatest-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "app.coreos.com/v1alpha1",
-								Kind:               "Subscription-v1",
+								APIVersion:         "operators.coreos.com/v1alpha1",
+								Kind:               "Subscription",
 								Name:               "test-subscription",
 								UID:                types.UID("subscription-uid"),
 								BlockOwnerDeletion: &blockOwnerDeletion,
@@ -423,11 +427,11 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
-					Spec: ipv1alpha1.InstallPlanSpec{
+					Spec: v1alpha1.InstallPlanSpec{
 						CatalogSource:              "flying-unicorns",
 						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"latest-and-greatest"},
-						Approval:                   ipv1alpha1.ApprovalAutomatic,
+						Approval:                   v1alpha1.ApprovalAutomatic,
 					},
 				},
 				subscription: &v1alpha1.Subscription{
@@ -445,8 +449,8 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							Kind:       ipv1alpha1.InstallPlanKind,
-							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
 							UID:        types.UID("UID-OK"),
 							Name:       "installplan-1",
 						},
@@ -462,7 +466,7 @@ func TestSyncSubscription(t *testing.T) {
 			initial: initial{
 				catalogName:  "flying-unicorns",
 				getCSVResult: nil,
-				createInstallPlanResult: &ipv1alpha1.InstallPlan{
+				createInstallPlanResult: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "installplan-1",
 						UID:  types.UID("UID-OK"),
@@ -487,14 +491,14 @@ func TestSyncSubscription(t *testing.T) {
 				},
 			}},
 			expected: expected{
-				installPlan: &ipv1alpha1.InstallPlan{
+				installPlan: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "install-latest-and-greatest-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "app.coreos.com/v1alpha1",
-								Kind:               "Subscription-v1",
+								APIVersion:         "operators.coreos.com/v1alpha1",
+								Kind:               "Subscription",
 								Name:               "test-subscription",
 								UID:                types.UID("subscription-uid"),
 								BlockOwnerDeletion: &blockOwnerDeletion,
@@ -502,11 +506,11 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
-					Spec: ipv1alpha1.InstallPlanSpec{
+					Spec: v1alpha1.InstallPlanSpec{
 						CatalogSource:              "flying-unicorns",
 						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"latest-and-greatest"},
-						Approval:                   ipv1alpha1.ApprovalAutomatic,
+						Approval:                   v1alpha1.ApprovalAutomatic,
 					},
 				},
 				subscription: &v1alpha1.Subscription{
@@ -524,8 +528,8 @@ func TestSyncSubscription(t *testing.T) {
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							Kind:       ipv1alpha1.InstallPlanKind,
-							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
 							UID:        types.UID("UID-OK"),
 							Name:       "installplan-1",
 						},
@@ -543,7 +547,7 @@ func TestSyncSubscription(t *testing.T) {
 			initial: initial{
 				catalogName:  "flying-unicorns",
 				getCSVResult: nil,
-				createInstallPlanResult: &ipv1alpha1.InstallPlan{
+				createInstallPlanResult: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "installplan-1",
 						UID:  types.UID("UID-OK"),
@@ -561,7 +565,7 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource:       "flying-unicorns",
 					Package:             "rainbows",
 					Channel:             "magical",
-					InstallPlanApproval: ipv1alpha1.ApprovalManual,
+					InstallPlanApproval: v1alpha1.ApprovalManual,
 				},
 				Status: v1alpha1.SubscriptionStatus{
 					CurrentCSV: "latest-and-greatest",
@@ -569,14 +573,14 @@ func TestSyncSubscription(t *testing.T) {
 				},
 			}},
 			expected: expected{
-				installPlan: &ipv1alpha1.InstallPlan{
+				installPlan: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "install-latest-and-greatest-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "app.coreos.com/v1alpha1",
-								Kind:               "Subscription-v1",
+								APIVersion:         "operators.coreos.com/v1alpha1",
+								Kind:               "Subscription",
 								Name:               "test-subscription",
 								UID:                types.UID("subscription-uid"),
 								BlockOwnerDeletion: &blockOwnerDeletion,
@@ -584,11 +588,11 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
-					Spec: ipv1alpha1.InstallPlanSpec{
+					Spec: v1alpha1.InstallPlanSpec{
 						CatalogSource:              "flying-unicorns",
 						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"latest-and-greatest"},
-						Approval:                   ipv1alpha1.ApprovalManual,
+						Approval:                   v1alpha1.ApprovalManual,
 					},
 				},
 				subscription: &v1alpha1.Subscription{
@@ -602,13 +606,13 @@ func TestSyncSubscription(t *testing.T) {
 						CatalogSource:       "flying-unicorns",
 						Package:             "rainbows",
 						Channel:             "magical",
-						InstallPlanApproval: ipv1alpha1.ApprovalManual,
+						InstallPlanApproval: v1alpha1.ApprovalManual,
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "latest-and-greatest",
 						Install: &v1alpha1.InstallPlanReference{
-							Kind:       ipv1alpha1.InstallPlanKind,
-							APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
 							UID:        types.UID("UID-OK"),
 							Name:       "installplan-1",
 						},
@@ -648,14 +652,14 @@ func TestSyncSubscription(t *testing.T) {
 			expected: expected{
 				csvName:   "pending",
 				namespace: "fairy-land",
-				installPlan: &ipv1alpha1.InstallPlan{
+				installPlan: &v1alpha1.InstallPlan{
 					ObjectMeta: metav1.ObjectMeta{
 						GenerateName: "install-pending-",
 						Namespace:    "fairy-land",
 						OwnerReferences: []metav1.OwnerReference{
 							{
-								APIVersion:         "app.coreos.com/v1alpha1",
-								Kind:               "Subscription-v1",
+								APIVersion:         "operators.coreos.com/v1alpha1",
+								Kind:               "Subscription",
 								Name:               "test-subscription",
 								UID:                types.UID("subscription-uid"),
 								BlockOwnerDeletion: &blockOwnerDeletion,
@@ -663,11 +667,11 @@ func TestSyncSubscription(t *testing.T) {
 							},
 						},
 					},
-					Spec: ipv1alpha1.InstallPlanSpec{
+					Spec: v1alpha1.InstallPlanSpec{
 						CatalogSource:              "flying-unicorns",
 						CatalogSourceNamespace:     "",
 						ClusterServiceVersionNames: []string{"pending"},
-						Approval:                   ipv1alpha1.ApprovalAutomatic,
+						Approval:                   v1alpha1.ApprovalAutomatic,
 					},
 				},
 				err: "failed to ensure current CSV pending installed: CreateInstallPlanError",
@@ -678,14 +682,14 @@ func TestSyncSubscription(t *testing.T) {
 			subName: "catalog error",
 			initial: initial{
 				catalogName: "flying-unicorns",
-				getCSVResult: &csvv1alpha1.ClusterServiceVersion{
+				getCSVResult: &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "toupgrade",
 						Namespace: "fairy-land",
 					},
 					TypeMeta: metav1.TypeMeta{
-						Kind:       csvv1alpha1.ClusterServiceVersionKind,
-						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+						Kind:       v1alpha1.ClusterServiceVersionKind,
+						APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 					},
 				},
 				findReplacementCSVError: errors.New("CatalogError"),
@@ -719,14 +723,14 @@ func TestSyncSubscription(t *testing.T) {
 			subName: "catalog nil replacement",
 			initial: initial{
 				catalogName: "flying-unicorns",
-				getCSVResult: &csvv1alpha1.ClusterServiceVersion{
+				getCSVResult: &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "toupgrade",
 						Namespace: "fairy-land",
 					},
 					TypeMeta: metav1.TypeMeta{
-						Kind:       csvv1alpha1.ClusterServiceVersionKind,
-						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+						Kind:       v1alpha1.ClusterServiceVersionKind,
+						APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 					},
 				},
 			},
@@ -759,17 +763,17 @@ func TestSyncSubscription(t *testing.T) {
 			subName: "sets upgrade version",
 			initial: initial{
 				catalogName: "flying-unicorns",
-				getCSVResult: &csvv1alpha1.ClusterServiceVersion{
+				getCSVResult: &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "toupgrade",
 						Namespace: "fairy-land",
 					},
 					TypeMeta: metav1.TypeMeta{
-						Kind:       csvv1alpha1.ClusterServiceVersionKind,
-						APIVersion: csvv1alpha1.ClusterServiceVersionAPIVersion,
+						Kind:       v1alpha1.ClusterServiceVersionKind,
+						APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 					},
 				},
-				findReplacementCSVResult: &csvv1alpha1.ClusterServiceVersion{
+				findReplacementCSVResult: &v1alpha1.ClusterServiceVersion{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "next",
 					},
@@ -840,7 +844,7 @@ func TestSyncSubscription(t *testing.T) {
 			if tt.expected.csvName != "" {
 				expectedActions = append(expectedActions,
 					core.NewGetAction(
-						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversion-v1s"},
+						schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "clusterserviceversions"},
 						tt.expected.namespace,
 						tt.expected.csvName,
 					),
@@ -850,7 +854,7 @@ func TestSyncSubscription(t *testing.T) {
 			if tt.initial.getInstallPlanError != nil {
 				expectedActions = append(expectedActions,
 					core.NewGetAction(
-						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"},
+						schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "installplans"},
 						tt.args.subscription.GetNamespace(),
 						tt.args.subscription.Status.Install.Name,
 					),
@@ -860,7 +864,7 @@ func TestSyncSubscription(t *testing.T) {
 			if tt.expected.installPlan != nil {
 				expectedActions = append(expectedActions,
 					core.NewCreateAction(
-						schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"},
+						schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "installplans"},
 						tt.expected.namespace,
 						tt.expected.installPlan,
 					),
@@ -871,7 +875,7 @@ func TestSyncSubscription(t *testing.T) {
 				if tt.args.subscription.Status.Install != nil && tt.initial.getInstallPlanError == nil {
 					expectedActions = append(expectedActions,
 						core.NewGetAction(
-							schema.GroupVersionResource{Group: "app.coreos.com", Version: "v1alpha1", Resource: "installplan-v1s"},
+							schema.GroupVersionResource{Group: "operators.coreos.com", Version: "v1alpha1", Resource: "installplans"},
 							tt.args.subscription.GetNamespace(),
 							tt.args.subscription.Status.Install.Name,
 						),
@@ -881,7 +885,7 @@ func TestSyncSubscription(t *testing.T) {
 
 			// fake api calls
 			if tt.initial.getCSVError != nil {
-				clientFake.PrependReactor("get", "clusterserviceversion-v1s", func(action core.Action) (bool, runtime.Object, error) {
+				clientFake.PrependReactor("get", "clusterserviceversions", func(action core.Action) (bool, runtime.Object, error) {
 					if action.(core.GetAction).GetName() != tt.expected.csvName {
 						return false, nil, nil
 					}
@@ -891,7 +895,7 @@ func TestSyncSubscription(t *testing.T) {
 			}
 
 			if tt.initial.getInstallPlanError != nil {
-				clientFake.PrependReactor("get", "installplan-v1s", func(action core.Action) (bool, runtime.Object, error) {
+				clientFake.PrependReactor("get", "installplans", func(action core.Action) (bool, runtime.Object, error) {
 					if action.(core.GetAction).GetName() != tt.expected.existingInstallPlanName {
 						return false, nil, nil
 					}
@@ -900,18 +904,18 @@ func TestSyncSubscription(t *testing.T) {
 			}
 
 			if tt.initial.updateSubscriptionError != nil {
-				clientFake.PrependReactor("update", "subscription-v1s", func(action core.Action) (bool, runtime.Object, error) {
+				clientFake.PrependReactor("update", "subscriptions", func(action core.Action) (bool, runtime.Object, error) {
 					return true, nil, tt.initial.updateSubscriptionError
 				})
 			}
 
 			if tt.initial.createInstallPlanResult != nil {
-				clientFake.PrependReactor("create", "installplan-v1s", func(action core.Action) (bool, runtime.Object, error) {
+				clientFake.PrependReactor("create", "installplans", func(action core.Action) (bool, runtime.Object, error) {
 					return true, tt.initial.createInstallPlanResult, nil
 				})
 			}
 			if tt.initial.createInstallPlanError != nil {
-				clientFake.PrependReactor("create", "installplan-v1s", func(action core.Action) (bool, runtime.Object, error) {
+				clientFake.PrependReactor("create", "installplans", func(action core.Action) (bool, runtime.Object, error) {
 					return true, nil, tt.initial.createInstallPlanError
 				})
 			}

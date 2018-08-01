@@ -17,7 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -86,7 +86,7 @@ type inClusterCatalog struct {
 
 func (c *inClusterCatalog) Load(namespace string) (registry.Source, error) {
 	// find all CatalogSources
-	csList, err := c.client.CatalogsourceV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{})
+	csList, err := c.client.OperatorsV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		log.Errorf("Component=ServiceBroker Endpoint=GetCatalog Error=%s", err)
 		return nil, err
@@ -184,22 +184,22 @@ func ensureNamespace(ns string, client operatorclient.ClientInterface) error {
 }
 func ensureCSV(namespace string, csvName string, client versioned.Interface) error {
 	// check that desired CSV has been installed
-	csv, err := client.ClusterserviceversionV1alpha1().ClusterServiceVersions(namespace).Get(csvName, metav1.GetOptions{})
+	csv, err := client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csvName, metav1.GetOptions{})
 	if err == nil && csv != nil {
 		return nil
 	}
 	// install CSV if doesn't exist
-	obj := &ipv1alpha1.InstallPlan{
+	obj := &v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:    namespace,
 			GenerateName: fmt.Sprintf("servicebroker-install-%s", csvName),
 		},
-		Spec: ipv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{csvName},
-			Approval:                   ipv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
-	ip, err := client.InstallplanV1alpha1().InstallPlans(namespace).Create(obj)
+	ip, err := client.OperatorsV1alpha1().InstallPlans(namespace).Create(obj)
 	if err != nil {
 		return err
 	}
@@ -208,13 +208,13 @@ func ensureCSV(namespace string, csvName string, client versioned.Interface) err
 	}
 	// wait for installplan to finish
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		pollIp, pollErr := client.InstallplanV1alpha1().InstallPlans(namespace).Get(ip.Name, metav1.GetOptions{})
+		pollIp, pollErr := client.OperatorsV1alpha1().InstallPlans(namespace).Get(ip.Name, metav1.GetOptions{})
 
 		if pollErr != nil {
 			return false, err
 		}
 
-		if pollIp.Status.Phase != ipv1alpha1.InstallPlanPhaseComplete {
+		if pollIp.Status.Phase != v1alpha1.InstallPlanPhaseComplete {
 			return false, nil
 		}
 

@@ -11,10 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	catalogv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	clusterserviceversionv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 
@@ -28,12 +25,12 @@ import (
 // thing with catalog resources we need in Tectonic. As such, they should be expected to be brittle compared to other
 // e2e tests. They should eventually be removed, as they test functionality beyond the scope of ALM.
 
-func fetchCatalogSource(t *testing.T, c operatorclient.ClientInterface, name string) (*catalogv1alpha1.CatalogSource, error) {
-	var fetchedCatalogSource *catalogv1alpha1.CatalogSource
+func fetchCatalogSource(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.CatalogSource, error) {
+	var fetchedCatalogSource *v1alpha1.CatalogSource
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSUnst, err := c.GetCustomResource(apis.GroupName, catalogv1alpha1.GroupVersion, testNamespace, catalogv1alpha1.CatalogSourceKind, name)
+		fetchedCSUnst, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.CatalogSourceKind, name)
 		if err != nil {
 			return false, err
 		}
@@ -60,18 +57,18 @@ func TestInstallEtcdOCS(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, latestEtcdCSV)
 
-	etcdInstallPlan := installplanv1alpha1.InstallPlan{
+	etcdInstallPlan := v1alpha1.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "install-verify-" + latestEtcdCSV.Name,
 			Namespace: testNamespace,
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{latestEtcdCSV.Name},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
 
@@ -85,7 +82,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 	// Get InstallPlan and verify status
 	fetchedInstallPlan, err := fetchInstallPlan(t, c, etcdInstallPlan.GetName(), installPlanCompleteChecker)
 
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 	// Ensure CustomResourceDefinitions and ClusterServiceVersion-v1s are present in the resolved InstallPlan
 	requiredCSVs := []string{"etcdoperator"}
@@ -97,7 +94,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 	for _, step := range fetchedInstallPlan.Status.Plan {
 		if step.Resource.Kind == "CustomResourceDefinition" {
 			crdNames = append(crdNames, step.Resource.Name)
-		} else if step.Resource.Kind == clusterserviceversionv1.ClusterServiceVersionKind {
+		} else if step.Resource.Kind == v1alpha1.ClusterServiceVersionKind {
 			csvNames[strings.Split(step.Resource.Name, ".")[0]] = step.Resource.Name
 		}
 	}
@@ -107,7 +104,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 		require.NotEmpty(t, csvNames[name])
 
 		t.Logf("Ensuring CSV %s is present in %s namespace", name, testNamespace)
-		_, err := c.GetCustomResource(apis.GroupName, clusterserviceversionv1.GroupVersion, testNamespace, clusterserviceversionv1.ClusterServiceVersionKind, csvNames[name])
+		_, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csvNames[name])
 		require.NoError(t, err)
 	}
 
@@ -197,18 +194,18 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, latestPrometheusCSV)
 
-	prometheusInstallPlan := installplanv1alpha1.InstallPlan{
+	prometheusInstallPlan := v1alpha1.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "install-verify-" + latestPrometheusCSV.Name,
 			Namespace: testNamespace,
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{latestPrometheusCSV.Name},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
 
@@ -222,7 +219,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	// Get InstallPlan and verify status
 	fetchedInstallPlan, err := fetchInstallPlan(t, c, prometheusInstallPlan.GetName(), installPlanCompleteChecker)
 
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 	// Ensure CustomResourceDefinitions and ClusterServiceVersion-v1s are present in the resolved InstallPlan
 	requiredCSVs := []string{"prometheusoperator"}
@@ -234,7 +231,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	for _, step := range fetchedInstallPlan.Status.Plan {
 		if step.Resource.Kind == "CustomResourceDefinition" {
 			crdNames = append(crdNames, step.Resource.Name)
-		} else if step.Resource.Kind == clusterserviceversionv1.ClusterServiceVersionKind {
+		} else if step.Resource.Kind == v1alpha1.ClusterServiceVersionKind {
 			csvNames[strings.Split(step.Resource.Name, ".")[0]] = step.Resource.Name
 		}
 	}
@@ -244,7 +241,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 		require.NotEmpty(t, csvNames[name])
 
 		t.Logf("Ensuring CSV %s is present in %s namespace", name, testNamespace)
-		_, err := c.GetCustomResource(apis.GroupName, clusterserviceversionv1.GroupVersion, testNamespace, clusterserviceversionv1.ClusterServiceVersionKind, csvNames[name])
+		_, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csvNames[name])
 		require.NoError(t, err)
 	}
 
@@ -342,18 +339,18 @@ func TestInstallVaultOCS(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, latestVaultCSV)
 
-	vaultInstallPlan := installplanv1alpha1.InstallPlan{
+	vaultInstallPlan := v1alpha1.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "install-verify-" + latestVaultCSV.Name,
 			Namespace: testNamespace,
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{latestVaultCSV.Name},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
 
@@ -367,7 +364,7 @@ func TestInstallVaultOCS(t *testing.T) {
 	// Get InstallPlan and verify status
 	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
 
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 	// Ensure CustomResourceDefinitions and ClusterServiceVersion-v1s are present in the resolved InstallPlan
 	requiredCSVs := []string{"etcdoperator", "vault-operator"}
@@ -379,7 +376,7 @@ func TestInstallVaultOCS(t *testing.T) {
 	for _, step := range fetchedInstallPlan.Status.Plan {
 		if step.Resource.Kind == "CustomResourceDefinition" {
 			crdNames = append(crdNames, step.Resource.Name)
-		} else if step.Resource.Kind == clusterserviceversionv1.ClusterServiceVersionKind {
+		} else if step.Resource.Kind == v1alpha1.ClusterServiceVersionKind {
 			csvNames[strings.Split(step.Resource.Name, ".")[0]] = step.Resource.Name
 		}
 	}
@@ -389,7 +386,7 @@ func TestInstallVaultOCS(t *testing.T) {
 		require.NotEmpty(t, csvNames[name])
 
 		t.Logf("Ensuring CSV %s is present in %s namespace", name, testNamespace)
-		_, err := c.GetCustomResource(apis.GroupName, clusterserviceversionv1.GroupVersion, testNamespace, clusterserviceversionv1.ClusterServiceVersionKind, csvNames[name])
+		_, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csvNames[name])
 		require.NoError(t, err)
 	}
 

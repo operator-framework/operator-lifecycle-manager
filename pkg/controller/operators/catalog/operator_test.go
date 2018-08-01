@@ -9,8 +9,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
 type mockTransitioner struct {
@@ -127,23 +126,23 @@ func installPlan(names ...string) v1alpha1.InstallPlan {
 	}
 }
 
-func csv(name string, owned, required []string) csvv1alpha1.ClusterServiceVersion {
-	requiredCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+func csv(name string, owned, required []string) v1alpha1.ClusterServiceVersion {
+	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range required {
-		requiredCRDDescs = append(requiredCRDDescs, csvv1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
 	}
 
-	ownedCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range owned {
-		ownedCRDDescs = append(ownedCRDDescs, csvv1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
 	}
 
-	return csvv1alpha1.ClusterServiceVersion{
+	return v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
-			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned:    ownedCRDDescs,
 				Required: requiredCRDDescs,
 			},

@@ -9,8 +9,8 @@ import (
 
 	"encoding/json"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
 	"github.com/ghodss/yaml"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
 // LoadCRDFromFile is a utility function for loading the CRD schemas.

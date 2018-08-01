@@ -11,7 +11,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -62,7 +62,7 @@ func TestValidateBrokerAPIVersion(t *testing.T) {
 
 func TestGetCatalog(t *testing.T) {
 	type state struct {
-		catalogSources []catalogsourcev1alpha1.CatalogSource
+		catalogSources []v1alpha1.CatalogSource
 		configMaps     []v1.ConfigMap
 	}
 	type args struct {
@@ -84,7 +84,7 @@ func TestGetCatalog(t *testing.T) {
 			name:        "GetCatalog",
 			description: "empty catalog returns empty list of services",
 			initial: state{
-				catalogSources: []catalogsourcev1alpha1.CatalogSource{},
+				catalogSources: []v1alpha1.CatalogSource{},
 				configMaps:     []v1.ConfigMap{},
 			},
 			inputs: args{
@@ -104,7 +104,7 @@ func TestGetCatalog(t *testing.T) {
 
 			// configure cluster state
 			existingObjects := []runtime.Object{
-				&catalogsourcev1alpha1.CatalogSourceList{Items: tt.initial.catalogSources},
+				&v1alpha1.CatalogSourceList{Items: tt.initial.catalogSources},
 			}
 
 			for i, _ := range tt.initial.configMaps {

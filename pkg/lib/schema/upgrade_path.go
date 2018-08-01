@@ -7,7 +7,8 @@ import (
 	"path/filepath"
 
 	"github.com/ghodss/yaml"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
 // Files is a map of files.
@@ -45,7 +46,7 @@ func CheckUpgradePath(packageDir string) error {
 		if err != nil {
 			return err
 		}
-		var csv csvv1alpha1.ClusterServiceVersion
+		var csv v1alpha1.ClusterServiceVersion
 		err = json.Unmarshal(jsonBytes, &csv)
 		if err != nil {
 			return err

@@ -24,11 +24,8 @@ import (
 	time "time"
 
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	catalogsource "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/catalogsource"
-	clusterserviceversion "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/clusterserviceversion"
-	installplan "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/installplan"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
-	subscription "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/subscription"
+	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -175,24 +172,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Catalogsource() catalogsource.Interface
-	Clusterserviceversion() clusterserviceversion.Interface
-	Installplan() installplan.Interface
-	Subscription() subscription.Interface
+	Operators() operators.Interface
 }
 
-func (f *sharedInformerFactory) Catalogsource() catalogsource.Interface {
-	return catalogsource.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Clusterserviceversion() clusterserviceversion.Interface {
-	return clusterserviceversion.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Installplan() installplan.Interface {
-	return installplan.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Subscription() subscription.Interface {
-	return subscription.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Operators() operators.Interface {
+	return operators.New(f, f.namespace, f.tweakListOptions)
 }

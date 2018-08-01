@@ -19,10 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	clusterserviceversionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -53,8 +50,5 @@ func init() {
 // After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
-	catalogsourcev1alpha1.AddToScheme(scheme)
-	clusterserviceversionv1alpha1.AddToScheme(scheme)
-	installplanv1alpha1.AddToScheme(scheme)
-	subscriptionv1alpha1.AddToScheme(scheme)
+	operatorsv1alpha1.AddToScheme(scheme)
 }

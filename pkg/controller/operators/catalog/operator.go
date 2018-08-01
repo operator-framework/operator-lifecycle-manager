@@ -14,10 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
-	catsrcv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -44,7 +41,7 @@ type Operator struct {
 	sources            map[registry.SourceKey]registry.Source
 	sourcesLock        sync.RWMutex
 	sourcesLastUpdate  metav1.Time
-	subscriptions      map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription
+	subscriptions      map[registry.SubscriptionKey]v1alpha1.Subscription
 	subscriptionsLock  sync.RWMutex
 	dependencyResolver resolver.DependencyResolver
 }
@@ -66,16 +63,16 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
-		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Installplan().V1alpha1().InstallPlans().Informer())
-		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Subscription().V1alpha1().Subscriptions().Informer())
+		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
+		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
 	}
 
 	// Create an informer for each catalog namespace
 	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range []string{operatorNamespace} {
 		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
-		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Catalogsource().V1alpha1().CatalogSources().Informer())
+		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
 	}
 
 	// Create a new queueinformer-based operator.
@@ -90,7 +87,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		client:             crClient,
 		namespace:          operatorNamespace,
 		sources:            make(map[registry.SourceKey]registry.Source),
-		subscriptions:      make(map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription),
+		subscriptions:      make(map[registry.SubscriptionKey]v1alpha1.Subscription),
 		dependencyResolver: &resolver.MultiSourceResolver{},
 	}
 
@@ -134,7 +131,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
-	catsrc, ok := obj.(*catsrcv1alpha1.CatalogSource)
+	catsrc, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting CatalogSource failed")
@@ -153,7 +150,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 }
 
 func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
-	sub, ok := obj.(*subscriptionv1alpha1.Subscription)
+	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Subscription failed")
@@ -169,7 +166,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 
 	logger.Infof("syncing")
 
-	var updatedSub *subscriptionv1alpha1.Subscription
+	var updatedSub *v1alpha1.Subscription
 	updatedSub, syncError = o.syncSubscription(sub)
 
 	if updatedSub == nil {
@@ -181,7 +178,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 
 	updatedSub.Status.LastUpdated = timeNow()
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	if updatedSubFromApi, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
+	if updatedSubFromApi, err := o.client.OperatorsV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
 		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating Subscription status: " + err.Error())
 		if syncError == nil {
@@ -225,7 +222,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.InstallplanV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
+	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
 		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
@@ -335,7 +332,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		plan.Status.CatalogSources = append(plan.Status.CatalogSources, sourceKey.Name)
 
 		// Get the catalog source
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
+		catsrc, err := o.client.OperatorsV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -407,16 +404,16 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					continue
 				}
 
-			case csvv1alpha1.ClusterServiceVersionKind:
+			case v1alpha1.ClusterServiceVersionKind:
 				// Marshal the manifest into a CRD instance.
-				var csv csvv1alpha1.ClusterServiceVersion
+				var csv v1alpha1.ClusterServiceVersion
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &csv)
 				if err != nil {
 					return err
 				}
 
 				// Attempt to create the CSV.
-				_, err = o.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(&csv)
+				_, err = o.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(&csv)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent

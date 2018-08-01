@@ -12,7 +12,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/stretchr/testify/require"
@@ -90,8 +90,8 @@ func resolveCatalogs(t *testing.T, catalogs []registry.SourceRef, dependencyReso
 		// Create an install plan that depends on all CSVs in the catalog
 		plan := &v1alpha1.InstallPlan{
 			TypeMeta: metav1.TypeMeta{
-				Kind:       v1alpha1.InstallPlanCRDName,
-				APIVersion: v1alpha1.InstallPlanCRDAPIVersion,
+				Kind:       v1alpha1.InstallPlanKind,
+				APIVersion: v1alpha1.InstallPlanAPIVersion,
 			},
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "install-everything",

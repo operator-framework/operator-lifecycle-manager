@@ -1,17 +1,10 @@
 package e2e
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-
-	"encoding/json"
-
-	"fmt"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
@@ -22,6 +15,10 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 var singleInstance = int32(1)
@@ -32,7 +29,7 @@ var immediateDeleteGracePeriod int64 = 0
 
 func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, csv v1alpha1.ClusterServiceVersion, deleteCRDs bool) cleanupFunc {
 	return func() {
-		require.NoError(t, c.DeleteCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csv.GetName()))
+		require.NoError(t, c.DeleteCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, csv.GetName()))
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
 				require.NoError(t, c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{}))
@@ -121,7 +118,7 @@ func fetchCSV(t *testing.T, c operatorclient.ClientInterface, name string, check
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSVUnstr, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
+		fetchedCSVUnstr, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if err != nil {
 			return false, err
 		}
@@ -156,7 +153,7 @@ func waitForCSVToDelete(t *testing.T, c operatorclient.ClientInterface, name str
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSVUnstr, err := c.GetCustomResource(apis.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
+		fetchedCSVUnstr, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.ClusterServiceVersionKind, name)
 		if errors.IsNotFound(err) {
 			return true, nil
 		}

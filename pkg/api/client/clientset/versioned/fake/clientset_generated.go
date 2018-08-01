@@ -20,14 +20,8 @@ package fake
 
 import (
 	clientset "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/catalogsource/v1alpha1"
-	fakecatalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/catalogsource/v1alpha1/fake"
-	clusterserviceversionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/clusterserviceversion/v1alpha1"
-	fakeclusterserviceversionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/clusterserviceversion/v1alpha1/fake"
-	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/installplan/v1alpha1"
-	fakeinstallplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/installplan/v1alpha1/fake"
-	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/subscription/v1alpha1"
-	fakesubscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/subscription/v1alpha1/fake"
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	fakeoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -77,42 +71,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// CatalogsourceV1alpha1 retrieves the CatalogsourceV1alpha1Client
-func (c *Clientset) CatalogsourceV1alpha1() catalogsourcev1alpha1.CatalogsourceV1alpha1Interface {
-	return &fakecatalogsourcev1alpha1.FakeCatalogsourceV1alpha1{Fake: &c.Fake}
+// OperatorsV1alpha1 retrieves the OperatorsV1alpha1Client
+func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Interface {
+	return &fakeoperatorsv1alpha1.FakeOperatorsV1alpha1{Fake: &c.Fake}
 }
 
-// Catalogsource retrieves the CatalogsourceV1alpha1Client
-func (c *Clientset) Catalogsource() catalogsourcev1alpha1.CatalogsourceV1alpha1Interface {
-	return &fakecatalogsourcev1alpha1.FakeCatalogsourceV1alpha1{Fake: &c.Fake}
-}
-
-// ClusterserviceversionV1alpha1 retrieves the ClusterserviceversionV1alpha1Client
-func (c *Clientset) ClusterserviceversionV1alpha1() clusterserviceversionv1alpha1.ClusterserviceversionV1alpha1Interface {
-	return &fakeclusterserviceversionv1alpha1.FakeClusterserviceversionV1alpha1{Fake: &c.Fake}
-}
-
-// Clusterserviceversion retrieves the ClusterserviceversionV1alpha1Client
-func (c *Clientset) Clusterserviceversion() clusterserviceversionv1alpha1.ClusterserviceversionV1alpha1Interface {
-	return &fakeclusterserviceversionv1alpha1.FakeClusterserviceversionV1alpha1{Fake: &c.Fake}
-}
-
-// InstallplanV1alpha1 retrieves the InstallplanV1alpha1Client
-func (c *Clientset) InstallplanV1alpha1() installplanv1alpha1.InstallplanV1alpha1Interface {
-	return &fakeinstallplanv1alpha1.FakeInstallplanV1alpha1{Fake: &c.Fake}
-}
-
-// Installplan retrieves the InstallplanV1alpha1Client
-func (c *Clientset) Installplan() installplanv1alpha1.InstallplanV1alpha1Interface {
-	return &fakeinstallplanv1alpha1.FakeInstallplanV1alpha1{Fake: &c.Fake}
-}
-
-// SubscriptionV1alpha1 retrieves the SubscriptionV1alpha1Client
-func (c *Clientset) SubscriptionV1alpha1() subscriptionv1alpha1.SubscriptionV1alpha1Interface {
-	return &fakesubscriptionv1alpha1.FakeSubscriptionV1alpha1{Fake: &c.Fake}
-}
-
-// Subscription retrieves the SubscriptionV1alpha1Client
-func (c *Clientset) Subscription() subscriptionv1alpha1.SubscriptionV1alpha1Interface {
-	return &fakesubscriptionv1alpha1.FakeSubscriptionV1alpha1{Fake: &c.Fake}
+// Operators retrieves the OperatorsV1alpha1Client
+func (c *Clientset) Operators() operatorsv1alpha1.OperatorsV1alpha1Interface {
+	return &fakeoperatorsv1alpha1.FakeOperatorsV1alpha1{Fake: &c.Fake}
 }

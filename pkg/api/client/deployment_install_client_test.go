@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"

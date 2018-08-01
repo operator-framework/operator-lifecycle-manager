@@ -17,6 +17,9 @@ all: test build
 
 test: schema-check cover.out
 
+unit:
+	go test -v -race ./pkg/...
+
 schema-check:
 	go run ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
@@ -103,8 +106,7 @@ $(CODEGEN):
 	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 
 codegen: $(CODEGEN)
-	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis \
-		"catalogsource:v1alpha1 clusterserviceversion:v1alpha1 installplan:v1alpha1 subscription:v1alpha1"
+	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1"
 
 verify-codegen: codegen
 	git diff --exit-code

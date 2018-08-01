@@ -21,10 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	clusterserviceversion_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplan_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	subscription_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -55,21 +52,15 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=catalogsource, Version=v1alpha1
+	// Group=operators.coreos.com, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("catalogsources"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Catalogsource().V1alpha1().CatalogSources().Informer()}, nil
-
-		// Group=clusterserviceversion, Version=v1alpha1
-	case clusterserviceversion_v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Clusterserviceversion().V1alpha1().ClusterServiceVersions().Informer()}, nil
-
-		// Group=installplan, Version=v1alpha1
-	case installplan_v1alpha1.SchemeGroupVersion.WithResource("installplans"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Installplan().V1alpha1().InstallPlans().Informer()}, nil
-
-		// Group=subscription, Version=v1alpha1
-	case subscription_v1alpha1.SchemeGroupVersion.WithResource("subscriptions"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Subscription().V1alpha1().Subscriptions().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1alpha1().CatalogSources().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("clusterserviceversions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1alpha1().ClusterServiceVersions().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("installplans"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1alpha1().InstallPlans().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("subscriptions"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Operators().V1alpha1().Subscriptions().Informer()}, nil
 
 	}
 

@@ -14,10 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -75,8 +72,8 @@ var (
 		DefaultChannelName: stableChannel,
 	}}
 	csvType = metav1.TypeMeta{
-		Kind:       csvv1alpha1.ClusterServiceVersionKind,
-		APIVersion: csvv1alpha1.GroupVersion,
+		Kind:       v1alpha1.ClusterServiceVersionKind,
+		APIVersion: v1alpha1.GroupVersion,
 	}
 
 	strategy = install.StrategyDetailsDeployment{
@@ -88,55 +85,55 @@ var (
 		},
 	}
 	strategyRaw, _  = json.Marshal(strategy)
-	installStrategy = csvv1alpha1.NamedInstallStrategy{
+	installStrategy = v1alpha1.NamedInstallStrategy{
 		StrategyName:    install.InstallStrategyNameDeployment,
 		StrategySpecRaw: strategyRaw,
 	}
-	outdatedCSV = csvv1alpha1.ClusterServiceVersion{
+	outdatedCSV = v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outdated,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        "",
 			Version:         *semver.New("0.1.0"),
 			InstallStrategy: installStrategy,
 		},
 	}
-	stableCSV = csvv1alpha1.ClusterServiceVersion{
+	stableCSV = v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: stable,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        outdated,
 			Version:         *semver.New("0.2.0"),
 			InstallStrategy: installStrategy,
 		},
 	}
-	betaCSV = csvv1alpha1.ClusterServiceVersion{
+	betaCSV = v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: beta,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        stable,
 			Version:         *semver.New("0.1.1"),
 			InstallStrategy: installStrategy,
 		},
 	}
-	alphaCSV = csvv1alpha1.ClusterServiceVersion{
+	alphaCSV = v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: alpha,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        beta,
 			Version:         *semver.New("0.3.0"),
 			InstallStrategy: installStrategy,
 		},
 	}
-	csvList = []csvv1alpha1.ClusterServiceVersion{outdatedCSV, stableCSV, betaCSV, alphaCSV}
+	csvList = []v1alpha1.ClusterServiceVersion{outdatedCSV, stableCSV, betaCSV, alphaCSV}
 
 	strategyNew = install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
@@ -171,15 +168,15 @@ var (
 		Data: map[string]string{},
 	}
 
-	dummyCatalogSource = catalogsourcev1alpha1.CatalogSource{
+	dummyCatalogSource = v1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       catalogsourcev1alpha1.CatalogSourceKind,
-			APIVersion: catalogsourcev1alpha1.CatalogSourceCRDAPIVersion,
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: catalogSourceName,
 		},
-		Spec: catalogsourcev1alpha1.CatalogSourceSpec{
+		Spec: v1alpha1.CatalogSourceSpec{
 			Name:       catalogSourceName,
 			SourceType: "internal",
 			ConfigMap:  catalogConfigMapName,
@@ -227,16 +224,16 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
 }
 
 func createSubscription(t *testing.T, c operatorclient.ClientInterface, channel string, name string, approval v1alpha1.Approval) cleanupFunc {
-	sub := &subscriptionv1alpha1.Subscription{
+	sub := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       subscriptionv1alpha1.SubscriptionKind,
-			APIVersion: subscriptionv1alpha1.SubscriptionCRDAPIVersion,
+			Kind:       v1alpha1.SubscriptionKind,
+			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: testNamespace,
 			Name:      name,
 		},
-		Spec: &subscriptionv1alpha1.SubscriptionSpec{
+		Spec: &v1alpha1.SubscriptionSpec{
 			CatalogSource:       catalogSourceName,
 			Package:             testPackageName,
 			Channel:             channel,
@@ -247,21 +244,21 @@ func createSubscription(t *testing.T, c operatorclient.ClientInterface, channel 
 	unstrSub, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sub)
 	require.NoError(t, err)
 	require.NoError(t, c.CreateCustomResource(&unstructured.Unstructured{Object: unstrSub}))
-	return cleanupCustomResource(t, c, subscriptionv1alpha1.GroupVersion,
-		subscriptionv1alpha1.SubscriptionKind, name)
+	return cleanupCustomResource(t, c, v1alpha1.GroupVersion,
+		v1alpha1.SubscriptionKind, name)
 }
 
-func fetchSubscription(t *testing.T, c operatorclient.ClientInterface, name string) (*subscriptionv1alpha1.Subscription, error) {
-	var sub *subscriptionv1alpha1.Subscription
-	unstrSub, err := waitForAndFetchCustomResource(t, c, subscriptionv1alpha1.GroupVersion, subscriptionv1alpha1.SubscriptionKind, name)
+func fetchSubscription(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.Subscription, error) {
+	var sub *v1alpha1.Subscription
+	unstrSub, err := waitForAndFetchCustomResource(t, c, v1alpha1.GroupVersion, v1alpha1.SubscriptionKind, name)
 	require.NoError(t, err)
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrSub.Object, &sub)
 	return sub, err
 }
 
-func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*csvv1alpha1.ClusterServiceVersion, error) {
-	var csv *csvv1alpha1.ClusterServiceVersion
-	unstrCSV, err := waitForAndFetchCustomResource(t, c, csvv1alpha1.GroupVersion, csvv1alpha1.ClusterServiceVersionKind, name)
+func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.ClusterServiceVersion, error) {
+	var csv *v1alpha1.ClusterServiceVersion
+	unstrCSV, err := waitForAndFetchCustomResource(t, c, v1alpha1.GroupVersion, v1alpha1.ClusterServiceVersionKind, name)
 	require.NoError(t, err)
 	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrCSV.Object, &csv)
 	return csv, err
@@ -298,8 +295,8 @@ func TestCreateNewSubscription(t *testing.T) {
 	compareResources(t, subscription, sameSubscription)
 
 	// Deleting subscription / installplan doesn't clean up the CSV
-	cleanupCustomResource(t, c, csvv1alpha1.GroupVersion,
-		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())()
+	cleanupCustomResource(t, c, v1alpha1.GroupVersion,
+		v1alpha1.ClusterServiceVersionKind, csv.GetName())()
 }
 
 //   I. Creating a new subscription
@@ -325,8 +322,8 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	require.NotNil(t, subscription)
 
 	// Deleting subscription / installplan doesn't clean up the CSV
-	cleanupCustomResource(t, c, csvv1alpha1.GroupVersion,
-		csvv1alpha1.ClusterServiceVersionKind, csv.GetName())()
+	cleanupCustomResource(t, c, v1alpha1.GroupVersion,
+		v1alpha1.ClusterServiceVersionKind, csv.GetName())()
 }
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual

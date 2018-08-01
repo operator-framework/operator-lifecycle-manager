@@ -4,8 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -69,11 +68,11 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 	}
 
 	// Check that desired CSV has been installed
-	csv, err := o.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
+	csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
 	if err != nil || csv == nil {
 		log.Infof("error fetching CSV %s via k8s api: %v", sub.Status.CurrentCSV, err)
 		if sub.Status.Install != nil && sub.Status.Install.Name != "" {
-			ip, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Get(sub.Status.Install.Name, metav1.GetOptions{})
+			ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(sub.Status.Install.Name, metav1.GetOptions{})
 			if err != nil {
 				log.Errorf("get installplan %s error: %v", sub.Status.Install.Name, err)
 			}
@@ -87,9 +86,9 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 
 		// Install CSV if doesn't exist
 		sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
-		ip := &ipv1alpha1.InstallPlan{
+		ip := &v1alpha1.InstallPlan{
 			ObjectMeta: metav1.ObjectMeta{},
-			Spec: ipv1alpha1.InstallPlanSpec{
+			Spec: v1alpha1.InstallPlanSpec{
 				ClusterServiceVersionNames: []string{sub.Status.CurrentCSV},
 				Approval:                   sub.GetInstallPlanApproval(),
 			},
@@ -102,7 +101,7 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 		ip.Spec.CatalogSource = sub.Spec.CatalogSource
 		ip.Spec.CatalogSourceNamespace = sub.Spec.CatalogSourceNamespace
 
-		res, err := o.client.InstallplanV1alpha1().InstallPlans(sub.GetNamespace()).Create(ip)
+		res, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Create(ip)
 		if err != nil {
 			return sub, fmt.Errorf("failed to ensure current CSV %s installed: %v", sub.Status.CurrentCSV, err)
 		}
@@ -112,8 +111,8 @@ func (o *Operator) syncSubscription(sub *v1alpha1.Subscription) (*v1alpha1.Subsc
 		sub.Status.Install = &v1alpha1.InstallPlanReference{
 			UID:        res.GetUID(),
 			Name:       res.GetName(),
-			APIVersion: ipv1alpha1.SchemeGroupVersion.String(),
-			Kind:       ipv1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
 		}
 		return sub, nil
 	}
