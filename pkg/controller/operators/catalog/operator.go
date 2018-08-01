@@ -193,18 +193,33 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting InstallPlan failed")
 	}
 
-	log.Infof("syncing InstallPlan: %s", plan.SelfLink)
-	syncError = transitionInstallPlanState(o, plan)
+	logger := log.WithFields(log.Fields{
+		"ip":        plan.GetName(),
+		"namespace": plan.GetNamespace(),
+	})
+
+	logger.Info("syncing")
+	outInstallPlan, syncError := transitionInstallPlanState(o, *plan)
+
+	if syncError != nil {
+		logger = logger.WithField("syncError", syncError)
+	}
+
+	// no changes in status, don't update
+	if outInstallPlan.Status.Phase == plan.Status.Phase {
+		return
+	}
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.InstallplanV1alpha1().InstallPlans(plan.GetNamespace()).Update(plan); err != nil {
+	if _, err := o.client.InstallplanV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
+		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
-			log.Info(updateErr)
+			logger.Info("error updating InstallPlan status")
 			return updateErr
 		}
+		logger.Info("error transitioning InstallPlan")
 		syncError = fmt.Errorf("error transitioning InstallPlan: %s and error updating InstallPlan status: %s", syncError, updateErr)
-		log.Info(syncError)
 	}
 	return
 }
@@ -216,53 +231,61 @@ type installPlanTransitioner interface {
 
 var _ installPlanTransitioner = &Operator{}
 
-func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1alpha1.InstallPlan) error {
-	switch plan.Status.Phase {
+func transitionInstallPlanState(transitioner installPlanTransitioner, in v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error) {
+	logger := log.WithFields(log.Fields{
+		"ip":        in.GetName(),
+		"namespace": in.GetNamespace(),
+		"phase":     in.Status.Phase,
+	})
+
+	out := in.DeepCopy()
+
+	switch in.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
-		log.Debugf("plan %s phase unrecognized, setting to Planning", plan.SelfLink)
-		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
-		return nil
+		logger.Debugf("setting phase to %s", v1alpha1.InstallPlanPhasePlanning)
+		out.Status.Phase = v1alpha1.InstallPlanPhasePlanning
+		return out, nil
 
 	case v1alpha1.InstallPlanPhasePlanning:
-		log.Debugf("plan %s phase Planning, attempting to resolve", plan.SelfLink)
-		if err := transitioner.ResolvePlan(plan); err != nil {
-			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
+		logger.Debug("attempting to resolve")
+		if err := transitioner.ResolvePlan(out); err != nil {
+			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
 				v1alpha1.InstallPlanReasonInstallCheckFailed, err))
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-			return err
+			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			return out, err
 		}
-		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
+		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
 
-		if plan.Spec.Approval == v1alpha1.ApprovalManual && plan.Spec.Approved != true {
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+		if out.Spec.Approval == v1alpha1.ApprovalManual && out.Spec.Approved != true {
+			out.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
 		} else {
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		}
-		return nil
+		return out, nil
 
 	case v1alpha1.InstallPlanPhaseRequiresApproval:
-		if plan.Spec.Approved {
-			log.Debugf("plan %s approved, setting to Planning", plan.SelfLink)
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		if out.Spec.Approved {
+			logger.Debugf("approved, setting to %s", v1alpha1.InstallPlanPhasePlanning)
+			out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		} else {
-			log.Debugf("plan %s is not approved, skipping sync", plan.SelfLink)
+			logger.Debug("not approved, skipping sync")
 		}
-		return nil
+		return out, nil
 
 	case v1alpha1.InstallPlanPhaseInstalling:
-		log.Debugf("plan %s phase Installing, attempting to install", plan.SelfLink)
-		if err := transitioner.ExecutePlan(plan); err != nil {
-			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+		logger.Debug("attempting to install")
+		if err := transitioner.ExecutePlan(out); err != nil {
+			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
 				v1alpha1.InstallPlanReasonComponentFailed, err))
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-			return err
+			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			return out, err
 		}
-		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseComplete
-		return nil
+		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
+		out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
+		return out, nil
 
 	default:
-		return nil
+		return out, nil
 	}
 }
 
@@ -278,8 +301,8 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 
 	// Copy the sources for resolution from the included namespaces
 	includedNamespaces := map[string]struct{}{
-		o.namespace:    struct{}{},
-		plan.Namespace: struct{}{},
+		o.namespace:    {},
+		plan.Namespace: {},
 	}
 	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 

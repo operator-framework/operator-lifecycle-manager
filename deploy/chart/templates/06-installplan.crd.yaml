@@ -20,6 +20,25 @@ spec:
     singular: installplan
     kind: InstallPlan
     listKind: InstallPlanList
+    categories:
+    - all
+    - olm
+  additionalPrinterColumns:
+  - name: CSV
+    type: string
+    description: The first CSV in the list of clusterServiceVersionNames
+    JSONPath: .spec.clusterServiceVersionNames[0]
+  - name: Source
+    type: string
+    description: The catalog source for the specified CSVs.
+    JSONPath: .spec.source
+  - name: Approval
+    type: string
+    description: The approval mode
+    JSONPath: .spec.approval
+  - name: Approved
+    type: boolean
+    JSONPath: .spec.approved
   subresources:
     # status enables the status subresource.
     status: {}

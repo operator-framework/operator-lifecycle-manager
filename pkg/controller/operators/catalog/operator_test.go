@@ -98,20 +98,20 @@ func TestTransitionInstallPlan(t *testing.T) {
 		transitioner := &mockTransitioner{tt.transError}
 
 		// Attempt to transition phases.
-		transitionInstallPlanState(transitioner, plan)
+		out, _ := transitionInstallPlanState(transitioner, *plan)
 
 		// Assert that the final phase is as expected.
-		require.Equal(t, tt.expected, plan.Status.Phase)
+		require.Equal(t, tt.expected, out.Status.Phase)
 
 		// Assert that the condition set is as expected
 		if tt.condition == nil {
-			require.Equal(t, 0, len(plan.Status.Conditions))
+			require.Equal(t, 0, len(out.Status.Conditions))
 		} else {
-			require.Equal(t, 1, len(plan.Status.Conditions))
-			require.Equal(t, tt.condition.Type, plan.Status.Conditions[0].Type)
-			require.Equal(t, tt.condition.Status, plan.Status.Conditions[0].Status)
-			require.Equal(t, tt.condition.Reason, plan.Status.Conditions[0].Reason)
-			require.Equal(t, tt.condition.Message, plan.Status.Conditions[0].Message)
+			require.Equal(t, 1, len(out.Status.Conditions))
+			require.Equal(t, tt.condition.Type, out.Status.Conditions[0].Type)
+			require.Equal(t, tt.condition.Status, out.Status.Conditions[0].Status)
+			require.Equal(t, tt.condition.Reason, out.Status.Conditions[0].Reason)
+			require.Equal(t, tt.condition.Message, out.Status.Conditions[0].Message)
 		}
 	}
 }

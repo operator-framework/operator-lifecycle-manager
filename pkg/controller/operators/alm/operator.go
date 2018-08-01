@@ -125,8 +125,10 @@ func (a *ALMOperator) syncClusterServiceVersion(obj interface{}) (syncError erro
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
 	logger := log.WithFields(log.Fields{
-		"sync": "ClusterServiceVersion",
+		"csv":       clusterServiceVersion.GetName(),
+		"namespace": clusterServiceVersion.GetNamespace(),
 	})
+	logger.Info("syncing")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 

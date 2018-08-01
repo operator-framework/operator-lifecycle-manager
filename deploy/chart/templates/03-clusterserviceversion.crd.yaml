@@ -13,6 +13,27 @@ spec:
     singular: clusterserviceversion
     kind: ClusterServiceVersion
     listKind: ClusterServiceVersionList
+    shortNames:
+    - csv
+    categories:
+    - all
+    - olm
+  additionalPrinterColumns:
+  - name: Display
+    type: string
+    description: The name of the CSV
+    JSONPath: .spec.displayName
+  - name: Version
+    type: string
+    description: The version of the CSV
+    JSONPath: .spec.version
+  - name: Replaces
+    type: string
+    description: The name of a CSV that this one replaces
+    JSONPath: .spec.replaces
+  - name: Phase
+    type: string
+    JSONPath: .status.phase
   group: app.coreos.com
   version: v1alpha1
   versions:

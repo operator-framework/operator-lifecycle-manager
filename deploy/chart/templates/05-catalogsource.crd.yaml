@@ -20,6 +20,25 @@ spec:
     singular: catalogsource-v1
     kind: CatalogSource-v1
     listKind: CatalogSourceList-v1
+    categories:
+    - all
+    - olm
+  additionalPrinterColumns:
+  - name: Name
+    type: string
+    description: The pretty name of the catalog
+    JSONPath: .spec.displayName
+  - name: Type
+    type: string
+    description: The type of the catalog
+    JSONPath: .spec.sourceType
+  - name: Publisher
+    type: string
+    description: The publisher of the catalog
+    JSONPath: .spec.publisher
+  - name: Age
+    type: date
+    JSONPath: .metadata.creationTimestamp
   validation:
     openAPIV3Schema:
       type: object
@@ -29,10 +48,9 @@ spec:
       properties:
         spec:
           type: object
-          description: Spec for a subscription
+          description: Spec for a catalog source.
           required:
           - sourceType
-          - name
           properties:
             sourceType:
               type: string
@@ -42,11 +60,15 @@ spec:
 
             configMap:
               type: string
-              string: The name of a ConfigMap that holds the entries for an in-memory catalog.
+              description: The name of a ConfigMap that holds the entries for an in-memory catalog.
 
-            name:
+            displayName:
               type: string
-              description: Name of this catalog source
+              description: Pretty name for display
+
+            publisher:
+              type: string
+              description: The name of an entity that publishes this catalog
 
             secrets:
               type: array
