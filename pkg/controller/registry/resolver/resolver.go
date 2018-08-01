@@ -78,7 +78,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 			return nil, nil, err
 		}
 
-		log.Debugf("found %#v", csv)
+		log.Debugf("found %s", csv.GetName())
 		usedSourceKeys = append(usedSourceKeys, csvSourceKey)
 
 		// Resolve each owned or required CRD for the CSV.

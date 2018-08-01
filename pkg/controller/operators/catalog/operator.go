@@ -159,29 +159,42 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting Subscription failed")
 	}
 
-	log.Infof("syncing Subscription with catalog %s: %s on channel %s",
-		sub.Spec.CatalogSource, sub.Spec.Package, sub.Spec.Channel)
+	logger := log.WithFields(log.Fields{
+		"sub":       sub.GetName(),
+		"namespace": sub.GetNamespace(),
+		"source":    sub.Spec.CatalogSource,
+		"pkg":       sub.Spec.Package,
+		"channel":   sub.Spec.Channel,
+	})
+
+	logger.Infof("syncing")
 
 	var updatedSub *subscriptionv1alpha1.Subscription
 	updatedSub, syncError = o.syncSubscription(sub)
 
-	if updatedSub != nil {
-		updatedSub.Status.LastUpdated = timeNow()
-		// Update Subscription with status of transition. Log errors if we can't write them to the status.
-		if _, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).Update(updatedSub); err != nil {
-			updateErr := errors.New("error updating Subscription status: " + err.Error())
-			if syncError == nil {
-				log.Info(updateErr)
-				return updateErr
-			}
-			syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
-			log.Info(syncError)
-		} else {
-			// map subcription
-			o.subscriptionsLock.Lock()
-			defer o.subscriptionsLock.Unlock()
-			o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSub
+	if updatedSub == nil {
+		return
+	}
+	if syncError != nil {
+		logger = logger.WithField("syncError", syncError)
+	}
+
+	updatedSub.Status.LastUpdated = timeNow()
+	// Update Subscription with status of transition. Log errors if we can't write them to the status.
+	if updatedSubFromApi, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
+		logger = logger.WithField("updateError", err.Error())
+		updateErr := errors.New("error updating Subscription status: " + err.Error())
+		if syncError == nil {
+			logger.Info("error updating Subscription status")
+			return updateErr
 		}
+		logger.Info("error transitioning Subscription")
+		syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
+	} else {
+		// map subscription
+		o.subscriptionsLock.Lock()
+		defer o.subscriptionsLock.Unlock()
+		o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSubFromApi
 	}
 	return
 }
@@ -196,6 +209,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	logger := log.WithFields(log.Fields{
 		"ip":        plan.GetName(),
 		"namespace": plan.GetNamespace(),
+		"phase":     plan.Status.Phase,
 	})
 
 	logger.Info("syncing")
@@ -283,7 +297,6 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, in v1alpha
 		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
 		out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
 		return out, nil
-
 	default:
 		return out, nil
 	}
