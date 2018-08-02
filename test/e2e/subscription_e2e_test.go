@@ -304,9 +304,10 @@ func TestCreateNewSubscription(t *testing.T) {
 //         version
 func TestCreateNewSubscriptionAgain(t *testing.T) {
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
 
-	csvCleanup, err := createCSV(t, c, stableCSV, true)
+	csvCleanup, err := createCSV(t, c, crc, stableCSV, true)
 	require.NoError(t, err)
 	defer csvCleanup()
 

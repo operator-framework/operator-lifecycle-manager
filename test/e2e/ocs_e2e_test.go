@@ -46,6 +46,7 @@ func fetchCatalogSource(t *testing.T, c operatorclient.ClientInterface, name str
 
 func TestInstallEtcdOCS(t *testing.T) {
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 
 	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
 	require.NoError(t, err)
@@ -80,7 +81,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, etcdInstallPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, etcdInstallPlan.GetName(), installPlanCompleteChecker)
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -183,6 +184,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 
 func TestInstallPrometheusOCS(t *testing.T) {
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 
 	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
 	require.NoError(t, err)
@@ -217,7 +219,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, prometheusInstallPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, prometheusInstallPlan.GetName(), installPlanCompleteChecker)
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -254,7 +256,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	}
 
 	// * I should see service accounts for Prometheus with permissions matching what’s listed in the ClusterServiceVersion
-	for _, accountName := range []string{"prometheus-operator-0-22-1"} {
+	for _, accountName := range []string{"prometheus-operator-0-22-2"} {
 		var sa *corev1.ServiceAccount
 		t.Logf("Looking for ServiceAccount %s in %s\n", accountName, testNamespace)
 
@@ -328,6 +330,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 //   * I should see pods for Vault and etcd appear
 func TestInstallVaultOCS(t *testing.T) {
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 
 	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
 	require.NoError(t, err)
@@ -362,7 +365,7 @@ func TestInstallVaultOCS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, vaultInstallPlan.GetName(), installPlanCompleteChecker)
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
