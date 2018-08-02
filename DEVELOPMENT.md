@@ -23,6 +23,18 @@ To run the tests for all go packages outside of the vendor directory, run:
 $ make test
 ```
 
+To run the e2e tests locally:
+
+```sh
+$ make e2e-local
+```
+
+To run a specific e2e test locally:
+
+```sh
+$ make e2e-local TEST=TestCreateInstallPlanManualApproval
+```
+
 #### Building
 
 Ensure your version of go is up to date; check that you're running v1.9 with the

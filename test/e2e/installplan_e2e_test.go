@@ -3,24 +3,21 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	installplanv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
 
@@ -34,73 +31,74 @@ const (
 	ocsConfigMap           = "tectonic-ocs"
 )
 
-type installPlanConditionChecker func(fip *installplanv1alpha1.InstallPlan) bool
+type installPlanConditionChecker func(fip *v1alpha1.InstallPlan) bool
 
-var installPlanCompleteChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
-	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseComplete
+var installPlanCompleteChecker = func(fip *v1alpha1.InstallPlan) bool {
+	return fip.Status.Phase == v1alpha1.InstallPlanPhaseComplete
 }
 
-var installPlanFailedChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
-	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseFailed
+var installPlanFailedChecker = func(fip *v1alpha1.InstallPlan) bool {
+	return fip.Status.Phase == v1alpha1.InstallPlanPhaseFailed
 }
 
-var installPlanRequiresApprovalChecker = func(fip *installplanv1alpha1.InstallPlan) bool {
-	return fip.Status.Phase == installplanv1alpha1.InstallPlanPhaseRequiresApproval
+var installPlanRequiresApprovalChecker = func(fip *v1alpha1.InstallPlan) bool {
+	return fip.Status.Phase == v1alpha1.InstallPlanPhaseRequiresApproval
 }
 
-func buildInstallPlanCleanupFunc(c operatorclient.ClientInterface, installPlan *installplanv1alpha1.InstallPlan) cleanupFunc {
+func buildInstallPlanCleanupFunc(c versioned.Interface, installPlan *v1alpha1.InstallPlan) cleanupFunc {
 	return func() {
 		for _, step := range installPlan.Status.Plan {
 			if step.Resource.Kind == v1alpha1.ClusterServiceVersionKind {
-				err := c.DeleteCustomResource(step.Resource.Group, step.Resource.Version, testNamespace, step.Resource.Kind, step.Resource.Name)
-				if err != nil {
+				if err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(step.Resource.Name, &metav1.DeleteOptions{}); err != nil {
 					fmt.Println(err)
 				}
 			}
 		}
-		err := c.DeleteCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, installPlan.GetName())
-		if err != nil {
+		if err := c.OperatorsV1alpha1().InstallPlans(testNamespace).Delete(installPlan.GetName(), &metav1.DeleteOptions{}); err != nil {
 			fmt.Println(err)
 		}
 	}
 }
 
-func decorateCommonAndCreateInstallPlan(c operatorclient.ClientInterface, plan installplanv1alpha1.InstallPlan) (cleanupFunc, error) {
-	plan.Kind = installplanv1alpha1.InstallPlanKind
-	plan.APIVersion = installplanv1alpha1.SchemeGroupVersion.String()
-	plan.Namespace = testNamespace
-	ipUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&plan)
-	if err != nil {
-		return nil, err
-	}
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: ipUnst})
+func decorateCommonAndCreateInstallPlan(c versioned.Interface, plan v1alpha1.InstallPlan) (cleanupFunc, error) {
+	plan.Kind = v1alpha1.InstallPlanKind
+	plan.APIVersion = v1alpha1.SchemeGroupVersion.String()
+
+	_, err := c.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&plan)
 	if err != nil {
 		return nil, err
 	}
 	return buildInstallPlanCleanupFunc(c, &plan), nil
 }
 
-func fetchInstallPlan(t *testing.T, c operatorclient.ClientInterface, name string, checker installPlanConditionChecker) (*installplanv1alpha1.InstallPlan, error) {
-	var fetchedInstallPlan *installplanv1alpha1.InstallPlan
+func fetchInstallPlan(t *testing.T, c versioned.Interface, name string, checker installPlanConditionChecker) (*v1alpha1.InstallPlan, error) {
+	var fetchedInstallPlan *v1alpha1.InstallPlan
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlanUnst, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, installplanv1alpha1.InstallPlanKind, name)
-
-		if err != nil {
+		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(testNamespace).Get(name, metav1.GetOptions{})
+		if err != nil || fetchedInstallPlan == nil {
 			return false, err
 		}
-
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedInstallPlanUnst.Object, &fetchedInstallPlan)
-		require.NoError(t, err)
-
 		return checker(fetchedInstallPlan), nil
 	})
 	return fetchedInstallPlan, err
 }
 
+func newCRClient(t *testing.T) versioned.Interface {
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath == "" {
+		t.Log("using in-cluster config")
+	}
+	// TODO: impersonate ALM serviceaccount
+	crclient, err := client.NewClient(kubeconfigPath)
+	require.NoError(t, err)
+	return crclient
+}
+
 func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
 	require.NoError(t, err)
@@ -109,27 +107,28 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, latestVaultCSV)
 
-	vaultInstallPlan := installplanv1alpha1.InstallPlan{
+	vaultInstallPlan := v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "install-manual-" + latestVaultCSV.GetName(),
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{latestVaultCSV.GetName()},
-			Approval:                   installplanv1alpha1.ApprovalManual,
+			Approval:                   v1alpha1.ApprovalManual,
 			Approved:                   false,
 		},
 	}
 
 	// Create a new InstallPlan for Vault with manual approval
-	cleanup, err := decorateCommonAndCreateInstallPlan(c, vaultInstallPlan)
+	cleanup, err := decorateCommonAndCreateInstallPlan(crc, vaultInstallPlan)
 	require.NoError(t, err)
 	defer cleanup()
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, vaultInstallPlan.GetName(), installPlanRequiresApprovalChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, vaultInstallPlan.GetName(), installPlanRequiresApprovalChecker)
 	require.NoError(t, err)
+	require.NotNil(t, fetchedInstallPlan)
 
-	var verifyResources = func(installPlan *installplanv1alpha1.InstallPlan, shouldBeCreated bool) int {
+	var verifyResources = func(installPlan *v1alpha1.InstallPlan, shouldBeCreated bool) int {
 		resourcesPresent := 0
 		// Step through the InstallPlan and check if resources have been created or not
 		for _, step := range installPlan.Status.Plan {
@@ -144,8 +143,8 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 				} else {
 					// require.Error(t, err)
 				}
-			} else if step.Resource.Kind == "ClusterServiceVersion-v1" {
-				_, err := c.GetCustomResource(apis.GroupName, installplanv1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
+			} else if step.Resource.Kind == "ClusterServiceVersion" {
+				_, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, step.Resource.Kind, step.Resource.Name)
 
 				if shouldBeCreated {
 					require.NoError(t, err)
@@ -174,12 +173,10 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 
 	// Approve InstallPlan and update
 	fetchedInstallPlan.Spec.Approved = true
-	ipUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&fetchedInstallPlan)
-	require.NoError(t, err)
-	err = c.UpdateCustomResource(&unstructured.Unstructured{Object: ipUnst})
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
 	require.NoError(t, err)
 
-	approvedInstallPlan, err := fetchInstallPlan(t, c, fetchedInstallPlan.GetName(), installPlanCompleteChecker)
+	approvedInstallPlan, err := fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), installPlanCompleteChecker)
 	require.NoError(t, err)
 
 	vaultResourcesPresent = verifyResources(approvedInstallPlan, true)
@@ -188,7 +185,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	require.NotZero(t, vaultResourcesPresent)
 
 	// Fetch installplan again to check for unnecessary control loops
-	_, err = fetchInstallPlan(t, c, approvedInstallPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+	_, err = fetchInstallPlan(t, crc, approvedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
 		compareResources(t, approvedInstallPlan, fip)
 		return true
 	})
@@ -197,79 +194,75 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 }
 
 func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t *testing.T) {
-	c := newKubeClient(t)
+	crc := newCRClient(t)
 
-	installPlan := installplanv1alpha1.InstallPlan{
+	installPlan := v1alpha1.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "install-bitcoin-miner",
 			Namespace: testNamespace,
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{"Bitcoin-miner-0.1"},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
-	unstructuredInstallPlan, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&installPlan)
+
+	_, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
 	require.NoError(t, err)
 
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
-	require.NoError(t, err)
-
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
-		return fip.Status.Phase == installplanv1alpha1.InstallPlanPhasePlanning &&
-			fip.Status.Conditions[0].Type == installplanv1alpha1.InstallPlanResolved &&
-			fip.Status.Conditions[0].Reason == installplanv1alpha1.InstallPlanReasonDependencyConflict
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
+		return fip.Status.Phase == v1alpha1.InstallPlanPhasePlanning &&
+			fip.Status.Conditions[0].Type == v1alpha1.InstallPlanResolved &&
+			fip.Status.Conditions[0].Reason == v1alpha1.InstallPlanReasonDependencyConflict
 	})
 
 	// Fetch installplan again to check for unnecessary control loops
-	_, err = fetchInstallPlan(t, c, installPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+	_, err = fetchInstallPlan(t, crc, installPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
 		compareResources(t, fetchedInstallPlan, fip)
 		return true
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
-	require.Equal(t, installplanv1alpha1.InstallPlanResolved, fetchedInstallPlan.Status.Conditions[0].Type)
+	require.Equal(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, v1alpha1.InstallPlanResolved, fetchedInstallPlan.Status.Conditions[0].Type)
 	require.Equal(t, corev1.ConditionFalse, fetchedInstallPlan.Status.Conditions[0].Status)
-	require.Equal(t, installplanv1alpha1.InstallPlanReasonInstallCheckFailed, fetchedInstallPlan.Status.Conditions[0].Reason)
+	require.Equal(t, v1alpha1.InstallPlanReasonInstallCheckFailed, fetchedInstallPlan.Status.Conditions[0].Reason)
 }
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
-	c := newKubeClient(t)
+	crc := newCRClient(t)
 
-	installPlan := installplanv1alpha1.InstallPlan{
+	installPlan := v1alpha1.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "install-dogecoin-miner",
 			Namespace: testNamespace,
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{"Dogecoin-miner-0.1"},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
-	unstructuredInstallPlan, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&installPlan)
-	require.NoError(t, err)
 
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
+	_, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
 	require.NoError(t, err)
 
 	// Wait for InstallPlan to be status: Complete before checking for resource presence
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), installPlanFailedChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), installPlanFailedChecker)
 	require.NoError(t, err)
 
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
 
 	// Fetch installplan again to check for unnecessary control loops
-	_, err = fetchInstallPlan(t, c, fetchedInstallPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+	_, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
 		compareResources(t, fetchedInstallPlan, fip)
 		return true
 	})
@@ -308,8 +301,8 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	// Generate CSVs for each package
 	csvType = metav1.TypeMeta{
-		Kind:       csvv1alpha1.ClusterServiceVersionKind,
-		APIVersion: csvv1alpha1.GroupVersion,
+		Kind:       v1alpha1.ClusterServiceVersionKind,
+		APIVersion: v1alpha1.GroupVersion,
 	}
 
 	// Create an install strategy
@@ -339,7 +332,7 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 		},
 	}
 	strategyRaw, _ = json.Marshal(strategy)
-	installStrategy = csvv1alpha1.NamedInstallStrategy{
+	installStrategy = v1alpha1.NamedInstallStrategy{
 		StrategyName:    install.InstallStrategyNameDeployment,
 		StrategySpecRaw: strategyRaw,
 	}
@@ -367,12 +360,12 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 		},
 	}
 
-	mainCSV := csvv1alpha1.ClusterServiceVersion{
+	mainCSV := v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: mainPackageStable,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        "",
 			Version:         *semver.New("0.1.0"),
 			InstallStrategy: installStrategy,
@@ -390,12 +383,12 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 		},
 	}
 
-	dependentCSV := csvv1alpha1.ClusterServiceVersion{
+	dependentCSV := v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: dependentPackageStable,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        "",
 			Version:         *semver.New("0.1.0"),
 			InstallStrategy: installStrategy,
@@ -414,6 +407,7 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	}
 
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 
 	// Create expected install plan step sources
 	type resourceKey struct {
@@ -422,49 +416,46 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	}
 
 	expectedStepSources := map[resourceKey]registry.SourceKey{
-		resourceKey{name: crdName, kind: "CustomResourceDefinition"}:                           registry.SourceKey{Name: "mock-ocs-dependent", Namespace: testNamespace},
-		resourceKey{name: dependentPackageStable, kind: csvv1alpha1.ClusterServiceVersionKind}: registry.SourceKey{Name: "mock-ocs-dependent", Namespace: testNamespace},
-		resourceKey{name: mainPackageStable, kind: csvv1alpha1.ClusterServiceVersionKind}:      registry.SourceKey{Name: "mock-ocs-main", Namespace: testNamespace},
+		resourceKey{name: crdName, kind: "CustomResourceDefinition"}:                        registry.SourceKey{Name: "mock-ocs-dependent", Namespace: testNamespace},
+		resourceKey{name: dependentPackageStable, kind: v1alpha1.ClusterServiceVersionKind}: registry.SourceKey{Name: "mock-ocs-dependent", Namespace: testNamespace},
+		resourceKey{name: mainPackageStable, kind: v1alpha1.ClusterServiceVersionKind}:      registry.SourceKey{Name: "mock-ocs-main", Namespace: testNamespace},
 	}
 
 	// Create the catalog sources
-	_, err := createInternalCatalogSource(t, c, "mock-ocs-dependent", testNamespace, dependentManifests, []extv1beta1.CustomResourceDefinition{dependentCRD}, []csvv1alpha1.ClusterServiceVersion{dependentCSV})
+	_, err := createInternalCatalogSource(t, c, "mock-ocs-dependent", testNamespace, dependentManifests, []extv1beta1.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV})
 	require.NoError(t, err)
-	_, err = createInternalCatalogSource(t, c, "mock-ocs-main", testNamespace, mainManifests, nil, []csvv1alpha1.ClusterServiceVersion{mainCSV})
+	_, err = createInternalCatalogSource(t, c, "mock-ocs-main", testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 	require.NoError(t, err)
 
 	// Fetch list of catalog sources
-	installPlan := installplanv1alpha1.InstallPlan{
+	installPlan := v1alpha1.InstallPlan{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       installplanv1alpha1.InstallPlanKind,
-			APIVersion: installplanv1alpha1.SchemeGroupVersion.String(),
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "install-nginx",
 			Namespace: testNamespace,
 		},
-		Spec: installplanv1alpha1.InstallPlanSpec{
+		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: []string{mainPackageStable},
-			Approval:                   installplanv1alpha1.ApprovalAutomatic,
+			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
 
-	unstructuredInstallPlan, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&installPlan)
-	require.NoError(t, err)
-
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: unstructuredInstallPlan})
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
 	require.NoError(t, err)
 	t.Logf("Install plan %s created", installPlan.GetName())
 
 	// Wait for InstallPlan to be status: Complete before checking resource presence
-	fetchedInstallPlan, err := fetchInstallPlan(t, c, installPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), installPlanCompleteChecker)
 	require.NoError(t, err)
 	t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
-	require.Equal(t, installplanv1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 	// Fetch installplan again to check for unnecessary control loops
-	fetchedInstallPlan, err = fetchInstallPlan(t, c, fetchedInstallPlan.GetName(), func(fip *installplanv1alpha1.InstallPlan) bool {
+	fetchedInstallPlan, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
 		compareResources(t, fetchedInstallPlan, fip)
 		return true
 	})

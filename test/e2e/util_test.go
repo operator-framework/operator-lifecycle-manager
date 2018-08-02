@@ -8,9 +8,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -107,7 +105,7 @@ func waitForAndFetchCustomResource(t *testing.T, c operatorclient.ClientInterfac
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		res, err = c.GetCustomResource(apis.GroupName, version, testNamespace, kind, name)
+		res, err = c.GetCustomResource(v1alpha1.GroupName, version, testNamespace, kind, name)
 		if err != nil {
 			return false, nil
 		}
@@ -124,7 +122,7 @@ func waitForAndFetchChildren(t *testing.T, c operatorclient.ClientInterface, ver
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		crList, err := c.ListCustomResource(apis.GroupName, version, testNamespace, kind)
+		crList, err := c.ListCustomResource(v1alpha1.GroupName, version, testNamespace, kind)
 		if err != nil {
 			t.Log(err)
 			return false, nil
@@ -151,7 +149,7 @@ func waitForAndFetchChildren(t *testing.T, c operatorclient.ClientInterface, ver
 func cleanupCustomResource(t *testing.T, c operatorclient.ClientInterface, group, kind, name string) cleanupFunc {
 	return func() {
 		t.Logf("deleting %s %s", kind, name)
-		require.NoError(t, c.DeleteCustomResource(apis.GroupName, group, testNamespace, kind, name))
+		require.NoError(t, c.DeleteCustomResource(v1alpha1.GroupName, group, testNamespace, kind, name))
 	}
 }
 
@@ -163,7 +161,7 @@ func compareResources(t *testing.T, expected, actual interface{}) {
 	}
 }
 
-func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []v1beta1.CustomResourceDefinition, csvs []csvv1alpha1.ClusterServiceVersion) (*catalogsourcev1alpha1.CatalogSource, error) {
+func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []v1beta1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, error) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -201,15 +199,15 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 	}
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
-	catalogSource := catalogsourcev1alpha1.CatalogSource{
+	catalogSource := v1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
-			Kind:       catalogsourcev1alpha1.CatalogSourceKind,
-			APIVersion: catalogsourcev1alpha1.CatalogSourceCRDAPIVersion,
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: catalogsourcev1alpha1.CatalogSourceSpec{
+		Spec: v1alpha1.CatalogSourceSpec{
 			Name:       name,
 			SourceType: "internal",
 			ConfigMap:  configMapName,

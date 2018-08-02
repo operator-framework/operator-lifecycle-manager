@@ -14,10 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
-	catsrcv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	subscriptionv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
@@ -44,7 +41,7 @@ type Operator struct {
 	sources            map[registry.SourceKey]registry.Source
 	sourcesLock        sync.RWMutex
 	sourcesLastUpdate  metav1.Time
-	subscriptions      map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription
+	subscriptions      map[registry.SubscriptionKey]v1alpha1.Subscription
 	subscriptionsLock  sync.RWMutex
 	dependencyResolver resolver.DependencyResolver
 }
@@ -66,16 +63,16 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
-		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Installplan().V1alpha1().InstallPlans().Informer())
-		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Subscription().V1alpha1().Subscriptions().Informer())
+		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
+		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
 	}
 
 	// Create an informer for each catalog namespace
 	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range []string{operatorNamespace} {
-		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
-		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Catalogsource().V1alpha1().CatalogSources().Informer())
+		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
 	}
 
 	// Create a new queueinformer-based operator.
@@ -90,7 +87,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		client:             crClient,
 		namespace:          operatorNamespace,
 		sources:            make(map[registry.SourceKey]registry.Source),
-		subscriptions:      make(map[registry.SubscriptionKey]subscriptionv1alpha1.Subscription),
+		subscriptions:      make(map[registry.SubscriptionKey]v1alpha1.Subscription),
 		dependencyResolver: &resolver.MultiSourceResolver{},
 	}
 
@@ -134,7 +131,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
-	catsrc, ok := obj.(*catsrcv1alpha1.CatalogSource)
+	catsrc, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting CatalogSource failed")
@@ -153,35 +150,48 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 }
 
 func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
-	sub, ok := obj.(*subscriptionv1alpha1.Subscription)
+	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Subscription failed")
 	}
 
-	log.Infof("syncing Subscription with catalog %s: %s on channel %s",
-		sub.Spec.CatalogSource, sub.Spec.Package, sub.Spec.Channel)
+	logger := log.WithFields(log.Fields{
+		"sub":       sub.GetName(),
+		"namespace": sub.GetNamespace(),
+		"source":    sub.Spec.CatalogSource,
+		"pkg":       sub.Spec.Package,
+		"channel":   sub.Spec.Channel,
+	})
 
-	var updatedSub *subscriptionv1alpha1.Subscription
+	logger.Infof("syncing")
+
+	var updatedSub *v1alpha1.Subscription
 	updatedSub, syncError = o.syncSubscription(sub)
 
-	if updatedSub != nil {
-		updatedSub.Status.LastUpdated = timeNow()
-		// Update Subscription with status of transition. Log errors if we can't write them to the status.
-		if _, err := o.client.SubscriptionV1alpha1().Subscriptions(updatedSub.GetNamespace()).Update(updatedSub); err != nil {
-			updateErr := errors.New("error updating Subscription status: " + err.Error())
-			if syncError == nil {
-				log.Info(updateErr)
-				return updateErr
-			}
-			syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
-			log.Info(syncError)
-		} else {
-			// map subcription
-			o.subscriptionsLock.Lock()
-			defer o.subscriptionsLock.Unlock()
-			o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSub
+	if updatedSub == nil {
+		return
+	}
+	if syncError != nil {
+		logger = logger.WithField("syncError", syncError)
+	}
+
+	updatedSub.Status.LastUpdated = timeNow()
+	// Update Subscription with status of transition. Log errors if we can't write them to the status.
+	if updatedSubFromApi, err := o.client.OperatorsV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
+		logger = logger.WithField("updateError", err.Error())
+		updateErr := errors.New("error updating Subscription status: " + err.Error())
+		if syncError == nil {
+			logger.Info("error updating Subscription status")
+			return updateErr
 		}
+		logger.Info("error transitioning Subscription")
+		syncError = fmt.Errorf("error transitioning Subscription: %s and error updating Subscription status: %s", syncError, updateErr)
+	} else {
+		// map subscription
+		o.subscriptionsLock.Lock()
+		defer o.subscriptionsLock.Unlock()
+		o.subscriptions[registry.SubscriptionKey{Name: sub.GetName(), Namespace: sub.GetNamespace()}] = *updatedSubFromApi
 	}
 	return
 }
@@ -193,18 +203,34 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting InstallPlan failed")
 	}
 
-	log.Infof("syncing InstallPlan: %s", plan.SelfLink)
-	syncError = transitionInstallPlanState(o, plan)
+	logger := log.WithFields(log.Fields{
+		"ip":        plan.GetName(),
+		"namespace": plan.GetNamespace(),
+		"phase":     plan.Status.Phase,
+	})
+
+	logger.Info("syncing")
+	outInstallPlan, syncError := transitionInstallPlanState(o, *plan)
+
+	if syncError != nil {
+		logger = logger.WithField("syncError", syncError)
+	}
+
+	// no changes in status, don't update
+	if outInstallPlan.Status.Phase == plan.Status.Phase {
+		return
+	}
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
-	if _, err := o.client.InstallplanV1alpha1().InstallPlans(plan.GetNamespace()).Update(plan); err != nil {
+	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
+		logger = logger.WithField("updateError", err.Error())
 		updateErr := errors.New("error updating InstallPlan status: " + err.Error())
 		if syncError == nil {
-			log.Info(updateErr)
+			logger.Info("error updating InstallPlan status")
 			return updateErr
 		}
+		logger.Info("error transitioning InstallPlan")
 		syncError = fmt.Errorf("error transitioning InstallPlan: %s and error updating InstallPlan status: %s", syncError, updateErr)
-		log.Info(syncError)
 	}
 	return
 }
@@ -216,53 +242,60 @@ type installPlanTransitioner interface {
 
 var _ installPlanTransitioner = &Operator{}
 
-func transitionInstallPlanState(transitioner installPlanTransitioner, plan *v1alpha1.InstallPlan) error {
-	switch plan.Status.Phase {
+func transitionInstallPlanState(transitioner installPlanTransitioner, in v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error) {
+	logger := log.WithFields(log.Fields{
+		"ip":        in.GetName(),
+		"namespace": in.GetNamespace(),
+		"phase":     in.Status.Phase,
+	})
+
+	out := in.DeepCopy()
+
+	switch in.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
-		log.Debugf("plan %s phase unrecognized, setting to Planning", plan.SelfLink)
-		plan.Status.Phase = v1alpha1.InstallPlanPhasePlanning
-		return nil
+		logger.Debugf("setting phase to %s", v1alpha1.InstallPlanPhasePlanning)
+		out.Status.Phase = v1alpha1.InstallPlanPhasePlanning
+		return out, nil
 
 	case v1alpha1.InstallPlanPhasePlanning:
-		log.Debugf("plan %s phase Planning, attempting to resolve", plan.SelfLink)
-		if err := transitioner.ResolvePlan(plan); err != nil {
-			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
+		logger.Debug("attempting to resolve")
+		if err := transitioner.ResolvePlan(out); err != nil {
+			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
 				v1alpha1.InstallPlanReasonInstallCheckFailed, err))
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-			return err
+			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			return out, err
 		}
-		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
+		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanResolved))
 
-		if plan.Spec.Approval == v1alpha1.ApprovalManual && plan.Spec.Approved != true {
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+		if out.Spec.Approval == v1alpha1.ApprovalManual && out.Spec.Approved != true {
+			out.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
 		} else {
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		}
-		return nil
+		return out, nil
 
 	case v1alpha1.InstallPlanPhaseRequiresApproval:
-		if plan.Spec.Approved {
-			log.Debugf("plan %s approved, setting to Planning", plan.SelfLink)
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		if out.Spec.Approved {
+			logger.Debugf("approved, setting to %s", v1alpha1.InstallPlanPhasePlanning)
+			out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		} else {
-			log.Debugf("plan %s is not approved, skipping sync", plan.SelfLink)
+			logger.Debug("not approved, skipping sync")
 		}
-		return nil
+		return out, nil
 
 	case v1alpha1.InstallPlanPhaseInstalling:
-		log.Debugf("plan %s phase Installing, attempting to install", plan.SelfLink)
-		if err := transitioner.ExecutePlan(plan); err != nil {
-			plan.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
+		logger.Debug("attempting to install")
+		if err := transitioner.ExecutePlan(out); err != nil {
+			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
 				v1alpha1.InstallPlanReasonComponentFailed, err))
-			plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
-			return err
+			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+			return out, err
 		}
-		plan.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
-		plan.Status.Phase = v1alpha1.InstallPlanPhaseComplete
-		return nil
-
+		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
+		out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
+		return out, nil
 	default:
-		return nil
+		return out, nil
 	}
 }
 
@@ -278,8 +311,8 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 
 	// Copy the sources for resolution from the included namespaces
 	includedNamespaces := map[string]struct{}{
-		o.namespace:    struct{}{},
-		plan.Namespace: struct{}{},
+		o.namespace:    {},
+		plan.Namespace: {},
 	}
 	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 
@@ -299,7 +332,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		plan.Status.CatalogSources = append(plan.Status.CatalogSources, sourceKey.Name)
 
 		// Get the catalog source
-		catsrc, err := o.client.CatalogsourceV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
+		catsrc, err := o.client.OperatorsV1alpha1().CatalogSources(sourceKey.Namespace).Get(sourceKey.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -371,16 +404,16 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					continue
 				}
 
-			case csvv1alpha1.ClusterServiceVersionKind:
+			case v1alpha1.ClusterServiceVersionKind:
 				// Marshal the manifest into a CRD instance.
-				var csv csvv1alpha1.ClusterServiceVersion
+				var csv v1alpha1.ClusterServiceVersion
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &csv)
 				if err != nil {
 					return err
 				}
 
 				// Attempt to create the CSV.
-				_, err = o.client.ClusterserviceversionV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(&csv)
+				_, err = o.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(&csv)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent

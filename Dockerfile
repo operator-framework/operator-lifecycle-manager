@@ -13,9 +13,9 @@ RUN go test -c -o /bin/e2e ./test/e2e/...
 FROM alpine:latest as olm
 LABEL olm=true
 WORKDIR /
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/alm /bin/alm
+COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
 EXPOSE 8080
-CMD ["/bin/alm"]
+CMD ["/bin/olm"]
 
 FROM alpine:latest as catalog
 LABEL catalog=true

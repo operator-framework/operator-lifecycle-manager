@@ -2,8 +2,8 @@
 FROM golang:1.10
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 COPY . .
-RUN make build && cp bin/alm /bin/alm && cp bin/catalog /bin/catalog && cp bin/servicebroker /bin/servicebroker
+RUN make build && cp bin/olm /bin/olm && cp bin/catalog /bin/catalog && cp bin/servicebroker /bin/servicebroker
 
 COPY deploy/chart/catalog_resources /var/catalog_resources
 
-CMD ["/bin/alm"]
+CMD ["/bin/olm"]

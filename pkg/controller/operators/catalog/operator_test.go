@@ -9,8 +9,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
 type mockTransitioner struct {
@@ -98,20 +97,20 @@ func TestTransitionInstallPlan(t *testing.T) {
 		transitioner := &mockTransitioner{tt.transError}
 
 		// Attempt to transition phases.
-		transitionInstallPlanState(transitioner, plan)
+		out, _ := transitionInstallPlanState(transitioner, *plan)
 
 		// Assert that the final phase is as expected.
-		require.Equal(t, tt.expected, plan.Status.Phase)
+		require.Equal(t, tt.expected, out.Status.Phase)
 
 		// Assert that the condition set is as expected
 		if tt.condition == nil {
-			require.Equal(t, 0, len(plan.Status.Conditions))
+			require.Equal(t, 0, len(out.Status.Conditions))
 		} else {
-			require.Equal(t, 1, len(plan.Status.Conditions))
-			require.Equal(t, tt.condition.Type, plan.Status.Conditions[0].Type)
-			require.Equal(t, tt.condition.Status, plan.Status.Conditions[0].Status)
-			require.Equal(t, tt.condition.Reason, plan.Status.Conditions[0].Reason)
-			require.Equal(t, tt.condition.Message, plan.Status.Conditions[0].Message)
+			require.Equal(t, 1, len(out.Status.Conditions))
+			require.Equal(t, tt.condition.Type, out.Status.Conditions[0].Type)
+			require.Equal(t, tt.condition.Status, out.Status.Conditions[0].Status)
+			require.Equal(t, tt.condition.Reason, out.Status.Conditions[0].Reason)
+			require.Equal(t, tt.condition.Message, out.Status.Conditions[0].Message)
 		}
 	}
 }
@@ -127,23 +126,23 @@ func installPlan(names ...string) v1alpha1.InstallPlan {
 	}
 }
 
-func csv(name string, owned, required []string) csvv1alpha1.ClusterServiceVersion {
-	requiredCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+func csv(name string, owned, required []string) v1alpha1.ClusterServiceVersion {
+	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range required {
-		requiredCRDDescs = append(requiredCRDDescs, csvv1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
 	}
 
-	ownedCRDDescs := make([]csvv1alpha1.CRDDescription, 0)
+	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range owned {
-		ownedCRDDescs = append(ownedCRDDescs, csvv1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
 	}
 
-	return csvv1alpha1.ClusterServiceVersion{
+	return v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
-		Spec: csvv1alpha1.ClusterServiceVersionSpec{
-			CustomResourceDefinitions: csvv1alpha1.CustomResourceDefinitions{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned:    ownedCRDDescs,
 				Required: requiredCRDDescs,
 			},

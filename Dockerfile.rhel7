@@ -11,6 +11,6 @@ COPY . .
 
 RUN make build
 
-RUN cp ./bin/alm /bin/alm
+RUN cp ./bin/olm /bin/olm
 RUN cp ./bin/catalog /bin/catalog
 EXPOSE 8080

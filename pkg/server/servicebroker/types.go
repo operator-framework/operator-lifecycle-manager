@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
@@ -54,32 +54,32 @@ var (
 	}
 )
 
-func serviceClassName(csv csvv1alpha1.ClusterServiceVersion) string {
+func serviceClassName(csv v1alpha1.ClusterServiceVersion) string {
 	return invalidServiceNameChars.ReplaceAllString(strings.ToLower(csv.GetName()), "-")
 }
-func serviceClassID(csv csvv1alpha1.ClusterServiceVersion) string {
+func serviceClassID(csv v1alpha1.ClusterServiceVersion) string {
 	return invalidServiceNameChars.ReplaceAllString(strings.ToLower(csv.GetName()), "-")
 }
-func serviceClassDescription(csv csvv1alpha1.ClusterServiceVersion) string {
+func serviceClassDescription(csv v1alpha1.ClusterServiceVersion) string {
 	// TODO better short description
 	return fmt.Sprintf("%s %s (%s) by %s", csv.Spec.DisplayName, csv.Spec.Version.String(),
 		csv.Spec.Maturity, csv.Spec.Provider.Name)
 }
-func serviceClassLongDescription(csv csvv1alpha1.ClusterServiceVersion) string {
+func serviceClassLongDescription(csv v1alpha1.ClusterServiceVersion) string {
 	description := stripmd.Strip(csv.Spec.Description)
 	if description == "" {
 		description = fmt.Sprintf("Cloud Service for %s", csv.GetName())
 	}
 	return description
 }
-func planID(service string, plan csvv1alpha1.CRDDescription) string {
+func planID(service string, plan v1alpha1.CRDDescription) string {
 	return strings.ToLower(invalidServiceNameChars.ReplaceAllString(service+"-"+plan.Kind, "-"))
 }
-func planName(service string, plan csvv1alpha1.CRDDescription) string {
+func planName(service string, plan v1alpha1.CRDDescription) string {
 	return strings.ToLower(invalidServiceNameChars.ReplaceAllString(service+"-"+plan.Kind, "-"))
 }
 
-func csvToService(csv csvv1alpha1.ClusterServiceVersion, catalog registry.Source) (osb.Service, error) {
+func csvToService(csv v1alpha1.ClusterServiceVersion, catalog registry.Source) (osb.Service, error) {
 	// validate CSV can be converted into a valid OpenServiceBroker ServiceInstance
 	name := csv.GetName()
 	if ok := validServiceName.MatchString(name); !ok {
@@ -174,7 +174,7 @@ type openshiftFormDefinition struct {
 }
 
 //'[{"apiVersion":"vault.security.coreos.com/v1alpha1","kind":"VaultService","metadata":{"name":"example"},"spec":{  "nodes":2,"version":"0.9.1-0"}}]'
-func crdToServicePlan(service string, crdDesc csvv1alpha1.CRDDescription, crd *v1beta1.CustomResourceDefinition) osb.Plan {
+func crdToServicePlan(service string, crdDesc v1alpha1.CRDDescription, crd *v1beta1.CustomResourceDefinition) osb.Plan {
 	bindable := false // when binding implemented, change to `len(crd.StatusDescriptors) > 0`
 	plan := osb.Plan{
 		ID:          planID(service, crdDesc),
@@ -204,5 +204,3 @@ func crdToServicePlan(service string, crdDesc csvv1alpha1.CRDDescription, crd *v
 	}
 	return plan
 }
-
-//func getServiceClassForPackage(catalog registry.Source, pkg registry.PackageManifest) (osb.Service, error) {

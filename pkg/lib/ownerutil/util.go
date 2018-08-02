@@ -1,11 +1,7 @@
 package ownerutil
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis"
-	csv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	csvv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
-	ipv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/installplan/v1alpha1"
-	subv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/subscription/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -60,29 +56,29 @@ func inferGroupVersionKind(owner Owner) {
 	}
 
 	switch v := owner.(type) {
-	case *csvv1alpha1.ClusterServiceVersion:
+	case *v1alpha1.ClusterServiceVersion:
 		owner.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   apis.GroupName,
-			Version: csvv1alpha1.GroupVersion,
-			Kind:    csvv1alpha1.ClusterServiceVersionKind,
+			Group:   v1alpha1.GroupName,
+			Version: v1alpha1.GroupVersion,
+			Kind:    v1alpha1.ClusterServiceVersionKind,
 		})
-	case *ipv1alpha1.InstallPlan:
+	case *v1alpha1.InstallPlan:
 		owner.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   apis.GroupName,
-			Version: ipv1alpha1.GroupVersion,
-			Kind:    ipv1alpha1.InstallPlanKind,
+			Group:   v1alpha1.GroupName,
+			Version: v1alpha1.GroupVersion,
+			Kind:    v1alpha1.InstallPlanKind,
 		})
-	case *subv1alpha1.Subscription:
+	case *v1alpha1.Subscription:
 		owner.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   apis.GroupName,
-			Version: subv1alpha1.GroupVersion,
-			Kind:    subv1alpha1.SubscriptionKind,
+			Group:   v1alpha1.GroupName,
+			Version: v1alpha1.GroupVersion,
+			Kind:    v1alpha1.SubscriptionKind,
 		})
-	case *csv1alpha1.CatalogSource:
+	case *v1alpha1.CatalogSource:
 		owner.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   apis.GroupName,
-			Version: csv1alpha1.GroupVersion,
-			Kind:    csv1alpha1.CatalogSourceKind,
+			Group:   v1alpha1.GroupName,
+			Version: v1alpha1.GroupVersion,
+			Kind:    v1alpha1.CatalogSourceKind,
 		})
 	default:
 		log.Warnf("could not infer GVK for object: %#v, %#v", v, owner)

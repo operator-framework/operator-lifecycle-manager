@@ -22,7 +22,7 @@ spec:
       containers:
         - name: alm-operator
           command:
-          - /bin/alm
+          - /bin/olm
           {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}

@@ -20,8 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	catalogsourcev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/catalogsource/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/clusterserviceversion/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -225,7 +224,7 @@ func validateCRD(schemaFileName string, fileBytes []byte) error {
 	}
 
 	// Validate CR against CRD schema
-	validator, err := apiservervalidation.NewSchemaValidator(unversionedCRD.Spec.Validation)
+	validator, _, err := apiservervalidation.NewSchemaValidator(unversionedCRD.Spec.Validation)
 	return apiservervalidation.ValidateCustomResource(unstructured.UnstructuredContent(), validator)
 }
 
@@ -244,7 +243,7 @@ func validateKind(kind string, fileBytes []byte) error {
 		}
 		return err
 	case "CatalogSource":
-		cs := catalogsourcev1alpha1.CatalogSource{}
+		cs := v1alpha1.CatalogSource{}
 		err = json.Unmarshal(exampleFileBytesJson, &cs)
 		if err != nil {
 			return err
