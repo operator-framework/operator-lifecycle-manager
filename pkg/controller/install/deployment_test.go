@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,10 +24,10 @@ var (
 	BlockOwnerDeletion = false
 )
 
-func testDeployment(name, namespace string, mockOwner ownerutil.Owner) v1beta2.Deployment {
+func testDeployment(name, namespace string, mockOwner ownerutil.Owner) appsv1.Deployment {
 	testDeploymentLabels := map[string]string{"alm-owner-name": mockOwner.GetName(), "alm-owner-namespace": mockOwner.GetNamespace()}
 
-	deployment := v1beta2.Deployment{
+	deployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
@@ -124,10 +124,10 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 		strategyDeploymentSpecs []StrategyDeploymentSpec
 	}
 	type setup struct {
-		existingDeployments []*v1beta2.Deployment
+		existingDeployments []*appsv1.Deployment
 	}
 	type createOrUpdateMock struct {
-		expectedDeployment v1beta2.Deployment
+		expectedDeployment appsv1.Deployment
 		returnError        error
 	}
 	tests := []struct {
@@ -143,20 +143,20 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 				strategyDeploymentSpecs: []StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
-						Spec: v1beta2.DeploymentSpec{},
+						Spec: appsv1.DeploymentSpec{},
 					},
 					{
 						Name: "test-deployment-2",
-						Spec: v1beta2.DeploymentSpec{},
+						Spec: appsv1.DeploymentSpec{},
 					},
 					{
 						Name: "test-deployment-3",
-						Spec: v1beta2.DeploymentSpec{},
+						Spec: appsv1.DeploymentSpec{},
 					},
 				},
 			},
 			setup: setup{
-				existingDeployments: []*v1beta2.Deployment{
+				existingDeployments: []*appsv1.Deployment{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "test-deployment-1",
@@ -166,7 +166,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "test-deployment-3",
 						},
-						Spec: v1beta2.DeploymentSpec{
+						Spec: appsv1.DeploymentSpec{
 							Paused: false, // arbitrary spec difference
 						},
 					},
@@ -174,7 +174,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 			},
 			createOrUpdateMocks: []createOrUpdateMock{
 				{
-					expectedDeployment: v1beta2.Deployment{
+					expectedDeployment: appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            "test-deployment-1",
 							Namespace:       mockOwner.GetNamespace(),
@@ -188,7 +188,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					returnError: nil,
 				},
 				{
-					expectedDeployment: v1beta2.Deployment{
+					expectedDeployment: appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            "test-deployment-2",
 							Namespace:       mockOwner.GetNamespace(),
@@ -202,7 +202,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 					returnError: nil,
 				},
 				{
-					expectedDeployment: v1beta2.Deployment{
+					expectedDeployment: appsv1.Deployment{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:            "test-deployment-3",
 							Namespace:       mockOwner.GetNamespace(),
@@ -226,7 +226,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 
 			for i, m := range tt.createOrUpdateMocks {
 				fakeClient.CreateDeploymentReturns(nil, m.returnError)
-				defer func(i int, expectedDeployment v1beta2.Deployment) {
+				defer func(i int, expectedDeployment appsv1.Deployment) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
 					require.Equal(t, expectedDeployment, *dep)
 				}(i, m.expectedDeployment)
@@ -564,10 +564,10 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				}(i, p.Rules)
 			}
 
-			var mockedDeps []*v1beta2.Deployment
+			var mockedDeps []*appsv1.Deployment
 			for i := 1; i <= tt.numMockDeployments; i++ {
 				dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, &mockOwner)
-				dep.Spec = v1beta2.DeploymentSpec{Paused: true} // arbitrary
+				dep.Spec = appsv1.DeploymentSpec{Paused: true} // arbitrary
 
 				mockedDeps = append(mockedDeps, &dep)
 			}
@@ -692,7 +692,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 			if tt.checkServiceAccountErr == nil {
 				dep := testDeployment("alm-dep-1", namespace, &mockOwner)
 				fakeClient.FindAnyDeploymentsMatchingNamesReturns(
-					[]*v1beta2.Deployment{
+					[]*appsv1.Deployment{
 						&dep,
 					}, nil,
 				)

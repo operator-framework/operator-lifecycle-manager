@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -139,7 +139,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 	}
 
 	for _, deploymentName := range []string{"etcd-operator"} {
-		var deployment *appsv1beta2.Deployment
+		var deployment *appsv1.Deployment
 		t.Logf("Looking for Deployment %s in %s\n", deploymentName, testNamespace)
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -279,7 +279,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	}
 
 	for _, deploymentName := range []string{"prometheus-operator"} {
-		var deployment *appsv1beta2.Deployment
+		var deployment *appsv1.Deployment
 		t.Logf("Looking for Deployment %s in %s\n", deploymentName, testNamespace)
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -425,7 +425,7 @@ func TestInstallVaultOCS(t *testing.T) {
 	}
 
 	for _, deploymentName := range []string{"etcd-operator", "vault-operator"} {
-		var deployment *appsv1beta2.Deployment
+		var deployment *appsv1.Deployment
 		t.Logf("Looking for Deployment %s in %s\n", deploymentName, testNamespace)
 
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {

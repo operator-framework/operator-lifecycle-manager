@@ -2,7 +2,7 @@ package operatorclient
 
 import (
 	log "github.com/sirupsen/logrus"
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,17 +46,17 @@ type ServiceAccountClient interface {
 
 // DeploymentClient contains methods for the Deployment resource.
 type DeploymentClient interface {
-	GetDeployment(namespace, name string) (*appsv1beta2.Deployment, error)
-	CreateDeployment(*appsv1beta2.Deployment) (*appsv1beta2.Deployment, error)
+	GetDeployment(namespace, name string) (*appsv1.Deployment, error)
+	CreateDeployment(*appsv1.Deployment) (*appsv1.Deployment, error)
 	DeleteDeployment(namespace, name string, options *metav1.DeleteOptions) error
-	UpdateDeployment(*appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error)
-	PatchDeployment(*appsv1beta2.Deployment, *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error)
-	RollingUpdateDeployment(*appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error)
-	RollingPatchDeployment(*appsv1beta2.Deployment, *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error)
-	RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*appsv1beta2.Deployment, bool, error)
-	RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1beta2.Deployment, bool, error)
-	CreateOrRollingUpdateDeployment(*appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error)
-	ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1beta2.DeploymentList, error)
+	UpdateDeployment(*appsv1.Deployment) (*appsv1.Deployment, bool, error)
+	PatchDeployment(*appsv1.Deployment, *appsv1.Deployment) (*appsv1.Deployment, bool, error)
+	RollingUpdateDeployment(*appsv1.Deployment) (*appsv1.Deployment, bool, error)
+	RollingPatchDeployment(*appsv1.Deployment, *appsv1.Deployment) (*appsv1.Deployment, bool, error)
+	RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*appsv1.Deployment, bool, error)
+	RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1.Deployment, bool, error)
+	CreateOrRollingUpdateDeployment(*appsv1.Deployment) (*appsv1.Deployment, bool, error)
+	ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1.DeploymentList, error)
 }
 
 // Interface assertion.

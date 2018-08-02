@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -19,28 +19,28 @@ const (
 )
 
 // GetDeployment returns the Deployment object for the given namespace and name.
-func (c *Client) GetDeployment(namespace, name string) (*appsv1beta2.Deployment, error) {
+func (c *Client) GetDeployment(namespace, name string) (*appsv1.Deployment, error) {
 	glog.V(4).Infof("[GET Deployment]: %s:%s", namespace, name)
-	return c.AppsV1beta2().Deployments(namespace).Get(name, metav1.GetOptions{})
+	return c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
 }
 
 // CreateDeployment creates the Deployment object.
-func (c *Client) CreateDeployment(dep *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error) {
+func (c *Client) CreateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, error) {
 	glog.V(4).Infof("[CREATE Deployment]: %s:%s", dep.Namespace, dep.Name)
-	return c.AppsV1beta2().Deployments(dep.Namespace).Create(dep)
+	return c.AppsV1().Deployments(dep.Namespace).Create(dep)
 }
 
 // DeleteDeployment deletes the Deployment object.
 func (c *Client) DeleteDeployment(namespace, name string, options *metav1.DeleteOptions) error {
 	glog.V(4).Infof("[DELETE Deployment]: %s:%s", namespace, name)
-	return c.AppsV1beta2().Deployments(namespace).Delete(name, options)
+	return c.AppsV1().Deployments(namespace).Delete(name, options)
 }
 
 // UpdateDeployment updates a Deployment object by performing a 2-way patch between the existing
 // Deployment and the result of the UpdateFunction.
 //
 // Returns the latest Deployment and true if it was updated, or an error.
-func (c *Client) UpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) UpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	return c.PatchDeployment(nil, dep)
 }
 
@@ -48,11 +48,11 @@ func (c *Client) UpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1beta2.Dep
 // Deployment and `original` and `modified` manifests.
 //
 // Returns the latest Deployment and true if it was updated, or an error.
-func (c *Client) PatchDeployment(original, modified *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) PatchDeployment(original, modified *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	namespace, name := modified.Namespace, modified.Name
 	glog.V(4).Infof("[PATCH Deployment]: %s:%s", namespace, name)
 
-	current, err := c.AppsV1beta2().Deployments(namespace).Get(name, metav1.GetOptions{})
+	current, err := c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -67,7 +67,7 @@ func (c *Client) PatchDeployment(original, modified *appsv1beta2.Deployment) (*a
 	if err != nil {
 		return nil, false, err
 	}
-	updated, err := c.AppsV1beta2().Deployments(namespace).Patch(name, types.StrategicMergePatchType, patchBytes)
+	updated, err := c.AppsV1().Deployments(namespace).Patch(name, types.StrategicMergePatchType, patchBytes)
 	if err != nil {
 		return nil, false, err
 	}
@@ -76,7 +76,7 @@ func (c *Client) PatchDeployment(original, modified *appsv1beta2.Deployment) (*a
 
 // RollingUpdateDeployment performs a rolling update on the given Deployment. It requires that the
 // Deployment uses the RollingUpdateDeploymentStrategyType update strategy.
-func (c *Client) RollingUpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) RollingUpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	return c.RollingUpdateDeploymentMigrations(dep.Namespace, dep.Name, Update(dep))
 }
 
@@ -85,7 +85,7 @@ func (c *Client) RollingUpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1be
 //
 // RollingUpdateDeploymentMigrations will run any before / during / after migrations that have been
 // specified in the upgrade options.
-func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*appsv1.Deployment, bool, error) {
 	glog.V(4).Infof("[ROLLING UPDATE Deployment]: %s:%s", namespace, name)
 	return c.RollingPatchDeploymentMigrations(namespace, name, updateToPatch(f))
 }
@@ -96,7 +96,7 @@ func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f Upd
 //
 // RollingPatchDeployment will run any before / after migrations that have been specified in the
 // upgrade options.
-func (c *Client) RollingPatchDeployment(original, modified *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) RollingPatchDeployment(original, modified *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	return c.RollingPatchDeploymentMigrations(modified.Namespace, modified.Name, Patch(original, modified))
 }
 
@@ -106,10 +106,10 @@ func (c *Client) RollingPatchDeployment(original, modified *appsv1beta2.Deployme
 //
 // RollingPatchDeploymentMigrations will run any before / after migrations that have been specified
 // in the upgrade options.
-func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1.Deployment, bool, error) {
 	glog.V(4).Infof("[ROLLING PATCH Deployment]: %s:%s", namespace, name)
 
-	current, err := c.AppsV1beta2().Deployments(namespace).Get(name, metav1.GetOptions{})
+	current, err := c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
 		return nil, false, err
 	}
@@ -128,7 +128,7 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 	if originalObj == nil {
 		originalObj = current // Emulate 2-way merge.
 	}
-	original, modified := originalObj.(*appsv1beta2.Deployment), modifiedObj.(*appsv1beta2.Deployment)
+	original, modified := originalObj.(*appsv1.Deployment), modifiedObj.(*appsv1.Deployment)
 	// Check for nil pointers.
 	if modified == nil {
 		return nil, false, errors.New("modified cannot be nil")
@@ -141,7 +141,7 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 	if err != nil {
 		return nil, false, err
 	}
-	updated, err := c.AppsV1beta2().Deployments(namespace).Patch(name, types.StrategicMergePatchType, patchBytes)
+	updated, err := c.AppsV1().Deployments(namespace).Patch(name, types.StrategicMergePatchType, patchBytes)
 	if err != nil {
 		return nil, false, err
 	}
@@ -152,15 +152,15 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 	return updated, current.GetResourceVersion() != updated.GetResourceVersion(), nil
 }
 
-func checkDeploymentRollingUpdateEnabled(dep *appsv1beta2.Deployment) error {
-	enabled := dep.Spec.Strategy.Type == appsv1beta2.RollingUpdateDeploymentStrategyType || dep.Spec.Strategy.Type == "" // Deployments rolling update by default
+func checkDeploymentRollingUpdateEnabled(dep *appsv1.Deployment) error {
+	enabled := dep.Spec.Strategy.Type == appsv1.RollingUpdateDeploymentStrategyType || dep.Spec.Strategy.Type == "" // Deployments rolling update by default
 	if !enabled {
 		return fmt.Errorf("Deployment %s/%s does not have rolling update strategy enabled", dep.GetNamespace(), dep.GetName())
 	}
 	return nil
 }
 
-func (c *Client) waitForDeploymentRollout(dep *appsv1beta2.Deployment) error {
+func (c *Client) waitForDeploymentRollout(dep *appsv1.Deployment) error {
 	return wait.PollInfinite(deploymentRolloutPollInterval, func() (bool, error) {
 		d, err := c.GetDeployment(dep.Namespace, dep.Name)
 		if err != nil {
@@ -179,7 +179,7 @@ func (c *Client) waitForDeploymentRollout(dep *appsv1beta2.Deployment) error {
 // CreateOrRollingUpdateDeployment creates the Deployment if it doesn't exist. If the Deployment
 // already exists, it will update the Deployment and wait for it to rollout. Returns true if the
 // Deployment was created or updated, false if there was no update.
-func (c *Client) CreateOrRollingUpdateDeployment(dep *appsv1beta2.Deployment) (*appsv1beta2.Deployment, bool, error) {
+func (c *Client) CreateOrRollingUpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	glog.V(4).Infof("[CREATE OR ROLLING UPDATE Deployment]: %s:%s", dep.Namespace, dep.Name)
 
 	_, err := c.GetDeployment(dep.Namespace, dep.Name)
@@ -198,9 +198,9 @@ func (c *Client) CreateOrRollingUpdateDeployment(dep *appsv1beta2.Deployment) (*
 
 // ListDeploymentsWithLabels returns a list of deployments that matches the label selector.
 // An empty list will be returned if no such deployments is found.
-func (c *Client) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1beta2.DeploymentList, error) {
+func (c *Client) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1.DeploymentList, error) {
 	glog.V(4).Infof("[LIST Deployments] in %s, labels: %v", namespace, labels)
 
 	opts := metav1.ListOptions{LabelSelector: labels.String()}
-	return c.AppsV1beta2().Deployments(namespace).List(opts)
+	return c.AppsV1().Deployments(namespace).List(opts)
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -25,8 +25,8 @@ type StrategyDeploymentPermissions struct {
 
 // StrategyDeploymentSpec contains the name and spec for the deployment ALM should create
 type StrategyDeploymentSpec struct {
-	Name string                 `json:"name"`
-	Spec v1beta2.DeploymentSpec `json:"spec"`
+	Name string                `json:"name"`
+	Spec appsv1.DeploymentSpec `json:"spec"`
 }
 
 // StrategyDetailsDeployment represents the parsed details of a Deployment
@@ -104,7 +104,7 @@ func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploym
 func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
 	for _, d := range deps {
 		// Create or Update Deployment
-		dep := &v1beta2.Deployment{Spec: d.Spec}
+		dep := &appsv1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.owner.GetNamespace())
 		ownerutil.AddNonBlockingOwner(dep, i.owner)
@@ -209,7 +209,7 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []Stra
 	}
 
 	// compare deployments to see if any need to be created/updated
-	existingMap := map[string]*v1beta2.Deployment{}
+	existingMap := map[string]*appsv1.Deployment{}
 	for _, d := range existingDeployments {
 		existingMap[d.GetName()] = d
 	}

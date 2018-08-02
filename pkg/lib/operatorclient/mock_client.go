@@ -6,10 +6,10 @@ package operatorclient
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	v1beta2 "k8s.io/api/apps/v1beta2"
-	v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/apps/v1"
+	v10 "k8s.io/api/core/v1"
 	clientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	v10 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v11 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	labels "k8s.io/apimachinery/pkg/labels"
 	kubernetes "k8s.io/client-go/kubernetes"
@@ -200,9 +200,9 @@ func (mr *MockClientInterfaceMockRecorder) ListCustomResource(apiGroup, version,
 }
 
 // CreateServiceAccount mocks base method
-func (m *MockClientInterface) CreateServiceAccount(arg0 *v1.ServiceAccount) (*v1.ServiceAccount, error) {
+func (m *MockClientInterface) CreateServiceAccount(arg0 *v10.ServiceAccount) (*v10.ServiceAccount, error) {
 	ret := m.ctrl.Call(m, "CreateServiceAccount", arg0)
-	ret0, _ := ret[0].(*v1.ServiceAccount)
+	ret0, _ := ret[0].(*v10.ServiceAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -213,9 +213,9 @@ func (mr *MockClientInterfaceMockRecorder) CreateServiceAccount(arg0 interface{}
 }
 
 // GetServiceAccount mocks base method
-func (m *MockClientInterface) GetServiceAccount(namespace, name string) (*v1.ServiceAccount, error) {
+func (m *MockClientInterface) GetServiceAccount(namespace, name string) (*v10.ServiceAccount, error) {
 	ret := m.ctrl.Call(m, "GetServiceAccount", namespace, name)
-	ret0, _ := ret[0].(*v1.ServiceAccount)
+	ret0, _ := ret[0].(*v10.ServiceAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -226,9 +226,9 @@ func (mr *MockClientInterfaceMockRecorder) GetServiceAccount(namespace, name int
 }
 
 // UpdateServiceAccount mocks base method
-func (m *MockClientInterface) UpdateServiceAccount(modified *v1.ServiceAccount) (*v1.ServiceAccount, error) {
+func (m *MockClientInterface) UpdateServiceAccount(modified *v10.ServiceAccount) (*v10.ServiceAccount, error) {
 	ret := m.ctrl.Call(m, "UpdateServiceAccount", modified)
-	ret0, _ := ret[0].(*v1.ServiceAccount)
+	ret0, _ := ret[0].(*v10.ServiceAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -239,7 +239,7 @@ func (mr *MockClientInterfaceMockRecorder) UpdateServiceAccount(modified interfa
 }
 
 // DeleteServiceAccount mocks base method
-func (m *MockClientInterface) DeleteServiceAccount(namespace, name string, options *v10.DeleteOptions) error {
+func (m *MockClientInterface) DeleteServiceAccount(namespace, name string, options *v11.DeleteOptions) error {
 	ret := m.ctrl.Call(m, "DeleteServiceAccount", namespace, name, options)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -251,9 +251,9 @@ func (mr *MockClientInterfaceMockRecorder) DeleteServiceAccount(namespace, name,
 }
 
 // GetDeployment mocks base method
-func (m *MockClientInterface) GetDeployment(namespace, name string) (*v1beta2.Deployment, error) {
+func (m *MockClientInterface) GetDeployment(namespace, name string) (*v1.Deployment, error) {
 	ret := m.ctrl.Call(m, "GetDeployment", namespace, name)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -264,9 +264,9 @@ func (mr *MockClientInterfaceMockRecorder) GetDeployment(namespace, name interfa
 }
 
 // CreateDeployment mocks base method
-func (m *MockClientInterface) CreateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, error) {
+func (m *MockClientInterface) CreateDeployment(arg0 *v1.Deployment) (*v1.Deployment, error) {
 	ret := m.ctrl.Call(m, "CreateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -277,7 +277,7 @@ func (mr *MockClientInterfaceMockRecorder) CreateDeployment(arg0 interface{}) *g
 }
 
 // DeleteDeployment mocks base method
-func (m *MockClientInterface) DeleteDeployment(namespace, name string, options *v10.DeleteOptions) error {
+func (m *MockClientInterface) DeleteDeployment(namespace, name string, options *v11.DeleteOptions) error {
 	ret := m.ctrl.Call(m, "DeleteDeployment", namespace, name, options)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -289,9 +289,9 @@ func (mr *MockClientInterfaceMockRecorder) DeleteDeployment(namespace, name, opt
 }
 
 // UpdateDeployment mocks base method
-func (m *MockClientInterface) UpdateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) UpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "UpdateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -303,9 +303,9 @@ func (mr *MockClientInterfaceMockRecorder) UpdateDeployment(arg0 interface{}) *g
 }
 
 // PatchDeployment mocks base method
-func (m *MockClientInterface) PatchDeployment(arg0, arg1 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) PatchDeployment(arg0, arg1 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "PatchDeployment", arg0, arg1)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -317,9 +317,9 @@ func (mr *MockClientInterfaceMockRecorder) PatchDeployment(arg0, arg1 interface{
 }
 
 // RollingUpdateDeployment mocks base method
-func (m *MockClientInterface) RollingUpdateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) RollingUpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingUpdateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -331,9 +331,9 @@ func (mr *MockClientInterfaceMockRecorder) RollingUpdateDeployment(arg0 interfac
 }
 
 // RollingPatchDeployment mocks base method
-func (m *MockClientInterface) RollingPatchDeployment(arg0, arg1 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) RollingPatchDeployment(arg0, arg1 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingPatchDeployment", arg0, arg1)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -345,9 +345,9 @@ func (mr *MockClientInterfaceMockRecorder) RollingPatchDeployment(arg0, arg1 int
 }
 
 // RollingUpdateDeploymentMigrations mocks base method
-func (m *MockClientInterface) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingUpdateDeploymentMigrations", namespace, name, f)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -359,9 +359,9 @@ func (mr *MockClientInterfaceMockRecorder) RollingUpdateDeploymentMigrations(nam
 }
 
 // RollingPatchDeploymentMigrations mocks base method
-func (m *MockClientInterface) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingPatchDeploymentMigrations", namespace, name, f)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -373,9 +373,9 @@ func (mr *MockClientInterfaceMockRecorder) RollingPatchDeploymentMigrations(name
 }
 
 // CreateOrRollingUpdateDeployment mocks base method
-func (m *MockClientInterface) CreateOrRollingUpdateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockClientInterface) CreateOrRollingUpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "CreateOrRollingUpdateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -387,9 +387,9 @@ func (mr *MockClientInterfaceMockRecorder) CreateOrRollingUpdateDeployment(arg0 
 }
 
 // ListDeploymentsWithLabels mocks base method
-func (m *MockClientInterface) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*v1beta2.DeploymentList, error) {
+func (m *MockClientInterface) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*v1.DeploymentList, error) {
 	ret := m.ctrl.Call(m, "ListDeploymentsWithLabels", namespace, labels)
-	ret0, _ := ret[0].(*v1beta2.DeploymentList)
+	ret0, _ := ret[0].(*v1.DeploymentList)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -582,9 +582,9 @@ func (m *MockServiceAccountClient) EXPECT() *MockServiceAccountClientMockRecorde
 }
 
 // CreateServiceAccount mocks base method
-func (m *MockServiceAccountClient) CreateServiceAccount(arg0 *v1.ServiceAccount) (*v1.ServiceAccount, error) {
+func (m *MockServiceAccountClient) CreateServiceAccount(arg0 *v10.ServiceAccount) (*v10.ServiceAccount, error) {
 	ret := m.ctrl.Call(m, "CreateServiceAccount", arg0)
-	ret0, _ := ret[0].(*v1.ServiceAccount)
+	ret0, _ := ret[0].(*v10.ServiceAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -595,9 +595,9 @@ func (mr *MockServiceAccountClientMockRecorder) CreateServiceAccount(arg0 interf
 }
 
 // GetServiceAccount mocks base method
-func (m *MockServiceAccountClient) GetServiceAccount(namespace, name string) (*v1.ServiceAccount, error) {
+func (m *MockServiceAccountClient) GetServiceAccount(namespace, name string) (*v10.ServiceAccount, error) {
 	ret := m.ctrl.Call(m, "GetServiceAccount", namespace, name)
-	ret0, _ := ret[0].(*v1.ServiceAccount)
+	ret0, _ := ret[0].(*v10.ServiceAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -608,9 +608,9 @@ func (mr *MockServiceAccountClientMockRecorder) GetServiceAccount(namespace, nam
 }
 
 // UpdateServiceAccount mocks base method
-func (m *MockServiceAccountClient) UpdateServiceAccount(modified *v1.ServiceAccount) (*v1.ServiceAccount, error) {
+func (m *MockServiceAccountClient) UpdateServiceAccount(modified *v10.ServiceAccount) (*v10.ServiceAccount, error) {
 	ret := m.ctrl.Call(m, "UpdateServiceAccount", modified)
-	ret0, _ := ret[0].(*v1.ServiceAccount)
+	ret0, _ := ret[0].(*v10.ServiceAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -621,7 +621,7 @@ func (mr *MockServiceAccountClientMockRecorder) UpdateServiceAccount(modified in
 }
 
 // DeleteServiceAccount mocks base method
-func (m *MockServiceAccountClient) DeleteServiceAccount(namespace, name string, options *v10.DeleteOptions) error {
+func (m *MockServiceAccountClient) DeleteServiceAccount(namespace, name string, options *v11.DeleteOptions) error {
 	ret := m.ctrl.Call(m, "DeleteServiceAccount", namespace, name, options)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -656,9 +656,9 @@ func (m *MockDeploymentClient) EXPECT() *MockDeploymentClientMockRecorder {
 }
 
 // GetDeployment mocks base method
-func (m *MockDeploymentClient) GetDeployment(namespace, name string) (*v1beta2.Deployment, error) {
+func (m *MockDeploymentClient) GetDeployment(namespace, name string) (*v1.Deployment, error) {
 	ret := m.ctrl.Call(m, "GetDeployment", namespace, name)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -669,9 +669,9 @@ func (mr *MockDeploymentClientMockRecorder) GetDeployment(namespace, name interf
 }
 
 // CreateDeployment mocks base method
-func (m *MockDeploymentClient) CreateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, error) {
+func (m *MockDeploymentClient) CreateDeployment(arg0 *v1.Deployment) (*v1.Deployment, error) {
 	ret := m.ctrl.Call(m, "CreateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -682,7 +682,7 @@ func (mr *MockDeploymentClientMockRecorder) CreateDeployment(arg0 interface{}) *
 }
 
 // DeleteDeployment mocks base method
-func (m *MockDeploymentClient) DeleteDeployment(namespace, name string, options *v10.DeleteOptions) error {
+func (m *MockDeploymentClient) DeleteDeployment(namespace, name string, options *v11.DeleteOptions) error {
 	ret := m.ctrl.Call(m, "DeleteDeployment", namespace, name, options)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -694,9 +694,9 @@ func (mr *MockDeploymentClientMockRecorder) DeleteDeployment(namespace, name, op
 }
 
 // UpdateDeployment mocks base method
-func (m *MockDeploymentClient) UpdateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) UpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "UpdateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -708,9 +708,9 @@ func (mr *MockDeploymentClientMockRecorder) UpdateDeployment(arg0 interface{}) *
 }
 
 // PatchDeployment mocks base method
-func (m *MockDeploymentClient) PatchDeployment(arg0, arg1 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) PatchDeployment(arg0, arg1 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "PatchDeployment", arg0, arg1)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -722,9 +722,9 @@ func (mr *MockDeploymentClientMockRecorder) PatchDeployment(arg0, arg1 interface
 }
 
 // RollingUpdateDeployment mocks base method
-func (m *MockDeploymentClient) RollingUpdateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) RollingUpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingUpdateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -736,9 +736,9 @@ func (mr *MockDeploymentClientMockRecorder) RollingUpdateDeployment(arg0 interfa
 }
 
 // RollingPatchDeployment mocks base method
-func (m *MockDeploymentClient) RollingPatchDeployment(arg0, arg1 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) RollingPatchDeployment(arg0, arg1 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingPatchDeployment", arg0, arg1)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -750,9 +750,9 @@ func (mr *MockDeploymentClientMockRecorder) RollingPatchDeployment(arg0, arg1 in
 }
 
 // RollingUpdateDeploymentMigrations mocks base method
-func (m *MockDeploymentClient) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingUpdateDeploymentMigrations", namespace, name, f)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -764,9 +764,9 @@ func (mr *MockDeploymentClientMockRecorder) RollingUpdateDeploymentMigrations(na
 }
 
 // RollingPatchDeploymentMigrations mocks base method
-func (m *MockDeploymentClient) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "RollingPatchDeploymentMigrations", namespace, name, f)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -778,9 +778,9 @@ func (mr *MockDeploymentClientMockRecorder) RollingPatchDeploymentMigrations(nam
 }
 
 // CreateOrRollingUpdateDeployment mocks base method
-func (m *MockDeploymentClient) CreateOrRollingUpdateDeployment(arg0 *v1beta2.Deployment) (*v1beta2.Deployment, bool, error) {
+func (m *MockDeploymentClient) CreateOrRollingUpdateDeployment(arg0 *v1.Deployment) (*v1.Deployment, bool, error) {
 	ret := m.ctrl.Call(m, "CreateOrRollingUpdateDeployment", arg0)
-	ret0, _ := ret[0].(*v1beta2.Deployment)
+	ret0, _ := ret[0].(*v1.Deployment)
 	ret1, _ := ret[1].(bool)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -792,9 +792,9 @@ func (mr *MockDeploymentClientMockRecorder) CreateOrRollingUpdateDeployment(arg0
 }
 
 // ListDeploymentsWithLabels mocks base method
-func (m *MockDeploymentClient) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*v1beta2.DeploymentList, error) {
+func (m *MockDeploymentClient) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*v1.DeploymentList, error) {
 	ret := m.ctrl.Call(m, "ListDeploymentsWithLabels", namespace, labels)
-	ret0, _ := ret[0].(*v1beta2.DeploymentList)
+	ret0, _ := ret[0].(*v1.DeploymentList)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
