@@ -62,15 +62,15 @@ run-local-shift:
 
 e2e-local:
 	. ./scripts/build_local.sh
-	. ./scripts/run_e2e_local.sh
+	. ./scripts/run_e2e_local.sh $(TEST)
 
 e2e-local-shift:
 	. ./scripts/build_local_shift.sh
-	. ./scripts/run_e2e_local.sh
+	. ./scripts/run_e2e_local.sh $(TEST)
 
 e2e-local-docker:
 	. ./scripts/build_local.sh
-	. ./scripts/run_e2e_docker.sh
+	. ./scripts/run_e2e_docker.sh $(TEST)
 
 DEP := $(GOPATH)/bin/dep
 $(DEP):

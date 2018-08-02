@@ -71,7 +71,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	// Create an informer for each catalog namespace
 	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range []string{operatorNamespace} {
-		nsInformerFactory := externalversions.NewFilteredSharedInformerFactory(crClient, wakeupInterval, namespace, nil)
+		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
 	}
 
