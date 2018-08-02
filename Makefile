@@ -129,10 +129,6 @@ generate-mock-client: $(counterfeiter)
 
 gen-all: gen-ci codegen generate-mock-client
 
-# make ver=0.3.0 tectonic-release
-tectonic-release:
-	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
-
 # make ver=0.3.0 upstream-release
 upstream-release:
 	./scripts/package-release.sh $(ver) deploy/upstream/manifests/$(ver) deploy/upstream/values.yaml
@@ -170,9 +166,7 @@ endif
 	docker pull quay.io/coreos/catalog:$(ver)
 	yaml w -i deploy/upstream/values.yaml alm.image.ref $(OLM_REF)
 	yaml w -i deploy/upstream/values.yaml catalog.image.ref $(CATALOG_REF)
-	yaml w -i deploy/tectonic-alm-operator/values.yaml alm.image.ref $(OLM_REF)
-	yaml w -i deploy/tectonic-alm-operator/values.yaml catalog.image.ref $(CATALOG_REF)
-	$(MAKE) tectonic-release upstream-release
+	$(MAKE) upstream-release
 
 
 # this will build locally on rhel

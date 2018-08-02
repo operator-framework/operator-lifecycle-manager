@@ -21,7 +21,7 @@ import (
 )
 
 var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager" +
-	"/deploy/tectonic-alm-operator/manifests"
+	"/deploy/aos-ansible/manifests"
 
 // BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,
 // which is how manifest directories are stored
