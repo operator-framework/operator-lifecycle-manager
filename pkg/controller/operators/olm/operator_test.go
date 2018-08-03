@@ -1,17 +1,21 @@
 package olm
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -21,7 +25,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	opFake "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"k8s.io/api/apps/v1beta2"
+	"k8s.io/api/core/v1"
 )
 
 type MockALMOperator struct {
@@ -1843,5 +1850,426 @@ func TestIsReplacing(t *testing.T) {
 			require.EqualValues(t, out, tt.out)
 		})
 		ctrl.Finish()
+	}
+}
+
+func deployment(deploymentName, namespace string) *v1beta2.Deployment {
+	var singleInstance = int32(1)
+	return &v1beta2.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deploymentName,
+			Namespace: namespace,
+		},
+		Spec: v1beta2.DeploymentSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": deploymentName,
+				},
+			},
+			Replicas: &singleInstance,
+			Template: v1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": deploymentName,
+					},
+				},
+				Spec: v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:  deploymentName + "-c1",
+							Image: "nginx:1.7.9",
+							Ports: []v1.ContainerPort{
+								{
+									ContainerPort: 80,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Status: v1beta2.DeploymentStatus{
+			Replicas:          singleInstance,
+			ReadyReplicas:     singleInstance,
+			AvailableReplicas: singleInstance,
+			UpdatedReplicas:   singleInstance,
+		},
+	}
+}
+
+func installStrategy(deploymentName string) v1alpha1.NamedInstallStrategy {
+	var singleInstance = int32(1)
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: deploymentName,
+				Spec: v1beta2.DeploymentSpec{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": deploymentName,
+						},
+					},
+					Replicas: &singleInstance,
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								"app": deploymentName,
+							},
+						},
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  deploymentName + "-c1",
+									Image: "nginx:1.7.9",
+									Ports: []v1.ContainerPort{
+										{
+											ContainerPort: 80,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	if err != nil {
+		panic(err)
+	}
+
+	return v1alpha1.NamedInstallStrategy{
+		StrategyName:    install.InstallStrategyNameDeployment,
+		StrategySpecRaw: strategyRaw,
+	}
+}
+
+func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstallStrategy, owned, required []*v1beta1.CustomResourceDefinition, phase v1alpha1.ClusterServiceVersionPhase) *v1alpha1.ClusterServiceVersion {
+	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
+	for _, crd := range required {
+		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.GetName()})
+	}
+
+	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
+	for _, crd := range owned {
+		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.GetName()})
+	}
+
+	return &v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			Replaces:        replaces,
+			InstallStrategy: installStrategy,
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned:    ownedCRDDescs,
+				Required: requiredCRDDescs,
+			},
+		},
+		Status: v1alpha1.ClusterServiceVersionStatus{
+			Phase: phase,
+		},
+	}
+}
+
+func crd(name string, version string) *v1beta1.CustomResourceDefinition {
+	return &v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: v1beta1.CustomResourceDefinitionSpec{
+			Group: name + "group",
+			Versions: []v1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    version,
+					Storage: true,
+					Served:  true,
+				},
+			},
+			Names: v1beta1.CustomResourceDefinitionNames{
+				Kind: name,
+			},
+		},
+	}
+}
+
+func TestCSVUpgrades(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	namespace := "ns"
+
+	type csvState struct {
+		exists bool
+		phase  v1alpha1.ClusterServiceVersionPhase
+	}
+	type initial struct {
+		csvs []runtime.Object
+		crds []runtime.Object
+		objs []runtime.Object
+	}
+	type expected struct {
+		csvStates map[string]csvState
+	}
+	tests := []struct {
+		name     string
+		initial  initial
+		expected expected
+	}{
+		{
+			name: "SingleCSVNoneToPending",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToInstallReady",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseInstallReady},
+				},
+			},
+		},
+		{
+			name: "SingleCSVInstallReadyToInstalling",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstallReady,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseInstalling},
+				},
+			},
+		},
+		{
+			name: "SingleCSVInstallingToSucceeded",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstalling,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "CSVSucceededToReplacing",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "CSVReplacingToDeleted",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					),
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+					deployment("csv2-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "CSVMultipleReplacingToDeleted",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					),
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					),
+					csv("csv3",
+						namespace,
+						"csv2",
+						installStrategy("csv3-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+					deployment("csv2-dep1", namespace),
+					deployment("csv3-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// configure cluster state
+			clientFake := fake.NewSimpleClientset(tt.initial.csvs...)
+
+			opClientFake := opFake.NewClient(
+				k8sfake.NewSimpleClientset(tt.initial.objs...),
+				apiextensionsfake.NewSimpleClientset(tt.initial.crds...))
+
+			op := &Operator{
+				Operator: &queueinformer.Operator{
+					OpClient: opClientFake,
+				},
+				client:   clientFake,
+				resolver: &install.StrategyResolver{},
+			}
+
+			// run csv sync for each CSV
+			for _, csv := range tt.initial.csvs {
+				err := op.syncClusterServiceVersion(csv)
+				require.NoError(t, err)
+			}
+
+			// get csvs in the cluster
+			outCSVMap := map[string]*v1alpha1.ClusterServiceVersion{}
+			outCSVs, err := clientFake.OperatorsV1alpha1().ClusterServiceVersions("ns").List(metav1.ListOptions{})
+			require.NoError(t, err)
+			for _, csv := range outCSVs.Items {
+				outCSVMap[csv.GetName()] = csv.DeepCopy()
+			}
+
+			// verify expectations of csvs in cluster
+			for csvName, csvState := range tt.expected.csvStates {
+				csv, ok := outCSVMap[csvName]
+				require.Equal(t, ok, csvState.exists)
+				if csvState.exists {
+					assert.Equal(t, csvState.phase, csv.Status.Phase, "%s had incorrect phase", csvName)
+				}
+			}
+		})
 	}
 }
