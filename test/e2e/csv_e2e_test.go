@@ -391,6 +391,12 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
+	// should have csv-sa and old-csv-sa
+	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
+	require.NoError(t, err)
+	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
+	require.NoError(t, err)
+
 	// Should have created deployment
 	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
@@ -468,19 +474,13 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
-	// should have csv-sa and old-csv-sa
-	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
-	require.NoError(t, err)
-	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
-	require.NoError(t, err)
-
 	// Should have updated existing deployment
 	depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depUpdated)
 	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
 
-	// should have csv-sa and old-csv-sa
+	// should have csv-sa and new-csv-sa
 	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
 	require.NoError(t, err)
 	_, err = c.GetServiceAccount(testNamespace, "new-csv-sa")
