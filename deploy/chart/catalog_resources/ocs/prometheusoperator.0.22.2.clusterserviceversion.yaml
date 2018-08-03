@@ -222,12 +222,12 @@ spec:
         displayName: Rule Config Map Selector
         path: ruleSelector
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:selector:ConfigMap'
+          - 'urn:alm:descriptor:com.tectonic.ui:selector:core:v1:ConfigMap'
       - description: ServiceMonitors to be selected for target discovery
         displayName: Service Monitor Selector
         path: serviceMonitorSelector
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:selector:ServiceMonitor'
+          - 'urn:alm:descriptor:com.tectonic.ui:selector:monitoring.coreos.com:v1:ServiceMonitor'
       - description: The ServiceAccount to use to run the Prometheus pods
         displayName: Service Account
         path: serviceAccountName
