@@ -392,6 +392,12 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
+	// should have csv-sa and old-csv-sa
+	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
+	require.NoError(t, err)
+	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
+	require.NoError(t, err)
+
 	// Should have created deployment
 	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
