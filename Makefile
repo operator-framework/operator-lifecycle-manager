@@ -144,15 +144,15 @@ ansible-release: $(YQ)
 	git submodule init
 	git submodule update
 	# copy base role to versioned release
-	mkdir -p deploy/aos-olm/$(ver)
-	cp -R deploy/role/. deploy/aos-olm/$(ver)/
+	mkdir -p deploy/aos-olm/manifests/$(ver)
+	cp -R deploy/role/. deploy/aos-olm/manifests/$(ver)/
 	# copy manifest files into release
-	./scripts/package-release.sh $(ver) deploy/aos-olm/$(ver)/files deploy/aos-olm/values.yaml
+	./scripts/package-release.sh $(ver) deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/values.yaml
 	# generate install/remove tasks based on manifest files
-	./scripts/k8s_yaml_to_ansible_install.sh deploy/aos-olm/$(ver)/files deploy/aos-olm/$(ver)/tasks/install.yaml
-	./scripts/k8s_yaml_to_ansible_remove.sh deploy/aos-olm/$(ver)/files deploy/aos-olm/$(ver)/tasks/remove_components.yaml
+	./scripts/k8s_yaml_to_ansible_install.sh deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/manifests/$(ver)/tasks/install.yaml
+	./scripts/k8s_yaml_to_ansible_remove.sh deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/manifests/$(ver)/tasks/remove_components.yaml
 	# link newest release into playbook
-	ln -sfF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
+	ln -sfF ../../../../deploy/aos-olm/manifests/$(ver) deploy/aos-olm/playbook/private/roles/olm
 
 
 # must have already tagged a version release in github so that the docker images are available

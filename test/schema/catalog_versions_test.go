@@ -20,9 +20,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var manifestDir = os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager" +
-	"/deploy/aos-ansible/manifests"
-
 // BySemverDir lets us sort os.FileInfo by interpreting the filename as a semver version,
 // which is how manifest directories are stored
 type BySemverDir []os.FileInfo
@@ -110,7 +107,15 @@ func resolveCatalogs(t *testing.T, catalogs []registry.SourceRef, dependencyReso
 	return err
 }
 
-func TestCatalogVersions(t *testing.T) {
+func TestReleaseCatalogs(t *testing.T) {
+	manifestDirBase := os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/"
+	manifestDirs := []string{manifestDirBase + "aos-olm/manifests", manifestDirBase + "upstream/manifests"}
+	for _, d := range manifestDirs {
+		VerifyCatalogVersions(t, d)
+	}
+}
+
+func VerifyCatalogVersions(t *testing.T, manifestDir string) {
 	// for each version of the catalog, load (version-1) and verify that each OCS that has a replaces field
 	// points to an OCS in the previous version of the catalog
 	files, err := ioutil.ReadDir(manifestDir)
