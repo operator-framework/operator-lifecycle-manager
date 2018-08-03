@@ -346,8 +346,4 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 
 	require.Equal(t, v1alpha1.ApprovalManual, installPlan.Spec.Approval)
 	require.Equal(t, v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
-
-	// Fetch subscription again to check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, c, "manual-subscription")
-	compareResources(t, subscription, sameSubscription)
 }
