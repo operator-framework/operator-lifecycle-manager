@@ -183,8 +183,6 @@ func TestInstallEtcdOCS(t *testing.T) {
 }
 
 func TestInstallPrometheusOCS(t *testing.T) {
-	//skipping until prometheus works
-	t.Skip()
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
