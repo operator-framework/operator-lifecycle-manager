@@ -1728,69 +1728,6 @@ func TestReplacingCSV(t *testing.T) {
 	}
 }
 
-func TestIsBeingReplaced(t *testing.T) {
-	type clusterState struct {
-		csvsInNamespace []*v1alpha1.ClusterServiceVersion
-		csvQueryErr     error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		description string
-	}{
-		{
-			in: testCSV(""),
-			state: clusterState{
-				csvsInNamespace: nil,
-				csvQueryErr:     fmt.Errorf("couldn't query"),
-			},
-			out:         nil,
-			description: "QueryErr",
-		},
-		{
-			in: testCSV(""),
-			state: clusterState{
-				csvsInNamespace: nil,
-				csvQueryErr:     nil,
-			},
-			out:         nil,
-			description: "NoOtherCSVs",
-		},
-		{
-			in: testCSV(""),
-			state: clusterState{
-				csvsInNamespace: []*v1alpha1.ClusterServiceVersion{testCSV("test2")},
-				csvQueryErr:     nil,
-			},
-			out:         nil,
-			description: "CSVInCluster/NotReplacing",
-		},
-		{
-			in: testCSV("test"),
-			state: clusterState{
-				csvsInNamespace: []*v1alpha1.ClusterServiceVersion{withReplaces(testCSV("test2"), "test")},
-				csvQueryErr:     nil,
-			},
-			out:         withReplaces(testCSV("test2"), "test"),
-			description: "CSVInCluster/Replacing",
-		},
-	}
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			csvsInNamespace := mockOp.csvsInNamespace(tt.in.GetNamespace())
-			out := mockOp.isBeingReplaced(tt.in, csvsInNamespace)
-			require.EqualValues(t, out, tt.out)
-		})
-		ctrl.Finish()
-	}
-}
-
 func deployment(deploymentName, namespace string) *v1beta2.Deployment {
 	var singleInstance = int32(1)
 	return &v1beta2.Deployment{
@@ -2430,6 +2367,54 @@ func TestIsReplacing(t *testing.T) {
 			}
 
 			require.Equal(t, tt.expected, op.isReplacing(tt.in))
+		})
+	}
+}
+
+func TestIsBeingReplaced(t *testing.T) {
+	namespace := "ns"
+
+	type initial struct {
+		csvs []*v1alpha1.ClusterServiceVersion
+	}
+	tests := []struct {
+		name     string
+		initial  initial
+		in       *v1alpha1.ClusterServiceVersion
+		expected *v1alpha1.ClusterServiceVersion
+	}{
+		{
+			name:     "QueryErr",
+			in:       csv("name", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			expected: nil,
+		},
+		{
+			name: "CSVInCluster/NotReplacing",
+			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csv("csv2", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "CSVInCluster/Replacing",
+			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: []*v1alpha1.ClusterServiceVersion{
+					csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// configure cluster state
+			op := &Operator{}
+
+			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
 	}
 }
