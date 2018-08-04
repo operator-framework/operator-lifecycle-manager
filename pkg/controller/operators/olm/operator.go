@@ -235,15 +235,17 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 		// if we can find a newer version that's successfully installed, we're safe to mark all intermediates
 		for _, csv := range a.findIntermediatesForDeletion(out) {
-			// TODO fix this
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
 			csv.SetPhase(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.")
+			// ignore errors and success here; this step is just an optimization to speed up GC
+			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
 		}
 
 		// if there's no newer version, requeue for processing (likely will be GCable before resync)
 		//a.requeueCSV(out)
 	case v1alpha1.CSVPhaseDeleting:
-		syncError := a.OpClient.DeleteCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, out.GetNamespace(), v1alpha1.ClusterServiceVersionKind, out.GetName())
+		foreground := metav1.DeletePropagationForeground
+		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{PropagationPolicy: &foreground})
 		if syncError != nil {
 			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
 		}

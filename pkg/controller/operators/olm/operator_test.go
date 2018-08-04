@@ -2185,7 +2185,7 @@ func TestCSVUpgrades(t *testing.T) {
 			},
 		},
 		{
-			name: "CSVMultipleReplacingToDeleted",
+			name: "CSVDeletedToGone",
 			initial: initial{
 				csvs: []runtime.Object{
 					csv("csv1",
@@ -2194,8 +2194,129 @@ func TestCSVUpgrades(t *testing.T) {
 						installStrategy("csv1-dep1"),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseDeleting,
+					),
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+					deployment("csv2-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: false, phase: v1alpha1.CSVPhaseNone},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "CSVMultipleReplacingToDeleted",
+			initial: initial{
+				// order matters in this test case - we want to apply the latest CSV first to test the GC marking
+				csvs: []runtime.Object{
+					csv("csv3",
+						namespace,
+						"csv2",
+						installStrategy("csv3-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					),
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+					deployment("csv2-dep1", namespace),
+					deployment("csv3-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "CSVMultipleDeletedToGone",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv3",
+						namespace,
+						"csv2",
+						installStrategy("csv3-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseDeleting,
+					),
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseReplacing,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+					deployment("csv2-dep1", namespace),
+					deployment("csv3-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: false, phase: v1alpha1.CSVPhaseNone},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "CSVMultipleDeletedToGone/AfterOneDeleted",
+			initial: initial{
+				csvs: []runtime.Object{
 					csv("csv2",
 						namespace,
 						"csv1",
@@ -2217,15 +2338,50 @@ func TestCSVUpgrades(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
 					deployment("csv2-dep1", namespace),
 					deployment("csv3-dep1", namespace),
 				},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv1": {exists: false, phase: v1alpha1.CSVPhaseNone},
 					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "CSVMultipleDeletedToGone/AfterTwoDeleted",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv2",
+						namespace,
+						"csv1",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseDeleting,
+					),
+					csv("csv3",
+						namespace,
+						"csv2",
+						installStrategy("csv3-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv2-dep1", namespace),
+					deployment("csv3-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv2": {exists: false, phase: v1alpha1.CSVPhaseNone},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
 				},
 			},
@@ -2265,7 +2421,7 @@ func TestCSVUpgrades(t *testing.T) {
 			// verify expectations of csvs in cluster
 			for csvName, csvState := range tt.expected.csvStates {
 				csv, ok := outCSVMap[csvName]
-				require.Equal(t, ok, csvState.exists)
+				assert.Equal(t, ok, csvState.exists, "%s existence should be %t", csvName, csvState.exists)
 				if csvState.exists {
 					assert.Equal(t, csvState.phase, csv.Status.Phase, "%s had incorrect phase", csvName)
 				}
