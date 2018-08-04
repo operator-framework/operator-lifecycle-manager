@@ -1791,68 +1791,6 @@ func TestIsBeingReplaced(t *testing.T) {
 	}
 }
 
-func TestIsReplacing(t *testing.T) {
-	type clusterState struct {
-		oldCSV      *v1alpha1.ClusterServiceVersion
-		csvQueryErr error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		description string
-	}{
-		{
-			in: testCSV(""),
-			state: clusterState{
-				oldCSV:      nil,
-				csvQueryErr: fmt.Errorf("couldn't query"),
-			},
-			out:         nil,
-			description: "QueryErr",
-		},
-		{
-			in: testCSV(""),
-			state: clusterState{
-				oldCSV:      testCSV("test2"),
-				csvQueryErr: nil,
-			},
-			out:         nil,
-			description: "CSVInCluster/NotReplacing",
-		},
-		{
-			in: withReplaces(testCSV("test2"), "test"),
-			state: clusterState{
-				oldCSV:      testCSV("test"),
-				csvQueryErr: nil,
-			},
-			out:         testCSV("test"),
-			description: "CSVInCluster/Replacing",
-		},
-		{
-			in: withReplaces(testCSV("test2"), "test"),
-			state: clusterState{
-				oldCSV:      nil,
-				csvQueryErr: fmt.Errorf("not found"),
-			},
-			out:         nil,
-			description: "CSVInCluster/ReplacingNotFound",
-		},
-	}
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		mockIsReplacing(t, mockOp.MockOpClient, tt.state.oldCSV, tt.in, tt.state.csvQueryErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			out := mockOp.isReplacing(tt.in)
-			require.EqualValues(t, out, tt.out)
-		})
-		ctrl.Finish()
-	}
-}
-
 func deployment(deploymentName, namespace string) *v1beta2.Deployment {
 	var singleInstance = int32(1)
 	return &v1beta2.Deployment{
@@ -2000,7 +1938,7 @@ func crd(name string, version string) *v1beta1.CustomResourceDefinition {
 	}
 }
 
-func TestCSVUpgrades(t *testing.T) {
+func TestTransitionCSVHappyPath(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	namespace := "ns"
 
@@ -2426,6 +2364,72 @@ func TestCSVUpgrades(t *testing.T) {
 					assert.Equal(t, csvState.phase, csv.Status.Phase, "%s had incorrect phase", csvName)
 				}
 			}
+		})
+	}
+}
+
+func TestIsReplacing(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+	namespace := "ns"
+
+	type initial struct {
+		csvs []runtime.Object
+	}
+	tests := []struct {
+		name     string
+		initial  initial
+		in       *v1alpha1.ClusterServiceVersion
+		expected *v1alpha1.ClusterServiceVersion
+	}{
+		{
+			name: "QueryErr",
+			in:   csv("name", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: []runtime.Object{},
+			},
+			expected: nil,
+		},
+		{
+			name: "CSVInCluster/NotReplacing",
+			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "CSVInCluster/Replacing",
+			in:   csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+		},
+		{
+			name: "CSVInCluster/ReplacingNotFound",
+			in:   csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv3", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// configure cluster state
+			clientFake := fake.NewSimpleClientset(tt.initial.csvs...)
+
+			op := &Operator{
+				client: clientFake,
+			}
+
+			require.Equal(t, tt.expected, op.isReplacing(tt.in))
 		})
 	}
 }
