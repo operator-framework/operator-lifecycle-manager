@@ -183,8 +183,6 @@ func TestInstallEtcdOCS(t *testing.T) {
 }
 
 func TestInstallPrometheusOCS(t *testing.T) {
-	//skipping until prometheus works
-	t.Skip()
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -312,12 +310,15 @@ func TestInstallPrometheusOCS(t *testing.T) {
 		},
 	}
 
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: prometheus})
-	require.NoError(t, err)
+	t.Run("test prometheus object creation", func(t *testing.T) {
+		t.Skip("skipping prometheus object verification - currently broken")
+		err = c.CreateCustomResource(&unstructured.Unstructured{Object: prometheus})
+		require.NoError(t, err)
 
-	require.NoError(t, pollForCustomResource(t, c, "monitoring.coreos.com", "v1", "Prometheus", "test-prometheus"))
+		require.NoError(t, pollForCustomResource(t, c, "monitoring.coreos.com", "v1", "Prometheus", "test-prometheus"))
 
-	prometheusPods, err := awaitPods(t, c, "prometheus=test-prometheus", expectedPrometheusSize)
-	require.NoError(t, err)
-	require.Equal(t, expectedPrometheusSize, len(prometheusPods.Items))
+		prometheusPods, err := awaitPods(t, c, "prometheus=test-prometheus", expectedPrometheusSize)
+		require.NoError(t, err)
+		require.Equal(t, expectedPrometheusSize, len(prometheusPods.Items))
+	})
 }

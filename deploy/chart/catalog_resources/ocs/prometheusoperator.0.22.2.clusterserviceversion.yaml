@@ -3,7 +3,7 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: prometheusoperator.0.22.1
+  name: prometheusoperator.0.22.2
   namespace: placeholder
   annotations:
     tectonic-visibility: ocs
@@ -60,7 +60,7 @@ spec:
     url: https://github.com/coreos/prometheus-operator
 
   labels:
-    alm-status-descriptors: prometheusoperator.0.22.1
+    alm-status-descriptors: prometheusoperator.0.22.2
     alm-owner-prometheus: prometheusoperator
 
   selector:
@@ -166,15 +166,12 @@ spec:
               containers:
               - name: prometheus-operator
                 image: quay.io/coreos/prometheus-operator@sha256:3daa69a8c6c2f1d35dcf1fe48a7cd8b230e55f5229a1ded438f687debade5bcf
-                command:
-                - sh
-                - -c
-                - /bin/operator
-                - --namespace=$K8S_NAMESPACE
-                - --manage-crds=false
+                args:
+                - -namespace=$(K8S_NAMESPACE)
+                - -manage-crds=false
                 - -logtostderr=true
-                - --config-reloader-image=quay.io/coreos/configmap-reload@sha256:e2fd60ff0ae4500a75b80ebaa30e0e7deba9ad107833e8ca53f0047c42c5a057
-                - --prometheus-config-reloader=quay.io/coreos/prometheus-config-reloader@sha256:02f000a3af117e5dee0d5af443aca18b45e81d1f6c2210b41bb2cebdcb166445
+                - --config-reloader-image=quay.io/coreos/configmap-reload:v0.0.1
+                - --prometheus-config-reloader=quay.io/coreos/prometheus-config-reloader:v0.22.2
                 env:
                 - name: K8S_NAMESPACE
                   valueFrom:
