@@ -1,6 +1,6 @@
 #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
 #! parse-kind: ClusterServiceVersion
-apiVersion: app.coreos.com/v1alpha1
+apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: etcdoperator.v0.9.0

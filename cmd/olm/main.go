@@ -10,7 +10,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 )
 
@@ -73,8 +76,16 @@ func main() {
 	// the empty string, the resulting array will be `[]string{""}`.
 	namespaces := strings.Split(*watchedNamespaces, ",")
 
+	// Create a client for OLM
+	crClient, err := client.NewClient(*kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+
+	opClient := operatorclient.NewClient(*kubeConfigPath)
+
 	// Create a new instance of the operator.
-	operator, err := olm.NewOperator(*kubeConfigPath, *wakeupInterval, annotation, namespaces)
+	operator, err := olm.NewOperator(crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, annotation, namespaces)
 
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())

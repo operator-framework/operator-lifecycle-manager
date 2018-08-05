@@ -13,15 +13,16 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
+var ErrCRDOwnerConflict = errors.New("CRD owned by another ClusterServiceVersion")
 
 const (
 	FallbackWakeupInterval = 30 * time.Second
@@ -35,7 +36,7 @@ type Operator struct {
 	annotator *annotator.Annotator
 }
 
-func NewOperator(kubeconfig string, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
+func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
@@ -43,13 +44,7 @@ func NewOperator(kubeconfig string, wakeupInterval time.Duration, annotations ma
 		namespaces = []string{metav1.NamespaceAll}
 	}
 
-	// Create a new client for ALM types (CRs)
-	crClient, err := client.NewClient(kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-
-	queueOperator, err := queueinformer.NewOperator(kubeconfig)
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClient)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +53,7 @@ func NewOperator(kubeconfig string, wakeupInterval time.Duration, annotations ma
 	op := &Operator{
 		Operator:  queueOperator,
 		client:    crClient,
-		resolver:  &install.StrategyResolver{},
+		resolver:  resolver,
 		annotator: namespaceAnnotator,
 	}
 
@@ -85,7 +80,8 @@ func NewOperator(kubeconfig string, wakeupInterval time.Duration, annotations ma
 	for _, namespace := range namespaces {
 		log.Debugf("watching for CSVs in namespace %s", namespace)
 		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		csvInformers = append(csvInformers, sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
+		informer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer()
+		csvInformers = append(csvInformers, informer)
 	}
 
 	// csvInformers for each namespace all use the same backing queue
@@ -103,17 +99,6 @@ func NewOperator(kubeconfig string, wakeupInterval time.Duration, annotations ma
 	op.csvQueue = csvQueue
 	return op, nil
 }
-
-//func (a *Operator) requeueCSV(csv *v1alpha1.ClusterServiceVersion) {
-//	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(csv)
-//	if err != nil {
-//		log.Infof("creating key failed: %s", err)
-//		return
-//	}
-//	log.Infof("requeueing %s", csv.SelfLink)
-//	a.csvQueue.AddRateLimited(k)
-//	return
-//}
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
 func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) {
@@ -282,16 +267,16 @@ func (a *Operator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceVers
 }
 
 // csvsInNamespace finds all CSVs in a namespace
-func (a *Operator) csvsInNamespace(namespace string) (csvs []*v1alpha1.ClusterServiceVersion) {
-	// TODO: read from indexer
+func (a *Operator) csvsInNamespace(namespace string) map[string]*v1alpha1.ClusterServiceVersion {
 	csvsInNamespace, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
 	if err != nil {
 		return nil
 	}
+	csvs := make(map[string]*v1alpha1.ClusterServiceVersion, len(csvsInNamespace.Items))
 	for _, csv := range csvsInNamespace.Items {
-		csvs = append(csvs, &csv)
+		csvs[csv.Name] = &csv
 	}
-	return
+	return csvs
 }
 
 // checkReplacementsAndUpdateStatus returns an error if we can find a newer CSV and sets the status if so
@@ -304,9 +289,6 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
 		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
 		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
-
-		// requeue so that we quickly pick up on replacement status changes
-		//a.requeueCSV(csv)
 
 		return fmt.Errorf("replacing")
 	}
@@ -332,7 +314,6 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	// if there's an error checking install that shouldn't fail the strategy, requeue with message
 	if strategyErr != nil {
 		csv.SetPhase(v1alpha1.CSVPhaseInstalling, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr))
-		//a.requeueCSV(csv)
 		return strategyErr
 	}
 
@@ -354,10 +335,6 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 		if err != nil {
 			previousStrategy = nil
 		}
-	}
-	if previousStrategy != nil {
-		// check for status changes if we know we're replacing a CSV
-		//a.requeueCSV(previousCSV)
 	}
 
 	strName := strategy.GetStrategyName()
@@ -387,30 +364,23 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 	return
 }
 
-func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace []*v1alpha1.ClusterServiceVersion) error {
+func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {
+	owned := false
 	for _, crd := range in.Spec.CustomResourceDefinitions.Owned {
-		for _, csv := range csvsInNamespace {
+		for csvName, csv := range csvsInNamespace {
+			if csvName == in.GetName() {
+				continue
+			}
 			if csv.OwnsCRD(crd.Name) {
-				// two csvs own the same CRD, only valid if there's a replacing chain between them
-				// TODO: this and the other replacement checking should just load the replacement chain DAG into memory
-				current := csv
-				for {
-					if in.Spec.Replaces == current.GetName() {
-						return nil
-					}
-					next := a.isBeingReplaced(current, csvsInNamespace)
-					if next != nil {
-						current = next
-						continue
-					}
-					if in.Name == csv.Name {
-						return nil
-					}
-					// couldn't find a chain between the two csvs
-					return fmt.Errorf("%s and %s both own %s, but there is no replacement chain linking them", in.Name, csv.Name, crd.Name)
-				}
+				owned = true
+			}
+			if owned && in.Spec.Replaces == csvName {
+				return nil
 			}
 		}
+	}
+	if owned {
+		return ErrCRDOwnerConflict
 	}
 	return nil
 }
@@ -431,7 +401,7 @@ func (a *Operator) annotateNamespace(obj interface{}) (syncError error) {
 	return nil
 }
 
-func (a *Operator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNamespace []*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
+func (a *Operator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
 	for _, csv := range csvsInNamespace {
 		if csv.Spec.Replaces == in.GetName() {
 			replacedBy = csv

@@ -30,6 +30,17 @@ func NewOperator(kubeconfig string, queueInformers ...*QueueInformer) (*Operator
 	return operator, nil
 }
 
+func NewOperatorFromClient(opClient operatorclient.ClientInterface, queueInformers ...*QueueInformer) (*Operator, error) {
+	if queueInformers == nil {
+		queueInformers = []*QueueInformer{}
+	}
+	operator := &Operator{
+		OpClient:       opClient,
+		queueInformers: queueInformers,
+	}
+	return operator, nil
+}
+
 // RegisterQueueInformer adds a QueueInformer to this operator
 func (o *Operator) RegisterQueueInformer(queueInformer *QueueInformer) {
 	if o.queueInformers == nil {

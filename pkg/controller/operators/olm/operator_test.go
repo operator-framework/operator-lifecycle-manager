@@ -2,160 +2,26 @@ package olm
 
 import (
 	"encoding/json"
-	"fmt"
-	"strings"
 	"testing"
+	"time"
 
-	"github.com/golang/mock/gomock"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	opFake "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/fake"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 )
-
-type MockALMOperator struct {
-	Operator
-	MockQueueOperator    *queueinformer.MockOperator
-	ClientFake           *fake.Clientset
-	MockOpClient         *operatorclient.MockClientInterface
-	TestQueueInformer    queueinformer.TestQueueInformer
-	StrategyResolverFake *fakes.FakeStrategyResolverInterface
-}
-
-type Expect func()
-
-// Helpers
-
-func mockCRDExistence(mockClient operatorclient.MockClientInterface, crdDescriptions []v1alpha1.CRDDescription) {
-	for _, crd := range crdDescriptions {
-		if strings.HasPrefix(crd.Name, "nonExistent") {
-			mockClient.EXPECT().ApiextensionsV1beta1Interface().Return(apiextensionsfake.NewSimpleClientset())
-		}
-		if strings.HasPrefix(crd.Name, "found") {
-			crd := v1beta1.CustomResourceDefinition{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: crd.Name,
-				},
-			}
-			var objects []runtime.Object
-			objects = append(objects, &crd)
-			mockClient.EXPECT().ApiextensionsV1beta1Interface().Return(apiextensionsfake.NewSimpleClientset(objects...))
-		}
-	}
-}
-
-func mockIntermediates(t *testing.T, mockOpClient *operatorclient.MockClientInterface, resolverFake *fakes.FakeStrategyResolverInterface, current *v1alpha1.ClusterServiceVersion, intermediates []*v1alpha1.ClusterServiceVersion) Expect {
-	mockCSVsInNamespace(t, mockOpClient, current.GetNamespace(), intermediates, nil)
-	prevCSV := current
-
-	expectFns := []func(){}
-	call := -2
-	for i, csv := range intermediates {
-		call += 2
-		mockIsReplacing(t, mockOpClient, prevCSV, csv, nil)
-		testInstallStrategy := TestStrategy{}
-		resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, nil)
-		resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, nil)
-		resolverFake.InstallerForStrategyReturns(NewTestInstaller(nil, nil))
-		expectFns = append(expectFns, func() {
-			require.Equal(t, csv.Spec.InstallStrategy, resolverFake.UnmarshalStrategyArgsForCall(call))
-			require.Equal(t, prevCSV.Spec.InstallStrategy, resolverFake.UnmarshalStrategyArgsForCall(call+1))
-			name, opClient, _, strategy := resolverFake.InstallerForStrategyArgsForCall(i)
-			require.Equal(t, testInstallStrategy.GetStrategyName(), name)
-			require.Equal(t, mockOpClient, opClient)
-			require.Equal(t, &testInstallStrategy, strategy)
-		})
-		prevCSV = csv
-	}
-	// Return a set of expectations that can be deferred until the test fn has finished
-	return func() {
-		for _, fn := range expectFns {
-			fn()
-		}
-	}
-}
-
-func mockIsReplacing(t *testing.T, mockOpClient *operatorclient.MockClientInterface, prevCSV *v1alpha1.ClusterServiceVersion, currentCSV *v1alpha1.ClusterServiceVersion, csvQueryErr error) {
-	var unstructuredOldCSV *unstructured.Unstructured = nil
-	if prevCSV != nil {
-		unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(prevCSV)
-		require.NoError(t, err)
-		unstructuredOldCSV = &unstructured.Unstructured{Object: unst}
-	} else {
-		unstructuredOldCSV = nil
-	}
-
-	if currentCSV.Spec.Replaces != "" {
-		mockOpClient.EXPECT().GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, currentCSV.GetNamespace(), v1alpha1.ClusterServiceVersionKind, currentCSV.Spec.Replaces).Return(unstructuredOldCSV, csvQueryErr)
-	}
-}
-
-func mockCSVsInNamespace(t *testing.T, mockOpClient *operatorclient.MockClientInterface, namespace string, csvsInNamespace []*v1alpha1.ClusterServiceVersion, csvQueryErr error) {
-	unstructuredCSVs := []*unstructured.Unstructured{}
-	for _, csv := range csvsInNamespace {
-		unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(csv)
-		require.NoError(t, err)
-		unstructuredCSVs = append(unstructuredCSVs, &unstructured.Unstructured{Object: unst})
-	}
-	csvList := &operatorclient.CustomResourceList{Items: unstructuredCSVs}
-
-	mockOpClient.EXPECT().ListCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, namespace, v1alpha1.ClusterServiceVersionKind).Return(csvList, csvQueryErr)
-}
-
-func mockInstallStrategy(t *testing.T, resolverFake *fakes.FakeStrategyResolverInterface, strategy *v1alpha1.NamedInstallStrategy, installErr error, checkInstallErr error, prevStrategy *v1alpha1.NamedInstallStrategy, prevCSVQueryErr error) Expect {
-	testInstallStrategy := TestStrategy{}
-	expectFns := []func(){}
-	stratErr := fmt.Errorf("couldn't unmarshal install strategy")
-	if strategy.StrategyName == "teststrategy" {
-		stratErr = nil
-	}
-	resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, stratErr)
-	expectFns = append(expectFns, func() {
-		strat := resolverFake.UnmarshalStrategyArgsForCall(0)
-		require.Equal(t, strategy, strat)
-	})
-	if stratErr == nil {
-		resolverFake.InstallerForStrategyReturns(NewTestInstaller(installErr, checkInstallErr))
-		expectFns = append(expectFns, func() {
-			strategyName, _, _, prev := resolverFake.InstallerForStrategyArgsForCall(0)
-			require.Equal(t, (&testInstallStrategy).GetStrategyName(), strategyName)
-			if prevStrategy != nil {
-				require.NotNil(t, prev)
-			}
-		})
-	}
-	if prevStrategy != nil {
-		resolverFake.UnmarshalStrategyReturns(&testInstallStrategy, prevCSVQueryErr)
-		expectFns = append(expectFns, func() {
-			strat := resolverFake.UnmarshalStrategyArgsForCall(1)
-			require.Equal(t, prevStrategy, strat)
-		})
-	}
-	// Return a set of expectations that can be deferred until the test fn has finished
-	return func() {
-		for _, fn := range expectFns {
-			fn()
-		}
-	}
-}
 
 // Fakes
 
@@ -188,1545 +54,22 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 	return true, nil
 }
 
-func testCSV(name string) *v1alpha1.ClusterServiceVersion {
-	if name == "" {
-		name = "test-csv"
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, resolver install.StrategyResolverInterface, namespace string) (*Operator, error) {
+	clientFake := fake.NewSimpleClientset(clientObjs...)
+	opClientFake := opFake.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...))
+	annotations := map[string]string{"test": "annotation"}
+	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+	if err != nil {
+		return nil, err
 	}
-	return &v1alpha1.ClusterServiceVersion{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:     name,
-			SelfLink: "/link/" + name,
-		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			DisplayName: name,
-		},
-	}
+	return NewOperator(clientFake, opClientFake, resolver, 5*time.Second, annotations, []string{namespace})
 }
 
-func makeCRDDescriptions(names ...string) []v1alpha1.CRDDescription {
-	crds := []v1alpha1.CRDDescription{}
-	for _, name := range names {
-		crds = append(crds, v1alpha1.CRDDescription{
-			Name: name,
-		})
-	}
-	return crds
-}
-
-func withStatus(csv *v1alpha1.ClusterServiceVersion, status *v1alpha1.ClusterServiceVersionStatus) *v1alpha1.ClusterServiceVersion {
-	status.DeepCopyInto(&csv.Status)
-	return csv
-}
-
-func withSpec(csv *v1alpha1.ClusterServiceVersion, spec *v1alpha1.ClusterServiceVersionSpec) *v1alpha1.ClusterServiceVersion {
-	spec.DeepCopyInto(&csv.Spec)
-	return csv
-}
-
-func withReplaces(csv *v1alpha1.ClusterServiceVersion, replaces string) *v1alpha1.ClusterServiceVersion {
-	csv.Spec.Replaces = replaces
-	return csv
-}
-
-func NewMockALMOperator(gomockCtrl *gomock.Controller) *MockALMOperator {
-	clientFake := fake.NewSimpleClientset()
-	resolverFake := new(fakes.FakeStrategyResolverInterface)
-
-	almOperator := Operator{
-		client:   clientFake,
-		resolver: resolverFake,
-	}
-	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "test-clusterserviceversions")
-	csvQueueInformer := queueinformer.NewTestQueueInformer(
-		queue,
-		cache.NewSharedIndexInformer(&queueinformer.MockListWatcher{}, &v1alpha1.ClusterServiceVersion{}, 0, nil),
-		almOperator.syncClusterServiceVersion,
-		nil,
-	)
-
-	qOp := queueinformer.NewMockOperator(gomockCtrl, csvQueueInformer)
-	almOperator.Operator = &qOp.Operator
-	almOperator.annotator = annotator.NewAnnotator(qOp.OpClient, map[string]string{})
-	almOperator.csvQueue = queue
-	return &MockALMOperator{
-		Operator:             almOperator,
-		ClientFake:           clientFake,
-		MockQueueOperator:    qOp,
-		MockOpClient:         qOp.MockClient,
-		TestQueueInformer:    *csvQueueInformer,
-		StrategyResolverFake: resolverFake,
-	}
+func (o *Operator) GetClient() versioned.Interface {
+	return o.client
 }
 
 // Tests
-
-func TestCSVStateTransitionsFromNone(t *testing.T) {
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: testCSV(""),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhasePending,
-				Message: "requirements not yet checked",
-				Reason:  v1alpha1.CSVReasonRequirementsUnknown,
-			}),
-			description: "ToRequirementsUnknown",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		mockOp.MockOpClient.EXPECT().ListCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind).Return(&operatorclient.CustomResourceList{}, nil)
-
-		// Test the transition
-		t.Run(tt.description, func(t *testing.T) {
-			out, err := mockOp.transitionCSVState(*tt.in)
-			t.Log(out)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
-
-func TestCSVStateTransitionsFromPending(t *testing.T) {
-	type clusterState struct {
-		csvs []*v1alpha1.ClusterServiceVersion
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		out         *v1alpha1.ClusterServiceVersion
-		state       *clusterState
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: makeCRDDescriptions("nonExistent"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhasePending,
-				Message: "one or more requirements couldn't be found",
-				Reason:  v1alpha1.CSVReasonRequirementsNotMet,
-			}),
-			description: "RequirementsNotMet/OwnedMissing",
-			err:         ErrRequirementsNotMet,
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Required: makeCRDDescriptions("nonExistent"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhasePending,
-				Message: "one or more requirements couldn't be found",
-				Reason:  v1alpha1.CSVReasonRequirementsNotMet,
-			}),
-			description: "RequirementsNotMet/RequiredMissing",
-			err:         ErrRequirementsNotMet,
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("nonExistent1", "found1"),
-						Required: makeCRDDescriptions("nonExistent2", "found2"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhasePending,
-				Message: "one or more requirements couldn't be found",
-				Reason:  v1alpha1.CSVReasonRequirementsNotMet,
-			}),
-			description: "RequirementsNotMet/OwnedAndRequiredMissingWithFound",
-			err:         ErrRequirementsNotMet,
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("found"),
-						Required: makeCRDDescriptions("nonExistent"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhasePending,
-				Message: "one or more requirements couldn't be found",
-				Reason:  v1alpha1.CSVReasonRequirementsNotMet,
-			}),
-			description: "RequirementsNotMet/OwnedFoundRequiredMissing",
-			err:         ErrRequirementsNotMet,
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("nonExistent"),
-						Required: makeCRDDescriptions("found"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhasePending,
-				Message: "one or more requirements couldn't be found",
-				Reason:  v1alpha1.CSVReasonRequirementsNotMet,
-			}),
-			description: "RequirementsNotMet/OwnedMissingRequiredFound",
-			err:         ErrRequirementsNotMet,
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("found1", "found2"),
-						Required: makeCRDDescriptions("found3", "found4"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstallReady,
-				Message: "all requirements found, attempting install",
-				Reason:  v1alpha1.CSVReasonRequirementsMet,
-			}),
-			state: &clusterState{
-				csvs: []*v1alpha1.ClusterServiceVersion{},
-			},
-			description: "RequirementsMet/OwnedAndRequiredFound",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned: makeCRDDescriptions("found"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstallReady,
-				Message: "all requirements found, attempting install",
-				Reason:  v1alpha1.CSVReasonRequirementsMet,
-			}),
-			state: &clusterState{
-				csvs: []*v1alpha1.ClusterServiceVersion{},
-			},
-			description: "RequirementsMet/OwnedFound",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Required: makeCRDDescriptions("found"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstallReady,
-				Message: "all requirements found, attempting install",
-				Reason:  v1alpha1.CSVReasonRequirementsMet,
-			}),
-			state: &clusterState{
-				csvs: []*v1alpha1.ClusterServiceVersion{},
-			},
-			description: "RequirementsMet/RequiredFound",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("found1", "found2"),
-						Required: makeCRDDescriptions("found3", "found4"),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseFailed,
-				Message: "owner conflict: test-csv and existing-owner both own found1, but there is no replacement chain linking them",
-				Reason:  v1alpha1.CSVReasonOwnerConflict,
-			}),
-			state: &clusterState{
-				csvs: []*v1alpha1.ClusterServiceVersion{withSpec(testCSV("existing-owner"),
-					&v1alpha1.ClusterServiceVersionSpec{
-						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-							Owned: makeCRDDescriptions("found1"),
-						},
-					})},
-			},
-			description: "RequirementsMet/OwnedAndRequiredFound/CRDAlreadyOwnedNoReplacementChain",
-			err:         fmt.Errorf("test-csv and existing-owner both own found1, but there is no replacement chain linking them"),
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("found1", "found2"),
-						Required: makeCRDDescriptions("found3", "found4"),
-					},
-					Replaces: "existing-owner-2",
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstallReady,
-				Message: "all requirements found, attempting install",
-				Reason:  v1alpha1.CSVReasonRequirementsMet,
-			}),
-			state: &clusterState{
-				csvs: []*v1alpha1.ClusterServiceVersion{
-					withSpec(testCSV("existing-owner-1"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-								Owned: makeCRDDescriptions("found1"),
-							},
-						}),
-					withSpec(testCSV("existing-owner-2"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-								Owned: makeCRDDescriptions("found1", "found2"),
-							},
-							Replaces: "existing-owner-1",
-						}),
-				},
-			},
-			description: "RequirementsMet/OwnedAndRequiredFound/CRDOwnedInReplacementChain",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-						Owned:    makeCRDDescriptions("found1", "found2"),
-						Required: makeCRDDescriptions("found3", "found4"),
-					},
-					Replaces: "existing-owner-2",
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstallReady,
-				Message: "all requirements found, attempting install",
-				Reason:  v1alpha1.CSVReasonRequirementsMet,
-			}),
-			state: &clusterState{
-				csvs: []*v1alpha1.ClusterServiceVersion{
-					withSpec(testCSV("existing-owner-1"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-								Owned: makeCRDDescriptions("found1"),
-							},
-							Replaces: "existing-owner-3",
-						}),
-					withSpec(testCSV("existing-owner-2"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-								Owned: makeCRDDescriptions("found1", "found2"),
-							},
-							Replaces: "existing-owner-1",
-						}),
-					withSpec(testCSV("existing-owner-3"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-								Owned: makeCRDDescriptions("found1", "found2"),
-							},
-							Replaces: "existing-owner-2",
-						}),
-				},
-			},
-			description: "RequirementsMet/OwnedAndRequiredFound/CRDOwnedInReplacementChainLoop",
-		},
-	}
-
-	for _, tt := range tests {
-		// Test the transition
-		t.Run(tt.description, func(t *testing.T) {
-			ctrl := gomock.NewController(t)
-			mockOp := NewMockALMOperator(ctrl)
-
-			mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Owned)
-			mockCRDExistence(*mockOp.MockQueueOperator.MockClient, tt.in.Spec.CustomResourceDefinitions.Required)
-
-			// mock for call to short-circuit when replacing
-			mockCSVsInNamespace(t, mockOp.MockQueueOperator.MockClient, tt.in.Namespace, nil, nil)
-
-			// mock for pending, check that no other CSV owns the CRDs (unless being replaced)
-			if tt.state != nil {
-				mockCSVsInNamespace(t, mockOp.MockQueueOperator.MockClient, tt.in.Namespace, tt.state.csvs, nil)
-			}
-
-			out, err := mockOp.transitionCSVState(*tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-			ctrl.Finish()
-		})
-	}
-}
-
-func TestCSVStateTransitionsFromInstallReady(t *testing.T) {
-	type clusterState struct {
-		csvsInNamespace []*v1alpha1.ClusterServiceVersion
-		csvQueryErr     error
-		prevCSV         *v1alpha1.ClusterServiceVersion
-		prevCSVQueryErr error
-		installErr      error
-		checkInstallErr error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "bad",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstallReady,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "bad",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseFailed,
-					Message: "install strategy invalid: couldn't unmarshal install strategy",
-					Reason:  v1alpha1.CSVReasonInvalidStrategy,
-				}),
-			description: "InvalidInstallStrategy",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstallReady,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseInstalling,
-					Message: "waiting for install components to report healthy",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			description: "InstallStrategy/NotReplacing/Installing",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstallReady,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseFailed,
-				Message: "install strategy failed: error installing component",
-				Reason:  v1alpha1.CSVReasonComponentFailed,
-			}),
-			state: clusterState{
-				installErr: fmt.Errorf("error installing component"),
-			},
-			err:         fmt.Errorf("error installing component"),
-			description: "InstallStrategy/NotReplacing/ComponentFailed",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					Replaces: "prev",
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstallReady,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseInstalling,
-					Message: "waiting for install components to report healthy",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			state: clusterState{
-				prevCSV: withStatus(withSpec(testCSV("prev"),
-					&v1alpha1.ClusterServiceVersionSpec{
-						InstallStrategy: v1alpha1.NamedInstallStrategy{
-							StrategyName:    "teststrategy",
-							StrategySpecRaw: []byte(`{"test":"spec"}`),
-						},
-					}),
-					&v1alpha1.ClusterServiceVersionStatus{
-						Phase: v1alpha1.CSVPhaseSucceeded,
-					}),
-			},
-			description: "InstallStrategy/Replacing/Installing",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					Replaces: "prev",
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstallReady,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseInstalling,
-					Message: "waiting for install components to report healthy",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			state: clusterState{
-				prevCSVQueryErr: fmt.Errorf("error getting prev csv"),
-			},
-			description: "InstallStrategy/Replacing/PrevCSVErr/Installing",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		var prevStrategy *v1alpha1.NamedInstallStrategy
-		if tt.state.prevCSV != nil {
-			prevStrategy = &tt.state.prevCSV.Spec.InstallStrategy
-		}
-
-		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-		mockInstallStrategy(t, mockOp.StrategyResolverFake, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
-		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			out, err := mockOp.transitionCSVState(*tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
-
-func TestCSVStateTransitionsFromInstalling(t *testing.T) {
-	type clusterState struct {
-		csvsInNamespace []*v1alpha1.ClusterServiceVersion
-		csvQueryErr     error
-		prevCSV         *v1alpha1.ClusterServiceVersion
-		prevCSVQueryErr error
-		installErr      error
-		checkInstallErr error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "bad",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "bad",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseFailed,
-					Message: "install strategy invalid: couldn't unmarshal install strategy",
-					Reason:  v1alpha1.CSVReasonInvalidStrategy,
-				}),
-			description: "InvalidInstallStrategy",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseSucceeded,
-					Message: "install strategy completed with no errors",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			description: "InstallStrategy/NotReplacing/Installing",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstalling,
-				Message: "installing: error installing component",
-				Reason:  v1alpha1.CSVReasonWaiting,
-			}),
-			state: clusterState{
-				checkInstallErr: fmt.Errorf("error installing component"),
-			},
-			description: "InstallStrategy/NotReplacing/WaitingForInstall",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseFailed,
-				Message: "install failed: Timeout: timeout error",
-				Reason:  v1alpha1.CSVReasonInstallCheckFailed,
-			}),
-			state: clusterState{
-				checkInstallErr: &install.StrategyError{Reason: install.StrategyErrReasonTimeout, Message: "timeout error"},
-			},
-			description: "InstallStrategy/NotReplacing/UnrecoverableError",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					Replaces: "prev",
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseSucceeded,
-					Message: "install strategy completed with no errors",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			state: clusterState{
-				prevCSV: withStatus(withSpec(testCSV("prev"),
-					&v1alpha1.ClusterServiceVersionSpec{
-						InstallStrategy: v1alpha1.NamedInstallStrategy{
-							StrategyName:    "teststrategy",
-							StrategySpecRaw: []byte(`{"test":"spec"}`),
-						},
-					}),
-					&v1alpha1.ClusterServiceVersionStatus{
-						Phase: v1alpha1.CSVPhaseSucceeded,
-					}),
-			},
-			description: "InstallStrategy/Replacing/Installing",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					Replaces: "prev",
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseInstalling,
-					Message: "installing: error installing component",
-					Reason:  v1alpha1.CSVReasonWaiting,
-				}),
-			state: clusterState{
-				prevCSV: withStatus(withSpec(testCSV("prev"),
-					&v1alpha1.ClusterServiceVersionSpec{
-						InstallStrategy: v1alpha1.NamedInstallStrategy{
-							StrategyName:    "teststrategy",
-							StrategySpecRaw: []byte(`{"test":"spec"}`),
-						},
-					}),
-					&v1alpha1.ClusterServiceVersionStatus{
-						Phase: v1alpha1.CSVPhaseSucceeded,
-					}),
-				checkInstallErr: fmt.Errorf("error installing component"),
-			},
-			description: "InstallStrategy/Replacing/WaitingForInstall",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					Replaces: "prev",
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseFailed,
-					Message: "install failed: Timeout: timeout error",
-					Reason:  v1alpha1.CSVReasonInstallCheckFailed,
-				}),
-			state: clusterState{
-				prevCSV: withStatus(withSpec(testCSV("prev"),
-					&v1alpha1.ClusterServiceVersionSpec{
-						InstallStrategy: v1alpha1.NamedInstallStrategy{
-							StrategyName:    "teststrategy",
-							StrategySpecRaw: []byte(`{"test":"spec"}`),
-						},
-					}),
-					&v1alpha1.ClusterServiceVersionStatus{
-						Phase: v1alpha1.CSVPhaseSucceeded,
-					}),
-				checkInstallErr: &install.StrategyError{Reason: install.StrategyErrReasonTimeout, Message: "timeout error"},
-			},
-			description: "InstallStrategy/Replacing/UnrecoverableError",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		var prevStrategy *v1alpha1.NamedInstallStrategy
-		if tt.state.prevCSV != nil {
-			prevStrategy = &tt.state.prevCSV.Spec.InstallStrategy
-		}
-
-		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-		mockInstallStrategy(t, mockOp.StrategyResolverFake, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
-		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			out, err := mockOp.transitionCSVState(*tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
-
-func TestCSVStateTransitionsFromSucceeded(t *testing.T) {
-	type clusterState struct {
-		csvsInNamespace []*v1alpha1.ClusterServiceVersion
-		csvQueryErr     error
-		prevCSV         *v1alpha1.ClusterServiceVersion
-		prevCSVQueryErr error
-		installErr      error
-		checkInstallErr error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "bad",
-						StrategySpecRaw: []byte(`"test":"spec"`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseSucceeded,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "bad",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseFailed,
-					Message: "install strategy invalid: couldn't unmarshal install strategy",
-					Reason:  v1alpha1.CSVReasonInvalidStrategy,
-				}),
-			description: "InvalidInstallStrategy",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseSucceeded,
-					Message: "install strategy completed with no errors",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseSucceeded,
-					Message: "install strategy completed with no errors",
-					Reason:  v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			description: "InstallStrategy/LookingGood",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseSucceeded,
-					Reason: v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseInstalling,
-				Message: "installing: error installing component",
-				Reason:  v1alpha1.CSVReasonComponentUnhealthy,
-			}),
-			state: clusterState{
-				checkInstallErr: fmt.Errorf("error installing component"),
-			},
-			description: "InstallStrategy/ComponentWentUnhealthy",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseSucceeded,
-					Reason: v1alpha1.CSVReasonInstallSuccessful,
-				}),
-			out: withStatus(testCSV(""), &v1alpha1.ClusterServiceVersionStatus{
-				Phase:   v1alpha1.CSVPhaseFailed,
-				Message: "install failed: Timeout: timeout error",
-				Reason:  v1alpha1.CSVReasonInstallCheckFailed,
-			}),
-			state: clusterState{
-				checkInstallErr: &install.StrategyError{Reason: install.StrategyErrReasonTimeout, Message: "timeout error"},
-			},
-			description: "InstallStrategy/ComponentWentUnrecoverable",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		var prevStrategy *v1alpha1.NamedInstallStrategy
-		if tt.state.prevCSV != nil {
-			prevStrategy = &tt.state.prevCSV.Spec.InstallStrategy
-		}
-
-		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), tt.state.csvsInNamespace, tt.state.csvQueryErr)
-		mockInstallStrategy(t, mockOp.StrategyResolverFake, &tt.in.Spec.InstallStrategy, tt.state.installErr, tt.state.checkInstallErr, prevStrategy, tt.state.prevCSVQueryErr)
-		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			out, err := mockOp.transitionCSVState(*tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
-
-func TestCSVStateTransitionsFromReplacing(t *testing.T) {
-	type clusterState struct {
-		csvsInNamespace []*v1alpha1.ClusterServiceVersion
-		csvQueryErr     error
-		prevCSV         *v1alpha1.ClusterServiceVersion
-		prevCSVQueryErr error
-		installErr      error
-		checkInstallErr error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					Replaces: "prev",
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			state: clusterState{
-				prevCSV: withStatus(withSpec(testCSV("prev"),
-					&v1alpha1.ClusterServiceVersionSpec{
-						InstallStrategy: v1alpha1.NamedInstallStrategy{
-							StrategyName:    "teststrategy",
-							StrategySpecRaw: []byte(`{"test":"spec"}`),
-						},
-					}),
-					&v1alpha1.ClusterServiceVersionStatus{
-						Phase: v1alpha1.CSVPhaseSucceeded,
-					}),
-			},
-			description: "NotALeaf",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			description: "Leaf/NoNewCSV",
-		},
-		{
-			in: withStatus(withSpec(testCSV("current"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			out: withStatus(withSpec(testCSV("current"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseDeleting,
-					Message: "has been replaced by a newer ClusterServiceVersion that has successfully installed.",
-					Reason:  v1alpha1.CSVReasonReplaced,
-				}),
-			state: clusterState{
-				csvsInNamespace: []*v1alpha1.ClusterServiceVersion{
-					withStatus(withSpec(testCSV("next"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							Replaces: "current",
-							InstallStrategy: v1alpha1.NamedInstallStrategy{
-								StrategyName:    "teststrategy",
-								StrategySpecRaw: []byte(`{"test":"spec"}`),
-							},
-						}),
-						&v1alpha1.ClusterServiceVersionStatus{
-							Phase:  v1alpha1.CSVPhaseSucceeded,
-							Reason: v1alpha1.CSVReasonInstallSuccessful,
-						}),
-				},
-			},
-			description: "Leaf/NewCSVRunning/GCSelf",
-		},
-		{
-			in: withStatus(withSpec(testCSV("current"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			out: withStatus(withSpec(testCSV("current"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			state: clusterState{
-				csvsInNamespace: []*v1alpha1.ClusterServiceVersion{
-					withStatus(withSpec(testCSV("next"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							Replaces: "current",
-							InstallStrategy: v1alpha1.NamedInstallStrategy{
-								StrategyName:    "teststrategy",
-								StrategySpecRaw: []byte(`{"test":"spec"}`),
-							},
-						}),
-						&v1alpha1.ClusterServiceVersionStatus{
-							Phase:  v1alpha1.CSVPhaseReplacing,
-							Reason: v1alpha1.CSVReasonBeingReplaced,
-							Conditions: []v1alpha1.ClusterServiceVersionCondition{
-								{
-									Phase:  v1alpha1.CSVPhaseReplacing,
-									Reason: v1alpha1.CSVReasonBeingReplaced,
-								},
-							},
-						}),
-				},
-			},
-			description: "Leaf/NewCSV/NotRunning",
-		},
-		{
-			in: withStatus(withSpec(testCSV("1"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseReplacing,
-					Reason: v1alpha1.CSVReasonBeingReplaced,
-				}),
-			out: withStatus(withSpec(testCSV("current"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "1",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:   v1alpha1.CSVPhaseDeleting,
-					Message: "has been replaced by a newer ClusterServiceVersion that has successfully installed.",
-					Reason:  v1alpha1.CSVReasonReplaced,
-				}),
-			state: clusterState{
-				csvsInNamespace: []*v1alpha1.ClusterServiceVersion{
-					withStatus(withSpec(testCSV("3"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							Replaces: "2",
-							InstallStrategy: v1alpha1.NamedInstallStrategy{
-								StrategyName:    "teststrategy",
-								StrategySpecRaw: []byte(`{"test":"spec"}`),
-							},
-						}),
-						&v1alpha1.ClusterServiceVersionStatus{
-							Phase:  v1alpha1.CSVPhaseSucceeded,
-							Reason: v1alpha1.CSVReasonInstallSuccessful,
-						}),
-					withStatus(withSpec(testCSV("2"),
-						&v1alpha1.ClusterServiceVersionSpec{
-							Replaces: "1",
-							InstallStrategy: v1alpha1.NamedInstallStrategy{
-								StrategyName:    "teststrategy",
-								StrategySpecRaw: []byte(`{"test":"spec"}`),
-							},
-						}),
-						&v1alpha1.ClusterServiceVersionStatus{
-							Phase:  v1alpha1.CSVPhaseReplacing,
-							Reason: v1alpha1.CSVReasonBeingReplaced,
-							Conditions: []v1alpha1.ClusterServiceVersionCondition{
-								{
-									Phase:  v1alpha1.CSVPhaseReplacing,
-									Reason: v1alpha1.CSVReasonBeingReplaced,
-								},
-							},
-						}),
-				},
-			},
-			description: "Leaf/ManyNewCSVRunning/GCSet",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		mockIsReplacing(t, mockOp.MockOpClient, tt.state.prevCSV, tt.in, tt.state.prevCSVQueryErr)
-
-		// transition short circuits if there's a prevCSV, so we only mock the rest if there isn't
-		if tt.state.prevCSV == nil {
-			intermediateExpect := mockIntermediates(t, mockOp.MockOpClient, mockOp.StrategyResolverFake, tt.in, tt.state.csvsInNamespace)
-			defer intermediateExpect()
-		}
-
-		t.Run(tt.description, func(t *testing.T) {
-			out, err := mockOp.transitionCSVState(*tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
-
-func TestCSVStateTransitionsFromDeleting(t *testing.T) {
-	type clusterState struct {
-		deleteErr error
-	}
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseDeleting,
-					Reason: v1alpha1.CSVReasonReplaced,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseDeleting,
-					Reason: v1alpha1.CSVReasonReplaced,
-				}),
-			description: "DeleteSuccessful",
-		},
-		{
-			in: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseDeleting,
-					Reason: v1alpha1.CSVReasonReplaced,
-				}),
-			out: withStatus(withSpec(testCSV(""),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase:  v1alpha1.CSVPhaseDeleting,
-					Reason: v1alpha1.CSVReasonReplaced,
-				}),
-			state: clusterState{
-				deleteErr: fmt.Errorf("couldn't delete"),
-			},
-			description: "DeleteUnsuccessful",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		mockOp.MockOpClient.EXPECT().
-			DeleteCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, tt.in.GetNamespace(), v1alpha1.ClusterServiceVersionKind, tt.in.GetName()).
-			Return(tt.state.deleteErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			out, err := mockOp.transitionCSVState(*tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, out.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, out.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, out.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
-
-func TestReplacingCSV(t *testing.T) {
-	type clusterState struct {
-		newerCSV    *v1alpha1.ClusterServiceVersion
-		csvQueryErr error
-	}
-
-	newCSV := withStatus(withSpec(testCSV("new"),
-		&v1alpha1.ClusterServiceVersionSpec{
-			Replaces: "old",
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    "teststrategy",
-				StrategySpecRaw: []byte(`{"test":"spec"}`),
-			},
-		}),
-		&v1alpha1.ClusterServiceVersionStatus{
-			Phase: v1alpha1.CSVPhaseSucceeded,
-		})
-
-	beingReplacedStatus := &v1alpha1.ClusterServiceVersionStatus{
-		Phase:   v1alpha1.CSVPhaseReplacing,
-		Message: "being replaced by csv: /link/new",
-		Reason:  v1alpha1.CSVReasonBeingReplaced,
-	}
-
-	tests := []struct {
-		in          *v1alpha1.ClusterServiceVersion
-		state       clusterState
-		out         *v1alpha1.ClusterServiceVersion
-		err         error
-		description string
-	}{
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseSucceeded,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromSucceeded",
-		},
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstalling,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromInstalling",
-		},
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhasePending,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromPending",
-		},
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseFailed,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromFailed",
-		},
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseInstallReady,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromInstallReady",
-		},
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseNone,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromNone",
-		},
-		{
-			in: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}),
-				&v1alpha1.ClusterServiceVersionStatus{
-					Phase: v1alpha1.CSVPhaseUnknown,
-				}),
-			out: withStatus(withSpec(testCSV("old"),
-				&v1alpha1.ClusterServiceVersionSpec{
-					InstallStrategy: v1alpha1.NamedInstallStrategy{
-						StrategyName:    "teststrategy",
-						StrategySpecRaw: []byte(`{"test":"spec"}`),
-					},
-				}), beingReplacedStatus),
-			state: clusterState{
-				newerCSV: newCSV,
-			},
-			err:         fmt.Errorf("replacing"),
-			description: "FromUnknown",
-		},
-	}
-
-	for _, tt := range tests {
-		ctrl := gomock.NewController(t)
-		mockOp := NewMockALMOperator(ctrl)
-
-		csvsInNamespace := []*v1alpha1.ClusterServiceVersion{tt.state.newerCSV}
-		mockCSVsInNamespace(t, mockOp.MockOpClient, tt.in.GetNamespace(), csvsInNamespace, tt.state.csvQueryErr)
-
-		t.Run(tt.description, func(t *testing.T) {
-			err := mockOp.checkReplacementsAndUpdateStatus(tt.in)
-			require.EqualValues(t, tt.err, err)
-			require.EqualValues(t, tt.out.Status.Phase, tt.in.Status.Phase)
-			require.EqualValues(t, tt.out.Status.Message, tt.in.Status.Message)
-			require.EqualValues(t, tt.out.Status.Reason, tt.in.Status.Reason)
-		})
-		ctrl.Finish()
-	}
-}
 
 func deployment(deploymentName, namespace string) *v1beta2.Deployment {
 	var singleInstance = int32(1)
@@ -1875,7 +218,7 @@ func crd(name string, version string) *v1beta1.CustomResourceDefinition {
 	}
 }
 
-func TestTransitionCSVHappyPath(t *testing.T) {
+func TestTransitionCSV(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	namespace := "ns"
 
@@ -1890,6 +233,7 @@ func TestTransitionCSVHappyPath(t *testing.T) {
 	}
 	type expected struct {
 		csvStates map[string]csvState
+		err       map[string]error
 	}
 	tests := []struct {
 		name     string
@@ -1913,6 +257,68 @@ func TestTransitionCSVHappyPath(t *testing.T) {
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToPending",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					),
+				},
+				crds: []runtime.Object{},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+				err: map[string]error{
+					"csv1": ErrRequirementsNotMet,
+				},
+			},
+		},
+		{
+			name: "CSVPendingToFailed/OwnerConflict",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
+					csv("csv2",
+						namespace,
+						"",
+						installStrategy("csv2-dep1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					deployment("csv1-dep1", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseFailed},
+				},
+				err: map[string]error{
+					"csv2": ErrCRDOwnerConflict,
 				},
 			},
 		},
@@ -1962,6 +368,30 @@ func TestTransitionCSVHappyPath(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SingleCSVInstallReadyToFailed/BadStrategy",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstallReady,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
+				},
+			},
+		},
+
 		{
 			name: "SingleCSVInstallingToSucceeded",
 			initial: initial{
@@ -2265,29 +695,19 @@ func TestTransitionCSVHappyPath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			clientFake := fake.NewSimpleClientset(tt.initial.csvs...)
-
-			opClientFake := opFake.NewClient(
-				k8sfake.NewSimpleClientset(tt.initial.objs...),
-				apiextensionsfake.NewSimpleClientset(tt.initial.crds...))
-
-			op := &Operator{
-				Operator: &queueinformer.Operator{
-					OpClient: opClientFake,
-				},
-				client:   clientFake,
-				resolver: &install.StrategyResolver{},
-			}
+			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, &install.StrategyResolver{}, namespace)
+			require.NoError(t, err)
 
 			// run csv sync for each CSV
 			for _, csv := range tt.initial.csvs {
 				err := op.syncClusterServiceVersion(csv)
-				require.NoError(t, err)
+				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
+				require.Equal(t, expectedErr, err)
 			}
 
 			// get csvs in the cluster
 			outCSVMap := map[string]*v1alpha1.ClusterServiceVersion{}
-			outCSVs, err := clientFake.OperatorsV1alpha1().ClusterServiceVersions("ns").List(metav1.ListOptions{})
+			outCSVs, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions("ns").List(metav1.ListOptions{})
 			require.NoError(t, err)
 			for _, csv := range outCSVs.Items {
 				outCSVMap[csv.GetName()] = csv.DeepCopy()
@@ -2375,7 +795,7 @@ func TestIsBeingReplaced(t *testing.T) {
 	namespace := "ns"
 
 	type initial struct {
-		csvs []*v1alpha1.ClusterServiceVersion
+		csvs map[string]*v1alpha1.ClusterServiceVersion
 	}
 	tests := []struct {
 		name     string
@@ -2392,8 +812,8 @@ func TestIsBeingReplaced(t *testing.T) {
 			name: "CSVInCluster/NotReplacing",
 			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
-				csvs: []*v1alpha1.ClusterServiceVersion{
-					csv("csv2", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				csvs: map[string]*v1alpha1.ClusterServiceVersion{
+					"csv2": csv("csv2", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
@@ -2402,8 +822,56 @@ func TestIsBeingReplaced(t *testing.T) {
 			name: "CSVInCluster/Replacing",
 			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
-				csvs: []*v1alpha1.ClusterServiceVersion{
-					csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				csvs: map[string]*v1alpha1.ClusterServiceVersion{
+					"csv2": csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// configure cluster state
+			op := &Operator{}
+
+			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
+		})
+	}
+}
+
+func TestCheckReplacement(t *testing.T) {
+	namespace := "ns"
+
+	type initial struct {
+		csvs map[string]*v1alpha1.ClusterServiceVersion
+	}
+	tests := []struct {
+		name     string
+		initial  initial
+		in       *v1alpha1.ClusterServiceVersion
+		expected *v1alpha1.ClusterServiceVersion
+	}{
+		{
+			name:     "QueryErr",
+			in:       csv("name", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			expected: nil,
+		},
+		{
+			name: "CSVInCluster/NotReplacing",
+			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: map[string]*v1alpha1.ClusterServiceVersion{
+					"csv2": csv("csv2", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "CSVInCluster/Replacing",
+			in:   csv("csv1", namespace, "", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			initial: initial{
+				csvs: map[string]*v1alpha1.ClusterServiceVersion{
+					"csv2": csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: csv("csv2", namespace, "csv1", installStrategy("dep"), nil, nil, v1alpha1.CSVPhaseSucceeded),

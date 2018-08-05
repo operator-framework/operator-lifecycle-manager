@@ -193,46 +193,6 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 
 }
 
-func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t *testing.T) {
-	crc := newCRClient(t)
-
-	installPlan := v1alpha1.InstallPlan{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.InstallPlanKind,
-			APIVersion: v1alpha1.SchemeGroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "install-bitcoin-miner",
-			Namespace: testNamespace,
-		},
-		Spec: v1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{"Bitcoin-miner-0.1"},
-			Approval:                   v1alpha1.ApprovalAutomatic,
-		},
-	}
-
-	_, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
-	require.NoError(t, err)
-
-	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-		return fip.Status.Phase == v1alpha1.InstallPlanPhasePlanning &&
-			fip.Status.Conditions[0].Type == v1alpha1.InstallPlanResolved &&
-			fip.Status.Conditions[0].Reason == v1alpha1.InstallPlanReasonDependencyConflict
-	})
-
-	// Fetch installplan again to check for unnecessary control loops
-	_, err = fetchInstallPlan(t, crc, installPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-		compareResources(t, fetchedInstallPlan, fip)
-		return true
-	})
-	require.NoError(t, err)
-
-	require.Equal(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase)
-	require.Equal(t, v1alpha1.InstallPlanResolved, fetchedInstallPlan.Status.Conditions[0].Type)
-	require.Equal(t, corev1.ConditionFalse, fetchedInstallPlan.Status.Conditions[0].Status)
-	require.Equal(t, v1alpha1.InstallPlanReasonInstallCheckFailed, fetchedInstallPlan.Status.Conditions[0].Reason)
-}
-
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	crc := newCRClient(t)

@@ -145,10 +145,11 @@ func waitForCSVToDelete(t *testing.T, c versioned.Interface, name string) error 
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err = c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(name, metav1.GetOptions{})
+		fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(name, metav1.GetOptions{})
 		if errors.IsNotFound(err) {
 			return true, nil
 		}
+		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		if err != nil {
 			return false, err
 		}
@@ -396,6 +397,12 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, dep)
 
+	// should have csv-sa and old-csv-sa
+	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
+	require.NoError(t, err)
+	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
+	require.NoError(t, err)
+
 	// Create "updated" CSV
 	strategyNew := install.StrategyDetailsDeployment{
 		Permissions: []install.StrategyDeploymentPermissions{
@@ -468,19 +475,13 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
-	// should have csv-sa and old-csv-sa
-	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
-	require.NoError(t, err)
-	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
-	require.NoError(t, err)
-
 	// Should have updated existing deployment
 	depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depUpdated)
 	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
 
-	// should have csv-sa and old-csv-sa
+	// should have csv-sa and new-csv-sa
 	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
 	require.NoError(t, err)
 	_, err = c.GetServiceAccount(testNamespace, "new-csv-sa")
@@ -673,11 +674,11 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins2.cluster.com",
+						Name:        "ins3.cluster.com",
 						Version:     "v1alpha1",
-						Kind:        "InCluster2",
-						DisplayName: "Ins2",
-						Description: "In the cluster2",
+						Kind:        "InCluster3",
+						DisplayName: "Ins3",
+						Description: "In the cluster3",
 					},
 				},
 			},
@@ -687,7 +688,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	// Create dependency first (CRD)
 	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "ins2.cluster.com",
+			Name: "ins3.cluster.com",
 		},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{
 			Group: "cluster.com",
@@ -699,10 +700,10 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 				},
 			},
 			Names: extv1beta1.CustomResourceDefinitionNames{
-				Plural:   "ins2",
-				Singular: "in2",
-				Kind:     "InCluster2",
-				ListKind: "InClusterList2",
+				Plural:   "ins3",
+				Singular: "in3",
+				Kind:     "InCluster3",
+				ListKind: "InClusterList3",
 			},
 			Scope: "Namespaced",
 		},
@@ -752,11 +753,11 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins2.cluster.com",
+						Name:        "ins3.cluster.com",
 						Version:     "v1alpha1",
-						Kind:        "InCluster2",
-						DisplayName: "Ins2",
-						Description: "In the cluster2",
+						Kind:        "InCluster3",
+						DisplayName: "Ins3",
+						Description: "In the cluster3",
 					},
 				},
 			},
