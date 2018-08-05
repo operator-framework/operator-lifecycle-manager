@@ -7,7 +7,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -139,7 +139,7 @@ var (
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
-				Spec: v1beta2.DeploymentSpec{
+				Spec: appsv1.DeploymentSpec{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "nginx"},
 					},

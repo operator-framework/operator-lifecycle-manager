@@ -6,7 +6,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1rbac "k8s.io/api/rbac/v1beta1"
 )
@@ -52,30 +52,30 @@ type FakeInstallStrategyDeploymentInterface struct {
 		result1 *corev1.ServiceAccount
 		result2 error
 	}
-	CreateDeploymentStub        func(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error)
+	CreateDeploymentStub        func(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
 	createDeploymentMutex       sync.RWMutex
 	createDeploymentArgsForCall []struct {
-		deployment *appsv1beta2.Deployment
+		deployment *appsv1.Deployment
 	}
 	createDeploymentReturns struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}
 	createDeploymentReturnsOnCall map[int]struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}
-	CreateOrUpdateDeploymentStub        func(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error)
+	CreateOrUpdateDeploymentStub        func(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
 	createOrUpdateDeploymentMutex       sync.RWMutex
 	createOrUpdateDeploymentArgsForCall []struct {
-		deployment *appsv1beta2.Deployment
+		deployment *appsv1.Deployment
 	}
 	createOrUpdateDeploymentReturns struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}
 	createOrUpdateDeploymentReturnsOnCall map[int]struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}
 	DeleteDeploymentStub        func(name string) error
@@ -102,17 +102,17 @@ type FakeInstallStrategyDeploymentInterface struct {
 		result1 *corev1.ServiceAccount
 		result2 error
 	}
-	FindAnyDeploymentsMatchingNamesStub        func(depNames []string) ([]*appsv1beta2.Deployment, error)
+	FindAnyDeploymentsMatchingNamesStub        func(depNames []string) ([]*appsv1.Deployment, error)
 	findAnyDeploymentsMatchingNamesMutex       sync.RWMutex
 	findAnyDeploymentsMatchingNamesArgsForCall []struct {
 		depNames []string
 	}
 	findAnyDeploymentsMatchingNamesReturns struct {
-		result1 []*appsv1beta2.Deployment
+		result1 []*appsv1.Deployment
 		result2 error
 	}
 	findAnyDeploymentsMatchingNamesReturnsOnCall map[int]struct {
-		result1 []*appsv1beta2.Deployment
+		result1 []*appsv1.Deployment
 		result2 error
 	}
 	invocations      map[string][][]interface{}
@@ -273,11 +273,11 @@ func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturnsO
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateDeployment(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	fake.createDeploymentMutex.Lock()
 	ret, specificReturn := fake.createDeploymentReturnsOnCall[len(fake.createDeploymentArgsForCall)]
 	fake.createDeploymentArgsForCall = append(fake.createDeploymentArgsForCall, struct {
-		deployment *appsv1beta2.Deployment
+		deployment *appsv1.Deployment
 	}{deployment})
 	fake.recordInvocation("CreateDeployment", []interface{}{deployment})
 	fake.createDeploymentMutex.Unlock()
@@ -296,39 +296,39 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentCallCount() 
 	return len(fake.createDeploymentArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentArgsForCall(i int) *appsv1beta2.Deployment {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentArgsForCall(i int) *appsv1.Deployment {
 	fake.createDeploymentMutex.RLock()
 	defer fake.createDeploymentMutex.RUnlock()
 	return fake.createDeploymentArgsForCall[i].deployment
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentReturns(result1 *appsv1beta2.Deployment, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentReturns(result1 *appsv1.Deployment, result2 error) {
 	fake.CreateDeploymentStub = nil
 	fake.createDeploymentReturns = struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentReturnsOnCall(i int, result1 *appsv1beta2.Deployment, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateDeploymentReturnsOnCall(i int, result1 *appsv1.Deployment, result2 error) {
 	fake.CreateDeploymentStub = nil
 	if fake.createDeploymentReturnsOnCall == nil {
 		fake.createDeploymentReturnsOnCall = make(map[int]struct {
-			result1 *appsv1beta2.Deployment
+			result1 *appsv1.Deployment
 			result2 error
 		})
 	}
 	fake.createDeploymentReturnsOnCall[i] = struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeployment(deployment *appsv1beta2.Deployment) (*appsv1beta2.Deployment, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	fake.createOrUpdateDeploymentMutex.Lock()
 	ret, specificReturn := fake.createOrUpdateDeploymentReturnsOnCall[len(fake.createOrUpdateDeploymentArgsForCall)]
 	fake.createOrUpdateDeploymentArgsForCall = append(fake.createOrUpdateDeploymentArgsForCall, struct {
-		deployment *appsv1beta2.Deployment
+		deployment *appsv1.Deployment
 	}{deployment})
 	fake.recordInvocation("CreateOrUpdateDeployment", []interface{}{deployment})
 	fake.createOrUpdateDeploymentMutex.Unlock()
@@ -347,30 +347,30 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentCall
 	return len(fake.createOrUpdateDeploymentArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentArgsForCall(i int) *appsv1beta2.Deployment {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentArgsForCall(i int) *appsv1.Deployment {
 	fake.createOrUpdateDeploymentMutex.RLock()
 	defer fake.createOrUpdateDeploymentMutex.RUnlock()
 	return fake.createOrUpdateDeploymentArgsForCall[i].deployment
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentReturns(result1 *appsv1beta2.Deployment, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentReturns(result1 *appsv1.Deployment, result2 error) {
 	fake.CreateOrUpdateDeploymentStub = nil
 	fake.createOrUpdateDeploymentReturns = struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentReturnsOnCall(i int, result1 *appsv1beta2.Deployment, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentReturnsOnCall(i int, result1 *appsv1.Deployment, result2 error) {
 	fake.CreateOrUpdateDeploymentStub = nil
 	if fake.createOrUpdateDeploymentReturnsOnCall == nil {
 		fake.createOrUpdateDeploymentReturnsOnCall = make(map[int]struct {
-			result1 *appsv1beta2.Deployment
+			result1 *appsv1.Deployment
 			result2 error
 		})
 	}
 	fake.createOrUpdateDeploymentReturnsOnCall[i] = struct {
-		result1 *appsv1beta2.Deployment
+		result1 *appsv1.Deployment
 		result2 error
 	}{result1, result2}
 }
@@ -474,7 +474,7 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameRetur
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1beta2.Deployment, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1.Deployment, error) {
 	var depNamesCopy []string
 	if depNames != nil {
 		depNamesCopy = make([]string, len(depNames))
@@ -508,24 +508,24 @@ func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNa
 	return fake.findAnyDeploymentsMatchingNamesArgsForCall[i].depNames
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNamesReturns(result1 []*appsv1beta2.Deployment, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNamesReturns(result1 []*appsv1.Deployment, result2 error) {
 	fake.FindAnyDeploymentsMatchingNamesStub = nil
 	fake.findAnyDeploymentsMatchingNamesReturns = struct {
-		result1 []*appsv1beta2.Deployment
+		result1 []*appsv1.Deployment
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNamesReturnsOnCall(i int, result1 []*appsv1beta2.Deployment, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNamesReturnsOnCall(i int, result1 []*appsv1.Deployment, result2 error) {
 	fake.FindAnyDeploymentsMatchingNamesStub = nil
 	if fake.findAnyDeploymentsMatchingNamesReturnsOnCall == nil {
 		fake.findAnyDeploymentsMatchingNamesReturnsOnCall = make(map[int]struct {
-			result1 []*appsv1beta2.Deployment
+			result1 []*appsv1.Deployment
 			result2 error
 		})
 	}
 	fake.findAnyDeploymentsMatchingNamesReturnsOnCall[i] = struct {
-		result1 []*appsv1beta2.Deployment
+		result1 []*appsv1.Deployment
 		result2 error
 	}{result1, result2}
 }

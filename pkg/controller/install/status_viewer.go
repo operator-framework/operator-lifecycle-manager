@@ -5,16 +5,16 @@ package install
 import (
 	"fmt"
 
-	"k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 )
 
 const TimedOutReason = "ProgressDeadlineExceeded"
 
 // Status returns a message describing deployment status, and a bool value indicating if the status is considered done.
-func DeploymentStatus(deployment *v1beta2.Deployment) (string, bool, error) {
+func DeploymentStatus(deployment *appsv1.Deployment) (string, bool, error) {
 	if deployment.Generation <= deployment.Status.ObservedGeneration {
 		// check if deployment has timed out
-		cond := getDeploymentCondition(deployment.Status, v1beta2.DeploymentProgressing)
+		cond := getDeploymentCondition(deployment.Status, appsv1.DeploymentProgressing)
 		if cond != nil && cond.Reason == TimedOutReason {
 			return "", false, fmt.Errorf("deployment %q exceeded its progress deadline", deployment.Name)
 		}
@@ -36,7 +36,7 @@ func DeploymentStatus(deployment *v1beta2.Deployment) (string, bool, error) {
 	return fmt.Sprintf("Waiting for deployment spec update to be observed...\n"), false, nil
 }
 
-func getDeploymentCondition(status v1beta2.DeploymentStatus, condType v1beta2.DeploymentConditionType) *v1beta2.DeploymentCondition {
+func getDeploymentCondition(status appsv1.DeploymentStatus, condType appsv1.DeploymentConditionType) *appsv1.DeploymentCondition {
 	for i := range status.Conditions {
 		c := status.Conditions[i]
 		if c.Type == condType {

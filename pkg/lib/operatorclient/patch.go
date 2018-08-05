@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	appsv1beta2 "k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -126,19 +126,19 @@ func cloneAndNormalizeObject(obj runtime.Object) (runtime.Object, error) {
 	// Clone the object since it will be modified.
 	obj = obj.DeepCopyObject()
 	switch obj := obj.(type) {
-	case *appsv1beta2.DaemonSet:
+	case *appsv1.DaemonSet:
 		if obj != nil {
 			// These are only extracted from current; should not be considered for diffs.
 			obj.ObjectMeta.ResourceVersion = ""
 			obj.ObjectMeta.CreationTimestamp = metav1.Time{}
-			obj.Status = appsv1beta2.DaemonSetStatus{}
+			obj.Status = appsv1.DaemonSetStatus{}
 		}
-	case *appsv1beta2.Deployment:
+	case *appsv1.Deployment:
 		if obj != nil {
 			// These are only extracted from current; should not be considered for diffs.
 			obj.ObjectMeta.ResourceVersion = ""
 			obj.ObjectMeta.CreationTimestamp = metav1.Time{}
-			obj.Status = appsv1beta2.DeploymentStatus{}
+			obj.Status = appsv1.DeploymentStatus{}
 		}
 	case *v1.Service:
 		if obj != nil {
@@ -187,43 +187,43 @@ func mergeAnnotationsAndLabels(original, modified, current runtime.Object) error
 	}
 
 	switch current := current.(type) {
-	case *appsv1beta2.DaemonSet:
+	case *appsv1.DaemonSet:
 		getter := func(obj runtime.Object) (map[string]string, error) {
-			return obj.(*appsv1beta2.DaemonSet).Spec.Template.Annotations, nil
+			return obj.(*appsv1.DaemonSet).Spec.Template.Annotations, nil
 		}
 		setter := func(obj runtime.Object, val map[string]string) error {
-			obj.(*appsv1beta2.DaemonSet).Spec.Template.Annotations = val
+			obj.(*appsv1.DaemonSet).Spec.Template.Annotations = val
 			return nil
 		}
 		if err := mergeMaps(original, modified, current, getter, setter); err != nil {
 			return err
 		}
 		getter = func(obj runtime.Object) (map[string]string, error) {
-			return obj.(*appsv1beta2.DaemonSet).Spec.Template.Labels, nil
+			return obj.(*appsv1.DaemonSet).Spec.Template.Labels, nil
 		}
 		setter = func(obj runtime.Object, val map[string]string) error {
-			obj.(*appsv1beta2.DaemonSet).Spec.Template.Labels = val
+			obj.(*appsv1.DaemonSet).Spec.Template.Labels = val
 			return nil
 		}
 		if err := mergeMaps(original, modified, current, getter, setter); err != nil {
 			return err
 		}
-	case *appsv1beta2.Deployment:
+	case *appsv1.Deployment:
 		getter := func(obj runtime.Object) (map[string]string, error) {
-			return obj.(*appsv1beta2.Deployment).Spec.Template.Annotations, nil
+			return obj.(*appsv1.Deployment).Spec.Template.Annotations, nil
 		}
 		setter := func(obj runtime.Object, val map[string]string) error {
-			obj.(*appsv1beta2.Deployment).Spec.Template.Annotations = val
+			obj.(*appsv1.Deployment).Spec.Template.Annotations = val
 			return nil
 		}
 		if err := mergeMaps(original, modified, current, getter, setter); err != nil {
 			return err
 		}
 		getter = func(obj runtime.Object) (map[string]string, error) {
-			return obj.(*appsv1beta2.Deployment).Spec.Template.Labels, nil
+			return obj.(*appsv1.Deployment).Spec.Template.Labels, nil
 		}
 		setter = func(obj runtime.Object, val map[string]string) error {
-			obj.(*appsv1beta2.Deployment).Spec.Template.Labels = val
+			obj.(*appsv1.Deployment).Spec.Template.Labels = val
 			return nil
 		}
 		if err := mergeMaps(original, modified, current, getter, setter); err != nil {

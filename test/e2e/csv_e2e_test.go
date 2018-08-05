@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/apps/v1beta2"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -64,8 +64,8 @@ func createCRD(c operatorclient.ClientInterface, crd extv1beta1.CustomResourceDe
 
 }
 
-func newNginxDeployment(name string) v1beta2.DeploymentSpec {
-	return v1beta2.DeploymentSpec{
+func newNginxDeployment(name string) appsv1.DeploymentSpec {
+	return appsv1.DeploymentSpec{
 		Selector: &metav1.LabelSelector{
 			MatchLabels: map[string]string{
 				"app": name,
