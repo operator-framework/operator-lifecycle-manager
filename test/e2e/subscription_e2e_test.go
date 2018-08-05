@@ -266,10 +266,6 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 
 func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscription *v1alpha1.Subscription) cleanupFunc {
 	return func() {
-		prop := metav1.DeletePropagationForeground
-		// Propagate deletions to children
-		options := &metav1.DeleteOptions{PropagationPolicy: &prop}
-
 		// Check for an installplan
 		if installPlanRef := subscription.Status.Install; installPlanRef != nil {
 			// Get installplan and create/execute cleanup function
@@ -281,8 +277,8 @@ func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscri
 			}
 		}
 
-		// Delete the subscription (this should be enough to cascade to installplan and CSV CRs)
-		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(subscription.GetName(), options)
+		// Delete the subscription
+		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(subscription.GetName(), &metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}
 }
@@ -360,9 +356,8 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
 
-	csvCleanup, err := createCSV(t, c, crc, stableCSV, true)
+	_, err := createCSV(t, c, crc, stableCSV, true)
 	require.NoError(t, err)
-	defer csvCleanup()
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, alphaChannel, v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
