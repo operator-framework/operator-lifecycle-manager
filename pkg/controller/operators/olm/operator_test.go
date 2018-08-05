@@ -8,6 +8,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,8 +21,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	opFake "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/fake"
-	"k8s.io/api/apps/v1beta2"
-	"k8s.io/api/core/v1"
 )
 
 // Fakes
@@ -71,14 +71,14 @@ func (o *Operator) GetClient() versioned.Interface {
 
 // Tests
 
-func deployment(deploymentName, namespace string) *v1beta2.Deployment {
+func deployment(deploymentName, namespace string) *appsv1.Deployment {
 	var singleInstance = int32(1)
-	return &v1beta2.Deployment{
+	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deploymentName,
 			Namespace: namespace,
 		},
-		Spec: v1beta2.DeploymentSpec{
+		Spec: appsv1.DeploymentSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"app": deploymentName,
@@ -106,7 +106,7 @@ func deployment(deploymentName, namespace string) *v1beta2.Deployment {
 				},
 			},
 		},
-		Status: v1beta2.DeploymentStatus{
+		Status: appsv1.DeploymentStatus{
 			Replicas:          singleInstance,
 			ReadyReplicas:     singleInstance,
 			AvailableReplicas: singleInstance,
@@ -121,7 +121,7 @@ func installStrategy(deploymentName string) v1alpha1.NamedInstallStrategy {
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: deploymentName,
-				Spec: v1beta2.DeploymentSpec{
+				Spec: appsv1.DeploymentSpec{
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"app": deploymentName,
@@ -613,7 +613,7 @@ func TestTransitionCSV(t *testing.T) {
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: false, phase: v1alpha1.CSVPhaseNone},
-					"csv2": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
 				},
 			},
