@@ -18,7 +18,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"k8s.io/api/apps/v1"
 )
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
@@ -97,7 +99,46 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.RegisterQueueInformer(informer)
 	}
 	op.csvQueue = csvQueue
+
+	// set up watch on deployments
+	depInformers := []cache.SharedIndexInformer{}
+	for _, namespace := range namespaces {
+		log.Debugf("watching deployments in namespace %s", namespace)
+		informer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Apps().V1().Deployments().Informer()
+		depInformers = append(depInformers, informer)
+	}
+
+	depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csv-deployments")
+	depQueueInformers := queueinformer.New(
+		depQueue,
+		depInformers,
+		op.syncDeployment,
+		nil,
+	)
+	for _, informer := range depQueueInformers {
+		op.RegisterQueueInformer(informer)
+	}
 	return op, nil
+}
+
+func (a *Operator) requeueCSV(name, namespace string) {
+	// we can build the key directly, will need to change if queue uses different key scheme
+	key := fmt.Sprintf("%s/%s", namespace, name)
+	a.csvQueue.AddRateLimited(key)
+	return
+}
+
+func (a *Operator) syncDeployment(obj interface{}) (syncError error) {
+	deployment, ok := obj.(*v1.Deployment)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Deployment failed")
+	}
+	if ownerutil.IsOwnedByKind(deployment, v1alpha1.ClusterServiceVersionKind) {
+		oref := ownerutil.GetOwnerByKind(deployment, v1alpha1.ClusterServiceVersionKind)
+		a.requeueCSV(oref.Name, deployment.GetNamespace())
+	}
+	return nil
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
@@ -110,6 +151,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	logger := log.WithFields(log.Fields{
 		"csv":       clusterServiceVersion.GetName(),
 		"namespace": clusterServiceVersion.GetNamespace(),
+		"phase":     clusterServiceVersion.Status.Phase,
 	})
 	logger.Info("syncing")
 
@@ -146,6 +188,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	// check if the current CSV is being replaced, return with replacing status if so
 	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
+		logger.WithField("err", err).Info("replacement check")
 		return
 	}
 
@@ -224,10 +267,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			csv.SetPhase(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.")
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
+			a.requeueCSV(csv.GetName(), csv.GetNamespace())
 		}
 
 		// if there's no newer version, requeue for processing (likely will be GCable before resync)
-		//a.requeueCSV(out)
+		a.requeueCSV(out.GetName(), out.GetNamespace())
 	case v1alpha1.CSVPhaseDeleting:
 		foreground := metav1.DeletePropagationForeground
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{PropagationPolicy: &foreground})
@@ -274,7 +318,7 @@ func (a *Operator) csvsInNamespace(namespace string) map[string]*v1alpha1.Cluste
 	}
 	csvs := make(map[string]*v1alpha1.ClusterServiceVersion, len(csvsInNamespace.Items))
 	for _, csv := range csvsInNamespace.Items {
-		csvs[csv.Name] = &csv
+		csvs[csv.Name] = csv.DeepCopy()
 	}
 	return csvs
 }
@@ -284,7 +328,6 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 	if csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting {
 		return nil
 	}
-
 	if replacement := a.isBeingReplaced(csv, a.csvsInNamespace(csv.GetNamespace())); replacement != nil {
 		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
 		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
@@ -331,6 +374,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	previousCSV := a.isReplacing(csv)
 	var previousStrategy install.Strategy
 	if previousCSV != nil {
+		a.requeueCSV(previousCSV.Name, previousCSV.Namespace)
 		previousStrategy, err = a.resolver.UnmarshalStrategy(previousCSV.Spec.InstallStrategy)
 		if err != nil {
 			previousStrategy = nil
@@ -403,7 +447,9 @@ func (a *Operator) annotateNamespace(obj interface{}) (syncError error) {
 
 func (a *Operator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
 	for _, csv := range csvsInNamespace {
+		log.Infof("checking %s", csv.GetName())
 		if csv.Spec.Replaces == in.GetName() {
+			log.Infof("%s replaced by %s", in.GetName(), csv.GetName())
 			replacedBy = csv
 			return
 		}
