@@ -256,6 +256,7 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install, fetchedSubscription.Status.CurrentCSV)
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
@@ -383,6 +384,8 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	crc := newCRClient(t)
 
 	require.NoError(t, initCatalog(t, c))
+
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
