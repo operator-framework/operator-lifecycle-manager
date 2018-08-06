@@ -18,7 +18,7 @@ spec:
       labels:
         app: alm-operator
     spec:
-      serviceAccountName: alm-operator-serviceaccount
+      serviceAccountName: olm-operator-serviceaccount
       containers:
         - name: alm-operator
           command:

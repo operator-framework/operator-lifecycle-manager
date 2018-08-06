@@ -256,7 +256,7 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install, fetchedSubscription.Status.CurrentCSV)
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
@@ -324,12 +324,21 @@ func checkForInstallPlan(t *testing.T, c operatorclient.ClientInterface, owner o
 	return installPlan, err
 }
 
+func cleanupOLM(t *testing.T, namespace string) {
+	var immediate int64 = 0
+	crc := newCRClient(t)
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+}
+
 //   I. Creating a new subscription
 //      A. If package is not installed, creating a subscription should install latest version
 func TestCreateNewSubscription(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-
 	require.NoError(t, initCatalog(t, c))
 
 	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, betaChannel, v1alpha1.ApprovalAutomatic)
@@ -353,6 +362,7 @@ func TestCreateNewSubscription(t *testing.T) {
 //      B. If package is already installed, creating a subscription should upgrade it to the latest
 //         version
 func TestCreateNewSubscriptionAgain(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
@@ -380,12 +390,11 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 func TestCreateNewSubscriptionManualApproval(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
 	require.NoError(t, initCatalog(t, c))
-
-	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
