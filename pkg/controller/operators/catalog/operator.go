@@ -169,7 +169,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	var updatedSub *v1alpha1.Subscription
 	updatedSub, syncError = o.syncSubscription(sub)
 
-	if updatedSub == nil {
+	if updatedSub == nil || updatedSub.Status.State == sub.Status.State {
 		return
 	}
 	if syncError != nil {

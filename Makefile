@@ -42,7 +42,7 @@ build-coverage: $(CMDS)
 $(CMDS): .FORCE
 	@if [ cover-$(GENCOVER) = cover-true ]; then \
 		echo "building bin/$(shell basename $@)" with coverage; \
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $@ -c -covermode=count -coverpkg ./pkg/... $(PKG)/cmd/$(shell basename $@); \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $@ -c -covermode=count -coverpkg ./pkg/controller/... $(PKG)/cmd/$(shell basename $@); \
 	else \
 		echo "building bin/$(shell basename $@)"; \
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o $@ $(PKG)/cmd/$(shell basename $@); \
