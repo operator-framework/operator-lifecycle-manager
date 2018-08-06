@@ -356,6 +356,7 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
 
+	// Will be cleaned up by the upgrade process
 	_, err := createCSV(t, c, crc, stableCSV, true)
 	require.NoError(t, err)
 
