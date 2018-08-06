@@ -48,4 +48,4 @@ OLM uses standard Kubernetes RBAC so that admins can create customized personas 
 
 If you want your end-users to be able to install CSVs themselves, they can be granted access to CSVs and Subscription-v1s. This is typically done when you are producing Operators as part of your product or internal platform.
 
-[arch]: design/architecture.md
+[arch]: architecture.md
