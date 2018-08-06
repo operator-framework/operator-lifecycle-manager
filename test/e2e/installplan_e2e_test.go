@@ -211,8 +211,9 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionNameExistingBehavior(t
 		},
 	}
 
-	_, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
+	cleanup, err := decorateCommonAndCreateInstallPlan(crc, installPlan)
 	require.NoError(t, err)
+	defer cleanup()
 
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
 		return fip.Status.Phase == v1alpha1.InstallPlanPhasePlanning &&
@@ -252,8 +253,9 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 		},
 	}
 
-	_, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
+	cleanup, err := decorateCommonAndCreateInstallPlan(crc, installPlan)
 	require.NoError(t, err)
+	defer cleanup()
 
 	// Wait for InstallPlan to be status: Complete before checking for resource presence
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), installPlanFailedChecker)
@@ -443,9 +445,10 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 		},
 	}
 
-	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(&installPlan)
+	cleanup, err := decorateCommonAndCreateInstallPlan(crc, installPlan)
 	require.NoError(t, err)
 	t.Logf("Install plan %s created", installPlan.GetName())
+	defer cleanup()
 
 	// Wait for InstallPlan to be status: Complete before checking resource presence
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), installPlanCompleteChecker)
