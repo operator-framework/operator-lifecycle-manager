@@ -287,6 +287,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 func (a *Operator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceVersion) (csvs []*v1alpha1.ClusterServiceVersion) {
 	csvsInNamespace := a.csvsInNamespace(csv.GetNamespace())
 	current := csv
+
+	// isBeingReplaced returns a copy
 	next := a.isBeingReplaced(current, csvsInNamespace)
 	for next != nil {
 		csvs = append(csvs, current)
@@ -450,7 +452,7 @@ func (a *Operator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNam
 		log.Infof("checking %s", csv.GetName())
 		if csv.Spec.Replaces == in.GetName() {
 			log.Infof("%s replaced by %s", in.GetName(), csv.GetName())
-			replacedBy = csv
+			replacedBy = csv.DeepCopy()
 			return
 		}
 	}
