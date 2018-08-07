@@ -136,6 +136,7 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 	if !exists {
 		// For now, we ignore the case where an object used to exist but no longer does
 		log.Infof("couldn't get %s from queue", key)
+		log.Debugf("have keys: %v", loop.informer.GetIndexer().ListKeys())
 		return nil
 	}
 	return loop.syncHandler(obj)
