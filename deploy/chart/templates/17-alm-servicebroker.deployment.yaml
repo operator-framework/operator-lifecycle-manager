@@ -6,7 +6,6 @@ metadata:
   namespace: {{ .Values.namespace }}
   labels:
     app: alm-service-broker
-    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   strategy:
     type: RollingUpdate

@@ -12,7 +12,6 @@ const (
 )
 
 type CatalogSourceSpec struct {
-	Name       string   `json:"name"`
 	SourceType string   `json:"sourceType"`
 	ConfigMap  string   `json:"configMap,omitempty"`
 	Secrets    []string `json:"secrets,omitempty"`

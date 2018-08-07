@@ -22,13 +22,11 @@ import (
 )
 
 const (
-	vaultVersion           = "0.9.0-0"
 	etcdVersion            = "3.2.13"
 	prometheusVersion      = "v1.7.0"
 	expectedEtcdNodes      = 3
 	expectedPrometheusSize = 3
-	vaultClusterSize       = 2
-	ocsConfigMap           = "tectonic-ocs"
+	ocsConfigMap           = "ocs"
 )
 
 type installPlanConditionChecker func(fip *v1alpha1.InstallPlan) bool

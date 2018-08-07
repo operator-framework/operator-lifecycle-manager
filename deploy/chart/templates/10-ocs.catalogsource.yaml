@@ -4,14 +4,11 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
-  name: tectonic-ocs
+  name: ocs
   namespace: {{ .Values.catalog_namespace }}
-  annotations:
-    tectonic-operators.coreos.com/upgrade-strategy: 'DeleteAndRecreate'
 spec:
-  name: tectonic-ocs
   sourceType: internal
-  configMap: tectonic-ocs
-  displayName: Tectonic Open Cloud Services
-  publisher: CoreOS, Inc.
+  configMap: ocs
+  displayName: Open Cloud Services
+  publisher: Red Hat
 {{ end }}

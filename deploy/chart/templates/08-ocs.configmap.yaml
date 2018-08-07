@@ -1,15 +1,13 @@
-{{- if ( has "upstream-components" .Values.catalog_sources ) }}
+{{- if ( has "tectonic-ocs" .Values.catalog_sources ) }}
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: upstream-components
+  name: ocs
   namespace: {{ .Values.catalog_namespace }}
-  labels:
-    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 {{ $root := . }}
 data:
   customResourceDefinitions: |-
-{{- range $path, $bytes := .Files.Glob "catalog_resources/upstream/**.crd.yaml" }}
+{{- range $path, $bytes := .Files.Glob "catalog_resources/ocs/**.crd.yaml" }}
   {{- range $index, $line  := $root.Files.Lines $path }}
     {{- if eq $index 0 }}
 {{- $line | printf "%s%s" "- " | nindent 4 }}
@@ -19,7 +17,7 @@ data:
   {{- end }}
 {{- end }}
   clusterServiceVersions: |-
-{{- range $path, $bytes := .Files.Glob "catalog_resources/upstream/**.clusterserviceversion.yaml" }}
+{{- range $path, $bytes := .Files.Glob "catalog_resources/ocs/**.clusterserviceversion.yaml" }}
   {{- range $index, $line  := $root.Files.Lines $path }}
     {{- if eq $index 0 }}
 {{- $line | printf "%s%s" "- " | nindent 4 }}
@@ -29,7 +27,7 @@ data:
   {{- end }}
 {{- end }}
   packages: |-
-{{- range $path, $bytes := .Files.Glob "catalog_resources/upstream/**.package.yaml" }}
+{{- range $path, $bytes := .Files.Glob "catalog_resources/ocs/**.package.yaml" }}
   {{- range $index, $line  := $root.Files.Lines $path }}
     {{- if eq $index 0 }}
 {{- $line | printf "%s%s" "- " | nindent 4 }}
