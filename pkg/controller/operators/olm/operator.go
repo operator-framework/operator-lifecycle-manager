@@ -273,8 +273,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// if there's no newer version, requeue for processing (likely will be GCable before resync)
 		a.requeueCSV(out.GetName(), out.GetNamespace())
 	case v1alpha1.CSVPhaseDeleting:
-		foreground := metav1.DeletePropagationForeground
-		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{PropagationPolicy: &foreground})
+		var immediate int64 = 0
+		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{GracePeriodSeconds: &immediate})
 		if syncError != nil {
 			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
 		}
