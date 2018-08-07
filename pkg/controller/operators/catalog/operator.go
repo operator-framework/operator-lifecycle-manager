@@ -20,6 +20,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -44,6 +45,7 @@ type Operator struct {
 	subscriptions      map[registry.SubscriptionKey]v1alpha1.Subscription
 	subscriptionsLock  sync.RWMutex
 	dependencyResolver resolver.DependencyResolver
+	subQueue           workqueue.RateLimitingInterface
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -123,6 +125,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncSubscriptions,
 		nil,
 	)
+	op.subQueue = subscriptionQueue
 	for _, informer := range subscriptionQueueInformers {
 		op.RegisterQueueInformer(informer)
 	}
@@ -196,6 +199,13 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	return
 }
 
+func (a *Operator) requeueInstallPlan(name, namespace string) {
+	// we can build the key directly, will need to change if queue uses different key scheme
+	key := fmt.Sprintf("%s/%s", namespace, name)
+	a.subQueue.AddRateLimited(key)
+	return
+}
+
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
@@ -219,6 +229,12 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	// no changes in status, don't update
 	if outInstallPlan.Status.Phase == plan.Status.Phase {
 		return
+	}
+
+	// notify subscription loop of installplan changes
+	if ownerutil.IsOwnedByKind(outInstallPlan, v1alpha1.SubscriptionKind) {
+		oref := ownerutil.GetOwnerByKind(outInstallPlan, v1alpha1.SubscriptionKind)
+		o.requeueInstallPlan(oref.Name, outInstallPlan.GetNamespace())
 	}
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
