@@ -150,7 +150,8 @@ local jobs = {
         only: ['master'],
     },
 
-    "deploy-teamui": baseJob.Deploy {
+    # currently not needed, to re-enable remove the "." prefix
+    ".deploy-teamui": baseJob.Deploy {
         local _vars = self.localvars,
         localvars+:: {
             image: images.release,
@@ -171,7 +172,7 @@ local jobs = {
         environment+: {
             name: "teamui",
         },
-        only: ['master'],
+        only: [''],
     },
 
     "deploy-openshift": baseJob.Deploy {

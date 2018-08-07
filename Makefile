@@ -129,10 +129,6 @@ generate-mock-client: $(counterfeiter)
 
 gen-all: gen-ci codegen generate-mock-client
 
-# make ver=0.3.0 tectonic-release
-tectonic-release:
-	./scripts/package-release.sh $(ver) deploy/tectonic-alm-operator/manifests/$(ver) deploy/tectonic-alm-operator/values.yaml
-
 # make ver=0.3.0 upstream-release
 upstream-release:
 	./scripts/package-release.sh $(ver) deploy/upstream/manifests/$(ver) deploy/upstream/values.yaml
@@ -148,15 +144,15 @@ ansible-release: $(YQ)
 	git submodule init
 	git submodule update
 	# copy base role to versioned release
-	mkdir -p deploy/aos-olm/$(ver)
-	cp -R deploy/role/. deploy/aos-olm/$(ver)/
+	mkdir -p deploy/aos-olm/manifests/$(ver)
+	cp -R deploy/role/. deploy/aos-olm/manifests/$(ver)/
 	# copy manifest files into release
-	./scripts/package-release.sh $(ver) deploy/aos-olm/$(ver)/files deploy/aos-olm/values.yaml
+	./scripts/package-release.sh $(ver) deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/values.yaml
 	# generate install/remove tasks based on manifest files
-	./scripts/k8s_yaml_to_ansible_install.sh deploy/aos-olm/$(ver)/files deploy/aos-olm/$(ver)/tasks/install.yaml
-	./scripts/k8s_yaml_to_ansible_remove.sh deploy/aos-olm/$(ver)/files deploy/aos-olm/$(ver)/tasks/remove_components.yaml
+	./scripts/k8s_yaml_to_ansible_install.sh deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/manifests/$(ver)/tasks/install.yaml
+	./scripts/k8s_yaml_to_ansible_remove.sh deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/manifests/$(ver)/tasks/remove_components.yaml
 	# link newest release into playbook
-	ln -sfF ../../../../deploy/aos-olm/$(ver) deploy/aos-olm/playbook/private/roles/olm
+	ln -sfF ../../../../deploy/aos-olm/manifests/$(ver) deploy/aos-olm/playbook/private/roles/olm
 
 
 # must have already tagged a version release in github so that the docker images are available
@@ -170,9 +166,7 @@ endif
 	docker pull quay.io/coreos/catalog:$(ver)
 	yaml w -i deploy/upstream/values.yaml alm.image.ref $(OLM_REF)
 	yaml w -i deploy/upstream/values.yaml catalog.image.ref $(CATALOG_REF)
-	yaml w -i deploy/tectonic-alm-operator/values.yaml alm.image.ref $(OLM_REF)
-	yaml w -i deploy/tectonic-alm-operator/values.yaml catalog.image.ref $(CATALOG_REF)
-	$(MAKE) tectonic-release upstream-release
+	$(MAKE) upstream-release
 
 
 # this will build locally on rhel

@@ -69,7 +69,7 @@ kubectl apply -f ./custom-olm
 
 ```yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: InstallPlan-v1
+kind: InstallPlan
 metadata:
   namespace: default
   name: olm-testing

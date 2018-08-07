@@ -178,7 +178,6 @@ var (
 			Name: catalogSourceName,
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
-			Name:       catalogSourceName,
 			SourceType: "internal",
 			ConfigMap:  catalogConfigMapName,
 		},

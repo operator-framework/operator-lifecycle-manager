@@ -5,8 +5,6 @@ metadata:
   annotations:
     displayName: Install Plan
     description: Represents a plan to install and resolve dependencies for Cluster Services
-  labels:
-    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 spec:
   group: operators.coreos.com
   version: v1alpha1

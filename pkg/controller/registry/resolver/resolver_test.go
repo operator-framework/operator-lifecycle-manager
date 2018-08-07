@@ -62,7 +62,7 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			}
 
 			srcKey := registry.SourceKey{
-				Name:      "tectonic-ocs",
+				Name:      "ocs",
 				Namespace: plan.Namespace,
 			}
 
@@ -89,7 +89,7 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 
 			// Assert that all StepResources have the have the correct catalog source name and namespace set
 			for _, step := range plan.Status.Plan {
-				require.Equal(t, step.Resource.CatalogSource, "tectonic-ocs")
+				require.Equal(t, step.Resource.CatalogSource, "ocs")
 				require.Equal(t, step.Resource.CatalogSourceNamespace, plan.Namespace)
 			}
 		})
@@ -99,9 +99,9 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 
 	// Define some source keys representing different catalog sources (all in same namespace for now)
-	sourceA := registry.SourceKey{Namespace: "default", Name: "tectonic-ocs-a"}
-	sourceB := registry.SourceKey{Namespace: "default", Name: "tectonic-ocs-b"}
-	sourceC := registry.SourceKey{Namespace: "default", Name: "tectonic-ocs-c"}
+	sourceA := registry.SourceKey{Namespace: "default", Name: "ocs-a"}
+	sourceB := registry.SourceKey{Namespace: "default", Name: "ocs-b"}
+	sourceC := registry.SourceKey{Namespace: "default", Name: "ocs-c"}
 
 	type resourceKey struct {
 		name string

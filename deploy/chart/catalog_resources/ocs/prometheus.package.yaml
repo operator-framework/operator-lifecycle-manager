@@ -1,5 +1,5 @@
-#! package-manifest: ./deploy/chart/catalog_resources/ocs/prometheusoperator.0.22.1.clusterserviceversion.yaml
+#! package-manifest: ./deploy/chart/catalog_resources/ocs/prometheusoperator.0.22.2.clusterserviceversion.yaml
 packageName: prometheus
 channels:
 - name: alpha
-  currentCSV: prometheusoperator.0.22.1
+  currentCSV: prometheusoperator.0.22.2

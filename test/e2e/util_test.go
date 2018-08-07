@@ -208,7 +208,6 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 			Name: name,
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
-			Name:       name,
 			SourceType: "internal",
 			ConfigMap:  configMapName,
 		},

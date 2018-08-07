@@ -2,8 +2,6 @@ apiVersion: {{ .Values.rbacApiVersion }}/v1
 kind: ClusterRoleBinding
 metadata:
   name: olm-operator-binding-{{ .Values.namespace }}
-  labels:
-    tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole

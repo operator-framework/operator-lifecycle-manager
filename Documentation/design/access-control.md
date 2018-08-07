@@ -32,7 +32,7 @@ Cluster admins have the ability to provide a selection of Operators for use on t
 1. Create Role contained in the CSV
 1. Create the Custom Resource Definition contained in the CSV
 
-The cluster admin can now select the teams and namespaces that can use this particular Operator, by creating a Subscription-v1 object, which will trigger the installation of the Operator:
+The cluster admin can now select the teams and namespaces that can use this particular Operator, by creating a Subscription object, which will trigger the installation of the Operator:
 
 1. Create Service Account for Operator
 1. Create minimal Role for the Operator
@@ -44,8 +44,8 @@ Once a namespace is created, the end-users now have the ability to create instan
 
 ## Invent Your Own Personas
 
-OLM uses standard Kubernetes RBAC so that admins can create customized personas in addition to the methods described above. For example, if you want to allow a larger group of namespace admins to subscribe to various Operators without being a cluster admin, they can be granted access to CRUD on Subscription-v1 objects.
+OLM uses standard Kubernetes RBAC so that admins can create customized personas in addition to the methods described above. For example, if you want to allow a larger group of namespace admins to subscribe to various Operators without being a cluster admin, they can be granted access to CRUD on Subscription objects.
 
-If you want your end-users to be able to install CSVs themselves, they can be granted access to CSVs and Subscription-v1s. This is typically done when you are producing Operators as part of your product or internal platform.
+If you want your end-users to be able to install CSVs themselves, they can be granted access to CSVs and Subscriptions. This is typically done when you are producing Operators as part of your product or internal platform.
 
 [arch]: architecture.md

@@ -92,15 +92,15 @@ Users can subscribe to channels and have their operators automatically updated w
 Here's an example of a subscription:
 
 ```yaml
-apiVersion: app.coreos.com/v1alpha1
-kind: Subscription-v1
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
 metadata:
   name: etcd
   namespace: local 
 spec:
   channel: alpha
   name: etcd
-  source: tectonic-ocs
+  source: ocs
 ```
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.
