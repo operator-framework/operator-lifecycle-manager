@@ -20,7 +20,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	opFake "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // Fakes
@@ -56,7 +56,7 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 
 func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, resolver install.StrategyResolverInterface, namespace string) (*Operator, error) {
 	clientFake := fake.NewSimpleClientset(clientObjs...)
-	opClientFake := opFake.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...))
+	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...))
 	annotations := map[string]string{"test": "annotation"}
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 	if err != nil {

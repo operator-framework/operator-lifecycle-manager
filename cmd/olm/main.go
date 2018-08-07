@@ -82,7 +82,7 @@ func main() {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 
-	opClient := operatorclient.NewClient(*kubeConfigPath)
+	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath)
 
 	// Create a new instance of the operator.
 	operator, err := olm.NewOperator(crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, annotation, namespaces)
