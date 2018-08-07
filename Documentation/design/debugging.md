@@ -3,7 +3,7 @@
 We have a ClusterServiceVersion that is failing to report as avialable.
 
 ```sh
-$ kubectl -n ci-olm-pr-188-gc-csvs get clusterserviceversion-v1s etcdoperator.v0.8.1 -o yaml
+$ kubectl -n ci-olm-pr-188-gc-csvs get clusterserviceversions etcdoperator.v0.8.1 -o yaml
 ...
   lastTransitionTime: 2018-01-22T15:48:13Z
   lastUpdateTime: 2018-01-22T15:51:09Z
@@ -81,7 +81,7 @@ The primary way an InstallPlan can fail is by not resolving the resources needed
 
 ```yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: InstallPlan-v1
+kind: InstallPlan
 metadata:
   namespace: ci-olm-pr-188-gc-csvs
   name: olm-testing
@@ -94,9 +94,9 @@ spec:
 This installplan will fail because `etcdoperator123` is not in the catalog. We can see this in its status:
 
 ```sh
-$ kubectl get -n ci-olm-pr-188-gc-csvs installplan-v1s olm-testing -o yaml
+$ kubectl get -n ci-olm-pr-188-gc-csvs installplans olm-testing -o yaml
 apiVersion: app.coreos.com/v1alpha1
-kind: InstallPlan-v1
+kind: InstallPlan
 metadata:
   ... 
 spec:
@@ -105,7 +105,7 @@ spec:
   - etcdoperator123
 status:
   catalogSources:
-  - tectonic-ocs
+  - ocs
   conditions:
   - lastTransitionTime: 2018-01-22T16:05:09Z
     lastUpdateTime: 2018-01-22T16:06:59Z

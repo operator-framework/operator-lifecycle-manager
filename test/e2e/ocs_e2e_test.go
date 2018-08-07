@@ -85,7 +85,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
-	// Ensure CustomResourceDefinitions and ClusterServiceVersion-v1s are present in the resolved InstallPlan
+	// Ensure CustomResourceDefinitions and ClusterServiceVersions are present in the resolved InstallPlan
 	requiredCSVs := []string{"etcdoperator"}
 	requiredCRDs := []string{"etcdclusters.etcd.database.coreos.com", "etcdbackups.etcd.database.coreos.com", "etcdrestores.etcd.database.coreos.com"}
 
@@ -223,7 +223,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
-	// Ensure CustomResourceDefinitions and ClusterServiceVersion-v1s are present in the resolved InstallPlan
+	// Ensure CustomResourceDefinitions and ClusterServiceVersions are present in the resolved InstallPlan
 	requiredCSVs := []string{"prometheusoperator"}
 	requiredCRDs := []string{"prometheuses.monitoring.coreos.com", "alertmanagers.monitoring.coreos.com", "servicemonitors.monitoring.coreos.com"}
 

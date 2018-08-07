@@ -1,4 +1,4 @@
-{{- if ( has "tectonic-ocs" .Values.catalog_sources ) }}
+{{- if ( has "ocs" .Values.catalog_sources ) }}
 kind: ConfigMap
 apiVersion: v1
 metadata:

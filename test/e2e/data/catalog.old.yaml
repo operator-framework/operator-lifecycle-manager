@@ -33,8 +33,8 @@ data:
           kind: TestB
           listKind: TestBList
   clusterServiceVersions: |-
-    - apiVersion: app.coreos.com/v1alpha1
-      kind: ClusterServiceVersion-v1
+    - apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
       metadata:
         name: service-a.1.0.0
         namespace: placeholder
@@ -55,8 +55,8 @@ data:
             kind: TestA
             name: testas.example.com
             version: v1alpha1
-    - apiVersion: app.coreos.com/v1alpha1
-      kind: ClusterServiceVersion-v1
+    - apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
       metadata:
         name: service-b.1.0.0
         namespace: placeholder

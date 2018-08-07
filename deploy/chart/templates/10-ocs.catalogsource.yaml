@@ -1,4 +1,4 @@
-{{- if ( has "tectonic-ocs" .Values.catalog_sources ) }}
+{{- if ( has "ocs" .Values.catalog_sources ) }}
 #! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: operators.coreos.com/v1alpha1

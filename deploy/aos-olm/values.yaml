@@ -16,5 +16,4 @@ catalog:
   service:
     internalPort: 8080
 catalog_sources:
-- tectonic-ocs
-- upstream-components
+- ocs

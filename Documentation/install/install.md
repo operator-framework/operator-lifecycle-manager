@@ -127,33 +127,23 @@ Cloud Services can be installed from the catalog by subscribing to a channel in 
 If using one of the `local` run options, this will subscribe to `etcd`, `vault`, and `prometheus` operators. Subscribing to a service that doesn't exist yet will install the operator and related CRDs in the namespace.
 
 ```yaml
-apiVersion: app.coreos.com/v1alpha1
-kind: Subscription-v1
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
 metadata:
   name: etcd
   namespace: local
 spec:
   channel: alpha
   name: etcd
-  source: tectonic-ocs
+  source: ocs
 ---
-apiVersion: app.coreos.com/v1alpha1
-kind: Subscription-v1
-metadata:
-  name: vault
-  namespace: local
-spec:
-  channel: alpha
-  name: vault
-  source: tectonic-ocs
----
-apiVersion: app.coreos.com/v1alpha1
-kind: Subscription-v1
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
 metadata:
   name: prometheus
   namespace: local
 spec:
   channel: alpha
   name: prometheus
-  source: tectonic-ocs
+  source: ocs
 ```
