@@ -20,7 +20,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 // Test Subscription behavior
@@ -315,15 +314,6 @@ func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*
 	return csv, err
 }
 
-func checkForInstallPlan(t *testing.T, c operatorclient.ClientInterface, owner ownerutil.Owner) (*v1alpha1.InstallPlan, error) {
-	var installPlan *v1alpha1.InstallPlan
-	installPlans, err := waitForAndFetchChildren(t, c, v1alpha1.GroupVersion, v1alpha1.InstallPlanKind, owner, 1)
-	require.NoError(t, err)
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(installPlans[0].Object, &installPlan)
-	t.Log(err)
-	return installPlan, err
-}
-
 func cleanupOLM(t *testing.T, namespace string) {
 	var immediate int64 = 0
 	crc := newCRClient(t)
@@ -403,7 +393,7 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	installPlan, err := checkForInstallPlan(t, c, subscription)
+	installPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, installPlanRequiresApprovalChecker)
 	require.NoError(t, err)
 	require.NotNil(t, installPlan)
 
