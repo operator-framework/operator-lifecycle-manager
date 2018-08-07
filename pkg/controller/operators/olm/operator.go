@@ -228,7 +228,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		out.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
-		//a.requeueCSV(out)
+		a.requeueCSV(out.GetName(), out.GetNamespace())
 		return
 	case v1alpha1.CSVPhaseInstalling:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
