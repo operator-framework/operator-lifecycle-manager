@@ -156,32 +156,26 @@ ansible-release: $(YQ)
 
 
 # must have already tagged a version release in github so that the docker images are available
-release: OLM_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
-release: CATALOG_REF=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver))
 release:
 ifndef ver
 	$(error ver is undefined)
 endif
 	docker pull quay.io/coreos/olm:$(ver)
 	docker pull quay.io/coreos/catalog:$(ver)
-	yaml w -i deploy/upstream/values.yaml alm.image.ref $(OLM_REF)
-	yaml w -i deploy/upstream/values.yaml catalog.image.ref $(CATALOG_REF)
+	yaml w -i deploy/upstream/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
+	yaml w -i deploy/upstream/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)`
 	$(MAKE) upstream-release
 
 
 # this will build locally on rhel
-# These are built from the same image, and repodigests are ordered alphabetically, so olm is ref 1 and catalog ref 2
-release-rh: OLM_REF_RH=$(shell docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel)
-release-rh: CATALOG_REF_RH=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel)
 release-rh:
 ifndef ver
 	$(error ver is undefined)
 endif
 	./scripts/pull_or_build_rh.sh $(ver)
-	echo $(OLM_REF_RH)
-	docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)-rhel
-	yaml w -i deploy/aos-olm/values.yaml alm.image.ref $(OLM_REF_RH)
-	yaml w -i deploy/aos-olm/values.yaml catalog.image.ref $(CATALOG_REF_RH)
+	# These are built from the same image, and repodigests are ordered alphabetically, so catalog is ref 0 and olm ref 1
+	yaml w -i deploy/aos-olm/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel`
+	yaml w -i deploy/aos-olm/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel`
 	$(MAKE) ansible-release
 
 release-all: release release-rh

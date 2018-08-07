@@ -1,0 +1,47 @@
+##---
+# Source: olm/templates/12-alm-operator.deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alm-operator
+  namespace: kube-system
+  labels:
+    app: alm-operator
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alm-operator
+  template:
+    metadata:
+      labels:
+        app: alm-operator
+    spec:
+      serviceAccountName: olm-operator-serviceaccount
+      containers:
+        - name: alm-operator
+          command:
+          - /bin/olm
+          image: quay.io/coreos/olm@sha256:d2e51372b3251321c38d2159e8060fe0bf2f3eeb60a4a3cd53fbee3e1cdd5756
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          env:
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            value: alm-operator
+      imagePullSecrets:
+        - name: coreos-pull-secret

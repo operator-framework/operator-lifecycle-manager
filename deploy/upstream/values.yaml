@@ -4,14 +4,14 @@ catalog_namespace: kube-system
 alm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:00b6b703d235b622d8e2e5424d0bfb4aa9e46ec10abd295def47e2c6ed7a18e8
+    ref: quay.io/coreos/olm@sha256:d2e51372b3251321c38d2159e8060fe0bf2f3eeb60a4a3cd53fbee3e1cdd5756
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/catalog@sha256:08667c7c409c8ca044c05db9bf90a0aa9954ce511490e72df4a3493cebd58b8e
+    ref: quay.io/coreos/catalog@sha256:cc60359f7fdeaf71e4d989b470dd8c35c693756b5f24485b0f3df6612a730101
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
