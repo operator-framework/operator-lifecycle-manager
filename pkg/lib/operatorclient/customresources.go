@@ -44,7 +44,7 @@ func (c *Client) GetCustomResource(apiGroup, version, namespace, resourceKind, r
 // GetCustomResourceRaw returns the custom resource's raw body data by the given name.
 func (c *Client) GetCustomResourceRaw(apiGroup, version, namespace, resourceKind, resourceName string) ([]byte, error) {
 	glog.V(4).Infof("[GET CUSTOM RESOURCE RAW]: %s:%s", namespace, resourceName)
-	httpRestClient := c.extClientset.ApiextensionsV1beta1().RESTClient()
+	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceURI(apiGroup, version, namespace, resourceKind, resourceName)
 	glog.V(4).Infof("[GET]: %s", uri)
 
@@ -75,7 +75,7 @@ func (c *Client) CreateCustomResourceRaw(apiGroup, version, namespace, kind stri
 	glog.V(4).Infof("[CREATE CUSTOM RESOURCE RAW]: %s:%s", namespace, kind)
 	var statusCode int
 
-	httpRestClient := c.extClientset.ApiextensionsV1beta1().RESTClient()
+	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceDefinitionURI(apiGroup, version, namespace, kind)
 	glog.V(4).Infof("[POST]: %s", uri)
 	result := httpRestClient.Post().RequestURI(uri).Body(data).Do()
@@ -137,7 +137,7 @@ func (c *Client) UpdateCustomResourceRaw(apiGroup, version, namespace, resourceK
 	glog.V(4).Infof("[UPDATE CUSTOM RESOURCE RAW]: %s:%s", namespace, resourceName)
 	var statusCode int
 
-	httpRestClient := c.extClientset.ApiextensionsV1beta1().RESTClient()
+	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceURI(apiGroup, version, namespace, resourceKind, resourceName)
 	glog.V(4).Infof("[PUT]: %s", uri)
 	result := httpRestClient.Put().RequestURI(uri).Body(data).Do()
@@ -189,7 +189,7 @@ func (c *Client) CreateOrUpdateCustomeResourceRaw(apiGroup, version, namespace, 
 // DeleteCustomResource deletes the  with the given name.
 func (c *Client) DeleteCustomResource(apiGroup, version, namespace, resourceKind, resourceName string) error {
 	glog.V(4).Infof("[DELETE CUSTOM RESOURCE]: %s:%s", namespace, resourceName)
-	httpRestClient := c.extClientset.ApiextensionsV1beta1().RESTClient()
+	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceURI(apiGroup, version, namespace, resourceKind, resourceName)
 
 	glog.V(4).Infof("[DELETE]: %s", uri)
@@ -287,7 +287,7 @@ func (c *Client) ListCustomResource(apiGroup, version, namespace, resourceKind s
 
 	var crList CustomResourceList
 
-	httpRestClient := c.extClientset.ApiextensionsV1beta1().RESTClient()
+	httpRestClient := c.extInterface.ApiextensionsV1beta1().RESTClient()
 	uri := customResourceDefinitionURI(apiGroup, version, namespace, resourceKind)
 	glog.V(4).Infof("[GET]: %s", uri)
 	bytes, err := httpRestClient.Get().RequestURI(uri).DoRaw()

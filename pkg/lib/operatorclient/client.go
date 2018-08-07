@@ -64,13 +64,12 @@ var _ ClientInterface = &Client{}
 
 // Client is a kubernetes client that can talk to the API server.
 type Client struct {
-	config *rest.Config
-	*kubernetes.Clientset
-	extClientset *apiextensions.Clientset
+	kubernetes.Interface
+	extInterface apiextensions.Interface
 }
 
 // NewClient creates a kubernetes client or bails out on on failures.
-func NewClient(kubeconfig string) ClientInterface {
+func NewClientFromConfig(kubeconfig string) ClientInterface {
 	var config *rest.Config
 	var err error
 
@@ -86,15 +85,20 @@ func NewClient(kubeconfig string) ClientInterface {
 		log.Fatalf("Cannot load config for REST client: %v", err)
 	}
 
-	return &Client{config, kubernetes.NewForConfigOrDie(config), apiextensions.NewForConfigOrDie(config)}
+	return &Client{kubernetes.NewForConfigOrDie(config), apiextensions.NewForConfigOrDie(config)}
+}
+
+// NewClient creates a kubernetes client
+func NewClient(k8sClient kubernetes.Interface, extclient apiextensions.Interface) ClientInterface {
+	return &Client{k8sClient, extclient}
 }
 
 // KubernetesInterface returns the Kubernetes interface.
 func (c *Client) KubernetesInterface() kubernetes.Interface {
-	return c.Clientset
+	return c.Interface
 }
 
 // ApiextensionsV1beta1Interface returns the API extention interface.
 func (c *Client) ApiextensionsV1beta1Interface() apiextensions.Interface {
-	return c.extClientset
+	return c.extInterface
 }

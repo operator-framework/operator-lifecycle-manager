@@ -6,6 +6,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -13,12 +14,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 // Test Subscription behavior
@@ -223,14 +224,73 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
 	return nil
 }
 
-func createSubscription(t *testing.T, c operatorclient.ClientInterface, channel string, name string, approval v1alpha1.Approval) cleanupFunc {
-	sub := &v1alpha1.Subscription{
+type subscriptionStateChecker func(subscription *v1alpha1.Subscription) bool
+
+func subscriptionStateUpgradeAvailableChecker(subscription *v1alpha1.Subscription) bool {
+	return subscription.Status.State == v1alpha1.SubscriptionStateUpgradeAvailable
+}
+
+func subscriptionStateUpgradePendingChecker(subscription *v1alpha1.Subscription) bool {
+	return subscription.Status.State == v1alpha1.SubscriptionStateUpgradePending
+}
+
+func subscriptionStateAtLatestChecker(subscription *v1alpha1.Subscription) bool {
+	return subscription.Status.State == v1alpha1.SubscriptionStateAtLatest
+}
+
+func subscriptionStateNoneChecker(subscription *v1alpha1.Subscription) bool {
+	return subscription.Status.State == v1alpha1.SubscriptionStateNone
+}
+
+func subscriptionStateAny(subscription *v1alpha1.Subscription) bool {
+	return subscriptionStateNoneChecker(subscription) ||
+		subscriptionStateAtLatestChecker(subscription) ||
+		subscriptionStateUpgradePendingChecker(subscription) ||
+		subscriptionStateUpgradeAvailableChecker(subscription)
+}
+
+func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
+	var fetchedSubscription *v1alpha1.Subscription
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
+		if err != nil || fetchedSubscription == nil {
+			return false, err
+		}
+		return checker(fetchedSubscription), nil
+	})
+	return fetchedSubscription, err
+}
+
+func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscription *v1alpha1.Subscription) cleanupFunc {
+	return func() {
+		// Check for an installplan
+		if installPlanRef := subscription.Status.Install; installPlanRef != nil {
+			// Get installplan and create/execute cleanup function
+			installPlan, err := crc.OperatorsV1alpha1().InstallPlans(subscription.GetNamespace()).Get(installPlanRef.Name, metav1.GetOptions{})
+			if err == nil {
+				buildInstallPlanCleanupFunc(crc, installPlan)()
+			} else {
+				t.Logf("Could not get installplan %s while building subscription %s's cleanup function", installPlan.GetName(), subscription.GetName())
+			}
+		}
+
+		// Delete the subscription
+		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(subscription.GetName(), &metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}
+}
+
+func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, channel string, approval v1alpha1.Approval) cleanupFunc {
+	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.SubscriptionKind,
 			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: testNamespace,
+			Namespace: namespace,
 			Name:      name,
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
@@ -241,19 +301,9 @@ func createSubscription(t *testing.T, c operatorclient.ClientInterface, channel 
 		},
 	}
 
-	unstrSub, err := runtime.DefaultUnstructuredConverter.ToUnstructured(sub)
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
 	require.NoError(t, err)
-	require.NoError(t, c.CreateCustomResource(&unstructured.Unstructured{Object: unstrSub}))
-	return cleanupCustomResource(t, c, v1alpha1.GroupVersion,
-		v1alpha1.SubscriptionKind, name)
-}
-
-func fetchSubscription(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.Subscription, error) {
-	var sub *v1alpha1.Subscription
-	unstrSub, err := waitForAndFetchCustomResource(t, c, v1alpha1.GroupVersion, v1alpha1.SubscriptionKind, name)
-	require.NoError(t, err)
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrSub.Object, &sub)
-	return sub, err
+	return buildSubscriptionCleanupFunc(t, crc, subscription)
 }
 
 func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.ClusterServiceVersion, error) {
@@ -264,83 +314,86 @@ func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*
 	return csv, err
 }
 
-func checkForInstallPlan(t *testing.T, c operatorclient.ClientInterface, owner ownerutil.Owner) (*v1alpha1.InstallPlan, error) {
-	var installPlan *v1alpha1.InstallPlan
-	installPlans, err := waitForAndFetchChildren(t, c, v1alpha1.GroupVersion, v1alpha1.InstallPlanKind, owner, 1)
-	require.NoError(t, err)
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(installPlans[0].Object, &installPlan)
-	t.Log(err)
-	return installPlan, err
+func cleanupOLM(t *testing.T, namespace string) {
+	var immediate int64 = 0
+	crc := newCRClient(t)
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
+	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
 }
 
 //   I. Creating a new subscription
 //      A. If package is not installed, creating a subscription should install latest version
 func TestCreateNewSubscription(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
 
-	cleanup := createSubscription(t, c, betaChannel, testSubscriptionName, v1alpha1.ApprovalAutomatic)
+	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, betaChannel, v1alpha1.ApprovalAutomatic)
 	defer cleanup()
 
 	csv, err := checkForCSV(t, c, beta)
 	require.NoError(t, err)
 	require.NotNil(t, csv)
 
-	subscription, err := fetchSubscription(t, c, testSubscriptionName)
+	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
 	// Fetch subscription again to check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, c, testSubscriptionName)
+	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
 	compareResources(t, subscription, sameSubscription)
-
-	// Deleting subscription / installplan doesn't clean up the CSV
-	cleanupCustomResource(t, c, v1alpha1.GroupVersion,
-		v1alpha1.ClusterServiceVersionKind, csv.GetName())()
 }
 
 //   I. Creating a new subscription
 //      B. If package is already installed, creating a subscription should upgrade it to the latest
 //         version
 func TestCreateNewSubscriptionAgain(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
 
-	csvCleanup, err := createCSV(t, c, crc, stableCSV, true)
+	// Will be cleaned up by the upgrade process
+	_, err := createCSV(t, c, crc, stableCSV, true)
 	require.NoError(t, err)
-	defer csvCleanup()
 
-	subscriptionCleanup := createSubscription(t, c, alphaChannel, testSubscriptionName, v1alpha1.ApprovalAutomatic)
+	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, alphaChannel, v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
 	csv, err := checkForCSV(t, c, alpha)
 	require.NoError(t, err)
 	require.NotNil(t, csv)
 
-	subscription, err := fetchSubscription(t, c, testSubscriptionName)
+	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	// Deleting subscription / installplan doesn't clean up the CSV
-	cleanupCustomResource(t, c, v1alpha1.GroupVersion,
-		v1alpha1.ClusterServiceVersionKind, csv.GetName())()
+	// check for unnecessary control loops
+	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	compareResources(t, subscription, sameSubscription)
 }
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 func TestCreateNewSubscriptionManualApproval(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
+	crc := newCRClient(t)
 
 	require.NoError(t, initCatalog(t, c))
 
-	subscriptionCleanup := createSubscription(t, c, stableChannel, "manual-subscription", v1alpha1.ApprovalManual)
+	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
 
-	subscription, err := fetchSubscription(t, c, "manual-subscription")
+	subscription, err := fetchSubscription(t, crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	installPlan, err := checkForInstallPlan(t, c, subscription)
+	installPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, installPlanRequiresApprovalChecker)
 	require.NoError(t, err)
 	require.NotNil(t, installPlan)
 
@@ -348,6 +401,6 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	require.Equal(t, v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 
 	// Fetch subscription again to check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, c, "manual-subscription")
+	sameSubscription, err := fetchSubscription(t, crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
 	compareResources(t, subscription, sameSubscription)
 }

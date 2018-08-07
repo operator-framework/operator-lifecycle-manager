@@ -59,7 +59,7 @@ func NewALMBroker(kubeconfigPath string, options Options) (*ALMBroker, error) {
 	if err != nil {
 		return nil, err
 	}
-	almOpClient := operatorclient.NewClient(kubeconfigPath)
+	almOpClient := operatorclient.NewClientFromConfig(kubeconfigPath)
 	// Allocate the new instance of an ALMBroker
 	br := &ALMBroker{
 		client:   versionedClient,

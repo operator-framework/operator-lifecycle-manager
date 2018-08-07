@@ -19,7 +19,18 @@ type Operator struct {
 
 // NewOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
 func NewOperator(kubeconfig string, queueInformers ...*QueueInformer) (*Operator, error) {
-	opClient := operatorclient.NewClient(kubeconfig)
+	opClient := operatorclient.NewClientFromConfig(kubeconfig)
+	if queueInformers == nil {
+		queueInformers = []*QueueInformer{}
+	}
+	operator := &Operator{
+		OpClient:       opClient,
+		queueInformers: queueInformers,
+	}
+	return operator, nil
+}
+
+func NewOperatorFromClient(opClient operatorclient.ClientInterface, queueInformers ...*QueueInformer) (*Operator, error) {
 	if queueInformers == nil {
 		queueInformers = []*QueueInformer{}
 	}
@@ -125,6 +136,7 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 	if !exists {
 		// For now, we ignore the case where an object used to exist but no longer does
 		log.Infof("couldn't get %s from queue", key)
+		log.Debugf("have keys: %v", loop.informer.GetIndexer().ListKeys())
 		return nil
 	}
 	return loop.syncHandler(obj)

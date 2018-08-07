@@ -1,7 +1,7 @@
 apiVersion: {{ .Values.rbacApiVersion }}/v1
 kind: ClusterRoleBinding
 metadata:
-  name: alm-operator-binding
+  name: olm-operator-binding-{{ .Values.namespace }}
   labels:
     tectonic-operators.coreos.com/managed-by: tectonic-x-operator
 roleRef:
@@ -10,5 +10,5 @@ roleRef:
   name: cluster-admin
 subjects:
 - kind: ServiceAccount
-  name: alm-operator-serviceaccount
+  name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}

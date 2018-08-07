@@ -49,7 +49,7 @@ func newKubeClient(t *testing.T) operatorclient.ClientInterface {
 		t.Log("using in-cluster config")
 	}
 	// TODO: impersonate ALM serviceaccount
-	return operatorclient.NewClient(kubeconfigPath)
+	return operatorclient.NewClientFromConfig(kubeconfigPath)
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
