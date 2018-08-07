@@ -101,28 +101,28 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
 	require.NoError(t, err)
 	require.NotNil(t, inMem)
-	latestVaultCSV, err := inMem.FindCSVForPackageNameUnderChannel("vault", "alpha")
+	latestEtcdCSV, err := inMem.FindCSVForPackageNameUnderChannel("etcd", "alpha")
 	require.NoError(t, err)
-	require.NotNil(t, latestVaultCSV)
+	require.NotNil(t, latestEtcdCSV)
 
-	vaultInstallPlan := v1alpha1.InstallPlan{
+	etcdInstallPlan := v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "install-manual-" + latestVaultCSV.GetName(),
+			Name: "install-manual-" + latestEtcdCSV.GetName(),
 		},
 		Spec: v1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: []string{latestVaultCSV.GetName()},
+			ClusterServiceVersionNames: []string{latestEtcdCSV.GetName()},
 			Approval:                   v1alpha1.ApprovalManual,
 			Approved:                   false,
 		},
 	}
 
-	// Create a new InstallPlan for Vault with manual approval
-	cleanup, err := decorateCommonAndCreateInstallPlan(crc, vaultInstallPlan)
+	// Create a new InstallPlan for Etcd with manual approval
+	cleanup, err := decorateCommonAndCreateInstallPlan(crc, etcdInstallPlan)
 	require.NoError(t, err)
 	defer cleanup()
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, crc, vaultInstallPlan.GetName(), installPlanRequiresApprovalChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, etcdInstallPlan.GetName(), installPlanRequiresApprovalChecker)
 	require.NoError(t, err)
 	require.NotNil(t, fetchedInstallPlan)
 
@@ -164,10 +164,10 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 		return resourcesPresent
 	}
 
-	vaultResourcesPresent := verifyResources(fetchedInstallPlan, false)
-	// Result: Ensure that the InstallPlan does not actually create Vault resources
-	t.Logf("%d Vault Resources present", vaultResourcesPresent)
-	require.Zero(t, vaultResourcesPresent)
+	etcdResourcesPresent := verifyResources(fetchedInstallPlan, false)
+	// Result: Ensure that the InstallPlan does not actually create Etcd resources
+	t.Logf("%d Etcd Resources present", etcdResourcesPresent)
+	require.Zero(t, etcdResourcesPresent)
 
 	// Approve InstallPlan and update
 	fetchedInstallPlan.Spec.Approved = true
@@ -177,10 +177,10 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	approvedInstallPlan, err := fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), installPlanCompleteChecker)
 	require.NoError(t, err)
 
-	vaultResourcesPresent = verifyResources(approvedInstallPlan, true)
-	// Result: Ensure that the InstallPlan actually creates Vault resources
-	t.Logf("%d Vault Resources present", vaultResourcesPresent)
-	require.NotZero(t, vaultResourcesPresent)
+	etcdResourcesPresent = verifyResources(approvedInstallPlan, true)
+	// Result: Ensure that the InstallPlan actually creates Etcd resources
+	t.Logf("%d Etcd Resources present", etcdResourcesPresent)
+	require.NotZero(t, etcdResourcesPresent)
 
 	// Fetch installplan again to check for unnecessary control loops
 	_, err = fetchInstallPlan(t, crc, approvedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
