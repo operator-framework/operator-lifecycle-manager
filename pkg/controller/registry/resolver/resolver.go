@@ -184,21 +184,21 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	}
 
 	var ownerName string
-	if owners, ok := existingCRDOwners[crdKey.Name]; ok && len(owners) > 0 {
-		if len(owners) > 1 {
-			return v1alpha1.StepResource{}, "", fmt.Errorf("More than one existing owner for CRD %s in namespace %s found: %v", crdKey.Name, planNamespace, owners)
-		}
-
-		// Pre-existing owner found
-		ownerName = owners[0]
-	} else {
+	owners := existingCRDOwners[crdKey.Name]
+	switch len(owners) {
+	case 0:
 		// No pre-existing owner found
 		for _, csv := range csvs {
 			// Check for the default channel
 			if csv.IsDefaultChannel {
 				ownerName = csv.CSV.Name
+				break
 			}
 		}
+	case 1:
+		ownerName = owners[0]
+	default:
+		return v1alpha1.StepResource{}, "", fmt.Errorf("More than one existing owner for CRD %s in namespace %s found: %v", crdKey.Name, planNamespace, owners)
 	}
 
 	// Check empty name
