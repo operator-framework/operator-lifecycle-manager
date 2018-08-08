@@ -253,12 +253,12 @@
   version = "v0.3.6"
 
 [[projects]]
-  digest = "1:0243cffa4a3410f161ee613dfdd903a636d07e838a42d341da95d81f42cd1d41"
+  digest = "1:8e36686e8b139f8fe240c1d5cf3a145bc675c22ff8e707857cdd3ae17b00d728"
   name = "github.com/json-iterator/go"
   packages = ["."]
   pruneopts = "NUT"
-  revision = "ab8a2e0c74be9d3be70b3184d9acc634935ded82"
-  version = "1.1.4"
+  revision = "1624edc4454b8682399def8740d46db5e4362ba4"
+  version = "1.1.5"
 
 [[projects]]
   branch = "master"
@@ -442,7 +442,7 @@
   name = "golang.org/x/crypto"
   packages = ["ssh/terminal"]
   pruneopts = "NUT"
-  revision = "c126467f60eb25f8f27e5a981f32a87e3965053f"
+  revision = "f027049dab0ad238e394a753dba2d14753473a04"
 
 [[projects]]
   branch = "master"
@@ -457,7 +457,7 @@
     "idna",
   ]
   pruneopts = "NUT"
-  revision = "f4c29de78a2a91c00474a2e689954305c350adf9"
+  revision = "f9ce57c11b242f0f1599cf25c89d8cb02c45295a"
 
 [[projects]]
   branch = "master"
@@ -472,14 +472,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:0710435fba1b90375bbb61cf59572961c72167775854a2162e0859210a381d06"
+  digest = "1:50f05222003d4bacd6cee17200c7ecbd86415a1e745818abe2f06393d6345c63"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "NUT"
-  revision = "3dc4335d56c789b04b0ba99b7a37249d9b614314"
+  revision = "acbc56fc7007d2a01796d5bde54f39e3b3e95945"
 
 [[projects]]
   digest = "1:e33513a825fcd765e97b5de639a2f7547542d1a8245df0cef18e1fd390b778a9"
@@ -592,7 +592,7 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "2d6f90ab1293a1fb871cf149423ebb72aa7423aa"
+  revision = "61b11ee6533278ae17d77fd36825d0b47ec3a293"
 
 [[projects]]
   branch = "release-1.11"
@@ -611,7 +611,7 @@
     "pkg/features",
   ]
   pruneopts = "NUT"
-  revision = "bbc52469f98bf18f81d6010a32c3377726cbfd84"
+  revision = "aaea8ffc60577d42bca6f1ea93a10ec85ec4f54e"
 
 [[projects]]
   branch = "release-1.11"
@@ -665,7 +665,7 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NT"
-  revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+  revision = "1c9f4d20e8d7ca63f4ce98dc22110138cd6a365f"
 
 [[projects]]
   branch = "release-1.11"
@@ -676,7 +676,7 @@
     "pkg/util/feature",
   ]
   pruneopts = "NUT"
-  revision = "2e70abc0a65576011b14eb7e25b8ab31f9d343b7"
+  revision = "411ef4930e781d48ddc815a227fe5377c191cf1a"
 
 [[projects]]
   digest = "1:4f1bf46ac4a71f14e731a99e43568e381c7fce09708bb0e81dec5d24dbb5b03a"
