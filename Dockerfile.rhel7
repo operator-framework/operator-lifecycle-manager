@@ -1,16 +1,17 @@
-FROM registry.centos.org/centos/centos:7
-
+FROM registry.centos.org/centos/centos:7 as builder
 RUN yum update -y
-RUN yum install -y golang make
+RUN yum install -y golang make git
 
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 COPY . .
-
+RUN make vendor
 RUN make build
 
-RUN cp ./bin/olm /bin/olm
-RUN cp ./bin/catalog /bin/catalog
+
+FROM registry.centos.org/centos/centos:7
+COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
+COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
 EXPOSE 8080
