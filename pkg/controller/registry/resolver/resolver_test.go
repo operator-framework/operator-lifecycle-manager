@@ -2,9 +2,9 @@ package resolver
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -425,7 +425,7 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			map[string][]string{
 				"cheese": []string{"cheese-alpha", "cheese-beta"},
 			},
-			fmt.Errorf("More than one existing owner for CRD %s in namespace %s found: %v", "cheese", "default", []string{"cheese-alpha", "cheese-beta"}),
+			olmerrors.NewMultipleExistingCRDOwnersError([]string{"cheese-alpha", "cheese-beta"}, "cheese", "default"),
 			nil,
 		},
 	}

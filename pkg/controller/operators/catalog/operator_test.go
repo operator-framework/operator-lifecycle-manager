@@ -305,7 +305,14 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			t.Parallel()
 
 			competing, err := competingCRDOwnersExist(testNamespace, tt.csv, tt.existingCRDOwners)
-			require.Equal(t, err, tt.expectedErr)
+
+			// Assert the error is as expected
+			if tt.expectedErr == nil {
+				require.Nil(t, err)
+			} else {
+				require.Equal(t, tt.expectedErr, err)
+			}
+
 			require.Equal(t, competing, tt.expectedResult)
 		})
 	}
