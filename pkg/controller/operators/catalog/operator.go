@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -419,6 +420,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		panic("attempted to install a plan that wasn't in the installing phase")
 	}
 
+	// Get pre-existing CRD owners to make decisions about applying resolved CSVs
+	existingCRDOwners, err := o.getExistingCRDOwners(plan.GetNamespace())
+	if err != nil {
+		return err
+	}
+
 	for i, step := range plan.Status.Plan {
 		switch step.Status {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
@@ -457,6 +464,18 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &csv)
 				if err != nil {
 					return err
+				}
+
+				// Check for pre-existing CSVs that own the same CRDs
+				competingOwners, err := competingCRDOwnersExist(plan.GetNamespace(), csv, existingCRDOwners)
+				if err != nil {
+					return err
+				}
+
+				// TODO: decide on fail/continue logic for pre-existing CSVs that own the same CRD(s)
+				if competingOwners {
+					// For now, error out
+					return fmt.Errorf("Pre-existing CRD owners found for owned CRD(s) of CSV %s", csv.GetName())
 				}
 
 				// Attempt to create the CSV.
@@ -551,6 +570,7 @@ func (o *Operator) getSourcesSnapshot(plan *v1alpha1.InstallPlan, includedNamesp
 func (o *Operator) getExistingCRDOwners(namespace string) (map[string][]string, error) {
 	// Get a list of CSV CRs in the namespace
 	csvList, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
+
 	if err != nil {
 		return nil, err
 	}
@@ -564,4 +584,24 @@ func (o *Operator) getExistingCRDOwners(namespace string) (map[string][]string, 
 	}
 
 	return owners, nil
+}
+
+// competingCRDOwnersExist returns true if there exists a CSV that owns at least one of the given CSVs owned CRDs (that's not the given CSV)
+func competingCRDOwnersExist(namespace string, csv v1alpha1.ClusterServiceVersion, existingOwners map[string][]string) (bool, error) {
+	// Attempt to find a pre-existing owner in the namespace for any owned crd
+	for _, crdDesc := range csv.Spec.CustomResourceDefinitions.Owned {
+		crdOwners := existingOwners[crdDesc.Name]
+		l := len(crdOwners)
+		switch {
+		case l == 1:
+			// One competing owner found
+			if crdOwners[0] != csv.GetName() {
+				return true, nil
+			}
+		case l > 1:
+			return true, olmerrors.NewMultipleExistingCRDOwnersError(crdOwners, crdDesc.Name, namespace)
+		}
+	}
+
+	return false, nil
 }

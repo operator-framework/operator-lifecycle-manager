@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ghodss/yaml"
+
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -38,32 +40,32 @@ func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 }
 
 func TestTransitionInstallPlan(t *testing.T) {
-	var (
-		errMsg = "transition test error"
-		err    = errors.New(errMsg)
 
-		resolved = &v1alpha1.InstallPlanCondition{
-			Type:   v1alpha1.InstallPlanResolved,
-			Status: corev1.ConditionTrue,
-		}
-		unresolved = &v1alpha1.InstallPlanCondition{
-			Type:    v1alpha1.InstallPlanResolved,
-			Status:  corev1.ConditionFalse,
-			Reason:  v1alpha1.InstallPlanReasonInstallCheckFailed,
-			Message: errMsg,
-		}
-		installed = &v1alpha1.InstallPlanCondition{
-			Type:   v1alpha1.InstallPlanInstalled,
-			Status: corev1.ConditionTrue,
-		}
-		failed = &v1alpha1.InstallPlanCondition{
-			Type:    v1alpha1.InstallPlanInstalled,
-			Status:  corev1.ConditionFalse,
-			Reason:  v1alpha1.InstallPlanReasonComponentFailed,
-			Message: errMsg,
-		}
-	)
-	var table = []struct {
+	errMsg := "transition test error"
+	err := errors.New(errMsg)
+
+	resolved := &v1alpha1.InstallPlanCondition{
+		Type:   v1alpha1.InstallPlanResolved,
+		Status: corev1.ConditionTrue,
+	}
+	unresolved := &v1alpha1.InstallPlanCondition{
+		Type:    v1alpha1.InstallPlanResolved,
+		Status:  corev1.ConditionFalse,
+		Reason:  v1alpha1.InstallPlanReasonInstallCheckFailed,
+		Message: errMsg,
+	}
+	installed := &v1alpha1.InstallPlanCondition{
+		Type:   v1alpha1.InstallPlanInstalled,
+		Status: corev1.ConditionTrue,
+	}
+	failed := &v1alpha1.InstallPlanCondition{
+		Type:    v1alpha1.InstallPlanInstalled,
+		Status:  corev1.ConditionFalse,
+		Reason:  v1alpha1.InstallPlanReasonComponentFailed,
+		Message: errMsg,
+	}
+
+	tests := []struct {
 		initial    v1alpha1.InstallPlanPhase
 		transError error
 		approval   v1alpha1.Approval
@@ -91,7 +93,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, nil},
 		{v1alpha1.InstallPlanPhaseRequiresApproval, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhaseInstalling, nil},
 	}
-	for _, tt := range table {
+	for _, tt := range tests {
 		// Create a plan in the provided initial phase.
 		plan := &v1alpha1.InstallPlan{
 			Spec: v1alpha1.InstallPlanSpec{
@@ -239,6 +241,72 @@ func TestSyncCatalogSources(t *testing.T) {
 				require.NotEmpty(t, updated.Status)
 				require.Equal(t, *tt.expectedStatus.ConfigMapResource, *updated.Status.ConfigMapResource)
 			}
+		})
+	}
+}
+
+func TestCompetingCRDOwnersExist(t *testing.T) {
+
+	testNamespace := "default"
+	tests := []struct {
+		name              string
+		csv               v1alpha1.ClusterServiceVersion
+		existingCRDOwners map[string][]string
+		expectedErr       error
+		expectedResult    bool
+	}{
+		{
+			name:              "NoCompetingOwnersExist",
+			csv:               csv("turkey", []string{"feathers"}, nil),
+			existingCRDOwners: nil,
+			expectedErr:       nil,
+			expectedResult:    false,
+		},
+		{
+			name: "OnlyCompetingWithSelf",
+			csv:  csv("turkey", []string{"feathers"}, nil),
+			existingCRDOwners: map[string][]string{
+				"feathers": []string{"turkey"},
+			},
+			expectedErr:    nil,
+			expectedResult: false,
+		},
+		{
+			name: "CompetingOwnersExist",
+			csv:  csv("turkey", []string{"feathers"}, nil),
+			existingCRDOwners: map[string][]string{
+				"feathers": []string{"seagull"},
+			},
+			expectedErr:    nil,
+			expectedResult: true,
+		},
+		{
+			name: "CompetingOwnerExistsOnSecondCRD",
+			csv:  csv("turkey", []string{"feathers", "beak"}, nil),
+			existingCRDOwners: map[string][]string{
+				"milk": []string{"cow"},
+				"beak": []string{"squid"},
+			},
+			expectedErr:    nil,
+			expectedResult: true,
+		},
+		{
+			name: "MoreThanOneCompetingOwnerExists",
+			csv:  csv("turkey", []string{"feathers"}, nil),
+			existingCRDOwners: map[string][]string{
+				"feathers": []string{"seagull", "turkey"},
+			},
+			expectedErr:    olmerrors.NewMultipleExistingCRDOwnersError([]string{"seagull", "turkey"}, "feathers", testNamespace),
+			expectedResult: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			competing, err := competingCRDOwnersExist(testNamespace, tt.csv, tt.existingCRDOwners)
+			require.Equal(t, err, tt.expectedErr)
+			require.Equal(t, competing, tt.expectedResult)
 		})
 	}
 }
