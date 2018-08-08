@@ -44,7 +44,7 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 	if catalogNamespace == "" {
 		catalogNamespace = o.namespace
 	}
-	catalog, ok := o.sources[registry.SourceKey{Name: out.Spec.CatalogSource, Namespace: catalogNamespace}]
+	catalog, ok := o.sources[registry.ResourceKey{Name: out.Spec.CatalogSource, Namespace: catalogNamespace}]
 	if !ok {
 		return out, fmt.Errorf("unknown catalog source %s in namespace %s", out.Spec.CatalogSource, catalogNamespace)
 	}

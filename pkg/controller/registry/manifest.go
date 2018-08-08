@@ -61,7 +61,7 @@ func LoadPackageFromFile(m *InMem, filepath string) (*PackageManifest, error) {
 
 	err = json.Unmarshal([]byte(packageJson), &pkg)
 
-	if err = m.addPackageManifest(pkg); err != nil {
+	if err = m.AddPackageManifest(pkg); err != nil {
 		return nil, fmt.Errorf("unable to set package found in catalog: %v", err)
 	}
 	return &pkg, nil

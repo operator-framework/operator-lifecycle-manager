@@ -31,14 +31,16 @@ type Source interface {
 	ListLatestCSVsForCRD(key CRDKey) ([]CSVAndChannelInfo, error)
 }
 
-type SourceKey struct {
+// ResourceKey contains metadata to uniquely identify a resource
+type ResourceKey struct {
 	Name      string
+	Kind      string
 	Namespace string
 }
 
 // SourceRef associates a Source with it's SourceKey
 type SourceRef struct {
-	SourceKey SourceKey
+	SourceKey ResourceKey
 	Source    Source
 }
 

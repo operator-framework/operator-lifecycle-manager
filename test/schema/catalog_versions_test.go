@@ -100,7 +100,7 @@ func resolveCatalogs(t *testing.T, catalogs []registry.SourceRef, dependencyReso
 		}
 
 		// Attempt to resolve the install plan
-		_, _, err = dependencyResolver.ResolveInstallPlan(catalogs, "", plan)
+		_, _, err = dependencyResolver.ResolveInstallPlan(catalogs, nil, "", plan)
 
 	}
 
@@ -163,7 +163,7 @@ func VerifyCatalogVersions(t *testing.T, manifestDir string) {
 
 				// Store by version
 				sourceRef := registry.SourceRef{
-					SourceKey: registry.SourceKey{
+					SourceKey: registry.ResourceKey{
 						Name:      loadedCatalog.Name,
 						Namespace: "default", // namespace is irrelevant (everything is loaded from files)
 					},
