@@ -72,7 +72,7 @@ These are our requirements:
 
 OLM defines packaging formats for operators. These are:
 
- **ClusterServiceVersion**
+## ClusterServiceVersion
 
  * Represents a particular version of the ClusterService and the operator managing it
 
@@ -102,7 +102,7 @@ OLM defines packaging formats for operators. These are:
 
  * Roughly equivalent to dpkg - you can install a dpkg manually, but if you do, dependency resolution is up to you.
 
- **InstallPlan**
+## InstallPlan
 
  * An install plan is a declaration by a user that they want a particular ClusterService in a namespace. (i.e. `apt-get install midori`)
 
@@ -116,13 +116,13 @@ OLM defines packaging formats for operators. These are:
 
      * The record of these resources is kept in cluster so that installs are repeatable/recoverable/inspectable, but can be cleaned up once completed if desired.
 
- **CatalogSource**
+## CatalogSource
 
  * A catalog source binds a name to a url where ClusterServices can be downloaded
 
  * The ClusterService cache is updated from this URL
 
- **Subscription**
+## Subscription
 
  * A subscription configures when and how to update a ClusterService
 
