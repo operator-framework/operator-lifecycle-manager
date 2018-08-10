@@ -76,13 +76,6 @@
     name: aggregate-olm-edit
     namespace: operator-lifecycle-manager
 
-- name: Remove aggregate-olm-edit ClusterRole manifest
-  oc_obj:
-    state: absent
-    kind: ClusterRole
-    name: aggregate-olm-edit
-    namespace: operator-lifecycle-manager
-
 - name: Remove aggregate-olm-view ClusterRole manifest
   oc_obj:
     state: absent
