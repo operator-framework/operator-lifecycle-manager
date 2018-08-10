@@ -420,6 +420,8 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		panic("attempted to install a plan that wasn't in the installing phase")
 	}
 
+	// Get the set of initial installplan csv names
+	initialCSVNames := getCSVNameSet(plan)
 	// Get pre-existing CRD owners to make decisions about applying resolved CSVs
 	existingCRDOwners, err := o.getExistingCRDOwners(plan.GetNamespace())
 	if err != nil {
@@ -466,16 +468,19 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
-				// Check for pre-existing CSVs that own the same CRDs
-				competingOwners, err := competingCRDOwnersExist(plan.GetNamespace(), csv, existingCRDOwners)
-				if err != nil {
-					return err
-				}
+				// Check if the resolved CSV is in the initial set
+				if _, ok := initialCSVNames[csv.GetName()]; !ok {
+					// Check for pre-existing CSVs that own the same CRDs
+					competingOwners, err := competingCRDOwnersExist(plan.GetNamespace(), &csv, existingCRDOwners)
+					if err != nil {
+						return err
+					}
 
-				// TODO: decide on fail/continue logic for pre-existing CSVs that own the same CRD(s)
-				if competingOwners {
-					// For now, error out
-					return fmt.Errorf("Pre-existing CRD owners found for owned CRD(s) of CSV %s", csv.GetName())
+					// TODO: decide on fail/continue logic for pre-existing dependent CSVs that own the same CRD(s)
+					if competingOwners {
+						// For now, error out
+						return fmt.Errorf("Pre-existing CRD owners found for owned CRD(s) of dependent CSV %s", csv.GetName())
+					}
 				}
 
 				// Attempt to create the CSV.
@@ -587,7 +592,7 @@ func (o *Operator) getExistingCRDOwners(namespace string) (map[string][]string, 
 }
 
 // competingCRDOwnersExist returns true if there exists a CSV that owns at least one of the given CSVs owned CRDs (that's not the given CSV)
-func competingCRDOwnersExist(namespace string, csv v1alpha1.ClusterServiceVersion, existingOwners map[string][]string) (bool, error) {
+func competingCRDOwnersExist(namespace string, csv *v1alpha1.ClusterServiceVersion, existingOwners map[string][]string) (bool, error) {
 	// Attempt to find a pre-existing owner in the namespace for any owned crd
 	for _, crdDesc := range csv.Spec.CustomResourceDefinitions.Owned {
 		crdOwners := existingOwners[crdDesc.Name]
@@ -604,4 +609,14 @@ func competingCRDOwnersExist(namespace string, csv v1alpha1.ClusterServiceVersio
 	}
 
 	return false, nil
+}
+
+// getCSVNameSet returns a set of the given installplan's csv names
+func getCSVNameSet(plan *v1alpha1.InstallPlan) map[string]struct{} {
+	csvNameSet := make(map[string]struct{})
+	for _, name := range plan.Spec.ClusterServiceVersionNames {
+		csvNameSet[name] = struct{}{}
+	}
+
+	return csvNameSet
 }

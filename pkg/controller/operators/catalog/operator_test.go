@@ -304,7 +304,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			competing, err := competingCRDOwnersExist(testNamespace, tt.csv, tt.existingCRDOwners)
+			competing, err := competingCRDOwnersExist(testNamespace, &tt.csv, tt.existingCRDOwners)
 
 			// Assert the error is as expected
 			if tt.expectedErr == nil {
