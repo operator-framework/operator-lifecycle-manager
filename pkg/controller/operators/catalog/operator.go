@@ -345,14 +345,14 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
 
-	// Copy the sources for resolution from the included namespaces
+	// Take a snapshot of the included catalog sources
 	includedNamespaces := map[string]struct{}{
 		o.namespace:    {},
 		plan.Namespace: {},
 	}
 	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 
-	// Copy the subscriptions belonging to the install plans namespace
+	// Take a snapshot of the existing CRD owners
 	existingCRDOwners, err := o.getExistingCRDOwners(plan.Namespace)
 	if err != nil {
 		return err

@@ -21,6 +21,8 @@ import (
 )
 
 func TestInstallEtcdOCS(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -57,7 +59,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, crc, etcdInstallPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, etcdInstallPlan.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -159,6 +161,8 @@ func TestInstallEtcdOCS(t *testing.T) {
 }
 
 func TestInstallPrometheusOCS(t *testing.T) {
+	defer cleanupOLM(t, testNamespace)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -195,7 +199,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	require.NoError(t, err)
 
 	// Get InstallPlan and verify status
-	fetchedInstallPlan, err := fetchInstallPlan(t, crc, prometheusInstallPlan.GetName(), installPlanCompleteChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, prometheusInstallPlan.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 

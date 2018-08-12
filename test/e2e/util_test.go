@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -28,10 +30,23 @@ import (
 const (
 	pollInterval = 1 * time.Second
 	pollDuration = 5 * time.Minute
+
+	etcdVersion            = "3.2.13"
+	prometheusVersion      = "v1.7.0"
+	expectedEtcdNodes      = 3
+	expectedPrometheusSize = 3
+	ocsConfigMap           = "ocs"
 )
 
-var testNamespace = metav1.NamespaceDefault
-var genName = names.SimpleNameGenerator.GenerateName
+var (
+	testNamespace = metav1.NamespaceDefault
+	genName       = names.SimpleNameGenerator.GenerateName
+
+	persistentCatalogNames               = []string{ocsConfigMap}
+	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
+	persistentConfigMapNames             = []string{ocsConfigMap}
+	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
+)
 
 func init() {
 	e2eNamespace := os.Getenv("NAMESPACE")
@@ -50,6 +65,17 @@ func newKubeClient(t *testing.T) operatorclient.ClientInterface {
 	}
 	// TODO: impersonate ALM serviceaccount
 	return operatorclient.NewClientFromConfig(kubeconfigPath)
+}
+
+func newCRClient(t *testing.T) versioned.Interface {
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath == "" {
+		t.Log("using in-cluster config")
+	}
+	// TODO: impersonate ALM serviceaccount
+	crclient, err := client.NewClient(kubeconfigPath)
+	require.NoError(t, err)
+	return crclient
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
@@ -199,7 +225,40 @@ func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace s
 		}
 		return check(fetched), nil
 	})
+
 	return fetched, err
+}
+
+func createFieldNotEqualSelector(field string, names ...string) string {
+	var builder strings.Builder
+	for i, name := range names {
+		builder.WriteString(field)
+		builder.WriteString("!=")
+		builder.WriteString(name)
+		if i < len(names)-1 {
+			builder.WriteString(",")
+		}
+	}
+
+	return builder.String()
+}
+
+func cleanupOLM(t *testing.T, namespace string) {
+	var immediate int64 = 0
+	crc := newCRClient(t)
+	c := newKubeClient(t)
+
+	// Cleanup non persistent OLM CRs
+	t.Log("Cleaning up any remaining non persistent resources...")
+	deleteOptions := &metav1.DeleteOptions{GracePeriodSeconds: &immediate}
+	listOptions := metav1.ListOptions{}
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(deleteOptions, listOptions))
+	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(deleteOptions, listOptions))
+	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(deleteOptions, listOptions))
+	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector}))
+
+	// Cleanup non persistent configmaps
+	require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentConfigMapsFieldSelector}))
 }
 
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
