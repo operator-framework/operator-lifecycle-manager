@@ -4,12 +4,25 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ghodss/yaml"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+
 	"github.com/stretchr/testify/require"
+	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
 type mockTransitioner struct {
@@ -113,6 +126,159 @@ func TestTransitionInstallPlan(t *testing.T) {
 			require.Equal(t, tt.condition.Message, out.Status.Conditions[0].Message)
 		}
 	}
+}
+
+func TestSyncCatalogSources(t *testing.T) {
+	resolver := &resolver.MultiSourceResolver{}
+
+	tests := []struct {
+		testName          string
+		operatorNamespace string
+		catalogSource     *v1alpha1.CatalogSource
+		configMap         *v1.ConfigMap
+		expectedStatus    *v1alpha1.CatalogSourceStatus
+		expectedError     error
+	}{
+		{
+			testName:          "CatalogSourceWithBackingConfigMap",
+			operatorNamespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					ConfigMap: "cool-configmap",
+				},
+			},
+			configMap: &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					UID:             types.UID("configmap-uid"),
+					ResourceVersion: "resource-version",
+				},
+				Data: fakeConfigMapData(),
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					UID:             types.UID("configmap-uid"),
+					ResourceVersion: "resource-version",
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			testName:          "CatalogSourceWithInvalidConfigMap",
+			operatorNamespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					ConfigMap: "cool-configmap",
+				},
+			},
+			configMap: &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					UID:             types.UID("configmap-uid"),
+					ResourceVersion: "resource-version",
+				},
+				Data: map[string]string{},
+			},
+			expectedStatus: nil,
+			expectedError:  errors.New("failed to create catalog source from ConfigMap cool-configmap: error parsing ConfigMap cool-configmap: no valid resources found"),
+		},
+		{
+			testName:          "CatalogSourceWithMissingConfigMap",
+			operatorNamespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					ConfigMap: "cool-configmap",
+				},
+			},
+			configMap:      &v1.ConfigMap{},
+			expectedStatus: nil,
+			expectedError:  errors.New("failed to create catalog source from ConfigMap cool-configmap: error loading catalog from ConfigMap cool-configmap: configmaps \"cool-configmap\" not found"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			// Create existing objects
+			clientObjs := []runtime.Object{tt.catalogSource}
+			k8sObjs := []runtime.Object{tt.configMap}
+
+			// Create test operator
+			op, err := NewFakeOperator(clientObjs, k8sObjs, nil, resolver, tt.operatorNamespace)
+			require.NoError(t, err)
+
+			// Run sync
+			err = op.syncCatalogSources(tt.catalogSource)
+			if tt.expectedError != nil {
+				require.EqualError(t, err, tt.expectedError.Error())
+			} else {
+				require.NoError(t, err)
+			}
+
+			// Get updated catalog and check status
+			updated, err := op.client.OperatorsV1alpha1().CatalogSources(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.GetName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			require.NotEmpty(t, updated)
+
+			if tt.expectedStatus != nil {
+				require.NotEmpty(t, updated.Status)
+				require.Equal(t, *tt.expectedStatus.ConfigMapResource, *updated.Status.ConfigMapResource)
+			}
+		})
+	}
+}
+
+func fakeConfigMapData() map[string]string {
+	data := make(map[string]string)
+	yaml, err := yaml.Marshal([]v1beta1.CustomResourceDefinition{crd("fake-crd")})
+	if err != nil {
+		return data
+	}
+
+	data["customResourceDefinitions"] = string(yaml)
+	return data
+}
+
+// NewFakeOprator creates a new operator using fake clients
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, resolver resolver.DependencyResolver, namespace string) (*Operator, error) {
+	// Create client fakes
+	clientFake := fake.NewSimpleClientset(clientObjs...)
+	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...))
+
+	// Create test namespace
+	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+	if err != nil {
+		return nil, err
+	}
+
+	// Create the new operator
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake)
+	op := &Operator{
+		Operator:           queueOperator,
+		client:             clientFake,
+		namespace:          namespace,
+		sources:            make(map[registry.ResourceKey]registry.Source),
+		dependencyResolver: resolver,
+	}
+
+	return op, nil
 }
 
 func installPlan(names ...string) v1alpha1.InstallPlan {
