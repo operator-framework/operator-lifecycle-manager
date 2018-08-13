@@ -9,4 +9,4 @@ metadata:
 rules:
 - apiGroups: ["operators.coreos.com"]
   resources: ["*"]
-  verbs: ["*"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
