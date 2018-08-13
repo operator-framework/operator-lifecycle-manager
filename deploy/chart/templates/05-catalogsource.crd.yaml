@@ -37,6 +37,9 @@ spec:
   - name: Age
     type: date
     JSONPath: .metadata.creationTimestamp
+  subresources:
+  # status enables the status subresource.
+    status: {}
   validation:
     openAPIV3Schema:
       properties:
