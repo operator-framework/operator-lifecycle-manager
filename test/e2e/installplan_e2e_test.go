@@ -23,7 +23,7 @@ import (
 
 const (
 	etcdVersion            = "3.2.13"
-	prometheusVersion      = "v1.7.0"
+	prometheusVersion      = "v2.3.2"
 	expectedEtcdNodes      = 3
 	expectedPrometheusSize = 3
 	ocsConfigMap           = "ocs"
