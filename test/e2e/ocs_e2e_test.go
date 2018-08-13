@@ -305,13 +305,13 @@ func TestInstallPrometheusOCS(t *testing.T) {
 			"labels":    map[string]interface{}{"prometheus": "test-prometheus"},
 		},
 		"spec": map[string]interface{}{
-			"replicas": expectedPrometheusSize,
-			"version":  prometheusVersion,
+			"replicas":        expectedPrometheusSize,
+			"version":         prometheusVersion,
+			"securityContext": struct{}{},
 		},
 	}
 
 	t.Run("test prometheus object creation", func(t *testing.T) {
-		t.Skip("skipping prometheus object verification - currently broken")
 		err = c.CreateCustomResource(&unstructured.Unstructured{Object: prometheus})
 		require.NoError(t, err)
 
