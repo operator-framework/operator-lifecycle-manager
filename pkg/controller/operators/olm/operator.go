@@ -68,6 +68,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 			namespaceInformer,
 			op.annotateNamespace,
 			nil,
+			"namespace",
 		)
 		op.RegisterQueueInformer(queueInformer)
 	}
@@ -94,6 +95,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		csvInformers,
 		op.syncClusterServiceVersion,
 		nil,
+		"csv",
 	)
 	for _, informer := range queueInformers {
 		op.RegisterQueueInformer(informer)
@@ -104,7 +106,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	depInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching deployments in namespace %s", namespace)
-		informer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Apps().V1().Deployments().Informer()
+		informer := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace)).Apps().V1().Deployments().Informer()
 		depInformers = append(depInformers, informer)
 	}
 
@@ -114,6 +116,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		depInformers,
 		op.syncDeployment,
 		nil,
+		"deployment",
 	)
 	for _, informer := range depQueueInformers {
 		op.RegisterQueueInformer(informer)

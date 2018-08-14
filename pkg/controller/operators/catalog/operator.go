@@ -13,6 +13,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -22,7 +23,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
-	"k8s.io/client-go/util/workqueue"
 )
 
 const (
@@ -97,6 +97,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		catsrcSharedIndexInformers,
 		op.syncCatalogSources,
 		nil,
+		"catsrc",
 	)
 	for _, informer := range catsrcQueueInformer {
 		op.RegisterQueueInformer(informer)
@@ -109,6 +110,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		ipSharedIndexInformers,
 		op.syncInstallPlans,
 		nil,
+		"installplan",
 	)
 	for _, informer := range ipQueueInformers {
 		op.RegisterQueueInformer(informer)
@@ -121,6 +123,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		subSharedIndexInformers,
 		op.syncSubscriptions,
 		nil,
+		"subscription",
 	)
 	op.subQueue = subscriptionQueue
 	for _, informer := range subscriptionQueueInformers {
@@ -137,15 +140,44 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
-	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, o.namespace, catsrc.Spec.ConfigMap)
+	// Get the catalog source's config map
+	configMap, err := o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", catsrc.Spec.ConfigMap, err)
+		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", catsrc.Spec.ConfigMap, err)
 	}
 
+	// Check for catalog source changes
+	if catsrc.Status.ConfigMapResource != nil && catsrc.Status.ConfigMapResource.Name == configMap.GetName() && catsrc.Status.ConfigMapResource.ResourceVersion == configMap.GetResourceVersion() {
+		return nil
+	}
+
+	// Update status subresource
+	out := catsrc.DeepCopy()
+	out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
+		Name:            configMap.GetName(),
+		Namespace:       configMap.GetNamespace(),
+		UID:             configMap.GetUID(),
+		ResourceVersion: configMap.GetResourceVersion(),
+	}
+	out.Status.LastSync = timeNow()
+
+	_, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out)
+	if err != nil {
+		return fmt.Errorf("failed to update catalog source %s status: %s", out.GetName(), err)
+	}
+
+	// Create a new in-mem registry
+	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, out.GetNamespace(), out.Spec.ConfigMap)
+	if err != nil {
+		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", out.Spec.ConfigMap, err)
+	}
+
+	// Update sources map
 	o.sourcesLock.Lock()
 	defer o.sourcesLock.Unlock()
-	o.sources[registry.ResourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}] = src
+	o.sources[registry.ResourceKey{Name: out.GetName(), Namespace: out.GetNamespace()}] = src
 	o.sourcesLastUpdate = timeNow()
+
 	return nil
 }
 
@@ -318,14 +350,14 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 		return fmt.Errorf("cannot resolve InstallPlan without any Catalog Sources")
 	}
 
-	// Copy the sources for resolution from the included namespaces
+	// Take a snapshot of the included catalog sources
 	includedNamespaces := map[string]struct{}{
 		o.namespace:    {},
 		plan.Namespace: {},
 	}
 	sourcesSnapshot := o.getSourcesSnapshot(plan, includedNamespaces)
 
-	// Copy the subscriptions belonging to the install plans namespace
+	// Take a snapshot of the existing CRD owners
 	existingCRDOwners, err := o.getExistingCRDOwners(plan.Namespace)
 	if err != nil {
 		return err

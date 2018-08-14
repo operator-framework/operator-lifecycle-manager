@@ -254,10 +254,10 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		return checker(fetchedSubscription), nil
 	})
 	return fetchedSubscription, err
@@ -313,19 +313,10 @@ func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*
 	return csv, err
 }
 
-func cleanupOLM(t *testing.T, namespace string) {
-	var immediate int64 = 0
-	crc := newCRClient(t)
-	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
-	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
-	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
-	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(&metav1.DeleteOptions{GracePeriodSeconds: &immediate}, metav1.ListOptions{}))
-}
-
 //   I. Creating a new subscription
 //      A. If package is not installed, creating a subscription should install latest version
 func TestCreateNewSubscription(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
+	cleanupOLM(t, testNamespace)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
@@ -392,7 +383,7 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	installPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, installPlanRequiresApprovalChecker)
+	installPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval))
 	require.NoError(t, err)
 	require.NotNil(t, installPlan)
 

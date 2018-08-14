@@ -17,6 +17,7 @@ type QueueInformer struct {
 	informer                  cache.SharedIndexInformer
 	syncHandler               SyncHandler
 	resourceEventHandlerFuncs *cache.ResourceEventHandlerFuncs
+	name                      string
 }
 
 // enqueue adds a key to the queue. If obj is a key already it gets added directly.
@@ -84,21 +85,22 @@ func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventH
 
 // New creates a set of new queueinformers given a name, a set of informers, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func New(queue workqueue.RateLimitingInterface, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) []*QueueInformer {
+func New(queue workqueue.RateLimitingInterface, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs, name string) []*QueueInformer {
 	queueInformers := []*QueueInformer{}
 	for _, informer := range informers {
-		queueInformers = append(queueInformers, NewInformer(queue, informer, handler, funcs))
+		queueInformers = append(queueInformers, NewInformer(queue, informer, handler, funcs, name))
 	}
 	return queueInformers
 }
 
 // NewInformer creates a new queueinformer given a name, an informer, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs) *QueueInformer {
+func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs, name string) *QueueInformer {
 	queueInformer := &QueueInformer{
 		queue:       queue,
 		informer:    informer,
 		syncHandler: handler,
+		name:        name,
 	}
 	if funcs == nil {
 		queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()

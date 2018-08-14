@@ -33,7 +33,6 @@ type ConfigMapResourceReference struct {
 
 	UID             types.UID `json:"uid,omitempty"`
 	ResourceVersion string    `json:"resourceVersion,omitempty"`
-	Hash            string    `json:"hash,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
