@@ -179,6 +179,29 @@ func waitForDelete(checkResource checkResourceFunc) error {
 	return err
 }
 
+type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool
+
+func catalogSourceSynced(catalog *v1alpha1.CatalogSource) bool {
+	if !catalog.Status.LastSync.IsZero() {
+		return true
+	}
+	return false
+}
+
+func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
+	var fetched *v1alpha1.CatalogSource
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(name, metav1.GetOptions{})
+		if err != nil || fetched == nil {
+			return false, err
+		}
+		return check(fetched), nil
+	})
+	return fetched, err
+}
+
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		t.Logf("Deleting catalog source %s...", catalogSource.GetName())

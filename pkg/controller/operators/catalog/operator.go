@@ -137,37 +137,42 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
-	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, catsrc.GetNamespace(), catsrc.Spec.ConfigMap)
+	// Get the catalog source's config map
+	configMap, err := o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", catsrc.Spec.ConfigMap, err)
+		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", catsrc.Spec.ConfigMap, err)
 	}
 
-	// Update status subresource
-	out := catsrc.DeepCopy()
+	// Check for changes
+	if catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
+		// Create a new in-mem registry
+		src, err := registry.NewInMemoryFromConfigMap(o.OpClient, catsrc.GetNamespace(), catsrc.Spec.ConfigMap)
+		if err != nil {
+			return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", catsrc.Spec.ConfigMap, err)
+		}
 
-	configMap, err := o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(out.GetNamespace()).Get(out.Spec.ConfigMap, metav1.GetOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", out.Spec.ConfigMap, err)
+		// Update status subresource
+		out := catsrc.DeepCopy()
+
+		out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
+			Name:            configMap.GetName(),
+			Namespace:       configMap.GetNamespace(),
+			UID:             configMap.GetUID(),
+			ResourceVersion: configMap.GetResourceVersion(),
+		}
+		out.Status.LastSync = timeNow()
+
+		_, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out)
+		if err != nil {
+			return fmt.Errorf("failed to update catalog source %s status: %s", out.GetName(), err)
+		}
+
+		// Update sources map
+		o.sourcesLock.Lock()
+		defer o.sourcesLock.Unlock()
+		o.sources[registry.ResourceKey{Name: out.GetName(), Namespace: out.GetNamespace()}] = src
+		o.sourcesLastUpdate = timeNow()
 	}
-
-	out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
-		Name:            configMap.GetName(),
-		Namespace:       configMap.GetNamespace(),
-		UID:             configMap.GetUID(),
-		ResourceVersion: configMap.GetResourceVersion(),
-	}
-	out.Status.LastSync = timeNow()
-
-	_, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out)
-	if err != nil {
-		return fmt.Errorf("failed to update catalog source %s status: %s", out.GetName(), err)
-	}
-
-	// Update sources map
-	o.sourcesLock.Lock()
-	defer o.sourcesLock.Unlock()
-	o.sources[registry.ResourceKey{Name: out.GetName(), Namespace: out.GetNamespace()}] = src
-	o.sourcesLastUpdate = timeNow()
 
 	return nil
 }

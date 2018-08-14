@@ -13,7 +13,6 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 
 	"github.com/stretchr/testify/require"
 
@@ -21,34 +20,11 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// This file contains tests that are for specific OCS services. They're a sanity check that we can always do the right
-// thing with catalog resources we need in Tectonic. As such, they should be expected to be brittle compared to other
-// e2e tests. They should eventually be removed, as they test functionality beyond the scope of ALM.
-
-func fetchCatalogSource(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.CatalogSource, error) {
-	var fetchedCatalogSource *v1alpha1.CatalogSource
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSUnst, err := c.GetCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, testNamespace, v1alpha1.CatalogSourceKind, name)
-		if err != nil {
-			return false, err
-		}
-
-		err = runtime.DefaultUnstructuredConverter.FromUnstructured(fetchedCSUnst.Object, &fetchedCatalogSource)
-		require.NoError(t, err)
-
-		return true, nil
-	})
-
-	return fetchedCatalogSource, err
-}
-
 func TestInstallEtcdOCS(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
+	catalogSource, err := fetchCatalogSource(t, crc, ocsConfigMap, testNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, catalogSource.Spec.ConfigMap)
@@ -186,7 +162,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, c, ocsConfigMap)
+	catalogSource, err := fetchCatalogSource(t, crc, ocsConfigMap, testNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, catalogSource.Spec.ConfigMap)

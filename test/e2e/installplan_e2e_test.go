@@ -129,6 +129,10 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 		},
 	}
 
+	// Attempt to get the catalog source before creating install plan
+	_, err = fetchCatalogSource(t, crc, ocsConfigMap, testNamespace, catalogSourceSynced)
+	require.NoError(t, err)
+
 	// Create a new InstallPlan for Vault with manual approval
 	cleanup, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, etcdInstallPlan)
 	require.NoError(t, err)
@@ -222,6 +226,10 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 			Approval:                   v1alpha1.ApprovalAutomatic,
 		},
 	}
+
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, ocsConfigMap, testNamespace, catalogSourceSynced)
+	require.NoError(t, err)
 
 	cleanup, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, installPlan)
 	require.NoError(t, err)
@@ -392,9 +400,16 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	_, cleanupDependentCatalogSource, err := createInternalCatalogSource(t, c, crc, "mock-ocs-dependent", testNamespace, dependentManifests, []extv1beta1.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV})
 	require.NoError(t, err)
 	defer cleanupDependentCatalogSource()
+	// Attempt to get the catalog source before creating install plan
+	_, err = fetchCatalogSource(t, crc, "mock-ocs-dependent", testNamespace, catalogSourceSynced)
+	require.NoError(t, err)
+
 	_, cleanupMainCatalogSource, err := createInternalCatalogSource(t, c, crc, "mock-ocs-main", testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 	require.NoError(t, err)
 	defer cleanupMainCatalogSource()
+	// Attempt to get the catalog source before creating install plan
+	_, err = fetchCatalogSource(t, crc, "mock-ocs-main", testNamespace, catalogSourceSynced)
+	require.NoError(t, err)
 
 	// Fetch list of catalog sources
 	installPlan := v1alpha1.InstallPlan{
@@ -612,6 +627,9 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, "mock-ocs-main", testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainCSV})
 	require.NoError(t, err)
 	defer cleanupCatalogSource()
+	// Attempt to get the catalog source before creating install plan(s)
+	_, err = fetchCatalogSource(t, crc, "mock-ocs-main", testNamespace, catalogSourceSynced)
+	require.NoError(t, err)
 
 	// Fetch list of catalog sources
 	installPlan := v1alpha1.InstallPlan{

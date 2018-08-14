@@ -211,7 +211,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			},
 			configMap:      &v1.ConfigMap{},
 			expectedStatus: nil,
-			expectedError:  errors.New("failed to create catalog source from ConfigMap cool-configmap: error loading catalog from ConfigMap cool-configmap: configmaps \"cool-configmap\" not found"),
+			expectedError:  errors.New("failed to get catalog config map cool-configmap when updating status: configmaps \"cool-configmap\" not found"),
 		},
 	}
 	for _, tt := range tests {
