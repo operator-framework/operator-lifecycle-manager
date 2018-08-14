@@ -39,8 +39,9 @@ const (
 )
 
 var (
-	testNamespace = metav1.NamespaceDefault
-	genName       = names.SimpleNameGenerator.GenerateName
+	testNamespace  = metav1.NamespaceDefault
+	genName        = names.SimpleNameGenerator.GenerateName
+	skipCleanupOLM = false
 
 	persistentCatalogNames               = []string{ocsConfigMap}
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
@@ -244,8 +245,9 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 }
 
 func cleanupOLM(t *testing.T, namespace string) {
-	if t.Failed() {
+	if skipCleanupOLM || t.Failed() {
 		// Skip cleaning up if the test has failed
+		skipCleanupOLM = true
 		t.Log("skipping cleanup")
 		return
 	}

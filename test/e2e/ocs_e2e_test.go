@@ -21,7 +21,6 @@ import (
 )
 
 func TestInstallEtcdOCS(t *testing.T) {
-
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -160,7 +159,6 @@ func TestInstallEtcdOCS(t *testing.T) {
 }
 
 func TestInstallPrometheusOCS(t *testing.T) {
-
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
