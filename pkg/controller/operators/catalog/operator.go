@@ -97,6 +97,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		catsrcSharedIndexInformers,
 		op.syncCatalogSources,
 		nil,
+		"catsrc",
 	)
 	for _, informer := range catsrcQueueInformer {
 		op.RegisterQueueInformer(informer)
@@ -109,6 +110,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		ipSharedIndexInformers,
 		op.syncInstallPlans,
 		nil,
+		"installplan",
 	)
 	for _, informer := range ipQueueInformers {
 		op.RegisterQueueInformer(informer)
@@ -121,6 +123,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		subSharedIndexInformers,
 		op.syncSubscriptions,
 		nil,
+		"subscription",
 	)
 	op.subQueue = subscriptionQueue
 	for _, informer := range subscriptionQueueInformers {

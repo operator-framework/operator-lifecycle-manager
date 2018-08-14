@@ -127,7 +127,8 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 }
 
 func (o *Operator) sync(loop *QueueInformer, key string) error {
-	log.Infof("getting %s from queue", key)
+	logger := log.WithField("queue", loop.name).WithField("key", key)
+	logger.Info("getting from queue")
 	obj, exists, err := loop.informer.GetIndexer().GetByKey(key)
 	if err != nil {
 		return err
@@ -135,8 +136,8 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 
 	if !exists {
 		// For now, we ignore the case where an object used to exist but no longer does
-		log.Infof("couldn't get %s from queue", key)
-		log.Debugf("have keys: %v", loop.informer.GetIndexer().ListKeys())
+		logger.Info("couldn't get from queue")
+		logger.Debugf("have keys: %v", loop.informer.GetIndexer().ListKeys())
 		return nil
 	}
 	return loop.syncHandler(obj)

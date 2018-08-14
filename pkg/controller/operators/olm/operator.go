@@ -68,6 +68,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 			namespaceInformer,
 			op.annotateNamespace,
 			nil,
+			"namespace",
 		)
 		op.RegisterQueueInformer(queueInformer)
 	}
@@ -94,6 +95,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		csvInformers,
 		op.syncClusterServiceVersion,
 		nil,
+		"csv",
 	)
 	for _, informer := range queueInformers {
 		op.RegisterQueueInformer(informer)
@@ -114,6 +116,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		depInformers,
 		op.syncDeployment,
 		nil,
+		"deployment",
 	)
 	for _, informer := range depQueueInformers {
 		op.RegisterQueueInformer(informer)
