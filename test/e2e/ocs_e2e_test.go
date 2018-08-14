@@ -286,6 +286,11 @@ func TestInstallPrometheusOCS(t *testing.T) {
 			"replicas":        expectedPrometheusSize,
 			"version":         prometheusVersion,
 			"securityContext": struct{}{},
+			"resources": map[string]interface{}{
+				"requests": map[string]interface{}{
+					"memory": "10Mi",
+				},
+			},
 		},
 	}
 
