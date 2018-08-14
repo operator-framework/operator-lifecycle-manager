@@ -136,16 +136,17 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting CatalogSource failed")
 	}
-	out := catsrc.DeepCopy()
 
 	// Get the catalog source's config map
-	configMap, err := o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(out.GetNamespace()).Get(out.Spec.ConfigMap, metav1.GetOptions{})
+	configMap, err := o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap, metav1.GetOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", out.Spec.ConfigMap, err)
+		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", catsrc.Spec.ConfigMap, err)
 	}
 
 	// Check for config map changes
-	if out.Status.ConfigMapResource == nil || out.Status.ConfigMapResource.Name != configMap.GetName() || out.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
+	if catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.Name != configMap.GetName() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
+		out := catsrc.DeepCopy()
+
 		// Update status subresource
 		out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
 			Name:            configMap.GetName(),
@@ -159,19 +160,19 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		if err != nil {
 			return fmt.Errorf("failed to update catalog source %s status: %s", out.GetName(), err)
 		}
-	}
 
-	// Create a new in-mem registry
-	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, out.GetNamespace(), out.Spec.ConfigMap)
-	if err != nil {
-		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", out.Spec.ConfigMap, err)
-	}
+		// Create a new in-mem registry
+		src, err := registry.NewInMemoryFromConfigMap(o.OpClient, out.GetNamespace(), out.Spec.ConfigMap)
+		if err != nil {
+			return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", out.Spec.ConfigMap, err)
+		}
 
-	// Update sources map
-	o.sourcesLock.Lock()
-	defer o.sourcesLock.Unlock()
-	o.sources[registry.ResourceKey{Name: out.GetName(), Namespace: out.GetNamespace()}] = src
-	o.sourcesLastUpdate = timeNow()
+		// Update sources map
+		o.sourcesLock.Lock()
+		defer o.sourcesLock.Unlock()
+		o.sources[registry.ResourceKey{Name: out.GetName(), Namespace: out.GetNamespace()}] = src
+		o.sourcesLastUpdate = timeNow()
+	}
 
 	return nil
 }

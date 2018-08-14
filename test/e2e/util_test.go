@@ -244,6 +244,12 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 }
 
 func cleanupOLM(t *testing.T, namespace string) {
+	if t.Failed() {
+		// Skip cleaning up if the test has failed
+		t.Log("skipping cleanup")
+		return
+	}
+
 	var immediate int64 = 0
 	crc := newCRClient(t)
 	c := newKubeClient(t)
