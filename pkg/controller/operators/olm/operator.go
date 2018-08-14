@@ -106,7 +106,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	depInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching deployments in namespace %s", namespace)
-		informer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Apps().V1().Deployments().Informer()
+		informer := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace)).Apps().V1().Deployments().Informer()
 		depInformers = append(depInformers, informer)
 	}
 
