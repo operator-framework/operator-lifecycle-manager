@@ -254,10 +254,10 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		return checker(fetchedSubscription), nil
 	})
 	return fetchedSubscription, err
