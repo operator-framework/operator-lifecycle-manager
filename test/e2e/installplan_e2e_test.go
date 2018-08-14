@@ -193,7 +193,6 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ex
 }
 
 func TestCreateInstallPlanManualApproval(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -297,7 +296,6 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	crc := newCRClient(t)
 
@@ -339,7 +337,6 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 }
 
 func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	mainPackageName := genName("nginx")
 	dependentPackageName := genName("nginxdep")
@@ -460,10 +457,8 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 }
 
 func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	t.Run("OnePreExistingCRDOwner", func(t *testing.T) {
-		defer cleanupOLM(t, testNamespace)
 
 		mainPackageName := genName("nginx")
 		dependentPackageName := genName("nginxdep")
@@ -589,7 +584,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 	})
 
 	t.Run("TwoPreExistingCRDOwners", func(t *testing.T) {
-		defer cleanupOLM(t, testNamespace)
 
 		mainPackageName := genName("nginx")
 		dependentPackageName := genName("nginxdep")

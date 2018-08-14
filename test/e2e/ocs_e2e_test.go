@@ -21,7 +21,6 @@ import (
 )
 
 func TestInstallEtcdOCS(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -161,7 +160,6 @@ func TestInstallEtcdOCS(t *testing.T) {
 }
 
 func TestInstallPrometheusOCS(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)

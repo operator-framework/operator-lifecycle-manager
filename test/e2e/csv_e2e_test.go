@@ -175,7 +175,6 @@ func waitForCSVToDelete(t *testing.T, c versioned.Interface, name string) error 
 
 // TODO: same test but missing serviceaccount instead
 func TestCreateCSVWithUnmetRequirements(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -232,7 +231,6 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 
 // TODO: same test but create serviceaccount instead
 func TestCreateCSVRequirementsMet(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -317,7 +315,6 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 }
 
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -522,7 +519,6 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 }
 
 func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -665,7 +661,6 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 }
 
 func TestUpdateCSVMultipleIntermediates(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
