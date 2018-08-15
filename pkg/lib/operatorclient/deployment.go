@@ -164,10 +164,8 @@ func (c *Client) waitForDeploymentRollout(dep *appsv1.Deployment) error {
 	return wait.PollInfinite(deploymentRolloutPollInterval, func() (bool, error) {
 		d, err := c.GetDeployment(dep.Namespace, dep.Name)
 		if err != nil {
-			// Do not return error here, as we could be updating the API Server itself, in which case we
-			// want to continue waiting.
 			glog.Errorf("error getting Deployment %s during rollout: %v", dep.Name, err)
-			return false, nil
+			return false, err
 		}
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
 			return true, nil

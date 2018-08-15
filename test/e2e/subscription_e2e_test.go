@@ -205,14 +205,15 @@ func init() {
 	dummyCatalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 }
 
-func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
-	// create ConfigMap containing catalog
+func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface) error {
+	// Create configmap containing catalog
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
 	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
-	// create CatalogSource custom resource pointing to ConfigMap
+
+	// Create catalog source custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
 	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
 	require.NoError(t, err)
@@ -220,6 +221,12 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
+
+	// Wait for the catalog source to be created
+	fetched, err := fetchCatalogSource(t, crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceSynced)
+	require.NoError(t, err)
+	require.NotNil(t, fetched)
+
 	return nil
 }
 
@@ -320,7 +327,7 @@ func TestCreateNewSubscription(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	require.NoError(t, initCatalog(t, c))
+	require.NoError(t, initCatalog(t, c, crc))
 
 	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, betaChannel, v1alpha1.ApprovalAutomatic)
 	defer cleanup()
@@ -347,7 +354,7 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	require.NoError(t, initCatalog(t, c))
+	require.NoError(t, initCatalog(t, c, crc))
 
 	// Will be cleaned up by the upgrade process
 	_, err := createCSV(t, c, crc, stableCSV, testNamespace, true)
@@ -377,7 +384,7 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	require.NoError(t, initCatalog(t, c))
+	require.NoError(t, initCatalog(t, c, crc))
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
