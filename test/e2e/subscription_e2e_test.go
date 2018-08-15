@@ -257,7 +257,7 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
+		// t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		return checker(fetchedSubscription), nil
 	})
 	return fetchedSubscription, err
@@ -316,7 +316,8 @@ func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*
 //   I. Creating a new subscription
 //      A. If package is not installed, creating a subscription should install latest version
 func TestCreateNewSubscription(t *testing.T) {
-	cleanupOLM(t, testNamespace)
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
@@ -342,7 +343,8 @@ func TestCreateNewSubscription(t *testing.T) {
 //      B. If package is already installed, creating a subscription should upgrade it to the latest
 //         version
 func TestCreateNewSubscriptionAgain(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c))
@@ -370,7 +372,8 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 func TestCreateNewSubscriptionManualApproval(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
