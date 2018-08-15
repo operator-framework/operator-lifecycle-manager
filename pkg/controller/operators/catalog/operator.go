@@ -225,10 +225,10 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	return
 }
 
-func (a *Operator) requeueInstallPlan(name, namespace string) {
+func (o *Operator) requeueInstallPlan(name, namespace string) {
 	// we can build the key directly, will need to change if queue uses different key scheme
 	key := fmt.Sprintf("%s/%s", namespace, name)
-	a.subQueue.AddRateLimited(key)
+	o.subQueue.AddRateLimited(key)
 	return
 }
 

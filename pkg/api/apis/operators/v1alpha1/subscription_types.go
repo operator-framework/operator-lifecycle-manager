@@ -16,9 +16,15 @@ type SubscriptionState string
 
 const (
 	SubscriptionStateNone             = ""
+	SubscriptionStateFailed           = "UpgradeFailed"
 	SubscriptionStateUpgradeAvailable = "UpgradeAvailable"
 	SubscriptionStateUpgradePending   = "UpgradePending"
 	SubscriptionStateAtLatest         = "AtLatestKnown"
+)
+
+const (
+	SubscriptionReasonInvalidCatalog   ConditionReason = "InvalidCatalog"
+	SubscriptionReasonUpgradeSucceeded ConditionReason = "UpgradeSucceeded"
 )
 
 // SubscriptionSpec defines an Application that can be installed
@@ -46,6 +52,7 @@ type SubscriptionStatus struct {
 	Install    *InstallPlanReference `json:"installplan,omitempty"`
 
 	State       SubscriptionState `json:"state,omitempty"`
+	Reason      ConditionReason   `json:"reason,omitempty"`
 	LastUpdated metav1.Time       `json:"lastUpdated"`
 }
 
