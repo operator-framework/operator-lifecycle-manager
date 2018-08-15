@@ -264,7 +264,6 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		// t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		return checker(fetchedSubscription), nil
 	})
 	return fetchedSubscription, err
