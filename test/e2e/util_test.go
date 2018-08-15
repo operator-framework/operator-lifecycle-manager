@@ -39,14 +39,16 @@ const (
 )
 
 var (
-	testNamespace  = metav1.NamespaceDefault
-	genName        = names.SimpleNameGenerator.GenerateName
-	skipCleanupOLM = false
+	cleaner       *namespaceCleaner
+	testNamespace = metav1.NamespaceDefault
+	genName       = names.SimpleNameGenerator.GenerateName
 
 	persistentCatalogNames               = []string{ocsConfigMap}
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
 	persistentConfigMapNames             = []string{ocsConfigMap}
 	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
+	persistentDeploymentNames            = []string{"alm-operator", "catalog-operator"}
+	nonPersistentDeploymentFieldSelector = createFieldNotEqualSelector("metadata.name", persistentDeploymentNames...)
 )
 
 func init() {
@@ -56,6 +58,33 @@ func init() {
 	}
 	flag.Set("logtostderr", "true")
 	flag.Parse()
+	cleaner = newNamespaceCleaner(testNamespace)
+}
+
+type namespaceCleaner struct {
+	namespace      string
+	skipCleanupOLM bool
+}
+
+func newNamespaceCleaner(namespace string) *namespaceCleaner {
+	return &namespaceCleaner{
+		namespace:      namespace,
+		skipCleanupOLM: false,
+	}
+}
+
+// notifyOnFailure checks if a test has failed or cleanup is true before cleaning a namespace
+func (c *namespaceCleaner) NotifyTestComplete(t *testing.T, cleanup bool) {
+	if t.Failed() {
+		c.skipCleanupOLM = true
+	}
+
+	if c.skipCleanupOLM || !cleanup {
+		t.Log("skipping cleanup")
+		return
+	}
+
+	cleanupOLM(t, c.namespace)
 }
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
@@ -245,13 +274,6 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 }
 
 func cleanupOLM(t *testing.T, namespace string) {
-	if skipCleanupOLM || t.Failed() {
-		// Skip cleaning up if the test has failed
-		skipCleanupOLM = true
-		t.Log("skipping cleanup")
-		return
-	}
-
 	var immediate int64 = 0
 	crc := newCRClient(t)
 	c := newKubeClient(t)
@@ -267,6 +289,9 @@ func cleanupOLM(t *testing.T, namespace string) {
 
 	// Cleanup non persistent configmaps
 	require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentConfigMapsFieldSelector}))
+
+	// Cleanup non persistent deployments
+	require.NoError(t, c.KubernetesInterface().AppsV1().Deployments(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentDeploymentFieldSelector}))
 }
 
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {

@@ -3,6 +3,7 @@ package resolver
 import (
 	"fmt"
 
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 
@@ -198,7 +199,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	case 1:
 		ownerName = owners[0]
 	default:
-		return v1alpha1.StepResource{}, "", fmt.Errorf("More than one existing owner for CRD %s in namespace %s found: %v", crdKey.Name, planNamespace, owners)
+		return v1alpha1.StepResource{}, "", olmerrors.NewMultipleExistingCRDOwnersError(owners, crdKey.Name, planNamespace)
 	}
 
 	// Check empty name

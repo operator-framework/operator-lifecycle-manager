@@ -205,14 +205,15 @@ func init() {
 	dummyCatalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 }
 
-func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
-	// create ConfigMap containing catalog
+func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface) error {
+	// Create configmap containing catalog
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
 	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
-	// create CatalogSource custom resource pointing to ConfigMap
+
+	// Create catalog source custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
 	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
 	require.NoError(t, err)
@@ -220,6 +221,12 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface) error {
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
+
+	// Wait for the catalog source to be created
+	fetched, err := fetchCatalogSource(t, crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceSynced)
+	require.NoError(t, err)
+	require.NotNil(t, fetched)
+
 	return nil
 }
 
@@ -257,7 +264,6 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Install.Name, fetchedSubscription.Status.CurrentCSV)
 		return checker(fetchedSubscription), nil
 	})
 	return fetchedSubscription, err
@@ -316,10 +322,11 @@ func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*
 //   I. Creating a new subscription
 //      A. If package is not installed, creating a subscription should install latest version
 func TestCreateNewSubscription(t *testing.T) {
-	cleanupOLM(t, testNamespace)
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	require.NoError(t, initCatalog(t, c))
+	require.NoError(t, initCatalog(t, c, crc))
 
 	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, betaChannel, v1alpha1.ApprovalAutomatic)
 	defer cleanup()
@@ -342,10 +349,11 @@ func TestCreateNewSubscription(t *testing.T) {
 //      B. If package is already installed, creating a subscription should upgrade it to the latest
 //         version
 func TestCreateNewSubscriptionAgain(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	require.NoError(t, initCatalog(t, c))
+	require.NoError(t, initCatalog(t, c, crc))
 
 	// Will be cleaned up by the upgrade process
 	_, err := createCSV(t, c, crc, stableCSV, testNamespace, true)
@@ -370,11 +378,12 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 func TestCreateNewSubscriptionManualApproval(t *testing.T) {
-	defer cleanupOLM(t, testNamespace)
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	require.NoError(t, initCatalog(t, c))
+	require.NoError(t, initCatalog(t, c, crc))
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()

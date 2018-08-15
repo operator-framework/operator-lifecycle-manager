@@ -193,6 +193,8 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ex
 }
 
 func TestCreateInstallPlanManualApproval(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -295,6 +297,8 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 
 // As an infra owner, creating an installplan with a clusterServiceVersionName that does not exist in the catalog should result in a “Failed” status
 func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
 	crc := newCRClient(t)
 
 	installPlan := v1alpha1.InstallPlan{
@@ -335,6 +339,8 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 }
 
 func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
 	mainPackageName := genName("nginx")
 	dependentPackageName := genName("nginxdep")
 
@@ -454,8 +460,10 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 }
 
 func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
-
+	defer cleaner.NotifyTestComplete(t, true)
 	t.Run("OnePreExistingCRDOwner", func(t *testing.T) {
+		defer cleaner.NotifyTestComplete(t, true)
+
 		mainPackageName := genName("nginx")
 		dependentPackageName := genName("nginxdep")
 
@@ -525,11 +533,12 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		}
 
 		// Create the catalog source
-		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, "mock-ocs-main", testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		catalogSourceName := genName("mock-ocs-main")
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, "mock-ocs-main", testNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
@@ -580,6 +589,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 	})
 
 	t.Run("TwoPreExistingCRDOwners", func(t *testing.T) {
+		defer cleaner.NotifyTestComplete(t, true)
+
 		mainPackageName := genName("nginx")
 		dependentPackageName := genName("nginxdep")
 
@@ -649,11 +660,12 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		}
 
 		// Create the catalog source
-		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, "mock-ocs-main", testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		catalogSourceName := genName("mock-ocs-main")
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, "mock-ocs-main", testNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
 		require.NoError(t, err)
 
 		secondOwnerCSV := v1alpha1.ClusterServiceVersion{
@@ -709,5 +721,321 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 			return true
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("PreExistingCRDOwnerIsReplaced", func(t *testing.T) {
+		defer cleaner.NotifyTestComplete(t, true)
+
+		mainPackageName := genName("nginx")
+		dependentPackageName := genName("nginxdep")
+
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
+		dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
+		dependentPackageBeta := fmt.Sprintf("%s-beta", dependentPackageName)
+
+		stableChannel := "stable"
+		betaChannel := "beta"
+
+		// Create manifests
+		mainManifests := []registry.PackageManifest{
+			registry.PackageManifest{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+				},
+				DefaultChannelName: stableChannel,
+			},
+			registry.PackageManifest{
+				PackageName: dependentPackageName,
+				Channels: []registry.PackageChannel{
+					registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+					registry.PackageChannel{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		// Create new CRDs
+		mainCRDPlural := genName("ins")
+		mainCRDName := mainCRDPlural + ".cluster.com"
+		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+
+		// Create a new named install strategy
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+
+		dependentCRDPlural := genName("ins")
+		dependentCRDName := dependentCRDPlural + ".cluster.com"
+		dependentCRD := newCRD(dependentCRDName, testNamespace, dependentCRDPlural)
+
+		// Create new CSVs
+		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, *semver.New("0.2.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, *semver.New("0.2.0"), []extv1beta1.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+
+		c := newKubeClient(t)
+		crc := newCRClient(t)
+
+		// Create the catalog source
+		catalogSourceName := genName("mock-ocs-main")
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		require.NoError(t, err)
+		defer cleanupCatalogSource()
+		// Attempt to get the catalog source before creating install plan(s)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+		require.NoError(t, err)
+
+		// Create default test installplan
+		installPlan := v1alpha1.InstallPlan{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.InstallPlanKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("install-nginx"),
+				Namespace: testNamespace,
+			},
+			Spec: v1alpha1.InstallPlanSpec{
+				CatalogSource:              catalogSourceName,
+				CatalogSourceNamespace:     testNamespace,
+				ClusterServiceVersionNames: []string{mainPackageStable},
+				Approval:                   v1alpha1.ApprovalAutomatic,
+			},
+		}
+
+		// Create a stable installplan
+		installPlanCleanup, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, installPlan)
+		require.NoError(t, err)
+		defer installPlanCleanup()
+
+		// Wait for InstallPlan to be status: Complete or failed before checking resource presence
+		completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed)
+		fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlan.GetName(), completeOrFailedFunc)
+		require.NoError(t, err)
+		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+		require.True(t, completeOrFailedFunc(fetchedInstallPlan))
+
+		// Ensure that the desired resources have been created
+		expectedSteps := map[registry.ResourceKey]struct{}{
+			registry.ResourceKey{Name: mainCRDName, Kind: "CustomResourceDefinition"}:                    {},
+			registry.ResourceKey{Name: dependentCRDName, Kind: "CustomResourceDefinition"}:               {},
+			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:      {},
+		}
+
+		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan))
+
+		for _, step := range fetchedInstallPlan.Status.Plan {
+			key := registry.ResourceKey{
+				Name: step.Resource.Name,
+				Kind: step.Resource.Kind,
+			}
+			_, ok := expectedSteps[key]
+			require.True(t, ok)
+
+			// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
+			delete(expectedSteps, key)
+		}
+
+		// Should have removed every matching step
+		require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
+
+		// Update the step resource to point to the beta CSV
+		installPlanBeta := fetchedInstallPlan
+		installPlanBeta.Spec.ClusterServiceVersionNames = []string{mainBetaCSV.GetName()}
+		updated, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(installPlanBeta)
+		require.NoError(t, err)
+
+		// Update the status subresource with a preresolved set of resources
+		csvStepResource, err := v1alpha1.NewStepResourceFromCSV(&mainBetaCSV)
+		require.NoError(t, err)
+
+		crdStepResource, err := v1alpha1.NewStepResourceFromCRD(&mainCRD)
+		require.NoError(t, err)
+
+		dependentCSVStepResource, err := v1alpha1.NewStepResourceFromCSV(&dependentStableCSV)
+		require.NoError(t, err)
+
+		dependentCRDStepResource, err := v1alpha1.NewStepResourceFromCRD(&dependentCRD)
+		require.NoError(t, err)
+
+		updated.Status.Plan = []v1alpha1.Step{
+			{
+				Resource: dependentCRDStepResource,
+				Status:   v1alpha1.StepStatusPresent,
+			},
+			{
+				Resource: crdStepResource,
+				Status:   v1alpha1.StepStatusPresent,
+			},
+			{
+				Resource: dependentCSVStepResource,
+				Status:   v1alpha1.StepStatusPresent,
+			},
+			{
+				Resource: csvStepResource,
+				Status:   v1alpha1.StepStatusNotPresent,
+			},
+		}
+		updated.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+		updated, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(updated)
+		require.NoError(t, err)
+
+		// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
+		fetchedInstallPlan, err = fetchInstallPlan(t, crc, updated.GetName(), completeOrFailedFunc)
+		require.NoError(t, err)
+		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+
+		require.True(t, completeOrFailedFunc(fetchedInstallPlan))
+
+		// Ensure correct in-cluster resource(s)
+		fetchedCSV, err := fetchCSV(t, crc, mainBetaCSV.GetName(), csvSucceededChecker)
+		require.NoError(t, err)
+
+		t.Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
+	})
+
+	t.Run("PreExistingCRDOwnerFailsPlanExecution", func(t *testing.T) {
+		defer cleaner.NotifyTestComplete(t, true)
+
+		mainPackageName := genName("nginx")
+		dependentPackageName := genName("nginxdep")
+
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
+		dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
+		dependentPackageBeta := fmt.Sprintf("%s-beta", dependentPackageName)
+
+		stableChannel := "stable"
+		betaChannel := "beta"
+
+		// Create manifests
+		mainManifests := []registry.PackageManifest{
+			registry.PackageManifest{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+				},
+				DefaultChannelName: stableChannel,
+			},
+			registry.PackageManifest{
+				PackageName: dependentPackageName,
+				Channels: []registry.PackageChannel{
+					registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+					registry.PackageChannel{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+
+		// Create new CRDs
+		mainCRDPlural := genName("ins")
+		mainCRDName := mainCRDPlural + ".cluster.com"
+		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+
+		// Create a new named install strategy
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+
+		dependentCRDPlural := genName("ins")
+		dependentCRDName := dependentCRDPlural + ".cluster.com"
+		dependentCRD := newCRD(dependentCRDName, testNamespace, dependentCRDPlural)
+
+		// Create new CSVs
+		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, *semver.New("0.2.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, *semver.New("0.2.0"), []extv1beta1.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+
+		c := newKubeClient(t)
+		crc := newCRClient(t)
+
+		// Create the catalog source
+		catalogSourceName := genName("mock-ocs-main")
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		require.NoError(t, err)
+		defer cleanupCatalogSource()
+		// Attempt to get the catalog source before creating install plan(s)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+		require.NoError(t, err)
+
+		// Create a dummy installplan with a non-existent csv
+		dummyInstallPlan := v1alpha1.InstallPlan{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.InstallPlanKind,
+				APIVersion: v1alpha1.SchemeGroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("install-nginx"),
+				Namespace: testNamespace,
+			},
+			Spec: v1alpha1.InstallPlanSpec{
+				ClusterServiceVersionNames: []string{mainPackageStable},
+				Approval:                   v1alpha1.ApprovalAutomatic,
+			},
+		}
+		dummyInstallPlan.Spec.ClusterServiceVersionNames = []string{"non-existent"}
+		cleanupDummyInstallPlan, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, dummyInstallPlan)
+		require.NoError(t, err)
+		defer cleanupDummyInstallPlan()
+
+		// Add pre-existing dependencies
+		dependentCRDCleanup, err := createCRD(c, dependentCRD)
+		require.NoError(t, err)
+		defer dependentCRDCleanup()
+
+		dependentBetaCSVCleanup, err := createCSV(t, c, crc, dependentBetaCSV, testNamespace, true)
+		require.NoError(t, err)
+		defer dependentBetaCSVCleanup()
+
+		// Fetch the dummy installplan
+		fetchedInstallPlan, err := fetchInstallPlan(t, crc, dummyInstallPlan.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed))
+		require.NoError(t, err)
+
+		// Update spec to point at a valid CSV
+		fetchedInstallPlan.Spec.ClusterServiceVersionNames = []string{mainStableCSV.GetName()}
+		updated, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
+		require.NoError(t, err)
+
+		// Update the status subresource with a pre-resolved set of resources
+		csvStepResource, err := v1alpha1.NewStepResourceFromCSV(&mainStableCSV)
+		require.NoError(t, err)
+
+		crdStepResource, err := v1alpha1.NewStepResourceFromCRD(&mainCRD)
+		require.NoError(t, err)
+
+		dependentCSVStepResource, err := v1alpha1.NewStepResourceFromCSV(&dependentStableCSV)
+		require.NoError(t, err)
+
+		dependentCRDStepResource, err := v1alpha1.NewStepResourceFromCRD(&dependentCRD)
+		require.NoError(t, err)
+
+		updated.Status.Plan = []v1alpha1.Step{
+			{
+				Resource: dependentCRDStepResource,
+				Status:   v1alpha1.StepStatusUnknown,
+			},
+			{
+				Resource: crdStepResource,
+				Status:   v1alpha1.StepStatusUnknown,
+			},
+			{
+				Resource: dependentCSVStepResource,
+				Status:   v1alpha1.StepStatusUnknown,
+			},
+			{
+				Resource: csvStepResource,
+				Status:   v1alpha1.StepStatusUnknown,
+			},
+		}
+		updated, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(updated)
+		require.NoError(t, err)
+
+		// Wait for InstallPlan to be status: Failed
+		updated, err = fetchInstallPlan(t, crc, updated.GetName(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed))
+		require.NoError(t, err)
+		t.Logf("Install plan %s fetched with status %s", updated.GetName(), updated.Status.Phase)
 	})
 }
