@@ -322,8 +322,28 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	nginxName := genName("nginx-")
+	// Create dependency first (CRD)
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: extv1beta1.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: extv1beta1.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+
 	// create "current" CSV
+	nginxName := genName("nginx-")
 	strategy := install.StrategyDetailsDeployment{
 		Permissions: []install.StrategyDeploymentPermissions{
 			{
@@ -357,6 +377,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	strategyRaw, err := json.Marshal(strategy)
 	require.NoError(t, err)
 
+	require.NoError(t, err)
+	defer cleanupCRD()
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -373,36 +395,16 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins.cluster.com",
+						Name:        crdName,
 						Version:     "v1alpha1",
-						Kind:        "InCluster",
-						DisplayName: "Ins",
+						Kind:        crdPlural,
+						DisplayName: crdName,
 						Description: "In the cluster",
 					},
 				},
 			},
 		},
 	}
-
-	// Create dependency first (CRD)
-	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ins.cluster.com",
-		},
-		Spec: extv1beta1.CustomResourceDefinitionSpec{
-			Group:   "cluster.com",
-			Version: "v1alpha1",
-			Names: extv1beta1.CustomResourceDefinitionNames{
-				Plural:   "ins",
-				Singular: "in",
-				Kind:     "InCluster",
-				ListKind: "InClusterList",
-			},
-			Scope: "Namespaced",
-		},
-	})
-	require.NoError(t, err)
-	defer cleanupCRD()
 
 	// don't need to cleanup this CSV, it will be deleted by the upgrade process
 	_, err = createCSV(t, c, crc, csv, testNamespace, true)
@@ -476,10 +478,10 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins.cluster.com",
+						Name:        crdName,
 						Version:     "v1alpha1",
-						Kind:        "InCluster",
-						DisplayName: "Ins",
+						Kind:        crdPlural,
+						DisplayName: crdName,
 						Description: "In the cluster",
 					},
 				},
@@ -527,6 +529,28 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
+	// Create dependency first (CRD)
+	crdPlural := genName("ins2")
+	crdName := crdPlural + ".cluster.com"
+	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: extv1beta1.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: extv1beta1.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+	require.NoError(t, err)
+	defer cleanupCRD()
+
 	// create "current" CSV
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
@@ -555,36 +579,16 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins2.cluster.com",
+						Name:        crdName,
 						Version:     "v1alpha1",
-						Kind:        "InCluster2",
-						DisplayName: "Ins2",
+						Kind:        crdPlural,
+						DisplayName: crdName,
 						Description: "In the cluster2",
 					},
 				},
 			},
 		},
 	}
-
-	// Create dependency first (CRD)
-	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ins2.cluster.com",
-		},
-		Spec: extv1beta1.CustomResourceDefinitionSpec{
-			Group:   "cluster.com",
-			Version: "v1alpha1",
-			Names: extv1beta1.CustomResourceDefinitionNames{
-				Plural:   "ins2",
-				Singular: "in2",
-				Kind:     "InCluster2",
-				ListKind: "InClusterList2",
-			},
-			Scope: "Namespaced",
-		},
-	})
-	require.NoError(t, err)
-	defer cleanupCRD()
 
 	// don't need to clean up this CSV, it will be deleted by the upgrade process
 	_, err = createCSV(t, c, crc, csv, testNamespace, true)
@@ -628,10 +632,10 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins2.cluster.com",
+						Name:        crdName,
 						Version:     "v1alpha1",
-						Kind:        "InCluster2",
-						DisplayName: "Ins2",
+						Kind:        crdPlural,
+						DisplayName: crdName,
 						Description: "In the cluster2",
 					},
 				},
@@ -670,6 +674,34 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
+	// Create dependency first (CRD)
+	crdPlural := genName("ins3")
+	crdName := crdPlural + ".cluster.com"
+	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: extv1beta1.CustomResourceDefinitionSpec{
+			Group: "cluster.com",
+			Versions: []extv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+				},
+			},
+			Names: extv1beta1.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+	require.NoError(t, err)
+	defer cleanupCRD()
+
 	// create "current" CSV
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
@@ -698,42 +730,16 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins3.cluster.com",
+						Name:        crdName,
 						Version:     "v1alpha1",
-						Kind:        "InCluster3",
-						DisplayName: "Ins3",
+						Kind:        crdPlural,
+						DisplayName: crdName,
 						Description: "In the cluster3",
 					},
 				},
 			},
 		},
 	}
-
-	// Create dependency first (CRD)
-	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "ins3.cluster.com",
-		},
-		Spec: extv1beta1.CustomResourceDefinitionSpec{
-			Group: "cluster.com",
-			Versions: []extv1beta1.CustomResourceDefinitionVersion{
-				{
-					Name:    "v1alpha1",
-					Served:  true,
-					Storage: true,
-				},
-			},
-			Names: extv1beta1.CustomResourceDefinitionNames{
-				Plural:   "ins3",
-				Singular: "in3",
-				Kind:     "InCluster3",
-				ListKind: "InClusterList3",
-			},
-			Scope: "Namespaced",
-		},
-	})
-	require.NoError(t, err)
-	defer cleanupCRD()
 
 	// don't need to clean up this CSV, it will be deleted by the upgrade process
 	_, err = createCSV(t, c, crc, csv, testNamespace, true)
@@ -777,10 +783,10 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
-						Name:        "ins3.cluster.com",
+						Name:        crdName,
 						Version:     "v1alpha1",
-						Kind:        "InCluster3",
-						DisplayName: "Ins3",
+						Kind:        crdPlural,
+						DisplayName: crdName,
 						Description: "In the cluster3",
 					},
 				},

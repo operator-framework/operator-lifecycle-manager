@@ -77,6 +77,7 @@ func fetchInstallPlan(t *testing.T, c versioned.Interface, name string, checkPha
 		if err != nil || fetchedInstallPlan == nil {
 			return false, err
 		}
+
 		return checkPhase(fetchedInstallPlan), nil
 	})
 	return fetchedInstallPlan, err

@@ -47,8 +47,6 @@ var (
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
 	persistentConfigMapNames             = []string{ocsConfigMap}
 	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
-	persistentDeploymentNames            = []string{"alm-operator", "catalog-operator"}
-	nonPersistentDeploymentFieldSelector = createFieldNotEqualSelector("metadata.name", persistentDeploymentNames...)
 )
 
 func init() {
@@ -289,9 +287,6 @@ func cleanupOLM(t *testing.T, namespace string) {
 
 	// Cleanup non persistent configmaps
 	require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentConfigMapsFieldSelector}))
-
-	// Cleanup non persistent deployments
-	require.NoError(t, c.KubernetesInterface().AppsV1().Deployments(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentDeploymentFieldSelector}))
 }
 
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
