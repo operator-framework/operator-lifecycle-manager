@@ -145,9 +145,6 @@ func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f Patc
 	if err != nil {
 		return nil, false, err
 	}
-	if err = c.waitForDeploymentRollout(updated); err != nil {
-		return nil, false, err
-	}
 
 	return updated, current.GetResourceVersion() != updated.GetResourceVersion(), nil
 }
