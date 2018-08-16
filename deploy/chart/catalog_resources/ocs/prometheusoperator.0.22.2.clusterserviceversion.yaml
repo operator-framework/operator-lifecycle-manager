@@ -10,53 +10,47 @@ metadata:
     alm-examples: '[{"apiVersion":"monitoring.coreos.com/v1","kind":"Prometheus","metadata":{"name":"example","labels":{"prometheus":"k8s"}},"spec":{"replicas":2,"version":"v2.3.2","serviceAccountName":"prometheus-k8s","securityContext": {}, "serviceMonitorSelector":{"matchExpressions":[{"key":"k8s-app","operator":"Exists"}]},"ruleSelector":{"matchLabels":{"role":"prometheus-rulefiles","prometheus":"k8s"}},"resources":{"requests":{"memory":"400Mi"}},"alerting":{"alertmanagers":[{"namespace":"monitoring","name":"alertmanager-main","port":"web"}]}}},{"apiVersion":"monitoring.coreos.com/v1","kind":"ServiceMonitor","metadata":{"name":"example","labels":{"k8s-app":"prometheus"}},"spec":{"selector":{"matchLabels":{"k8s-app":"prometheus","prometheus":"k8s"}},"namespaceSelector":{"matchNames":["monitoring"]},"endpoints":[{"port":"web","interval":"30s"}]}},{"apiVersion":"monitoring.coreos.com/v1","kind":"Alertmanager","metadata":{"name":"alertmanager-main"},"spec":{"replicas":3}}]'
 spec:
   replaces: prometheusoperator.0.15.0
-  displayName: Prometheus
+  displayName: Prometheus Operator
   description: |
-    An open-source monitoring system with a dimensional data model, flexible query language, efficient time series database and modern alerting approach.
+    The Prometheus Operator for Kubernetes provides easy monitoring definitions for Kubernetes services and deployment and management of Prometheus instances.
 
-    _The Prometheus Open Cloud Service is Public Alpha. The goal before Beta is for additional user testing and minor bug fixes._
+    Once installed, the Prometheus Operator provides the following features:
 
-    ### Monitoring applications
+    * **Create/Destroy**: Easily launch a Prometheus instance for your Kubernetes namespace, a specific application or team easily using the Operator.
 
-    Prometheus scrapes your application metrics based on targets maintained in a ServiceMonitor object. When alerts need to be sent, they are processsed by an AlertManager.
+    * **Simple Configuration**: Configure the fundamentals of Prometheus like versions, persistence, retention policies, and replicas from a native Kubernetes resource.
 
-    [Read the complete guide to monitoring applications with the Prometheus Open Cloud Service](https://coreos.com/tectonic/docs/latest/alm/prometheus-ocs.html)
+    * **Target Services via Labels**: Automatically generate monitoring target configurations based on familiar Kubernetes label queries; no need to learn a Prometheus specific configuration language.
 
-    ### Supported Features
-
+    ### Other Supported Features
 
     **High availability**
 
-
     Multiple instances are run across failure zones and data is replicated. This keeps your monitoring available during an outage, when you need it most.
-
 
     **Updates via automated operations**
 
-
     New Prometheus versions are deployed using a rolling update with no downtime, making it easy to stay up to date.
 
-
     **Handles the dynamic nature of containers**
-
 
     Alerting rules are attached to groups of containers instead of individual instances, which is ideal for the highly dynamic nature of container deployment.
 
   keywords: ['prometheus', 'monitoring', 'tsdb', 'alerting']
 
   maintainers:
-  - name: CoreOS, Inc
-    email: support@coreos.com
+  - name: Red Hat
+    email: openshift-operators@redhat.com
 
   provider:
-    name: CoreOS, Inc
+    name: Red Hat
 
   links:
   - name: Prometheus
     url: https://www.prometheus.io/
   - name: Documentation
     url: https://coreos.com/operators/prometheus/docs/latest/
-  - name: Prometheus Operator Source Code
+  - name: Prometheus Operator
     url: https://github.com/coreos/prometheus-operator
 
   labels:
@@ -192,7 +186,7 @@ spec:
                   readOnlyRootFilesystem: true
               nodeSelector:
                 beta.kubernetes.io/os: linux
-  maturity: alpha
+  maturity: beta
   version: 0.22.2
   customresourcedefinitions:
     owned:
@@ -264,8 +258,8 @@ spec:
     - name: alertmanagers.monitoring.coreos.com
       version: v1
       kind: Alertmanager
-      displayName: Alert Manager
-      description: Configures an Alert Manager for the namespace
+      displayName: Alertmanager
+      description: Configures an Alertmanager for the namespace
       resources:
         - kind: StatefulSet
           version: v1beta2
