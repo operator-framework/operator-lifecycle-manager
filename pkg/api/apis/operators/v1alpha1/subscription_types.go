@@ -48,8 +48,9 @@ type Subscription struct {
 }
 
 type SubscriptionStatus struct {
-	CurrentCSV string                `json:"installedCSV,omitempty"`
-	Install    *InstallPlanReference `json:"installplan,omitempty"`
+	CurrentCSV   string                `json:"currentCSV,omitempty"`
+	InstalledCSV string                `json:"installedCSV, omitempty"`
+	Install      *InstallPlanReference `json:"installplan,omitempty"`
 
 	State       SubscriptionState `json:"state,omitempty"`
 	Reason      ConditionReason   `json:"reason,omitempty"`

@@ -813,9 +813,10 @@ func TestSyncSubscription(t *testing.T) {
 						Channel:       "magical",
 					},
 					Status: v1alpha1.SubscriptionStatus{
-						CurrentCSV: "next",
-						Install:    nil,
-						State:      v1alpha1.SubscriptionStateUpgradeAvailable,
+						CurrentCSV:   "next",
+						InstalledCSV: "toupgrade",
+						Install:      nil,
+						State:        v1alpha1.SubscriptionStateUpgradeAvailable,
 					},
 				},
 			},
