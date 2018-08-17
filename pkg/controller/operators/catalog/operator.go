@@ -147,8 +147,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", catsrc.Spec.ConfigMap, err)
 	}
 
+	o.sourcesLock.Lock()
+	defer o.sourcesLock.Unlock()
+	sourceKey := registry.ResourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
+	_, ok = o.sources[sourceKey]
+
 	// Check for catalog source changes
-	if catsrc.Status.ConfigMapResource != nil && catsrc.Status.ConfigMapResource.Name == configMap.GetName() && catsrc.Status.ConfigMapResource.ResourceVersion == configMap.GetResourceVersion() {
+	if ok && catsrc.Status.ConfigMapResource != nil && catsrc.Status.ConfigMapResource.Name == configMap.GetName() && catsrc.Status.ConfigMapResource.ResourceVersion == configMap.GetResourceVersion() {
 		return nil
 	}
 
@@ -174,9 +179,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	// Update sources map
-	o.sourcesLock.Lock()
-	defer o.sourcesLock.Unlock()
-	o.sources[registry.ResourceKey{Name: out.GetName(), Namespace: out.GetNamespace()}] = src
+	o.sources[sourceKey] = src
 	o.sourcesLastUpdate = timeNow()
 
 	return nil
