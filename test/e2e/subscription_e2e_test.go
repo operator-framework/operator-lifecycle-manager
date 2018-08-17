@@ -288,7 +288,7 @@ func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscri
 	}
 }
 
-func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, channel string, approval v1alpha1.Approval) cleanupFunc {
+func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval) cleanupFunc {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.SubscriptionKind,
@@ -328,7 +328,7 @@ func TestCreateNewSubscription(t *testing.T) {
 	crc := newCRClient(t)
 	require.NoError(t, initCatalog(t, c, crc))
 
-	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, betaChannel, v1alpha1.ApprovalAutomatic)
+	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 	defer cleanup()
 
 	csv, err := checkForCSV(t, c, beta)
@@ -359,7 +359,7 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	_, err := createCSV(t, c, crc, stableCSV, testNamespace, true)
 	require.NoError(t, err)
 
-	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, alphaChannel, v1alpha1.ApprovalAutomatic)
+	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
 	csv, err := checkForCSV(t, c, alpha)
@@ -385,7 +385,7 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 
 	require.NoError(t, initCatalog(t, c, crc))
 
-	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", stableChannel, v1alpha1.ApprovalManual)
+	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
