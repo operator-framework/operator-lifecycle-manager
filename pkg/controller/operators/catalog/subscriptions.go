@@ -119,6 +119,9 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 		return out, nil
 	}
 
+	// Set the installed CSV
+	out.Status.InstalledCSV = out.Status.CurrentCSV
+
 	// Poll catalog for an update
 	repl, err := catalog.FindReplacementCSVForPackageNameUnderChannel(out.Spec.Package, out.Spec.Channel, out.Status.CurrentCSV)
 	if err != nil {
