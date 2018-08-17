@@ -41,6 +41,15 @@ type SpecDescriptor struct {
 	Value        *json.RawMessage `json:"value,omitempty"`
 }
 
+// ActionDescriptor describes a declarative action that can be performed on a custom resource instance
+type ActionDescriptor struct {
+	Path         string           `json:"path"`
+	DisplayName  string           `json:"displayName,omitempty"`
+	Description  string           `json:"description,omitempty"`
+	XDescriptors []string         `json:"x-descriptors,omitempty"`
+	Value        *json.RawMessage `json:"value,omitempty"`
+}
+
 // CRDDescription provides details to ALM about the CRDs
 type CRDDescription struct {
 	Name              string                 `json:"name"`
@@ -51,6 +60,7 @@ type CRDDescription struct {
 	Resources         []CRDResourceReference `json:"resources,omitempty"`
 	StatusDescriptors []StatusDescriptor     `json:"statusDescriptors,omitempty"`
 	SpecDescriptors   []SpecDescriptor       `json:"specDescriptors,omitempty"`
+	ActionDescriptor  []ActionDescriptor     `json:"actionDescriptors,omitempty"`
 }
 
 // CRDResourceReference is a Kubernetes resource type used by a custom resource
