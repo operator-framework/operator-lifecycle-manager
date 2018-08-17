@@ -104,3 +104,10 @@ spec:
 ```
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.
+
+### User Interface
+
+Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
+
+**Subscription detail view:**
+![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
