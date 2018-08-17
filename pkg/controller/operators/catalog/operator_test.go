@@ -172,6 +172,46 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedError: nil,
 		},
 		{
+			testName:          "CatalogSourceUpdatedByDifferentCatalogOperator",
+			operatorNamespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "cool-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					ConfigMap: "cool-configmap",
+				},
+				Status: v1alpha1.CatalogSourceStatus{
+					ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
+						Name:            "cool-configmap",
+						Namespace:       "cool-namespace",
+						UID:             types.UID("configmap-uid"),
+						ResourceVersion: "resource-version",
+					},
+				},
+			},
+			configMap: &v1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					UID:             types.UID("configmap-uid"),
+					ResourceVersion: "resource-version",
+				},
+				Data: fakeConfigMapData(),
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
+					Name:            "cool-configmap",
+					Namespace:       "cool-namespace",
+					UID:             types.UID("configmap-uid"),
+					ResourceVersion: "resource-version",
+				},
+			},
+			expectedError: nil,
+		},
+		{
 			testName:          "CatalogSourceWithInvalidConfigMap",
 			operatorNamespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
@@ -240,6 +280,10 @@ func TestSyncCatalogSources(t *testing.T) {
 			if tt.expectedStatus != nil {
 				require.NotEmpty(t, updated.Status)
 				require.Equal(t, *tt.expectedStatus.ConfigMapResource, *updated.Status.ConfigMapResource)
+
+				// Ensure that the catalog source has been loaded into memory
+				_, ok := op.sources[registry.ResourceKey{Name: tt.catalogSource.GetName(), Namespace: tt.catalogSource.GetNamespace()}]
+				require.True(t, ok, "Expected catalog was not loaded into memory")
 			}
 		})
 	}
