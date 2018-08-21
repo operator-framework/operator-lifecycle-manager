@@ -54,7 +54,7 @@ container-build:
   - mkdir -p $PWD/bin
   image: docker:git
   script:
-  - docker build -f Dockerfile .
+  - docker build -f upstream.Dockerfile .
   - "docker tag $(docker images --filter 'label=broker=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre"
   - "docker tag $(docker images --filter 'label=builder=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}"
   - "docker tag $(docker images --filter 'label=catalog=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre"
