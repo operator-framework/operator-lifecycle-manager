@@ -14,7 +14,7 @@ FROM openshift/origin-base
 
 # Copy the binary to a standard location where it will run.
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/catalog
+COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
 
 # This image doesn't need to run as root user.
 USER 1001
@@ -32,7 +32,7 @@ EXPOSE 8080
 # image; otherwise the parent image's description is inherited which is
 # confusing at best when examining images.
 #
-LABEL io.k8s.display-name="OperatorFramework operator-lifecycle-manager" \
-      io.k8s.description="This is a set of operators that make up the Operator Lifecycle Manager" \
-      maintainer="Evan Cordell <ecordell@redhat.com>"
+LABEL io.k8s.display-name="OpenShift Operator Lifecycle Manager" \
+      io.k8s.description="This is a component of OpenShift Container Platform and manages the lifecycle of operators." \
+      maintainer="Odin Team <aos-odin@redhat.com>"
 
