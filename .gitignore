@@ -459,4 +459,3 @@ __pycache__/
 *.bak
 **/resources/*
 build
-vendor
