@@ -51,7 +51,7 @@ local jobs = {
 
         // builds a single multistage dockerfile and tags images based on labels
         // on the intermediate builds
-        script: docker.multibuild_and_push("Dockerfile", labelImageMap={
+        script: docker.multibuild_and_push("upstream.Dockerfile", labelImageMap={
             'builder': images.ci.alm.name,
             'olm': images.prerelease.alm.name,
             'catalog': images.prerelease.catalog.name,
