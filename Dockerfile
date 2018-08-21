@@ -14,6 +14,7 @@ FROM openshift/origin-base
 
 # Copy the binary to a standard location where it will run.
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
+COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/catalog
 
 # This image doesn't need to run as root user.
 USER 1001
