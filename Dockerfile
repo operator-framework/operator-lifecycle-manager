@@ -1,43 +1,37 @@
-FROM quay.io/coreos/alm-ci:base as builder
-LABEL builder=true
+FROM openshift/origin-base as builder
+RUN yum update -y
+RUN yum install -y golang make git
+
+ENV GOPATH /go
+ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
-RUN curl -L https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 -o /bin/jq
-RUN chmod +x /bin/jq
-# Cache Dep first
-COPY Gopkg.toml Gopkg.lock Makefile ./
-RUN make vendor
 COPY . .
 RUN make build
-RUN go test -c -o /bin/e2e ./test/e2e/...
 
-FROM alpine:latest as olm
-LABEL olm=true
-WORKDIR /
+
+FROM openshift/origin-base
+
+# Copy the binary to a standard location where it will run.
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
-EXPOSE 8080
-CMD ["/bin/olm"]
 
-FROM alpine:latest as catalog
-LABEL catalog=true
-WORKDIR /
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
-EXPOSE 8080
-CMD ["/bin/catalog"]
+# This image doesn't need to run as root user.
+USER 1001
 
-FROM alpine:latest as broker
-LABEL broker=true
-WORKDIR /
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/servicebroker /bin/servicebroker
 EXPOSE 8080
-EXPOSE 8005
-CMD ["/bin/servicebroker"]
 
-FROM quay.io/coreos/alm-ci:base
-LABEL e2e=true
-RUN mkdir -p /var/e2e
-WORKDIR /var/e2e
-COPY --from=builder /bin/e2e /bin/e2e
-COPY --from=builder /bin/jq /bin/jq
-COPY ./test/e2e/e2e.sh /var/e2e/e2e.sh
-COPY ./test/e2e/tap.jq /var/e2e/tap.jq
-CMD ["/bin/e2e"]
+# Apply labels as needed. ART build automation fills in others required for
+# shipping, including component NVR (name-version-release) and image name. OSBS
+# applies others at build time. So most required labels need not be in the source.
+#
+# io.k8s.display-name is required and is displayed in certain places in the
+# console (someone correct this if that's no longer the case)
+#
+# io.k8s.description is equivalent to "description" and should be defined per
+# image; otherwise the parent image's description is inherited which is
+# confusing at best when examining images.
+#
+LABEL io.k8s.display-name="OperatorFramework operator-lifecycle-manager" \
+      io.k8s.description="This is a set of operators that make up the Operator Lifecycle Manager" \
+      maintainer="Evan Cordell <ecordell@redhat.com>"
+
