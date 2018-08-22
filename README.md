@@ -53,13 +53,13 @@ Learn more about the components used by OLM by reading about the [architecture] 
 
 OLM standardizes interactions with operators by requiring that the interface to an operator be via the Kubernetes API. Because we expect users to define the interfaces to their applications, OLM currently uses CRDs to define the Kubernetes API interactions.  
 
-Examples: [EtcdCluster CRD](deploy/chart/catalog_resources/ocs/etcdcluster.crd.yaml), [EtcdBackup CRD](deploy/chart/catalog_resources/ocs/etcdbackup.crd.yaml)
+Examples: [EtcdCluster CRD](deploy/chart/catalog_resources/rh-operators/etcdcluster.crd.yaml), [EtcdBackup CRD](deploy/chart/catalog_resources/rh-operators/etcdbackup.crd.yaml)
 
 ## Descriptors
 
 OLM introduces the notion of “descriptors” of both `spec` and `status` fields in kubernetes API responses. Descriptors are intended to indicate various properties of a field in order to make decisions about their content. For example, this can drive connecting two operators together (e.g. connecting the connection string from a mysql instance to a consuming application) and be used to drive rich interactions in a UI.
 
-[See an example of a ClusterServiceVersion with descriptors](deploy/chart/catalog_resources/ocs/etcdoperator.v0.9.2.clusterserviceversion.yaml)
+[See an example of a ClusterServiceVersion with descriptors](deploy/chart/catalog_resources/rh-operators/etcdoperator.v0.9.2.clusterserviceversion.yaml)
 
 ## Dependency Resolution
 
@@ -85,7 +85,7 @@ OLM has the concept of catalogs, which are repositories of application definitio
 
 Catalogs contain a set of Packages, which map “channels” to a particular application definition. Channels allow package authors write different upgrade paths for different users (e.g. alpha vs. stable). 
 
-Example: [etcd package](deploy/chart/catalog_resources/ocs/etcd.package.yaml)
+Example: [etcd package](deploy/chart/catalog_resources/rh-operators/etcd.package.yaml)
 
 Users can subscribe to channels and have their operators automatically updated when new versions are released.
 
@@ -100,7 +100,7 @@ metadata:
 spec:
   channel: alpha
   name: etcd
-  source: ocs
+  source: rh-operators
 ```
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.

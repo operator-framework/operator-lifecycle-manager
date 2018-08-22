@@ -135,7 +135,7 @@ metadata:
 spec:
   channel: alpha
   name: etcd
-  source: ocs
+  source: rh-operators
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -145,5 +145,5 @@ metadata:
 spec:
   channel: alpha
   name: prometheus
-  source: ocs
+  source: rh-operators
 ```

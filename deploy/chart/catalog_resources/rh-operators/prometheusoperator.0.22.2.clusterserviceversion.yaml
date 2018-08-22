@@ -6,8 +6,7 @@ metadata:
   name: prometheusoperator.0.22.2
   namespace: placeholder
   annotations:
-    tectonic-visibility: ocs
-    alm-examples: '[{"apiVersion":"monitoring.coreos.com/v1","kind":"Prometheus","metadata":{"name":"example","labels":{"prometheus":"k8s"}},"spec":{"replicas":2,"version":"v2.3.2","serviceAccountName":"prometheus-k8s","securityContext": {}, "serviceMonitorSelector":{"matchExpressions":[{"key":"k8s-app","operator":"Exists"}]},"ruleSelector":{"matchLabels":{"role":"prometheus-rulefiles","prometheus":"k8s"}},"resources":{"requests":{"memory":"400Mi"}},"alerting":{"alertmanagers":[{"namespace":"monitoring","name":"alertmanager-main","port":"web"}]}}},{"apiVersion":"monitoring.coreos.com/v1","kind":"ServiceMonitor","metadata":{"name":"example","labels":{"k8s-app":"prometheus"}},"spec":{"selector":{"matchLabels":{"k8s-app":"prometheus","prometheus":"k8s"}},"endpoints":[{"port":"web","interval":"30s"}]}},{"apiVersion":"monitoring.coreos.com/v1","kind":"Alertmanager","metadata":{"name":"alertmanager-main"},"spec":{"replicas":3}}]'
+    alm-examples: '[{"apiVersion":"monitoring.coreos.com/v1","kind":"Prometheus","metadata":{"name":"example","labels":{"prometheus":"k8s"}},"spec":{"replicas":2,"version":"v2.3.2","serviceAccountName":"prometheus-k8s","securityContext": {}, "serviceMonitorSelector":{"matchExpressions":[{"key":"k8s-app","operator":"Exists"}]},"ruleSelector":{"matchLabels":{"role":"prometheus-rulefiles","prometheus":"k8s"}},"alerting":{"alertmanagers":[{"namespace":"monitoring","name":"alertmanager-main","port":"web"}]}}},{"apiVersion":"monitoring.coreos.com/v1","kind":"ServiceMonitor","metadata":{"name":"example","labels":{"k8s-app":"prometheus"}},"spec":{"selector":{"matchLabels":{"k8s-app":"prometheus"}},"endpoints":[{"port":"web","interval":"30s"}]}},{"apiVersion":"monitoring.coreos.com/v1","kind":"Alertmanager","metadata":{"name":"alertmanager-main"},"spec":{"replicas":3}}]'
 spec:
   replaces: prometheusoperator.0.15.0
   displayName: Prometheus Operator
@@ -196,36 +195,36 @@ spec:
       displayName: Prometheus
       description: A running Prometheus instance
       resources:
-        - kind: StatefulSet
-          version: v1beta2
-        - kind: Pod
-          version: v1
+      - kind: StatefulSet
+        version: v1beta2
+      - kind: Pod
+        version: v1
       specDescriptors:
       - description: Desired number of Pods for the cluster
         displayName: Size
         path: replicas
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       - description: A selector for the ConfigMaps from which to load rule files
         displayName: Rule Config Map Selector
         path: ruleSelector
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:selector:core:v1:ConfigMap'
+        - 'urn:alm:descriptor:com.tectonic.ui:selector:core:v1:ConfigMap'
       - description: ServiceMonitors to be selected for target discovery
         displayName: Service Monitor Selector
         path: serviceMonitorSelector
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:selector:monitoring.coreos.com:v1:ServiceMonitor'
+        - 'urn:alm:descriptor:com.tectonic.ui:selector:monitoring.coreos.com:v1:ServiceMonitor'
       - description: The ServiceAccount to use to run the Prometheus pods
         displayName: Service Account
         path: serviceAccountName
         x-descriptors:
-          - 'urn:alm:descriptor:io.kubernetes:ServiceAccount'
+        - 'urn:alm:descriptor:io.kubernetes:ServiceAccount'
       - description: Limits describes the minimum/maximum amount of compute resources required/allowed
         displayName: Resource Requirements
         path: resources
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
     - name: prometheusrules.monitoring.coreos.com
       version: v1
       kind: PrometheusRule
@@ -237,29 +236,29 @@ spec:
       displayName: Service Monitor
       description: Configures prometheus to monitor a particular k8s service
       resources:
-        - kind: Pod
-          version: v1
+      - kind: Pod
+        version: v1
       specDescriptors:
       - description: The label to use to retrieve the job name from
         displayName: Job Label
         path: jobLabel
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:label'
+        - 'urn:alm:descriptor:com.tectonic.ui:label'
       - description: A list of endpoints allowed as part of this ServiceMonitor
         displayName: Endpoints
         path: endpoints
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:endpointList'
+        - 'urn:alm:descriptor:com.tectonic.ui:endpointList'
     - name: alertmanagers.monitoring.coreos.com
       version: v1
       kind: Alertmanager
       displayName: Alertmanager
       description: Configures an Alertmanager for the namespace
       resources:
-        - kind: StatefulSet
-          version: v1beta2
-        - kind: Pod
-          version: v1
+      - kind: StatefulSet
+        version: v1beta2
+      - kind: Pod
+        version: v1
       specDescriptors:
       - description: Desired number of Pods for the cluster
         displayName: Size
@@ -270,4 +269,4 @@ spec:
         displayName: Resource Requirements
         path: resources
         x-descriptors:
-          - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'

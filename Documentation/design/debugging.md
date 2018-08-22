@@ -105,7 +105,7 @@ spec:
   - etcdoperator123
 status:
   catalogSources:
-  - ocs
+  - rh-operators
   conditions:
   - lastTransitionTime: 2018-01-22T16:05:09Z
     lastUpdateTime: 2018-01-22T16:06:59Z
