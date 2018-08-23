@@ -8,7 +8,7 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -45,7 +45,7 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	switch strategyName {
 	case InstallStrategyNameDeployment:
-		strategyClient := client.NewInstallStrategyDeploymentClient(opClient, owner.GetNamespace())
+		strategyClient := wrappers.NewInstallStrategyDeploymentClient(opClient, owner.GetNamespace())
 		return NewStrategyDeploymentInstaller(strategyClient, owner, previousStrategy)
 	}
 
