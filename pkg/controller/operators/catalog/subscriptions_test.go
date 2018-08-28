@@ -125,8 +125,8 @@ func TestSyncSubscription(t *testing.T) {
 					CatalogSource: "flying-unicorns",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					LastUpdated: earlierTime,
-					State:       v1alpha1.SubscriptionStateAtLatest,
+					LastUpdateTime: earlierTime,
+					State:          v1alpha1.SubscriptionStateAtLatest,
 				},
 			}},
 			expected: expected{},
@@ -165,9 +165,9 @@ func TestSyncSubscription(t *testing.T) {
 					Channel:       "magical",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					CurrentCSV:  "latest-and-greatest",
-					LastUpdated: earliestTime,
-					State:       v1alpha1.SubscriptionStateUpgradePending,
+					CurrentCSV:     "latest-and-greatest",
+					LastUpdateTime: earliestTime,
+					State:          v1alpha1.SubscriptionStateUpgradePending,
 					Install: &v1alpha1.InstallPlanReference{
 						Kind:       v1alpha1.InstallPlanKind,
 						APIVersion: v1alpha1.SchemeGroupVersion.String(),
@@ -187,9 +187,9 @@ func TestSyncSubscription(t *testing.T) {
 						Channel:       "magical",
 					},
 					Status: v1alpha1.SubscriptionStatus{
-						CurrentCSV:  "latest-and-greatest",
-						LastUpdated: earliestTime,
-						State:       v1alpha1.SubscriptionStateUpgradePending,
+						CurrentCSV:     "latest-and-greatest",
+						LastUpdateTime: earliestTime,
+						State:          v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.SchemeGroupVersion.String(),
@@ -263,7 +263,7 @@ func TestSyncSubscription(t *testing.T) {
 					Channel:       "magical",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					LastUpdated: earliestTime,
+					LastUpdateTime: earliestTime,
 				},
 			}},
 			expected: expected{
@@ -279,10 +279,10 @@ func TestSyncSubscription(t *testing.T) {
 						Channel:       "magical",
 					},
 					Status: v1alpha1.SubscriptionStatus{
-						CurrentCSV:  "latest-and-greatest",
-						LastUpdated: earliestTime,
-						Install:     nil,
-						State:       v1alpha1.SubscriptionStateUpgradeAvailable,
+						CurrentCSV:     "latest-and-greatest",
+						LastUpdateTime: earliestTime,
+						Install:        nil,
+						State:          v1alpha1.SubscriptionStateUpgradeAvailable,
 					},
 				},
 				err: "",
@@ -307,8 +307,8 @@ func TestSyncSubscription(t *testing.T) {
 					StartingCSV:   "wayback",
 				},
 				Status: v1alpha1.SubscriptionStatus{
-					LastUpdated: earliestTime,
-					Install:     nil,
+					LastUpdateTime: earliestTime,
+					Install:        nil,
 				},
 			}},
 			expected: expected{
@@ -326,10 +326,10 @@ func TestSyncSubscription(t *testing.T) {
 						StartingCSV:   "wayback",
 					},
 					Status: v1alpha1.SubscriptionStatus{
-						CurrentCSV:  "wayback",
-						LastUpdated: earliestTime,
-						Install:     nil,
-						State:       v1alpha1.SubscriptionStateUpgradeAvailable,
+						CurrentCSV:     "wayback",
+						LastUpdateTime: earliestTime,
+						Install:        nil,
+						State:          v1alpha1.SubscriptionStateUpgradeAvailable,
 					},
 				},
 				err: "",

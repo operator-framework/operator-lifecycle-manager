@@ -878,7 +878,7 @@ func (in *SubscriptionStatus) DeepCopyInto(out *SubscriptionStatus) {
 			**out = **in
 		}
 	}
-	in.LastUpdated.DeepCopyInto(&out.LastUpdated)
+	in.LastUpdateTime.DeepCopyInto(&out.LastUpdateTime)
 	return
 }
 

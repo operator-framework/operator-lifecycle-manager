@@ -31,10 +31,12 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 	out = ensureLabels(out)
 
 	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&out.Status.LastUpdated) && out.Status.State == v1alpha1.SubscriptionStateAtLatest {
-		log.Infof("skipping sync: no new updates to catalog since last sync at %s",
-			out.Status.LastUpdated.String())
-		return nil, nil
+	if o.sourcesLastUpdate.Before(&out.Status.LastUpdateTime) && out.Status.State == v1alpha1.SubscriptionStateAtLatest {
+		log.Infof("skipping sync: no new updates to catalog since last sync at %s", out.Status.LastUpdateTime.String())
+		// TODO(alecmerdler): Update `status.conditions`
+		out.Status.SetCondition(v1alpha1.SubscriptionConditionFailed(v1alpha1.SubscriptionConditionTypeUpgradeAvailable, v1alpha1.SubscriptionReasonInvalidCatalog, err))out.Status.SetCondition(v1alpha1.SubscriptionConditionFailed(v1alpha1.SubscriptionConditionTypeUpgradePending, v1alpha1.SubscriptionReasonInvalidCatalog, err))
+		out.Status.SetCondition(v1alpha1.SubscriptionConditionMet(v1alpha1.SubscriptionConditionTypeAtLatest))
+		return out, nil
 	}
 
 	o.sourcesLock.Lock()
@@ -46,9 +48,12 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 	}
 	catalog, ok := o.sources[registry.ResourceKey{Name: out.Spec.CatalogSource, Namespace: catalogNamespace}]
 	if !ok {
+		err := fmt.Errorf("unknown catalog source %s in namespace %s", out.Spec.CatalogSource, catalogNamespace)
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.Reason = v1alpha1.SubscriptionReasonInvalidCatalog
-		return out, fmt.Errorf("unknown catalog source %s in namespace %s", out.Spec.CatalogSource, catalogNamespace)
+		out.Status.SetCondition(v1alpha1.SubscriptionConditionFailed(v1alpha1.SubscriptionConditionTypeUpgradeAvailable, v1alpha1.SubscriptionReasonInvalidCatalog, err))out.Status.SetCondition(v1alpha1.SubscriptionConditionFailed(v1alpha1.SubscriptionConditionTypeUpgradePending, v1alpha1.SubscriptionReasonInvalidCatalog, err))
+		out.Status.SetCondition(v1alpha1.SubscriptionConditionFailed(v1alpha1.SubscriptionConditionTypeUpgradeAvailable, v1alpha1.SubscriptionReasonInvalidCatalog, err))
+		return out, err
 	}
 
 	// Find latest CSV if no CSVs are installed already
@@ -58,14 +63,18 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 		} else {
 			csv, err := catalog.FindCSVForPackageNameUnderChannel(out.Spec.Package, out.Spec.Channel)
 			if err != nil {
+				// TODO(alecmerdler): Update `status.conditions`
+				out.Status.SetCondition(v1alpha1.SubscriptionConditionFailed(v1alpha1.SubscriptionConditionTypeFailed, v1alpha1.SubscriptionReasonInvalidCatalog, err))
 				return out, fmt.Errorf("failed to find CSV for package %s in channel %s: %v", out.Spec.Package, out.Spec.Channel, err)
 			}
 			if csv == nil {
+				// TODO(alecmerdler): Update `status.conditions`
 				return out, fmt.Errorf("failed to find CSV for package %s in channel %s: nil CSV", out.Spec.Package, out.Spec.Channel)
 			}
 			out.Status.CurrentCSV = csv.GetName()
 		}
 		out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
+		// TODO(alecmerdler): Update `status.conditions`
 		return out, nil
 	}
 
@@ -80,6 +89,7 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 			}
 			if err == nil && ip != nil {
 				log.Infof("installplan for %s already exists", out.Status.CurrentCSV)
+				// TODO(alecmerdler): Update `status.conditions`
 				return out, nil
 			}
 			log.Infof("installplan %s not found: creating new plan", out.Status.Install.Name)
@@ -105,9 +115,11 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 
 		res, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).Create(ip)
 		if err != nil {
+			// TODO(alecmerdler): Update `status.conditions`
 			return out, fmt.Errorf("failed to ensure current CSV %s installed: %v", out.Status.CurrentCSV, err)
 		}
 		if res == nil {
+			// TODO(alecmerdler): Update `status.conditions`
 			return out, errors.New("unexpected installplan returned by k8s api on create: <nil>")
 		}
 		out.Status.Install = &v1alpha1.InstallPlanReference{
@@ -116,6 +128,7 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 			APIVersion: v1alpha1.SchemeGroupVersion.String(),
 			Kind:       v1alpha1.InstallPlanKind,
 		}
+		// TODO(alecmerdler): Update `status.conditions`
 		return out, nil
 	}
 
@@ -126,10 +139,12 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 	repl, err := catalog.FindReplacementCSVForPackageNameUnderChannel(out.Spec.Package, out.Spec.Channel, out.Status.CurrentCSV)
 	if err != nil {
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
+		// TODO(alecmerdler): Update `status.conditions`
 		return out, fmt.Errorf("failed to lookup replacement CSV for %s: %v", out.Status.CurrentCSV, err)
 	}
 	if repl == nil {
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
+		// TODO(alecmerdler): Update `status.conditions`
 		return out, fmt.Errorf("nil replacement CSV for %s returned from catalog", out.Status.CurrentCSV)
 	}
 
@@ -137,6 +152,7 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 	out.Status.CurrentCSV = repl.GetName()
 	out.Status.Install = nil
 	out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
+	// TODO(alecmerdler): Update `status.conditions`
 	return out, nil
 }
 

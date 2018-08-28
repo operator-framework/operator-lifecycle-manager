@@ -202,7 +202,6 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 		"pkg":       sub.Spec.Package,
 		"channel":   sub.Spec.Channel,
 	})
-
 	logger.Infof("syncing")
 
 	var updatedSub *v1alpha1.Subscription
@@ -215,7 +214,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 		logger = logger.WithField("syncError", syncError)
 	}
 
-	updatedSub.Status.LastUpdated = timeNow()
+	updatedSub.Status.LastUpdateTime = timeNow()
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.client.OperatorsV1alpha1().Subscriptions(updatedSub.GetNamespace()).UpdateStatus(updatedSub); err != nil {
 		logger = logger.WithField("updateError", err.Error())
