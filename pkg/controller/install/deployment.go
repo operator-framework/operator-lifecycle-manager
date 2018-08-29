@@ -9,7 +9,7 @@ import (
 	rbac "k8s.io/api/rbac/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -37,7 +37,7 @@ type StrategyDetailsDeployment struct {
 }
 
 type StrategyDeploymentInstaller struct {
-	strategyClient   client.InstallStrategyDeploymentInterface
+	strategyClient   wrappers.InstallStrategyDeploymentInterface
 	owner            ownerutil.Owner
 	previousStrategy Strategy
 }
@@ -49,7 +49,7 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient client.InstallStrategyDeploymentInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient:   strategyClient,
 		owner:            owner,
