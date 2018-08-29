@@ -38,10 +38,8 @@ data:
       metadata:
         name: service-c.1.0.0
         namespace: placeholder
-        annotations:
-          tectonic-visibility: tectonic-ocs
         labels:
-          alm-catalog: ocs
+          alm-catalog: rh-operators
       spec:
         displayName: TestServiceC
         description: Test Service C
@@ -60,10 +58,8 @@ data:
       metadata:
         name: service-b.1.0.0
         namespace: placeholder
-        annotations:
-          tectonic-visibility: tectonic-ocs
         labels:
-          alm-catalog: ocs
+          alm-catalog: rh-operators
       spec:
         displayName: TestServiceB
         description: Test Service B
@@ -82,10 +78,8 @@ data:
       metadata:
         name: service-b.1.0.1
         namespace: placeholder
-        annotations:
-          tectonic-visibility: tectonic-ocs
         labels:
-          alm-catalog: ocs
+          alm-catalog: rh-operators
       spec:
         displayName: TestServiceB
         description: Test Service B

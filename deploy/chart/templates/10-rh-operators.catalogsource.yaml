@@ -1,14 +1,14 @@
-{{- if ( has "ocs" .Values.catalog_sources ) }}
+{{- if ( has "rh-operators" .Values.catalog_sources ) }}
 #! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
-  name: ocs
+  name: rh-operators
   namespace: {{ .Values.catalog_namespace }}
 spec:
   sourceType: internal
-  configMap: ocs
-  displayName: Open Cloud Services
+  configMap: rh-operators
+  displayName: Red Hat Operators
   publisher: Red Hat
 {{ end }}

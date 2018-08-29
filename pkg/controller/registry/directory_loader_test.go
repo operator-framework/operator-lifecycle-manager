@@ -12,7 +12,7 @@ import (
 )
 
 func TestDirectoryLoader(t *testing.T) {
-	catalog, err := NewInMemoryFromDirectory("../../../deploy/chart/catalog_resources/ocs")
+	catalog, err := NewInMemoryFromDirectory("../../../deploy/chart/catalog_resources/rh-operators")
 	require.NoError(t, err)
 
 	require.Contains(t, catalog.packages, "etcd")
@@ -28,7 +28,7 @@ func TestDirectoryLoaderHiddenDirs(t *testing.T) {
 	err = os.Mkdir(path.Join(tmpdir, ".hidden_dir"), 0755)
 	require.NoError(t, err)
 
-	dirinfo, err := os.Open("../../../deploy/chart/catalog_resources/ocs")
+	dirinfo, err := os.Open("../../../deploy/chart/catalog_resources/rh-operators")
 	require.NoError(t, err)
 	defer dirinfo.Close()
 
@@ -36,7 +36,7 @@ func TestDirectoryLoaderHiddenDirs(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, filename := range dirnames {
-		oldfile, err := os.Open(path.Join("../../../deploy/chart/catalog_resources/ocs", filename))
+		oldfile, err := os.Open(path.Join("../../../deploy/chart/catalog_resources/rh-operators", filename))
 		require.NoError(t, err)
 		defer oldfile.Close()
 

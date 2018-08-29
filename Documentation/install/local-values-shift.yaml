@@ -19,5 +19,4 @@ catalog:
     internalPort: 8080
 
 catalog_sources:
- - tectonic-ocs
- - upstream-components
+ - rh-operators

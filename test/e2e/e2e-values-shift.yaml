@@ -34,4 +34,4 @@ job_name: e2e
 
 
 catalog_sources:
- - ocs
+ - rh-operators

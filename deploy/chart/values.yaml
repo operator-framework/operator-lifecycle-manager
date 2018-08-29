@@ -18,4 +18,4 @@ catalog:
     internalPort: 8080
 
 catalog_sources:
- - ocs
+ - rh-operators
