@@ -38,4 +38,5 @@ trap cleanupAndExit SIGINT SIGTERM EXIT
 ./scripts/install_local.sh ${namespace} test/e2e/resources
 
 # run tests
-KUBECONFIG=~/.kube/config NAMESPACE=${namespace} go test -v ./test/e2e/... ${1/[[:alnum:]-]*/-run ${1}}
+e2e_kubeconfig=${KUBECONFIG:-~/.kube/config}
+KUBECONFIG=${e2e_kubeconfig} NAMESPACE=${namespace} go test -v ./test/e2e/... ${1/[[:alnum:]-]*/-run ${1}}
