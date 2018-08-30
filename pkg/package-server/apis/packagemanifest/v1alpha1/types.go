@@ -19,10 +19,21 @@ type PackageManifest struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec PackageManifestSpec `json:"spec"`
+	Spec   PackageManifestSpec   `json:"spec,omitempty"`
+	Status PackageManifestStatus `json:"status"`
 }
 
-type PackageManifestSpec struct {
+// PackageManifestSpec defines the desired state of PackageManifest
+type PackageManifestSpec struct{}
+
+// PackageManifestStatus represents the current status of the PackageManifest
+type PackageManifestStatus struct {
+	// CatalogSourceName is the name of the CatalogSource this package belongs to
+	CatalogSourceName string `json:"catalogSourceName"`
+
+	//  CatalogSourceNamespace is the namespace of the owning CatalogSource
+	CatalogSourceNamespace string `json:"catalogSourceNamespace"`
+
 	// PackageName is the name of the overall package, ala `etcd`.
 	PackageName string `json:"packageName"`
 
@@ -35,19 +46,14 @@ type PackageManifestSpec struct {
 	DefaultChannelName string `json:"defaultChannelName"`
 }
 
-type PackageManifestStatus struct {
-	CatalogSourceName      string `json:"catalogSourceName"`
-	CatalogSourceNamespace string `json:"catalogSourceNamespace"`
-}
-
 // GetDefaultChannel gets the default channel or returns the only one if there's only one. returns empty string if it
 // can't determine the default
 func (m PackageManifest) GetDefaultChannel() string {
-	if m.Spec.DefaultChannelName != "" {
-		return m.Spec.DefaultChannelName
+	if m.Status.DefaultChannelName != "" {
+		return m.Status.DefaultChannelName
 	}
-	if len(m.Spec.Channels) == 1 {
-		return m.Spec.Channels[0].Name
+	if len(m.Status.Channels) == 1 {
+		return m.Status.Channels[0].Name
 	}
 	return ""
 }
@@ -63,7 +69,7 @@ type PackageChannel struct {
 	CurrentCSVName string `json:"currentCSVName"`
 }
 
-// IsDefaultChannel returns true if the PackageChennel is the default for the PackageManifest
+// IsDefaultChannel returns true if the PackageChannel is the default for the PackageManifest
 func (pc PackageChannel) IsDefaultChannel(pm PackageManifest) bool {
-	return pc.Name == pm.Spec.DefaultChannelName || len(pm.Spec.Channels) == 1
+	return pc.Name == pm.Status.DefaultChannelName || len(pm.Status.Channels) == 1
 }

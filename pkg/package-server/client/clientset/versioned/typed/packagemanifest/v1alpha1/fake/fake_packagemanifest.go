@@ -100,6 +100,18 @@ func (c *FakePackageManifests) Update(packageManifest *v1alpha1.PackageManifest)
 	return obj.(*v1alpha1.PackageManifest), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakePackageManifests) UpdateStatus(packageManifest *v1alpha1.PackageManifest) (*v1alpha1.PackageManifest, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(packagemanifestsResource, "status", c.ns, packageManifest), &v1alpha1.PackageManifest{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.PackageManifest), err
+}
+
 // Delete takes name of the packageManifest and deletes it. Returns an error if one occurs.
 func (c *FakePackageManifests) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.

@@ -37,6 +37,7 @@ type PackageManifestsGetter interface {
 type PackageManifestInterface interface {
 	Create(*v1alpha1.PackageManifest) (*v1alpha1.PackageManifest, error)
 	Update(*v1alpha1.PackageManifest) (*v1alpha1.PackageManifest, error)
+	UpdateStatus(*v1alpha1.PackageManifest) (*v1alpha1.PackageManifest, error)
 	Delete(name string, options *v1.DeleteOptions) error
 	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
 	Get(name string, options v1.GetOptions) (*v1alpha1.PackageManifest, error)
@@ -114,6 +115,22 @@ func (c *packageManifests) Update(packageManifest *v1alpha1.PackageManifest) (re
 		Namespace(c.ns).
 		Resource("packagemanifests").
 		Name(packageManifest.Name).
+		Body(packageManifest).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *packageManifests) UpdateStatus(packageManifest *v1alpha1.PackageManifest) (result *v1alpha1.PackageManifest, err error) {
+	result = &v1alpha1.PackageManifest{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("packagemanifests").
+		Name(packageManifest.Name).
+		SubResource("status").
 		Body(packageManifest).
 		Do().
 		Into(result)

@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ghodss/yaml"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/ghodss/yaml"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	packagev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
-	"github.com/prometheus/common/log"
 )
 
 const ConfigMapPackageName = "packages"
@@ -27,7 +27,6 @@ type packageKey struct {
 
 type InMemoryProvider struct {
 	*queueinformer.Operator
-	// catalogSourceLister catalogv1alpha1.CatalogSourceLister
 
 	mu        sync.RWMutex
 	manifests map[packageKey]packagev1alpha1.PackageManifest
@@ -56,44 +55,54 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 	return prov
 }
 
-func loadPackageManifestsFromConfigMap(cm *corev1.ConfigMap) ([]packagev1alpha1.PackageManifest, error) {
+func loadPackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName, catalogSourceNamespace string) ([]packagev1alpha1.PackageManifest, error) {
 	var manifests []packagev1alpha1.PackageManifest
 
 	cmName := cm.GetName()
+	logger := log.WithFields(log.Fields{
+		"Action": "Load ConfigMap",
+		"name":   cmName,
+	})
+
 	found := false
 	packageListYaml, ok := cm.Data[ConfigMapPackageName]
 	if ok {
-		log.Debug("Load ConfigMap      -- ConfigMap contains packages")
+		logger.Debug("ConfigMap contains packages")
 		packageListJson, err := yaml.YAMLToJSON([]byte(packageListYaml))
 		if err != nil {
-			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
+			logger.Debugf("ERROR: %s", err)
 			return nil, fmt.Errorf("error loading package list yaml from ConfigMap %s: %s", cmName, err)
 		}
 
-		var parsedSpecs []packagev1alpha1.PackageManifestSpec
-		err = json.Unmarshal([]byte(packageListJson), &parsedSpecs)
+		var parsedStatuses []packagev1alpha1.PackageManifestStatus
+		err = json.Unmarshal([]byte(packageListJson), &parsedStatuses)
 		if err != nil {
-			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
+			logger.Debugf("ERROR: %s", err)
 			return nil, fmt.Errorf("error parsing package list (json) from ConfigMap %s: %s", cmName, err)
 		}
 
-		for _, spec := range parsedSpecs {
+		for _, status := range parsedStatuses {
 			found = true
+
+			// add the name and namespace of the CatalogSource
+			status.CatalogSourceName = catalogSourceName
+			status.CatalogSourceNamespace = catalogSourceNamespace
 			manifest := packagev1alpha1.PackageManifest{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      spec.PackageName,
+					Name:      status.PackageName,
 					Namespace: cm.GetNamespace(),
 				},
-				Spec: spec,
+				Status: status,
 			}
+
 			// TODO: add check for invalid package definitions
 			manifests = append(manifests, manifest)
 		}
-		log.Debugf("Load ConfigMap      -- Found packages: %v", manifests)
+		logger.Debugf("Found packages: %v", manifests)
 	}
 
 	if !found {
-		log.Debugf("Load ConfigMap     -- ERROR %s : no resources found", cmName)
+		logger.Debug("ERROR: No valid resource found")
 		return nil, fmt.Errorf("error parsing ConfigMap %s: no valid resources found", cmName)
 	}
 
@@ -120,7 +129,7 @@ func (m *InMemoryProvider) syncCatalogSources(obj interface{}) error {
 		}
 
 		// load the package manifest from the config map
-		manifests, err = loadPackageManifestsFromConfigMap(cm)
+		manifests, err = loadPackageManifestsFromConfigMap(cm, catsrc.GetName(), catsrc.GetNamespace())
 		if err != nil {
 			return fmt.Errorf("failed to load package manifest from config map %s", cm.GetName())
 		}
@@ -136,7 +145,7 @@ func (m *InMemoryProvider) syncCatalogSources(obj interface{}) error {
 		key := packageKey{
 			catalogSourceName:      catsrc.GetName(),
 			catalogSourceNamespace: catsrc.GetNamespace(),
-			packageName:            manifest.Spec.PackageName,
+			packageName:            manifest.Status.PackageName,
 		}
 		m.manifests[key] = manifest
 	}
