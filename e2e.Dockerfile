@@ -21,14 +21,6 @@ COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-man
 EXPOSE 8080
 CMD ["/bin/catalog"]
 
-FROM alpine:latest as broker
-LABEL broker=true
-WORKDIR /
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/servicebroker /bin/servicebroker
-EXPOSE 8080
-EXPOSE 8005
-CMD ["/bin/servicebroker"]
-
 FROM golang:1.10
 LABEL e2e=true
 RUN mkdir -p /var/e2e

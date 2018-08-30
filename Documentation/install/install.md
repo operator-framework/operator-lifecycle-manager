@@ -89,19 +89,6 @@ catalog:
   service:
     # port for readiness/liveness probes
     internalPort: 8080
-
-# alm service broker run configuration
-servicebroker:
-  # OLM Service Broker doesn't need to be HA; scale with load
-  replicaCount: 1
-  image:
-    ref: quay.io/coreos/olm-service-broker:local
-    pullPolicy: IfNotPresent
-  service:
-    # port for readiness/liveness probes
-    internalPort: 8080
-    # port exposing OLM's service broker API
-    brokerPort: 8005
 ```
 
 To configure a release of OLM for installation in a cluster:

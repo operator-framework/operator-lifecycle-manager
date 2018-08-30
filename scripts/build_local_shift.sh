@@ -17,5 +17,4 @@ oc login -u system:admin
 docker build \
        -t quay.io/coreos/catalog:local \
        -t quay.io/coreos/olm:local \
-       -t quay.io/coreos/olm-service-broker:local \
        -f e2e-local-shift.Dockerfile .
