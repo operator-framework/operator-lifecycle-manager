@@ -15,17 +15,20 @@
 package apiserver
 
 import (
+	"strings"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/informers"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/version"
-	"k8s.io/client-go/informers"
 )
 
 var (
@@ -68,8 +71,8 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) completedCo
 
 	// enable OpenAPI schemas
 	c.GenericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
-	// c.GenericConfig.OpenAPIConfig.Info.Title = "Package API server"
-	// c.GenericConfig.OpenAPIConfig.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0] // TODO(directxman12): remove this once autosetting this doesn't require security definitions
+	c.GenericConfig.OpenAPIConfig.Info.Title = "Package API server"
+	c.GenericConfig.OpenAPIConfig.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0]
 	c.GenericConfig.SwaggerConfig = genericapiserver.DefaultSwaggerConfig()
 
 	return completedConfig{
