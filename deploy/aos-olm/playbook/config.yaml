@@ -1,4 +1,0 @@
----
-- import_playbook: private/config.yaml
-  vars:
-    operator_lifecycle_manager_install: true

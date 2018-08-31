@@ -1,6 +1,0 @@
----
-- name: Operator Lifecycle Manager
-  hosts: masters[0]
-  tasks:
-  - import_role:
-      name: olm
