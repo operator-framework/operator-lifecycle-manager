@@ -8,27 +8,10 @@ OLM deployment resources are templated so that they can be easily configured for
 kubectl apply -f deploy/upstream/manifests/0.4.0
 ```
 
-## Install the latest released version of OLM for Tectonic
-
-Tectonic releases live in versioned folders in the [manifests directory](/deploy/tectonic-alm-operator/manifests). The simplest way to install OLM in a cluster is to:
-
-```sh
-# Packaged releases of OLM are installed in tectonic-system by default
-kubectl create namespace tectonic-system
-# Install the release
-kubectl apply -f deploy/tectonic-alm-operator/manifests/0.4.0
-```
-
 ## Install with Ansible for openshift
 
-OLM should be installed via [openshift-ansible](https://github.com/openshift/openshift-ansible). The playbook in this
+OLM should be installed via [openshift-ansible](https://github.com/openshift/openshift-ansible). The manifests in this
 repo is periodically synced with openshift-ansible and should only be used for testing releases.
-
-The playbook assumes that the hosts file has the same format as [openshift-ansible](https://github.com/openshift/openshift-ansible)
-
-```sh
-ansible-playbook -i path/to/hosts deploy/aos-olm/playbook/config.yaml
-```
 
 ## Run locally with minikube
 
