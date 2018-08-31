@@ -109,7 +109,7 @@ func resolveCatalogs(t *testing.T, catalogs []registry.SourceRef, dependencyReso
 
 func TestReleaseCatalogs(t *testing.T) {
 	manifestDirBase := os.Getenv("GOPATH") + "/src/github.com/operator-framework/operator-lifecycle-manager/deploy/"
-	manifestDirs := []string{manifestDirBase + "aos-olm/manifests", manifestDirBase + "upstream/manifests"}
+	manifestDirs := []string{manifestDirBase + "upstream/manifests"}
 	for _, d := range manifestDirs {
 		VerifyCatalogVersions(t, d)
 	}

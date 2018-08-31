@@ -129,33 +129,8 @@ generate-mock-client: $(counterfeiter)
 
 gen-all: gen-ci codegen generate-mock-client
 
-# make ver=0.3.0 upstream-release
-upstream-release:
-	./scripts/package-release.sh $(ver) deploy/upstream/manifests/$(ver) deploy/upstream/values.yaml
-
-
-YQ := $(GOPATH)/bin/yq
-$(YQ):
-	go get -u github.com/mikefarah/yq
-
-# make ver=0.3.0 ansible-release
-ansible-release: $(YQ)
-	# ansible release uses openshift-ansible submodule
-	git submodule init
-	git submodule update
-	# copy base role to versioned release
-	mkdir -p deploy/aos-olm/manifests/$(ver)
-	cp -R deploy/role/. deploy/aos-olm/manifests/$(ver)/
-	# copy manifest files into release
-	./scripts/package-release.sh $(ver) deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/values.yaml
-	# generate install/remove tasks based on manifest files
-	./scripts/k8s_yaml_to_ansible_install.sh deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/manifests/$(ver)/tasks/install.yaml
-	./scripts/k8s_yaml_to_ansible_remove.sh deploy/aos-olm/manifests/$(ver)/files deploy/aos-olm/manifests/$(ver)/tasks/remove_components.yaml
-	# link newest release into playbook
-	ln -sfF ../../../../deploy/aos-olm/manifests/$(ver) deploy/aos-olm/playbook/private/roles/olm
-
-
 # must have already tagged a version release in github so that the docker images are available
+# make ver=0.3.0 release
 release:
 ifndef ver
 	$(error ver is undefined)
@@ -164,18 +139,4 @@ endif
 	docker pull quay.io/coreos/catalog:$(ver)
 	yaml w -i deploy/upstream/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
 	yaml w -i deploy/upstream/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)`
-	$(MAKE) upstream-release
-
-
-# this will build locally on rhel
-release-rh:
-ifndef ver
-	$(error ver is undefined)
-endif
-	./scripts/pull_or_build_rh.sh $(ver)
-	# These are built from the same image, and repodigests are ordered alphabetically, so catalog is ref 0 and olm ref 1
-	yaml w -i deploy/aos-olm/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 1}}' quay.io/coreos/olm:$(ver)-rhel`
-	yaml w -i deploy/aos-olm/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)-rhel`
-	$(MAKE) ansible-release
-
-release-all: release release-rh
+	./scripts/package-release.sh $(ver) deploy/upstream/manifests/$(ver) deploy/upstream/values.yaml
