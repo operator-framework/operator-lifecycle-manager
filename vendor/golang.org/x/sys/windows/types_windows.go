@@ -1465,3 +1465,5 @@ type ConsoleScreenBufferInfo struct {
 	Window            SmallRect
 	MaximumWindowSize Coord
 }
+
+const UNIX_PATH_MAX = 108 // defined in afunix.h

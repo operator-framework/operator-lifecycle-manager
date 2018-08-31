@@ -1,3 +1,7 @@
+
+# for openapi gen
+required = ["k8s.io/kube-openapi/cmd/openapi-gen"]
+
 [prune]
   unused-packages = true
   go-tests = true
@@ -5,7 +9,7 @@
 
   [[prune.project]]
     name = "k8s.io/apimachinery"
-    # apimachinary needed for codegen
+    # apimachinery needed for codegen
     unused-packages = false
 
 [[constraint]]

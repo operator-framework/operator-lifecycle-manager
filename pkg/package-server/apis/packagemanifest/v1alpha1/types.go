@@ -6,7 +6,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PackageManifestList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 
 	Items []PackageManifest `json:"items"`
 }
@@ -17,10 +17,10 @@ type PackageManifestList struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PackageManifest struct {
 	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   PackageManifestSpec   `json:"spec,omitempty"`
-	Status PackageManifestStatus `json:"status"`
+	Status PackageManifestStatus `json:"status,omitempty"`
 }
 
 // PackageManifestSpec defines the desired state of PackageManifest
@@ -29,7 +29,7 @@ type PackageManifestSpec struct{}
 // PackageManifestStatus represents the current status of the PackageManifest
 type PackageManifestStatus struct {
 	// CatalogSourceName is the name of the CatalogSource this package belongs to
-	CatalogSourceName string `json:"catalogSourceName"`
+	CatalogSourceName string `json:"catalogSource"`
 
 	//  CatalogSourceNamespace is the namespace of the owning CatalogSource
 	CatalogSourceNamespace string `json:"catalogSourceNamespace"`
@@ -43,7 +43,7 @@ type PackageManifestStatus struct {
 	// DefaultChannelName is, if specified, the name of the default channel for the package. The
 	// default channel will be installed if no other channel is explicitly given. If the package
 	// has a single channel, then that channel is implicitly the default.
-	DefaultChannelName string `json:"defaultChannelName"`
+	DefaultChannelName string `json:"defaultChannel"`
 }
 
 // GetDefaultChannel gets the default channel or returns the only one if there's only one. returns empty string if it
@@ -66,7 +66,7 @@ type PackageChannel struct {
 
 	// CurrentCSVName defines a reference to the CSV holding the version of this package currently
 	// for the channel.
-	CurrentCSVName string `json:"currentCSVName"`
+	CurrentCSVName string `json:"currentCSV"`
 }
 
 // IsDefaultChannel returns true if the PackageChannel is the default for the PackageManifest

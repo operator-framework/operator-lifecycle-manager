@@ -89,7 +89,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageChannel(ref comm
 							Format:      "",
 						},
 					},
-					"currentCSVName": {
+					"currentCSV": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CurrentCSVName defines a reference to the CSV holding the version of this package currently for the channel.",
 							Type:        []string{"string"},
@@ -97,7 +97,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageChannel(ref comm
 						},
 					},
 				},
-				Required: []string{"name", "currentCSVName"},
+				Required: []string{"name", "currentCSV"},
 			},
 		},
 		Dependencies: []string{},
@@ -140,7 +140,6 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifest(ref com
 						},
 					},
 				},
-				Required: []string{"metadata", "status"},
 			},
 		},
 		Dependencies: []string{
@@ -186,7 +185,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestList(ref
 						},
 					},
 				},
-				Required: []string{"metadata", "items"},
+				Required: []string{"items"},
 			},
 		},
 		Dependencies: []string{
@@ -212,7 +211,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 			SchemaProps: spec.SchemaProps{
 				Description: "PackageManifestStatus represents the current status of the PackageManifest",
 				Properties: map[string]spec.Schema{
-					"catalogSourceName": {
+					"catalogSource": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CatalogSourceName is the name of the CatalogSource this package belongs to",
 							Type:        []string{"string"},
@@ -246,7 +245,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 							},
 						},
 					},
-					"defaultChannelName": {
+					"defaultChannel": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DefaultChannelName is, if specified, the name of the default channel for the package. The default channel will be installed if no other channel is explicitly given. If the package has a single channel, then that channel is implicitly the default.",
 							Type:        []string{"string"},
@@ -254,7 +253,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 						},
 					},
 				},
-				Required: []string{"catalogSourceName", "catalogSourceNamespace", "packageName", "channels", "defaultChannelName"},
+				Required: []string{"catalogSource", "catalogSourceNamespace", "packageName", "channels", "defaultChannel"},
 			},
 		},
 		Dependencies: []string{

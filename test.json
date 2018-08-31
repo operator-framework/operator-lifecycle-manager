@@ -1,0 +1,16 @@
+{
+    "apiVersion": "packages.apps.redhat.com/v1alpha1",
+    "kind": "PackageManifest",
+    "metadata": {
+        "creationTimestamp": null,
+        "selfLink": "/apis/packages.apps.redhat.com/v1alpha1/namespaces/default/packagemanifests/etcd"
+    },
+    "spec": {},
+    "status": {
+        "catalogSourceName": "",
+        "catalogSourceNamespace": "",
+        "channels": null,
+        "defaultChannelName": "",
+        "packageName": ""
+    }
+}
