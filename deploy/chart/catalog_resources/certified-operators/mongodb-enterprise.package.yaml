@@ -1,0 +1,5 @@
+#! package-manifest: ./deploy/chart/catalog_resources/certified-operators/mongodb-enterprise.v0.3.2.clusterserviceversion
+packageName: mongodb-enterprise
+channels:
+- name: stable
+  currentCSV: mongodboperator.v0.3.2
