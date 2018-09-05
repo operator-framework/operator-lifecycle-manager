@@ -55,12 +55,10 @@ container-build:
   image: docker:git
   script:
   - docker build -f upstream.Dockerfile .
-  - "docker tag $(docker images --filter 'label=broker=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre"
   - "docker tag $(docker images --filter 'label=builder=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}"
   - "docker tag $(docker images --filter 'label=catalog=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre"
   - "docker tag $(docker images --filter 'label=e2e=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}"
   - "docker tag $(docker images --filter 'label=olm=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre"
-  - docker push quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
   - docker push quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
@@ -87,9 +85,6 @@ container-release:
   - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker pull quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/alm-service-broker-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/alm-service-broker:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/alm-service-broker:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
   - docker push quay.io/coreos/alm-e2e:latest

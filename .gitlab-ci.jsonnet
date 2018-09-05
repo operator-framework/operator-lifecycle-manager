@@ -55,7 +55,6 @@ local jobs = {
             'builder': images.ci.alm.name,
             'olm': images.prerelease.alm.name,
             'catalog': images.prerelease.catalog.name,
-            'broker': images.prerelease.servicebroker.name,
             'e2e': images.e2e.name,
         }) +
         docker.run(images.ci.alm.name, "make verify-codegen verify-catalog")
@@ -69,7 +68,6 @@ local jobs = {
         script:
             docker.rename(images.prerelease.alm.name, images.release.alm.name) +
             docker.rename(images.prerelease.catalog.name, images.release.catalog.name) +
-            docker.rename(images.prerelease.servicebroker.name, images.release.servicebroker.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
 
     } + onlyMaster,
