@@ -3,8 +3,13 @@
 secretname=$(kubectl get serviceaccount default --namespace=kube-system -o jsonpath='{.secrets[0].name}')
 endpoint=$(kubectl config view -o json | jq '{myctx: .["current-context"], ctxs: .contexts[], clusters: .clusters[]}' | jq 'select(.myctx == .ctxs.name)' | jq 'select(.ctxs.context.cluster ==  .clusters.name)' | jq '.clusters.cluster.server' -r)
 
+args="--net=host"
+if [[ $OSTYPE == darwin* ]]; then 
+  args="-p 9000:9000"
+fi
+
 echo "Using $endpoint"
-docker run -it -p 9000:9000 \
+docker run -it $args \
   -e BRIDGE_USER_AUTH="disabled" \
   -e BRIDGE_K8S_MODE="off-cluster" \
   -e BRIDGE_K8S_MODE_OFF_CLUSTER_ENDPOINT=$endpoint \

@@ -109,13 +109,13 @@ This will keep the etcd `ClusterServiceVersion` up to date as new versions becom
 
 Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
 
-Ensure `$KUBECONFIG` environment variable is set and run:
+Ensure `kubectl` is pointing at a cluster and run:
 
 ```shell
 $ ./scripts/run_console_local.sh
 ```
 
-Then visit `http://localhost:9000` to view the console
+Then visit `http://localhost:9000` to view the console.
 
 **Subscription detail view:**
 ![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
