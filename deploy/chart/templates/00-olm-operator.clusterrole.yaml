@@ -1,0 +1,10 @@
+apiVersion: {{ .Values.rbacApiVersion }}/v1
+kind: ClusterRole
+metadata:
+  name: system:controller:operator-lifecycle-manager
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+- nonResourceURLs: ["*"]
+  verbs: ["*"]

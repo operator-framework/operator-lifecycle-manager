@@ -3,9 +3,9 @@ kind: ClusterRoleBinding
 metadata:
   name: olm-operator-binding-{{ .Values.namespace }}
 roleRef:
-  apiGroup: rbac.authorization.k8s.io
+  apiGroup: {{ .Values.rbacApiVersion }}
   kind: ClusterRole
-  name: cluster-admin
+  name: system:controller:operator-lifecycle-manager
 subjects:
 - kind: ServiceAccount
   name: olm-operator-serviceaccount
