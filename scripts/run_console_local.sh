@@ -8,6 +8,8 @@ if [[ $OSTYPE == darwin* ]]; then
   args="-p 9000:9000"
 fi
 
+docker pull quay.io/openshift/origin-console:latest
+
 echo "Using $endpoint"
 docker run -it $args \
   -e BRIDGE_USER_AUTH="disabled" \
