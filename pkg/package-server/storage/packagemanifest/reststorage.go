@@ -3,6 +3,7 @@ package packagemanifest
 import (
 	"context"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -90,6 +91,8 @@ func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *met
 	}
 	if pm != nil {
 		manifest = *pm
+	} else {
+		return nil, k8serrors.NewNotFound(m.groupResource, name)
 	}
 
 	return &manifest, nil
