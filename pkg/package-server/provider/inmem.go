@@ -44,7 +44,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 	queueInformers := queueinformer.New(
 		queue,
 		informers,
-		prov.syncCatalogSources,
+		prov.syncCatalogSource,
 		nil,
 		"catsrc",
 	)
@@ -109,7 +109,7 @@ func loadPackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName, 
 	return manifests, nil
 }
 
-func (m *InMemoryProvider) syncCatalogSources(obj interface{}) error {
+func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 	// assert as catalog source
 	catsrc, ok := obj.(*operatorsv1alpha1.CatalogSource)
 	if !ok {
@@ -147,6 +147,7 @@ func (m *InMemoryProvider) syncCatalogSources(obj interface{}) error {
 			catalogSourceNamespace: catsrc.GetNamespace(),
 			packageName:            manifest.Status.PackageName,
 		}
+		log.Debugf("storing packagemanifest at %+v", key)
 		m.manifests[key] = manifest
 	}
 
@@ -179,12 +180,12 @@ func (m *InMemoryProvider) GetPackageManifest(namespace, name string) (*packagev
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	manifest := &packagev1alpha1.PackageManifest{}
+	manifest := packagev1alpha1.PackageManifest{}
 	for key, pm := range m.manifests {
 		if key.packageName == name && key.catalogSourceNamespace == namespace {
-			manifest = &pm
+			manifest = pm
 		}
 	}
 
-	return manifest, nil
+	return &manifest, nil
 }
