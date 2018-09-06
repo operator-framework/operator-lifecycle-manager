@@ -1,3 +1,5 @@
+rbacApiVersion: rbac.authorization.k8s.io
+
 alm:
   replicaCount: 1
   image:
@@ -14,6 +16,15 @@ catalog:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
+  commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
+
+packageserver:
+  replicaCount: 1
+  image:
+    ref: quay.io/coreos/package-server:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 443
   commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
 
 e2e:

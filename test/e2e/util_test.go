@@ -9,12 +9,6 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -25,6 +19,15 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	pmclient "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client"
+	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
 
 const (
@@ -104,6 +107,17 @@ func newCRClient(t *testing.T) versioned.Interface {
 	crclient, err := client.NewClient(kubeconfigPath)
 	require.NoError(t, err)
 	return crclient
+}
+
+func newPMClient(t *testing.T) pmversioned.Interface {
+	kubeconfigPath := os.Getenv("KUBECONFIG")
+	if kubeconfigPath == "" {
+		t.Log("using in-cluster config")
+	}
+	// TODO: impersonate ALM serviceaccount
+	pmc, err := pmclient.NewClient(kubeconfigPath)
+	require.NoError(t, err)
+	return pmc
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
