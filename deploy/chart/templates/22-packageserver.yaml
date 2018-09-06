@@ -8,14 +8,14 @@ spec:
   groupPriorityMinimum: 2000
   versionPriority: 15
   service:
-    name: api
+    name: package-server
     namespace: {{ .Values.namespace }}
   version: v1alpha1
 ---
 kind: ServiceAccount
 apiVersion: v1
 metadata:
-  name: packagemanifest-apiserver
+  name: package-server-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -28,7 +28,7 @@ roleRef:
   name: system:auth-delegator
 subjects:
 - kind: ServiceAccount
-  name: packagemanifest-apiserver
+  name: package-server-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -42,7 +42,7 @@ roleRef:
   name: extension-apiserver-authentication-reader
 subjects:
 - kind: ServiceAccount
-  name: packagemanifest-apiserver
+  name: package-server-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -55,7 +55,7 @@ roleRef:
   name: admin
 subjects:
 - kind: ServiceAccount
-  name: packagemanifest-apiserver
+  name: package-server-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -68,7 +68,7 @@ roleRef:
   name: aggregated-apiserver-clusterrole
 subjects:
 - kind: ServiceAccount
-  name: packagemanifest-apiserver
+  name: package-server-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 kind: ClusterRoleBinding
@@ -81,7 +81,7 @@ roleRef:
   name: aggregate-olm-view
 subjects:
 - kind: ServiceAccount
-  name: packagemanifest-apiserver
+  name: package-server-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: apps/v1beta1
@@ -103,15 +103,17 @@ spec:
       labels:
         app: package-server
     spec:
-      serviceAccountName: packagemanifest-apiserver
+      serviceAccountName: package-server-serviceaccount
       containers:
       - name: package-server
         command:
         - /bin/package-server
         - -v=4
         {{- if .Values.watchedNamespaces }}
-        - \--watched-namespaces {{ .Values.watchedNamespaces }}
+        - --watched-namespaces
+        - {{ .Values.watchedNamespaces }}
         {{- end }}
+        - --debug
         {{- if .Values.packageserver.commandArgs }}
         - {{ .Values.packageserver.commandArgs }}
         {{- end }}
@@ -133,7 +135,7 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: api
+  name: package-server
   namespace: {{ .Values.namespace }}
 spec:
   ports:
