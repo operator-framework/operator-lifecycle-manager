@@ -28,6 +28,7 @@ function cleanupAndExit {
 		echo "error running tests. logs written to olm.log and catalog.log";
 		kubectl -n ${namespace} logs -l app=alm-operator > olm.log;
 		kubectl -n ${namespace} logs -l app=catalog-operator > catalog.log;
+		kubectl -n ${namespace} logs -l app=package-server > package.log
 	fi
 	cleanup
     exit $exitCode

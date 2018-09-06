@@ -25,11 +25,12 @@ function cleanup {
 function cleanupAndExit {
 	exitCode=$?
 	if [ "$exitCode" -ne "0" ]; then
-		echo "error running tests. logs written to olm.log and catalog.log";
+		echo "error running tests. logs written to olm.log, catalog.log, and package.log";
 		kubectl -n ${namespace} logs -l app=alm-operator > olm.log;
 		kubectl -n ${namespace} logs -l app=catalog-operator > catalog.log;
+		kubectl -n ${namespace} logs -l app=package-server > package.log
 	fi
-	cleanup
+	# cleanup
     exit $exitCode
 }
 
