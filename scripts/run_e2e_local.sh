@@ -30,7 +30,7 @@ function cleanupAndExit {
 		kubectl -n ${namespace} logs -l app=catalog-operator > catalog.log;
 		kubectl -n ${namespace} logs -l app=package-server > package.log
 	fi
-	# cleanup
+	cleanup
     exit $exitCode
 }
 
