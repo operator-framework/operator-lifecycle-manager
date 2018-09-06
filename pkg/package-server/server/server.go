@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	log "github.com/sirupsen/logrus"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/informers"
@@ -31,12 +32,11 @@ import (
 // NewCommandStartPackageServer provides a CLI handler for 'start master' command
 // with a default PackageServerOptions.
 func NewCommandStartPackageServer(defaults *PackageServerOptions, stopCh <-chan struct{}) *cobra.Command {
-	o := *defaults
 	cmd := &cobra.Command{
 		Short: "Launch a package API server",
 		Long:  "Launch a package API server",
 		RunE: func(c *cobra.Command, args []string) error {
-			if err := o.Run(stopCh); err != nil {
+			if err := defaults.Run(stopCh); err != nil {
 				return err
 			}
 			return nil
@@ -45,14 +45,16 @@ func NewCommandStartPackageServer(defaults *PackageServerOptions, stopCh <-chan 
 
 	flags := cmd.Flags()
 
-	// flags.BoolVar(&o.InsecureKubeletTLS, "kubelet-insecure-tls", o.InsecureKubeletTLS, "Do not verify CA of serving certificates presented by Kubelets.  For testing purposes only.")
-	flags.StringVar(&o.Kubeconfig, "kubeconfig", o.Kubeconfig, "The path to the kubeconfig used to connect to the Kubernetes API server and the Kubelets (defaults to in-cluster config)")
-	flags.StringSliceVar(&o.WatchedNamespaces, "watched-namespaces", o.WatchedNamespaces, "The resolution at which metrics-server will retain metrics.")
+	// flags.BoolVar(&defaults.InsecureKubeletTLS, "kubelet-insecure-tls", defaults.InsecureKubeletTLS, "Do not verify CA of serving certificates presented by Kubelets.  For testing purposes only.")
+	flags.DurationVar(&defaults.WakeupInterval, "interval", defaults.WakeupInterval, "interval at which to re-sync CatalogSources")
+	flags.StringSliceVar(&defaults.WatchedNamespaces, "watched-namespaces", defaults.WatchedNamespaces, "list of namespaces the package-server will watch watch for CatalogSources")
+	flags.StringVar(&defaults.Kubeconfig, "kubeconfig", defaults.Kubeconfig, "path to the kubeconfig used to connect to the Kubernetes API server and the Kubelets (defaults to in-cluster config)")
+	flags.BoolVar(&defaults.Debug, "debug", defaults.Debug, "use debug log level")
 
-	o.SecureServing.AddFlags(flags)
-	o.Authentication.AddFlags(flags)
-	o.Authorization.AddFlags(flags)
-	o.Features.AddFlags(flags)
+	defaults.SecureServing.AddFlags(flags)
+	defaults.Authentication.AddFlags(flags)
+	defaults.Authorization.AddFlags(flags)
+	defaults.Features.AddFlags(flags)
 
 	return cmd
 }
@@ -72,6 +74,9 @@ type PackageServerOptions struct {
 	// Only to be used to for testing
 	DisableAuthForTesting bool
 
+	// Enable debug log level
+	Debug bool
+
 	SharedInformerFactory informers.SharedInformerFactory
 	StdOut                io.Writer
 	StdErr                io.Writer
@@ -86,7 +91,9 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		Features:       genericoptions.NewFeatureOptions(),
 
 		WatchedNamespaces: []string{"local"},
-		WakeupInterval:    5 * time.Second,
+		WakeupInterval:    5 * time.Minute,
+
+		Debug: false,
 
 		StdOut: out,
 		StdErr: errOut,
@@ -125,6 +132,11 @@ func (o *PackageServerOptions) Config() (*apiserver.Config, error) {
 }
 
 func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
+	// set debug log level if enabled
+	if o.Debug {
+		log.SetLevel(log.DebugLevel)
+	}
+
 	// grab the config for the API server
 	config, err := o.Config()
 	if err != nil {
@@ -157,6 +169,8 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 	if err != nil {
 		return err
 	}
+
+	log.Infof("package-server configured to watch namespaces %v", o.WatchedNamespaces)
 
 	// Create an informer for each catalog namespace
 	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
