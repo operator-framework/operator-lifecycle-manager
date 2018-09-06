@@ -60,10 +60,7 @@ todo(?): list out the options
 Below is an example of a MongoDB “standalone” CRD that requires some user input in the form of a Secret and ConfigMap, and orchestrates Services, StatefulSets, Pods and ConfigMaps.
 
 ```yaml
-      - description: >-
-          MongoDB Deployment consisting of only one host. No replication of
-          data.
-        displayName: MongoDB Standalone
+      - displayName: MongoDB Standalone
         group: mongodb.com
         kind: MongoDbStandalone
         name: mongodbstandalones.mongodb.com
@@ -97,6 +94,9 @@ Below is an example of a MongoDB “standalone” CRD that requires some user in
             x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:text'
         version: v1
+        description: >-
+          MongoDB Deployment consisting of only one host. No replication of
+          data.
 ```
 
 ### Required CRDs
