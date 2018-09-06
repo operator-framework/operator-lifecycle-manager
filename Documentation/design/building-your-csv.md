@@ -92,7 +92,7 @@ Below is an example of a MongoDB “standalone” CRD that requires some user in
             displayName: Version
             path: version
             x-descriptors:
-              - 'urn:alm:descriptor:com.tectonic.ui:text'
+              - 'urn:alm:descriptor:com.tectonic.ui:label'
         version: v1
         description: >-
           MongoDB Deployment consisting of only one host. No replication of
