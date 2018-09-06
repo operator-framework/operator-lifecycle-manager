@@ -22,7 +22,7 @@ packageserver:
   replicaCount: 1
   image:
     ref: quay.io/coreos/package-server:local
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
   service:
     internalPort: 443
 
