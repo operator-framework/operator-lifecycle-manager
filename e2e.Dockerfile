@@ -25,8 +25,8 @@ COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-man
 EXPOSE 8080
 CMD ["/bin/catalog"]
 
-FROM alpine:latest as pkgserver
-LABEL pkgserver=true
+FROM alpine:latest as package-server
+LABEL package-server=true
 WORKDIR /
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/package-server /bin/package-server
 EXPOSE 443
