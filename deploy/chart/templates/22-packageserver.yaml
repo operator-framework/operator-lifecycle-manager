@@ -131,6 +131,8 @@ spec:
               scheme: HTTPS
               path: /healthz
               port: {{ .Values.packageserver.service.internalPort }}
+       imagePullSecrets:
+        - name: coreos-pull-secret
 ---
 apiVersion: v1
 kind: Service
