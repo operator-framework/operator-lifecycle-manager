@@ -17,7 +17,8 @@ func TestDirectoryLoader(t *testing.T) {
 
 	require.Contains(t, catalog.packages, "etcd")
 	require.Contains(t, catalog.packages, "prometheus")
-	require.Len(t, catalog.packages, 2)
+	require.Contains(t, catalog.packages, "amq-streams")
+	require.Len(t, catalog.packages, 3)
 }
 
 func TestDirectoryLoaderHiddenDirs(t *testing.T) {

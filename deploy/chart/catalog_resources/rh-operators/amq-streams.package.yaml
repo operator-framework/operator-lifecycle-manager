@@ -2,4 +2,4 @@
 packageName: amq-streams
 channels:
 - name: stable
-  currentCSV: amq-streams.v1.0.0
+  currentCSV: amqstreams.v1.0.0.beta
