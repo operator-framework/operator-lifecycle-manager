@@ -45,7 +45,7 @@ $(CMDS): .FORCE
 		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $@ -c -covermode=count -coverpkg ./pkg/controller/... $(PKG)/cmd/$(shell basename $@); \
 	else \
 		echo "building bin/$(shell basename $@)"; \
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-w -X $(PKG)/version/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/version/version.NotaryVersion=`cat OLM_VERSION`" \
+		go build -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
 		-o $@ $(PKG)/cmd/$(shell basename $@); \
 	fi
 

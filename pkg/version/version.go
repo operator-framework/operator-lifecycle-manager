@@ -10,5 +10,5 @@ var GitCommit string
 
 // String returns a pretty string concatenation of OLMVersion and GitCommit
 func String() string {
-	return fmt.Sprintf("OLM Version:    %s\n Git commit: %s\n", OLMVersion, GitCommit)
+	return fmt.Sprintf("OLM Version: %s\nGit commit: %s\n", OLMVersion, GitCommit)
 }
