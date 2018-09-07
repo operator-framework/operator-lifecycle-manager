@@ -26,4 +26,3 @@ mkdir -p ${chartdir}
 helm template -n olm -f ${values} ${charttmpdir} --output-dir ${charttmpdir}
 
 cp -R ${charttmpdir}/olm/templates/. ${chartdir}
-

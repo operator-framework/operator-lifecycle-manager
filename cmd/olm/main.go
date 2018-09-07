@@ -15,6 +15,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
+	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
 )
 
 const (
@@ -41,12 +42,16 @@ var (
 
 	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wake up interval")
+
 	watchedNamespaces = flag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces for alm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
 			"alm operator will watch all namespaces in the cluster.")
+
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
+
+	version = flag.Bool("version", false, "displays olm version")
 )
 
 // main function - entrypoint to ALM operator
@@ -55,6 +60,14 @@ func main() {
 
 	// Parse the command-line flags.
 	flag.Parse()
+
+	// Check if version flag was set
+	if *version {
+		fmt.Print(olmversion.String())
+
+		// Exit early
+		os.Exit(0)
+	}
 
 	// Env Vars
 	operatorNamespace := envOrDie(
