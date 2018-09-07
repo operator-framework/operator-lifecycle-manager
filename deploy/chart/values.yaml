@@ -23,7 +23,7 @@ package:
     ref: quay.io/coreos/package-server:master
     pullPolicy: Always
   service:
-    internalPort: 8080
+    internalPort: 443
 
 catalog_sources:
  - rh-operators
