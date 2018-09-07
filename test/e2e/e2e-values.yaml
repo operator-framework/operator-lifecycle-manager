@@ -18,7 +18,7 @@ catalog:
     internalPort: 8080
   commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
 
-packageserver:
+package:
   replicaCount: 1
   image:
     ref: quay.io/coreos/package-server:local

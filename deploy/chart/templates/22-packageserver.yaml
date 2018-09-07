@@ -75,7 +75,7 @@ metadata:
 spec:
   strategy:
     type: RollingUpdate
-  replicas: {{ .Values.packageserver.replicaCount }}
+  replicas: {{ .Values.package.replicaCount }}
   selector:
     matchLabels:
       app: package-server
@@ -95,23 +95,23 @@ spec:
         - {{ .Values.watchedNamespaces }}
         {{- end }}
         - --debug
-        {{- if .Values.packageserver.commandArgs }}
-        - {{ .Values.packageserver.commandArgs }}
+        {{- if .Values.package.commandArgs }}
+        - {{ .Values.package.commandArgs }}
         {{- end }}
-        image: {{ .Values.packageserver.image.ref }}
-        imagePullPolicy: {{ .Values.packageserver.image.pullPolicy }}
+        image: {{ .Values.package.image.ref }}
+        imagePullPolicy: {{ .Values.package.image.pullPolicy }}
         ports:
-            - containerPort: {{ .Values.packageserver.service.internalPort }}
+            - containerPort: {{ .Values.package.service.internalPort }}
         livenessProbe:
             httpGet:
               scheme: HTTPS
               path: /healthz
-              port: {{ .Values.packageserver.service.internalPort }}
+              port: {{ .Values.package.service.internalPort }}
         readinessProbe:
             httpGet:
               scheme: HTTPS
               path: /healthz
-              port: {{ .Values.packageserver.service.internalPort }}
+              port: {{ .Values.package.service.internalPort }}
       imagePullSecrets:
         - name: coreos-pull-secret
 ---
