@@ -1,9 +1,10 @@
+{{- $ca := genCA "package-server-ca" 365 -}}
 apiVersion: apiregistration.k8s.io/v1beta1
 kind: APIService
 metadata:
   name: v1alpha1.packages.apps.redhat.com
 spec:
-  insecureSkipTLSVerify: true
+  caBundle: {{ $ca.Cert | b64enc | quote }}
   group: packages.apps.redhat.com
   groupPriorityMinimum: 2000
   versionPriority: 15
@@ -65,6 +66,20 @@ subjects:
   name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: package-server-certs
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: package-server
+data:
+{{- $altNames := list ( printf "package-server.%s" .Values.namespace ) ( printf "package-server.%s.svc" .Values.namespace ) -}}
+{{- $cert := genSignedCert "package-server" nil $altNames 365 $ca }}
+  tls.crt: {{ $cert.Cert | b64enc | quote }}
+  tls.key: {{ $cert.Key | b64enc | quote }}
+---
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
@@ -101,7 +116,11 @@ spec:
         image: {{ .Values.package.image.ref }}
         imagePullPolicy: {{ .Values.package.image.pullPolicy }}
         ports:
-            - containerPort: {{ .Values.package.service.internalPort }}
+        - containerPort: {{ .Values.package.service.internalPort }}
+        volumeMounts:
+        - name: certs
+          mountPath: /apiserver.local.config/certificates
+          readOnly: true
         livenessProbe:
             httpGet:
               scheme: HTTPS
@@ -112,6 +131,15 @@ spec:
               scheme: HTTPS
               path: /healthz
               port: {{ .Values.package.service.internalPort }}
+      volumes:
+      - name: certs
+        secret:
+          secretName: package-server-certs
+          items:
+          - key: tls.crt
+            path: apiserver.crt
+          - key: tls.key
+            path: apiserver.key
       imagePullSecrets:
         - name: coreos-pull-secret
 ---

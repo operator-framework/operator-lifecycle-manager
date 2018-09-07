@@ -60,7 +60,7 @@ func NewCommandStartPackageServer(defaults *PackageServerOptions, stopCh <-chan 
 }
 
 type PackageServerOptions struct {
-	// RecommendedOptions *genericoptions.RecommendedOptions - EtcdOptions
+	// RecommendedOptions *genericoptions.RecommendedOptions
 	SecureServing  *genericoptions.SecureServingOptionsWithLoopback
 	Authentication *genericoptions.DelegatingAuthenticationOptions
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
