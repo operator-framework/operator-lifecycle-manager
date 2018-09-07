@@ -12,12 +12,6 @@ spec:
     namespace: {{ .Values.namespace }}
   version: v1alpha1
 ---
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: package-server-serviceaccount
-  namespace: {{ .Values.namespace }}
----
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -28,7 +22,7 @@ roleRef:
   name: system:auth-delegator
 subjects:
 - kind: ServiceAccount
-  name: package-server-serviceaccount
+  name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -42,7 +36,7 @@ roleRef:
   name: extension-apiserver-authentication-reader
 subjects:
 - kind: ServiceAccount
-  name: package-server-serviceaccount
+  name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -55,7 +49,7 @@ roleRef:
   name: admin
 subjects:
 - kind: ServiceAccount
-  name: package-server-serviceaccount
+  name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -68,20 +62,7 @@ roleRef:
   name: aggregated-apiserver-clusterrole
 subjects:
 - kind: ServiceAccount
-  name: package-server-serviceaccount
-  namespace: {{ .Values.namespace }}
----
-kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1
-metadata:
-  name: package-apiserver-clusterviewrolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: aggregate-olm-view
-subjects:
-- kind: ServiceAccount
-  name: package-server-serviceaccount
+  name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
 apiVersion: apps/v1beta1
@@ -103,7 +84,7 @@ spec:
       labels:
         app: package-server
     spec:
-      serviceAccountName: package-server-serviceaccount
+      serviceAccountName: olm-operator-serviceaccount
       containers:
       - name: package-server
         command:
