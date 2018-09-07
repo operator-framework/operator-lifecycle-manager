@@ -247,4 +247,4 @@ Here’s a full example:
 
 ## Full Examples
 
-Several [complete examples of CSV files](https://github.com/operator-framework/operator-lifecycle-manager/tree/master/deploy/chart/catalog_resources/ocs) are stored in Github.
+Several [complete examples of CSV files](https://github.com/operator-framework/operator-lifecycle-manager/tree/master/deploy/chart/catalog_resources/rh-operators) are stored in Github.
