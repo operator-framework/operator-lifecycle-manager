@@ -42,10 +42,11 @@ build-coverage: $(CMDS)
 $(CMDS): .FORCE
 	@if [ cover-$(GENCOVER) = cover-true ]; then \
 		echo "building bin/$(shell basename $@)" with coverage; \
-		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -o $@ -c -covermode=count -coverpkg ./pkg/controller/... $(PKG)/cmd/$(shell basename $@); \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go test -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
+		-o $@ -c -covermode=count -coverpkg ./pkg/controller/... $(PKG)/cmd/$(shell basename $@); \
 	else \
 		echo "building bin/$(shell basename $@)"; \
-		go build -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
+		GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
 		-o $@ $(PKG)/cmd/$(shell basename $@); \
 	fi
 
