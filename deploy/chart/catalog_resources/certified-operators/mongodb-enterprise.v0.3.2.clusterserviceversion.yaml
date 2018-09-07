@@ -240,14 +240,24 @@ spec:
     platforms, Ops Manager and Cloud Manager.
 
 
+    ## Before You Start
+    
     To start using the operator you'll need an account in MongoDB Cloud Manager.
+    
+    * [Create a Secret with your OpsManager API key](https://docs.opsmanager.mongodb.com/current/tutorial/install-k8s-operator/#create-credentials)
+    * [Create a ConfigMap with your OpsManager project ID and URL](https://docs.opsmanager.mongodb.com/current/tutorial/install-k8s-operator/#create-onprem-project)
 
 
     By installing this integration, you will be able to deploy MongoDB instances
     with a single simple command.
+    
+    ## Required Parameters
+    
+    * `project` - Enter the name of the ConfigMap containing project information
+    * `credentials` - Enter the name of the Secret containing your OpsManager credentials
 
 
-    ### Supported MongoDB Deployment Types ###
+    ## Supported MongoDB Deployment Types ##
 
 
     * Standalone: An instance of mongod that is running as a single server and
