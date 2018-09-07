@@ -227,6 +227,12 @@ spec:
     centrally with OpenShift. Updates to the configuration are watched by the
     Couchbase Operator and actions are taken to make the target cluster match
     the desired configuration.
+    
+    ## Required Parameters
+
+    * `authSecret` - provide the name of a secret that contains two keys for the
+    `username` and `password` of the super user
+    ([documentation](https://docs.couchbase.com/operator/1.0/couchbase-cluster-config.html))
 
 
     ## About Couchbase Server
