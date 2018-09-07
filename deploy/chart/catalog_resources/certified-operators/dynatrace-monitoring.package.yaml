@@ -2,4 +2,4 @@
 packageName: dynatrace-monitoring
 channels:
 - name: stable
-  currentCSV: dynatrace-monitoring.v0.1.0
+  currentCSV: dynatrace-monitoring.v0.2.0

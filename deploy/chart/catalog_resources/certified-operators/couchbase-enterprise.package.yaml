@@ -2,4 +2,4 @@
 packageName: couchbase-enterprise
 channels:
 - name: stable
-  currentCSV: couchbase.v1.0.0
+  currentCSV: couchbase-operator.v1.0.0
