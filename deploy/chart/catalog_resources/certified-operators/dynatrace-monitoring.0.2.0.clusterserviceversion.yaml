@@ -176,6 +176,12 @@ spec:
 
 
     You may update this Secret at any time to rotate the tokens.
+    
+    ## Required Parameters
+
+    * `apiUrl` - provide the environment ID used in conjuction with this
+    monitoring agent in the API adddress, eg
+    `https://<ENVIRONMENTID>.live.dynatrace.com/api`
 
     ## Advanced Options ##
 
