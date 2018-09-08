@@ -58,6 +58,8 @@ func TestPackageManifestLoading(t *testing.T) {
 
 	// check parsed PackageManifest
 	require.NoError(t, err, "error getting package manifest")
+	t.Logf("packagemanifest: %v", pm)
+	require.NotNil(t, pm)
 	require.Equal(t, packageName, pm.GetName())
 	require.Equal(t, expectedStatus, pm.Status)
 }
