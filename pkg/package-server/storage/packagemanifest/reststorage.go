@@ -67,12 +67,10 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 	}
 
 	// filter results by label
-	filtered := make([]v1alpha1.PackageManifest, len(res.Items))
-	i := 0
+	filtered := []v1alpha1.PackageManifest{}
 	for _, manifest := range res.Items {
 		if labelSelector.Matches(labels.Set(manifest.GetLabels())) {
-			filtered[i] = manifest
-			i++
+			filtered = append(filtered, manifest)
 		}
 	}
 
