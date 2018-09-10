@@ -11,13 +11,13 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	pmv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
+	packagev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
 
-type packageManifestCheckFunc func(*pmv1alpha1.PackageManifest) bool
+type packageManifestCheckFunc func(*packagev1alpha1.PackageManifest) bool
 
-func packageManifestHasStatus(pm *pmv1alpha1.PackageManifest) bool {
+func packageManifestHasStatus(pm *packagev1alpha1.PackageManifest) bool {
 	// as long as it has a package name we consider the status non-empty
 	if pm == nil || pm.Status.PackageName == "" {
 		return false
@@ -26,8 +26,8 @@ func packageManifestHasStatus(pm *pmv1alpha1.PackageManifest) bool {
 	return true
 }
 
-func fetchPackageManifest(t *testing.T, pmc pmversioned.Interface, namespace, name string, check packageManifestCheckFunc) (*pmv1alpha1.PackageManifest, error) {
-	var fetched *pmv1alpha1.PackageManifest
+func fetchPackageManifest(t *testing.T, pmc pmversioned.Interface, namespace, name string, check packageManifestCheckFunc) (*packagev1alpha1.PackageManifest, error) {
+	var fetched *packagev1alpha1.PackageManifest
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -71,12 +71,16 @@ func TestPackageManifestLoading(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCatalogSource()
 
-	expectedStatus := pmv1alpha1.PackageManifestStatus{
+	expectedStatus := packagev1alpha1.PackageManifestStatus{
 		CatalogSourceName:      catalogSourceName,
 		CatalogSourceNamespace: testNamespace,
 		PackageName:            packageName,
-		Channels: []pmv1alpha1.PackageChannel{
-			pmv1alpha1.PackageChannel{Name: stableChannel, CurrentCSVName: packageStable},
+		Channels: []packagev1alpha1.PackageChannel{
+			packagev1alpha1.PackageChannel{
+				Name:           stableChannel,
+				CurrentCSVName: packageStable,
+				CurrentCSVDesc: packagev1alpha1.CreateCSVDescription(&csv),
+			},
 		},
 		DefaultChannelName: stableChannel,
 	}
