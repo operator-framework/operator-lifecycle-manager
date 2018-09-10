@@ -1,6 +1,9 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	"github.com/coreos/go-semver/semver"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // PackageManifestList is a list of PackageManifest objects.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -33,6 +36,9 @@ type PackageManifestStatus struct {
 
 	//  CatalogSourceNamespace is the namespace of the owning CatalogSource
 	CatalogSourceNamespace string `json:"catalogSourceNamespace"`
+
+	// Provider is the provider of the PackageManifest's default CSV
+	Provider AppLink `json:"provider,omitempty"`
 
 	// PackageName is the name of the overall package, ala `etcd`.
 	PackageName string `json:"packageName"`
@@ -67,6 +73,37 @@ type PackageChannel struct {
 	// CurrentCSVName defines a reference to the CSV holding the version of this package currently
 	// for the channel.
 	CurrentCSVName string `json:"currentCSV"`
+
+	// CurrentCSVSpec holds the spec of the current CSV
+	CurrentCSVDesc CSVDescription `json:"currentCSVDesc,omitempty"`
+}
+
+// CSVDescription defines a description of a CSV
+type CSVDescription struct {
+	// DisplayName is the CSV's display name
+	DisplayName string `json:"displayName,omitempty"`
+
+	// Icon is the CSV's base64 encoded icon
+	Icon []Icon `json:"icon,omitempty"`
+
+	// Version is the CSV's semantic version
+	// +k8s:openapi-gen=false
+	Version semver.Version `json:"version,omitempty"`
+
+	// Provider is the CSV's provider
+	Provider AppLink `json:"provider,omitempty"`
+}
+
+// AppLink defines a link to an application
+type AppLink struct {
+	Name string `json:"name,omitempty"`
+	URL  string `json:"url,omitempty"`
+}
+
+// Icon defines a base64 encoded icon and media type
+type Icon struct {
+	Data      string `json:"base64data,omitempty"`
+	MediaType string `json:"mediatype,omitempty"`
 }
 
 // IsDefaultChannel returns true if the PackageChannel is the default for the PackageManifest
