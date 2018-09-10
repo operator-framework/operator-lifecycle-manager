@@ -19,9 +19,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 
-	//"k8s.io/sample-apiserver/pkg/admission/plugin/banflunder"
-	//"k8s.io/sample-apiserver/pkg/admission/packageinitializer"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -204,10 +201,6 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 	// run the source provider's informers
 	go sourceProvider.Run(stopCh)
 
-	// add health checks
-	// server.AddHealthzChecks(healthz.NamedCheck("healthz", mgr.CheckHealth))
-
-	// run everything (the apiserver runs the shared informer factory for us)
-	// mgr.RunUntil(stopCh)
+	// run the apiserver
 	return server.GenericAPIServer.PrepareRun().Run(stopCh)
 }
