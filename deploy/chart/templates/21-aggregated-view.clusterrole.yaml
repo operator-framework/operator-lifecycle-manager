@@ -7,5 +7,5 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-view: "true"
 rules:
 - apiGroups: ["operators.coreos.com"]
-  resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions"]
+  resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions", "packagemanifests"]
   verbs: ["get", "list", "watch"]

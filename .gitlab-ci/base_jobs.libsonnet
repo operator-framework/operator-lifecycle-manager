@@ -94,6 +94,7 @@ local appr = utils.appr;
             params: {
                 "alm.image.ref": _vars.image.alm.name,
                 "catalog.image.ref": _vars.image.catalog.name,
+                "package.image.ref": _vars.image.package.name,
                 watchedNamespaces: _vars.namespace,
                 catalog_namespace: _vars.catalog_namespace,
                 namespace: _vars.namespace,
@@ -127,7 +128,8 @@ local appr = utils.appr;
                                  "$DOCKER_PASS") +
             helm.templateApply("olm", _vars.chart, _vars.namespace, _vars.params) +
             k8s.waitForDeployment("alm-operator", _vars.namespace) +
-            k8s.waitForDeployment("catalog-operator", _vars.namespace),
+            k8s.waitForDeployment("catalog-operator", _vars.namespace) +
+            k8s.waitForDeployment("package-server", _vars.namespace),
     } + job_tags,
 
     DeployStop: self.Deploy {

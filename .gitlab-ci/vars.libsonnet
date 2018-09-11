@@ -37,6 +37,11 @@ local utils = import "utils.libsonnet";
                 tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
                 name: utils.containerName(self.repo, self.tag),
             },
+            package: {
+                repo: "quay.io/coreos/package-server",
+                tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
+                name: utils.containerName(self.repo, self.tag),
+            },
         },
 
         ci: {
@@ -67,6 +72,11 @@ local utils = import "utils.libsonnet";
             },
             catalog: {
                 repo: "quay.io/coreos/catalog-ci",
+                tag: "${CI_COMMIT_REF_SLUG}-pre",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            package: {
+                repo: "quay.io/coreos/package-server-ci",
                 tag: "${CI_COMMIT_REF_SLUG}-pre",
                 name: utils.containerName(self.repo, self.tag),
             },

@@ -24,6 +24,13 @@ COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-man
 EXPOSE 8080
 CMD ["/bin/catalog"]
 
+FROM alpine:latest as package-server
+LABEL package-server=true
+WORKDIR /
+COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/package-server /bin/package-server
+EXPOSE 443
+CMD ["/bin/package-server"]
+
 FROM quay.io/coreos/alm-ci:base
 LABEL e2e=true
 RUN mkdir -p /var/e2e
