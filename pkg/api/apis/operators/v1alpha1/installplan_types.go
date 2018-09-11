@@ -3,13 +3,16 @@ package v1alpha1
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
@@ -186,15 +189,18 @@ func NewStepResourceFromCSV(csv *ClusterServiceVersion) (StepResource, error) {
 }
 
 // NewStepResourceFromCRD creates an unresolved Step for the provided CRD.
-func NewStepResourceFromCRD(crd *v1beta1.CustomResourceDefinition) (StepResource, error) {
-	crdSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme.Scheme, scheme.Scheme, true)
+func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]StepResource, error) {
+	serScheme := runtime.NewScheme()
+	k8sscheme.AddToScheme(serScheme)
+	scheme.AddToScheme(serScheme)
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, serScheme, serScheme, true)
 
 	var manifest bytes.Buffer
-	if err := crdSerializer.Encode(crd, &manifest); err != nil {
-		return StepResource{}, err
+	if err := serializer.Encode(crd, &manifest); err != nil {
+		return nil, err
 	}
 
-	step := StepResource{
+	crdStep := StepResource{
 		Name:     crd.Name,
 		Kind:     crd.Kind,
 		Group:    crd.Spec.Group,
@@ -202,7 +208,50 @@ func NewStepResourceFromCRD(crd *v1beta1.CustomResourceDefinition) (StepResource
 		Manifest: manifest.String(),
 	}
 
-	return step, nil
+	editRole := rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("edit-%s-%s", crd.Name, crd.Spec.Version),
+			Labels: map[string]string{
+				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
+				"rbac.authorization.k8s.io/aggregate-to-edit":  "true",
+			},
+		},
+		Rules: []rbacv1.PolicyRule{{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
+	}
+	var editRoleManifest bytes.Buffer
+	if err := serializer.Encode(&editRole, &editRoleManifest); err != nil {
+		return nil, err
+	}
+	aggregatedEditClusterRoleStep := StepResource{
+		Name:     editRole.Name,
+		Kind:     "ClusterRole",
+		Group:    "rbac.authorization.k8s.io",
+		Version:  "v1",
+		Manifest: editRoleManifest.String(),
+	}
+
+	viewRole := rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("view-%s-%s", crd.Name, crd.Spec.Version),
+			Labels: map[string]string{
+				"rbac.authorization.k8s.io/aggregate-to-view": "true",
+			},
+		},
+		Rules: []rbacv1.PolicyRule{{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
+	}
+	var viewRoleManifest bytes.Buffer
+	if err := serializer.Encode(&viewRole, &viewRoleManifest); err != nil {
+		return nil, err
+	}
+	aggregatedViewClusterRoleStep := StepResource{
+		Name:     viewRole.Name,
+		Kind:     "ClusterRole",
+		Group:    "rbac.authorization.k8s.io",
+		Version:  "v1",
+		Manifest: viewRoleManifest.String(),
+	}
+
+	return []StepResource{crdStep, aggregatedEditClusterRoleStep, aggregatedViewClusterRoleStep}, nil
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

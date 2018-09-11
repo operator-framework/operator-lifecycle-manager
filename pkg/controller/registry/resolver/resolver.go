@@ -83,7 +83,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
 			// Attempt to get CRD from same catalog source CSV was found in
-			step, owner, err := resolver.resolveCRDDescription(sourceRefs, existingCRDOwners, catalogLabelKey, planNamespace, crdDesc, csv.OwnsCRD(crdDesc.Name))
+			crdSteps, owner, err := resolver.resolveCRDDescription(sourceRefs, existingCRDOwners, catalogLabelKey, planNamespace, crdDesc, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -92,8 +92,8 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 			if owner != "" && owner != currentName {
 				csvNamesToBeResolved = append(csvNamesToBeResolved, owner)
 			} else {
-				// Add the resolved step to the plan.
-				steps[currentName] = append(steps[currentName], step)
+				// Add the resolved steps to the plan.
+				steps[currentName] = append(steps[currentName], crdSteps...)
 			}
 
 		}
@@ -127,8 +127,9 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 	return steps, usedSourceKeys, nil
 }
 
-func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey, planNamespace string, crdDesc v1alpha1.CRDDescription, owned bool) (v1alpha1.StepResource, string, error) {
+func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey, planNamespace string, crdDesc v1alpha1.CRDDescription, owned bool) ([]v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
+	var steps []v1alpha1.StepResource
 
 	crdKey := registry.CRDKey{
 		Kind:    crdDesc.Kind,
@@ -154,7 +155,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	}
 
 	if err != nil {
-		return v1alpha1.StepResource{}, "", err
+		return nil, "", err
 	}
 
 	if owned {
@@ -167,21 +168,26 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 		crd.SetLabels(labels)
 
 		// Add CRD Step
-		step, err := v1alpha1.NewStepResourceFromCRD(crd)
+		crdSteps, err := v1alpha1.NewStepResourcesFromCRD(crd)
+		if err != nil {
+			return nil, "", err
+		}
 
 		// Set the catalog source name and namespace
-		step.CatalogSource = crdSourceKey.Name
-		step.CatalogSourceNamespace = crdSourceKey.Namespace
-
-		return step, "", err
+		for _, s := range crdSteps {
+			s.CatalogSource = crdSourceKey.Name
+			s.CatalogSourceNamespace = crdSourceKey.Namespace
+			steps = append(steps, s)
+		}
+		return steps, "", nil
 	}
 
 	csvs, err := source.ListLatestCSVsForCRD(crdKey)
 	if err != nil {
-		return v1alpha1.StepResource{}, "", err
+		return nil, "", err
 	}
 	if len(csvs) == 0 {
-		return v1alpha1.StepResource{}, "", fmt.Errorf("Unknown CRD %s", crdKey)
+		return nil, "", fmt.Errorf("Unknown CRD %s", crdKey)
 	}
 
 	var ownerName string
@@ -199,7 +205,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	case 1:
 		ownerName = owners[0]
 	default:
-		return v1alpha1.StepResource{}, "", olmerrors.NewMultipleExistingCRDOwnersError(owners, crdKey.Name, planNamespace)
+		return nil, "", olmerrors.NewMultipleExistingCRDOwnersError(owners, crdKey.Name, planNamespace)
 	}
 
 	// Check empty name
@@ -209,8 +215,7 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 	}
 
 	log.Infof("Found %v owner %s", crdKey, ownerName)
-	return v1alpha1.StepResource{}, ownerName, nil
-
+	return nil, ownerName, nil
 }
 
 type stepResourceMap map[string][]v1alpha1.StepResource

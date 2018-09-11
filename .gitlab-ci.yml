@@ -22,7 +22,7 @@
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=operator-lifecycle-manager deploy/chart --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=operator-lifecycle-manager --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces= --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl replace --force -f ${f};done;
-  - kubectl rollout status -w deployment/alm-operator --namespace=operator-lifecycle-manager
+  - kubectl rollout status -w deployment/olm-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/catalog-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/package-server --namespace=operator-lifecycle-manager
   - 'curl -X POST --data-urlencode "payload={\"text\": \"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${TEAMUI_HOST}/k8s/ns/operator-lifecycle-manager/deployments/alm-operator\"}"
@@ -121,7 +121,7 @@ deploy-openshift:
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=operator-lifecycle-manager deploy/chart --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=operator-lifecycle-manager --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces= --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl replace --force -f ${f};done;
-  - kubectl rollout status -w deployment/alm-operator --namespace=operator-lifecycle-manager
+  - kubectl rollout status -w deployment/olm-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/catalog-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/package-server --namespace=operator-lifecycle-manager
   - 'curl -X POST --data-urlencode "payload={\"text\": \"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${OPENSHIFT_HOST}/k8s/ns/operator-lifecycle-manager/deployments/alm-operator\"}"
@@ -158,7 +158,7 @@ deploy-preview:
     --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=operator-lifecycle-manager --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set package.image.ref=quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl
     replace --force -f ${f};done;
-  - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
+  - kubectl rollout status -w deployment/olm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl rollout status -w deployment/package-server --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview
@@ -190,7 +190,7 @@ deploy-staging:
     --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=ci-alm-staging --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces=ci-alm-staging --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl replace --force
     -f ${f};done;
-  - kubectl rollout status -w deployment/alm-operator --namespace=ci-alm-staging
+  - kubectl rollout status -w deployment/olm-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/package-server --namespace=ci-alm-staging
   stage: deploy_staging
@@ -220,7 +220,7 @@ e2e-setup:
     --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set package.image.ref=quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl
     replace --force -f ${f};done;
-  - kubectl rollout status -w deployment/alm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+  - kubectl rollout status -w deployment/olm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl rollout status -w deployment/package-server --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: test_setup

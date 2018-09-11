@@ -38,8 +38,8 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{"FoundCSV", "name", []csvNames{{"name", nil, nil}}, nil, nil, 1},
 		{"CSVWithMissingOwnedCRD", "name", []csvNames{{"name", []string{"missingCRD"}, nil}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
 		{"CSVWithMissingRequiredCRD", "name", []csvNames{{"name", nil, []string{"missingCRD"}}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 2},
-		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 3},
+		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 4},
+		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 5},
 	}
 
 	for _, tt := range table {
@@ -139,9 +139,11 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			[]registry.ResourceKey{sourceA},
 			nil,
 			map[resourceKey]registry.ResourceKey{
-				resourceKey{"main", csvKind}:     sourceA,
-				resourceKey{"crdOwner", csvKind}: sourceA,
-				resourceKey{"CRD", crdKind}:      sourceA,
+				resourceKey{"main", csvKind}:              sourceA,
+				resourceKey{"crdOwner", csvKind}:          sourceA,
+				resourceKey{"CRD", crdKind}:               sourceA,
+				resourceKey{"edit-CRD-v1", "ClusterRole"}: sourceA,
+				resourceKey{"view-CRD-v1", "ClusterRole"}: sourceA,
 			},
 		},
 		{
@@ -154,9 +156,11 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			[]registry.ResourceKey{sourceA, sourceB},
 			nil,
 			map[resourceKey]registry.ResourceKey{
-				resourceKey{"main", csvKind}:     sourceA,
-				resourceKey{"crdOwner", csvKind}: sourceB,
-				resourceKey{"CRD", crdKind}:      sourceB,
+				resourceKey{"main", csvKind}:              sourceA,
+				resourceKey{"crdOwner", csvKind}:          sourceB,
+				resourceKey{"CRD", crdKind}:               sourceB,
+				resourceKey{"edit-CRD-v1", "ClusterRole"}: sourceB,
+				resourceKey{"view-CRD-v1", "ClusterRole"}: sourceB,
 			},
 		},
 		{
@@ -185,12 +189,18 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			[]registry.ResourceKey{sourceA, sourceB, sourceC},
 			nil,
 			map[resourceKey]registry.ResourceKey{
-				resourceKey{"main", csvKind}:       sourceA,
-				resourceKey{"crdOwner-0", csvKind}: sourceB,
-				resourceKey{"crdOwner-1", csvKind}: sourceC,
-				resourceKey{"CRD-0", crdKind}:      sourceB,
-				resourceKey{"CRD-1", crdKind}:      sourceC,
-				resourceKey{"CRD-2", crdKind}:      sourceC,
+				resourceKey{"main", csvKind}:                sourceA,
+				resourceKey{"crdOwner-0", csvKind}:          sourceB,
+				resourceKey{"crdOwner-1", csvKind}:          sourceC,
+				resourceKey{"CRD-0", crdKind}:               sourceB,
+				resourceKey{"edit-CRD-0-v1", "ClusterRole"}: sourceB,
+				resourceKey{"view-CRD-0-v1", "ClusterRole"}: sourceB,
+				resourceKey{"CRD-1", crdKind}:               sourceC,
+				resourceKey{"edit-CRD-1-v1", "ClusterRole"}: sourceC,
+				resourceKey{"view-CRD-1-v1", "ClusterRole"}: sourceC,
+				resourceKey{"CRD-2", crdKind}:               sourceC,
+				resourceKey{"edit-CRD-2-v1", "ClusterRole"}: sourceC,
+				resourceKey{"view-CRD-2-v1", "ClusterRole"}: sourceC,
 			},
 		},
 	}
@@ -254,8 +264,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 				resourceKey := resourceKey{step.Resource.Name, step.Resource.Kind}
 				expectedSource := tt.expectedResources[resourceKey]
 
-				require.Equal(t, step.Resource.CatalogSource, expectedSource.Name)
-				require.Equal(t, step.Resource.CatalogSourceNamespace, expectedSource.Namespace)
+				require.Equal(t, expectedSource.Name, step.Resource.CatalogSource, "%v source name different", resourceKey)
+				require.Equal(t, expectedSource.Namespace, step.Resource.CatalogSourceNamespace, "%v source namespace different", resourceKey)
 			}
 		})
 	}
@@ -291,28 +301,28 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
-				registry.PackageManifest{
+				{
 					PackageName: "cheese",
 					Channels: []registry.PackageChannel{
-						registry.PackageChannel{
+						{
 							Name:           "alpha",
 							CurrentCSVName: "cheese-alpha",
 						},
-						registry.PackageChannel{
+						{
 							Name:           "beta",
 							CurrentCSVName: "cheese-beta",
 						},
-						registry.PackageChannel{
+						{
 							Name:           "stable",
 							CurrentCSVName: "cheese-stable",
 						},
 					},
 					DefaultChannelName: "stable",
 				},
-				registry.PackageManifest{
+				{
 					PackageName: "macaroni",
 					Channels: []registry.PackageChannel{
-						registry.PackageChannel{
+						{
 							Name:           "stable",
 							CurrentCSVName: "macaroni-stable",
 						},
@@ -323,10 +333,14 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			nil,
 			nil,
 			map[registry.ResourceKey]struct{}{
-				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}: struct{}{},
-				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:        struct{}{},
-				registry.ResourceKey{Name: "cheese-stable", Kind: csvKind}:   struct{}{},
-				registry.ResourceKey{Name: "cheese", Kind: crdKind}:          struct{}{},
+				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}:        {},
+				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:               {},
+				registry.ResourceKey{Name: "edit-macaroni-v1", Kind: "ClusterRole"}: {},
+				registry.ResourceKey{Name: "view-macaroni-v1", Kind: "ClusterRole"}: {},
+				registry.ResourceKey{Name: "cheese-stable", Kind: csvKind}:          {},
+				registry.ResourceKey{Name: "cheese", Kind: crdKind}:                 {},
+				registry.ResourceKey{Name: "edit-cheese-v1", Kind: "ClusterRole"}:   {},
+				registry.ResourceKey{Name: "view-cheese-v1", Kind: "ClusterRole"}:   {},
 			},
 		},
 		{
@@ -341,28 +355,28 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
-				registry.PackageManifest{
+				{
 					PackageName: "cheese",
 					Channels: []registry.PackageChannel{
-						registry.PackageChannel{
+						{
 							Name:           "alpha",
 							CurrentCSVName: "cheese-alpha",
 						},
-						registry.PackageChannel{
+						{
 							Name:           "beta",
 							CurrentCSVName: "cheese-beta",
 						},
-						registry.PackageChannel{
+						{
 							Name:           "stable",
 							CurrentCSVName: "cheese-stable",
 						},
 					},
 					DefaultChannelName: "stable",
 				},
-				registry.PackageManifest{
+				{
 					PackageName: "macaroni",
 					Channels: []registry.PackageChannel{
-						registry.PackageChannel{
+						{
 							Name:           "stable",
 							CurrentCSVName: "macaroni-stable",
 						},
@@ -371,14 +385,18 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 				},
 			},
 			map[string][]string{
-				"cheese": []string{"cheese-alpha"},
+				"cheese": {"cheese-alpha"},
 			},
 			nil,
 			map[registry.ResourceKey]struct{}{
-				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}: struct{}{},
-				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:        struct{}{},
-				registry.ResourceKey{Name: "cheese-alpha", Kind: csvKind}:    struct{}{},
-				registry.ResourceKey{Name: "cheese", Kind: crdKind}:          struct{}{},
+				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}:        {},
+				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:               {},
+				registry.ResourceKey{Name: "edit-macaroni-v1", Kind: "ClusterRole"}: {},
+				registry.ResourceKey{Name: "view-macaroni-v1", Kind: "ClusterRole"}: {},
+				registry.ResourceKey{Name: "cheese-alpha", Kind: csvKind}:           {},
+				registry.ResourceKey{Name: "cheese", Kind: crdKind}:                 {},
+				registry.ResourceKey{Name: "edit-cheese-v1", Kind: "ClusterRole"}:   {},
+				registry.ResourceKey{Name: "view-cheese-v1", Kind: "ClusterRole"}:   {},
 			},
 		},
 		{
@@ -393,28 +411,28 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
-				registry.PackageManifest{
+				{
 					PackageName: "cheese",
 					Channels: []registry.PackageChannel{
-						registry.PackageChannel{
+						{
 							Name:           "alpha",
 							CurrentCSVName: "cheese-alpha",
 						},
-						registry.PackageChannel{
+						{
 							Name:           "beta",
 							CurrentCSVName: "cheese-beta",
 						},
-						registry.PackageChannel{
+						{
 							Name:           "stable",
 							CurrentCSVName: "cheese-stable",
 						},
 					},
 					DefaultChannelName: "stable",
 				},
-				registry.PackageManifest{
+				{
 					PackageName: "macaroni",
 					Channels: []registry.PackageChannel{
-						registry.PackageChannel{
+						{
 							Name:           "stable",
 							CurrentCSVName: "macaroni-stable",
 						},

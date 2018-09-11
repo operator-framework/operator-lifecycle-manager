@@ -1,25 +1,25 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: alm-operator
+  name: olm-operator
   namespace: {{ .Values.namespace }}
   labels:
-    app: alm-operator
+    app: olm-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: {{ .Values.alm.replicaCount }}
   selector:
     matchLabels:
-      app: alm-operator
+      app: olm-operator
   template:
     metadata:
       labels:
-        app: alm-operator
+        app: olm-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
       containers:
-        - name: alm-operator
+        - name: olm-operator
           command:
           - /bin/olm
           {{- if .Values.watchedNamespaces }}
@@ -47,7 +47,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
-            value: alm-operator
+            value: olm-operator
           {{- if .Values.alm.resources }}
           resources:
 {{ toYaml .Values.alm.resources | indent 12 }}
