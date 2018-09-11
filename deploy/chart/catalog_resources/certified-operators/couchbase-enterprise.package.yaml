@@ -1,5 +1,5 @@
 #! package-manifest: ./deploy/chart/catalog_resources/certified-operators/couchbase.1.0.0.clusterserviceversion
 packageName: couchbase-enterprise
 channels:
-- name: stable
+- name: preview
   currentCSV: couchbase-operator.v1.0.0
