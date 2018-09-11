@@ -246,6 +246,7 @@ spec:
     
     * [Create a Secret with your OpsManager API key](https://docs.opsmanager.mongodb.com/current/tutorial/install-k8s-operator/#create-credentials)
     
+    
     * [Create a ConfigMap with your OpsManager project ID and URL](https://docs.opsmanager.mongodb.com/current/tutorial/install-k8s-operator/#create-onprem-project)
 
 
@@ -255,6 +256,7 @@ spec:
     ## Required Parameters
     
     * `project` - Enter the name of the ConfigMap containing project information
+    
     
     * `credentials` - Enter the name of the Secret containing your OpsManager credentials
 
