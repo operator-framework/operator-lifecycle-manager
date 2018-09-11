@@ -172,7 +172,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, catalogSource.Spec.ConfigMap)
 	require.NoError(t, err)
 	require.NotNil(t, inMem)
-	latestPrometheusCSV, err := inMem.FindCSVForPackageNameUnderChannel("prometheus", "alpha")
+	latestPrometheusCSV, err := inMem.FindCSVForPackageNameUnderChannel("prometheus", "preview")
 	require.NoError(t, err)
 	require.NotNil(t, latestPrometheusCSV)
 
