@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/watch"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
@@ -26,6 +27,7 @@ var _ rest.Storage = &PackageManifestStorage{}
 var _ rest.Getter = &PackageManifestStorage{}
 var _ rest.Lister = &PackageManifestStorage{}
 var _ rest.Scoper = &PackageManifestStorage{}
+var _ rest.Watcher = &PackageManifestStorage{}
 
 // NewStorage returns an in-memory implementation of storage.Interface.
 func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifestProvider) *PackageManifestStorage {
@@ -94,6 +96,22 @@ func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *met
 	}
 
 	return &manifest, nil
+}
+
+// Watch satisfies the Watch interface
+func (m *PackageManifestStorage) Watch(ctx context.Context, options *metainternalversion.ListOptions) (watch.Interface, error) {
+	// get namespace
+	namespace := genericapirequest.NamespaceValue(ctx)
+
+	// get selector
+	labelSelector := labels.Everything()
+	if options != nil && options.LabelSelector != nil {
+		labelSelector = options.LabelSelector
+	}
+
+	watcher := NewPackageManifestWatcher(namespace, labelSelector)
+	watcher.Run()
+	return watcher, nil
 }
 
 // Scoper interface

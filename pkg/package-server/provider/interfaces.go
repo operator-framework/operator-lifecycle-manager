@@ -5,6 +5,7 @@ import (
 )
 
 type PackageManifestProvider interface {
-	ListPackageManifests(namespace string) (*v1alpha1.PackageManifestList, error)
 	GetPackageManifest(namespace, name string) (*v1alpha1.PackageManifest, error)
+	ListPackageManifests(namespace string) (*v1alpha1.PackageManifestList, error)
+	WatchPackageManifests(namespace string, out chan v1alpha1.PackageManifest, stop <-chan struct{})
 }

@@ -39,6 +39,8 @@ type InMemoryProvider struct {
 
 	mu        sync.RWMutex
 	manifests map[packageKey]packagev1alpha1.PackageManifest
+
+	out chan packagev1alpha1.PackageManifest
 }
 
 // NewInMemoryProvider returns a pointer to a new InMemoryProvider instance
@@ -47,6 +49,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 	prov := &InMemoryProvider{
 		Operator:  queueOperator,
 		manifests: make(map[packageKey]packagev1alpha1.PackageManifest),
+		out:       make(chan packagev1alpha1.PackageManifest),
 	}
 
 	// register CatalogSource informers.
@@ -222,11 +225,28 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 
 		log.Debugf("storing packagemanifest at %+v", key)
 		m.manifests[key] = manifest
+		m.out <- manifest
 	}
 
 	return nil
 }
 
+// GetPackageManifest implements PackageManifestProvider.GetPackageManifest(...)
+func (m *InMemoryProvider) GetPackageManifest(namespace, name string) (*packagev1alpha1.PackageManifest, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var manifest packagev1alpha1.PackageManifest
+	for key, pm := range m.manifests {
+		if key.packageName == name && key.catalogSourceNamespace == namespace {
+			manifest = pm
+		}
+	}
+
+	return &manifest, nil
+}
+
+// ListPackageManifests implements PackageManifestProvider.ListPackageManifests()
 func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alpha1.PackageManifestList, error) {
 	manifestList := &packagev1alpha1.PackageManifestList{}
 
@@ -248,16 +268,27 @@ func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alp
 	return manifestList, nil
 }
 
-func (m *InMemoryProvider) GetPackageManifest(namespace, name string) (*packagev1alpha1.PackageManifest, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	var manifest packagev1alpha1.PackageManifest
-	for key, pm := range m.manifests {
-		if key.packageName == name && key.catalogSourceNamespace == namespace {
-			manifest = pm
+// WatchPackageManifests forwards all PackageManifests matching the given namespace to the given out chan
+func (m *InMemoryProvider) WatchPackageManifests(namespace string, out chan packagev1alpha1.PackageManifest, stop <-chan struct{}) {
+	go func() {
+		// push existing PackageManifests
+		manifestList, err := m.ListPackageManifests(namespace)
+		if err == nil {
+			for _, manifest := range manifestList.Items {
+				out <- manifest
+			}
 		}
-	}
 
-	return &manifest, nil
+		// watch for changes
+		for {
+			select {
+			case manifest := <-m.out:
+				if manifest.GetNamespace() == namespace {
+					out <- manifest
+				}
+			case <-stop:
+				return
+			}
+		}
+	}()
 }
