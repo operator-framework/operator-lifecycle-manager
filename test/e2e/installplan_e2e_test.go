@@ -404,9 +404,11 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	// Create expected install plan step sources
 	expectedStepSources := map[registry.ResourceKey]registry.ResourceKey{
-		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                        registry.ResourceKey{Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: registry.ResourceKey{Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:      registry.ResourceKey{Name: mainCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                           {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}: {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}: {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:    {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:         {Name: mainCatalogName, Namespace: testNamespace},
 	}
 
 	// Fetch list of catalog sources
@@ -444,16 +446,17 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, len(fetchedInstallPlan.Status.Plan), len(expectedStepSources))
+	require.Equal(t, len(expectedStepSources), len(fetchedInstallPlan.Status.Plan))
 	t.Logf("Number of resolved steps matches the number of expected steps")
 
 	// Ensure resolved step resources originate from the correct catalog sources
 	for _, step := range fetchedInstallPlan.Status.Plan {
+		t.Logf("checking %s", step.Resource.Name)
 		key := registry.ResourceKey{Name: step.Resource.Name, Kind: step.Resource.Kind}
 		expectedSource, ok := expectedStepSources[key]
-		require.True(t, ok)
-		require.Equal(t, step.Resource.CatalogSource, expectedSource.Name)
-		require.Equal(t, step.Resource.CatalogSourceNamespace, expectedSource.Namespace)
+		require.True(t, ok, "didn't find %v", key)
+		require.Equal(t, expectedSource.Name, step.Resource.CatalogSource)
+		require.Equal(t, expectedSource.Namespace, step.Resource.CatalogSourceNamespace)
 
 		// delete
 	}
@@ -478,18 +481,18 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create manifests
 		mainManifests := []registry.PackageManifest{
-			registry.PackageManifest{
+			{
 				PackageName: mainPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
 				},
 				DefaultChannelName: stableChannel,
 			},
-			registry.PackageManifest{
+			{
 				PackageName: dependentPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					registry.PackageChannel{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
+					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
 				},
 				DefaultChannelName: stableChannel,
 			},
@@ -543,10 +546,14 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
-			registry.ResourceKey{Name: mainCRDName, Kind: "CustomResourceDefinition"}:                  {},
-			registry.ResourceKey{Name: dependentCRDName, Kind: "CustomResourceDefinition"}:             {},
-			registry.ResourceKey{Name: dependentPackageBeta, Kind: v1alpha1.ClusterServiceVersionKind}: {},
-			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:    {},
+			registry.ResourceKey{Name: mainCRDName, Kind: "CustomResourceDefinition"}:                                {},
+			registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", mainCRDName, "v1alpha1"), Kind: "ClusterRole"}:      {},
+			registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", mainCRDName, "v1alpha1"), Kind: "ClusterRole"}:      {},
+			registry.ResourceKey{Name: dependentCRDName, Kind: "CustomResourceDefinition"}:                           {},
+			registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", dependentCRDName, "v1alpha1"), Kind: "ClusterRole"}: {},
+			registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", dependentCRDName, "v1alpha1"), Kind: "ClusterRole"}: {},
+			registry.ResourceKey{Name: dependentPackageBeta, Kind: v1alpha1.ClusterServiceVersionKind}:               {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                  {},
 		}
 
 		// Create the preexisting CRD and CSV
@@ -605,18 +612,18 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create manifests
 		mainManifests := []registry.PackageManifest{
-			registry.PackageManifest{
+			{
 				PackageName: mainPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
 				},
 				DefaultChannelName: stableChannel,
 			},
-			registry.PackageManifest{
+			{
 				PackageName: dependentPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					registry.PackageChannel{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
+					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
 				},
 				DefaultChannelName: stableChannel,
 			},
@@ -740,18 +747,18 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create manifests
 		mainManifests := []registry.PackageManifest{
-			registry.PackageManifest{
+			{
 				PackageName: mainPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
 				},
 				DefaultChannelName: stableChannel,
 			},
-			registry.PackageManifest{
+			{
 				PackageName: dependentPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					registry.PackageChannel{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
+					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
 				},
 				DefaultChannelName: stableChannel,
 			},
@@ -820,10 +827,14 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Ensure that the desired resources have been created
 		expectedSteps := map[registry.ResourceKey]struct{}{
-			registry.ResourceKey{Name: mainCRDName, Kind: "CustomResourceDefinition"}:                    {},
-			registry.ResourceKey{Name: dependentCRDName, Kind: "CustomResourceDefinition"}:               {},
-			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
-			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:      {},
+			registry.ResourceKey{Name: mainCRDName, Kind: "CustomResourceDefinition"}:                                {},
+			registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", mainCRDName, "v1alpha1"), Kind: "ClusterRole"}:      {},
+			registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", mainCRDName, "v1alpha1"), Kind: "ClusterRole"}:      {},
+			registry.ResourceKey{Name: dependentCRDName, Kind: "CustomResourceDefinition"}:                           {},
+			registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", dependentCRDName, "v1alpha1"), Kind: "ClusterRole"}: {},
+			registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", dependentCRDName, "v1alpha1"), Kind: "ClusterRole"}: {},
+			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:             {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                  {},
 		}
 
 		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan))
@@ -853,33 +864,37 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		csvStepResource, err := v1alpha1.NewStepResourceFromCSV(&mainBetaCSV)
 		require.NoError(t, err)
 
-		crdStepResource, err := v1alpha1.NewStepResourceFromCRD(&mainCRD)
+		crdStepResources, err := v1alpha1.NewStepResourcesFromCRD(&mainCRD)
 		require.NoError(t, err)
 
 		dependentCSVStepResource, err := v1alpha1.NewStepResourceFromCSV(&dependentStableCSV)
 		require.NoError(t, err)
 
-		dependentCRDStepResource, err := v1alpha1.NewStepResourceFromCRD(&dependentCRD)
+		dependentCRDStepResources, err := v1alpha1.NewStepResourcesFromCRD(&dependentCRD)
 		require.NoError(t, err)
 
-		updated.Status.Plan = []v1alpha1.Step{
-			{
-				Resource: dependentCRDStepResource,
-				Status:   v1alpha1.StepStatusPresent,
-			},
-			{
-				Resource: crdStepResource,
-				Status:   v1alpha1.StepStatusPresent,
-			},
-			{
-				Resource: dependentCSVStepResource,
-				Status:   v1alpha1.StepStatusPresent,
-			},
+		updated.Status.Plan = []v1alpha1.Step{{
+			Resource: dependentCSVStepResource,
+			Status:   v1alpha1.StepStatusPresent,
+		},
 			{
 				Resource: csvStepResource,
 				Status:   v1alpha1.StepStatusNotPresent,
 			},
 		}
+		for _, step := range dependentCRDStepResources {
+			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+				Resource: step,
+				Status:   v1alpha1.StepStatusPresent,
+			})
+		}
+		for _, step := range crdStepResources {
+			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+				Resource: step,
+				Status:   v1alpha1.StepStatusPresent,
+			})
+		}
+
 		updated.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		updated, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(updated)
 		require.NoError(t, err)
@@ -914,18 +929,18 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create manifests
 		mainManifests := []registry.PackageManifest{
-			registry.PackageManifest{
+			{
 				PackageName: mainPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+					{Name: stableChannel, CurrentCSVName: mainPackageStable},
 				},
 				DefaultChannelName: stableChannel,
 			},
-			registry.PackageManifest{
+			{
 				PackageName: dependentPackageName,
 				Channels: []registry.PackageChannel{
-					registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					registry.PackageChannel{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
+					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
 				},
 				DefaultChannelName: stableChannel,
 			},
@@ -1004,24 +1019,16 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		csvStepResource, err := v1alpha1.NewStepResourceFromCSV(&mainStableCSV)
 		require.NoError(t, err)
 
-		crdStepResource, err := v1alpha1.NewStepResourceFromCRD(&mainCRD)
+		crdStepResources, err := v1alpha1.NewStepResourcesFromCRD(&mainCRD)
 		require.NoError(t, err)
 
 		dependentCSVStepResource, err := v1alpha1.NewStepResourceFromCSV(&dependentStableCSV)
 		require.NoError(t, err)
 
-		dependentCRDStepResource, err := v1alpha1.NewStepResourceFromCRD(&dependentCRD)
+		dependentCRDStepResources, err := v1alpha1.NewStepResourcesFromCRD(&dependentCRD)
 		require.NoError(t, err)
 
 		updated.Status.Plan = []v1alpha1.Step{
-			{
-				Resource: dependentCRDStepResource,
-				Status:   v1alpha1.StepStatusUnknown,
-			},
-			{
-				Resource: crdStepResource,
-				Status:   v1alpha1.StepStatusUnknown,
-			},
 			{
 				Resource: dependentCSVStepResource,
 				Status:   v1alpha1.StepStatusUnknown,
@@ -1031,6 +1038,20 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 				Status:   v1alpha1.StepStatusUnknown,
 			},
 		}
+
+		for _, step := range dependentCRDStepResources {
+			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+				Resource: step,
+				Status:   v1alpha1.StepStatusUnknown,
+			})
+		}
+		for _, step := range crdStepResources {
+			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+				Resource: step,
+				Status:   v1alpha1.StepStatusUnknown,
+			})
+		}
+
 		updated, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(updated)
 		require.NoError(t, err)
 

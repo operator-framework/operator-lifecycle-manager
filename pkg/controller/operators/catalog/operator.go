@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"sync"
 	"time"
 
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,8 +29,9 @@ import (
 )
 
 const (
-	crdKind    = "CustomResourceDefinition"
-	secretKind = "Secret"
+	crdKind         = "CustomResourceDefinition"
+	secretKind      = "Secret"
+	clusterRoleKind = "ClusterRole"
 )
 
 //for test stubbing and for ensuring standardization of timezones to UTC
@@ -464,7 +467,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 			case v1alpha1.ClusterServiceVersionKind:
-				// Marshal the manifest into a CRD instance.
+				// Marshal the manifest into a CSV instance.
 				var csv v1alpha1.ClusterServiceVersion
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &csv)
 				if err != nil {
@@ -525,6 +528,26 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				} else {
 					// If no error occured, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
+			case clusterRoleKind:
+				// Marshal the manifest into a ClusterRole instance.
+				var cr rbacv1.ClusterRole
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &cr)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the ClusterRole.
+				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If no error occurred, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 

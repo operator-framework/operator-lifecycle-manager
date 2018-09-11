@@ -127,7 +127,7 @@ local appr = utils.appr;
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
             helm.templateApply("olm", _vars.chart, _vars.namespace, _vars.params) +
-            k8s.waitForDeployment("alm-operator", _vars.namespace) +
+            k8s.waitForDeployment("olm-operator", _vars.namespace) +
             k8s.waitForDeployment("catalog-operator", _vars.namespace) +
             k8s.waitForDeployment("package-server", _vars.namespace),
     } + job_tags,

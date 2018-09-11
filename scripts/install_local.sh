@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Note: run from root
+# Note: run from root dir
 
 set -e
 
@@ -14,36 +14,16 @@ fi
 namespace=$1
 chart=$2
 
-# create alm NS
+# create OLM NS
 kubectl create ns ${namespace} || { echo 'ns exists'; }
 
-# create alm
+# create OLM
 for f in ${chart}/*.yaml
 do
 	kubectl replace --force -f ${f}
 done
 
-# wait for deployments to be ready (loop can be removed when rollout status -w actually works)
-n=0
-until [ $n -ge 5 ]
-do
-  kubectl rollout status -w deployment/alm-operator --namespace=${namespace} && break
-  n=$[$n+1]
-  sleep 1
-done
-
-n=0
-until [ $n -ge 5 ]
-do
-  kubectl rollout status -w deployment/catalog-operator --namespace=${namespace} && break
-  n=$[$n+1]
-  sleep 1
-done
-
-n=0
-until [ $n -ge 5 ]
-do
-  kubectl rollout status -w deployment/package-server --namespace=${namespace} && break
-  n=$[$n+1]
-  sleep 1
-done
+# wait for deployments to be ready
+kubectl rollout status -w deployment/olm-operator --namespace=${namespace}
+kubectl rollout status -w deployment/catalog-operator --namespace=${namespace}
+kubectl rollout status -w deployment/package-server --namespace=${namespace}
