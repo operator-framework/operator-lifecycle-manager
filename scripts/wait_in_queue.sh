@@ -17,7 +17,7 @@ gitlab_pipeline_id="$2"
 function is_head {
     ids="$(curl -s $gitlab_project_url | jq -c '.pipelines | map(.id) | sort')"
     length="$(echo $ids | jq -c 'length')"
-    if [[ length -gt 0 ]] && [[ "$gitlab_pipeline_id" -ne "$(echo $ids | jq -c '.[0]')" ]]; then
+    if [[ length -gt 1 ]] && [[ "$gitlab_pipeline_id" -ne "$(echo $ids | jq -c '.[0]')" ]]; then
         return 1
     fi
     echo "at head of pipeline queue. exiting"
