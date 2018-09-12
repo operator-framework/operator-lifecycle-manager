@@ -1,0 +1,32 @@
+kind: CustomResourceDefinition
+apiVersion: apiextensions.k8s.io/v1beta1
+metadata:
+  name: mongodbstandalones.mongodb.com
+spec:
+  group: mongodb.com
+  version: v1
+  names:
+    plural: mongodbstandalones
+    singular: mongodbstandalone
+    shortNames:
+      - mst
+    kind: MongoDbStandalone
+    listKind: MongoDbStandaloneList
+  scope: Namespaced
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          required:
+            - credentials
+            - project
+            - version
+          properties:
+            spec:
+              properties:
+                credentials:
+                  type: string
+                project:
+                  type: string
+                version:
+                  type: string
