@@ -163,6 +163,51 @@ func TestAnnotateNamespace(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
+			fromCluster, err := fakeKubernetesClient.CoreV1().Namespaces().Get(namespace.Name, metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, tt.out, fromCluster.Annotations)
+		})
+	}
+}
+
+func TestCleanNamespaceAnnotation(t *testing.T) {
+	tests := []struct {
+		in          map[string]string
+		annotations map[string]string
+		out         map[string]string
+		errString   string
+		description string
+	}{
+		{
+			in:          map[string]string{"my": "annotation", "another": "annotation"},
+			annotations: map[string]string{"my": "annotation"},
+			out:         map[string]string{"another": "annotation"},
+			description: "CleanAnnotation",
+		},
+		{
+			in:          map[string]string{"my": "already-set"},
+			annotations: map[string]string{"my": "annotation"},
+			errString:   "attempted to clean annotation my:annotation from namespace ns, but found unexpected annotation my:already-set",
+			description: "AlreadyAnnotated",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			namespace := namespaceObj("ns", tt.in)
+			mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, []corev1.Namespace{namespace})
+			if tt.errString == "" {
+				mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
+			}
+			annotator := NewAnnotator(mockClient, tt.annotations)
+			err := annotator.CleanNamespaceAnnotation(&namespace)
+			if tt.errString != "" {
+				require.EqualError(t, err, tt.errString)
+				return
+			}
+			require.NoError(t, err)
 			// hack because patch on the kubernetes fake doesn't seem to work
 			fakeKubernetesClient.CoreV1().Namespaces().Update(&namespace)
 			fromCluster, err := fakeKubernetesClient.CoreV1().Namespaces().Get(namespace.Name, metav1.GetOptions{})
@@ -216,6 +261,62 @@ func TestAnnotateNamespaces(t *testing.T) {
 
 			annotator := NewAnnotator(mockClient, tt.inAnnotations)
 			err := annotator.AnnotateNamespaces(tt.inNamespaces)
+
+			if tt.errString != "" {
+				require.EqualError(t, err, tt.errString)
+				return
+			}
+			require.NoError(t, err)
+			for _, namespaceName := range tt.inNamespaces {
+				fromCluster, err := fakeKubernetesClient.CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
+				require.NoError(t, err)
+				for _, expected := range tt.outNamespaces {
+					if expected.Name == fromCluster.Name {
+						require.Equal(t, expected.Annotations, fromCluster.Annotations)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestCleanNamespaceAnnotations(t *testing.T) {
+	tests := []struct {
+		inNamespaces       []string
+		inAnnotations      map[string]string
+		outNamespaces      []corev1.Namespace
+		existingNamespaces []corev1.Namespace
+		errString          string
+		description        string
+	}{
+		{
+			inNamespaces:       []string{"ns1"},
+			inAnnotations:      map[string]string{"my": "annotation"},
+			existingNamespaces: []corev1.Namespace{namespaceObj("ns1", map[string]string{"my": "annotation", "existing": "note"})},
+			outNamespaces:      []corev1.Namespace{namespaceObj("ns1", map[string]string{"existing": "note"})},
+			description:        "CleanAnnotation",
+		},
+		{
+			inNamespaces:       []string{"ns1"},
+			inAnnotations:      map[string]string{"my": "annotation"},
+			existingNamespaces: []corev1.Namespace{namespaceObj("ns1", map[string]string{"my": "already-set"})},
+			errString:          "attempted to clean annotation my:annotation from namespace ns1, but found unexpected annotation my:already-set",
+			description:        "AlreadyAnnotated",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mockClient, fakeKubernetesClient := NewMockNamespaceClient(ctrl, tt.existingNamespaces)
+			mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
+			if tt.errString == "" {
+				mockClient.EXPECT().KubernetesInterface().Return(fakeKubernetesClient)
+			}
+
+			annotator := NewAnnotator(mockClient, tt.inAnnotations)
+			err := annotator.CleanNamespaceAnnotations(tt.inNamespaces)
 
 			if tt.errString != "" {
 				require.EqualError(t, err, tt.errString)

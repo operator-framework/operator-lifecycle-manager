@@ -24,7 +24,7 @@ func NewAnnotator(opClient operatorclient.ClientInterface, annotations map[strin
 	}
 }
 
-// AnnotateNamespaces takes a list of namespace names and a list of annotations to add to them
+// AnnotateNamespaces takes a list of namespace names and adds annotations to them
 func (a *Annotator) AnnotateNamespaces(namespaceNames []string) error {
 	if a.Annotations == nil {
 		return nil
@@ -37,6 +37,26 @@ func (a *Annotator) AnnotateNamespaces(namespaceNames []string) error {
 
 	for _, n := range namespaces {
 		if err := a.AnnotateNamespace(&n); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// CleanNamespaceAnnotations takes a list of namespace names and removes annotations from them
+func (a *Annotator) CleanNamespaceAnnotations(namespaceNames []string) error {
+	if a.Annotations == nil {
+		return nil
+	}
+
+	namespaces, err := a.getNamespaces(namespaceNames)
+	if err != nil {
+		return err
+	}
+
+	for _, n := range namespaces {
+		if err := a.CleanNamespaceAnnotation(&n); err != nil {
 			return err
 		}
 	}
@@ -91,6 +111,49 @@ func (a *Annotator) AnnotateNamespace(namespace *corev1.Namespace) error {
 	if err != nil {
 		return fmt.Errorf("error creating patch for Namespace: %v", err)
 	}
+	_, err = a.OpClient.KubernetesInterface().CoreV1().Namespaces().Patch(originalName, types.StrategicMergePatchType, patchBytes)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *Annotator) CleanNamespaceAnnotation(namespace *corev1.Namespace) error {
+	originalName := namespace.GetName()
+	originalData, err := json.Marshal(namespace)
+	if err != nil {
+		return err
+	}
+
+	if namespace.Annotations == nil {
+		namespace.Annotations = map[string]string{}
+	}
+
+	annotations := map[string]string{}
+	for k, v := range namespace.Annotations {
+		annotations[k] = v
+	}
+
+	for key, value := range a.Annotations {
+		if existing, ok := namespace.Annotations[key]; ok && existing != value {
+			return fmt.Errorf("attempted to clean annotation %s:%s from namespace %s, but found unexpected annotation %s:%s", key, value, namespace.Name, key, existing)
+		} else if !ok {
+			// no namespace key to remove
+			return nil
+		}
+		delete(annotations, key)
+	}
+	namespace.SetAnnotations(annotations)
+
+	modifiedData, err := json.Marshal(namespace)
+	if err != nil {
+		return err
+	}
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, corev1.Namespace{})
+	if err != nil {
+		return fmt.Errorf("error creating patch for Namespace: %v", err)
+	}
+	fmt.Println(string(patchBytes))
 	_, err = a.OpClient.KubernetesInterface().CoreV1().Namespaces().Patch(originalName, types.StrategicMergePatchType, patchBytes)
 	if err != nil {
 		return err
