@@ -32,10 +32,11 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue  workqueue.RateLimitingInterface
-	client    versioned.Interface
-	resolver  install.StrategyResolverInterface
-	annotator *annotator.Annotator
+	csvQueue    workqueue.RateLimitingInterface
+	client      versioned.Interface
+	resolver    install.StrategyResolverInterface
+	annotator   *annotator.Annotator
+	cleanupFunc func()
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
@@ -57,6 +58,9 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		client:    crClient,
 		resolver:  resolver,
 		annotator: namespaceAnnotator,
+		cleanupFunc: func() {
+			namespaceAnnotator.CleanNamespaceAnnotations(namespaces)
+		},
 	}
 
 	// if watching all namespaces, set up a watch to annotate new namespaces
@@ -122,6 +126,10 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.RegisterQueueInformer(informer)
 	}
 	return op, nil
+}
+
+func (a *Operator) Cleanup() {
+	a.cleanupFunc()
 }
 
 func (a *Operator) requeueCSV(name, namespace string) {

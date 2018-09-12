@@ -103,6 +103,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())
 	}
+	defer operator.Cleanup()
 
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
