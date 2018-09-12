@@ -275,6 +275,7 @@ stages:
 - docker_base
 - docker_build
 - deploy_preview
+- wait_in_queue
 - test_setup
 - tests
 - test_teardown
@@ -329,6 +330,6 @@ wait-in-queue:
   image: quay.io/coreos/alm-e2e
   script:
   - . ${CI_PROJECT_DIR}/scripts/wait_in_queue.sh $CI_PROJECT_URL $CI_PIPELINE_ID
-  stage: test_setup
+  stage: wait_in_queue
   tags:
   - kubernetes
