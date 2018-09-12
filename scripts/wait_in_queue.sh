@@ -14,7 +14,7 @@ gitlab_project_url="${1}/pipelines.json/?scope=running"
 gitlab_pipeline_id="$2"
 # gitlab_api_token="$3"
 
-function isHead {
+function is_head {
     ids="$(curl -s $gitlab_project_url | jq -c '.pipelines | map(.id) | sort')"
     length="$(echo $ids | jq -c 'length')"
     if [[ length -gt 0 ]] && [[ "$gitlab_pipeline_id" -ne "$(echo $ids | jq -c '.[0]')" ]]; then
@@ -25,7 +25,7 @@ function isHead {
 
 # wait until the current pipeline is at the 
 # head of the queue before exiting
-while ! isHead ; do
+while ! is_head ; do
     echo "waiting in pipeline queue..."
     sleep 5
 done
