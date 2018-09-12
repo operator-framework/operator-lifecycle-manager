@@ -9,6 +9,7 @@ local stages_list = [
     'docker_base',
     'docker_build',
     'deploy_preview',
+    'wait_in_queue',
     'test_setup',
     'tests',
     'test_teardown',
@@ -74,6 +75,10 @@ local jobs = {
 
     } + onlyMaster,
 
+    'wait-in-queue': baseJob.WaitInQueue {
+        stage: stages.wait_in_queue,
+    },
+    
     // Unit-tests
     local unittest_stage = baseJob.AlmTest {
         stage: stages.tests,
@@ -88,6 +93,7 @@ local jobs = {
             "make coverage",
         ],
     },
+
 
     'e2e-setup': baseJob.Deploy {
         local _vars = self.localvars,
