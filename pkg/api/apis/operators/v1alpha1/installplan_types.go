@@ -254,6 +254,37 @@ func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]StepResou
 	return []StepResource{crdStep, aggregatedEditClusterRoleStep, aggregatedViewClusterRoleStep}, nil
 }
 
+// NewStepResourceForObject returns a new StepResource for the provided object
+func NewStepResourceFromObject(obj runtime.Object, name string) (StepResource, error) {
+	var resource StepResource
+
+	// set up object serializer
+	serScheme := runtime.NewScheme()
+	k8sscheme.AddToScheme(serScheme)
+	scheme.AddToScheme(serScheme)
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, serScheme, serScheme, true)
+
+	// create an object manifest
+	var manifest bytes.Buffer
+	err := serializer.Encode(obj, &manifest)
+	if err != nil {
+		return resource, err
+	}
+
+	gvk := obj.GetObjectKind().GroupVersionKind()
+
+	// create the resource
+	resource = StepResource{
+		Name:     name,
+		Kind:     gvk.Kind,
+		Group:    gvk.Group,
+		Version:  gvk.Version,
+		Manifest: manifest.String(),
+	}
+
+	return resource, nil
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type InstallPlan struct {
