@@ -23,7 +23,7 @@ type NamedInstallStrategy struct {
 	StrategySpecRaw json.RawMessage `json:"spec,omitempty"`
 }
 
-// StatusDescriptor describes a field in a status block of a CRD so that ALM can consume it
+// StatusDescriptor describes a field in a status block of a CRD so that OLM can consume it
 type StatusDescriptor struct {
 	Path         string           `json:"path"`
 	DisplayName  string           `json:"displayName,omitempty"`
@@ -32,7 +32,7 @@ type StatusDescriptor struct {
 	Value        *json.RawMessage `json:"value,omitempty"`
 }
 
-// SpecDescriptor describes a field in a spec block of a CRD so that ALM can consume it
+// SpecDescriptor describes a field in a spec block of a CRD so that OLM can consume it
 type SpecDescriptor struct {
 	Path         string           `json:"path"`
 	DisplayName  string           `json:"displayName,omitempty"`
@@ -50,21 +50,34 @@ type ActionDescriptor struct {
 	Value        *json.RawMessage `json:"value,omitempty"`
 }
 
-// CRDDescription provides details to ALM about the CRDs
+// CRDDescription provides details to OLM about the CRDs
 type CRDDescription struct {
 	Name              string                 `json:"name"`
 	Version           string                 `json:"version"`
 	Kind              string                 `json:"kind"`
 	DisplayName       string                 `json:"displayName,omitempty"`
 	Description       string                 `json:"description,omitempty"`
-	Resources         []CRDResourceReference `json:"resources,omitempty"`
+	Resources         []APIResourceReference `json:"resources,omitempty"`
 	StatusDescriptors []StatusDescriptor     `json:"statusDescriptors,omitempty"`
 	SpecDescriptors   []SpecDescriptor       `json:"specDescriptors,omitempty"`
 	ActionDescriptor  []ActionDescriptor     `json:"actionDescriptors,omitempty"`
 }
 
-// CRDResourceReference is a Kubernetes resource type used by a custom resource
-type CRDResourceReference struct {
+// APIServiceDescription provides details to OLM about apis provided via aggregation
+type APIServiceDescription struct {
+	Name              string                 `json:"name"`
+	Version           string                 `json:"version"`
+	Kind              string                 `json:"kind"`
+	DisplayName       string                 `json:"displayName,omitempty"`
+	Description       string                 `json:"description,omitempty"`
+	Resources         []APIResourceReference `json:"resources,omitempty"`
+	StatusDescriptors []StatusDescriptor     `json:"statusDescriptors,omitempty"`
+	SpecDescriptors   []SpecDescriptor       `json:"specDescriptors,omitempty"`
+	ActionDescriptor  []ActionDescriptor     `json:"actionDescriptors,omitempty"`
+}
+
+// APIResourceReference is a Kubernetes resource type used by a custom resource
+type APIResourceReference struct {
 	Name    string `json:"name"`
 	Kind    string `json:"kind"`
 	Version string `json:"version"`
@@ -79,13 +92,21 @@ type CustomResourceDefinitions struct {
 	Required []CRDDescription `json:"required,omitempty"`
 }
 
-// ClusterServiceVersionSpec declarations tell the ALM how to install an operator
+// APIServiceDefinitions declares all of the extension apis managed or required by
+// an operator being ran by ClusterServiceVersion.
+type APIServiceDefinitions struct {
+	Owned    []APIServiceDescription `json:"owned,omitempty"`
+	Required []APIServiceDescription `json:"required,omitempty"`
+}
+
+// ClusterServiceVersionSpec declarations tell the OLM how to install an operator
 // that can manage apps for given version and AppType.
 type ClusterServiceVersionSpec struct {
 	InstallStrategy           NamedInstallStrategy      `json:"install"`
 	Version                   semver.Version            `json:"version,omitempty"`
 	Maturity                  string                    `json:"maturity,omitempty"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
+	APIServiceDefinitions     APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`
 	DisplayName               string                    `json:"displayName"`
 	Description               string                    `json:"description,omitempty"`
 	Keywords                  []string                  `json:"keywords,omitempty"`
@@ -276,6 +297,35 @@ func (csv ClusterServiceVersion) GetAllCRDDescriptions() []CRDDescription {
 	sort.StringSlice(keys).Sort()
 
 	descs := make([]CRDDescription, 0)
+	for _, key := range keys {
+		descs = append(descs, set[key])
+	}
+
+	return descs
+}
+
+// GetAllAPIServiceDescriptions returns a deduplicated set of CRDDescriptions that is
+// the union of the owned and required CRDDescriptions.
+//
+// Descriptions with the same name prefer the value in Owned.
+// Descriptions are returned in alphabetical order.
+func (csv ClusterServiceVersion) GetAllAPIServiceDescriptions() []APIServiceDescription {
+	set := make(map[string]APIServiceDescription)
+	for _, required := range csv.Spec.APIServiceDefinitions.Required {
+		set[required.Name] = required
+	}
+
+	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
+		set[owned.Name] = owned
+	}
+
+	keys := make([]string, 0)
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.StringSlice(keys).Sort()
+
+	descs := make([]APIServiceDescription, 0)
 	for _, key := range keys {
 		descs = append(descs, set[key])
 	}
