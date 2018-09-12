@@ -30,6 +30,14 @@ local appr = utils.appr;
         image: vars.images.ci.alm.name,
     } + job_tags,
 
+    WaitInQueue: {
+        image: vars.images.e2e.repo,
+        script:
+            [
+                ". ${CI_PROJECT_DIR}/scripts/wait_in_queue.sh $CI_PROJECT_URL $CI_PIPELINE_ID",
+            ],
+    } + job_tags,
+
 
     EndToEndTest: {
         local _vars = self.localvars,

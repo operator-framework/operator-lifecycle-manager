@@ -325,3 +325,10 @@ unit-tests:
 variables:
   FAILFASTCI_NAMESPACE: operator-framework
   GET_SOURCES_ATTEMPTS: '10'
+wait-in-queue:
+  image: quay.io/coreos/alm-e2e
+  script:
+  - . ${CI_PROJECT_DIR}/scripts/wait_in_queue.sh $CI_PROJECT_URL $CI_PIPELINE_ID
+  stage: test_setup
+  tags:
+  - kubernetes

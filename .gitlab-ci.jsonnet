@@ -89,6 +89,10 @@ local jobs = {
         ],
     },
 
+    'wait-in-queue': baseJob.WaitInQueue {
+        stage: stages.test_setup,
+    },
+
     'e2e-setup': baseJob.Deploy {
         local _vars = self.localvars,
         localvars+:: {
@@ -106,7 +110,7 @@ local jobs = {
         },
         stage: stages.test_teardown,
     },
-
+    
     // End2End tests
     local integration_test = baseJob.EndToEndTest {
         stage: stages.tests,
