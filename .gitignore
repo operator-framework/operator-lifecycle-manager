@@ -188,7 +188,7 @@ x86/
 bld/
 [Bb]in/
 [Oo]bj/
-[Ll]og/
+# [Ll]og/ TODO: Remove this rule
 
 # Visual Studio 2015 cache/options directory
 .vs/
@@ -458,5 +458,5 @@ __pycache__/
 # project-specific
 *.bak
 **/resources/*
-build
-apiserver.local.config
+/build
+/apiserver.local.config
