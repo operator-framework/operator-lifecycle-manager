@@ -21,6 +21,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
@@ -73,6 +74,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 			op.annotateNamespace,
 			nil,
 			"namespace",
+			metrics.NewMetricsNil(),
 		)
 		op.RegisterQueueInformer(queueInformer)
 	}
@@ -100,6 +102,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.syncClusterServiceVersion,
 		nil,
 		"csv",
+		metrics.NewMetricsCSV(op.Operator.OpClient),
 	)
 	for _, informer := range queueInformers {
 		op.RegisterQueueInformer(informer)
@@ -121,6 +124,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.syncDeployment,
 		nil,
 		"deployment",
+		metrics.NewMetricsNil(),
 	)
 	for _, informer := range depQueueInformers {
 		op.RegisterQueueInformer(informer)
@@ -345,6 +349,7 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
 		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
 		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
+		metrics.CSVUpgradeCount.Inc()
 
 		return fmt.Errorf("replacing")
 	}

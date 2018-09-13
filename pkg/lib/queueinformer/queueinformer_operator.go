@@ -123,6 +123,9 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 		return true
 	}
 	queue.Forget(key)
+	if err := loop.HandleMetrics(); err != nil {
+		log.Error(err)
+	}
 	return true
 }
 
@@ -133,7 +136,6 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 	if err != nil {
 		return err
 	}
-
 	if !exists {
 		// For now, we ignore the case where an object used to exist but no longer does
 		logger.Info("couldn't get from queue")

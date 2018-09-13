@@ -9,6 +9,7 @@ import (
 	"time"
 
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -102,6 +103,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncCatalogSources,
 		nil,
 		"catsrc",
+		metrics.NewMetricsCatalogSource(op.Operator.OpClient),
 	)
 	for _, informer := range catsrcQueueInformer {
 		op.RegisterQueueInformer(informer)
@@ -115,6 +117,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncInstallPlans,
 		nil,
 		"installplan",
+		metrics.NewMetricsInstallPlan(op.Operator.OpClient),
 	)
 	for _, informer := range ipQueueInformers {
 		op.RegisterQueueInformer(informer)
@@ -128,6 +131,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncSubscriptions,
 		nil,
 		"subscription",
+		metrics.NewMetricsSubscription(op.Operator.OpClient),
 	)
 	op.subQueue = subscriptionQueue
 	for _, informer := range subscriptionQueueInformers {

@@ -15,6 +15,7 @@ import (
 
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	packagev1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
 )
 
@@ -56,6 +57,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 		prov.syncCatalogSource,
 		nil,
 		"catsrc",
+		metrics.NewMetricsNil(),
 	)
 	for _, informer := range queueInformers {
 		prov.RegisterQueueInformer(informer)
