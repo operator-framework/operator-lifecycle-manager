@@ -1,15 +1,20 @@
 package resolver
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
-	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	log "github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/stretchr/testify/require"
 )
@@ -21,9 +26,10 @@ const (
 
 func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 	type csvNames struct {
-		name     string
-		owned    []string
-		required []string
+		name            string
+		owned           []string
+		required        []string
+		installStrategy v1alpha1.NamedInstallStrategy
 	}
 	var table = []struct {
 		description     string
@@ -33,13 +39,13 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		expectedErr     error
 		expectedPlanLen int
 	}{
-		{"MissingCSV", "name", []csvNames{{"", nil, nil}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
-		{"MissingCSVByName", "name", []csvNames{{"missingName", nil, nil}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
-		{"FoundCSV", "name", []csvNames{{"name", nil, nil}}, nil, nil, 1},
-		{"CSVWithMissingOwnedCRD", "name", []csvNames{{"name", []string{"missingCRD"}, nil}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"CSVWithMissingRequiredCRD", "name", []csvNames{{"name", nil, []string{"missingCRD"}}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 4},
-		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}}, {"crdOwner", []string{"CRD"}, nil}}, []string{"CRD"}, nil, 5},
+		{"MissingCSV", "name", []csvNames{{"", nil, nil, installStrategy("deployment", nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"MissingCSVByName", "name", []csvNames{{"missingName", nil, nil, installStrategy("deployment", nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"FoundCSV", "name", []csvNames{{"name", nil, nil, installStrategy("deployment", nil)}}, nil, nil, 1},
+		{"CSVWithMissingOwnedCRD", "name", []csvNames{{"name", []string{"missingCRD"}, nil, installStrategy("deployment", nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
+		{"CSVWithMissingRequiredCRD", "name", []csvNames{{"name", nil, []string{"missingCRD"}, installStrategy("deployment", nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
+		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil, installStrategy("deployment", nil)}}, []string{"CRD"}, nil, 4},
+		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}, installStrategy("deployment", nil)}, {"crdOwner", []string{"CRD"}, nil, installStrategy("deployment", nil)}}, []string{"CRD"}, nil, 5},
 	}
 
 	for _, tt := range table {
@@ -59,7 +65,7 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			}
 			for _, names := range tt.csv {
 				// We add unsafe so that we can test invalid states
-				src.AddOrReplaceService(csv(names.name, namespace, names.owned, names.required))
+				src.AddOrReplaceService(csv(names.name, namespace, names.owned, names.required, names.installStrategy))
 			}
 
 			srcKey := registry.ResourceKey{
@@ -112,10 +118,11 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		kind string
 	}
 	type csvName struct {
-		name     string
-		owned    []string
-		required []string
-		srcKey   registry.ResourceKey
+		name            string
+		owned           []string
+		required        []string
+		srcKey          registry.ResourceKey
+		installStrategy v1alpha1.NamedInstallStrategy
 	}
 	type crdName struct {
 		name   string
@@ -132,8 +139,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"SingleCRDSameCatalog",
 			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA},
-				{"crdOwner", []string{"CRD"}, nil, sourceA},
+				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil)},
+				{"crdOwner", []string{"CRD"}, nil, sourceA, installStrategy("deployment", nil)},
 			},
 			[]crdName{{"CRD", sourceA}},
 			[]registry.ResourceKey{sourceA},
@@ -149,8 +156,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"SingleCRDDifferentCatalog",
 			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA},
-				{"crdOwner", []string{"CRD"}, nil, sourceB},
+				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil)},
+				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil)},
 			},
 			[]crdName{{"CRD", sourceB}},
 			[]registry.ResourceKey{sourceA, sourceB},
@@ -166,8 +173,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"RequiredCRDNotInOwnersCatalog",
 			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA},
-				{"crdOwner", []string{"CRD"}, nil, sourceB},
+				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil)},
+				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil)},
 			},
 			[]crdName{{"CRD", sourceC}},
 			[]registry.ResourceKey{sourceA, sourceB, sourceC},
@@ -177,9 +184,9 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"MultipleTransitiveDependenciesInDifferentCatalogs",
 			[]csvName{
-				{"main", nil, []string{"CRD-0"}, sourceA},
-				{"crdOwner-0", []string{"CRD-0"}, []string{"CRD-1"}, sourceB},
-				{"crdOwner-1", []string{"CRD-1", "CRD-2"}, nil, sourceC},
+				{"main", nil, []string{"CRD-0"}, sourceA, installStrategy("deployment", nil)},
+				{"crdOwner-0", []string{"CRD-0"}, []string{"CRD-1"}, sourceB, installStrategy("deployment", nil)},
+				{"crdOwner-1", []string{"CRD-1", "CRD-2"}, nil, sourceC, installStrategy("deployment", nil)},
 			},
 			[]crdName{
 				{"CRD-0", sourceB},
@@ -227,7 +234,7 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 			for _, name := range tt.csvs {
 				// We add unsafe so that we can test invalid states
 				source := sources[name.srcKey]
-				source.AddOrReplaceService(csv(name.name, name.srcKey.Namespace, name.owned, name.required))
+				source.AddOrReplaceService(csv(name.name, name.srcKey.Namespace, name.owned, name.required, name.installStrategy))
 			}
 
 			// Generate an ordered list of source refs
@@ -274,9 +281,10 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 
 	type csvName struct {
-		name     string
-		owned    []string
-		required []string
+		name            string
+		owned           []string
+		required        []string
+		installStrategy v1alpha1.NamedInstallStrategy
 	}
 	var table = []struct {
 		description       string
@@ -294,10 +302,10 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			"default",
 			"macaroni-stable",
 			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}},
-				{"cheese-alpha", []string{"cheese"}, nil},
-				{"cheese-beta", []string{"cheese"}, nil},
-				{"cheese-stable", []string{"cheese"}, nil},
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil)},
+				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil)},
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
@@ -348,10 +356,10 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			"default",
 			"macaroni-stable",
 			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}},
-				{"cheese-alpha", []string{"cheese"}, nil},
-				{"cheese-beta", []string{"cheese"}, nil},
-				{"cheese-stable", []string{"cheese"}, nil},
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil)},
+				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil)},
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
@@ -404,10 +412,10 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			"default",
 			"macaroni-stable",
 			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}},
-				{"cheese-alpha", []string{"cheese"}, nil},
-				{"cheese-beta", []string{"cheese"}, nil},
-				{"cheese-stable", []string{"cheese"}, nil},
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil)},
+				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil)},
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
@@ -465,7 +473,7 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			}
 			for _, name := range tt.csvs {
 				// We add unsafe so that we can test invalid states
-				source.AddOrReplaceService(csv(name.name, tt.namespace, name.owned, name.required))
+				source.AddOrReplaceService(csv(name.name, tt.namespace, name.owned, name.required, name.installStrategy))
 			}
 
 			// Add all package manifests to the catalog
@@ -524,6 +532,189 @@ func TestMultiSourceResolveInstallPlan(t *testing.T) {
 
 }
 
+func TestResolveRBACStepResources(t *testing.T) {
+
+	type csvDescription struct {
+		name            string
+		installStrategy v1alpha1.NamedInstallStrategy
+	}
+	var tests = []struct {
+		description           string
+		csvDesc               csvDescription
+		expectedStepResources map[registry.ResourceKey]v1alpha1.StepResource
+		expectedErr           string
+	}{
+		{
+			description: "SingleSA",
+			csvDesc: csvDescription{
+				name: "plane",
+				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
+					install.StrategyDeploymentPermissions{
+						ServiceAccountName: "plane-sa",
+						Rules: []rbac.PolicyRule{
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"engine"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"tires"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"wings"},
+							},
+						},
+					},
+				}),
+			},
+			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
+				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:                       {},
+				registry.ResourceKey{Name: "plane-role-0", Kind: "Role"}:                             {},
+				registry.ResourceKey{Name: "plane-role-0-plane-sa-rolebinding", Kind: "RoleBinding"}: {},
+			},
+		},
+		{
+			description: "RepeatedSA",
+			csvDesc: csvDescription{
+				name: "plane",
+				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
+					install.StrategyDeploymentPermissions{
+						ServiceAccountName: "plane-sa",
+						Rules: []rbac.PolicyRule{
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"engine"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"tires"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"wings"},
+							},
+						},
+					},
+					install.StrategyDeploymentPermissions{
+						ServiceAccountName: "plane-sa",
+						Rules: []rbac.PolicyRule{
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"altimeter"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"fuelgauge"},
+							},
+						},
+					},
+				}),
+			},
+			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
+				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:                       {},
+				registry.ResourceKey{Name: "plane-role-0", Kind: "Role"}:                             {},
+				registry.ResourceKey{Name: "plane-role-0-plane-sa-rolebinding", Kind: "RoleBinding"}: {},
+				registry.ResourceKey{Name: "plane-role-1", Kind: "Role"}:                             {},
+				registry.ResourceKey{Name: "plane-role-1-plane-sa-rolebinding", Kind: "RoleBinding"}: {},
+			},
+		},
+		{
+			description: "TwoSA",
+			csvDesc: csvDescription{
+				name: "plane",
+				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
+					install.StrategyDeploymentPermissions{
+						ServiceAccountName: "plane-sa",
+						Rules: []rbac.PolicyRule{
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"engine"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"tires"},
+							},
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"planes.redhat.com"},
+								Resources: []string{"wings"},
+							},
+						},
+					},
+					install.StrategyDeploymentPermissions{
+						ServiceAccountName: "runway-sa",
+						Rules: []rbac.PolicyRule{
+							rbac.PolicyRule{
+								Verbs:     []string{rbac.VerbAll},
+								APIGroups: []string{"runways.redhat.com"},
+								Resources: []string{"tarmac"},
+							},
+						},
+					},
+				}),
+			},
+			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
+				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:                        {},
+				registry.ResourceKey{Name: "plane-role-0", Kind: "Role"}:                              {},
+				registry.ResourceKey{Name: "plane-role-0-plane-sa-rolebinding", Kind: "RoleBinding"}:  {},
+				registry.ResourceKey{Name: "runway-sa", Kind: "ServiceAccount"}:                       {},
+				registry.ResourceKey{Name: "plane-role-1", Kind: "Role"}:                              {},
+				registry.ResourceKey{Name: "plane-role-1-runway-sa-rolebinding", Kind: "RoleBinding"}: {},
+			},
+		},
+		{
+			description: "ResolveRBACRepeatedSA",
+			csvDesc: csvDescription{
+				name:            "plane",
+				installStrategy: v1alpha1.NamedInstallStrategy{},
+			},
+			expectedErr: "unrecognized install strategy",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			c := csv(tt.csvDesc.name, "", nil, nil, tt.csvDesc.installStrategy)
+
+			stepResources, err := resolveRBACStepResources(&c)
+			if tt.expectedErr == "" {
+				require.NoError(t, err)
+			} else {
+				require.Equal(t, tt.expectedErr, err.Error())
+			}
+
+			for _, stepResource := range stepResources {
+				t.Logf("StepResource resolved: %+v", stepResource)
+
+				key := registry.ResourceKey{
+					Name: stepResource.Name,
+					Kind: stepResource.Kind,
+				}
+
+				_, ok := tt.expectedStepResources[key]
+				require.True(t, ok, "unexpected step resource found: %+v", stepResource)
+
+				// Remove expected resource
+				delete(tt.expectedStepResources, key)
+			}
+
+			require.Zero(t, len(tt.expectedStepResources), "not all expected resources resolved")
+
+		})
+	}
+}
+
 func installPlan(namespace string, names ...string) v1alpha1.InstallPlan {
 	return v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace},
@@ -536,7 +727,7 @@ func installPlan(namespace string, names ...string) v1alpha1.InstallPlan {
 	}
 }
 
-func csv(name, namespace string, owned, required []string) v1alpha1.ClusterServiceVersion {
+func csv(name, namespace string, owned, required []string, installStrategy v1alpha1.NamedInstallStrategy) v1alpha1.ClusterServiceVersion {
 	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range required {
 		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
@@ -560,6 +751,7 @@ func csv(name, namespace string, owned, required []string) v1alpha1.ClusterServi
 				Owned:    ownedCRDDescs,
 				Required: requiredCRDDescs,
 			},
+			InstallStrategy: installStrategy,
 		},
 	}
 }
@@ -580,5 +772,54 @@ func crd(name, namespace string) v1beta1.CustomResourceDefinition {
 				Kind: name,
 			},
 		},
+	}
+}
+
+func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+	var singleInstance = int32(1)
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: deploymentName,
+				Spec: appsv1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": deploymentName,
+						},
+					},
+					Replicas: &singleInstance,
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								"app": deploymentName,
+							},
+						},
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  deploymentName + "-c1",
+									Image: "nginx:1.7.9",
+									Ports: []v1.ContainerPort{
+										{
+											ContainerPort: 80,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Permissions: permissions,
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	if err != nil {
+		panic(err)
+	}
+
+	return v1alpha1.NamedInstallStrategy{
+		StrategyName:    install.InstallStrategyNameDeployment,
+		StrategySpecRaw: strategyRaw,
 	}
 }

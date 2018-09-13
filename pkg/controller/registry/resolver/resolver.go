@@ -3,12 +3,17 @@ package resolver
 import (
 	"fmt"
 
-	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 // DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
@@ -83,7 +88,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		// Resolve each owned or required CRD for the CSV.
 		for _, crdDesc := range csv.GetAllCRDDescriptions() {
 			// Attempt to get CRD from same catalog source CSV was found in
-			crdSteps, owner, err := resolver.resolveCRDDescription(sourceRefs, existingCRDOwners, catalogLabelKey, planNamespace, crdDesc, csv.OwnsCRD(crdDesc.Name))
+			crdSteps, owner, err := resolveCRDDescription(sourceRefs, existingCRDOwners, catalogLabelKey, planNamespace, crdDesc, csv.OwnsCRD(crdDesc.Name))
 			if err != nil {
 				return nil, nil, err
 			}
@@ -119,6 +124,13 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		step.CatalogSource = csvSourceKey.Name
 		step.CatalogSourceNamespace = csvSourceKey.Namespace
 
+		// Add RBAC StepResources
+		rbacSteps, err := resolveRBACStepResources(csv)
+		if err != nil {
+			return nil, nil, err
+		}
+		steps[currentName] = append(steps[currentName], rbacSteps...)
+
 		// Add the final step for the CSV to the plan.
 		log.Infof("finished step: %s", step.Name)
 		steps[currentName] = append(steps[currentName], step)
@@ -127,7 +139,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 	return steps, usedSourceKeys, nil
 }
 
-func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey, planNamespace string, crdDesc v1alpha1.CRDDescription, owned bool) ([]v1alpha1.StepResource, string, error) {
+func resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey, planNamespace string, crdDesc v1alpha1.CRDDescription, owned bool) ([]v1alpha1.StepResource, string, error) {
 	log.Debugf("resolving %#v", crdDesc)
 	var steps []v1alpha1.StepResource
 
@@ -216,6 +228,88 @@ func (resolver *MultiSourceResolver) resolveCRDDescription(sourceRefs []registry
 
 	log.Infof("Found %v owner %s", crdKey, ownerName)
 	return nil, ownerName, nil
+}
+
+// resolveRBACStepResources returns a list of step resources required to satisfy the RBAC requirements of the given CSV's InstallStrategy
+func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.StepResource, error) {
+	var rbacSteps []v1alpha1.StepResource
+
+	// User a StrategyResolver to
+	strategyResolver := install.StrategyResolver{}
+	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	if err != nil {
+		return nil, err
+	}
+
+	// Assume the strategy is for a deployment
+	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	if !ok {
+		return nil, fmt.Errorf("could not assert strategy implementation as deployment for CSV %s", csv.GetName())
+	}
+
+	// Track created ServiceAccount StepResources
+	serviceaccounts := map[string]struct{}{}
+
+	// Resolve Permissions as StepResources
+	for i, permission := range strategyDetailsDeployment.Permissions {
+		// Create Role
+		role := &rbac.Role{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Role",
+			},
+			Rules: permission.Rules,
+		}
+		ownerutil.AddNonBlockingOwner(role, csv)
+		role.SetName(fmt.Sprintf("%s-role-%d", csv.GetName(), i))
+		step, err := v1alpha1.NewStepResourceFromObject(role, role.GetName())
+		if err != nil {
+			return nil, err
+		}
+		rbacSteps = append(rbacSteps, step)
+
+		if _, ok := serviceaccounts[permission.ServiceAccountName]; !ok {
+			// Create ServiceAccount
+			serviceAccount := &corev1.ServiceAccount{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "ServiceAccount",
+				},
+			}
+			serviceAccount.SetName(permission.ServiceAccountName)
+			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
+			step, err = v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+
+			// Mark that a StepResource has been resolved for this ServiceAccount
+			serviceaccounts[permission.ServiceAccountName] = struct{}{}
+		}
+
+		// Create RoleBinding
+		roleBinding := &rbac.RoleBinding{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "RoleBinding",
+			},
+			RoleRef: rbac.RoleRef{
+				Kind:     "Role",
+				Name:     role.GetName(),
+				APIGroup: rbac.GroupName},
+			Subjects: []rbac.Subject{{
+				Kind: "ServiceAccount",
+				Name: permission.ServiceAccountName,
+			}},
+		}
+		ownerutil.AddNonBlockingOwner(roleBinding, csv)
+		roleBinding.SetName(fmt.Sprintf("%s-%s-rolebinding", role.GetName(), permission.ServiceAccountName))
+		step, err = v1alpha1.NewStepResourceFromObject(roleBinding, roleBinding.GetName())
+		if err != nil {
+			return nil, err
+		}
+		rbacSteps = append(rbacSteps, step)
+	}
+
+	return rbacSteps, nil
 }
 
 type stepResourceMap map[string][]v1alpha1.StepResource
