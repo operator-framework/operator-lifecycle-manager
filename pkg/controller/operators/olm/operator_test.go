@@ -2,6 +2,8 @@ package olm
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -56,9 +59,50 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 	return true, nil
 }
 
+func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
+	apis := []*metav1.APIResourceList{}
+	for _, o := range objs {
+		switch o.(type) {
+		case *v1beta1.CustomResourceDefinition:
+			crd := o.(*v1beta1.CustomResourceDefinition)
+			apis = append(apis, &metav1.APIResourceList{
+				GroupVersion: metav1.GroupVersion{Group: crd.Spec.Group, Version: crd.Spec.Versions[0].Name}.String(),
+				APIResources: []metav1.APIResource{
+					{
+						Name:         crd.GetName(),
+						SingularName: crd.Spec.Names.Singular,
+						Namespaced:   crd.Spec.Scope == v1beta1.NamespaceScoped,
+						Group:        crd.Spec.Group,
+						Version:      crd.Spec.Versions[0].Name,
+						Kind:         crd.Spec.Names.Kind,
+					},
+				},
+			})
+		case *apiregistrationv1.APIService:
+			a := o.(*apiregistrationv1.APIService)
+			names := strings.Split(a.Name, ".")
+			apis = append(apis, &metav1.APIResourceList{
+				GroupVersion: metav1.GroupVersion{Group: names[1], Version: a.Spec.Version}.String(),
+				APIResources: []metav1.APIResource{
+					{
+						Name:    names[1],
+						Group:   names[1],
+						Version: a.Spec.Version,
+						Kind:    names[1] + "Kind",
+					},
+				},
+			})
+		}
+	}
+	log.Info(apis)
+	return apis
+}
+
 func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespace string) (*Operator, error) {
 	clientFake := fake.NewSimpleClientset(clientObjs...)
-	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
+	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
+	k8sClientFake.Resources = apiResourcesForObjects(append(extObjs, regObjs...))
+	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
 	annotations := map[string]string{"test": "annotation"}
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 	if err != nil {
@@ -168,12 +212,12 @@ func installStrategy(deploymentName string) v1alpha1.NamedInstallStrategy {
 func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstallStrategy, owned, required []*v1beta1.CustomResourceDefinition, phase v1alpha1.ClusterServiceVersionPhase) *v1alpha1.ClusterServiceVersion {
 	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, crd := range required {
-		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.GetName()})
+		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.Spec.Names.Kind})
 	}
 
 	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, crd := range owned {
-		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.GetName()})
+		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.Spec.Names.Kind})
 	}
 
 	return &v1alpha1.ClusterServiceVersion{
@@ -199,10 +243,50 @@ func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstall
 	}
 }
 
+func withAPIServices(csv *v1alpha1.ClusterServiceVersion, owned, required []v1alpha1.APIServiceDescription) *v1alpha1.ClusterServiceVersion {
+	csv.Spec.APIServiceDefinitions = v1alpha1.APIServiceDefinitions{
+		Owned:    owned,
+		Required: required,
+	}
+	return csv
+}
+
+func apis(apis ...string) []v1alpha1.APIServiceDescription {
+	descs := []v1alpha1.APIServiceDescription{}
+	for _, av := range apis {
+		split := strings.Split(av, ".")
+		descs = append(descs, v1alpha1.APIServiceDescription{
+			Name:    split[0],
+			Version: split[1],
+			Kind:    split[2],
+		})
+	}
+	return descs
+}
+
+func apiService(name, version string, availableStatus apiregistrationv1.ConditionStatus) *apiregistrationv1.APIService {
+	return &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("%s.%s", version, name),
+		},
+		Spec: apiregistrationv1.APIServiceSpec{
+			Version: version,
+		},
+		Status: apiregistrationv1.APIServiceStatus{
+			Conditions: []apiregistrationv1.APIServiceCondition{
+				{
+					Type:   apiregistrationv1.Available,
+					Status: availableStatus,
+				},
+			},
+		},
+	}
+}
+
 func crd(name string, version string) *v1beta1.CustomResourceDefinition {
 	return &v1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: name + "group",
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
 			Group: name + "group",
@@ -244,7 +328,7 @@ func TestTransitionCSV(t *testing.T) {
 		expected expected
 	}{
 		{
-			name: "SingleCSVNoneToPending",
+			name: "SingleCSVNoneToPending/CRD",
 			initial: initial{
 				csvs: []runtime.Object{
 					csv("csv1",
@@ -264,7 +348,27 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToPending",
+			name: "SingleCSVNoneToPending/APIService",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), nil, apis("a1.v1.a1Kind")),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToPending/CRD",
 			initial: initial{
 				csvs: []runtime.Object{
 					csv("csv1",
@@ -287,6 +391,78 @@ func TestTransitionCSV(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SingleCSVPendingToPending/APIService/Missing",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					), nil, apis("a1.v1.a1Kind")),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+				err: map[string]error{
+					"csv1": ErrRequirementsNotMet,
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToPending/APIService/Unavailable",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					), nil, apis("a1.v1.a1Kind")),
+				},
+				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionFalse)},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+				err: map[string]error{
+					"csv1": ErrRequirementsNotMet,
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToPending/APIService/Unknown",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					), nil, apis("a1.v1.a1Kind")),
+				},
+				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionUnknown)},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+				err: map[string]error{
+					"csv1": ErrRequirementsNotMet,
+				},
+			},
+		},
+
 		{
 			name: "CSVPendingToFailed/OwnerConflict",
 			initial: initial{
@@ -326,7 +502,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToInstallReady",
+			name: "SingleCSVPendingToInstallReady/CRD",
 			initial: initial{
 				csvs: []runtime.Object{
 					csv("csv1",
@@ -341,6 +517,27 @@ func TestTransitionCSV(t *testing.T) {
 				crds: []runtime.Object{
 					crd("c1", "v1"),
 				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseInstallReady},
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToInstallReady/APIService",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1"),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					), nil, apis("a1.v1.a1Kind")),
+				},
+				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionTrue)},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
