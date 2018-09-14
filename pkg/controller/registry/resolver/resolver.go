@@ -8,6 +8,7 @@ import (
 	rbac "k8s.io/api/rbac/v1beta1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
@@ -107,6 +108,9 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		// which is for the CSV itself.
 		csv.SetNamespace(planNamespace)
 
+		// Generate a UUID and set UID of CSV to allow for use in OwnerReferences
+		csv.SetUID(uuid.NewUUID())
+
 		// Add the sourcename as a label on the CSV, so that we know where it came from
 		labels := csv.GetLabels()
 		if labels == nil {
@@ -114,6 +118,13 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		}
 		labels[catalogLabelKey] = csvSourceKey.Name
 		csv.SetLabels(labels)
+
+		// Add RBAC StepResources
+		rbacSteps, err := resolveRBACStepResources(csv)
+		if err != nil {
+			return nil, nil, err
+		}
+		steps[currentName] = append(steps[currentName], rbacSteps...)
 
 		step, err := v1alpha1.NewStepResourceFromCSV(csv)
 		if err != nil {
@@ -127,13 +138,6 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		// Add the final step for the CSV to the plan.
 		log.Infof("finished step: %s", step.Name)
 		steps[currentName] = append(steps[currentName], step)
-
-		// Add RBAC StepResources
-		rbacSteps, err := resolveRBACStepResources(csv)
-		if err != nil {
-			return nil, nil, err
-		}
-		steps[currentName] = append(steps[currentName], rbacSteps...)
 	}
 
 	return steps, usedSourceKeys, nil

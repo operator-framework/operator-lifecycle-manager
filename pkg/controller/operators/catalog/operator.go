@@ -566,12 +566,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
-				// Update the OwnerReference UID of all owning CSVs
-				r.ObjectMeta.OwnerReferences, err = o.updateCSVOwnerReferenceUIDs(plan.Namespace, r.ObjectMeta.OwnerReferences)
-				if err != nil {
-					return err
-				}
-
 				// Attempt to create the Role.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
 				if k8serrors.IsAlreadyExists(err) {
@@ -592,12 +586,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
-				// Update the OwnerReference UID of all owning CSVs
-				rb.ObjectMeta.OwnerReferences, err = o.updateCSVOwnerReferenceUIDs(plan.Namespace, rb.ObjectMeta.OwnerReferences)
-				if err != nil {
-					return err
-				}
-
 				// Attempt to create the RoleBinding.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
@@ -614,12 +602,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Marshal the manifest into a Role instance.
 				var sa corev1.ServiceAccount
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &sa)
-				if err != nil {
-					return err
-				}
-
-				// Update the OwnerReference UID of all owning CSVs
-				sa.ObjectMeta.OwnerReferences, err = o.updateCSVOwnerReferenceUIDs(plan.Namespace, sa.ObjectMeta.OwnerReferences)
 				if err != nil {
 					return err
 				}
@@ -655,26 +637,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	return nil
-}
-
-func (o *Operator) updateCSVOwnerReferenceUIDs(namespace string, ownerRefs []metav1.OwnerReference) ([]metav1.OwnerReference, error) {
-	out := make([]metav1.OwnerReference, len(ownerRefs))
-	for i, ownerRef := range ownerRefs {
-		// Check for CSV OwnerReference with empty UID
-		if ownerRef.Kind == v1alpha1.ClusterServiceVersionKind && ownerRef.UID == "" {
-			// Get the CSV and update the OwnerReference's UID
-			csv, err := o.client.Operators().ClusterServiceVersions(namespace).Get(ownerRef.Name, metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			ownerRef.UID = csv.GetUID()
-		}
-
-		// Copy OwnerReference
-		out[i] = ownerRef
-	}
-
-	return out, nil
 }
 
 func (o *Operator) getSourcesSnapshot(plan *v1alpha1.InstallPlan, includedNamespaces map[string]struct{}) []registry.SourceRef {
