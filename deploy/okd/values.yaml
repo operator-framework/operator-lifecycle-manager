@@ -1,6 +1,6 @@
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: kube-system
-catalog_namespace: kube-system
+namespace: operator-lifecycle-manager
+catalog_namespace: operator-lifecycle-manager
 alm:
   replicaCount: 1
   image:
