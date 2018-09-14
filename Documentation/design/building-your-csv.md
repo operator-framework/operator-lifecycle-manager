@@ -51,11 +51,28 @@ Your CRDs will own one or more types of Kubernetes objects. These are listed in 
 
 It’s recommended to only list out the objects that are important to a human, not an exhaustive list of everything you orchestrate. For example, ConfigMaps that store internal state that shouldn’t be modified by a user shouldn’t appear here.
 
-**SpecDescriptors**:
+**SpecDescriptors, StatusDescriptors, and ActionDescriptors**:
+These are a way to hint UIs with certain inputs or outputs of your Operator that are most important to an end user. If your CRD contains the name of a Secret or ConfigMap that the user must provide, you can specify that here. These items will be linked and highlighted in compatible UIs.
 
-These are a way to hint UIs with certain inputs or outputs of your Operator that are most important to an end users. If your CRD contains the name of a Secret or ConfigMap that the user must provide, you can specify that here. These items will be linked to and highlighted in compatible UIs. The description allows for you to explain how this is used by the Operator.
+There are three types of descriptors:
 
-todo(?): list out the options
+***SpecDescriptors***: A reference to fields in the `spec` block of an object.
+
+***StatusDescriptors***: A reference to fields in the `status` block of an object.
+
+***ActionDescriptors***: A reference to actions that can be performed on an object.
+
+All Descriptors accept the following fields:
+
+**DisplayName**: A human readable name for the Spec, Status, or Action.
+
+**Description**: A short description of the Spec, Status, or Action and how it is used by the Operator.
+
+**Path**: A dot-delimited path of the field on the object that this descriptor describes.
+
+**X-Descriptors**: Used to determine which "capabilities" this descriptor has and which UI component to use. A canonical list of React UI X-Descriptors for OpenShift can be found [here](https://github.com/openshift/console/blob/master/frontend/public/components/operator-lifecycle-manager/descriptors/types.ts#L5-L26).
+
+More information on Descriptors can be found [here](https://github.com/openshift/console/tree/master/frontend/public/components/operator-lifecycle-manager/descriptors).
 
 Below is an example of a MongoDB “standalone” CRD that requires some user input in the form of a Secret and ConfigMap, and orchestrates Services, StatefulSets, Pods and ConfigMaps.
 
@@ -93,6 +110,12 @@ Below is an example of a MongoDB “standalone” CRD that requires some user in
             path: version
             x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:label'
+        statusDescriptors:
+          - description: The status of each of the Pods for the MongoDB cluster.
+            displayName: Pod Status
+            path: pods
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
         version: v1
         description: >-
           MongoDB Deployment consisting of only one host. No replication of
