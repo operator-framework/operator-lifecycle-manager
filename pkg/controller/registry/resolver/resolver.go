@@ -124,16 +124,16 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		step.CatalogSource = csvSourceKey.Name
 		step.CatalogSourceNamespace = csvSourceKey.Namespace
 
+		// Add the final step for the CSV to the plan.
+		log.Infof("finished step: %s", step.Name)
+		steps[currentName] = append(steps[currentName], step)
+
 		// Add RBAC StepResources
 		rbacSteps, err := resolveRBACStepResources(csv)
 		if err != nil {
 			return nil, nil, err
 		}
 		steps[currentName] = append(steps[currentName], rbacSteps...)
-
-		// Add the final step for the CSV to the plan.
-		log.Infof("finished step: %s", step.Name)
-		steps[currentName] = append(steps[currentName], step)
 	}
 
 	return steps, usedSourceKeys, nil
@@ -252,6 +252,25 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 
 	// Resolve Permissions as StepResources
 	for i, permission := range strategyDetailsDeployment.Permissions {
+		// Create ServiceAccount if necessary
+		if _, ok := serviceaccounts[permission.ServiceAccountName]; !ok {
+			serviceAccount := &corev1.ServiceAccount{
+				TypeMeta: metav1.TypeMeta{
+					Kind: "ServiceAccount",
+				},
+			}
+			serviceAccount.SetName(permission.ServiceAccountName)
+			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
+			step, err := v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+
+			// Mark that a StepResource has been resolved for this ServiceAccount
+			serviceaccounts[permission.ServiceAccountName] = struct{}{}
+		}
+
 		// Create Role
 		role := &rbac.Role{
 			TypeMeta: metav1.TypeMeta{
@@ -266,25 +285,6 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 			return nil, err
 		}
 		rbacSteps = append(rbacSteps, step)
-
-		if _, ok := serviceaccounts[permission.ServiceAccountName]; !ok {
-			// Create ServiceAccount
-			serviceAccount := &corev1.ServiceAccount{
-				TypeMeta: metav1.TypeMeta{
-					Kind: "ServiceAccount",
-				},
-			}
-			serviceAccount.SetName(permission.ServiceAccountName)
-			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
-			step, err = v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
-			if err != nil {
-				return nil, err
-			}
-			rbacSteps = append(rbacSteps, step)
-
-			// Mark that a StepResource has been resolved for this ServiceAccount
-			serviceaccounts[permission.ServiceAccountName] = struct{}{}
-		}
 
 		// Create RoleBinding
 		roleBinding := &rbac.RoleBinding{

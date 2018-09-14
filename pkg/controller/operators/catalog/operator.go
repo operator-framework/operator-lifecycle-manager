@@ -11,7 +11,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,9 +30,12 @@ import (
 )
 
 const (
-	crdKind         = "CustomResourceDefinition"
-	secretKind      = "Secret"
-	clusterRoleKind = "ClusterRole"
+	crdKind            = "CustomResourceDefinition"
+	secretKind         = "Secret"
+	clusterRoleKind    = "ClusterRole"
+	serviceAccountKind = "ServiceAccount"
+	roleKind           = "Role"
+	roleBindingKind    = "RoleBinding"
 )
 
 //for test stubbing and for ensuring standardization of timezones to UTC
@@ -517,7 +520,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Set the namespace to the InstallPlan's namespace and attempt to
 				// create a new secret.
 				secret.Namespace = plan.Namespace
-				_, err = o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(&v1.Secret{
+				_, err = o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.Name,
 						Namespace: plan.Namespace,
@@ -555,6 +558,84 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 
+			case roleKind:
+				// Marshal the manifest into a Role instance.
+				var r rbacv1.Role
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &r)
+				if err != nil {
+					return err
+				}
+
+				// Update the OwnerReference UID of all owning CSVs
+				r.ObjectMeta.OwnerReferences, err = o.updateCSVOwnerReferenceUIDs(plan.Namespace, r.ObjectMeta.OwnerReferences)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the Role.
+				_, err = o.OpClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If no error occurred, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
+			case roleBindingKind:
+				// Marshal the manifest into a RoleBinding instance.
+				var rb rbacv1.RoleBinding
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &rb)
+				if err != nil {
+					return err
+				}
+
+				// Update the OwnerReference UID of all owning CSVs
+				rb.ObjectMeta.OwnerReferences, err = o.updateCSVOwnerReferenceUIDs(plan.Namespace, rb.ObjectMeta.OwnerReferences)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the RoleBinding.
+				_, err = o.OpClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If no error occurred, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
+			case serviceAccountKind:
+				// Marshal the manifest into a Role instance.
+				var sa corev1.ServiceAccount
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &sa)
+				if err != nil {
+					return err
+				}
+
+				// Update the OwnerReference UID of all owning CSVs
+				sa.ObjectMeta.OwnerReferences, err = o.updateCSVOwnerReferenceUIDs(plan.Namespace, sa.ObjectMeta.OwnerReferences)
+				if err != nil {
+					return err
+				}
+
+				// Attempt to create the Role.
+				_, err = o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If no error occurred, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+
 			default:
 				return v1alpha1.ErrInvalidInstallPlan
 			}
@@ -574,6 +655,26 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	}
 
 	return nil
+}
+
+func (o *Operator) updateCSVOwnerReferenceUIDs(namespace string, ownerRefs []metav1.OwnerReference) ([]metav1.OwnerReference, error) {
+	out := make([]metav1.OwnerReference, len(ownerRefs))
+	for i, ownerRef := range ownerRefs {
+		// Check for CSV OwnerReference with empty UID
+		if ownerRef.Kind == v1alpha1.ClusterServiceVersionKind && ownerRef.UID == "" {
+			// Get the CSV and update the OwnerReference's UID
+			csv, err := o.client.Operators().ClusterServiceVersions(namespace).Get(ownerRef.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			ownerRef.UID = csv.GetUID()
+		}
+
+		// Copy OwnerReference
+		out[i] = ownerRef
+	}
+
+	return out, nil
 }
 
 func (o *Operator) getSourcesSnapshot(plan *v1alpha1.InstallPlan, includedNamespaces map[string]struct{}) []registry.SourceRef {
