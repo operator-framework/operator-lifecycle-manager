@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1beta1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -83,7 +84,7 @@ func fetchInstallPlan(t *testing.T, c versioned.Interface, name string, checkPha
 	return fetchedInstallPlan, err
 }
 
-func newNginxInstallStrategy(name string) v1alpha1.NamedInstallStrategy {
+func newNginxInstallStrategy(name string, permissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	// Create an nginx details deployment
 	details := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
@@ -109,6 +110,7 @@ func newNginxInstallStrategy(name string) v1alpha1.NamedInstallStrategy {
 				},
 			},
 		},
+		Permissions: permissions,
 	}
 	detailsRaw, _ := json.Marshal(details)
 	namedStrategy := v1alpha1.NamedInstallStrategy{
@@ -350,8 +352,8 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	stableChannel := "stable"
 
-	mainNamedStrategy := newNginxInstallStrategy("dep-")
-	dependentNamedStrategy := newNginxInstallStrategy("dep-")
+	mainNamedStrategy := newNginxInstallStrategy("dep-", nil)
+	dependentNamedStrategy := newNginxInstallStrategy("dep-", nil)
 
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
@@ -504,8 +506,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"))
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -635,8 +637,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"))
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -770,8 +772,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"))
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -837,7 +839,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                  {},
 		}
 
-		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan))
+		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
 
 		for _, step := range fetchedInstallPlan.Status.Plan {
 			key := registry.ResourceKey{
@@ -952,8 +954,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"))
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"))
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -1060,4 +1062,120 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("Install plan %s fetched with status %s", updated.GetName(), updated.Status.Phase)
 	})
+}
+
+// TestCreateInstallPlanWithPermissions creates an InstallPlan with a CSV containing a set of permissions to be resolved.
+func TestCreateInstallPlanWithPermissions(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	packageName := genName("nginx")
+	stableChannel := "stable"
+	stableCSVName := packageName + "-stable"
+
+	// Create manifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{
+					Name:           stableChannel,
+					CurrentCSVName: stableCSVName,
+				},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create new CRDs
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	crd := newCRD(crdName, testNamespace, crdPlural)
+
+	// Generate permissions
+	serviceAccountName := genName("nginx-sa")
+	permissions := []install.StrategyDeploymentPermissions{
+		install.StrategyDeploymentPermissions{
+			ServiceAccountName: serviceAccountName,
+			Rules: []rbac.PolicyRule{
+				rbac.PolicyRule{
+					Verbs:     []string{rbac.VerbAll},
+					APIGroups: []string{"cluster.com"},
+					Resources: []string{crdPlural},
+				},
+			},
+		},
+	}
+
+	// Create a new NamedInstallStrategy
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), permissions)
+
+	// Create new CSVs
+	stableCSV := newCSV(stableCSVName, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create CatalogSource
+	catalogSourceName := genName("nginx-catalog")
+	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{stableCSV})
+	require.NoError(t, err)
+	defer cleanupCatalogSource()
+
+	// Attempt to get CatalogSource
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+	require.NoError(t, err)
+
+	// Create InstallPlan
+	installPlanName := genName("install-nginx")
+	installPlan := v1alpha1.InstallPlan{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.InstallPlanKind,
+			APIVersion: v1alpha1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      installPlanName,
+			Namespace: testNamespace,
+		},
+		Spec: v1alpha1.InstallPlanSpec{
+			ClusterServiceVersionNames: []string{stableCSVName},
+			Approval:                   v1alpha1.ApprovalAutomatic,
+		},
+	}
+	cleanupInstallPlan, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, installPlan)
+	require.NoError(t, err)
+	defer cleanupInstallPlan()
+
+	// Attempt to get InstallPlan
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	require.NotEqual(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
+
+	// Expect correct RBAC resources to be resolved and created
+	expectedSteps := map[registry.ResourceKey]struct{}{
+		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                                                       {},
+		registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}:                             {},
+		registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}:                             {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterServiceVersion"}:                                                    {},
+		registry.ResourceKey{Name: serviceAccountName, Kind: "ServiceAccount"}:                                                      {},
+		registry.ResourceKey{Name: fmt.Sprintf("%s-role-0", stableCSVName), Kind: "Role"}:                                           {},
+		registry.ResourceKey{Name: fmt.Sprintf("%s-role-0-%s-rolebinding", stableCSVName, serviceAccountName), Kind: "RoleBinding"}: {},
+	}
+
+	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
+
+	for _, step := range fetchedInstallPlan.Status.Plan {
+		key := registry.ResourceKey{
+			Name: step.Resource.Name,
+			Kind: step.Resource.Kind,
+		}
+		_, ok := expectedSteps[key]
+		require.True(t, ok)
+
+		// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
+		delete(expectedSteps, key)
+	}
+
+	// Should have removed every matching step
+	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
+
 }
