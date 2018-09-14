@@ -14,6 +14,7 @@ import (
 	unstructured "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	labels "k8s.io/apimachinery/pkg/labels"
 	kubernetes "k8s.io/client-go/kubernetes"
+	clientset0 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	reflect "reflect"
 )
 
@@ -62,6 +63,18 @@ func (m *MockClientInterface) ApiextensionsV1beta1Interface() clientset.Interfac
 // ApiextensionsV1beta1Interface indicates an expected call of ApiextensionsV1beta1Interface
 func (mr *MockClientInterfaceMockRecorder) ApiextensionsV1beta1Interface() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApiextensionsV1beta1Interface", reflect.TypeOf((*MockClientInterface)(nil).ApiextensionsV1beta1Interface))
+}
+
+// ApiregistrationV1Interface mocks base method
+func (m *MockClientInterface) ApiregistrationV1Interface() clientset0.Interface {
+	ret := m.ctrl.Call(m, "ApiregistrationV1Interface")
+	ret0, _ := ret[0].(clientset0.Interface)
+	return ret0
+}
+
+// ApiregistrationV1Interface indicates an expected call of ApiregistrationV1Interface
+func (mr *MockClientInterfaceMockRecorder) ApiregistrationV1Interface() *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApiregistrationV1Interface", reflect.TypeOf((*MockClientInterface)(nil).ApiregistrationV1Interface))
 }
 
 // GetCustomResource mocks base method

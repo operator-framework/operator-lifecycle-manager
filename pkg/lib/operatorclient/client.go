@@ -12,11 +12,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	apiregistration "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
 
 type ClientInterface interface {
 	KubernetesInterface() kubernetes.Interface
 	ApiextensionsV1beta1Interface() apiextensions.Interface
+	ApiregistrationV1Interface() apiregistration.Interface
 	CustomResourceClient
 	ServiceAccountClient
 	RoleClient
@@ -85,6 +87,7 @@ var _ ClientInterface = &Client{}
 type Client struct {
 	kubernetes.Interface
 	extInterface apiextensions.Interface
+	regInterface apiregistration.Interface
 }
 
 // NewClient creates a kubernetes client or bails out on on failures.
@@ -104,12 +107,12 @@ func NewClientFromConfig(kubeconfig string) ClientInterface {
 		log.Fatalf("Cannot load config for REST client: %v", err)
 	}
 
-	return &Client{kubernetes.NewForConfigOrDie(config), apiextensions.NewForConfigOrDie(config)}
+	return &Client{kubernetes.NewForConfigOrDie(config), apiextensions.NewForConfigOrDie(config), apiregistration.NewForConfigOrDie(config)}
 }
 
 // NewClient creates a kubernetes client
-func NewClient(k8sClient kubernetes.Interface, extclient apiextensions.Interface) ClientInterface {
-	return &Client{k8sClient, extclient}
+func NewClient(k8sClient kubernetes.Interface, extclient apiextensions.Interface, regclient apiregistration.Interface) ClientInterface {
+	return &Client{k8sClient, extclient, regclient}
 }
 
 // KubernetesInterface returns the Kubernetes interface.
@@ -117,7 +120,12 @@ func (c *Client) KubernetesInterface() kubernetes.Interface {
 	return c.Interface
 }
 
-// ApiextensionsV1beta1Interface returns the API extention interface.
+// ApiextensionsV1beta1Interface returns the API extension interface.
 func (c *Client) ApiextensionsV1beta1Interface() apiextensions.Interface {
 	return c.extInterface
+}
+
+// ApiregistrationV1Interface returns the API registration (aggregated apiserver) interface
+func (c *Client) ApiregistrationV1Interface() apiregistration.Interface {
+	return c.regInterface
 }

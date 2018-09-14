@@ -12,11 +12,13 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
+	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -413,6 +415,16 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 			Kind:    "CustomResourceDefinition",
 			Name:    r.Name,
 		}
+
+		// check if GVK exists
+		if err := a.isGVKRegistered(r.Name, r.Version, r.Kind); err != nil {
+			status.Status = "NotPresent"
+			met = false
+			statuses = append(statuses, status)
+			continue
+		}
+
+		// check if CRD exists
 		crd, err := a.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(r.Name, metav1.GetOptions{})
 		if err != nil {
 			status.Status = "NotPresent"
@@ -423,7 +435,77 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 		}
 		statuses = append(statuses, status)
 	}
+	for _, r := range csv.GetAllAPIServiceDescriptions() {
+		apiName := fmt.Sprintf("%s.%s", r.Version, r.Name)
+		status := v1alpha1.RequirementStatus{
+			Group:   "apiregistration.k8s.io",
+			Version: "v1",
+			Kind:    "APIService",
+			Name:    apiName,
+		}
+
+		// check if GVK exists
+		if err := a.isGVKRegistered(r.Name, r.Version, r.Kind); err != nil {
+			status.Status = "NotPresent"
+			met = false
+			statuses = append(statuses, status)
+			continue
+		}
+
+		// Check if APIService is registered
+		apiService, err := a.OpClient.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiName, metav1.GetOptions{})
+		if err != nil {
+			status.Status = "NotPresent"
+			met = false
+			statuses = append(statuses, status)
+			continue
+		}
+
+		// Check if API is available
+		if !a.isAPIServiceAvailable(apiService) {
+			status.Status = "NotPresent"
+			met = false
+		} else {
+			status.Status = "Present"
+			status.UUID = string(apiService.GetUID())
+		}
+		statuses = append(statuses, status)
+	}
 	return
+}
+
+func (a *Operator) isGVKRegistered(group, version, kind string) error {
+	logger := log.WithFields(log.Fields{
+		"group":   group,
+		"version": version,
+		"kind":    kind,
+	})
+	groups, err := a.OpClient.KubernetesInterface().Discovery().ServerResources()
+	if err != nil {
+		logger.WithField("err", err).Info("couldn't query for GVK in api discovery")
+		return err
+	}
+	gv := metav1.GroupVersion{Group: group, Version: version}
+	for _, g := range groups {
+		if g.GroupVersion == gv.String() {
+			for _, r := range g.APIResources {
+				if r.Kind == kind {
+					return nil
+				}
+			}
+		}
+	}
+	logger.Info("couldn't find GVK in api discovery")
+	return olmErrors.GroupVersionKindNotFoundError{group, version, kind}
+}
+
+func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
+	for _, c := range apiService.Status.Conditions {
+		if c.Type == apiregistrationv1.Available && c.Status == apiregistrationv1.ConditionTrue {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {

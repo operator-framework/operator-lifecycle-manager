@@ -2,6 +2,7 @@ package olm
 
 import (
 	"encoding/json"
+
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -54,9 +56,9 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 	return true, nil
 }
 
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, resolver install.StrategyResolverInterface, namespace string) (*Operator, error) {
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespace string) (*Operator, error) {
 	clientFake := fake.NewSimpleClientset(clientObjs...)
-	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...))
+	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
 	annotations := map[string]string{"test": "annotation"}
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 	if err != nil {
@@ -230,6 +232,7 @@ func TestTransitionCSV(t *testing.T) {
 		csvs []runtime.Object
 		crds []runtime.Object
 		objs []runtime.Object
+		apis []runtime.Object
 	}
 	type expected struct {
 		csvStates map[string]csvState
@@ -695,7 +698,7 @@ func TestTransitionCSV(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, &install.StrategyResolver{}, namespace)
+			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespace)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV

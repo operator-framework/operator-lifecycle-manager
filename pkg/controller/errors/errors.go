@@ -30,3 +30,14 @@ func IsMultipleExistingCRDOwnersError(err error) bool {
 
 	return false
 }
+
+// GroupVersionKindNotFoundError occurs when we can't find an API via discovery
+type GroupVersionKindNotFoundError struct {
+	Group   string
+	Version string
+	Kind    string
+}
+
+func (g GroupVersionKindNotFoundError) Error() string {
+	return fmt.Sprintf("Unable to find GVK in discovery: %s %s %s", g.Group, g.Version, g.Kind)
+}
