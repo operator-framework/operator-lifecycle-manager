@@ -291,7 +291,7 @@ func cleanupOLM(t *testing.T, namespace string) {
 	c := newKubeClient(t)
 
 	// Cleanup non persistent OLM CRs
-	t.Log("Cleaning up any remaining non persistent resources...")
+	t.Log("cleaning up any remaining non persistent resources...")
 	deleteOptions := &metav1.DeleteOptions{GracePeriodSeconds: &immediate}
 	listOptions := metav1.ListOptions{}
 	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(deleteOptions, listOptions))
@@ -314,6 +314,13 @@ func buildConfigMapCleanupFunc(t *testing.T, c operatorclient.ClientInterface, n
 	return func() {
 		t.Logf("Deleting config map %s...", configMap.GetName())
 		require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(configMap.GetName(), &metav1.DeleteOptions{}))
+	}
+}
+
+func buildServiceAccountCleanupFunc(t *testing.T, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
+	return func() {
+		t.Logf("Deleting service account %s...", serviceAccount.GetName())
+		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(serviceAccount.GetName(), &metav1.DeleteOptions{}))
 	}
 }
 

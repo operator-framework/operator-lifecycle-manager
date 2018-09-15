@@ -64,6 +64,28 @@ func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	object.SetOwnerReferences(ownerRefs)
 }
 
+// AddOwner adds an owner to the ownerref list.
+func AddOwner(object metav1.Object, owner Owner, blockOwnerDeletion, isController bool) {
+	// Most of the time we won't have TypeMeta on the object, so we infer it for types we know about
+	inferGroupVersionKind(owner)
+
+	ownerRefs := object.GetOwnerReferences()
+	if ownerRefs == nil {
+		ownerRefs = []metav1.OwnerReference{}
+	}
+	gvk := owner.GroupVersionKind()
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
+	ownerRefs = append(ownerRefs, metav1.OwnerReference{
+		APIVersion:         apiVersion,
+		Kind:               kind,
+		Name:               owner.GetName(),
+		UID:                owner.GetUID(),
+		BlockOwnerDeletion: &blockOwnerDeletion,
+		Controller:         &isController,
+	})
+	object.SetOwnerReferences(ownerRefs)
+}
+
 // inferGroupVersionKind adds TypeMeta to an owner so that it can be written to an ownerref.
 // TypeMeta is generally only known at serialization time, so we often won't know what GVK an owner has.
 // For the types we know about, we can add the GVK of the apis that we're using the interact with the object.
