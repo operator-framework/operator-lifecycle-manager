@@ -4,8 +4,15 @@ OLM deployment resources are templated so that they can be easily configured for
 
 ## Install the latest released version of OLM for upstream Kubernetes
 
-```sh
-kubectl create -f deploy/upstream/manifests/0.6.0
+```bash
+kubectl create -f deploy/upstream/manifests/latest
+```
+
+## Install the latest release version of OLM for okd
+
+```bash
+oc create namespace operator-lifecycle-manager
+oc create -f deploy/okd/manifests/latest
 ```
 
 ## Install with Ansible for openshift

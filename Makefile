@@ -141,14 +141,23 @@ generate-mock-client: $(counterfeiter)
 
 gen-all: gen-ci codegen generate-mock-client codegen-openapi
 
-# must have already tagged a version release in github so that the docker images are available
-# make ver=0.3.0 release
+# before running release, bump the version in OLM_VERSION and push to master,
+# then tag those builds in quay with the version in OLM_VERSION
+release: ver=$(shell cat OLM_VERSION)
 release:
+	docker pull quay.io/coreos/olm:$(ver)
+	docker pull quay.io/coreos/catalog:$(ver)
+	$(MAKE) target=upstream ver=$(ver) package
+	$(MAKE) target=okd ver=$(ver) package
+
+package:
+ifndef target
+	$(error target is undefined)
+endif
 ifndef ver
 	$(error ver is undefined)
 endif
-	docker pull quay.io/coreos/olm:$(ver)
-	docker pull quay.io/coreos/catalog:$(ver)
-	yaml w -i deploy/upstream/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
-	yaml w -i deploy/upstream/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)`
-	./scripts/package-release.sh $(ver) deploy/upstream/manifests/$(ver) deploy/upstream/values.yaml
+	yaml w -i deploy/$(target)/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
+	yaml w -i deploy/$(target)/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)`
+	./scripts/package-release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
+	ln -sfF $(ver) deploy/$(target)/manifests/latest
