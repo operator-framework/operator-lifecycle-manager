@@ -22,8 +22,8 @@ import (
 func TestOwnerReferenceGCBehavior(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
-	ownerA := newCSV("ownera", testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("dep-"))
-	ownerB := newCSV("ownerb", testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("dep-"))
+	ownerA := newCSV("ownera", testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil))
+	ownerB := newCSV("ownerb", testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil))
 
 	// create all owners
 	c := newKubeClient(t)

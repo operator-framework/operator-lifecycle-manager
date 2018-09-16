@@ -558,6 +558,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 
+			// TODO: Update all kind=="ClusterServiceVersion" OwnerReference UIDs
 			case roleKind:
 				// Marshal the manifest into a Role instance.
 				var r rbacv1.Role
@@ -565,6 +566,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				if err != nil {
 					return err
 				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(r.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return err
+				}
+				r.OwnerReferences = updated
 
 				// Attempt to create the Role.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
@@ -586,6 +594,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(rb.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return err
+				}
+				rb.OwnerReferences = updated
+
 				// Attempt to create the RoleBinding.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
@@ -606,17 +621,30 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
-				// Attempt to create the Role.
-				_, err = o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(sa.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return err
+				}
+				sa.OwnerReferences = updated
+
+				// Attempt to create the ServiceAccount.
+				stored, err := o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
 				if k8serrors.IsAlreadyExists(err) {
-					// If it already existed, mark the step as Present.
+					// If it already exists we need to append the owning CSV to OwnerReferences if it isn't already present.
+					// TODO: Merge ServiceAccounts instead of appending
+					stored.OwnerReferences = append(stored.OwnerReferences, sa.OwnerReferences...)
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+					_, err = o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Update(stored)
+					if err != nil {
+						return err
+					}
 				} else if err != nil {
 					return err
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
+
+				// If no error occurred, mark the step as Created.
+				plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 
 			default:
 				return v1alpha1.ErrInvalidInstallPlan
@@ -682,6 +710,22 @@ func (o *Operator) getExistingCRDOwners(namespace string) (map[string][]string, 
 	}
 
 	return owners, nil
+}
+
+func (o *Operator) getUpdatedOwnerReferences(refs []metav1.OwnerReference, namespace string) ([]metav1.OwnerReference, error) {
+	updated := append([]metav1.OwnerReference(nil), refs...)
+
+	for i, owner := range refs {
+		if owner.Kind == v1alpha1.ClusterServiceVersionKind {
+			csv, err := o.client.Operators().ClusterServiceVersions(namespace).Get(owner.Name, metav1.GetOptions{})
+			if err != nil {
+				return nil, err
+			}
+			owner.UID = csv.GetUID()
+			updated[i] = owner
+		}
+	}
+	return updated, nil
 }
 
 // competingCRDOwnersExist returns true if there exists a CSV that owns at least one of the given CSVs owned CRDs (that's not the given CSV)
