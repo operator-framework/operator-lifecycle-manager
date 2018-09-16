@@ -8,11 +8,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
@@ -190,9 +188,6 @@ func NewStepResourceFromCSV(csv *ClusterServiceVersion) (StepResource, error) {
 
 // NewStepResourceFromCRD creates an unresolved Step for the provided CRD.
 func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]StepResource, error) {
-	serScheme := runtime.NewScheme()
-	k8sscheme.AddToScheme(serScheme)
-	scheme.AddToScheme(serScheme)
 	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, serScheme, serScheme, true)
 
 	var manifest bytes.Buffer
@@ -259,9 +254,6 @@ func NewStepResourceFromObject(obj runtime.Object, name string) (StepResource, e
 	var resource StepResource
 
 	// set up object serializer
-	serScheme := runtime.NewScheme()
-	k8sscheme.AddToScheme(serScheme)
-	scheme.AddToScheme(serScheme)
 	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, serScheme, serScheme, true)
 
 	// create an object manifest
