@@ -4,6 +4,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apiextensions "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -18,6 +19,8 @@ type ClientInterface interface {
 	ApiextensionsV1beta1Interface() apiextensions.Interface
 	CustomResourceClient
 	ServiceAccountClient
+	RoleClient
+	RoleBindingClient
 	DeploymentClient
 }
 
@@ -36,12 +39,28 @@ type CustomResourceClient interface {
 	ListCustomResource(apiGroup, version, namespace, resourceKind string) (*CustomResourceList, error)
 }
 
-// ServiceAccountClient contains methods for manipulating ServiceAccount.
+// ServiceAccountClient contains methods for manipulating ServiceAccounts.
 type ServiceAccountClient interface {
 	CreateServiceAccount(*v1.ServiceAccount) (*v1.ServiceAccount, error)
 	GetServiceAccount(namespace, name string) (*v1.ServiceAccount, error)
 	UpdateServiceAccount(modified *v1.ServiceAccount) (*v1.ServiceAccount, error)
 	DeleteServiceAccount(namespace, name string, options *metav1.DeleteOptions) error
+}
+
+// RoleClient contains methods for manipulating Roles.
+type RoleClient interface {
+	CreateRole(*rbacv1.Role) (*rbacv1.Role, error)
+	GetRole(namespace, name string) (*rbacv1.Role, error)
+	UpdateRole(modified *rbacv1.Role) (*rbacv1.Role, error)
+	DeleteRole(namespace, name string, options *metav1.DeleteOptions) error
+}
+
+// RoleBindingClient contains methods for manipulating RoleBindings.
+type RoleBindingClient interface {
+	CreateRoleBinding(*rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
+	GetRoleBinding(namespace, name string) (*rbacv1.RoleBinding, error)
+	UpdateRoleBinding(modified *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
+	DeleteRoleBinding(namespace, name string, options *metav1.DeleteOptions) error
 }
 
 // DeploymentClient contains methods for the Deployment resource.
