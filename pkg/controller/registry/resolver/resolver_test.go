@@ -572,9 +572,9 @@ func TestResolveRBACStepResources(t *testing.T) {
 				}),
 			},
 			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
-				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:                       {},
-				registry.ResourceKey{Name: "plane-role-0", Kind: "Role"}:                             {},
-				registry.ResourceKey{Name: "plane-role-0-plane-sa-rolebinding", Kind: "RoleBinding"}: {},
+				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:      {},
+				registry.ResourceKey{Name: "plane-0", Kind: "Role"}:                 {},
+				registry.ResourceKey{Name: "plane-0-plane-sa", Kind: "RoleBinding"}: {},
 			},
 		},
 		{
@@ -620,11 +620,11 @@ func TestResolveRBACStepResources(t *testing.T) {
 				}),
 			},
 			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
-				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:                       {},
-				registry.ResourceKey{Name: "plane-role-0", Kind: "Role"}:                             {},
-				registry.ResourceKey{Name: "plane-role-0-plane-sa-rolebinding", Kind: "RoleBinding"}: {},
-				registry.ResourceKey{Name: "plane-role-1", Kind: "Role"}:                             {},
-				registry.ResourceKey{Name: "plane-role-1-plane-sa-rolebinding", Kind: "RoleBinding"}: {},
+				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:      {},
+				registry.ResourceKey{Name: "plane-0", Kind: "Role"}:                 {},
+				registry.ResourceKey{Name: "plane-0-plane-sa", Kind: "RoleBinding"}: {},
+				registry.ResourceKey{Name: "plane-1", Kind: "Role"}:                 {},
+				registry.ResourceKey{Name: "plane-1-plane-sa", Kind: "RoleBinding"}: {},
 			},
 		},
 		{
@@ -665,12 +665,12 @@ func TestResolveRBACStepResources(t *testing.T) {
 				}),
 			},
 			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
-				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:                        {},
-				registry.ResourceKey{Name: "plane-role-0", Kind: "Role"}:                              {},
-				registry.ResourceKey{Name: "plane-role-0-plane-sa-rolebinding", Kind: "RoleBinding"}:  {},
-				registry.ResourceKey{Name: "runway-sa", Kind: "ServiceAccount"}:                       {},
-				registry.ResourceKey{Name: "plane-role-1", Kind: "Role"}:                              {},
-				registry.ResourceKey{Name: "plane-role-1-runway-sa-rolebinding", Kind: "RoleBinding"}: {},
+				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:       {},
+				registry.ResourceKey{Name: "plane-0", Kind: "Role"}:                  {},
+				registry.ResourceKey{Name: "plane-0-plane-sa", Kind: "RoleBinding"}:  {},
+				registry.ResourceKey{Name: "runway-sa", Kind: "ServiceAccount"}:      {},
+				registry.ResourceKey{Name: "plane-1", Kind: "Role"}:                  {},
+				registry.ResourceKey{Name: "plane-1-runway-sa", Kind: "RoleBinding"}: {},
 			},
 		},
 		{
@@ -695,7 +695,7 @@ func TestResolveRBACStepResources(t *testing.T) {
 			}
 
 			for _, stepResource := range stepResources {
-				t.Logf("StepResource resolved: %+v", stepResource)
+				t.Logf("StepResource resolved: %+v", stepResource.Name)
 
 				key := registry.ResourceKey{
 					Name: stepResource.Name,
@@ -703,7 +703,7 @@ func TestResolveRBACStepResources(t *testing.T) {
 				}
 
 				_, ok := tt.expectedStepResources[key]
-				require.True(t, ok, "unexpected step resource found: %+v", stepResource)
+				require.True(t, ok, "unexpected step resource found: %+v", stepResource.Name)
 
 				// Remove expected resource
 				delete(tt.expectedStepResources, key)

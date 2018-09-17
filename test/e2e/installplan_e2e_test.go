@@ -1152,13 +1152,13 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 
 	// Expect correct RBAC resources to be resolved and created
 	expectedSteps := map[registry.ResourceKey]struct{}{
-		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                                                       {},
-		registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}:                             {},
-		registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}:                             {},
-		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterServiceVersion"}:                                                    {},
-		registry.ResourceKey{Name: serviceAccountName, Kind: "ServiceAccount"}:                                                      {},
-		registry.ResourceKey{Name: fmt.Sprintf("%s-role-0", stableCSVName), Kind: "Role"}:                                           {},
-		registry.ResourceKey{Name: fmt.Sprintf("%s-role-0-%s-rolebinding", stableCSVName, serviceAccountName), Kind: "RoleBinding"}: {},
+		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                                      {},
+		registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}:            {},
+		registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}:            {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterServiceVersion"}:                                   {},
+		registry.ResourceKey{Name: serviceAccountName, Kind: "ServiceAccount"}:                                     {},
+		registry.ResourceKey{Name: fmt.Sprintf("%s-0", stableCSVName), Kind: "Role"}:                               {},
+		registry.ResourceKey{Name: fmt.Sprintf("%s-0-%s", stableCSVName, serviceAccountName), Kind: "RoleBinding"}: {},
 	}
 
 	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")

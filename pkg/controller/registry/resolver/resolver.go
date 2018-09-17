@@ -280,7 +280,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 			Rules: permission.Rules,
 		}
 		ownerutil.AddNonBlockingOwner(role, csv)
-		role.SetName(fmt.Sprintf("%s-role-%d", csv.GetName(), i))
+		role.SetName(fmt.Sprintf("%s-%d", csv.GetName(), i))
 		step, err := v1alpha1.NewStepResourceFromObject(role, role.GetName())
 		if err != nil {
 			return nil, err
@@ -302,7 +302,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 			}},
 		}
 		ownerutil.AddNonBlockingOwner(roleBinding, csv)
-		roleBinding.SetName(fmt.Sprintf("%s-%s-rolebinding", role.GetName(), permission.ServiceAccountName))
+		roleBinding.SetName(fmt.Sprintf("%s-%s", role.GetName(), permission.ServiceAccountName))
 		step, err = v1alpha1.NewStepResourceFromObject(roleBinding, roleBinding.GetName())
 		if err != nil {
 			return nil, err
