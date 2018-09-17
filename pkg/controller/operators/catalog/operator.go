@@ -578,6 +578,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				_, err = o.OpClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
+					r.SetNamespace(plan.Namespace)
+					_, err = o.OpClient.UpdateRole(&r)
+					if err != nil {
+						return err
+					}
+
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 				} else if err != nil {
 					return err
@@ -604,6 +610,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Attempt to create the RoleBinding.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
+					rb.SetNamespace(plan.Namespace)
+					_, err = o.OpClient.UpdateRoleBinding(&rb)
+					if err != nil {
+						return err
+					}
+
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 				} else if err != nil {
@@ -629,22 +641,23 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				sa.OwnerReferences = updated
 
 				// Attempt to create the ServiceAccount.
-				stored, err := o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
+				_, err = o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
 				if k8serrors.IsAlreadyExists(err) {
-					// If it already exists we need to append the owning CSV to OwnerReferences if it isn't already present.
-					// TODO: Merge ServiceAccounts instead of appending
-					stored.OwnerReferences = append(stored.OwnerReferences, sa.OwnerReferences...)
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-					_, err = o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Update(stored)
+					// If it already exists we need to patch the existing SA with the new OwnerReferences
+					sa.SetNamespace(plan.Namespace)
+					_, err = o.OpClient.UpdateServiceAccount(&sa)
 					if err != nil {
 						return err
 					}
+
+					// Mark as present
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 				} else if err != nil {
 					return err
+				} else {
+					// If no error occurred, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
-
-				// If no error occurred, mark the step as Created.
-				plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 
 			default:
 				return v1alpha1.ErrInvalidInstallPlan

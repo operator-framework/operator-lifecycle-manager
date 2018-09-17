@@ -57,6 +57,21 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 	}
 }
 
+// GetServiceAccountNames gets the set of ServiceAccount names in the given slice of StrategyDeploymentInstallers
+func GetServiceAccountNames(perms []StrategyDeploymentPermissions) ([]string, error) {
+	set := map[string]struct{}{}
+	names := []string{}
+	for _, perm := range perms {
+		name := perm.ServiceAccountName
+		if _, ok := set[name]; !ok {
+			names = append(names, name)
+		}
+		set[name] = struct{}{}
+	}
+
+	return names, nil
+}
+
 func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploymentPermissions) error {
 	for _, permission := range perms {
 		// create role
