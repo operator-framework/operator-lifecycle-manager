@@ -416,15 +416,7 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 			Name:    r.Name,
 		}
 
-		// check if GVK exists
-		if err := a.isGVKRegistered(r.Name, r.Version, r.Kind); err != nil {
-			status.Status = "NotPresent"
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		// check if CRD exists
+		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
 		crd, err := a.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(r.Name, metav1.GetOptions{})
 		if err != nil {
 			status.Status = "NotPresent"
