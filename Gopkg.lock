@@ -1086,6 +1086,25 @@
   revision = "4242d8e6c5dba56827bb7bcf14ad11cda38f3991"
 
 [[projects]]
+  branch = "release-1.11"
+  digest = "1:ffc4cac05cd728519f14d4cbc62970dab16929e5a168bde426f834f8f7ed47fd"
+  name = "k8s.io/kube-aggregator"
+  packages = [
+    "pkg/apis/apiregistration",
+    "pkg/apis/apiregistration/v1",
+    "pkg/apis/apiregistration/v1beta1",
+    "pkg/client/clientset_generated/clientset",
+    "pkg/client/clientset_generated/clientset/fake",
+    "pkg/client/clientset_generated/clientset/scheme",
+    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
+    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1/fake",
+    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1",
+    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1/fake",
+  ]
+  pruneopts = "NUT"
+  revision = "efa32eb095fe7c84e4b6b8b46c57d59679caf207"
+
+[[projects]]
   digest = "1:56509d2dcacb34620a1f4cc9b52c7eab69e2990edea873b3154aca99e2b25570"
   name = "k8s.io/kube-openapi"
   packages = [
@@ -1173,6 +1192,9 @@
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/workqueue",
+    "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1",
+    "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset",
+    "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake",
     "k8s.io/kube-openapi/cmd/openapi-gen",
     "k8s.io/kube-openapi/pkg/common",
   ]

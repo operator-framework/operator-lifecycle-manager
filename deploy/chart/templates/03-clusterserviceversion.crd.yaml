@@ -180,6 +180,190 @@ spec:
                           values:
                             type: array
                             description: set of values for the expression
+            apiservicedefinitions:
+              type: object
+              properties:
+                owned:
+                  type: array
+                  description: What resources this operator is responsible for managing. No two running operators should manage the same resource.
+                  items:
+                    type: object
+                    required:
+                    - name
+                    - version
+                    - kind
+                    - displayName
+                    - description
+                    properties:
+                      name:
+                        type: string
+                        description: Fully qualified name of the APIService (e.g. my-resource-v1.app.coreos.com)
+                      version:
+                        type: string
+                        description: The version field of the APIService
+                      kind:
+                        type: string
+                        description: The kind field of the APIService
+                      displayName:
+                        type: string
+                        description: A human-readable name for the APIService.
+                      description:
+                        type: string
+                        description: A description of the APIService
+                      resources:
+                        type: array
+                        items:
+                          type: object
+                          description: A list of resources that should be displayed for the APIService
+                          required:
+                          - kind
+                          - version
+                          properties:
+                            name:
+                              type: string
+                              description: If a APIService, the fully qualified name of the APIService (e.g. my-resource-v1.app.coreos.com)
+                            version:
+                              type: string
+                              description: The version of the resource kind
+                            kind:
+                              type: string
+                              description: The kind field of the resource kind
+                      statusDescriptors:
+                        type: array
+                        items:
+                          type: object
+                          description: A spec for a field in the status block of the API resource
+                          required:
+                          - path
+                          - displayName
+                          - description
+                          properties:
+                            path:
+                              type: string
+                              description: A jsonpath indexing into the status object on the API resource where the the status value can be found.
+                            displayName:
+                              type: string
+                              description: A human-readable name for the status entry.
+                            description:
+                              type: string
+                              description: A description of the status entry.
+                            x-descriptors:
+                              type: array
+                              description: A list of descriptors for the status entry that indicate the meaning of the field.
+                              items:
+                                type: string
+                            value:
+                              type: object
+                              description: If present, the value of this status is the same for all instances of the API resource and can be found here instead of on the API resource.
+                      specDescriptors:
+                        type: array
+                        items:
+                          type: object
+                          description: A spec for a field in the spec block of the APIService resource.
+                          required:
+                          - path
+                          - displayName
+                          - description
+                          properties:
+                            path:
+                              type: string
+                              description: A jsonpath indexing into the spec object on the API resource where the the spec value can be found.
+                            displayName:
+                              type: string
+                              description: A human-readable name for the spec entry.
+                            description:
+                              type: string
+                              description: A description of the spec entry.
+                            x-descriptors:
+                              type: array
+                              description: A list of descriptors for the spec entry that indicate the meaning of the field.
+                              items:
+                                type: string
+                            value:
+                              type: object
+                              description: If present, the value of this spec is the same for all instances of the API Resource and can be found here instead of on the API resource.
+                      actionDescriptors:
+                        type: array
+                        items:
+                          type: object
+                          description: A spec for actions that can be performed on instances of the API resource
+                          required:
+                          - path
+                          - displayName
+                          - description
+                          properties:
+                            path:
+                              type: string
+                              description: A jsonpath indexing into the spec object on the API resource where the the spec value can be found.
+                            displayName:
+                              type: string
+                              description: A human-readable name for the action.
+                            description:
+                              type: string
+                              description: A description of the action.
+                            x-descriptors:
+                              type: array
+                              description: A list of descriptors for the action that indicate the meaning of the action.
+                              items:
+                                type: string
+                            value:
+                              type: object
+                              description: If present, the value of this action is the same for all instances of the API resource and can be found here instead of on the API resource.
+                required:
+                  type: array
+                  description: What resources this operator is responsible for managing. No two running operators should manage the same resource.
+                  items:
+                    type: object
+                    required:
+                    - name
+                    - version
+                    - kind
+                    - displayName
+                    - description
+                    properties:
+                      name:
+                        type: string
+                        description: Fully qualified name of the APIService (e.g. my-resource-v1.app.coreos.com)
+                      version:
+                        type: string
+                        description: The version field of the APIService
+                      kind:
+                        type: string
+                        description: The kind field of the APIService
+                      displayName:
+                        type: string
+                        description: A human-readable name for the APIService.
+                      description:
+                        type: string
+                        description: A description of the APIService
+                      statusDescriptors:
+                        type: array
+                        items:
+                          type: object
+                          description: A spec for a field in the status block of the APIService
+                          required:
+                          - path
+                          - displayName
+                          - description
+                          properties:
+                            path:
+                              type: string
+                              description: A jsonpath indexing into the status object on the API Resource where the the status value can be found.
+                            displayName:
+                              type: string
+                              description: A human-readable name for the status entry.
+                            description:
+                              type: string
+                              description: A description of the status entry.
+                            x-descriptors:
+                              type: array
+                              description: A list of descriptors for the status entry that indicate the meaning of the field.
+                              items:
+                                type: string
+                            value:
+                              type: object
+                              description: If present, the value of this status is the same for all instances of the API Resource and can be found here instead of on the API Resource.
+
             customresourcedefinitions:
               type: object
               properties:

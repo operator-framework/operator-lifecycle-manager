@@ -66,3 +66,7 @@ required = ["k8s.io/kube-openapi/cmd/openapi-gen"]
   name = "k8s.io/kube-openapi"
   source = "github.com/kubernetes/kube-openapi"
   revision = "d8ea2fe547a448256204cfc68dfee7b26c720acb"
+
+[[constraint]]
+  branch = "release-1.11"
+  name = "k8s.io/kube-aggregator"

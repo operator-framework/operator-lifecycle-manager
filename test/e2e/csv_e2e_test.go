@@ -174,23 +174,13 @@ func waitForCSVToDelete(t *testing.T, c versioned.Interface, name string) error 
 }
 
 // TODO: same test but missing serviceaccount instead
-func TestCreateCSVWithUnmetRequirements(t *testing.T) {
+func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
-			},
-		},
-	}
-	strategyRaw, err := json.Marshal(strategy)
-	require.NoError(t, err)
-
+	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -200,10 +190,7 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
-			},
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -226,31 +213,17 @@ func TestCreateCSVWithUnmetRequirements(t *testing.T) {
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
-	_, err = c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	_, err = c.GetDeployment(testNamespace, depName)
 	require.Error(t, err)
 }
 
-// TODO: same test but create serviceaccount instead
-func TestCreateCSVRequirementsMet(t *testing.T) {
+func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
-			},
-		},
-	}
-	strategyRaw, err := json.Marshal(strategy)
-	require.NoError(t, err)
-
-	crdPlural := genName("ins")
-	crdName := crdPlural + ".cluster.com"
-
+	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -260,10 +233,53 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Required: []v1alpha1.APIServiceDescription{
+					{
+						DisplayName: "Not In Cluster",
+						Description: "An apiservice that is not currently in the cluster",
+						Name:        "not.in.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "NotInCluster",
+					},
+				},
 			},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Shouldn't create deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.Error(t, err)
+}
+
+// TODO: same test but create serviceaccount instead
+func TestCreateCSVRequirementsMetCRD(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -306,9 +322,59 @@ func TestCreateCSVRequirementsMet(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should create deployment
-	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	dep, err := c.GetDeployment(testNamespace, depName)
 	require.NoError(t, err)
-	require.Equal(t, strategy.DeploymentSpecs[0].Name, dep.Name)
+	require.Equal(t, depName, dep.Name)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
+}
+
+func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
+			// Cheating a little; this is an APIservice that will exist for the e2e tests
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Required: []v1alpha1.APIServiceDescription{
+					{
+						Name:        "packages.apps.redhat.com",
+						Version:     "v1alpha1",
+						Kind:        "PackageManifest",
+						DisplayName: "Package Manifest",
+						Description: "An apiservice that exists",
+					},
+				},
+			},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should create deployment
+	dep, err := c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err)
+	require.Equal(t, depName, dep.Name)
 
 	// Fetch cluster service version again to check for unnecessary control loops
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)

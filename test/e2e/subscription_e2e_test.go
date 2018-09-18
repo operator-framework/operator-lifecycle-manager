@@ -63,12 +63,12 @@ const (
 )
 
 var (
-	dummyManifest = []registry.PackageManifest{registry.PackageManifest{
+	dummyManifest = []registry.PackageManifest{{
 		PackageName: testPackageName,
 		Channels: []registry.PackageChannel{
-			registry.PackageChannel{Name: stableChannel, CurrentCSVName: stable},
-			registry.PackageChannel{Name: betaChannel, CurrentCSVName: beta},
-			registry.PackageChannel{Name: alphaChannel, CurrentCSVName: alpha},
+			{Name: stableChannel, CurrentCSVName: stable},
+			{Name: betaChannel, CurrentCSVName: beta},
+			{Name: alphaChannel, CurrentCSVName: alpha},
 		},
 		DefaultChannelName: stableChannel,
 	}}

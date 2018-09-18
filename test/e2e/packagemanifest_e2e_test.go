@@ -32,7 +32,7 @@ func fetchPackageManifest(t *testing.T, pmc pmversioned.Interface, namespace, na
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Polling...")
-		fetched, err = pmc.Packagemanifest().PackageManifests(namespace).Get(name, metav1.GetOptions{})
+		fetched, err = pmc.PackagemanifestV1alpha1().PackageManifests(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			return true, err
 		}
@@ -48,10 +48,10 @@ func TestPackageManifestLoading(t *testing.T) {
 	stableChannel := "stable"
 	packageStable := packageName + "-stable"
 	manifests := []registry.PackageManifest{
-		registry.PackageManifest{
+		{
 			PackageName: packageName,
 			Channels: []registry.PackageChannel{
-				registry.PackageChannel{Name: stableChannel, CurrentCSVName: packageStable},
+				{Name: stableChannel, CurrentCSVName: packageStable},
 			},
 			DefaultChannelName: stableChannel,
 		},
@@ -76,7 +76,7 @@ func TestPackageManifestLoading(t *testing.T) {
 		CatalogSourceNamespace: testNamespace,
 		PackageName:            packageName,
 		Channels: []packagev1alpha1.PackageChannel{
-			packagev1alpha1.PackageChannel{
+			{
 				Name:           stableChannel,
 				CurrentCSVName: packageStable,
 				CurrentCSVDesc: packagev1alpha1.CreateCSVDescription(&csv),
