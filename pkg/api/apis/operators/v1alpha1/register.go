@@ -1,9 +1,11 @@
 package v1alpha1
 
 import (
+	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
@@ -29,7 +31,13 @@ func Resource(resource string) schema.GroupResource {
 var (
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 	AddToScheme   = SchemeBuilder.AddToScheme
+	serScheme     = runtime.NewScheme()
 )
+
+func init() {
+	k8sscheme.AddToScheme(serScheme)
+	scheme.AddToScheme(serScheme)
+}
 
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
