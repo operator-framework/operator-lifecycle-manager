@@ -45,6 +45,7 @@ var (
 	cleaner       *namespaceCleaner
 	testNamespace = metav1.NamespaceDefault
 	genName       = names.SimpleNameGenerator.GenerateName
+	e2eNamespace  string
 
 	persistentCatalogNames               = []string{ocsConfigMap}
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
@@ -53,7 +54,7 @@ var (
 )
 
 func init() {
-	e2eNamespace := os.Getenv("NAMESPACE")
+	e2eNamespace = os.Getenv("NAMESPACE")
 	if e2eNamespace != "" {
 		testNamespace = e2eNamespace
 	}
