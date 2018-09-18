@@ -227,7 +227,6 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 	return nil
 }
 
-// ListPackageManifests implements PackageManifestProvider.ListPackageManifests()
 func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alpha1.PackageManifestList, error) {
 	manifestList := &packagev1alpha1.PackageManifestList{}
 
@@ -237,7 +236,7 @@ func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alp
 	if len(m.manifests) > 0 {
 		var matching []packagev1alpha1.PackageManifest
 		for _, manifest := range m.manifests {
-			if manifest.GetNamespace() == namespace {
+			if namespace == metav1.NamespaceAll || manifest.GetNamespace() == namespace {
 				// tack on the csv spec for each channel
 				matching = append(matching, manifest)
 			}
@@ -249,7 +248,6 @@ func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alp
 	return manifestList, nil
 }
 
-// GetPackageManifest implements PackageManifestProvider.GetPackageManifest(...)
 func (m *InMemoryProvider) GetPackageManifest(namespace, name string) (*packagev1alpha1.PackageManifest, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

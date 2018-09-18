@@ -6,11 +6,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
-
-	"github.com/spf13/cobra"
-
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/informers"
@@ -24,6 +22,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver"
 	genericpackagemanifests "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 )
 
 // NewCommandStartPackageServer provides a CLI handler for 'start master' command
@@ -87,7 +86,7 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
 		Features:       genericoptions.NewFeatureOptions(),
 
-		WatchedNamespaces: []string{"local"},
+		WatchedNamespaces: []string{v1.NamespaceAll},
 		WakeupInterval:    5 * time.Minute,
 
 		Debug: false,
