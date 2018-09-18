@@ -558,7 +558,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 
-			// TODO: Update all kind=="ClusterServiceVersion" OwnerReference UIDs
 			case roleKind:
 				// Marshal the manifest into a Role instance.
 				var r rbacv1.Role
