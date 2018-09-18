@@ -180,17 +180,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
-			},
-		},
-	}
-	strategyRaw, err := json.Marshal(strategy)
-	require.NoError(t, err)
-
+	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -200,10 +190,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
-			},
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -226,7 +213,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
-	_, err = c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	_, err = c.GetDeployment(testNamespace, depName)
 	require.Error(t, err)
 }
 
@@ -236,17 +223,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
-			},
-		},
-	}
-	strategyRaw, err := json.Marshal(strategy)
-	require.NoError(t, err)
-
+	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -256,10 +233,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
-			},
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
 					{
@@ -282,7 +256,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
-	_, err = c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	_, err = c.GetDeployment(testNamespace, depName)
 	require.Error(t, err)
 }
 
@@ -293,20 +267,9 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
-			},
-		},
-	}
-	strategyRaw, err := json.Marshal(strategy)
-	require.NoError(t, err)
-
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
-
+	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -316,10 +279,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
-			},
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -362,9 +322,9 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should create deployment
-	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	dep, err := c.GetDeployment(testNamespace, depName)
 	require.NoError(t, err)
-	require.Equal(t, strategy.DeploymentSpecs[0].Name, dep.Name)
+	require.Equal(t, depName, dep.Name)
 
 	// Fetch cluster service version again to check for unnecessary control loops
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
@@ -378,17 +338,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: genName("dep-"),
-				Spec: newNginxDeployment(genName("nginx-")),
-			},
-		},
-	}
-	strategyRaw, err := json.Marshal(strategy)
-	require.NoError(t, err)
-
+	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -398,10 +348,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
-			},
+			InstallStrategy: newNginxInstallStrategy(depName, nil),
 			// Cheating a little; this is an APIservice that will exist for the e2e tests
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
@@ -425,9 +372,9 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Should create deployment
-	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	dep, err := c.GetDeployment(testNamespace, depName)
 	require.NoError(t, err)
-	require.Equal(t, strategy.DeploymentSpecs[0].Name, dep.Name)
+	require.Equal(t, depName, dep.Name)
 
 	// Fetch cluster service version again to check for unnecessary control loops
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)

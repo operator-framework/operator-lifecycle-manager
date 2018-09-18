@@ -304,8 +304,8 @@ func (csv ClusterServiceVersion) GetAllCRDDescriptions() []CRDDescription {
 	return descs
 }
 
-// GetAllAPIServiceDescriptions returns a deduplicated set of CRDDescriptions that is
-// the union of the owned and required CRDDescriptions.
+// GetAllAPIServiceDescriptions returns a deduplicated set of APIServiceDescriptions that is
+// the union of the owned and required APIServiceDescriptions.
 //
 // Descriptions with the same name prefer the value in Owned.
 // Descriptions are returned in alphabetical order.
