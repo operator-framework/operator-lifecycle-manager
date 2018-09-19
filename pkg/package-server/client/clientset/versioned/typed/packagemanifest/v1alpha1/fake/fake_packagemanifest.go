@@ -23,6 +23,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
+	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
 )
@@ -75,4 +76,65 @@ func (c *FakePackageManifests) Watch(opts v1.ListOptions) (watch.Interface, erro
 	return c.Fake.
 		InvokesWatch(testing.NewWatchAction(packagemanifestsResource, c.ns, opts))
 
+}
+
+// Create takes the representation of a packageManifest and creates it.  Returns the server's representation of the packageManifest, and an error, if there is any.
+func (c *FakePackageManifests) Create(packageManifest *v1alpha1.PackageManifest) (result *v1alpha1.PackageManifest, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewCreateAction(packagemanifestsResource, c.ns, packageManifest), &v1alpha1.PackageManifest{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.PackageManifest), err
+}
+
+// Update takes the representation of a packageManifest and updates it. Returns the server's representation of the packageManifest, and an error, if there is any.
+func (c *FakePackageManifests) Update(packageManifest *v1alpha1.PackageManifest) (result *v1alpha1.PackageManifest, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateAction(packagemanifestsResource, c.ns, packageManifest), &v1alpha1.PackageManifest{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.PackageManifest), err
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakePackageManifests) UpdateStatus(packageManifest *v1alpha1.PackageManifest) (*v1alpha1.PackageManifest, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(packagemanifestsResource, "status", c.ns, packageManifest), &v1alpha1.PackageManifest{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.PackageManifest), err
+}
+
+// Delete takes name of the packageManifest and deletes it. Returns an error if one occurs.
+func (c *FakePackageManifests) Delete(name string, options *v1.DeleteOptions) error {
+	_, err := c.Fake.
+		Invokes(testing.NewDeleteAction(packagemanifestsResource, c.ns, name), &v1alpha1.PackageManifest{})
+
+	return err
+}
+
+// DeleteCollection deletes a collection of objects.
+func (c *FakePackageManifests) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	action := testing.NewDeleteCollectionAction(packagemanifestsResource, c.ns, listOptions)
+
+	_, err := c.Fake.Invokes(action, &v1alpha1.PackageManifestList{})
+	return err
+}
+
+// Patch applies the patch and returns the patched packageManifest.
+func (c *FakePackageManifests) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.PackageManifest, err error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(packagemanifestsResource, c.ns, name, data, subresources...), &v1alpha1.PackageManifest{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.PackageManifest), err
 }

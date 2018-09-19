@@ -24,7 +24,7 @@ func packageManifest(value packageValue) packagev1alpha1.PackageManifest {
 	}
 }
 
-func TestListPackageManifests(t *testing.T) {
+func TestList(t *testing.T) {
 	tests := []struct {
 		namespace        string
 		storedPackages   []packageValue
@@ -63,7 +63,7 @@ func TestListPackageManifests(t *testing.T) {
 				manifests: storedPackages,
 			}
 
-			manifests, err := prov.ListPackageManifests(test.namespace)
+			manifests, err := prov.List(test.namespace)
 
 			require.NoError(t, err)
 			require.Equal(t, len(test.expectedPackages), len(manifests.Items))
@@ -74,7 +74,7 @@ func TestListPackageManifests(t *testing.T) {
 	}
 }
 
-func TestGetPackageManifest(t *testing.T) {
+func TestGet(t *testing.T) {
 	tests := []struct {
 		namespace       string
 		packageName     string
@@ -110,10 +110,76 @@ func TestGetPackageManifest(t *testing.T) {
 				manifests: storedPackages,
 			}
 
-			manifest, err := prov.GetPackageManifest(test.namespace, test.packageName)
+			manifest, err := prov.Get(test.namespace, test.packageName)
 
 			require.NoError(t, err)
 			require.EqualValues(t, packageManifest(test.expectedPackage), *manifest)
+		})
+	}
+}
+
+func TestSubscribe(t *testing.T) {
+	tests := []struct {
+		namespace      string
+		storedPackages []packageValue
+		subscribers    int
+		description    string
+	}{
+		{
+			namespace:      "default",
+			storedPackages: []packageValue{},
+			subscribers:    1,
+			description:    "NoPackages",
+		},
+		{
+			namespace:      "default",
+			storedPackages: []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "local"}},
+			subscribers:    1,
+			description:    "SingleSubscriber",
+		},
+		{
+			namespace:      metav1.NamespaceAll,
+			storedPackages: []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "local"}},
+			subscribers:    5,
+			description:    "ManySubscribers",
+		},
+	}
+
+	type subscriber struct {
+		add    <-chan packagev1alpha1.PackageManifest
+		modify <-chan packagev1alpha1.PackageManifest
+		delete <-chan packagev1alpha1.PackageManifest
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			prov := &InMemoryProvider{Operator: &queueinformer.Operator{}}
+			stopCh := make(chan struct{})
+
+			subscribers := make([]subscriber, test.subscribers)
+			for i := range subscribers {
+				add, modify, delete, err := prov.Subscribe(stopCh)
+				require.NoError(t, err)
+				subscribers[i] = subscriber{add, modify, delete}
+			}
+
+			for _, add := range prov.add {
+				go func(addCh chan packagev1alpha1.PackageManifest) {
+					for _, value := range test.storedPackages {
+						addCh <- packageManifest(value)
+					}
+					close(addCh)
+					return
+				}(add)
+			}
+
+			for _, sub := range subscribers {
+				i := 0
+				for manifest := range sub.add {
+					require.EqualValues(t, manifest, packageManifest(test.storedPackages[i]))
+					i = i + 1
+				}
+			}
 		})
 	}
 }

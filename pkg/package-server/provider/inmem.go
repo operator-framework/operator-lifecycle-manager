@@ -22,7 +22,6 @@ import (
 const (
 	// ConfigMapPackageName is the key for package ConfigMap data
 	ConfigMapPackageName = "packages"
-
 	// ConfigMapCSVName is the key for CSV ConfigMap data
 	ConfigMapCSVName = "clusterServiceVersions"
 )
@@ -33,26 +32,26 @@ type packageKey struct {
 	packageName            string
 }
 
-// InMemoryProvider syncs and provides PackageManifests from the cluster in an in-memory cache
+// InMemoryProvider syncs and provides PackageManifests from the cluster using an in-memory cache.
+// Should be a global singleton.
 type InMemoryProvider struct {
 	*queueinformer.Operator
+	mu sync.RWMutex
 
-	mu        sync.RWMutex
 	manifests map[packageKey]packagev1alpha1.PackageManifest
 
-	out chan packagev1alpha1.PackageManifest
+	add    []chan packagev1alpha1.PackageManifest
+	modify []chan packagev1alpha1.PackageManifest
+	delete []chan packagev1alpha1.PackageManifest
 }
 
 // NewInMemoryProvider returns a pointer to a new InMemoryProvider instance
 func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *queueinformer.Operator) *InMemoryProvider {
-	// instantiate the in-mem provider
 	prov := &InMemoryProvider{
 		Operator:  queueOperator,
 		manifests: make(map[packageKey]packagev1alpha1.PackageManifest),
-		out:       make(chan packagev1alpha1.PackageManifest),
 	}
 
-	// register CatalogSource informers.
 	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
 	queueInformers := queueinformer.New(
 		queue,
@@ -81,7 +80,7 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName,
 	csvs := make(map[string]operatorsv1alpha1.ClusterServiceVersion)
 	csvListYaml, ok := cm.Data[ConfigMapCSVName]
 	if ok {
-		logger.Debug("ConfigMap contains CSVsf")
+		logger.Debug("ConfigMap contains CSVs")
 		csvListJSON, err := yaml.YAMLToJSON([]byte(csvListYaml))
 		if err != nil {
 			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
@@ -221,18 +220,18 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		} else {
 			// set CreationTimestamp if first time seeing the PackageManifest
 			manifest.CreationTimestamp = metav1.NewTime(time.Now())
+			for _, ch := range m.add {
+				ch <- manifest
+			}
 		}
 
-		log.Debugf("storing packagemanifest at %+v", key)
 		m.manifests[key] = manifest
-		m.out <- manifest
 	}
 
 	return nil
 }
 
-// GetPackageManifest implements PackageManifestProvider.GetPackageManifest(...)
-func (m *InMemoryProvider) GetPackageManifest(namespace, name string) (*packagev1alpha1.PackageManifest, error) {
+func (m *InMemoryProvider) Get(namespace, name string) (*packagev1alpha1.PackageManifest, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -246,8 +245,7 @@ func (m *InMemoryProvider) GetPackageManifest(namespace, name string) (*packagev
 	return &manifest, nil
 }
 
-// ListPackageManifests implements PackageManifestProvider.ListPackageManifests()
-func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alpha1.PackageManifestList, error) {
+func (m *InMemoryProvider) List(namespace string) (*packagev1alpha1.PackageManifestList, error) {
 	manifestList := &packagev1alpha1.PackageManifestList{}
 
 	m.mu.RLock()
@@ -257,7 +255,6 @@ func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alp
 		var matching []packagev1alpha1.PackageManifest
 		for _, manifest := range m.manifests {
 			if namespace == metav1.NamespaceAll || manifest.GetNamespace() == namespace {
-				// tack on the csv spec for each channel
 				matching = append(matching, manifest)
 			}
 		}
@@ -268,27 +265,38 @@ func (m *InMemoryProvider) ListPackageManifests(namespace string) (*packagev1alp
 	return manifestList, nil
 }
 
-// WatchPackageManifests forwards all PackageManifests matching the given namespace to the given out chan
-func (m *InMemoryProvider) WatchPackageManifests(namespace string, out chan packagev1alpha1.PackageManifest, stop <-chan struct{}) {
-	go func() {
-		// push existing PackageManifests
-		manifestList, err := m.ListPackageManifests(namespace)
-		if err == nil {
-			for _, manifest := range manifestList.Items {
-				out <- manifest
-			}
-		}
+func (m *InMemoryProvider) Subscribe(stopCh <-chan struct{}) (PackageChan, PackageChan, PackageChan, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-		// watch for changes
-		for {
-			select {
-			case manifest := <-m.out:
-				if manifest.GetNamespace() == namespace {
-					out <- manifest
-				}
-			case <-stop:
-				return
-			}
+	add := make(chan packagev1alpha1.PackageManifest)
+	modify := make(chan packagev1alpha1.PackageManifest)
+	delete := make(chan packagev1alpha1.PackageManifest)
+	addIndex := len(m.add)
+	modifyIndex := len(m.modify)
+	deleteIndex := len(m.delete)
+	m.add = append(m.add, add)
+	m.modify = append(m.modify, modify)
+	m.delete = append(m.delete, delete)
+
+	go func() {
+		<-stopCh
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		for _, add := range m.add {
+			m.add = append(m.add[:addIndex], m.add[:addIndex+1]...)
+			close(add)
 		}
+		for _, modify := range m.modify {
+			m.modify = append(m.modify[:modifyIndex], m.modify[:modifyIndex+1]...)
+			close(modify)
+		}
+		for _, delete := range m.delete {
+			m.delete = append(m.delete[:deleteIndex], m.delete[:deleteIndex+1]...)
+			close(delete)
+		}
+		return
 	}()
+
+	return add, modify, delete, nil
 }
