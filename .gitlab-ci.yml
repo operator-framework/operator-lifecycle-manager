@@ -80,7 +80,6 @@ container-release:
   image: docker:git
   only:
   - master
-  - tags
   script:
   - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
   - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
@@ -308,6 +307,32 @@ stop-preview:
     GIT_STRATEGY: none
     K8S_NAMESPACE: ci-alm-${CI_COMMIT_REF_SLUG}
   when: manual
+tag-release:
+  before_script:
+  - docker login -u $DOCKER_USER -p $DOCKER_PASS quay.io
+  - mkdir -p $PWD/bin
+  image: docker:git
+  only:
+  - tags
+  script:
+  - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_TAG}
+  - docker push quay.io/coreos/olm:${CI_COMMIT_TAG}
+  - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_TAG}
+  - docker push quay.io/coreos/catalog:${CI_COMMIT_TAG}
+  - docker pull quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/package-server:${CI_COMMIT_TAG}
+  - docker push quay.io/coreos/package-server:${CI_COMMIT_TAG}
+  - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
+  - docker push quay.io/coreos/alm-e2e:latest
+  stage: docker_release
+  tags:
+  - kubernetes
+  variables:
+    DOCKER_DRIVER: overlay2
+    DOCKER_HOST: tcp://docker-host.gitlab.svc.cluster.local:2375
 unit-tests:
   before_script:
   - mkdir -p $GOPATH/src/github.com/operator-framework/operator-lifecycle-manager

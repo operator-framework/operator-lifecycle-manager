@@ -44,6 +44,25 @@ local utils = import "utils.libsonnet";
             },
         },
 
+        tag: {
+            alm: {
+                repo: "quay.io/coreos/olm",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            catalog: {
+                repo: "quay.io/coreos/catalog",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+            package: {
+                repo: "quay.io/coreos/package-server",
+                tag: "${CI_COMMIT_TAG}",
+                name: utils.containerName(self.repo, self.tag),
+            },
+        },
+
+
         ci: {
             alm: {
                 repo: "quay.io/coreos/alm-ci",

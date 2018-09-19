@@ -63,7 +63,7 @@ local jobs = {
     },
 
     'container-release': baseJob.dockerBuild {
-        // ! Only master/tags
+        // ! Only master
         // push the container to the 'prod' repository
         stage: stages.docker_release,
         before_script+: ["mkdir -p $PWD/bin"],
@@ -72,8 +72,21 @@ local jobs = {
             docker.rename(images.prerelease.catalog.name, images.release.catalog.name) +
             docker.rename(images.prerelease.package.name, images.release.package.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
+        only: ['master'],
+    },
 
-    } + onlyMaster,
+    'tag-release': baseJob.dockerBuild {
+        // ! Only tags
+        // push the container to the 'prod' repository
+        stage: stages.docker_release,
+        before_script+: ["mkdir -p $PWD/bin"],
+        script:
+            docker.rename(images.prerelease.alm.name, images.tag.alm.name) +
+            docker.rename(images.prerelease.catalog.name, images.tag.catalog.name) +
+            docker.rename(images.prerelease.package.name, images.tag.package.name) +
+            docker.rename(images.e2e.name, images.e2elatest.name),
+        only: ['tags'],
+    },
 
     'wait-in-queue': baseJob.WaitInQueue {
         stage: stages.wait_in_queue,
