@@ -1,24 +1,25 @@
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: kube-system
 catalog_namespace: kube-system
+imagestream: false
 alm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:5f593ae61902caef7f2add7e27d1f672a14091a399b852b1b6722ef5f8b9c8e3
+    ref: quay.io/coreos/olm@sha256:058731fac9ecad9a35276612ec79bed76f506aaecd80c8c1fe9d68a262edcddb
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/catalog@sha256:8fc933e660a5b143bce7a5e4cb1606630fa9497cc252a7e47e0def3c18268f45
+    ref: quay.io/coreos/catalog@sha256:57eb45f2a519c65041d3fad0d7a5199f2ce5ba6a72992606ec4839d3307c5b5f
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 package:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/package-server@sha256:66513e76ac0443b6ecec3138a88fa6850a98b1db95400f2f83f6012bee693c6f
+    ref: quay.io/coreos/package-server@sha256:cc18b5711fb2126329c969f077f67f41981c87f800f6b2ceae5981422c14917b
     pullPolicy: Always
   service:
     internalPort: 443

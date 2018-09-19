@@ -1,6 +1,7 @@
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: alm
-catalog_namespace: tectonic-system
+namespace: operator-lifecycle-manager
+catalog_namespace: operator-lifecycle-manager
+imagestream: false
 alm:
   replicaCount: 1
   image:

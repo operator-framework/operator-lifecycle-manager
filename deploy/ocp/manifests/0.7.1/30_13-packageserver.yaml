@@ -1,0 +1,149 @@
+##---
+# Source: olm/templates/30_13-packageserver.yaml
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1alpha1.packages.apps.redhat.com
+spec:
+  caBundle: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM5VENDQWQyZ0F3SUJBZ0lCQVRBTkJna3Foa2lHOXcwQkFRc0ZBREFjTVJvd0dBWURWUVFERXhGd1lXTnIKWVdkbExYTmxjblpsY2kxallUQWVGdzB4T0RBNU1Ua3lNakU1TWpCYUZ3MHlPREE1TVRZeU1qRTVNakJhTUJ3eApHakFZQmdOVkJBTVRFWEJoWTJ0aFoyVXRjMlZ5ZG1WeUxXTmhNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DCkFROEFNSUlCQ2dLQ0FRRUE0ZjJETEJXVHpTaXBkeE5UTmtKUTZaOGJXVCtFWFVoSWhwSGsyUnp2bGR5OEJ3K1MKSXBFMEQzSnhWam56ZEljcElhT2MwSzBrVm5mNUpsQUZBUytBZGw2TEt2K2ZYS1FUcTdncWJ0RkltUzk1eWFDRwpwK09kNTBwbkZKcnFrbzVBR1FEK0ZyR2J2enJvSWp5ZGhrekxDM01HdlhHVW5RZmdjMUx2NDg3cXdQaUkzc2N3Ck5pNlZvZHpRZjFEYXI3bUs0MXVONnpybGU3NzBQVXkrNlNFNDBxajdVazBsRitsNWZmWWtSR2NQdkxwblZoMzAKVXRDUlM2dFB1blc5SVlHcmhOdjFmMXlPM1ZUZXZPT3hjK084Z3lrL21Qdk91N1dLQUFiSGhseVAvWTB6WmtpeQp1R0lVTk9JTEZocWdqMnF1bGlCWm5lSFB4UUxRNGN3czFBQW82UUlEQVFBQm8wSXdRREFPQmdOVkhROEJBZjhFCkJBTUNBcVF3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdFR0NDc0dBUVVGQndNQ01BOEdBMVVkRXdFQi93UUYKTUFNQkFmOHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBTDJQZlR4NGY5WnluTWIxQy9na3FlY053dVBvaXBxbwpuM0p6YVhWSUR5eFEwaWxrQUZSMUozalB4NjA3TTBYL0xGSmlBd21ZeDlBM1NZK1RHTFF1dkJjdjJ3ZElHbG5yCmNVTDB0M0J4ejA2aDRSUzRscG9vaTVkWCtRbW5BckFIeHlDUnFDd05tWkM3UEZSdDJXMHRBaVFhMkh4Q0QrM2gKSWUzM1F2RFZRUWFlakc3NUJIRzlMcWRFU0diT0FUMWVPcmw5WWdsRnFQU3pRbGF2aml0YS9mZllJSG4zODJxRQpGcWpPQ3l2U2IzWjVXUTI3N0hNUlZiRGNyd3o4dllpRUZlVHExNFdETG82ZzNKYzBGaDQvb0M0Uk9WWU13MU5OCm85alJjK0pCbXczT3VLS3hqTFp0U1VqWmUwcVFHSFU5eno5dXRLUXFuWGllRkt4Q3JIV0pLdHM9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"
+  group: packages.apps.redhat.com
+  groupPriorityMinimum: 2000
+  versionPriority: 15
+  service:
+    name: package-server
+    namespace: operator-lifecycle-manager
+  version: v1alpha1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packagemanifest:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: operator-lifecycle-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: packagemanifest-auth-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: operator-lifecycle-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packagemanifest-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: operator-lifecycle-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: package-apiserver-clusterrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aggregated-apiserver-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: operator-lifecycle-manager
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: package-server-certs
+  namespace: operator-lifecycle-manager
+  labels:
+    app: package-server
+data:
+  tls.crt: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURWakNDQWo2Z0F3SUJBZ0lCQVRBTkJna3Foa2lHOXcwQkFRc0ZBREFjTVJvd0dBWURWUVFERXhGd1lXTnIKWVdkbExYTmxjblpsY2kxallUQWVGdzB4T0RBNU1Ua3lNakU1TWpCYUZ3MHhPVEE1TVRreU1qRTVNakJhTUJreApGekFWQmdOVkJBTVREbkJoWTJ0aFoyVXRjMlZ5ZG1WeU1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBCk1JSUJDZ0tDQVFFQXp1bGUxN3RVVWJZSTBlVGpPbnlXMDkvQUhOcTdRb0dNSTNWRFlRU3ZWZEQzZkg1NmhvcmYKWDR4VmgvWm1JUjE4cHBrL0FWNFpPY1VwbzhIaHVydG1ONVBvL0w2T0tnbCswR2hnUUNUMkN4V29QZTFDUDdlLwpDUzBLLzRJTzMrWkdjSGJ1U1k1b0Z2dVRhT2gvRzhrck85TFBVQlo2VDdxR1FqU3NMRmlLRkdLdXZxSWordC9lClF4Q2hYUWdocC94Ti9FOUQzN1VFYzFPZktCSi9JcVZsMGlibDNqdmlmQ3FFdElCalIwR0xjNVRMaS9sWTNkNzcKbUZOZVRTK2NSMExlYUhDV3FTd3BWalJQcUVMU29xWTRQaENFR2xod0pvMjF5ZDhMTVp1NkhlRExTU3MrQ2ZwTwpSY2N2ZmVvYVNwOVM0T25xRW02aXBwMkZRdHRFU0ZYSlJRSURBUUFCbzRHbE1JR2lNQTRHQTFVZER3RUIvd1FFCkF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFIL0JBSXcKQURCakJnTlZIUkVFWERCYWdpbHdZV05yWVdkbExYTmxjblpsY2k1dmNHVnlZWFJ2Y2kxc2FXWmxZM2xqYkdVdApiV0Z1WVdkbGNvSXRjR0ZqYTJGblpTMXpaWEoyWlhJdWIzQmxjbUYwYjNJdGJHbG1aV041WTJ4bExXMWhibUZuClpYSXVjM1pqTUEwR0NTcUdTSWIzRFFFQkN3VUFBNElCQVFDYmR2eWo3cHV3ZXlSM3NNRkRidWthZmw3Qk1NWi8KZjU2cHAwTG56OCtMWjUvRzIwU2Q0UitXWnlqZ1RRQlNVTXRlcXU4YkJWVm1mb2ZhZjk3M0dGOFAyblJTdERPQQpPcWFsdG9tb0tpNEJZank2WTNaTFlBZXFWQkRMeVgvTnRwZDZOMll3eE9iYXFzYUEzWVVRRTFtNHhZVVdQZmFGClpOTm4vY2RrRWhsTWpXa0gyMzlnZG5lOFU0THI2WE5LWUh2QXFTclp6WWhwV1drME51SkVKMGFCcGpUa0pzaXEKTFNMTVZHTSt2eUM1d3pQWEoxcXNTcm9jRlFuakxSejgreFhzYVVyMnU4eHZyek5SdWVFZkVnR0s4SkNESWZDcApSeERYUGZCYVA5WHcxa2d6U0tmdEl0MWg3Mlk0ZGFneTl5Y0Z0eEJrQktUbW5tK2pOOWNlVzlrYQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg=="
+  tls.key: "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb3dJQkFBS0NBUUVBenVsZTE3dFVVYllJMGVUak9ueVcwOS9BSE5xN1FvR01JM1ZEWVFTdlZkRDNmSDU2CmhvcmZYNHhWaC9abUlSMThwcGsvQVY0Wk9jVXBvOEhodXJ0bU41UG8vTDZPS2dsKzBHaGdRQ1QyQ3hXb1BlMUMKUDdlL0NTMEsvNElPMytaR2NIYnVTWTVvRnZ1VGFPaC9HOGtyTzlMUFVCWjZUN3FHUWpTc0xGaUtGR0t1dnFJagordC9lUXhDaFhRZ2hwL3hOL0U5RDM3VUVjMU9mS0JKL0lxVmwwaWJsM2p2aWZDcUV0SUJqUjBHTGM1VExpL2xZCjNkNzdtRk5lVFMrY1IwTGVhSENXcVN3cFZqUlBxRUxTb3FZNFBoQ0VHbGh3Sm8yMXlkOExNWnU2SGVETFNTcysKQ2ZwT1JjY3ZmZW9hU3A5UzRPbnFFbTZpcHAyRlF0dEVTRlhKUlFJREFRQUJBb0lCQUhVYkdCYTVhNHVqbjNKTQpQVjhJek1TMXlxR0tHcG9WZ0I5QmF4VXA5YUo0VnRvYkszV2llN0kwVnVSUXpKVEpmNWM2L0xIbGRCbUNRWUx4ClpMU3ZBN2RJKzRDd3lQMTV5bEJpQXJmTE00WXFoOElrMm0zOXJSMmdaSzBnQ3hNbDNaQWhmOVFaeVVmWXN5R1oKRlBmQTc3czRJU1dPMDBMMHFyQWw1NXhoc0NUQWdDMk5vclJRS3dJbTBlTnFEQmVCd1NnSXdGKzBDRW85MDJSTgp6dU5JQjd0ZkpwaThZRWVqWTE4N0xqd0U3emFFSlN1WWhJNWxMRXpIR3ZzdXdaa0hpYUFTMFhqUlpSWms0dkxTCmZ3ZmNBd2xZaWE5WXdtZFc0UktWcnp2bFJlcVY0N0JTckF4MHZGcjR6NjZYaW1sZEsrS2pxS3pYMFZ2RlZqbXMKZ2doUG5nRUNnWUVBK0JDSDlhSi8zTTVpQVE3TVpVRDV3bHRubVczMEtvWFd5Sk0vaGorSzNGZHBWSFB2WktSRwpmYkg0T3c4VWNrTExGVGl4YlBoWEJ0eFZ0ZzlhSlpjcEV1ZzlYb2VkVTFyUFllby9jMGdyU28wZ2hMeit6YkpKCjJrSHhkbTRPV29XVTNZVG05Rm9VVGtiOGJBc1pKTjBuQmEwNWpvTDcySWVWbVlJRUxpcm1IZVVDZ1lFQTFZZlQKajNzY3lZa1pSWm5naHBYbXk3Zy9VTGZtWlpxRGtDUWZ1YS9tYS9pL0o5akMrVlJZYy92L3ZadEtpR1UrNS8zOQp2WVk0UEdPRHNPVDBidTZLUDJYVkVaRUsvOGZQaWFzejY2TFlSb1Z1aHZpZmNORG55UVl1LzBuYllOMmxsS25iCnJxYnJ0WU4yb0dSRnovVm82blB2QUxPL2pLdTVza2hDNitYdlIrRUNnWUF3WlhsQkVRMEZGVGJGb2c5NmlheXcKb0lpYnhIbm9lZWduaGFMVkhEeUpOSHlXUDNBcklHbW9TRHAzdXo5djgxd1ByZG5mdXF1djZQakg1a0xlSnBtYQoyTGh3WXVEc3pFQzloNmdOWTcwZWRGNHR4M21tdyt2b3F3amk1Q0hrd3o4QjROWDJRa1RINk0yQ2ZyL1BFMTV6Cm14SXBuYUJvNURycGtoWWlzN2ZsaVFLQmdRRE5BUUtVbGxZbEI0TkQxMkJBMWxvbTdGV2RZWEhKeW5iVlJGbFIKSlJmTVFaMEUzSThVWVc0cXJKM3pvOHdDOTNGVnVmeUtvUG9Nd0Y0R3owbjkxdmJUdHlqQkhNZTZtbE1la1VmZgp5eEJwWkdHaEk4R3Z4bUZDRnJXNFUyaFRyM2p4S2NMSUEybjVjcVhKaDN1ZkZMWU5vaENzVStaclg5T0EzdStoCkc3aUhBUUtCZ0NJK1ZHTGpydmVtRG03NXp2L1BQU1lJLzlGYzhOZGU0VEx3dU05d3ZNaVlGVkpERmk2S0JvcUQKSHRMZndMREJUNmJHRVJPU3NNemdUb2FTbGxNaFBOTy9ibUh3a2RhV3BXbWRBT0haUit6ZHdxTW1PTnR1WHRBQwo0Y3ZZK2QxM1NkbUFMNll4VmsrSEpiRWMrU2hYYVV0WER1QW1Nb21SRGh4Y0dMeXQ3clhCCi0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg=="
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: package-server
+  namespace: operator-lifecycle-manager
+  labels:
+    app: package-server
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: package-server
+  template:
+    metadata:
+      labels:
+        app: package-server
+    spec:
+      serviceAccountName: olm-operator-serviceaccount
+      containers:
+      - name: package-server
+        command:
+        - /bin/package-server
+        - -v=4
+        - --debug
+        image: quay.io/coreos/package-server@sha256:cc18b5711fb2126329c969f077f67f41981c87f800f6b2ceae5981422c14917b
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 443
+        volumeMounts:
+        - name: certs
+          mountPath: /apiserver.local.config/certificates
+          readOnly: true
+        livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: 443
+        readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: 443
+      volumes:
+      - name: certs
+        secret:
+          secretName: package-server-certs
+          items:
+          - key: tls.crt
+            path: apiserver.crt
+          - key: tls.key
+            path: apiserver.key
+      imagePullSecrets:
+        - name: coreos-pull-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: package-server
+  namespace: operator-lifecycle-manager
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: package-server

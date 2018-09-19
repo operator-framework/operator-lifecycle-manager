@@ -1,7 +1,7 @@
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
 catalog_namespace: operator-lifecycle-manager
-imagestream: false
+imagestream: true
 alm:
   replicaCount: 1
   image:
@@ -25,3 +25,4 @@ package:
     internalPort: 443
 catalog_sources:
 - rh-operators
+- certified-operators

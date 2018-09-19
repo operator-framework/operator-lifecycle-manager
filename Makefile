@@ -150,6 +150,7 @@ release:
 	docker pull quay.io/coreos/package-server:$(ver)
 	$(MAKE) target=upstream ver=$(ver) package
 	$(MAKE) target=okd ver=$(ver) package
+	$(MAKE) target=ocp ver=$(ver) package
 
 package:
 ifndef target
