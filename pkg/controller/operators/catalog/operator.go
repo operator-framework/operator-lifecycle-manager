@@ -547,6 +547,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return err
 				}
 
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(cr.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return err
+				}
+				cr.OwnerReferences = updated
+
 				// Attempt to create the ClusterRole.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
 				if k8serrors.IsAlreadyExists(err) {
@@ -573,7 +580,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 				rb.OwnerReferences = updated
 
-				// Attempt to create the RoleBinding.
+				// Attempt to create the ClusterRoleBinding.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
 					rb.SetNamespace(plan.Namespace)
@@ -658,7 +665,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 			case serviceAccountKind:
-				// Marshal the manifest into a Role instance.
+				// Marshal the manifest into a ServiceAccount instance.
 				var sa corev1.ServiceAccount
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &sa)
 				if err != nil {

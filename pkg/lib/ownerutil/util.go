@@ -124,7 +124,7 @@ func InferGroupVersionKind(obj runtime.Object) error {
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   "rbac.authorization.k8s.io",
 			Version: "v1",
-			Kind:    "RoleBinding",
+			Kind:    "ClusterRoleBinding",
 		})
 	case *rbac.Role:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{

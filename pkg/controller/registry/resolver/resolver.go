@@ -286,8 +286,9 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 				Name:     role.GetName(),
 				APIGroup: rbac.GroupName},
 			Subjects: []rbac.Subject{{
-				Kind: "ServiceAccount",
-				Name: permission.ServiceAccountName,
+				Kind:      "ServiceAccount",
+				Name:      permission.ServiceAccountName,
+				Namespace: csv.GetNamespace(),
 			}},
 		}
 		ownerutil.AddNonBlockingOwner(roleBinding, csv)
@@ -333,10 +334,12 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 			RoleRef: rbac.RoleRef{
 				Kind:     "ClusterRole",
 				Name:     role.GetName(),
-				APIGroup: rbac.GroupName},
+				APIGroup: rbac.GroupName,
+			},
 			Subjects: []rbac.Subject{{
-				Kind: "ServiceAccount",
-				Name: permission.ServiceAccountName,
+				Kind:      "ServiceAccount",
+				Name:      permission.ServiceAccountName,
+				Namespace: csv.GetNamespace(),
 			}},
 		}
 		ownerutil.AddNonBlockingOwner(roleBinding, csv)
