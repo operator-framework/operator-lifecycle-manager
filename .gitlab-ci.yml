@@ -16,12 +16,11 @@
   script:
   - echo $TEAMUI_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create ns operator-lifecycle-manager || true
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=operator-lifecycle-manager
-    || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=operator-lifecycle-manager deploy/chart --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=operator-lifecycle-manager --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces= --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl replace --force -f ${f};done;
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=operator-lifecycle-manager
+    || true
   - kubectl rollout status -w deployment/olm-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/catalog-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/package-server --namespace=operator-lifecycle-manager
@@ -114,12 +113,11 @@ deploy-openshift:
   script:
   - echo $OPENSHIFT_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create ns operator-lifecycle-manager || true
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=operator-lifecycle-manager
-    || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=operator-lifecycle-manager deploy/chart --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=operator-lifecycle-manager --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces= --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl replace --force -f ${f};done;
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=operator-lifecycle-manager
+    || true
   - kubectl rollout status -w deployment/olm-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/catalog-operator --namespace=operator-lifecycle-manager
   - kubectl rollout status -w deployment/package-server --namespace=operator-lifecycle-manager
@@ -150,13 +148,12 @@ deploy-preview:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create ns ci-alm-${CI_COMMIT_REF_SLUG} || true
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
-    || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} deploy/chart --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
     --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=operator-lifecycle-manager --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set package.image.ref=quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl
     replace --force -f ${f};done;
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
+    || true
   - kubectl rollout status -w deployment/olm-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
   - kubectl rollout status -w deployment/package-server --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
@@ -182,13 +179,12 @@ deploy-staging:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create ns ci-alm-staging || true
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
-    || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=ci-alm-staging deploy/chart --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=ci-alm-staging --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces=ci-alm-staging --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl replace --force
     -f ${f};done;
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
+    || true
   - kubectl rollout status -w deployment/olm-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/catalog-operator --namespace=ci-alm-staging
   - kubectl rollout status -w deployment/package-server --namespace=ci-alm-staging
@@ -212,13 +208,12 @@ e2e-setup:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - kubectl create ns e2e-${CI_COMMIT_REF_SLUG}-${SHA8} || true
-  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
-    || true
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} deploy/chart --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
     --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set package.image.ref=quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do kubectl
     replace --force -f ${f};done;
+  - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
+    || true
   - kubectl rollout status -w deployment/olm-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl rollout status -w deployment/catalog-operator --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl rollout status -w deployment/package-server --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}

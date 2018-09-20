@@ -1,0 +1,6 @@
+##---
+# Source: olm/templates/30_00-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operator-lifecycle-manager
