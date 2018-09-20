@@ -18,6 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/authorizer"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -419,10 +420,10 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
 		crd, err := a.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(r.Name, metav1.GetOptions{})
 		if err != nil {
-			status.Status = "NotPresent"
+			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			met = false
 		} else {
-			status.Status = "Present"
+			status.Status = v1alpha1.RequirementStatusReasonPresent
 			status.UUID = string(crd.GetUID())
 		}
 		statuses = append(statuses, status)
@@ -463,6 +464,13 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 		}
 		statuses = append(statuses, status)
 	}
+
+	// Get permission status
+	permissionsMet, permissionStatuses := a.permissionStatus(csv)
+	log.Infof("CSV %s permission met: %t", csv.GetName(), permissionsMet)
+	statuses = append(statuses, permissionStatuses...)
+	met = met && permissionsMet
+
 	return
 }
 
@@ -498,6 +506,72 @@ func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIServic
 		}
 	}
 	return false
+}
+
+// checkPermissions checks whether the given CSV's RBAC requirements are met in its namespace
+func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus) {
+	// Use a StrategyResolver to unmarshal
+	strategyResolver := install.StrategyResolver{}
+	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	if err != nil {
+		return false, nil
+	}
+
+	// Assume the strategy is for a deployment
+	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	if !ok {
+		return false, nil
+	}
+
+	statuses := []v1alpha1.RequirementStatus{}
+	csvAuthorizerClient := authorizer.NewCSVAuthorizerClient(a.OpClient, csv)
+	namespace := csv.GetNamespace()
+	met := true
+
+	for _, perm := range strategyDetailsDeployment.Permissions {
+		name := perm.ServiceAccountName
+		status := v1alpha1.RequirementStatus{
+			Group:      "",
+			Version:    "v1",
+			Kind:       "ServiceAccount",
+			Name:       name,
+			Dependents: []v1alpha1.DependentStatus{},
+		}
+
+		// Ensure the ServiceAccount exists
+		sa, err := a.OpClient.GetServiceAccount(namespace, perm.ServiceAccountName)
+		if err != nil {
+			met = false
+			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			statuses = append(statuses, status)
+			continue
+		}
+
+		status.Status = v1alpha1.RequirementStatusReasonPresent
+
+		// Check if the PolicyRules are satisfied
+		for _, rule := range perm.Rules {
+			// TODO(Nick): decide what to do with dependent status here
+			dependent := v1alpha1.DependentStatus{
+				Group:   "rbac.authorization.k8s.io",
+				Kind:    "PolicyRule",
+				Version: "v1beta1",
+			}
+			satisfied, err := csvAuthorizerClient.RuleSatisfied(sa, namespace, rule)
+			if err != nil || !satisfied {
+				met = false
+				dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
+				status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+			} else {
+				dependent.Status = v1alpha1.DependentStatusReasonSatisfied
+			}
+			status.Dependents = append(status.Dependents, dependent)
+		}
+
+		statuses = append(statuses, status)
+	}
+
+	return met, statuses
 }
 
 func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {

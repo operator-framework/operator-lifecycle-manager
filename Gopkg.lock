@@ -1123,6 +1123,19 @@
   revision = "d8ea2fe547a448256204cfc68dfee7b26c720acb"
   source = "github.com/kubernetes/kube-openapi"
 
+[[projects]]
+  digest = "1:a02d196ed238c38e433e4732a6af2453a62755783ca6c6e8ec90a38ba9d753a0"
+  name = "k8s.io/kubernetes"
+  packages = [
+    "pkg/apis/rbac",
+    "pkg/apis/rbac/v1",
+    "pkg/registry/rbac/validation",
+    "plugin/pkg/auth/authorizer/rbac",
+  ]
+  pruneopts = "NUT"
+  revision = "a4529464e4629c21224b3d52edfe0ea91b072862"
+  version = "v1.11.3"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -1133,6 +1146,7 @@
     "github.com/golang/glog",
     "github.com/golang/mock/gomock",
     "github.com/pkg/errors",
+    "github.com/prometheus/client_golang/prometheus",
     "github.com/sirupsen/logrus",
     "github.com/spf13/cobra",
     "github.com/stretchr/testify/assert",
@@ -1142,7 +1156,6 @@
     "k8s.io/api/core/v1",
     "k8s.io/api/extensions/v1beta1",
     "k8s.io/api/rbac/v1",
-    "k8s.io/api/rbac/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation",
@@ -1171,6 +1184,9 @@
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/apimachinery/pkg/version",
     "k8s.io/apimachinery/pkg/watch",
+    "k8s.io/apiserver/pkg/authentication/serviceaccount",
+    "k8s.io/apiserver/pkg/authentication/user",
+    "k8s.io/apiserver/pkg/authorization/authorizer",
     "k8s.io/apiserver/pkg/endpoints/openapi",
     "k8s.io/apiserver/pkg/endpoints/request",
     "k8s.io/apiserver/pkg/registry/rest",
@@ -1197,6 +1213,7 @@
     "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake",
     "k8s.io/kube-openapi/cmd/openapi-gen",
     "k8s.io/kube-openapi/pkg/common",
+    "k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

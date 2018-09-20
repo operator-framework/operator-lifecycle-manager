@@ -222,13 +222,35 @@ func (csv ClusterServiceVersion) OwnsCRD(name string) bool {
 	return false
 }
 
+// ConditionReason is a camelcased reason for the status of a RequirementStatus or DependentStatus
+type StatusReason string
+
+const (
+	RequirementStatusReasonPresent             StatusReason = "Present"
+	RequirementStatusReasonNotPresent          StatusReason = "NotPresent"
+	RequirementStatusReasonPresentNotSatisfied StatusReason = "PresentNotSatisfied"
+	DependentStatusReasonSatisfied             StatusReason = "Satisfied"
+	DependentStatusReasonNotSatisfied          StatusReason = "NotSatisfied"
+)
+
+// TODO(Nick): decide if we really need a separate DependentStatus
+// DependentStatus is the status for a dependent requirement (to prevent infinite nesting)
+type DependentStatus struct {
+	Group   string       `json:"group"`
+	Version string       `json:"version"`
+	Kind    string       `json:"kind"`
+	Status  StatusReason `json:"status"`
+	UUID    string       `json:"uuid,omitempty"`
+}
+
 type RequirementStatus struct {
-	Group   string `json:"group"`
-	Version string `json:"version"`
-	Kind    string `json:"kind"`
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	UUID    string `json:"uuid,omitempty"`
+	Group      string            `json:"group"`
+	Version    string            `json:"version"`
+	Kind       string            `json:"kind"`
+	Name       string            `json:"name"`
+	Status     StatusReason      `json:"status"`
+	UUID       string            `json:"uuid,omitempty"`
+	Dependents []DependentStatus `json:"dependents,omitempty"`
 }
 
 // ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual
