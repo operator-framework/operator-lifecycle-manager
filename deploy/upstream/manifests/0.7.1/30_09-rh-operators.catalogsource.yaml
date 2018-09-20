@@ -7,7 +7,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
   name: rh-operators
-  namespace: kube-system
+  namespace: olm
 spec:
   sourceType: internal
   configMap: rh-operators

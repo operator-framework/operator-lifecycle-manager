@@ -1,6 +1,6 @@
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: kube-system
-catalog_namespace: kube-system
+namespace: olm
+catalog_namespace: olm
 imagestream: false
 alm:
   replicaCount: 1
