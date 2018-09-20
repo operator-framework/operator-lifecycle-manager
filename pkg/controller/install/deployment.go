@@ -6,7 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbac "k8s.io/api/rbac/v1beta1"
+	rbac "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
@@ -32,8 +32,9 @@ type StrategyDeploymentSpec struct {
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
 type StrategyDetailsDeployment struct {
-	DeploymentSpecs []StrategyDeploymentSpec        `json:"deployments"`
-	Permissions     []StrategyDeploymentPermissions `json:"permissions,omitempty"`
+	DeploymentSpecs    []StrategyDeploymentSpec        `json:"deployments"`
+	Permissions        []StrategyDeploymentPermissions `json:"permissions,omitempty"`
+	ClusterPermissions []StrategyDeploymentPermissions `json:"clusterPermissions,omitempty"`
 }
 
 type StrategyDeploymentInstaller struct {
@@ -55,21 +56,6 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 		owner:            owner,
 		previousStrategy: previousStrategy,
 	}
-}
-
-// GetServiceAccountNames gets the set of ServiceAccount names in the given slice of StrategyDeploymentInstallers
-func GetServiceAccountNames(perms []StrategyDeploymentPermissions) ([]string, error) {
-	set := map[string]struct{}{}
-	names := []string{}
-	for _, perm := range perms {
-		name := perm.ServiceAccountName
-		if _, ok := set[name]; !ok {
-			names = append(names, name)
-		}
-		set[name] = struct{}{}
-	}
-
-	return names, nil
 }
 
 func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploymentPermissions) error {

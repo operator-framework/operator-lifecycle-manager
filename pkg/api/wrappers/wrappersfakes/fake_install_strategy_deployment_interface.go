@@ -8,34 +8,34 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1beta1rbac "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 )
 
 type FakeInstallStrategyDeploymentInterface struct {
-	CreateRoleStub        func(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error)
+	CreateRoleStub        func(role *rbacv1.Role) (*rbacv1.Role, error)
 	createRoleMutex       sync.RWMutex
 	createRoleArgsForCall []struct {
-		role *v1beta1rbac.Role
+		role *rbacv1.Role
 	}
 	createRoleReturns struct {
-		result1 *v1beta1rbac.Role
+		result1 *rbacv1.Role
 		result2 error
 	}
 	createRoleReturnsOnCall map[int]struct {
-		result1 *v1beta1rbac.Role
+		result1 *rbacv1.Role
 		result2 error
 	}
-	CreateRoleBindingStub        func(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
+	CreateRoleBindingStub        func(roleBinding *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
 	createRoleBindingMutex       sync.RWMutex
 	createRoleBindingArgsForCall []struct {
-		roleBinding *v1beta1rbac.RoleBinding
+		roleBinding *rbacv1.RoleBinding
 	}
 	createRoleBindingReturns struct {
-		result1 *v1beta1rbac.RoleBinding
+		result1 *rbacv1.RoleBinding
 		result2 error
 	}
 	createRoleBindingReturnsOnCall map[int]struct {
-		result1 *v1beta1rbac.RoleBinding
+		result1 *rbacv1.RoleBinding
 		result2 error
 	}
 	EnsureServiceAccountStub        func(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
@@ -119,11 +119,11 @@ type FakeInstallStrategyDeploymentInterface struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRole(role *rbacv1.Role) (*rbacv1.Role, error) {
 	fake.createRoleMutex.Lock()
 	ret, specificReturn := fake.createRoleReturnsOnCall[len(fake.createRoleArgsForCall)]
 	fake.createRoleArgsForCall = append(fake.createRoleArgsForCall, struct {
-		role *v1beta1rbac.Role
+		role *rbacv1.Role
 	}{role})
 	fake.recordInvocation("CreateRole", []interface{}{role})
 	fake.createRoleMutex.Unlock()
@@ -142,39 +142,39 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleCallCount() int {
 	return len(fake.createRoleArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleArgsForCall(i int) *v1beta1rbac.Role {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleArgsForCall(i int) *rbacv1.Role {
 	fake.createRoleMutex.RLock()
 	defer fake.createRoleMutex.RUnlock()
 	return fake.createRoleArgsForCall[i].role
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturns(result1 *v1beta1rbac.Role, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturns(result1 *rbacv1.Role, result2 error) {
 	fake.CreateRoleStub = nil
 	fake.createRoleReturns = struct {
-		result1 *v1beta1rbac.Role
+		result1 *rbacv1.Role
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturnsOnCall(i int, result1 *v1beta1rbac.Role, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturnsOnCall(i int, result1 *rbacv1.Role, result2 error) {
 	fake.CreateRoleStub = nil
 	if fake.createRoleReturnsOnCall == nil {
 		fake.createRoleReturnsOnCall = make(map[int]struct {
-			result1 *v1beta1rbac.Role
+			result1 *rbacv1.Role
 			result2 error
 		})
 	}
 	fake.createRoleReturnsOnCall[i] = struct {
-		result1 *v1beta1rbac.Role
+		result1 *rbacv1.Role
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBinding(roleBinding *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
 	fake.createRoleBindingMutex.Lock()
 	ret, specificReturn := fake.createRoleBindingReturnsOnCall[len(fake.createRoleBindingArgsForCall)]
 	fake.createRoleBindingArgsForCall = append(fake.createRoleBindingArgsForCall, struct {
-		roleBinding *v1beta1rbac.RoleBinding
+		roleBinding *rbacv1.RoleBinding
 	}{roleBinding})
 	fake.recordInvocation("CreateRoleBinding", []interface{}{roleBinding})
 	fake.createRoleBindingMutex.Unlock()
@@ -193,30 +193,30 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingCallCount()
 	return len(fake.createRoleBindingArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingArgsForCall(i int) *v1beta1rbac.RoleBinding {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingArgsForCall(i int) *rbacv1.RoleBinding {
 	fake.createRoleBindingMutex.RLock()
 	defer fake.createRoleBindingMutex.RUnlock()
 	return fake.createRoleBindingArgsForCall[i].roleBinding
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturns(result1 *v1beta1rbac.RoleBinding, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturns(result1 *rbacv1.RoleBinding, result2 error) {
 	fake.CreateRoleBindingStub = nil
 	fake.createRoleBindingReturns = struct {
-		result1 *v1beta1rbac.RoleBinding
+		result1 *rbacv1.RoleBinding
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturnsOnCall(i int, result1 *v1beta1rbac.RoleBinding, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturnsOnCall(i int, result1 *rbacv1.RoleBinding, result2 error) {
 	fake.CreateRoleBindingStub = nil
 	if fake.createRoleBindingReturnsOnCall == nil {
 		fake.createRoleBindingReturnsOnCall = make(map[int]struct {
-			result1 *v1beta1rbac.RoleBinding
+			result1 *rbacv1.RoleBinding
 			result2 error
 		})
 	}
 	fake.createRoleBindingReturnsOnCall[i] = struct {
-		result1 *v1beta1rbac.RoleBinding
+		result1 *rbacv1.RoleBinding
 		result2 error
 	}{result1, result2}
 }

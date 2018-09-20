@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: olm-operator
-  namespace: kube-system
+  namespace: olm
   labels:
     app: olm-operator
 spec:

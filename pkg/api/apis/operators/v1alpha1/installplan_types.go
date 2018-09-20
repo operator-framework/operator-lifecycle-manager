@@ -1,18 +1,11 @@
 package v1alpha1
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
-
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -160,121 +153,6 @@ type StepResource struct {
 	Kind                   string `json:"kind"`
 	Name                   string `json:"name"`
 	Manifest               string `json:"manifest,omitempty"`
-}
-
-// NewStepResourceFromCSV creates an unresolved Step for the provided CSV.
-func NewStepResourceFromCSV(csv *ClusterServiceVersion) (StepResource, error) {
-	csvScheme := runtime.NewScheme()
-	if err := AddToScheme(csvScheme); err != nil {
-		return StepResource{}, err
-	}
-	csvSerializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, csvScheme, csvScheme, true)
-
-	var manifestCSV bytes.Buffer
-	if err := csvSerializer.Encode(csv, &manifestCSV); err != nil {
-		return StepResource{}, err
-	}
-
-	step := StepResource{
-		Name:     csv.Name,
-		Kind:     csv.Kind,
-		Group:    csv.GroupVersionKind().Group,
-		Version:  csv.GroupVersionKind().Version,
-		Manifest: manifestCSV.String(),
-	}
-
-	return step, nil
-}
-
-// NewStepResourceFromCRD creates an unresolved Step for the provided CRD.
-func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]StepResource, error) {
-	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, serScheme, serScheme, true)
-
-	var manifest bytes.Buffer
-	if err := serializer.Encode(crd, &manifest); err != nil {
-		return nil, err
-	}
-
-	crdStep := StepResource{
-		Name:     crd.Name,
-		Kind:     crd.Kind,
-		Group:    crd.Spec.Group,
-		Version:  crd.Spec.Version,
-		Manifest: manifest.String(),
-	}
-
-	editRole := rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("edit-%s-%s", crd.Name, crd.Spec.Version),
-			Labels: map[string]string{
-				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
-				"rbac.authorization.k8s.io/aggregate-to-edit":  "true",
-			},
-		},
-		Rules: []rbacv1.PolicyRule{{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
-	}
-	var editRoleManifest bytes.Buffer
-	if err := serializer.Encode(&editRole, &editRoleManifest); err != nil {
-		return nil, err
-	}
-	aggregatedEditClusterRoleStep := StepResource{
-		Name:     editRole.Name,
-		Kind:     "ClusterRole",
-		Group:    "rbac.authorization.k8s.io",
-		Version:  "v1",
-		Manifest: editRoleManifest.String(),
-	}
-
-	viewRole := rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("view-%s-%s", crd.Name, crd.Spec.Version),
-			Labels: map[string]string{
-				"rbac.authorization.k8s.io/aggregate-to-view": "true",
-			},
-		},
-		Rules: []rbacv1.PolicyRule{{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
-	}
-	var viewRoleManifest bytes.Buffer
-	if err := serializer.Encode(&viewRole, &viewRoleManifest); err != nil {
-		return nil, err
-	}
-	aggregatedViewClusterRoleStep := StepResource{
-		Name:     viewRole.Name,
-		Kind:     "ClusterRole",
-		Group:    "rbac.authorization.k8s.io",
-		Version:  "v1",
-		Manifest: viewRoleManifest.String(),
-	}
-
-	return []StepResource{crdStep, aggregatedEditClusterRoleStep, aggregatedViewClusterRoleStep}, nil
-}
-
-// NewStepResourceForObject returns a new StepResource for the provided object
-func NewStepResourceFromObject(obj runtime.Object, name string) (StepResource, error) {
-	var resource StepResource
-
-	// set up object serializer
-	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, serScheme, serScheme, true)
-
-	// create an object manifest
-	var manifest bytes.Buffer
-	err := serializer.Encode(obj, &manifest)
-	if err != nil {
-		return resource, err
-	}
-
-	gvk := obj.GetObjectKind().GroupVersionKind()
-
-	// create the resource
-	resource = StepResource{
-		Name:     name,
-		Kind:     gvk.Kind,
-		Group:    gvk.Group,
-		Version:  gvk.Version,
-		Manifest: manifest.String(),
-	}
-
-	return resource, nil
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
