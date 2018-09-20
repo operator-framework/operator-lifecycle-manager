@@ -128,13 +128,12 @@ local appr = utils.appr;
 
         script:
             k8s.setKubeConfig(_vars.kubeconfig) +
-            k8s.createNamespace(_vars.namespace) +
+            helm.templateApply("olm", _vars.chart, _vars.namespace, _vars.params) +
             k8s.createPullSecret("coreos-pull-secret",
                                  _vars.namespace,
                                  "quay.io",
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
-            helm.templateApply("olm", _vars.chart, _vars.namespace, _vars.params) +
             k8s.waitForDeployment("olm-operator", _vars.namespace) +
             k8s.waitForDeployment("catalog-operator", _vars.namespace) +
             k8s.waitForDeployment("package-server", _vars.namespace),
