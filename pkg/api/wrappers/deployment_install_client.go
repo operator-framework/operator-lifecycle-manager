@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1beta1rbac "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -15,8 +15,8 @@ import (
 var ErrNilObject = errors.New("Bad object supplied: <nil>")
 
 type InstallStrategyDeploymentInterface interface {
-	CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error)
-	CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error)
+	CreateRole(role *rbacv1.Role) (*rbacv1.Role, error)
+	CreateRoleBinding(roleBinding *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
 	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
 	CreateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
 	CreateOrUpdateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
@@ -39,12 +39,12 @@ func NewInstallStrategyDeploymentClient(opClient operatorclient.ClientInterface,
 	}
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) CreateRole(role *v1beta1rbac.Role) (*v1beta1rbac.Role, error) {
-	return c.opClient.KubernetesInterface().RbacV1beta1().Roles(c.Namespace).Create(role)
+func (c *InstallStrategyDeploymentClientForNamespace) CreateRole(role *rbacv1.Role) (*rbacv1.Role, error) {
+	return c.opClient.KubernetesInterface().RbacV1().Roles(c.Namespace).Create(role)
 }
 
-func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBinding *v1beta1rbac.RoleBinding) (*v1beta1rbac.RoleBinding, error) {
-	return c.opClient.KubernetesInterface().RbacV1beta1().RoleBindings(c.Namespace).Create(roleBinding)
+func (c *InstallStrategyDeploymentClientForNamespace) CreateRoleBinding(roleBinding *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error) {
+	return c.opClient.KubernetesInterface().RbacV1().RoleBindings(c.Namespace).Create(roleBinding)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error) {

@@ -2,6 +2,8 @@ package ownerutil
 
 import (
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -97,6 +99,36 @@ func inferGroupVersionKind(owner Owner) {
 	}
 
 	switch v := owner.(type) {
+	case *corev1.ServiceAccount:
+		owner.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "",
+			Version: "v1",
+			Kind:    "ServiceAccount",
+		})
+	case *rbac.ClusterRole:
+		owner.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "rbac.authorization.k8s.io",
+			Version: "v1",
+			Kind:    "ClusterRole",
+		})
+	case *rbac.ClusterRoleBinding:
+		owner.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "rbac.authorization.k8s.io",
+			Version: "v1",
+			Kind:    "RoleBinding",
+		})
+	case *rbac.Role:
+		owner.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "rbac.authorization.k8s.io",
+			Version: "v1",
+			Kind:    "Role",
+		})
+	case *rbac.RoleBinding:
+		owner.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "rbac.authorization.k8s.io",
+			Version: "v1",
+			Kind:    "RoleBinding",
+		})
 	case *v1alpha1.ClusterServiceVersion:
 		owner.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   v1alpha1.GroupName,

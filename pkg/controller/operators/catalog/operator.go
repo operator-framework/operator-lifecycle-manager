@@ -30,12 +30,13 @@ import (
 )
 
 const (
-	crdKind            = "CustomResourceDefinition"
-	secretKind         = "Secret"
-	clusterRoleKind    = "ClusterRole"
-	serviceAccountKind = "ServiceAccount"
-	roleKind           = "Role"
-	roleBindingKind    = "RoleBinding"
+	crdKind                = "CustomResourceDefinition"
+	secretKind             = "Secret"
+	clusterRoleKind        = "ClusterRole"
+	clusterRoleBindingKind = "ClusterRoleBinding"
+	serviceAccountKind     = "ServiceAccount"
+	roleKind               = "Role"
+	roleBindingKind        = "RoleBinding"
 )
 
 //for test stubbing and for ensuring standardization of timezones to UTC
@@ -549,6 +550,38 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Attempt to create the ClusterRole.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
 				if k8serrors.IsAlreadyExists(err) {
+					// If it already existed, mark the step as Present.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return err
+				} else {
+					// If no error occurred, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+			case clusterRoleBindingKind:
+				// Marshal the manifest into a RoleBinding instance.
+				var rb rbacv1.ClusterRoleBinding
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &rb)
+				if err != nil {
+					return err
+				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(rb.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return err
+				}
+				rb.OwnerReferences = updated
+
+				// Attempt to create the RoleBinding.
+				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
+				if k8serrors.IsAlreadyExists(err) {
+					rb.SetNamespace(plan.Namespace)
+					_, err = o.OpClient.UpdateClusterRoleBinding(&rb)
+					if err != nil {
+						return err
+					}
+
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 				} else if err != nil {

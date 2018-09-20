@@ -5,9 +5,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	rbac "k8s.io/api/rbac/v1beta1"
+	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
@@ -235,7 +234,7 @@ func resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners ma
 func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.StepResource, error) {
 	var rbacSteps []v1alpha1.StepResource
 
-	// User a StrategyResolver to
+	// User a StrategyResolver to get the strategy details
 	strategyResolver := install.StrategyResolver{}
 	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 	if err != nil {
@@ -255,11 +254,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 	for i, permission := range strategyDetailsDeployment.Permissions {
 		// Create ServiceAccount if necessary
 		if _, ok := serviceaccounts[permission.ServiceAccountName]; !ok {
-			serviceAccount := &corev1.ServiceAccount{
-				TypeMeta: metav1.TypeMeta{
-					Kind: "ServiceAccount",
-				},
-			}
+			serviceAccount := &corev1.ServiceAccount{}
 			serviceAccount.SetName(permission.ServiceAccountName)
 			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
 			step, err := v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
@@ -274,9 +269,6 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 
 		// Create Role
 		role := &rbac.Role{
-			TypeMeta: metav1.TypeMeta{
-				Kind: "Role",
-			},
 			Rules: permission.Rules,
 		}
 		ownerutil.AddNonBlockingOwner(role, csv)
@@ -289,11 +281,57 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 
 		// Create RoleBinding
 		roleBinding := &rbac.RoleBinding{
-			TypeMeta: metav1.TypeMeta{
-				Kind: "RoleBinding",
-			},
 			RoleRef: rbac.RoleRef{
 				Kind:     "Role",
+				Name:     role.GetName(),
+				APIGroup: rbac.GroupName},
+			Subjects: []rbac.Subject{{
+				Kind: "ServiceAccount",
+				Name: permission.ServiceAccountName,
+			}},
+		}
+		ownerutil.AddNonBlockingOwner(roleBinding, csv)
+		roleBinding.SetName(fmt.Sprintf("%s-%s", role.GetName(), permission.ServiceAccountName))
+		step, err = v1alpha1.NewStepResourceFromObject(roleBinding, roleBinding.GetName())
+		if err != nil {
+			return nil, err
+		}
+		rbacSteps = append(rbacSteps, step)
+	}
+
+	// Resolve ClusterPermissions as StepResources
+	for i, permission := range strategyDetailsDeployment.ClusterPermissions {
+		// Create ServiceAccount if necessary
+		if _, ok := serviceaccounts[permission.ServiceAccountName]; !ok {
+			serviceAccount := &corev1.ServiceAccount{}
+			serviceAccount.SetName(permission.ServiceAccountName)
+			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
+			step, err := v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+
+			// Mark that a StepResource has been resolved for this ServiceAccount
+			serviceaccounts[permission.ServiceAccountName] = struct{}{}
+		}
+
+		// Create ClusterRole
+		role := &rbac.ClusterRole{
+			Rules: permission.Rules,
+		}
+		ownerutil.AddNonBlockingOwner(role, csv)
+		role.SetName(fmt.Sprintf("%s-%d", csv.GetName(), i))
+		step, err := v1alpha1.NewStepResourceFromObject(role, role.GetName())
+		if err != nil {
+			return nil, err
+		}
+		rbacSteps = append(rbacSteps, step)
+
+		// Create ClusterRoleBinding
+		roleBinding := &rbac.ClusterRoleBinding{
+			RoleRef: rbac.RoleRef{
+				Kind:     "ClusterRole",
 				Name:     role.GetName(),
 				APIGroup: rbac.GroupName},
 			Subjects: []rbac.Subject{{

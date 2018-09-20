@@ -23,6 +23,7 @@ type ClientInterface interface {
 	ServiceAccountClient
 	RoleClient
 	RoleBindingClient
+	ClusterRoleBindingClient
 	DeploymentClient
 }
 
@@ -63,6 +64,14 @@ type RoleBindingClient interface {
 	GetRoleBinding(namespace, name string) (*rbacv1.RoleBinding, error)
 	UpdateRoleBinding(modified *rbacv1.RoleBinding) (*rbacv1.RoleBinding, error)
 	DeleteRoleBinding(namespace, name string, options *metav1.DeleteOptions) error
+}
+
+// ClusterRoleBindingClient contains methods for manipulating RoleBindings.
+type ClusterRoleBindingClient interface {
+	CreateClusterRoleBinding(*rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error)
+	GetClusterRoleBinding(name string) (*rbacv1.ClusterRoleBinding, error)
+	UpdateClusterRoleBinding(modified *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error)
+	DeleteClusterRoleBinding(name string, options *metav1.DeleteOptions) error
 }
 
 // DeploymentClient contains methods for the Deployment resource.
