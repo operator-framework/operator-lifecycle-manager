@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1beta1rbac "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -73,7 +73,7 @@ func strategy(n int, namespace string, mockOwner ownerutil.Owner) *StrategyDetai
 		serviceAccount := testServiceAccount(fmt.Sprintf("alm-sa-%d", i), mockOwner)
 		permissions = append(permissions, StrategyDeploymentPermissions{
 			ServiceAccountName: serviceAccount.Name,
-			Rules: []v1beta1rbac.PolicyRule{
+			Rules: []rbacv1.PolicyRule{
 				{
 					Verbs:     []string{"list", "delete"},
 					APIGroups: []string{""},
@@ -88,8 +88,8 @@ func strategy(n int, namespace string, mockOwner ownerutil.Owner) *StrategyDetai
 	}
 }
 
-func testRules(name string) []v1beta1rbac.PolicyRule {
-	return []v1beta1rbac.PolicyRule{
+func testRules(name string) []rbacv1.PolicyRule {
+	return []rbacv1.PolicyRule{
 		{
 			Verbs:     []string{"list", "delete"},
 			APIGroups: []string{name},
@@ -291,15 +291,15 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 		strategyPermissions []StrategyDeploymentPermissions
 	}
 	type mock struct {
-		expectedRole      *v1beta1rbac.Role
-		createdRole       *v1beta1rbac.Role
+		expectedRole      *rbacv1.Role
+		createdRole       *rbacv1.Role
 		roleCreationError error
 
 		expectedServiceAccount    *corev1.ServiceAccount
 		ensuredServiceAccount     *corev1.ServiceAccount
 		ensureServiceAccountError error
 
-		expectedRoleBinding      *v1beta1rbac.RoleBinding
+		expectedRoleBinding      *rbacv1.RoleBinding
 		roleBindingCreationError error
 	}
 	tests := []struct {
@@ -326,14 +326,14 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 			},
 			mocks: []mock{
 				{
-					expectedRole: &v1beta1rbac.Role{
+					expectedRole: &rbacv1.Role{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName:    generateRoleName,
 							OwnerReferences: mockOwnerRefs,
 						},
 						Rules: testRules1,
 					},
-					createdRole: &v1beta1rbac.Role{ObjectMeta: metav1.ObjectMeta{
+					createdRole: &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{
 						Name: roleName1,
 					}},
 					roleCreationError: nil,
@@ -349,12 +349,12 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 					}},
 					ensureServiceAccountError: nil,
 
-					expectedRoleBinding: &v1beta1rbac.RoleBinding{
-						RoleRef: v1beta1rbac.RoleRef{
+					expectedRoleBinding: &rbacv1.RoleBinding{
+						RoleRef: rbacv1.RoleRef{
 							Kind:     "Role",
 							Name:     roleName1,
-							APIGroup: v1beta1rbac.GroupName},
-						Subjects: []v1beta1rbac.Subject{{
+							APIGroup: rbacv1.GroupName},
+						Subjects: []rbacv1.Subject{{
 							Kind:      "ServiceAccount",
 							Name:      serviceAccountName1,
 							Namespace: namespace,
@@ -368,14 +368,14 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 					roleBindingCreationError: nil,
 				},
 				{
-					expectedRole: &v1beta1rbac.Role{
+					expectedRole: &rbacv1.Role{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName:    generateRoleName,
 							OwnerReferences: mockOwnerRefs,
 						},
 						Rules: testRules2,
 					},
-					createdRole: &v1beta1rbac.Role{ObjectMeta: metav1.ObjectMeta{
+					createdRole: &rbacv1.Role{ObjectMeta: metav1.ObjectMeta{
 						Name: roleName2,
 					}},
 					roleCreationError: nil,
@@ -391,12 +391,12 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 					}},
 					ensureServiceAccountError: nil,
 
-					expectedRoleBinding: &v1beta1rbac.RoleBinding{
-						RoleRef: v1beta1rbac.RoleRef{
+					expectedRoleBinding: &rbacv1.RoleBinding{
+						RoleRef: rbacv1.RoleRef{
 							Kind:     "Role",
 							Name:     roleName2,
-							APIGroup: v1beta1rbac.GroupName},
-						Subjects: []v1beta1rbac.Subject{{
+							APIGroup: rbacv1.GroupName},
+						Subjects: []rbacv1.Subject{{
 							Kind:      "ServiceAccount",
 							Name:      serviceAccountName2,
 							Namespace: namespace,
@@ -421,7 +421,7 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 			},
 			mocks: []mock{
 				{
-					expectedRole: &v1beta1rbac.Role{
+					expectedRole: &rbacv1.Role{
 						ObjectMeta: metav1.ObjectMeta{
 							GenerateName:    generateRoleName,
 							OwnerReferences: mockOwnerRefs,
@@ -557,9 +557,9 @@ func TestInstallStrategyDeployment(t *testing.T) {
 				serviceAccount := testServiceAccount(p.ServiceAccountName, &mockOwner)
 
 				fakeClient.EnsureServiceAccountReturnsOnCall(i, serviceAccount, nil)
-				fakeClient.CreateRoleReturnsOnCall(i, &v1beta1rbac.Role{Rules: p.Rules}, nil)
-				fakeClient.CreateRoleBindingReturnsOnCall(i, &v1beta1rbac.RoleBinding{}, nil)
-				defer func(call int, rules []v1beta1rbac.PolicyRule) {
+				fakeClient.CreateRoleReturnsOnCall(i, &rbacv1.Role{Rules: p.Rules}, nil)
+				fakeClient.CreateRoleBindingReturnsOnCall(i, &rbacv1.RoleBinding{}, nil)
+				defer func(call int, rules []rbacv1.PolicyRule) {
 					require.Equal(t, rules, fakeClient.CreateRoleArgsForCall(call).Rules)
 				}(i, p.Rules)
 			}
@@ -712,7 +712,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			fakeClient.CreateRoleReturns(&v1beta1rbac.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
+			fakeClient.CreateRoleReturns(&rbacv1.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
 			defer func() {
 				require.Equal(t, strategy.Permissions[0].Rules, fakeClient.CreateRoleArgsForCall(0).Rules)
 			}()
@@ -739,7 +739,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
-			fakeClient.CreateRoleBindingReturns(&v1beta1rbac.RoleBinding{}, tt.createRoleBindingErr)
+			fakeClient.CreateRoleBindingReturns(&rbacv1.RoleBinding{}, tt.createRoleBindingErr)
 
 			if tt.createRoleBindingErr != nil {
 				err := installer.Install(strategy)

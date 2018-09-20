@@ -9,13 +9,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
-	rbac "k8s.io/api/rbac/v1beta1"
+	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -39,13 +40,13 @@ func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		expectedErr     error
 		expectedPlanLen int
 	}{
-		{"MissingCSV", "name", []csvNames{{"", nil, nil, installStrategy("deployment", nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
-		{"MissingCSVByName", "name", []csvNames{{"missingName", nil, nil, installStrategy("deployment", nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
-		{"FoundCSV", "name", []csvNames{{"name", nil, nil, installStrategy("deployment", nil)}}, nil, nil, 1},
-		{"CSVWithMissingOwnedCRD", "name", []csvNames{{"name", []string{"missingCRD"}, nil, installStrategy("deployment", nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"CSVWithMissingRequiredCRD", "name", []csvNames{{"name", nil, []string{"missingCRD"}, installStrategy("deployment", nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil, installStrategy("deployment", nil)}}, []string{"CRD"}, nil, 4},
-		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}, installStrategy("deployment", nil)}, {"crdOwner", []string{"CRD"}, nil, installStrategy("deployment", nil)}}, []string{"CRD"}, nil, 5},
+		{"MissingCSV", "name", []csvNames{{"", nil, nil, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"MissingCSVByName", "name", []csvNames{{"missingName", nil, nil, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
+		{"FoundCSV", "name", []csvNames{{"name", nil, nil, installStrategy("deployment", nil, nil)}}, nil, nil, 1},
+		{"CSVWithMissingOwnedCRD", "name", []csvNames{{"name", []string{"missingCRD"}, nil, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
+		{"CSVWithMissingRequiredCRD", "name", []csvNames{{"name", nil, []string{"missingCRD"}, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
+		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil, installStrategy("deployment", nil, nil)}}, []string{"CRD"}, nil, 4},
+		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}, installStrategy("deployment", nil, nil)}, {"crdOwner", []string{"CRD"}, nil, installStrategy("deployment", nil, nil)}}, []string{"CRD"}, nil, 5},
 	}
 
 	for _, tt := range table {
@@ -139,8 +140,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"SingleCRDSameCatalog",
 			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil)},
-				{"crdOwner", []string{"CRD"}, nil, sourceA, installStrategy("deployment", nil)},
+				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil, nil)},
+				{"crdOwner", []string{"CRD"}, nil, sourceA, installStrategy("deployment", nil, nil)},
 			},
 			[]crdName{{"CRD", sourceA}},
 			[]registry.ResourceKey{sourceA},
@@ -156,8 +157,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"SingleCRDDifferentCatalog",
 			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil)},
-				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil)},
+				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil, nil)},
+				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil, nil)},
 			},
 			[]crdName{{"CRD", sourceB}},
 			[]registry.ResourceKey{sourceA, sourceB},
@@ -173,8 +174,8 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"RequiredCRDNotInOwnersCatalog",
 			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil)},
-				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil)},
+				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil, nil)},
+				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil, nil)},
 			},
 			[]crdName{{"CRD", sourceC}},
 			[]registry.ResourceKey{sourceA, sourceB, sourceC},
@@ -184,9 +185,9 @@ func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
 		{
 			"MultipleTransitiveDependenciesInDifferentCatalogs",
 			[]csvName{
-				{"main", nil, []string{"CRD-0"}, sourceA, installStrategy("deployment", nil)},
-				{"crdOwner-0", []string{"CRD-0"}, []string{"CRD-1"}, sourceB, installStrategy("deployment", nil)},
-				{"crdOwner-1", []string{"CRD-1", "CRD-2"}, nil, sourceC, installStrategy("deployment", nil)},
+				{"main", nil, []string{"CRD-0"}, sourceA, installStrategy("deployment", nil, nil)},
+				{"crdOwner-0", []string{"CRD-0"}, []string{"CRD-1"}, sourceB, installStrategy("deployment", nil, nil)},
+				{"crdOwner-1", []string{"CRD-1", "CRD-2"}, nil, sourceC, installStrategy("deployment", nil, nil)},
 			},
 			[]crdName{
 				{"CRD-0", sourceB},
@@ -302,10 +303,10 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			"default",
 			"macaroni-stable",
 			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil)},
-				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil)},
-				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil)},
-				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil, nil)},
+				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
+				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
+				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
@@ -356,10 +357,10 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			"default",
 			"macaroni-stable",
 			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil)},
-				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil)},
-				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil)},
-				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil, nil)},
+				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
+				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
+				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
@@ -412,10 +413,10 @@ func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver Dependenc
 			"default",
 			"macaroni-stable",
 			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil)},
-				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil)},
-				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil)},
-				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil)},
+				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil, nil)},
+				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
+				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
+				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
 			},
 			[]string{"macaroni", "cheese"},
 			[]registry.PackageManifest{
@@ -549,27 +550,27 @@ func TestResolveRBACStepResources(t *testing.T) {
 			csvDesc: csvDescription{
 				name: "plane",
 				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
-					install.StrategyDeploymentPermissions{
+					{
 						ServiceAccountName: "plane-sa",
 						Rules: []rbac.PolicyRule{
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"engine"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"tires"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"wings"},
 							},
 						},
 					},
-				}),
+				}, nil),
 			},
 			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
 				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:      {},
@@ -582,42 +583,42 @@ func TestResolveRBACStepResources(t *testing.T) {
 			csvDesc: csvDescription{
 				name: "plane",
 				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
-					install.StrategyDeploymentPermissions{
+					{
 						ServiceAccountName: "plane-sa",
 						Rules: []rbac.PolicyRule{
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"engine"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"tires"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"wings"},
 							},
 						},
 					},
-					install.StrategyDeploymentPermissions{
+					{
 						ServiceAccountName: "plane-sa",
 						Rules: []rbac.PolicyRule{
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"altimeter"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"fuelgauge"},
 							},
 						},
 					},
-				}),
+				}, nil),
 			},
 			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
 				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:      {},
@@ -632,37 +633,37 @@ func TestResolveRBACStepResources(t *testing.T) {
 			csvDesc: csvDescription{
 				name: "plane",
 				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
-					install.StrategyDeploymentPermissions{
+					{
 						ServiceAccountName: "plane-sa",
 						Rules: []rbac.PolicyRule{
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"engine"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"tires"},
 							},
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"planes.redhat.com"},
 								Resources: []string{"wings"},
 							},
 						},
 					},
-					install.StrategyDeploymentPermissions{
+					{
 						ServiceAccountName: "runway-sa",
 						Rules: []rbac.PolicyRule{
-							rbac.PolicyRule{
+							{
 								Verbs:     []string{rbac.VerbAll},
 								APIGroups: []string{"runways.redhat.com"},
 								Resources: []string{"tarmac"},
 							},
 						},
 					},
-				}),
+				}, nil),
 			},
 			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
 				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:       {},
@@ -702,8 +703,10 @@ func TestResolveRBACStepResources(t *testing.T) {
 					Kind: stepResource.Kind,
 				}
 
+				t.Log(key)
 				_, ok := tt.expectedStepResources[key]
-				require.True(t, ok, "unexpected step resource found: %+v", stepResource.Name)
+
+				assert.True(t, ok, "unexpected step resource found: %+v", stepResource.Name)
 
 				// Remove expected resource
 				delete(tt.expectedStepResources, key)
@@ -775,7 +778,7 @@ func crd(name, namespace string) v1beta1.CustomResourceDefinition {
 	}
 }
 
-func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
@@ -811,7 +814,8 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 				},
 			},
 		},
-		Permissions: permissions,
+		Permissions:        permissions,
+		ClusterPermissions: clusterPermissions,
 	}
 	strategyRaw, err := json.Marshal(strategy)
 	if err != nil {

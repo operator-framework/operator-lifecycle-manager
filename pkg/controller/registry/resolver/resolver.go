@@ -114,7 +114,7 @@ func (resolver *MultiSourceResolver) resolveCSV(sourceRefs []registry.SourceRef,
 		labels[catalogLabelKey] = csvSourceKey.Name
 		csv.SetLabels(labels)
 
-		step, err := v1alpha1.NewStepResourceFromCSV(csv)
+		step, err := NewStepResourceFromCSV(csv)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -180,7 +180,7 @@ func resolveCRDDescription(sourceRefs []registry.SourceRef, existingCRDOwners ma
 		crd.SetLabels(labels)
 
 		// Add CRD Step
-		crdSteps, err := v1alpha1.NewStepResourcesFromCRD(crd)
+		crdSteps, err := NewStepResourcesFromCRD(crd)
 		if err != nil {
 			return nil, "", err
 		}
@@ -257,7 +257,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 			serviceAccount := &corev1.ServiceAccount{}
 			serviceAccount.SetName(permission.ServiceAccountName)
 			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
-			step, err := v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
+			step, err := NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
 			if err != nil {
 				return nil, err
 			}
@@ -273,7 +273,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 		}
 		ownerutil.AddNonBlockingOwner(role, csv)
 		role.SetName(fmt.Sprintf("%s-%d", csv.GetName(), i))
-		step, err := v1alpha1.NewStepResourceFromObject(role, role.GetName())
+		step, err := NewStepResourceFromObject(role, role.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -292,7 +292,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 		}
 		ownerutil.AddNonBlockingOwner(roleBinding, csv)
 		roleBinding.SetName(fmt.Sprintf("%s-%s", role.GetName(), permission.ServiceAccountName))
-		step, err = v1alpha1.NewStepResourceFromObject(roleBinding, roleBinding.GetName())
+		step, err = NewStepResourceFromObject(roleBinding, roleBinding.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -306,7 +306,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 			serviceAccount := &corev1.ServiceAccount{}
 			serviceAccount.SetName(permission.ServiceAccountName)
 			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
-			step, err := v1alpha1.NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
+			step, err := NewStepResourceFromObject(serviceAccount, serviceAccount.GetName())
 			if err != nil {
 				return nil, err
 			}
@@ -322,7 +322,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 		}
 		ownerutil.AddNonBlockingOwner(role, csv)
 		role.SetName(fmt.Sprintf("%s-%d", csv.GetName(), i))
-		step, err := v1alpha1.NewStepResourceFromObject(role, role.GetName())
+		step, err := NewStepResourceFromObject(role, role.GetName())
 		if err != nil {
 			return nil, err
 		}
@@ -341,7 +341,7 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 		}
 		ownerutil.AddNonBlockingOwner(roleBinding, csv)
 		roleBinding.SetName(fmt.Sprintf("%s-%s", role.GetName(), permission.ServiceAccountName))
-		step, err = v1alpha1.NewStepResourceFromObject(roleBinding, roleBinding.GetName())
+		step, err = NewStepResourceFromObject(roleBinding, roleBinding.GetName())
 		if err != nil {
 			return nil, err
 		}

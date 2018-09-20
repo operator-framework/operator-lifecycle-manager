@@ -366,6 +366,57 @@ func (mr *MockClientInterfaceMockRecorder) DeleteRoleBinding(namespace, name, op
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).DeleteRoleBinding), namespace, name, options)
 }
 
+// CreateClusterRoleBinding mocks base method
+func (m *MockClientInterface) CreateClusterRoleBinding(arg0 *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+	ret := m.ctrl.Call(m, "CreateClusterRoleBinding", arg0)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateClusterRoleBinding indicates an expected call of CreateClusterRoleBinding
+func (mr *MockClientInterfaceMockRecorder) CreateClusterRoleBinding(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).CreateClusterRoleBinding), arg0)
+}
+
+// GetClusterRoleBinding mocks base method
+func (m *MockClientInterface) GetClusterRoleBinding(name string) (*v11.ClusterRoleBinding, error) {
+	ret := m.ctrl.Call(m, "GetClusterRoleBinding", name)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterRoleBinding indicates an expected call of GetClusterRoleBinding
+func (mr *MockClientInterfaceMockRecorder) GetClusterRoleBinding(name interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).GetClusterRoleBinding), name)
+}
+
+// UpdateClusterRoleBinding mocks base method
+func (m *MockClientInterface) UpdateClusterRoleBinding(modified *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+	ret := m.ctrl.Call(m, "UpdateClusterRoleBinding", modified)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateClusterRoleBinding indicates an expected call of UpdateClusterRoleBinding
+func (mr *MockClientInterfaceMockRecorder) UpdateClusterRoleBinding(modified interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).UpdateClusterRoleBinding), modified)
+}
+
+// DeleteClusterRoleBinding mocks base method
+func (m *MockClientInterface) DeleteClusterRoleBinding(name string, options *v12.DeleteOptions) error {
+	ret := m.ctrl.Call(m, "DeleteClusterRoleBinding", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteClusterRoleBinding indicates an expected call of DeleteClusterRoleBinding
+func (mr *MockClientInterfaceMockRecorder) DeleteClusterRoleBinding(name, options interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).DeleteClusterRoleBinding), name, options)
+}
+
 // GetDeployment mocks base method
 func (m *MockClientInterface) GetDeployment(namespace, name string) (*v1.Deployment, error) {
 	ret := m.ctrl.Call(m, "GetDeployment", namespace, name)
@@ -894,6 +945,80 @@ func (m *MockRoleBindingClient) DeleteRoleBinding(namespace, name string, option
 // DeleteRoleBinding indicates an expected call of DeleteRoleBinding
 func (mr *MockRoleBindingClientMockRecorder) DeleteRoleBinding(namespace, name, options interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRoleBinding", reflect.TypeOf((*MockRoleBindingClient)(nil).DeleteRoleBinding), namespace, name, options)
+}
+
+// MockClusterRoleBindingClient is a mock of ClusterRoleBindingClient interface
+type MockClusterRoleBindingClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockClusterRoleBindingClientMockRecorder
+}
+
+// MockClusterRoleBindingClientMockRecorder is the mock recorder for MockClusterRoleBindingClient
+type MockClusterRoleBindingClientMockRecorder struct {
+	mock *MockClusterRoleBindingClient
+}
+
+// NewMockClusterRoleBindingClient creates a new mock instance
+func NewMockClusterRoleBindingClient(ctrl *gomock.Controller) *MockClusterRoleBindingClient {
+	mock := &MockClusterRoleBindingClient{ctrl: ctrl}
+	mock.recorder = &MockClusterRoleBindingClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockClusterRoleBindingClient) EXPECT() *MockClusterRoleBindingClientMockRecorder {
+	return m.recorder
+}
+
+// CreateClusterRoleBinding mocks base method
+func (m *MockClusterRoleBindingClient) CreateClusterRoleBinding(arg0 *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+	ret := m.ctrl.Call(m, "CreateClusterRoleBinding", arg0)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateClusterRoleBinding indicates an expected call of CreateClusterRoleBinding
+func (mr *MockClusterRoleBindingClientMockRecorder) CreateClusterRoleBinding(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateClusterRoleBinding", reflect.TypeOf((*MockClusterRoleBindingClient)(nil).CreateClusterRoleBinding), arg0)
+}
+
+// GetClusterRoleBinding mocks base method
+func (m *MockClusterRoleBindingClient) GetClusterRoleBinding(name string) (*v11.ClusterRoleBinding, error) {
+	ret := m.ctrl.Call(m, "GetClusterRoleBinding", name)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterRoleBinding indicates an expected call of GetClusterRoleBinding
+func (mr *MockClusterRoleBindingClientMockRecorder) GetClusterRoleBinding(name interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterRoleBinding", reflect.TypeOf((*MockClusterRoleBindingClient)(nil).GetClusterRoleBinding), name)
+}
+
+// UpdateClusterRoleBinding mocks base method
+func (m *MockClusterRoleBindingClient) UpdateClusterRoleBinding(modified *v11.ClusterRoleBinding) (*v11.ClusterRoleBinding, error) {
+	ret := m.ctrl.Call(m, "UpdateClusterRoleBinding", modified)
+	ret0, _ := ret[0].(*v11.ClusterRoleBinding)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateClusterRoleBinding indicates an expected call of UpdateClusterRoleBinding
+func (mr *MockClusterRoleBindingClientMockRecorder) UpdateClusterRoleBinding(modified interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateClusterRoleBinding", reflect.TypeOf((*MockClusterRoleBindingClient)(nil).UpdateClusterRoleBinding), modified)
+}
+
+// DeleteClusterRoleBinding mocks base method
+func (m *MockClusterRoleBindingClient) DeleteClusterRoleBinding(name string, options *v12.DeleteOptions) error {
+	ret := m.ctrl.Call(m, "DeleteClusterRoleBinding", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteClusterRoleBinding indicates an expected call of DeleteClusterRoleBinding
+func (mr *MockClusterRoleBindingClientMockRecorder) DeleteClusterRoleBinding(name, options interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteClusterRoleBinding", reflect.TypeOf((*MockClusterRoleBindingClient)(nil).DeleteClusterRoleBinding), name, options)
 }
 
 // MockDeploymentClient is a mock of DeploymentClient interface

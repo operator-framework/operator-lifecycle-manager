@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
-	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -190,7 +190,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(depName, nil),
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -233,7 +233,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(depName, nil),
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
 					{
@@ -279,7 +279,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(depName, nil),
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -348,7 +348,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(depName, nil),
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			// Cheating a little; this is an APIservice that will exist for the e2e tests
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
@@ -414,7 +414,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		Permissions: []install.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: "csv-sa",
-				Rules: []rbacv1beta1.PolicyRule{
+				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"list", "delete"},
 						APIGroups: []string{""},
@@ -424,7 +424,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			},
 			{
 				ServiceAccountName: "old-csv-sa",
-				Rules: []rbacv1beta1.PolicyRule{
+				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"list", "delete"},
 						APIGroups: []string{""},
@@ -496,7 +496,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		Permissions: []install.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: "csv-sa",
-				Rules: []rbacv1beta1.PolicyRule{
+				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"list", "delete"},
 						APIGroups: []string{""},
@@ -506,7 +506,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			},
 			{
 				ServiceAccountName: "new-csv-sa",
-				Rules: []rbacv1beta1.PolicyRule{
+				Rules: []rbacv1.PolicyRule{
 					{
 						Verbs:     []string{"list", "delete"},
 						APIGroups: []string{""},

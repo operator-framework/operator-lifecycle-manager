@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	rbac "k8s.io/api/rbac/v1beta1"
+	rbac "k8s.io/api/rbac/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -18,6 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 )
 
 type checkInstallPlanFunc func(fip *v1alpha1.InstallPlan) bool
@@ -84,7 +85,7 @@ func fetchInstallPlan(t *testing.T, c versioned.Interface, name string, checkPha
 	return fetchedInstallPlan, err
 }
 
-func newNginxInstallStrategy(name string, permissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+func newNginxInstallStrategy(name string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	// Create an nginx details deployment
 	details := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
@@ -110,7 +111,8 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 				},
 			},
 		},
-		Permissions: permissions,
+		Permissions:        permissions,
+		ClusterPermissions: clusterPermissions,
 	}
 	detailsRaw, _ := json.Marshal(details)
 	namedStrategy := v1alpha1.NamedInstallStrategy{
@@ -352,8 +354,8 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	stableChannel := "stable"
 
-	mainNamedStrategy := newNginxInstallStrategy("dep-", nil)
-	dependentNamedStrategy := newNginxInstallStrategy("dep-", nil)
+	mainNamedStrategy := newNginxInstallStrategy("dep-", nil, nil)
+	dependentNamedStrategy := newNginxInstallStrategy("dep-", nil, nil)
 
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
@@ -370,20 +372,20 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	// Create separate manifests for each CatalogSource
 	mainManifests := []registry.PackageManifest{
-		registry.PackageManifest{
+		{
 			PackageName: mainPackageName,
 			Channels: []registry.PackageChannel{
-				registry.PackageChannel{Name: stableChannel, CurrentCSVName: mainPackageStable},
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
 			},
 			DefaultChannelName: stableChannel,
 		},
 	}
 
 	dependentManifests := []registry.PackageManifest{
-		registry.PackageManifest{
+		{
 			PackageName: dependentPackageName,
 			Channels: []registry.PackageChannel{
-				registry.PackageChannel{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+				{Name: stableChannel, CurrentCSVName: dependentPackageStable},
 			},
 			DefaultChannelName: stableChannel,
 		},
@@ -506,8 +508,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -637,8 +639,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -772,8 +774,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -863,16 +865,16 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the status subresource with a preresolved set of resources
-		csvStepResource, err := v1alpha1.NewStepResourceFromCSV(&mainBetaCSV)
+		csvStepResource, err := resolver.NewStepResourceFromCSV(&mainBetaCSV)
 		require.NoError(t, err)
 
-		crdStepResources, err := v1alpha1.NewStepResourcesFromCRD(&mainCRD)
+		crdStepResources, err := resolver.NewStepResourcesFromCRD(&mainCRD)
 		require.NoError(t, err)
 
-		dependentCSVStepResource, err := v1alpha1.NewStepResourceFromCSV(&dependentStableCSV)
+		dependentCSVStepResource, err := resolver.NewStepResourceFromCSV(&dependentStableCSV)
 		require.NoError(t, err)
 
-		dependentCRDStepResources, err := v1alpha1.NewStepResourcesFromCRD(&dependentCRD)
+		dependentCRDStepResources, err := resolver.NewStepResourcesFromCRD(&dependentCRD)
 		require.NoError(t, err)
 
 		updated.Status.Plan = []v1alpha1.Step{{
@@ -954,8 +956,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
 
 		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil)
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
@@ -1018,16 +1020,16 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the status subresource with a pre-resolved set of resources
-		csvStepResource, err := v1alpha1.NewStepResourceFromCSV(&mainStableCSV)
+		csvStepResource, err := resolver.NewStepResourceFromCSV(&mainStableCSV)
 		require.NoError(t, err)
 
-		crdStepResources, err := v1alpha1.NewStepResourcesFromCRD(&mainCRD)
+		crdStepResources, err := resolver.NewStepResourcesFromCRD(&mainCRD)
 		require.NoError(t, err)
 
-		dependentCSVStepResource, err := v1alpha1.NewStepResourceFromCSV(&dependentStableCSV)
+		dependentCSVStepResource, err := resolver.NewStepResourceFromCSV(&dependentStableCSV)
 		require.NoError(t, err)
 
-		dependentCRDStepResources, err := v1alpha1.NewStepResourcesFromCRD(&dependentCRD)
+		dependentCRDStepResources, err := resolver.NewStepResourcesFromCRD(&dependentCRD)
 		require.NoError(t, err)
 
 		updated.Status.Plan = []v1alpha1.Step{
