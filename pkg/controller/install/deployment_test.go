@@ -10,9 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	clientfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes"
@@ -481,131 +479,6 @@ func TestInstallStrategyDeploymentInstallPermissions(t *testing.T) {
 	}
 }
 
-func TestInstallStrategyDeployment(t *testing.T) {
-	namespace := "alm-test-deployment"
-
-	mockOwner := v1alpha1.ClusterServiceVersion{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "clusterserviceversion-owner",
-			Namespace: namespace,
-		},
-	}
-
-	tests := []struct {
-		numMockServiceAccounts int
-		numMockDeployments     int
-		numExpected            int
-		description            string
-	}{
-		{
-			numMockServiceAccounts: 0,
-			numMockDeployments:     0,
-			numExpected:            1,
-			description:            "NoServiceAccount/NoDeployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 1,
-			numMockDeployments:     1,
-			numExpected:            1,
-			description:            "1ServiceAccount/1Deployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 0,
-			numMockDeployments:     1,
-			numExpected:            1,
-			description:            "0ServiceAccount/1Deployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 1,
-			numMockDeployments:     0,
-			numExpected:            1,
-			description:            "1ServiceAccount/0Deployment/Require1,1",
-		},
-		{
-			numMockServiceAccounts: 3,
-			numMockDeployments:     3,
-			numExpected:            3,
-			description:            "3ServiceAccount/3Deployment/Require3,3",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.description, func(t *testing.T) {
-			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
-			strategy := strategy(tt.numExpected, namespace, &mockOwner)
-			for i, p := range strategy.Permissions {
-				if i < tt.numMockServiceAccounts {
-					t.Logf("mocking %s true", p.ServiceAccountName)
-
-					fakeClient.GetServiceAccountByNameReturnsOnCall(i, testServiceAccount(p.ServiceAccountName, &mockOwner), nil)
-					defer func() {
-						require.Equal(t, p.ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(i))
-					}()
-				}
-				if i == tt.numMockServiceAccounts {
-					t.Logf("mocking %s false", p.ServiceAccountName)
-					fakeClient.GetServiceAccountByNameReturnsOnCall(i, nil, apierrors.NewNotFound(schema.GroupResource{}, p.ServiceAccountName))
-					defer func() {
-						require.Equal(t, p.ServiceAccountName, fakeClient.GetServiceAccountByNameArgsForCall(i))
-					}()
-				}
-
-				serviceAccount := testServiceAccount(p.ServiceAccountName, &mockOwner)
-
-				fakeClient.EnsureServiceAccountReturnsOnCall(i, serviceAccount, nil)
-				fakeClient.CreateRoleReturnsOnCall(i, &rbacv1.Role{Rules: p.Rules}, nil)
-				fakeClient.CreateRoleBindingReturnsOnCall(i, &rbacv1.RoleBinding{}, nil)
-				defer func(call int, rules []rbacv1.PolicyRule) {
-					require.Equal(t, rules, fakeClient.CreateRoleArgsForCall(call).Rules)
-				}(i, p.Rules)
-			}
-
-			var mockedDeps []*appsv1.Deployment
-			for i := 1; i <= tt.numMockDeployments; i++ {
-				dep := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, &mockOwner)
-				dep.Spec = appsv1.DeploymentSpec{Paused: true} // arbitrary
-
-				mockedDeps = append(mockedDeps, &dep)
-			}
-			if tt.numMockServiceAccounts == tt.numExpected {
-				t.Log("mocking dep check")
-				// if all serviceaccounts exist then we check if deployments exist
-				var depNames []string
-				for i := 1; i <= tt.numExpected; i++ {
-					depNames = append(depNames, fmt.Sprintf("alm-dep-%d", i))
-				}
-
-				fakeClient.FindAnyDeploymentsMatchingNamesReturns(mockedDeps, nil)
-				defer func() {
-					require.Equal(t, 1, fakeClient.FindAnyDeploymentsMatchingNamesCallCount())
-					require.Equal(t, depNames, fakeClient.FindAnyDeploymentsMatchingNamesArgsForCall(0))
-				}()
-			}
-
-			for i := 1; i <= len(strategy.DeploymentSpecs); i++ {
-				deployment := testDeployment(fmt.Sprintf("alm-dep-%d", i), namespace, &mockOwner)
-				fakeClient.CreateDeploymentReturnsOnCall(i-1, &deployment, nil)
-			}
-
-			installer := NewStrategyDeploymentInstaller(fakeClient, &mockOwner, nil)
-
-			installed, err := installer.CheckInstalled(strategy)
-			if tt.numMockServiceAccounts == tt.numExpected && tt.numMockDeployments == tt.numExpected {
-				require.NoError(t, err)
-				require.True(t, installed)
-			} else {
-				require.False(t, installed)
-				require.Error(t, err)
-			}
-			assert.NoError(t, installer.Install(strategy))
-		})
-	}
-}
-
 type BadStrategy struct{}
 
 func (b *BadStrategy) GetStrategyName() string {
@@ -647,28 +520,13 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 	}
 
 	tests := []struct {
-		createRoleErr           error
-		createRoleBindingErr    error
-		createServiceAccountErr error
-		createDeploymentErr     error
-		checkServiceAccountErr  error
-		description             string
+		createDeploymentErr    error
+		checkServiceAccountErr error
+		description            string
 	}{
 		{
 			checkServiceAccountErr: fmt.Errorf("couldn't query serviceaccount"),
 			description:            "ErrorCheckingForServiceAccount",
-		},
-		{
-			createRoleErr: fmt.Errorf("error creating role"),
-			description:   "ErrorCreatingRole",
-		},
-		{
-			createServiceAccountErr: fmt.Errorf("error creating serviceaccount"),
-			description:             "ErrorCreatingServiceAccount",
-		},
-		{
-			createRoleBindingErr: fmt.Errorf("error creating rolebinding"),
-			description:          "ErrorCreatingRoleBinding",
 		},
 		{
 			createDeploymentErr: fmt.Errorf("error creating deployment"),
@@ -707,45 +565,11 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 				require.Error(t, err)
 				require.False(t, installed)
 				return
-			} else {
-				require.True(t, installed)
-				require.NoError(t, err)
 			}
 
-			fakeClient.CreateRoleReturns(&rbacv1.Role{Rules: strategy.Permissions[0].Rules}, tt.createRoleErr)
-			defer func() {
-				require.Equal(t, strategy.Permissions[0].Rules, fakeClient.CreateRoleArgsForCall(0).Rules)
-			}()
+			require.True(t, installed)
+			require.NoError(t, err)
 
-			if tt.createRoleErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
-
-			serviceAccount := testServiceAccount(strategy.Permissions[0].ServiceAccountName, &mockOwner)
-			// we expect `EnsureServiceAccount` to be called with no ownerreferences
-			serviceAccount.SetOwnerReferences(nil)
-
-			fakeClient.EnsureServiceAccountReturns(serviceAccount, tt.createServiceAccountErr)
-			defer func() {
-				sa, owner := fakeClient.EnsureServiceAccountArgsForCall(0)
-				require.Equal(t, serviceAccount, sa)
-				require.Equal(t, owner, &mockOwner)
-			}()
-
-			if tt.createServiceAccountErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
-			fakeClient.CreateRoleBindingReturns(&rbacv1.RoleBinding{}, tt.createRoleBindingErr)
-
-			if tt.createRoleBindingErr != nil {
-				err := installer.Install(strategy)
-				require.Error(t, err)
-				return
-			}
 			deployment := testDeployment("alm-dep-1", namespace, &mockOwner)
 			fakeClient.CreateOrUpdateDeploymentReturns(&deployment, tt.createDeploymentErr)
 			defer func() {
