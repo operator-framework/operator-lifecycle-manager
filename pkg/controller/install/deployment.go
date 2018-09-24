@@ -145,10 +145,6 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
 	}
 
-	if err := i.installPermissions(strategy.Permissions); err != nil {
-		return err
-	}
-
 	if err := i.installDeployments(strategy.DeploymentSpecs); err != nil {
 		return err
 	}

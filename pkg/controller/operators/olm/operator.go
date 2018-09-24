@@ -18,8 +18,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/authorizer"
-	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -407,98 +405,6 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	return installer, strategy, previousStrategy
 }
 
-func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met bool, statuses []v1alpha1.RequirementStatus) {
-	met = true
-	for _, r := range csv.GetAllCRDDescriptions() {
-		status := v1alpha1.RequirementStatus{
-			Group:   "apiextensions.k8s.io",
-			Version: "v1beta1",
-			Kind:    "CustomResourceDefinition",
-			Name:    r.Name,
-		}
-
-		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
-		crd, err := a.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(r.Name, metav1.GetOptions{})
-		if err != nil {
-			status.Status = v1alpha1.RequirementStatusReasonNotPresent
-			met = false
-		} else {
-			status.Status = v1alpha1.RequirementStatusReasonPresent
-			status.UUID = string(crd.GetUID())
-		}
-		statuses = append(statuses, status)
-	}
-	for _, r := range csv.GetAllAPIServiceDescriptions() {
-		apiName := fmt.Sprintf("%s.%s", r.Version, r.Name)
-		status := v1alpha1.RequirementStatus{
-			Group:   "apiregistration.k8s.io",
-			Version: "v1",
-			Kind:    "APIService",
-			Name:    apiName,
-		}
-
-		// check if GVK exists
-		if err := a.isGVKRegistered(r.Name, r.Version, r.Kind); err != nil {
-			status.Status = "NotPresent"
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		// Check if APIService is registered
-		apiService, err := a.OpClient.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiName, metav1.GetOptions{})
-		if err != nil {
-			status.Status = "NotPresent"
-			met = false
-			statuses = append(statuses, status)
-			continue
-		}
-
-		// Check if API is available
-		if !a.isAPIServiceAvailable(apiService) {
-			status.Status = "NotPresent"
-			met = false
-		} else {
-			status.Status = "Present"
-			status.UUID = string(apiService.GetUID())
-		}
-		statuses = append(statuses, status)
-	}
-
-	// Get permission status
-	permissionsMet, permissionStatuses := a.permissionStatus(csv)
-	log.Infof("CSV %s permission met: %t", csv.GetName(), permissionsMet)
-	statuses = append(statuses, permissionStatuses...)
-	met = met && permissionsMet
-
-	return
-}
-
-func (a *Operator) isGVKRegistered(group, version, kind string) error {
-	logger := log.WithFields(log.Fields{
-		"group":   group,
-		"version": version,
-		"kind":    kind,
-	})
-	groups, err := a.OpClient.KubernetesInterface().Discovery().ServerResources()
-	if err != nil {
-		logger.WithField("err", err).Info("couldn't query for GVK in api discovery")
-		return err
-	}
-	gv := metav1.GroupVersion{Group: group, Version: version}
-	for _, g := range groups {
-		if g.GroupVersion == gv.String() {
-			for _, r := range g.APIResources {
-				if r.Kind == kind {
-					return nil
-				}
-			}
-		}
-	}
-	logger.Info("couldn't find GVK in api discovery")
-	return olmErrors.GroupVersionKindNotFoundError{group, version, kind}
-}
-
 func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
 	for _, c := range apiService.Status.Conditions {
 		if c.Type == apiregistrationv1.Available && c.Status == apiregistrationv1.ConditionTrue {
@@ -506,72 +412,6 @@ func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIServic
 		}
 	}
 	return false
-}
-
-// checkPermissions checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus) {
-	// Use a StrategyResolver to unmarshal
-	strategyResolver := install.StrategyResolver{}
-	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
-	if err != nil {
-		return false, nil
-	}
-
-	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
-	if !ok {
-		return false, nil
-	}
-
-	statuses := []v1alpha1.RequirementStatus{}
-	csvAuthorizerClient := authorizer.NewCSVAuthorizerClient(a.OpClient, csv)
-	namespace := csv.GetNamespace()
-	met := true
-
-	for _, perm := range strategyDetailsDeployment.Permissions {
-		name := perm.ServiceAccountName
-		status := v1alpha1.RequirementStatus{
-			Group:      "",
-			Version:    "v1",
-			Kind:       "ServiceAccount",
-			Name:       name,
-			Dependents: []v1alpha1.DependentStatus{},
-		}
-
-		// Ensure the ServiceAccount exists
-		sa, err := a.OpClient.GetServiceAccount(namespace, perm.ServiceAccountName)
-		if err != nil {
-			met = false
-			status.Status = v1alpha1.RequirementStatusReasonNotPresent
-			statuses = append(statuses, status)
-			continue
-		}
-
-		status.Status = v1alpha1.RequirementStatusReasonPresent
-
-		// Check if the PolicyRules are satisfied
-		for _, rule := range perm.Rules {
-			// TODO(Nick): decide what to do with dependent status here
-			dependent := v1alpha1.DependentStatus{
-				Group:   "rbac.authorization.k8s.io",
-				Kind:    "PolicyRule",
-				Version: "v1beta1",
-			}
-			satisfied, err := csvAuthorizerClient.RuleSatisfied(sa, namespace, rule)
-			if err != nil || !satisfied {
-				met = false
-				dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
-				status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
-			} else {
-				dependent.Status = v1alpha1.DependentStatusReasonSatisfied
-			}
-			status.Dependents = append(status.Dependents, dependent)
-		}
-
-		statuses = append(statuses, status)
-	}
-
-	return met, statuses
 }
 
 func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {
