@@ -39,7 +39,7 @@ spec:
     - monitoring
   displayName: Dynatrace OneAgent
   provider:
-    name: 'Dynatrace, Inc'
+    name: 'Dynatrace LLC'
   maturity: stable
   version: 0.2.0
   icon:
@@ -137,7 +137,7 @@ spec:
     strategy: deployment
   maintainers:
     - email: support@dynatrace.com
-      name: 'Dynatrace, Inc'
+      name: 'Dynatrace LLC'
   description: >
     Install full-stack monitoring of [OpenShift
     clusters](https://www.dynatrace.com/technologies/openshift-monitoring/) with
