@@ -1,4 +1,4 @@
-package authorizer
+package install
 
 import (
 	corev1 "k8s.io/api/core/v1"
@@ -11,20 +11,29 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
-type CSVAuthorizerClient struct {
+// RuleChecker is used to verify whether PolicyRules are satisfied by existing Roles or ClusterRoles
+type RuleChecker interface {
+	// RuleSatisfied determines whether a PolicyRule is satisfied for a ServiceAccount
+	// by existing Roles and ClusterRoles
+	RuleSatisfied(sa *corev1.ServiceAccount, namespace string, rule rbacv1.PolicyRule) (bool, error)
+}
+
+// CSVRuleChecker determines whether a PolicyRule is satisfied for a ServiceAccount
+// by existing Roles and ClusterRoles
+type CSVRuleChecker struct {
 	opClient operatorclient.ClientInterface
 	csv      *v1alpha1.ClusterServiceVersion
 }
 
-func NewCSVAuthorizerClient(opClient operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion) *CSVAuthorizerClient {
-	return &CSVAuthorizerClient{
+func NewCSVRuleChecker(opClient operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion) *CSVRuleChecker {
+	return &CSVRuleChecker{
 		opClient: opClient,
 		csv:      csv.DeepCopy(),
 	}
 }
 
 // RuleSatisfied returns true if a ServiceAccount is authorized to perform all actions described by a PolicyRule in a namespace
-func (c *CSVAuthorizerClient) RuleSatisfied(sa *corev1.ServiceAccount, namespace string, rule rbacv1.PolicyRule) (bool, error) {
+func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace string, rule rbacv1.PolicyRule) (bool, error) {
 	// get attributes set for the given Role and ServiceAccount
 	user := toDefaultInfo(sa, namespace)
 	attributesSet := toAttributesSet(user, namespace, rule)
@@ -48,7 +57,7 @@ func (c *CSVAuthorizerClient) RuleSatisfied(sa *corev1.ServiceAccount, namespace
 	return true, nil
 }
 
-func (c *CSVAuthorizerClient) GetRole(namespace, name string) (*rbacv1.Role, error) {
+func (c *CSVRuleChecker) GetRole(namespace, name string) (*rbacv1.Role, error) {
 	// get the Role
 	role, err := c.opClient.KubernetesInterface().RbacV1().Roles(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -63,7 +72,7 @@ func (c *CSVAuthorizerClient) GetRole(namespace, name string) (*rbacv1.Role, err
 	return role, nil
 }
 
-func (c *CSVAuthorizerClient) ListRoleBindings(namespace string) ([]*rbacv1.RoleBinding, error) {
+func (c *CSVRuleChecker) ListRoleBindings(namespace string) ([]*rbacv1.RoleBinding, error) {
 	// get all RoleBindings
 	rbList, err := c.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).List(metav1.ListOptions{})
 	if err != nil {
@@ -81,7 +90,7 @@ func (c *CSVAuthorizerClient) ListRoleBindings(namespace string) ([]*rbacv1.Role
 	return filtered, nil
 }
 
-func (c *CSVAuthorizerClient) GetClusterRole(name string) (*rbacv1.ClusterRole, error) {
+func (c *CSVRuleChecker) GetClusterRole(name string) (*rbacv1.ClusterRole, error) {
 	// get the ClusterRole
 	clusterRole, err := c.opClient.KubernetesInterface().RbacV1().ClusterRoles().Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -96,7 +105,7 @@ func (c *CSVAuthorizerClient) GetClusterRole(name string) (*rbacv1.ClusterRole, 
 	return clusterRole, nil
 }
 
-func (c *CSVAuthorizerClient) ListClusterRoleBindings() ([]*rbacv1.ClusterRoleBinding, error) {
+func (c *CSVRuleChecker) ListClusterRoleBindings() ([]*rbacv1.ClusterRoleBinding, error) {
 	// get all RoleBindings
 	crbList, err := c.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().List(metav1.ListOptions{})
 	if err != nil {
@@ -115,7 +124,7 @@ func (c *CSVAuthorizerClient) ListClusterRoleBindings() ([]*rbacv1.ClusterRoleBi
 	return filtered, nil
 }
 
-func (c *CSVAuthorizerClient) hasOwnerConflicts(ownerRefs []metav1.OwnerReference) bool {
+func (c *CSVRuleChecker) hasOwnerConflicts(ownerRefs []metav1.OwnerReference) bool {
 	conflicts := false
 	for _, ownerRef := range ownerRefs {
 		if ownerRef.Kind == v1alpha1.ClusterServiceVersionKind {

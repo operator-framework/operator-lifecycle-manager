@@ -1,4 +1,4 @@
-package authorizer
+package install
 
 import (
 	log "github.com/sirupsen/logrus"
