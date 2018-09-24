@@ -61,10 +61,10 @@ func attributesRecord(user user.Info, namespace, verb, apiGroup, resource, name 
 	}
 }
 
-func toDefaultInfo(sa *corev1.ServiceAccount, namespace string) *user.DefaultInfo {
+func toDefaultInfo(sa *corev1.ServiceAccount) *user.DefaultInfo {
 	// TODO(Nick): add Group if necessary
 	return &user.DefaultInfo{
-		Name: serviceaccount.MakeUsername(namespace, sa.GetName()),
+		Name: serviceaccount.MakeUsername(sa.GetNamespace(), sa.GetName()),
 		UID:  string(sa.GetUID()),
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -217,6 +218,99 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	saName := genName("dep-")
+	permissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: saName,
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"create"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	clusterPermissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: saName,
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "v1alpha1",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: crdName,
+					},
+				},
+			},
+		},
+	}
+
+	// Create dependency first (CRD)
+	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: extv1beta1.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: extv1beta1.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Shouldn't create deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.Error(t, err)
+
+}
+
 func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
@@ -260,12 +354,115 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	saName := genName("dep-")
+	permissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: saName,
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"create"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	clusterPermissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: saName,
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
+			// Cheating a little; this is an APIservice that will exist for the e2e tests
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Required: []v1alpha1.APIServiceDescription{
+					{
+						Name:        "packages.apps.redhat.com",
+						Version:     "v1alpha1",
+						Kind:        "PackageManifest",
+						DisplayName: "Package Manifest",
+						Description: "An apiservice that exists",
+					},
+				},
+			},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Shouldn't create deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.Error(t, err)
+}
+
 // TODO: same test but create serviceaccount instead
 func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+
+	sa := corev1.ServiceAccount{}
+	sa.SetName(genName("sa-"))
+	sa.SetNamespace(testNamespace)
+	_, err := c.CreateServiceAccount(&sa)
+	require.NoError(t, err, "could not create ServiceAccount")
+
+	permissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: sa.GetName(),
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"create"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	clusterPermissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: sa.GetName(),
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
 
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
@@ -279,7 +476,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
+			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
 					{
@@ -314,6 +511,73 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
+	// Create Role/Cluster Roles and RoleBindings
+	role := rbacv1.Role{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	role.SetName(genName("dep-"))
+	role.SetNamespace(testNamespace)
+	_, err = c.CreateRole(&role)
+	require.NoError(t, err, "could not create Role")
+
+	roleBinding := rbacv1.RoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     role.GetName(),
+		},
+	}
+	roleBinding.SetName(genName("dep-"))
+	roleBinding.SetNamespace(testNamespace)
+	_, err = c.CreateRoleBinding(&roleBinding)
+	require.NoError(t, err, "could not create RoleBinding")
+
+	clusterRole := rbacv1.ClusterRole{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"get"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	clusterRole.SetName(genName("dep-"))
+	_, err = c.CreateClusterRole(&clusterRole)
+	require.NoError(t, err, "could not create ClusterRole")
+
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     clusterRole.GetName(),
+		},
+	}
+	clusterRoleBinding.SetName(genName("dep-"))
+	_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
+	require.NoError(t, err, "could not create ClusterRoleBinding")
+
 	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 	defer cleanupCSV()
@@ -338,6 +602,38 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
+	sa := corev1.ServiceAccount{}
+	sa.SetName(genName("sa-"))
+	sa.SetNamespace(testNamespace)
+	_, err := c.CreateServiceAccount(&sa)
+	require.NoError(t, err, "could not create ServiceAccount")
+
+	permissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: sa.GetName(),
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"create"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	clusterPermissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: sa.GetName(),
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
 	depName := genName("dep-")
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
@@ -348,7 +644,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
+			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 			// Cheating a little; this is an APIservice that will exist for the e2e tests
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
@@ -363,6 +659,73 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			},
 		},
 	}
+
+	// Create Role/Cluster Roles and RoleBindings
+	role := rbacv1.Role{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	role.SetName(genName("dep-"))
+	role.SetNamespace(testNamespace)
+	_, err = c.CreateRole(&role)
+	require.NoError(t, err, "could not create Role")
+
+	roleBinding := rbacv1.RoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     role.GetName(),
+		},
+	}
+	roleBinding.SetName(genName("dep-"))
+	roleBinding.SetNamespace(testNamespace)
+	_, err = c.CreateRoleBinding(&roleBinding)
+	require.NoError(t, err, "could not create RoleBinding")
+
+	clusterRole := rbacv1.ClusterRole{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"get"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	clusterRole.SetName(genName("dep-"))
+	_, err = c.CreateClusterRole(&clusterRole)
+	require.NoError(t, err, "could not create ClusterRole")
+
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     clusterRole.GetName(),
+		},
+	}
+	clusterRoleBinding.SetName(genName("dep-"))
+	_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
+	require.NoError(t, err, "could not create ClusterRoleBinding")
 
 	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)

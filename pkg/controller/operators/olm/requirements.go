@@ -120,10 +120,9 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 
 	statuses := []v1alpha1.RequirementStatus{}
 	ruleChecker := install.NewCSVRuleChecker(a.OpClient, csv)
-	namespace := csv.GetNamespace()
 	met := true
 
-	checkPermissions := func(permissions []install.StrategyDeploymentPermissions) {
+	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) {
 		for _, perm := range permissions {
 			name := perm.ServiceAccountName
 			status := v1alpha1.RequirementStatus{
@@ -135,7 +134,7 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 			}
 
 			// Ensure the ServiceAccount exists
-			sa, err := a.OpClient.GetServiceAccount(namespace, perm.ServiceAccountName)
+			sa, err := a.OpClient.GetServiceAccount(csv.GetNamespace(), perm.ServiceAccountName)
 			if err != nil {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
@@ -168,8 +167,8 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 		}
 	}
 
-	checkPermissions(strategyDetailsDeployment.Permissions)
-	checkPermissions(strategyDetailsDeployment.ClusterPermissions)
+	checkPermissions(strategyDetailsDeployment.Permissions, csv.GetNamespace())
+	checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
 
 	return met, statuses
 }

@@ -35,7 +35,7 @@ func NewCSVRuleChecker(opClient operatorclient.ClientInterface, csv *v1alpha1.Cl
 // RuleSatisfied returns true if a ServiceAccount is authorized to perform all actions described by a PolicyRule in a namespace
 func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace string, rule rbacv1.PolicyRule) (bool, error) {
 	// get attributes set for the given Role and ServiceAccount
-	user := toDefaultInfo(sa, namespace)
+	user := toDefaultInfo(sa)
 	attributesSet := toAttributesSet(user, namespace, rule)
 
 	// create a new RBACAuthorizer

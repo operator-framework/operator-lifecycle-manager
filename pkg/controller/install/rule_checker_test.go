@@ -19,18 +19,18 @@ import (
 
 func TestRuleSatisfied(t *testing.T) {
 
-	namespace := "coffee-shop"
-
 	csv := &v1alpha1.ClusterServiceVersion{}
 	csv.SetName("barista-operator")
 	csv.SetUID(types.UID("barista-operator"))
 
 	sa := &corev1.ServiceAccount{}
+	sa.SetNamespace("coffee-shop")
 	sa.SetName("barista-operator")
 	sa.SetUID(types.UID("barista-operator"))
 
 	tests := []struct {
 		description                 string
+		namespace                   string
 		rule                        rbacv1.PolicyRule
 		existingRoles               []*rbacv1.Role
 		existingRoleBindings        []*rbacv1.RoleBinding
@@ -41,6 +41,7 @@ func TestRuleSatisfied(t *testing.T) {
 	}{
 		{
 			description: "NotSatisfied",
+			namespace:   "coffee-shop",
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -56,6 +57,7 @@ func TestRuleSatisfied(t *testing.T) {
 		},
 		{
 			description: "SatisfiedBySingleRole",
+			namespace:   "coffee-shop",
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -71,7 +73,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -92,14 +94,14 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -113,6 +115,7 @@ func TestRuleSatisfied(t *testing.T) {
 		},
 		{
 			description: "NotSatisfiedByRoleOwnerConflict",
+			namespace:   "coffee-shop",
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -130,7 +133,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion: "v1alpha1",
@@ -164,7 +167,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "napkin",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion: "v1alpha1",
@@ -193,14 +196,14 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -212,14 +215,14 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "napkin",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -233,6 +236,7 @@ func TestRuleSatisfied(t *testing.T) {
 		},
 		{
 			description: "SatisfiedByRoleWithConcurrentOwners",
+			namespace:   "coffee-shop",
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -250,7 +254,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion: "v1alpha1",
@@ -287,7 +291,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								APIVersion: "",
@@ -302,7 +306,7 @@ func TestRuleSatisfied(t *testing.T) {
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -316,6 +320,7 @@ func TestRuleSatisfied(t *testing.T) {
 		},
 		{
 			description: "SatisfiedByMutlipleRoles",
+			namespace:   "coffee-shop",
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -333,7 +338,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -353,7 +358,7 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "napkin",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Rules: []rbacv1.PolicyRule{
 						{
@@ -374,14 +379,14 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "coffee",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: "coffee-shop",
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -393,14 +398,14 @@ func TestRuleSatisfied(t *testing.T) {
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "napkin",
-						Namespace: namespace,
+						Namespace: "coffee-shop",
 					},
 					Subjects: []rbacv1.Subject{
 						{
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -414,6 +419,7 @@ func TestRuleSatisfied(t *testing.T) {
 		},
 		{
 			description: "RuleSatisfiedByClusterRole",
+			namespace:   metav1.NamespaceAll,
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -457,7 +463,7 @@ func TestRuleSatisfied(t *testing.T) {
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -471,6 +477,7 @@ func TestRuleSatisfied(t *testing.T) {
 		},
 		{
 			description: "RuleNotSatisfiedByClusterRole",
+			namespace:   metav1.NamespaceAll,
 			rule: rbacv1.PolicyRule{
 				APIGroups: []string{
 					"",
@@ -514,7 +521,7 @@ func TestRuleSatisfied(t *testing.T) {
 							Kind:      "ServiceAccount",
 							APIGroup:  "",
 							Name:      sa.GetName(),
-							Namespace: namespace,
+							Namespace: sa.GetNamespace(),
 						},
 					},
 					RoleRef: rbacv1.RoleRef{
@@ -537,16 +544,17 @@ func TestRuleSatisfied(t *testing.T) {
 				tt.existingClusterRoleBindings,
 			)
 
-			// create the fake CSVAuthorizorClient
-			ruleChecker, err := NewFakeCSVRuleChecker(k8sObjs, csv, namespace)
+			// create the fake CSVRuleChecker
+			ruleChecker, err := NewFakeCSVRuleChecker(k8sObjs, csv, tt.namespace)
 			require.NoError(t, err)
 
 			// check if the rule is satisfied
-			satisfied, err := ruleChecker.RuleSatisfied(sa, namespace, tt.rule)
+			satisfied, err := ruleChecker.RuleSatisfied(sa, tt.namespace, tt.rule)
 			if tt.expectedError != "" {
 				require.Error(t, err, "an error was expected")
 				require.Equal(t, tt.expectedError, err.Error, "error did not match expected error")
 			}
+
 			require.Equal(t, tt.satisfied, satisfied)
 		})
 	}
@@ -557,9 +565,11 @@ func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServic
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset())
 
 	// create test namespace
-	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
-	if err != nil {
-		return nil, err
+	if namespace != metav1.NamespaceAll {
+		_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	ruleChecker := NewCSVRuleChecker(opClientFake, csv)
