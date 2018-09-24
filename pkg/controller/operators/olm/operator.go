@@ -3,9 +3,11 @@ package olm
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
@@ -31,6 +33,9 @@ import (
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 var ErrCRDOwnerConflict = errors.New("CRD owned by another ClusterServiceVersion")
+
+//TODO(jpeeler): copied from catalog/operator.go
+var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 const (
 	FallbackWakeupInterval = 30 * time.Second
@@ -207,6 +212,28 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	for _, informer := range depQueueInformers {
 		op.RegisterQueueInformer(informer)
 	}
+
+	// Create an informer for the operator group
+	operatorGroupInformers := []cache.SharedIndexInformer{}
+	for _, namespace := range namespaces {
+		informerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		operatorGroupInformers = append(operatorGroupInformers, informerFactory.Operators().V1alpha2().OperatorGroups().Informer())
+	}
+
+	// Register OperatorGroup informers.
+	operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "operatorgroups")
+	operatorGroupQueueInformer := queueinformer.New(
+		operatorGroupQueue,
+		operatorGroupInformers,
+		op.syncOperatorGroups,
+		nil,
+		"operatorgroups",
+		metrics.NewMetricsNil(),
+	)
+	for _, informer := range operatorGroupQueueInformer {
+		op.RegisterQueueInformer(informer)
+	}
+
 	return op, nil
 }
 
@@ -313,6 +340,73 @@ func (a *Operator) syncServices(obj interface{}) (syncError error) {
 	for _, oref := range ownerutil.GetOwnersByKind(service, v1alpha1.ClusterServiceVersionKind) {
 		logger.Infof("requeuing CSV %s", oref.Name)
 		a.requeueCSV(oref.Name, service.GetNamespace())
+	}
+
+	return nil
+}
+
+func (a *Operator) syncOperatorGroups(obj interface{}) error {
+	op, ok := obj.(*v1alpha2.OperatorGroup)
+	if !ok {
+		log.Debugf("wrong type: %#v\n", obj)
+		return fmt.Errorf("casting OperatorGroup failed")
+	}
+
+	// write namespace matches to status field
+	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
+	if err != nil {
+		return err
+	}
+	operatorGroupOpts := metav1.ListOptions{LabelSelector: selector.String()}
+	// TODO(jpeeler): this needs to use user impersonation with op.Spec.ServiceAccount
+	namespaceList, err := a.OpClient.KubernetesInterface().CoreV1().Namespaces().List(operatorGroupOpts)
+	if err != nil {
+		return err
+	}
+
+	nsCount := len(namespaceList.Items)
+
+	if len(op.Status.Namespaces) == nsCount {
+		for i, v := range namespaceList.Items {
+			if v.Name != op.Status.Namespaces[i].Name {
+				break
+			}
+		}
+		// status is current with correct namespaces, so no further updates required
+		return nil
+	}
+	op.Status.Namespaces = namespaceList.Items
+	op.Status.LastUpdated = timeNow()
+
+	// make string list made up of comma separated namespaces
+	var nsList strings.Builder
+	for i := 0; i < nsCount-1; i++ {
+		nsList.WriteString(namespaceList.Items[i].Name + ",")
+	}
+	nsList.WriteString(namespaceList.Items[nsCount-1].Name)
+
+	// write namespaces to watch in every deployment
+	currentNamespace := op.GetNamespace()
+	csvsInNamespace := a.csvsInNamespace(currentNamespace)
+	for csvName, csv := range csvsInNamespace {
+		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+		if err != nil {
+			return fmt.Errorf("error unmarshaling strategy from ClusterServiceVersion '%s' with error: %s", csvName, err)
+		}
+
+		strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+		if !ok {
+			return fmt.Errorf("could not assert strategy implementation as deployment for CSV %s", csvName)
+		}
+
+		for _, deploy := range strategyDetailsDeployment.DeploymentSpecs {
+			deploy.Spec.Template.Annotations["olm.targetNamespaces"] = nsList.String()
+			_, err := a.client.Operators().ClusterServiceVersions(currentNamespace).Update(csv)
+			if err != nil {
+				return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err)
+			}
+			a.requeueCSV(csvName, currentNamespace)
+		}
 	}
 
 	return nil
