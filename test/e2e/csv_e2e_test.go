@@ -771,31 +771,9 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 	})
 
-	// create "current" CSV
+	// Create "current" CSV
 	nginxName := genName("nginx-")
 	strategy := install.StrategyDetailsDeployment{
-		Permissions: []install.StrategyDeploymentPermissions{
-			{
-				ServiceAccountName: "csv-sa",
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"list", "delete"},
-						APIGroups: []string{""},
-						Resources: []string{"pods"},
-					},
-				},
-			},
-			{
-				ServiceAccountName: "old-csv-sa",
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"list", "delete"},
-						APIGroups: []string{""},
-						Resources: []string{"pods"},
-					},
-				},
-			},
-		},
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
@@ -835,7 +813,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 	}
 
-	// don't need to cleanup this CSV, it will be deleted by the upgrade process
+	// Don't need to cleanup this CSV, it will be deleted by the upgrade process
 	_, err = createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 
@@ -848,36 +826,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, dep)
 
-	// should have csv-sa and old-csv-sa
-	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
-	require.NoError(t, err)
-	_, err = c.GetServiceAccount(testNamespace, "old-csv-sa")
-	require.NoError(t, err)
-
 	// Create "updated" CSV
 	strategyNew := install.StrategyDetailsDeployment{
-		Permissions: []install.StrategyDeploymentPermissions{
-			{
-				ServiceAccountName: "csv-sa",
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"list", "delete"},
-						APIGroups: []string{""},
-						Resources: []string{"pods"},
-					},
-				},
-			},
-			{
-				ServiceAccountName: "new-csv-sa",
-				Rules: []rbacv1.PolicyRule{
-					{
-						Verbs:     []string{"list", "delete"},
-						APIGroups: []string{""},
-						Resources: []string{"pods"},
-					},
-				},
-			},
-		},
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				// Same name
@@ -932,18 +882,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NotNil(t, depUpdated)
 	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
 
-	// should have csv-sa and new-csv-sa
-	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
-	require.NoError(t, err)
-	_, err = c.GetServiceAccount(testNamespace, "new-csv-sa")
-	require.NoError(t, err)
-
 	// Should eventually GC the CSV
 	err = waitForCSVToDelete(t, crc, csv.Name)
-	require.NoError(t, err)
-
-	// csv-sa shouldn't have been GC'd
-	_, err = c.GetServiceAccount(testNamespace, "csv-sa")
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops

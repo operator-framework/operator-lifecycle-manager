@@ -233,7 +233,6 @@ const (
 	DependentStatusReasonNotSatisfied          StatusReason = "NotSatisfied"
 )
 
-// TODO(Nick): decide if we really need a separate DependentStatus
 // DependentStatus is the status for a dependent requirement (to prevent infinite nesting)
 type DependentStatus struct {
 	Group   string       `json:"group"`
@@ -241,6 +240,7 @@ type DependentStatus struct {
 	Kind    string       `json:"kind"`
 	Status  StatusReason `json:"status"`
 	UUID    string       `json:"uuid,omitempty"`
+	Message string       `json:"message,omitempty"`
 }
 
 type RequirementStatus struct {

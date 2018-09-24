@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"encoding/json"
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
@@ -118,19 +119,26 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 		return false, nil
 	}
 
-	statuses := []v1alpha1.RequirementStatus{}
+	statusesSet := map[string]v1alpha1.RequirementStatus{}
 	ruleChecker := install.NewCSVRuleChecker(a.OpClient, csv)
 	met := true
 
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) {
 		for _, perm := range permissions {
-			name := perm.ServiceAccountName
-			status := v1alpha1.RequirementStatus{
-				Group:      "",
-				Version:    "v1",
-				Kind:       "ServiceAccount",
-				Name:       name,
-				Dependents: []v1alpha1.DependentStatus{},
+			saName := perm.ServiceAccountName
+
+			var status v1alpha1.RequirementStatus
+			if stored, ok := statusesSet[saName]; !ok {
+				status = v1alpha1.RequirementStatus{
+					Group:      "",
+					Version:    "v1",
+					Kind:       "ServiceAccount",
+					Name:       saName,
+					Status:     v1alpha1.RequirementStatusReasonPresent,
+					Dependents: []v1alpha1.DependentStatus{},
+				}
+			} else {
+				status = stored
 			}
 
 			// Ensure the ServiceAccount exists
@@ -138,11 +146,9 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 			if err != nil {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
-				statuses = append(statuses, status)
+				statusesSet[saName] = status
 				continue
 			}
-
-			status.Status = v1alpha1.RequirementStatusReasonPresent
 
 			// Check if the PolicyRules are satisfied
 			for _, rule := range perm.Rules {
@@ -152,6 +158,16 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 					Kind:    "PolicyRule",
 					Version: "v1beta1",
 				}
+
+				marshalled, err := json.Marshal(rule)
+				if err != nil {
+					dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
+					dependent.Message = "rule unmarshallable"
+					status.Dependents = append(status.Dependents, dependent)
+					continue
+				}
+				dependent.Message = fmt.Sprintf("rule raw:%s", marshalled)
+
 				satisfied, err := ruleChecker.RuleSatisfied(sa, namespace, rule)
 				if err != nil || !satisfied {
 					met = false
@@ -160,15 +176,21 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 				} else {
 					dependent.Status = v1alpha1.DependentStatusReasonSatisfied
 				}
+
 				status.Dependents = append(status.Dependents, dependent)
 			}
 
-			statuses = append(statuses, status)
+			statusesSet[saName] = status
 		}
 	}
 
 	checkPermissions(strategyDetailsDeployment.Permissions, csv.GetNamespace())
 	checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
+
+	statuses := make([]v1alpha1.RequirementStatus, len(statusesSet))
+	for _, status := range statusesSet {
+		statuses = append(statuses, status)
+	}
 
 	return met, statuses
 }
