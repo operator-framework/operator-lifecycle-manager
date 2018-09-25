@@ -8,8 +8,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
+	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -34,11 +36,15 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue    workqueue.RateLimitingInterface
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
-	annotator   *annotator.Annotator
-	cleanupFunc func()
+	csvQueue                 workqueue.RateLimitingInterface
+	client                   versioned.Interface
+	resolver                 install.StrategyResolverInterface
+	roleLister               crbacv1.RoleLister
+	roleBindingLister        crbacv1.RoleBindingLister
+	clusterRoleLister        crbacv1.ClusterRoleLister
+	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
+	annotator                *annotator.Annotator
+	cleanupFunc              func()
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
@@ -84,6 +90,39 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
 		return nil, err
 	}
+
+	// set up RBAC informers
+	informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
+	roleInformer := informerFactory.Rbac().V1().Roles()
+	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
+	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
+	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
+
+	// register RBAC QueueInformers
+	rbacInformers := []cache.SharedIndexInformer{
+		roleInformer.Informer(),
+		roleBindingInformer.Informer(),
+		clusterRoleInformer.Informer(),
+		clusterRoleBindingInformer.Informer(),
+	}
+
+	rbacQueueInformers := queueinformer.New(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rbac"),
+		rbacInformers,
+		op.syncRBAC,
+		nil,
+		"namespace",
+		metrics.NewMetricsNil(),
+	)
+	for _, informer := range rbacQueueInformers {
+		op.RegisterQueueInformer(informer)
+	}
+
+	// set listers (for RBAC CSV requirement checking)
+	op.roleLister = roleInformer.Lister()
+	op.roleBindingLister = roleBindingInformer.Lister()
+	op.clusterRoleLister = clusterRoleInformer.Lister()
+	op.clusterRoleBindingLister = clusterRoleBindingInformer.Lister()
 
 	// set up watch on CSVs
 	csvInformers := []cache.SharedIndexInformer{}
@@ -141,6 +180,7 @@ func (a *Operator) requeueCSV(name, namespace string) {
 	// we can build the key directly, will need to change if queue uses different key scheme
 	key := fmt.Sprintf("%s/%s", namespace, name)
 	a.csvQueue.AddRateLimited(key)
+
 	return
 }
 
@@ -154,6 +194,50 @@ func (a *Operator) syncDeployment(obj interface{}) (syncError error) {
 		oref := ownerutil.GetOwnerByKind(deployment, v1alpha1.ClusterServiceVersionKind)
 		a.requeueCSV(oref.Name, deployment.GetNamespace())
 	}
+
+	return nil
+}
+
+func (a *Operator) syncRBAC(obj interface{}) (syncError error) {
+	clusterLevel := false
+	switch v := obj.(type) {
+	case *rbacv1.Role:
+		log.Debugf("sync Role %s in namespace %s", v.GetName(), v.GetNamespace())
+	case *rbacv1.RoleBinding:
+		log.Debugf("sync RoleBinding %s in namespace %s", v.GetName(), v.GetNamespace())
+	case *rbacv1.ClusterRole:
+		log.Debugf("sync ClusterRole %s", v.GetName())
+		clusterLevel = true
+	case *rbacv1.ClusterRoleBinding:
+		log.Debugf("sync ClusterRoleBinding %s", v.GetName())
+		clusterLevel = true
+	default:
+		syncError = errors.New("attempted to sync non RBAC resource with RBAC sync handler")
+		log.Debugf(syncError.Error())
+		return
+	}
+
+	if clusterLevel {
+		// Cannot requeue namespaced owner CSVs if cluster-scoped
+		return nil
+	}
+
+	// Assert as metav1.Object
+	rbac, ok := obj.(metav1.Object)
+	if !ok {
+		syncError = errors.New("casting to runtime.Object failed")
+		log.Debugf(syncError.Error())
+		return
+	}
+
+	// Requeue all owner CSVs
+	if ownerutil.IsOwnedByKind(rbac, v1alpha1.ClusterServiceVersionKind) {
+		orefs := ownerutil.GetOwnersByKind(rbac, v1alpha1.ClusterServiceVersionKind)
+		for _, oref := range orefs {
+			a.requeueCSV(oref.Name, rbac.GetNamespace())
+		}
+	}
+
 	return nil
 }
 

@@ -47,6 +47,15 @@ func GetOwnerByKind(object metav1.Object, ownerKind string) metav1.OwnerReferenc
 	return metav1.OwnerReference{}
 }
 
+// GetOwnersByKind returns all OwnerReferences of the given kind listed by the given object
+func GetOwnersByKind(object metav1.Object, ownerKind string) []metav1.OwnerReference {
+	var orefs []metav1.OwnerReference
+	for _, oref := range object.GetOwnerReferences() {
+		orefs = append(orefs, oref)
+	}
+	return orefs
+}
+
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.
 func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	// Most of the time we won't have TypeMeta on the object, so we infer it for types we know about

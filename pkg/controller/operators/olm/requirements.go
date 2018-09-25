@@ -120,7 +120,7 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 	}
 
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
-	ruleChecker := install.NewCSVRuleChecker(a.OpClient, csv)
+	ruleChecker := install.NewCSVRuleChecker(a.roleLister, a.roleBindingLister, a.clusterRoleLister, a.clusterRoleBindingLister, csv)
 	met := true
 
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) {

@@ -1,14 +1,17 @@
 package install
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
+	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	rbacauthorizer "k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // RuleChecker is used to verify whether PolicyRules are satisfied by existing Roles or ClusterRoles
@@ -21,14 +24,33 @@ type RuleChecker interface {
 // CSVRuleChecker determines whether a PolicyRule is satisfied for a ServiceAccount
 // by existing Roles and ClusterRoles
 type CSVRuleChecker struct {
-	opClient operatorclient.ClientInterface
-	csv      *v1alpha1.ClusterServiceVersion
+	roleLister               crbacv1.RoleLister
+	roleBindingLister        crbacv1.RoleBindingLister
+	clusterRoleLister        crbacv1.ClusterRoleLister
+	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
+	csv                      *v1alpha1.ClusterServiceVersion
 }
 
-func NewCSVRuleChecker(opClient operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion) *CSVRuleChecker {
+// NewCSVRuleChecker returns a pointer to a new CSVRuleChecker
+func NewCSVRuleChecker(roleLister crbacv1.RoleLister, roleBindingLister crbacv1.RoleBindingLister, clusterRoleLister crbacv1.ClusterRoleLister, clusterRoleBindingLister crbacv1.ClusterRoleBindingLister, csv *v1alpha1.ClusterServiceVersion) *CSVRuleChecker {
+	// informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
+
+	// // kick off RBAC resource informers
+	// roleInformer := informerFactory.Rbac().V1().Roles()
+	// roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
+	// clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
+	// clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
+
+	// for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
+	// 	informer.Run(stopc)
+	// }
+
 	return &CSVRuleChecker{
-		opClient: opClient,
-		csv:      csv.DeepCopy(),
+		roleLister:               roleLister,
+		roleBindingLister:        roleBindingLister,
+		clusterRoleLister:        clusterRoleLister,
+		clusterRoleBindingLister: clusterRoleBindingLister,
+		csv:                      csv.DeepCopy(),
 	}
 }
 
@@ -59,10 +81,12 @@ func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace stri
 
 func (c *CSVRuleChecker) GetRole(namespace, name string) (*rbacv1.Role, error) {
 	// get the Role
-	role, err := c.opClient.KubernetesInterface().RbacV1().Roles(namespace).Get(name, metav1.GetOptions{})
+	fmt.Printf("getting role %s...\n", name)
+	role, err := c.roleLister.Roles(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("role retrieved: %+v\n", role)
 
 	// check if the Role has an OwnerConflict with the client's CSV
 	if role != nil && c.hasOwnerConflicts(role.GetOwnerReferences()) {
@@ -74,16 +98,18 @@ func (c *CSVRuleChecker) GetRole(namespace, name string) (*rbacv1.Role, error) {
 
 func (c *CSVRuleChecker) ListRoleBindings(namespace string) ([]*rbacv1.RoleBinding, error) {
 	// get all RoleBindings
-	rbList, err := c.opClient.KubernetesInterface().RbacV1().RoleBindings(namespace).List(metav1.ListOptions{})
+	fmt.Printf("getting rolebindings in %s\n", namespace)
+	rbList, err := c.roleBindingLister.RoleBindings(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("rolebindings retrieved %+v\n", rbList)
 
 	// filter based on OwnerReferences
 	var filtered []*rbacv1.RoleBinding
-	for i := 0; i < len(rbList.Items); i++ {
-		if !c.hasOwnerConflicts(rbList.Items[i].GetOwnerReferences()) {
-			filtered = append(filtered, &rbList.Items[i])
+	for _, rb := range rbList {
+		if !c.hasOwnerConflicts(rb.GetOwnerReferences()) {
+			filtered = append(filtered, rb)
 		}
 	}
 
@@ -92,7 +118,7 @@ func (c *CSVRuleChecker) ListRoleBindings(namespace string) ([]*rbacv1.RoleBindi
 
 func (c *CSVRuleChecker) GetClusterRole(name string) (*rbacv1.ClusterRole, error) {
 	// get the ClusterRole
-	clusterRole, err := c.opClient.KubernetesInterface().RbacV1().ClusterRoles().Get(name, metav1.GetOptions{})
+	clusterRole, err := c.clusterRoleLister.Get(name)
 	if err != nil {
 		return nil, err
 	}
@@ -107,17 +133,16 @@ func (c *CSVRuleChecker) GetClusterRole(name string) (*rbacv1.ClusterRole, error
 
 func (c *CSVRuleChecker) ListClusterRoleBindings() ([]*rbacv1.ClusterRoleBinding, error) {
 	// get all RoleBindings
-	crbList, err := c.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().List(metav1.ListOptions{})
+	crbList, err := c.clusterRoleBindingLister.List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
 	// filter based on OwnerReferences
 	var filtered []*rbacv1.ClusterRoleBinding
-	for i := 0; i < len(crbList.Items); i++ {
-		item := crbList.Items[i]
-		if !c.hasOwnerConflicts(item.GetOwnerReferences()) {
-			filtered = append(filtered, &item)
+	for _, crb := range crbList {
+		if !c.hasOwnerConflicts(crb.GetOwnerReferences()) {
+			filtered = append(filtered, crb)
 		}
 	}
 

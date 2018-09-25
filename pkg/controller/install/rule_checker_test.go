@@ -2,6 +2,7 @@ package install
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -10,7 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -545,9 +548,19 @@ func TestRuleSatisfied(t *testing.T) {
 			)
 
 			// create the fake CSVRuleChecker
-			ruleChecker, err := NewFakeCSVRuleChecker(k8sObjs, csv, tt.namespace)
-			require.NoError(t, err)
+			stopCh := make(chan struct{})
+			defer func() {
+				stopCh <- struct{}{}
+			}()
 
+			// time.Sleep(10 * time.Second)
+
+			t.Logf("calling NewFakeCSVRuleChecker...")
+			ruleChecker, err := NewFakeCSVRuleChecker(k8sObjs, csv, tt.namespace, stopCh)
+			require.NoError(t, err)
+			t.Logf("NewFakeCSVRuleChecker returned")
+
+			t.Logf("checking if rules are satisfied...")
 			// check if the rule is satisfied
 			satisfied, err := ruleChecker.RuleSatisfied(sa, tt.namespace, tt.rule)
 			if tt.expectedError != "" {
@@ -555,12 +568,13 @@ func TestRuleSatisfied(t *testing.T) {
 				require.Equal(t, tt.expectedError, err.Error, "error did not match expected error")
 			}
 
+			t.Logf("after checking if satisfied")
 			require.Equal(t, tt.satisfied, satisfied)
 		})
 	}
 }
 
-func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServiceVersion, namespace string) (*CSVRuleChecker, error) {
+func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServiceVersion, namespace string, stopCh <-chan struct{}) (*CSVRuleChecker, error) {
 	// create client fakes
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset())
 
@@ -572,7 +586,17 @@ func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServic
 		}
 	}
 
-	ruleChecker := NewCSVRuleChecker(opClientFake, csv)
+	informerFactory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), 10*time.Minute, informers.WithNamespace(namespace))
+	roleInformer := informerFactory.Rbac().V1().Roles()
+	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
+	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
+	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
+
+	for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
+		go informer.Run(stopCh)
+	}
+
+	ruleChecker := NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), csv)
 
 	return ruleChecker, nil
 
