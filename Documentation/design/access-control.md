@@ -27,17 +27,12 @@ As you can see, no cluster permissions are needed.
 
 ## Cluster Admins
 
-Cluster admins have the ability to provide a selection of Operators for use on the cluster. These Operators are described in a Cluster Service Version (CSV) file. Upon installation, the OLM software parses the CSV to create the cluster wide resources needed for safe operation:
+Cluster admins have the ability to provide a selection of Operators for use on the cluster. These Operators are described in a Cluster Service Version (CSV) file which resides in a CatalogSource (along with the Operator's CRD and package manifests). The cluster admin can now select the teams and namespaces that can use this particular Operator, by creating a Subscription object, which will trigger the creation of an InstallPlan that points to a specific CatalogSource. Once the InstallPlan is approved, the OLM software is responsible for parsing the CatalogSource and performing the following:
 
-1. Create Role contained in the CSV
-1. Create the Custom Resource Definition contained in the CSV
-
-The cluster admin can now select the teams and namespaces that can use this particular Operator, by creating a Subscription object, which will trigger the installation of the Operator:
-
-1. Create Service Account for Operator
-1. Create minimal Role for the Operator
-1. Create Role Binding for Role and Service Account
 1. Create the Custom Resource Definition
+1. Create Service Account for Operator
+1. Create minimal Role or ClusterRole for the Operator
+1. Create Role or ClusterRoleBinding for Role or ClusterRole and Service Account
 1. Create Operator Deployment, referencing the Service Account
 
 Once a namespace is created, the end-users now have the ability to create instances of the Custom Resource in a self-service manner (see above). OLM also has the ability to control automatic updates of the Operators running in namespaces. See the [architecture][arch] for more details.
