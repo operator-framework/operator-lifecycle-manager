@@ -1124,6 +1124,7 @@
   source = "github.com/kubernetes/kube-openapi"
 
 [[projects]]
+  branch = "release-1.11"
   digest = "1:a02d196ed238c38e433e4732a6af2453a62755783ca6c6e8ec90a38ba9d753a0"
   name = "k8s.io/kubernetes"
   packages = [
@@ -1133,8 +1134,7 @@
     "plugin/pkg/auth/authorizer/rbac",
   ]
   pruneopts = "NUT"
-  revision = "a4529464e4629c21224b3d52edfe0ea91b072862"
-  version = "v1.11.3"
+  revision = "ae6d625c3a1c6f93ac2eb162a1310b6b5253a8ae"
 
 [solve-meta]
   analyzer-name = "dep"

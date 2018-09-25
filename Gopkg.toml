@@ -72,5 +72,5 @@ required = ["k8s.io/kube-openapi/cmd/openapi-gen"]
   name = "k8s.io/kube-aggregator"
 
 [[constraint]]
+  branch = "release-1.11"
   name = "k8s.io/kubernetes"
-  version = "1.11.3"
