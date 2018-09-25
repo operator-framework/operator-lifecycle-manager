@@ -1,8 +1,6 @@
 package install
 
 import (
-	"fmt"
-
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,18 +31,6 @@ type CSVRuleChecker struct {
 
 // NewCSVRuleChecker returns a pointer to a new CSVRuleChecker
 func NewCSVRuleChecker(roleLister crbacv1.RoleLister, roleBindingLister crbacv1.RoleBindingLister, clusterRoleLister crbacv1.ClusterRoleLister, clusterRoleBindingLister crbacv1.ClusterRoleBindingLister, csv *v1alpha1.ClusterServiceVersion) *CSVRuleChecker {
-	// informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
-
-	// // kick off RBAC resource informers
-	// roleInformer := informerFactory.Rbac().V1().Roles()
-	// roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-	// clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
-	// clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
-
-	// for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
-	// 	informer.Run(stopc)
-	// }
-
 	return &CSVRuleChecker{
 		roleLister:               roleLister,
 		roleBindingLister:        roleBindingLister,
@@ -81,12 +67,10 @@ func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace stri
 
 func (c *CSVRuleChecker) GetRole(namespace, name string) (*rbacv1.Role, error) {
 	// get the Role
-	fmt.Printf("getting role %s...\n", name)
 	role, err := c.roleLister.Roles(namespace).Get(name)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("role retrieved: %+v\n", role)
 
 	// check if the Role has an OwnerConflict with the client's CSV
 	if role != nil && c.hasOwnerConflicts(role.GetOwnerReferences()) {
@@ -98,12 +82,10 @@ func (c *CSVRuleChecker) GetRole(namespace, name string) (*rbacv1.Role, error) {
 
 func (c *CSVRuleChecker) ListRoleBindings(namespace string) ([]*rbacv1.RoleBinding, error) {
 	// get all RoleBindings
-	fmt.Printf("getting rolebindings in %s\n", namespace)
 	rbList, err := c.roleBindingLister.RoleBindings(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("rolebindings retrieved %+v\n", rbList)
 
 	// filter based on OwnerReferences
 	var filtered []*rbacv1.RoleBinding

@@ -11,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -553,12 +554,11 @@ func TestRuleSatisfied(t *testing.T) {
 				stopCh <- struct{}{}
 			}()
 
-			// time.Sleep(10 * time.Second)
-
 			t.Logf("calling NewFakeCSVRuleChecker...")
 			ruleChecker, err := NewFakeCSVRuleChecker(k8sObjs, csv, tt.namespace, stopCh)
 			require.NoError(t, err)
 			t.Logf("NewFakeCSVRuleChecker returned")
+			time.Sleep(1 * time.Second)
 
 			t.Logf("checking if rules are satisfied...")
 			// check if the rule is satisfied
@@ -586,14 +586,22 @@ func NewFakeCSVRuleChecker(k8sObjs []runtime.Object, csv *v1alpha1.ClusterServic
 		}
 	}
 
-	informerFactory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), 10*time.Minute, informers.WithNamespace(namespace))
+	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), 1*time.Second)
 	roleInformer := informerFactory.Rbac().V1().Roles()
 	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
 	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
 	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
 
+	// kick off informers
 	for _, informer := range []cache.SharedIndexInformer{roleInformer.Informer(), roleBindingInformer.Informer(), clusterRoleInformer.Informer(), clusterRoleBindingInformer.Informer()} {
 		go informer.Run(stopCh)
+
+		synced := func() (bool, error) {
+			return informer.HasSynced(), nil
+		}
+
+		// wait until the informer has synced to continue
+		wait.PollUntil(500*time.Millisecond, synced, stopCh)
 	}
 
 	ruleChecker := NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), csv)
