@@ -124,6 +124,15 @@ func (c *CSVRuleChecker) ListClusterRoleBindings() ([]*rbacv1.ClusterRoleBinding
 	return filtered, nil
 }
 
+// hasOwnerConflicts checks if the given list of OwnerReferences points to CSVs other than the
+// CSVRuleChecker's. The method returns false if there exists other OwnerReferences of Kind
+// ClusterServiceVersion, then the list must contain an element that points to the CSVRuleChecker's
+// CSV, otherwise the method will return true.
+//
+// Note: This is imporant when determining if a Role, RoleBinding, ClusterRole, or ClusterRoleBinding
+// can be used to satisfy permissions of a CSV. If the CSVRuleChecker's CSV is not a member of the RBAC resource's
+// OwnerReferences, then we know the resource can be garbage collected by OLM independently of the CSVRuleChecker's
+// CSV
 func (c *CSVRuleChecker) hasOwnerConflicts(ownerRefs []metav1.OwnerReference) bool {
 	conflicts := false
 	for _, ownerRef := range ownerRefs {
