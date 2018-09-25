@@ -104,7 +104,7 @@ func (a *Operator) isGVKRegistered(group, version, kind string) error {
 	return olmErrors.GroupVersionKindNotFoundError{group, version, kind}
 }
 
-// checkPermissions checks whether the given CSV's RBAC requirements are met in its namespace
+// permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
 func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus) {
 	// Use a StrategyResolver to unmarshal
 	strategyResolver := install.StrategyResolver{}

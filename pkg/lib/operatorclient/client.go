@@ -67,7 +67,7 @@ type RoleBindingClient interface {
 	DeleteRoleBinding(namespace, name string, options *metav1.DeleteOptions) error
 }
 
-// ClusterRoleBindingClient contains methods for manipulating ClusterRoleBindings.
+// ClusterRoleClient contains methods for manipulating ClusterRoleBindings.
 type ClusterRoleClient interface {
 	CreateClusterRole(*rbacv1.ClusterRole) (*rbacv1.ClusterRole, error)
 	GetClusterRole(name string) (*rbacv1.ClusterRole, error)
