@@ -6,13 +6,13 @@ spec:
   - name: olm
     from:
       kind: DockerImage
-      Name:  {{ .Values.alm.image.ref }}
+      name:  {{ .Values.alm.image.ref }}
   - name: catalog
     from:
       kind: DockerImage
-      Name:  {{ .Values.catalog.image.ref }}
+      name:  {{ .Values.catalog.image.ref }}
   - name: package-server
-     from:
+    from:
       kind: DockerImage
-      Name:  {{ .Values.package.image.ref }}
+      name:  {{ .Values.package.image.ref }}
 {{- end }}
