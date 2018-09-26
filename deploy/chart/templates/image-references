@@ -12,7 +12,7 @@ spec:
       kind: DockerImage
       Name:  {{ .Values.catalog.image.ref }}
   - name: package-server
-     from:
+    from:
       kind: DockerImage
       Name:  {{ .Values.package.image.ref }}
 {{- end }}
