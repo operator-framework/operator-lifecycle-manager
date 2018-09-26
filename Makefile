@@ -151,6 +151,9 @@ release:
 	$(MAKE) target=upstream ver=$(ver) package
 	$(MAKE) target=okd ver=$(ver) package
 	$(MAKE) target=ocp ver=$(ver) package
+	rm -rf manifests
+	mkdir manifests
+	cp -R deploy/ocp/manifests/$(ver)/. manifests
 
 package:
 ifndef target
