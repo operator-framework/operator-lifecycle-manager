@@ -88,8 +88,8 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
 		queueInformer := queueinformer.NewInformer(
 			workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
-			namespaceInformer.Informer(),
-			op.annotateNamespace,
+			namespaceInformer,
+			op.syncNamespace,
 			nil,
 			"namespace",
 			metrics.NewMetricsNil(),
@@ -719,8 +719,8 @@ func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInN
 	return nil
 }
 
-// annotateNamespace is the method that gets called when we see a namespace event in the cluster
-func (a *Operator) annotateNamespace(obj interface{}) (syncError error) {
+// syncNamespace is the method that gets called when we see a namespace event in the cluster
+func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 	namespace, ok := obj.(*corev1.Namespace)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
