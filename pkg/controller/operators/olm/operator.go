@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	operatorgrouplister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -24,7 +26,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/informers"
+	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -43,13 +49,18 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue    workqueue.RateLimitingInterface
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
-	lister      operatorlister.OperatorLister
-	annotator   *annotator.Annotator
-	recorder    record.EventRecorder
-	cleanupFunc func()
+	csvQueue                 workqueue.RateLimitingInterface
+	client                   versioned.Interface
+	resolver                 install.StrategyResolverInterface
+	lister                   operatorlister.OperatorLister
+	roleLister               crbacv1.RoleLister
+	roleBindingLister        crbacv1.RoleBindingLister
+	clusterRoleLister        crbacv1.ClusterRoleLister
+	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
+	operatorGroupLister      map[string]operatorgrouplister.OperatorGroupLister
+	annotator                *annotator.Annotator
+	recorder                 record.EventRecorder
+	cleanupFunc              func()
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
@@ -88,7 +99,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
 		queueInformer := queueinformer.NewInformer(
 			workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
-			namespaceInformer,
+			namespaceInformer.Informer(),
 			op.syncNamespace,
 			nil,
 			"namespace",
@@ -215,9 +226,12 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 
 	// Create an informer for the operator group
 	operatorGroupInformers := []cache.SharedIndexInformer{}
+	op.operatorGroupLister = make(map[string]operatorgrouplister.OperatorGroupLister, len(namespaces))
 	for _, namespace := range namespaces {
 		informerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		operatorGroupInformers = append(operatorGroupInformers, informerFactory.Operators().V1alpha2().OperatorGroups().Informer())
+		informer := informerFactory.Operators().V1alpha2().OperatorGroups()
+		operatorGroupInformers = append(operatorGroupInformers, informer.Informer())
+		op.operatorGroupLister[namespace] = informer.Lister()
 	}
 
 	// Register OperatorGroup informers.
@@ -345,14 +359,10 @@ func (a *Operator) syncServices(obj interface{}) (syncError error) {
 	return nil
 }
 
-func (a *Operator) syncOperatorGroups(obj interface{}) error {
-	op, ok := obj.(*v1alpha2.OperatorGroup)
-	if !ok {
-		log.Debugf("wrong type: %#v\n", obj)
-		return fmt.Errorf("casting OperatorGroup failed")
-	}
+func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) error {
+	// NOTE: if a CSV modification is required in the future, copy the original
+	// data as done in the bottom of this method first.
 
-	// write namespace matches to status field
 	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
 	if err != nil {
 		return err
@@ -367,13 +377,21 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	nsCount := len(namespaceList.Items)
 
 	if len(op.Status.Namespaces) == nsCount {
-		for i, v := range namespaceList.Items {
-			if v.Name != op.Status.Namespaces[i].Name {
+		nsMap := map[string]struct{}{}
+		for _, v := range namespaceList.Items {
+			nsMap[v.Name] = struct{}{}
+		}
+		equalityCheck := true
+		for _, v := range op.Status.Namespaces {
+			if _, ok := nsMap[v.Name]; !ok {
+				equalityCheck = false
 				break
 			}
 		}
-		// status is current with correct namespaces, so no further updates required
-		return nil
+		if equalityCheck {
+			// status is current with correct namespaces, so no further updates required
+			return nil
+		}
 	}
 	op.Status.Namespaces = namespaceList.Items
 	op.Status.LastUpdated = timeNow()
@@ -400,13 +418,40 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		}
 
 		for _, deploy := range strategyDetailsDeployment.DeploymentSpecs {
+			originalData, err := json.Marshal(csv)
+			if err != nil {
+				return err
+			}
 			deploy.Spec.Template.Annotations["olm.targetNamespaces"] = nsList.String()
-			_, err := a.client.Operators().ClusterServiceVersions(currentNamespace).Update(csv)
+			modifiedData, err := json.Marshal(csv)
+			if err != nil {
+				return err
+			}
+			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, v1alpha1.ClusterServiceVersion{})
+			if err != nil {
+				return err
+			}
+
+			_, err = a.client.Operators().ClusterServiceVersions(currentNamespace).Patch(csvName, types.StrategicMergePatchType, patchBytes)
 			if err != nil {
 				return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err)
 			}
-			a.requeueCSV(csvName, currentNamespace)
+			//a.requeueCSV(csvName, currentNamespace)
 		}
+	}
+
+	return nil
+}
+
+func (a *Operator) syncOperatorGroups(obj interface{}) error {
+	op, ok := obj.(*v1alpha2.OperatorGroup)
+	if !ok {
+		log.Debugf("wrong type: %#v\n", obj)
+		return fmt.Errorf("casting OperatorGroup failed")
+	}
+
+	if err := a.updateDeploymentAnnotation(op); err != nil {
+		return err
 	}
 
 	return nil
@@ -722,15 +767,54 @@ func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInN
 // syncNamespace is the method that gets called when we see a namespace event in the cluster
 func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 	namespace, ok := obj.(*corev1.Namespace)
+	namespaceName := namespace.GetName()
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Namespace failed")
 	}
 
-	log.Infof("syncing Namespace: %s", namespace.GetName())
+	log.Infof("syncing Namespace: %s", namespaceName)
 	if err := a.annotator.AnnotateNamespace(namespace); err != nil {
-		log.Infof("error annotating namespace '%s'", namespace.GetName())
+		log.Infof("error annotating namespace '%s'", namespaceName)
 		return err
+	}
+
+	opGroupList, err := a.operatorGroupLister[namespaceName].List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	opGroupUpdate := map[*v1alpha2.OperatorGroup]struct{}{}
+	for _, op := range opGroupList {
+		selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
+		if err != nil {
+			return err
+		}
+
+		if selector.Matches(labels.Set(namespace.GetLabels())) {
+			namespaceMatch := false
+			for _, seenNamespace := range op.Status.Namespaces {
+				if seenNamespace.Name == namespaceName {
+					namespaceMatch = true
+					break
+				}
+			}
+			if namespaceMatch == false {
+				opGroupUpdate[op] = struct{}{}
+			}
+		} else {
+			for _, seenNamespace := range op.Status.Namespaces {
+				if seenNamespace.Name == namespaceName {
+					opGroupUpdate[op] = struct{}{}
+				}
+			}
+		}
+	}
+
+	for op := range opGroupUpdate {
+		if err := a.updateDeploymentAnnotation(op); err != nil {
+			return err
+		}
 	}
 	return nil
 }
