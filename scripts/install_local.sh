@@ -14,13 +14,15 @@ fi
 namespace=$1
 chart=$2
 
-# create OLM NS
-kubectl create ns ${namespace} || { echo 'ns exists'; }
-
 # create OLM
 for f in ${chart}/*.yaml
 do
-	kubectl replace --force -f ${f}
+    if [[ $f == *.configmap.yaml ]]
+    then
+        kubectl replace --force -f ${f};
+    else
+        kubectl apply -f ${f};
+    fi
 done
 
 # wait for deployments to be ready

@@ -128,7 +128,10 @@
                 "echo ${chartfilenames};" +
                 "for f in ${chartfilenames};" +
                 "do "+
-                "kubectl replace --force -f ${f};" +
+                    "if [[ $f == *.configmap.yaml ]];" +
+                    "then kubectl replace --force -f ${f};" +
+                    "else kubectl apply -f ${f};" +
+                    "fi;" +
                 "done;"
             ]),
         ],
