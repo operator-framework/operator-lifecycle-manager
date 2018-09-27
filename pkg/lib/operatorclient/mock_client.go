@@ -417,6 +417,57 @@ func (mr *MockClientInterfaceMockRecorder) DeleteClusterRoleBinding(name, option
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteClusterRoleBinding", reflect.TypeOf((*MockClientInterface)(nil).DeleteClusterRoleBinding), name, options)
 }
 
+// CreateClusterRole mocks base method
+func (m *MockClientInterface) CreateClusterRole(arg0 *v11.ClusterRole) (*v11.ClusterRole, error) {
+	ret := m.ctrl.Call(m, "CreateClusterRole", arg0)
+	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateClusterRole indicates an expected call of CreateClusterRole
+func (mr *MockClientInterfaceMockRecorder) CreateClusterRole(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateClusterRole", reflect.TypeOf((*MockClientInterface)(nil).CreateClusterRole), arg0)
+}
+
+// GetClusterRole mocks base method
+func (m *MockClientInterface) GetClusterRole(name string) (*v11.ClusterRole, error) {
+	ret := m.ctrl.Call(m, "GetClusterRole", name)
+	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterRole indicates an expected call of GetClusterRole
+func (mr *MockClientInterfaceMockRecorder) GetClusterRole(name interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterRole", reflect.TypeOf((*MockClientInterface)(nil).GetClusterRole), name)
+}
+
+// UpdateClusterRole mocks base method
+func (m *MockClientInterface) UpdateClusterRole(modified *v11.ClusterRole) (*v11.ClusterRole, error) {
+	ret := m.ctrl.Call(m, "UpdateClusterRole", modified)
+	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateClusterRole indicates an expected call of UpdateClusterRole
+func (mr *MockClientInterfaceMockRecorder) UpdateClusterRole(modified interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateClusterRole", reflect.TypeOf((*MockClientInterface)(nil).UpdateClusterRole), modified)
+}
+
+// DeleteClusterRole mocks base method
+func (m *MockClientInterface) DeleteClusterRole(name string, options *v12.DeleteOptions) error {
+	ret := m.ctrl.Call(m, "DeleteClusterRole", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteClusterRole indicates an expected call of DeleteClusterRole
+func (mr *MockClientInterfaceMockRecorder) DeleteClusterRole(name, options interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteClusterRole", reflect.TypeOf((*MockClientInterface)(nil).DeleteClusterRole), name, options)
+}
+
 // GetDeployment mocks base method
 func (m *MockClientInterface) GetDeployment(namespace, name string) (*v1.Deployment, error) {
 	ret := m.ctrl.Call(m, "GetDeployment", namespace, name)
@@ -945,6 +996,80 @@ func (m *MockRoleBindingClient) DeleteRoleBinding(namespace, name string, option
 // DeleteRoleBinding indicates an expected call of DeleteRoleBinding
 func (mr *MockRoleBindingClientMockRecorder) DeleteRoleBinding(namespace, name, options interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteRoleBinding", reflect.TypeOf((*MockRoleBindingClient)(nil).DeleteRoleBinding), namespace, name, options)
+}
+
+// MockClusterRoleClient is a mock of ClusterRoleClient interface
+type MockClusterRoleClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockClusterRoleClientMockRecorder
+}
+
+// MockClusterRoleClientMockRecorder is the mock recorder for MockClusterRoleClient
+type MockClusterRoleClientMockRecorder struct {
+	mock *MockClusterRoleClient
+}
+
+// NewMockClusterRoleClient creates a new mock instance
+func NewMockClusterRoleClient(ctrl *gomock.Controller) *MockClusterRoleClient {
+	mock := &MockClusterRoleClient{ctrl: ctrl}
+	mock.recorder = &MockClusterRoleClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockClusterRoleClient) EXPECT() *MockClusterRoleClientMockRecorder {
+	return m.recorder
+}
+
+// CreateClusterRole mocks base method
+func (m *MockClusterRoleClient) CreateClusterRole(arg0 *v11.ClusterRole) (*v11.ClusterRole, error) {
+	ret := m.ctrl.Call(m, "CreateClusterRole", arg0)
+	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateClusterRole indicates an expected call of CreateClusterRole
+func (mr *MockClusterRoleClientMockRecorder) CreateClusterRole(arg0 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateClusterRole", reflect.TypeOf((*MockClusterRoleClient)(nil).CreateClusterRole), arg0)
+}
+
+// GetClusterRole mocks base method
+func (m *MockClusterRoleClient) GetClusterRole(name string) (*v11.ClusterRole, error) {
+	ret := m.ctrl.Call(m, "GetClusterRole", name)
+	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetClusterRole indicates an expected call of GetClusterRole
+func (mr *MockClusterRoleClientMockRecorder) GetClusterRole(name interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetClusterRole", reflect.TypeOf((*MockClusterRoleClient)(nil).GetClusterRole), name)
+}
+
+// UpdateClusterRole mocks base method
+func (m *MockClusterRoleClient) UpdateClusterRole(modified *v11.ClusterRole) (*v11.ClusterRole, error) {
+	ret := m.ctrl.Call(m, "UpdateClusterRole", modified)
+	ret0, _ := ret[0].(*v11.ClusterRole)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateClusterRole indicates an expected call of UpdateClusterRole
+func (mr *MockClusterRoleClientMockRecorder) UpdateClusterRole(modified interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateClusterRole", reflect.TypeOf((*MockClusterRoleClient)(nil).UpdateClusterRole), modified)
+}
+
+// DeleteClusterRole mocks base method
+func (m *MockClusterRoleClient) DeleteClusterRole(name string, options *v12.DeleteOptions) error {
+	ret := m.ctrl.Call(m, "DeleteClusterRole", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteClusterRole indicates an expected call of DeleteClusterRole
+func (mr *MockClusterRoleClientMockRecorder) DeleteClusterRole(name, options interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteClusterRole", reflect.TypeOf((*MockClusterRoleClient)(nil).DeleteClusterRole), name, options)
 }
 
 // MockClusterRoleBindingClient is a mock of ClusterRoleBindingClient interface

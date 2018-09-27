@@ -1,6 +1,6 @@
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: operator-lifecycle-manager
-catalog_namespace: operator-lifecycle-manager
+namespace: openshift-operator-lifecycle-manager
+catalog_namespace: openshift-operator-lifecycle-manager
 imagestream: false
 alm:
   replicaCount: 1

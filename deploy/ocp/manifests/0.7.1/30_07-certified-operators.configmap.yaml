@@ -5,7 +5,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: certified-operators
-  namespace: operator-lifecycle-manager
+  namespace: openshift-operator-lifecycle-manager
 
 data:
   customResourceDefinitions: |-
@@ -780,7 +780,7 @@ data:
           - monitoring
         displayName: Dynatrace OneAgent
         provider:
-          name: 'Dynatrace, Inc'
+          name: 'Dynatrace LLC'
         maturity: stable
         version: 0.2.0
         icon:
@@ -878,7 +878,7 @@ data:
           strategy: deployment
         maintainers:
           - email: support@dynatrace.com
-            name: 'Dynatrace, Inc'
+            name: 'Dynatrace LLC'
         description: >
           Install full-stack monitoring of [OpenShift
           clusters](https://www.dynatrace.com/technologies/openshift-monitoring/) with

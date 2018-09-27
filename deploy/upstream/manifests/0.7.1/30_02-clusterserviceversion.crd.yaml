@@ -644,6 +644,51 @@ spec:
                                         - patch
                                         - delete
                                         - deletecollection
+                      clusterPermissions:
+                        type: array
+                        description: Cluster permissions needed by the deployement to run correctly
+                        items:
+                          type: object
+                          required:
+                          - serviceAccountName
+                          - rules
+                          properties:
+                            serviceAccountName:
+                              type: string
+                              description: The service account name to create for the deployment
+                            rules:
+                              type: array
+                              items:
+                                type: object
+                                description: a rule required by the service account
+                                properties:
+                                  apiGroups:
+                                    type: array
+                                    description: apiGroups the rule applies to
+                                    items:
+                                      type: string
+                                  resources:
+                                    type: array
+                                    items:
+                                      type: string
+                                  resourceNames:
+                                    type: array
+                                    items:
+                                      type: string
+                                  verbs:
+                                    type: array
+                                    items:
+                                      type: string
+                                      enum:
+                                      - "*"
+                                      - get
+                                      - list
+                                      - watch
+                                      - create
+                                      - update
+                                      - patch
+                                      - delete
+                                      - deletecollection
         status:
           type: object
           description: Status for a ClusterServiceVersion

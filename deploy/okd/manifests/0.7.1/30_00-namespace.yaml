@@ -3,4 +3,4 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: operator-lifecycle-manager
+  name: openshift-operator-lifecycle-manager

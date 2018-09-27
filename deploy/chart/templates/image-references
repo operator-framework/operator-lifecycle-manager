@@ -1,0 +1,18 @@
+{{- if .Values.imagestream }}
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+spec:
+  tags:
+  - name: olm
+    from:
+      kind: DockerImage
+      name:  {{ .Values.alm.image.ref }}
+  - name: catalog
+    from:
+      kind: DockerImage
+      name:  {{ .Values.catalog.image.ref }}
+  - name: package-server
+    from:
+      kind: DockerImage
+      name:  {{ .Values.package.image.ref }}
+{{- end }}

@@ -7,7 +7,6 @@ import (
 	"github.com/ghodss/yaml"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
@@ -136,7 +135,7 @@ func TestSyncCatalogSources(t *testing.T) {
 		testName          string
 		operatorNamespace string
 		catalogSource     *v1alpha1.CatalogSource
-		configMap         *v1.ConfigMap
+		configMap         *corev1.ConfigMap
 		expectedStatus    *v1alpha1.CatalogSourceStatus
 		expectedError     error
 	}{
@@ -153,7 +152,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					ConfigMap: "cool-configmap",
 				},
 			},
-			configMap: &v1.ConfigMap{
+			configMap: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "cool-configmap",
 					Namespace:       "cool-namespace",
@@ -193,7 +192,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					},
 				},
 			},
-			configMap: &v1.ConfigMap{
+			configMap: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "cool-configmap",
 					Namespace:       "cool-namespace",
@@ -225,7 +224,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					ConfigMap: "cool-configmap",
 				},
 			},
-			configMap: &v1.ConfigMap{
+			configMap: &corev1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:            "cool-configmap",
 					Namespace:       "cool-namespace",
@@ -250,7 +249,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					ConfigMap: "cool-configmap",
 				},
 			},
-			configMap:      &v1.ConfigMap{},
+			configMap:      &corev1.ConfigMap{},
 			expectedStatus: nil,
 			expectedError:  errors.New("failed to get catalog config map cool-configmap when updating status: configmaps \"cool-configmap\" not found"),
 		},
@@ -381,7 +380,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
 
 	// Create test namespace
-	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 	if err != nil {
 		return nil, err
 	}
