@@ -4,8 +4,6 @@ WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 RUN curl -L https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 -o /bin/jq
 RUN chmod +x /bin/jq
 # Cache Dep first
-COPY Gopkg.toml Gopkg.lock Makefile ./
-RUN make vendor
 COPY . .
 RUN make build
 RUN go test -c -o /bin/e2e ./test/e2e/...
