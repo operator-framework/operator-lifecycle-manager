@@ -4,7 +4,7 @@ kind: APIService
 metadata:
   name: v1alpha1.packages.apps.redhat.com
 spec:
-  caBundle: {{ $ca.Cert | b64enc | quote }}
+  caBundle: {{ b64enc $ca.Cert }}
   group: packages.apps.redhat.com
   groupPriorityMinimum: 2000
   versionPriority: 15
@@ -77,8 +77,8 @@ metadata:
 data:
 {{- $altNames := list ( printf "package-server.%s" .Values.namespace ) ( printf "package-server.%s.svc" .Values.namespace ) -}}
 {{- $cert := genSignedCert "package-server" nil $altNames 365 $ca }}
-  tls.crt: {{ $cert.Cert | b64enc | quote }}
-  tls.key: {{ $cert.Key | b64enc | quote }}
+  tls.crt: {{ b64enc $cert.Cert }}
+  tls.key: {{ b64enc $cert.Key }}
 ---
 apiVersion: apps/v1beta1
 kind: Deployment
