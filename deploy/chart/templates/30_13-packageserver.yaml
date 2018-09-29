@@ -109,6 +109,8 @@ spec:
         - --watched-namespaces
         - {{ .Values.watchedNamespaces }}
         {{- end }}
+        - --global-namespace
+        - {{ .Values.namespace }}
         - --debug
         {{- if .Values.package.commandArgs }}
         - {{ .Values.package.commandArgs }}

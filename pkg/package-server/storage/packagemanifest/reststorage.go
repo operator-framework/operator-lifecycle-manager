@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,7 +75,7 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 
 	filtered := []v1alpha1.PackageManifest{}
 	for _, manifest := range res.Items {
-		if matches(manifest, name, namespace, labelSelector) {
+		if matches(manifest, name, labelSelector) {
 			filtered = append(filtered, manifest)
 		}
 	}
@@ -88,19 +87,15 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 // Getter interface
 func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *metav1.GetOptions) (runtime.Object, error) {
 	namespace := genericapirequest.NamespaceValue(ctx)
-	manifest := v1alpha1.PackageManifest{}
-
 	pm, err := m.prov.Get(namespace, name)
 	if err != nil {
 		return nil, err
 	}
-	if pm != nil {
-		manifest = *pm
-	} else {
+	if pm == nil {
 		return nil, k8serrors.NewNotFound(m.groupResource, name)
 	}
 
-	return &manifest, nil
+	return pm, nil
 }
 
 // Watcher interface
@@ -140,12 +135,9 @@ func nameFor(fs fields.Selector) (string, error) {
 	return name, nil
 }
 
-func matches(m v1alpha1.PackageManifest, name, namespace string, ls labels.Selector) bool {
+func matches(m v1alpha1.PackageManifest, name string, ls labels.Selector) bool {
 	if name == "" {
 		name = m.GetName()
 	}
-	if namespace == v1.NamespaceAll {
-		namespace = m.GetNamespace()
-	}
-	return ls.Matches(labels.Set(m.GetLabels())) && m.GetName() == name && m.GetNamespace() == namespace
+	return ls.Matches(labels.Set(m.GetLabels())) && m.GetName() == name
 }

@@ -43,7 +43,7 @@ func NewWatcher(namespace, name, resourceVersion string, labelSelector labels.Se
 // Run is a blocking method which starts the watch by subscribing to the source.
 // Should run in a goroutine.
 func (w *Watcher) Run(ctx context.Context) {
-	add, modify, delete, err := w.source.Subscribe(w.stop)
+	add, modify, delete, err := w.source.Subscribe(w.namespace, w.stop)
 	if err != nil {
 		return
 	}
@@ -81,21 +81,21 @@ func (w *Watcher) ResultChan() <-chan watch.Event {
 
 func (w *Watcher) Add(manifest v1alpha1.PackageManifest) {
 	// TODO: Handle `resourceVersion`
-	if matches(manifest, w.name, w.namespace, w.labelSelector) {
+	if matches(manifest, w.name, w.labelSelector) {
 		w.send(watch.Event{Type: watch.Added, Object: &manifest})
 	}
 }
 
 func (w *Watcher) Modify(manifest v1alpha1.PackageManifest) {
 	// TODO: Handle `resourceVersion`
-	if matches(manifest, w.name, w.namespace, w.labelSelector) {
+	if matches(manifest, w.name, w.labelSelector) {
 		w.send(watch.Event{Type: watch.Modified, Object: &manifest})
 	}
 }
 
 func (w *Watcher) Delete(lastValue v1alpha1.PackageManifest) {
 	// TODO: Handle `resourceVersion`
-	if matches(lastValue, w.name, w.namespace, w.labelSelector) {
+	if matches(lastValue, w.name, w.labelSelector) {
 		w.send(watch.Event{Type: watch.Deleted, Object: &lastValue})
 	}
 }

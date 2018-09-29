@@ -62,8 +62,9 @@ type PackageServerOptions struct {
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
 	Features       *genericoptions.FeatureOptions
 
-	WakeupInterval    time.Duration
+	GlobalNamespace   string
 	WatchedNamespaces []string
+	WakeupInterval    time.Duration
 
 	Kubeconfig string
 
@@ -177,7 +178,7 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	sourceProvider := provider.NewInMemoryProvider(catsrcSharedIndexInformers, queueOperator)
+	sourceProvider := provider.NewInMemoryProvider(catsrcSharedIndexInformers, queueOperator, o.GlobalNamespace)
 	config.ProviderConfig.Provider = sourceProvider
 	// we should never need to resync, since we're not worried about missing events,
 	// and resync is actually for regular interval-based reconciliation these days,
