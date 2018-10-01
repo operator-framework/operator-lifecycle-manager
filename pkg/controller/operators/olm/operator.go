@@ -14,7 +14,7 @@ import (
 	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -123,6 +123,17 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	op.roleBindingLister = roleBindingInformer.Lister()
 	op.clusterRoleLister = clusterRoleInformer.Lister()
 	op.clusterRoleBindingLister = clusterRoleBindingInformer.Lister()
+
+	// register APIService QueueInformers
+	apiServiceSharedInformerFactory := kagg.NewSharedInformerFactory(opClient.ApiregistrationV1Interface(), wakeupInterval)
+	op.RegisterQueueInformer(queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservices"),
+		apiServiceSharedInformerFactory.Apiregistration().V1().APIServices().Informer(),
+		op.syncAPIServices,
+		nil,
+		"apiservices",
+		metrics.NewMetricsNil(),
+	))
 
 	// set up watch on CSVs
 	csvInformers := []cache.SharedIndexInformer{}
@@ -316,9 +327,17 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		logger.Info("scheduling ClusterServiceVersion for install")
 		out.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
 	case v1alpha1.CSVPhaseInstallReady:
+
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			// parseStrategiesAndUpdateStatus sets CSV status
+			return
+		}
+
+		// Install owned APIServices and update strategy with serving cert data
+		strategy, syncError = a.installOwnedAPIServiceRequirements(out, strategy)
+		if syncError != nil {
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError))
 			return
 		}
 
@@ -340,7 +359,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVReasonWaiting); installErr == nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("install strategy successful")
 		}
-
 	case v1alpha1.CSVPhaseSucceeded:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
@@ -442,14 +460,17 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 }
 
 func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller, strategy install.Strategy, requeueConditionReason v1alpha1.ConditionReason) error {
-	installed, strategyErr := installer.CheckInstalled(strategy)
-	if installed {
+	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv.Spec.APIServiceDefinitions.Owned)
+	strategyInstalled, strategyErr := installer.CheckInstalled(strategy)
+	if strategyInstalled && apiServicesInstalled {
 		// if there's no error, we're successfully running
 		if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
 			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
 		}
 		return nil
 	}
+
+	// TODO(Nick): check if apiServiceErr is unrecoverable
 
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
 	if install.IsErrorUnrecoverable(strategyErr) {
@@ -458,6 +479,18 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	// if there's an error checking install that shouldn't fail the strategy, requeue with message
+	if apiServiceErr != nil {
+		csv.SetPhase(v1alpha1.CSVPhaseInstalling, requeueConditionReason, fmt.Sprintf("APIServices installing: %s", apiServiceErr))
+		a.requeueCSV(csv.GetName(), csv.GetNamespace())
+		return apiServiceErr
+	}
+
+	if !apiServicesInstalled {
+		csv.SetPhase(v1alpha1.CSVPhaseInstalling, requeueConditionReason, fmt.Sprintf("APIServices not installed"))
+		a.requeueCSV(csv.GetName(), csv.GetNamespace())
+		return fmt.Errorf("APIServices not installed")
+	}
+
 	if strategyErr != nil {
 		csv.SetPhase(v1alpha1.CSVPhaseInstalling, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr))
 		return strategyErr
@@ -487,15 +520,6 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	strName := strategy.GetStrategyName()
 	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv, previousStrategy)
 	return installer, strategy, previousStrategy
-}
-
-func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
-	for _, c := range apiService.Status.Conditions {
-		if c.Type == apiregistrationv1.Available && c.Status == apiregistrationv1.ConditionTrue {
-			return true
-		}
-	}
-	return false
 }
 
 func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {

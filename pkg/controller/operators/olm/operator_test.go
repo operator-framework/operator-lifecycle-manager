@@ -256,9 +256,10 @@ func apis(apis ...string) []v1alpha1.APIServiceDescription {
 	for _, av := range apis {
 		split := strings.Split(av, ".")
 		descs = append(descs, v1alpha1.APIServiceDescription{
-			Name:    split[0],
-			Version: split[1],
-			Kind:    split[2],
+			Group:          split[0],
+			Version:        split[1],
+			Kind:           split[2],
+			DeploymentName: split[0],
 		})
 	}
 	return descs
@@ -348,7 +349,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVNoneToPending/APIService",
+			name: "SingleCSVNoneToPending/APIService/Required",
 			initial: initial{
 				csvs: []runtime.Object{
 					withAPIServices(csv("csv1",
@@ -392,7 +393,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToPending/APIService/Missing",
+			name: "SingleCSVPendingToPending/APIService/Required/Missing",
 			initial: initial{
 				csvs: []runtime.Object{
 					withAPIServices(csv("csv1",
@@ -415,7 +416,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToPending/APIService/Unavailable",
+			name: "SingleCSVPendingToPending/APIService/Required/Unavailable",
 			initial: initial{
 				csvs: []runtime.Object{
 					withAPIServices(csv("csv1",
@@ -439,7 +440,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToPending/APIService/Unknown",
+			name: "SingleCSVPendingToPending/APIService/Required/Unknown",
 			initial: initial{
 				csvs: []runtime.Object{
 					withAPIServices(csv("csv1",
@@ -462,7 +463,32 @@ func TestTransitionCSV(t *testing.T) {
 				},
 			},
 		},
-
+		{
+			name: "SingleCSVPendingToFailed/APIService/Owned/DeploymentNotFound",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("b1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					), apis("a1.v1.a1Kind"), nil),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+				err: map[string]error{
+					"csv1": ErrRequirementsNotMet,
+				},
+			},
+		},
 		{
 			name: "CSVPendingToFailed/OwnerConflict",
 			initial: initial{
@@ -525,7 +551,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToInstallReady/APIService",
+			name: "SingleCSVPendingToInstallReady/APIService/Required",
 			initial: initial{
 				csvs: []runtime.Object{
 					withAPIServices(csv("csv1",
@@ -557,6 +583,29 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
 					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseInstalling},
+				},
+			},
+		},
+		{
+			name: "SingleCSVInstallReadyToInstalling/APIService/Owned",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1"),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseInstallReady,
+					), apis("a1.v1.a1Kind"), nil),
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1"),

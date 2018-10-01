@@ -14,6 +14,8 @@ import (
 
 func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
+
+	// Check for CRDs
 	for _, r := range csv.GetAllCRDDescriptions() {
 		status := v1alpha1.RequirementStatus{
 			Group:   "apiextensions.k8s.io",
@@ -33,17 +35,19 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 		}
 		statuses = append(statuses, status)
 	}
-	for _, r := range csv.GetAllAPIServiceDescriptions() {
-		apiName := fmt.Sprintf("%s.%s", r.Version, r.Name)
+
+	// Check for required API services
+	for _, r := range csv.GetRequiredAPIServiceDescriptions() {
+		name := fmt.Sprintf("%s.%s", r.Version, r.Group)
 		status := v1alpha1.RequirementStatus{
 			Group:   "apiregistration.k8s.io",
 			Version: "v1",
 			Kind:    "APIService",
-			Name:    apiName,
+			Name:    name,
 		}
 
-		// check if GVK exists
-		if err := a.isGVKRegistered(r.Name, r.Version, r.Kind); err != nil {
+		// Check if GVK exists
+		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
 			status.Status = "NotPresent"
 			met = false
 			statuses = append(statuses, status)
@@ -51,7 +55,7 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 		}
 
 		// Check if APIService is registered
-		apiService, err := a.OpClient.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiName, metav1.GetOptions{})
+		apiService, err := a.OpClient.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(name, metav1.GetOptions{})
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false
@@ -68,6 +72,52 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 			status.UUID = string(apiService.GetUID())
 		}
 		statuses = append(statuses, status)
+	}
+
+	// Check owned API services
+	for _, r := range (*csv).GetOwnedAPIServiceDescriptions() {
+		name := fmt.Sprintf("%s.%s", r.Version, r.Group)
+		status := v1alpha1.RequirementStatus{
+			Group:   "apiregistration.k8s.io",
+			Version: "v1",
+			Kind:    "APIService",
+			Name:    name,
+		}
+
+		// Use a StrategyResolver to unmarshal
+		strategyResolver := install.StrategyResolver{}
+		strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+		if err != nil {
+			status.Status = "UnableToCheckInstallStrategy"
+			met = false
+			statuses = append(statuses, status)
+			continue
+		}
+
+		// Assume the strategy is for a deployment
+		strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+		if !ok {
+			status.Status = "UnableToCheckInstallStrategy"
+			met = false
+			statuses = append(statuses, status)
+			continue
+		}
+
+		found := false
+		for _, spec := range strategyDetailsDeployment.DeploymentSpecs {
+			if spec.Name == r.DeploymentName {
+				status.Status = "DeploymentFound"
+				statuses = append(statuses, status)
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			status.Status = "DeploymentNotFound"
+			statuses = append(statuses, status)
+			met = false
+		}
 	}
 
 	// Get permission status

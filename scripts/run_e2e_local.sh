@@ -29,8 +29,10 @@ function cleanupAndExit {
 		kubectl -n ${namespace} logs -l app=alm-operator > olm.log;
 		kubectl -n ${namespace} logs -l app=catalog-operator > catalog.log;
 		kubectl -n ${namespace} logs -l app=package-server > package.log
+	else 
+		cleanup
 	fi
-	cleanup
+
     exit $exitCode
 }
 

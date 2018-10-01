@@ -110,8 +110,8 @@ $(CODEGEN):
 	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 
 pkg/package-server/generated/openapi/zz_generated.openapi.go:
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi/ -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi/ -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
+	
 clean-openapi:
 	rm -rf pkg/package-server/generated/openapi
 

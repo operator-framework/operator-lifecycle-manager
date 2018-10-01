@@ -189,21 +189,28 @@ spec:
                   items:
                     type: object
                     required:
-                    - name
+                    - group
                     - version
                     - kind
+                    - deploymentName
                     - displayName
                     - description
                     properties:
-                      name:
+                      group:
                         type: string
-                        description: Fully qualified name of the APIService (e.g. my-resource-v1.app.coreos.com)
+                        description: Group of the APIService (e.g. app.coreos.com)
                       version:
                         type: string
                         description: The version field of the APIService
                       kind:
                         type: string
                         description: The kind field of the APIService
+                      deploymentName:
+                        type: string
+                        description: Name of the extension api-server's deployment
+                      containerPort:
+                        type: number
+                        description: Port where the extension api-server serves TLS traffic
                       displayName:
                         type: string
                         description: A human-readable name for the APIService.
@@ -315,21 +322,27 @@ spec:
                   items:
                     type: object
                     required:
-                    - name
+                    - group
                     - version
                     - kind
                     - displayName
                     - description
                     properties:
-                      name:
+                      group:
                         type: string
-                        description: Fully qualified name of the APIService (e.g. my-resource-v1.app.coreos.com)
+                        description: Group of the APIService (e.g. app.coreos.com)
                       version:
                         type: string
                         description: The version field of the APIService
                       kind:
                         type: string
                         description: The kind field of the APIService
+                      deploymentName:
+                        type: string
+                        description: Name of the extension api-server's deployment
+                      containerPort:
+                        type: number
+                        description: Port where the extension api-server serves TLS traffic
                       displayName:
                         type: string
                         description: A human-readable name for the APIService.
