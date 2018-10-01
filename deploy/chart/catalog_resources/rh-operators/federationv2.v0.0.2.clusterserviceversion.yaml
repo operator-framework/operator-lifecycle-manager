@@ -3,6 +3,15 @@ kind: ClusterServiceVersion
 metadata:
   name: federationv2.v0.0.2
 spec:
+  displayName: FederationV2
+  description: |
+    Kubernetes Federation V2 namespace-scoped installation
+  version: 0.0.2
+  maturity: alpha
+  labels:
+    alm-owner-federationv2: federationv2
+    alm-status-descriptors: federationv2.v0.0.2
+
   install:
     strategy: deployment
     spec:
@@ -252,8 +261,3 @@ spec:
         kind: ReplicaSchedulingPreference
         name: replicaschedulingpreferences.scheduling.federation.k8s.io
         version: v1alpha1
-  version: 0.0.2
-  displayName: FederationV2
-  labels:
-    olm-owner-enterprise-app: federation-controller-manager
-    olm-status-descriptors: federationv2.v0.0.2
