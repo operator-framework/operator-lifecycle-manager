@@ -13,7 +13,6 @@ RUN make build
 FROM openshift/origin-base
 
 ADD manifests/ /manifests
-LABEL io.openshift.release.operator=true
 
 # Copy the binary to a standard location where it will run.
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
