@@ -195,6 +195,7 @@ const (
 	CSVReasonReplaced                ConditionReason = "Replaced"
 	CSVReasonNeedCertRotation        ConditionReason = "NeedCertRotation"
 	CSVReasonAPIServiceResourceIssue ConditionReason = "APIServiceResourceIssue"
+	CSVReasonCopied                  ConditionReason = "Copied"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
