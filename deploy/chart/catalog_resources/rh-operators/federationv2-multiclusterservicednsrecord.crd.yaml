@@ -1,0 +1,57 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  labels:
+    api: federation
+    kubebuilder.k8s.io: 1.0.3
+  name: multiclusterservicednsrecords.multiclusterdns.federation.k8s.io
+spec:
+  group: multiclusterdns.federation.k8s.io
+  names:
+    kind: MultiClusterServiceDNSRecord
+    plural: multiclusterservicednsrecords
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+        metadata:
+          type: object
+        spec:
+          properties:
+            dnsSuffix:
+              type: string
+            federationName:
+              type: string
+            recordTTL:
+              format: int64
+              type: integer
+          type: object
+        status:
+          properties:
+            dns:
+              items:
+                properties:
+                  cluster:
+                    type: string
+                  loadBalancer:
+                    type: object
+                  region:
+                    type: string
+                  zone:
+                    type: string
+                type: object
+              type: array
+          type: object
+  version: v1alpha1
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: null
