@@ -351,8 +351,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		depSpec.Template.Spec.Volumes = append(depSpec.Template.Spec.Volumes, volume)
 	}
 
-	// TODO(NICK): limit what containers get a volume mount for the certs volume
-	// mount to the default serving cert path
+	// TODO(NICK): limit which containers get a volume mount
 	mount := corev1.VolumeMount{
 		Name:      volume.Name,
 		MountPath: "/apiserver.local.config/certificates",

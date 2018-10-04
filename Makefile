@@ -57,6 +57,12 @@ run-local:
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
+deploy-local:
+	mkdir -p build/resources
+	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values.yaml
+	. ./scripts/install_local.sh local build/resources
+	rm -rf build
+
 run-local-shift:
 	. ./scripts/build_local_shift.sh
 	mkdir -p build/resources

@@ -655,6 +655,7 @@ spec:
                                         - patch
                                         - delete
                                         - deletecollection
+                                        - initialize
                       clusterPermissions:
                         type: array
                         description: Cluster permissions needed by the deployement to run correctly
@@ -700,6 +701,7 @@ spec:
                                       - patch
                                       - delete
                                       - deletecollection
+                                      - initialize
         status:
           type: object
           description: Status for a ClusterServiceVersion

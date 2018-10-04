@@ -75,7 +75,7 @@ func (a *Operator) requirementStatus(csv *v1alpha1.ClusterServiceVersion) (met b
 	}
 
 	// Check owned API services
-	for _, r := range (*csv).GetOwnedAPIServiceDescriptions() {
+	for _, r := range csv.GetOwnedAPIServiceDescriptions() {
 		name := fmt.Sprintf("%s.%s", r.Version, r.Group)
 		status := v1alpha1.RequirementStatus{
 			Group:   "apiregistration.k8s.io",
@@ -135,21 +135,19 @@ func (a *Operator) isGVKRegistered(group, version, kind string) error {
 		"version": version,
 		"kind":    kind,
 	})
-	groups, err := a.OpClient.KubernetesInterface().Discovery().ServerResources()
+	gv := metav1.GroupVersion{Group: group, Version: version}
+	resources, err := a.OpClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv.String())
 	if err != nil {
 		logger.WithField("err", err).Info("couldn't query for GVK in api discovery")
 		return err
 	}
-	gv := metav1.GroupVersion{Group: group, Version: version}
-	for _, g := range groups {
-		if g.GroupVersion == gv.String() {
-			for _, r := range g.APIResources {
-				if r.Kind == kind {
-					return nil
-				}
-			}
+
+	for _, r := range resources.APIResources {
+		if r.Kind == kind {
+			return nil
 		}
 	}
+
 	logger.Info("couldn't find GVK in api discovery")
 	return olmErrors.GroupVersionKindNotFoundError{group, version, kind}
 }
@@ -176,6 +174,7 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) {
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
+			log.Infof("perm.ServiceName: %s", saName)
 
 			var status v1alpha1.RequirementStatus
 			if stored, ok := statusesSet[saName]; !ok {
@@ -202,7 +201,6 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 
 			// Check if the PolicyRules are satisfied
 			for _, rule := range perm.Rules {
-				// TODO(Nick): decide what to do with dependent status here
 				dependent := v1alpha1.DependentStatus{
 					Group:   "rbac.authorization.k8s.io",
 					Kind:    "PolicyRule",
@@ -238,7 +236,8 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 	checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
 
 	statuses := make([]v1alpha1.RequirementStatus, len(statusesSet))
-	for _, status := range statusesSet {
+	for key, status := range statusesSet {
+		log.Infof("appending permission status: %s", key)
 		statuses = append(statuses, status)
 	}
 
