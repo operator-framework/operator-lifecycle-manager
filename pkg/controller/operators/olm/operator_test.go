@@ -23,6 +23,7 @@ import (
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -99,17 +100,24 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	return apis
 }
 
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespace string) (*Operator, error) {
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []v1.Namespace) (*Operator, error) {
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(extObjs, regObjs...))
 	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
 	annotations := map[string]string{"test": "annotation"}
-	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
-	if err != nil {
-		return nil, err
+	for _, ns := range namespaces {
+		_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&ns)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return NewOperator(clientFake, opClientFake, resolver, 5*time.Second, annotations, []string{namespace})
+
+	var nsList []string
+	for ix := range namespaces {
+		nsList = append(nsList, namespaces[ix].Name)
+	}
+	return NewOperator(clientFake, opClientFake, resolver, 5*time.Second, annotations, nsList)
 }
 
 func (o *Operator) GetClient() versioned.Interface {
@@ -164,32 +172,30 @@ func deployment(deploymentName, namespace string) *appsv1.Deployment {
 
 func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: deploymentName,
-				Spec: appsv1.DeploymentSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
+	specs := []install.StrategyDeploymentSpec{
+		install.StrategyDeploymentSpec{
+			Name: deploymentName,
+			Spec: appsv1.DeploymentSpec{
+				Selector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{
+						"app": deploymentName,
+					},
+				},
+				Replicas: &singleInstance,
+				Template: v1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Labels: map[string]string{
 							"app": deploymentName,
 						},
 					},
-					Replicas: &singleInstance,
-					Template: v1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: map[string]string{
-								"app": deploymentName,
-							},
-						},
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:  deploymentName + "-c1",
-									Image: "nginx:1.7.9",
-									Ports: []v1.ContainerPort{
-										{
-											ContainerPort: 80,
-										},
+					Spec: v1.PodSpec{
+						Containers: []v1.Container{
+							{
+								Name:  deploymentName + "-c1",
+								Image: "nginx:1.7.9",
+								Ports: []v1.ContainerPort{
+									{
+										ContainerPort: 80,
 									},
 								},
 							},
@@ -200,6 +206,52 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 		},
 		Permissions:        permissions,
 		ClusterPermissions: clusterPermissions,
+	}
+
+	return specs
+}
+
+func getModifiedInstallStrategy(deploymentName string, deploymentFn func(string) []install.StrategyDeploymentSpec, permissionsFn func() []install.StrategyDeploymentPermissions, clusterPermissionsFn func() []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+
+	var deploySpecs []install.StrategyDeploymentSpec
+	var permissions []install.StrategyDeploymentPermissions
+	var clusterPermissions []install.StrategyDeploymentPermissions
+	if deploymentFn != nil {
+		deploySpecs = deploymentFn(deploymentName)
+	} else {
+		deploySpecs = getStrategyDeploymentSpecs(deploymentName)
+	}
+	if permissionsFn != nil {
+		permissions = permissionsFn()
+	} else {
+		permissions = []install.StrategyDeploymentPermissions{}
+	}
+	if clusterPermissionsFn != nil {
+		clusterPermissions = clusterPermissionsFn()
+	} else {
+		clusterPermissions = []install.StrategyDeploymentPermissions{}
+	}
+
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs:    deploySpecs,
+		Permissions:        permissions,
+		ClusterPermissions: clusterPermissions,
+	}
+
+	strategyRaw, err := json.Marshal(strategy)
+	if err != nil {
+		panic(err)
+	}
+
+	return v1alpha1.NamedInstallStrategy{
+		StrategyName:    install.InstallStrategyNameDeployment,
+		StrategySpecRaw: strategyRaw,
+	}
+}
+
+func installStrategy(deploymentName string) v1alpha1.NamedInstallStrategy {
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: getStrategyDeploymentSpecs(deploymentName),
 	}
 	strategyRaw, err := json.Marshal(strategy)
 	if err != nil {
@@ -1041,9 +1093,10 @@ func TestTransitionCSV(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		namespaceObj := v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespace)
+			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []v1.Namespace{namespaceObj})
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
@@ -1068,6 +1121,171 @@ func TestTransitionCSV(t *testing.T) {
 				if csvState.exists {
 					assert.Equal(t, csvState.phase, csv.Status.Phase, "%s had incorrect phase", csvName)
 				}
+			}
+		})
+	}
+}
+
+func TestSyncOperatorGroups(t *testing.T) {
+	log.SetLevel(log.DebugLevel)
+
+	nowTime := metav1.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600))
+	timeNow = func() metav1.Time { return nowTime }
+
+	testNS := "test-ns"
+	aLabel := map[string]string{"app": "matchLabel"}
+	newStrategySpecWithAnnotation := func(deploymentName string, namespace string) v1alpha1.NamedInstallStrategy {
+		deploymentFn := func(deploymentName string) []install.StrategyDeploymentSpec {
+			deploymentSpecs := getStrategyDeploymentSpecs(deploymentName)
+			for i := range deploymentSpecs {
+				metav1.SetMetaDataAnnotation(&deploymentSpecs[i].Spec.Template.ObjectMeta, "olm.targetNamespaces", namespace)
+			}
+			return deploymentSpecs
+		}
+		return getModifiedInstallStrategy(deploymentName, deploymentFn, nil, nil)
+	}
+
+	tests := []struct {
+		name           string
+		initialCsvs    []runtime.Object
+		initialCrds    []runtime.Object
+		initialObjs    []runtime.Object
+		initialApis    []runtime.Object
+		namespaces     []v1.Namespace
+		inputGroup     v1alpha2.OperatorGroup
+		expectedStatus v1alpha2.OperatorGroupStatus
+		expectedCSVs   []v1alpha1.ClusterServiceVersion
+	}{
+		{
+			name: "operator group with no matching namespace, no CSVs",
+			namespaces: []v1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: testNS,
+					},
+				},
+			},
+			inputGroup: v1alpha2.OperatorGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "operator-group-1",
+					Namespace: testNS,
+					Labels:    map[string]string{"app": "matchLabel"},
+				},
+				Spec: v1alpha2.OperatorGroupSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: aLabel,
+					},
+				},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{},
+		},
+		{
+			name: "operator group with matching namespace, no CSVs",
+			namespaces: []v1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   testNS,
+						Labels: aLabel,
+					},
+				},
+			},
+			inputGroup: v1alpha2.OperatorGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "operator-group-1",
+					Namespace: testNS,
+				},
+				Spec: v1alpha2.OperatorGroupSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"app": "matchLabel",
+						},
+					},
+				},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{
+				Namespaces: []v1.Namespace{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        testNS,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+				},
+				LastUpdated: timeNow(),
+			},
+		},
+		{
+			name: "operator group with matching namespace, CSV present",
+			namespaces: []v1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   testNS,
+						Labels: aLabel,
+					},
+				},
+			},
+			initialCsvs: []runtime.Object{
+				csv("csv1",
+					testNS,
+					"",
+					installStrategy("csv1-dep1"),
+					[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+					[]*v1beta1.CustomResourceDefinition{},
+					v1alpha1.CSVPhaseSucceeded,
+				),
+			},
+			inputGroup: v1alpha2.OperatorGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "operator-group-1",
+					Namespace: testNS,
+					Labels:    aLabel,
+				},
+				Spec: v1alpha2.OperatorGroupSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: aLabel,
+					},
+				},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{
+				Namespaces: []v1.Namespace{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        testNS,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+				},
+				LastUpdated: timeNow(),
+			},
+			expectedCSVs: []v1alpha1.ClusterServiceVersion{
+				*csv("csv1",
+					testNS,
+					"",
+					newStrategySpecWithAnnotation("csv1-dep1", testNS),
+					[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+					[]*v1beta1.CustomResourceDefinition{},
+					v1alpha1.CSVPhaseSucceeded,
+				),
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			op, err := NewFakeOperator(tc.initialCsvs, tc.initialObjs, tc.initialCrds, tc.initialApis, &install.StrategyResolver{}, tc.namespaces)
+			require.NoError(t, err)
+
+			err = op.syncOperatorGroups(&tc.inputGroup)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expectedStatus, tc.inputGroup.Status)
+
+			outCSVs, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(testNS).List(metav1.ListOptions{})
+			require.NoError(t, err)
+
+			if tc.initialCsvs != nil {
+				assert.Equal(t, tc.expectedCSVs, outCSVs.Items)
 			}
 		})
 	}

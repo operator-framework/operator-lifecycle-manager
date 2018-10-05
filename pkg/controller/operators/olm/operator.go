@@ -27,8 +27,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/informers"
 	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
@@ -430,7 +428,7 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 			for _, resource := range owned.Resources {
 				resourceNames = append(resourceNames, resource.Name)
 			}
-			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Name}, Resources: resourceNames})
+			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Group}, Resources: resourceNames})
 		}
 		clusterRole := &rbacv1.ClusterRole{
 			Rules: managerPolicyRules,
@@ -469,26 +467,39 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 			nsList = append(nsList, namespaceList.Items[ix].Name)
 		}
 		// write namespaces to watch in every deployment
-		for _, deploy := range strategyDetailsDeployment.DeploymentSpecs {
-			originalData, err := json.Marshal(csv)
-			if err != nil {
-				return err, namespaceList.Items
-			}
-			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
-			modifiedData, err := json.Marshal(csv)
-			if err != nil {
-				return err, namespaceList.Items
-			}
-			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, v1alpha1.ClusterServiceVersion{})
-			if err != nil {
-				return err, namespaceList.Items
-			}
+		// originalData, err := json.Marshal(csv)
+		// if err != nil {
+		// 	return err, namespaceList.Items
+		// }
 
-			_, err = a.client.Operators().ClusterServiceVersions(currentNamespace).Patch(csvName, types.StrategicMergePatchType, patchBytes)
-			if err != nil {
-				return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err), namespaceList.Items
-			}
-			//a.requeueCSV(csvName, currentNamespace)
+		for i, _ := range strategyDetailsDeployment.DeploymentSpecs {
+			deploy := &strategyDetailsDeployment.DeploymentSpecs[i]
+			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
+			log.Debugf("Wrote annotation '%v' on %v. Check: %#v\n", nsList, deploy.Name, deploy)
+		}
+		strategyRaw, err := json.Marshal(strategyDetailsDeployment)
+		if err != nil {
+			return err, namespaceList.Items
+		}
+		csv.Spec.InstallStrategy.StrategySpecRaw = strategyRaw
+
+		// JPEELER - this breaks things
+		// modifiedData, err := json.Marshal(csv)
+		// if err != nil {
+		// 	return err, namespaceList.Items
+		// }
+		// patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, csv)
+		// if err != nil {
+		// 	return err, namespaceList.Items
+		// }
+
+		// _, err = a.client.Operators().ClusterServiceVersions(currentNamespace).Patch(csvName, types.StrategicMergePatchType, patchBytes)
+		// if err != nil {
+		// 	return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err), namespaceList.Items
+		// }
+		_, err = a.client.Operators().ClusterServiceVersions(currentNamespace).Update(csv)
+		if err != nil {
+			return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err), namespaceList.Items
 		}
 	}
 
