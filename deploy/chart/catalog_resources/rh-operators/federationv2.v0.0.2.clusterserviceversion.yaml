@@ -8,6 +8,8 @@ spec:
     Kubernetes Federation V2 namespace-scoped installation
   version: 0.0.2
   maturity: alpha
+  provider:
+    name: Red Hat, Inc
   labels:
     alm-owner-federationv2: federationv2
     alm-status-descriptors: federationv2.v0.0.2
