@@ -179,10 +179,6 @@ The metadata section contains general metadata around the name, version and othe
 
 **Description**: A markdown blob that describes the Operator. Important information to include: features, limitations and common use-cases for the Operator. If your Operator manages different types of installs, eg. standalone vs clustered, it is useful to give an overview of how each differs from each other, or which ones are supported for production use.
 
-**Replaces** (optional): The name of the CSV that this CSV object replaces. Should match the `metadata.Name` field of the old CSV.
-
-**Annotations** (optional): Any key/value pairs of arbitrary, non-identifying metadata for this CSV object.
-
 **Labels** (optional): Any key/value pairs used to organize and categorize this CSV object.
 
 **Selectors** (optional): A label selector to identify related resources. Set this to select on current labels applied to this CSV object (if applicable).
