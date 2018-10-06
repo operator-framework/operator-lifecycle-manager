@@ -32,24 +32,31 @@ type packageKey struct {
 	packageName            string
 }
 
+type eventChan struct {
+	namespace string
+	ch        chan packagev1alpha1.PackageManifest
+}
+
 // InMemoryProvider syncs and provides PackageManifests from the cluster using an in-memory cache.
 // Should be a global singleton.
 type InMemoryProvider struct {
 	*queueinformer.Operator
-	mu sync.RWMutex
+	mu              sync.RWMutex
+	globalNamespace string
 
 	manifests map[packageKey]packagev1alpha1.PackageManifest
 
-	add    []chan packagev1alpha1.PackageManifest
-	modify []chan packagev1alpha1.PackageManifest
-	delete []chan packagev1alpha1.PackageManifest
+	add    []eventChan
+	modify []eventChan
+	delete []eventChan
 }
 
 // NewInMemoryProvider returns a pointer to a new InMemoryProvider instance
-func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *queueinformer.Operator) *InMemoryProvider {
+func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *queueinformer.Operator, globalNS string) *InMemoryProvider {
 	prov := &InMemoryProvider{
-		Operator:  queueOperator,
-		manifests: make(map[packageKey]packagev1alpha1.PackageManifest),
+		Operator:        queueOperator,
+		globalNamespace: globalNS,
+		manifests:       make(map[packageKey]packagev1alpha1.PackageManifest),
 	}
 
 	queue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
@@ -220,8 +227,10 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		} else {
 			// set CreationTimestamp if first time seeing the PackageManifest
 			manifest.CreationTimestamp = metav1.NewTime(time.Now())
-			for _, ch := range m.add {
-				ch <- manifest
+			for _, add := range m.add {
+				if add.namespace == manifest.Status.CatalogSourceNamespace || add.namespace == metav1.NamespaceAll || manifest.Status.CatalogSourceNamespace == m.globalNamespace {
+					add.ch <- manifest
+				}
 			}
 		}
 
@@ -235,14 +244,13 @@ func (m *InMemoryProvider) Get(namespace, name string) (*packagev1alpha1.Package
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	var manifest packagev1alpha1.PackageManifest
 	for key, pm := range m.manifests {
-		if key.packageName == name && key.catalogSourceNamespace == namespace {
-			manifest = pm
+		if key.packageName == name && (key.catalogSourceNamespace == namespace || key.catalogSourceNamespace == m.globalNamespace) {
+			return &pm, nil
 		}
 	}
 
-	return &manifest, nil
+	return nil, nil
 }
 
 func (m *InMemoryProvider) List(namespace string) (*packagev1alpha1.PackageManifestList, error) {
@@ -253,9 +261,9 @@ func (m *InMemoryProvider) List(namespace string) (*packagev1alpha1.PackageManif
 
 	if len(m.manifests) > 0 {
 		var matching []packagev1alpha1.PackageManifest
-		for _, manifest := range m.manifests {
-			if namespace == metav1.NamespaceAll || manifest.GetNamespace() == namespace {
-				matching = append(matching, manifest)
+		for key, pm := range m.manifests {
+			if namespace == metav1.NamespaceAll || key.catalogSourceNamespace == namespace || key.catalogSourceNamespace == m.globalNamespace {
+				matching = append(matching, pm)
 			}
 		}
 
@@ -265,13 +273,13 @@ func (m *InMemoryProvider) List(namespace string) (*packagev1alpha1.PackageManif
 	return manifestList, nil
 }
 
-func (m *InMemoryProvider) Subscribe(stopCh <-chan struct{}) (PackageChan, PackageChan, PackageChan, error) {
+func (m *InMemoryProvider) Subscribe(namespace string, stopCh <-chan struct{}) (PackageChan, PackageChan, PackageChan, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	add := make(chan packagev1alpha1.PackageManifest)
-	modify := make(chan packagev1alpha1.PackageManifest)
-	delete := make(chan packagev1alpha1.PackageManifest)
+	add := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
+	modify := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
+	delete := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
 	addIndex := len(m.add)
 	modifyIndex := len(m.modify)
 	deleteIndex := len(m.delete)
@@ -285,18 +293,18 @@ func (m *InMemoryProvider) Subscribe(stopCh <-chan struct{}) (PackageChan, Packa
 		defer m.mu.Unlock()
 		for _, add := range m.add {
 			m.add = append(m.add[:addIndex], m.add[:addIndex+1]...)
-			close(add)
+			close(add.ch)
 		}
 		for _, modify := range m.modify {
 			m.modify = append(m.modify[:modifyIndex], m.modify[:modifyIndex+1]...)
-			close(modify)
+			close(modify.ch)
 		}
 		for _, delete := range m.delete {
 			m.delete = append(m.delete[:deleteIndex], m.delete[:deleteIndex+1]...)
-			close(delete)
+			close(delete.ch)
 		}
 		return
 	}()
 
-	return add, modify, delete, nil
+	return add.ch, modify.ch, delete.ch, nil
 }

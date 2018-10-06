@@ -9,5 +9,5 @@ type PackageChan <-chan v1alpha1.PackageManifest
 type PackageManifestProvider interface {
 	Get(namespace, name string) (*v1alpha1.PackageManifest, error)
 	List(namespace string) (*v1alpha1.PackageManifestList, error)
-	Subscribe(stopCh <-chan struct{}) (add, modify, delete PackageChan, err error)
+	Subscribe(namespace string, stopCh <-chan struct{}) (add, modify, delete PackageChan, err error)
 }

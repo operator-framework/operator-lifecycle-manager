@@ -44,6 +44,12 @@ func TestList(t *testing.T) {
 			description:      "FilterNamespace",
 		},
 		{
+			namespace:        "default",
+			storedPackages:   []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "global"}, {name: "vault", namespace: "local"}},
+			expectedPackages: []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "global"}},
+			description:      "FilterNamespaceWithGlobal",
+		},
+		{
 			namespace:        metav1.NamespaceAll,
 			storedPackages:   []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "local"}},
 			expectedPackages: []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "local"}},
@@ -55,12 +61,13 @@ func TestList(t *testing.T) {
 		t.Run(test.description, func(t *testing.T) {
 			storedPackages := make(map[packageKey]packagev1alpha1.PackageManifest)
 			for _, value := range test.storedPackages {
-				storedPackages[packageKey{catalogSourceName: "test", catalogSourceNamespace: "default", packageName: value.name}] = packageManifest(value)
+				storedPackages[packageKey{catalogSourceName: "test", catalogSourceNamespace: value.namespace, packageName: value.name}] = packageManifest(value)
 			}
 
 			prov := &InMemoryProvider{
-				Operator:  &queueinformer.Operator{},
-				manifests: storedPackages,
+				Operator:        &queueinformer.Operator{},
+				manifests:       storedPackages,
+				globalNamespace: "global",
 			}
 
 			manifests, err := prov.List(test.namespace)
@@ -96,6 +103,20 @@ func TestGet(t *testing.T) {
 			expectedPackage: packageValue{name: "etcd", namespace: "default"},
 			description:     "SingleMatch",
 		},
+		{
+			namespace:       "default",
+			packageName:     "etcd",
+			storedPackages:  []packageValue{{name: "etcd", namespace: "global"}, {name: "prometheus", namespace: "local"}},
+			expectedPackage: packageValue{name: "etcd", namespace: "global"},
+			description:     "MatchesGlobal",
+		},
+		{
+			namespace:       "default",
+			packageName:     "does-not-exist",
+			storedPackages:  []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "local"}},
+			expectedPackage: packageValue{},
+			description:     "NoMatch",
+		},
 	}
 
 	for _, test := range tests {
@@ -113,7 +134,11 @@ func TestGet(t *testing.T) {
 			manifest, err := prov.Get(test.namespace, test.packageName)
 
 			require.NoError(t, err)
-			require.EqualValues(t, packageManifest(test.expectedPackage), *manifest)
+			if test.expectedPackage.name == "" {
+				require.Nil(t, manifest)
+			} else {
+				require.EqualValues(t, packageManifest(test.expectedPackage), *manifest)
+			}
 		})
 	}
 }
@@ -158,7 +183,7 @@ func TestSubscribe(t *testing.T) {
 
 			subscribers := make([]subscriber, test.subscribers)
 			for i := range subscribers {
-				add, modify, delete, err := prov.Subscribe(stopCh)
+				add, modify, delete, err := prov.Subscribe(test.namespace, stopCh)
 				require.NoError(t, err)
 				subscribers[i] = subscriber{add, modify, delete}
 			}
@@ -170,7 +195,7 @@ func TestSubscribe(t *testing.T) {
 					}
 					close(addCh)
 					return
-				}(add)
+				}(add.ch)
 			}
 
 			for _, sub := range subscribers {

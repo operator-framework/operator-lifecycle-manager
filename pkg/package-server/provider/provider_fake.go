@@ -36,7 +36,7 @@ func (f *FakeProvider) List(namespace string) (*v1alpha1.PackageManifestList, er
 	return nil, nil
 }
 
-func (f *FakeProvider) Subscribe(stopCh <-chan struct{}) (PackageChan, PackageChan, PackageChan, error) {
+func (f *FakeProvider) Subscribe(namespace string, stopCh <-chan struct{}) (PackageChan, PackageChan, PackageChan, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
