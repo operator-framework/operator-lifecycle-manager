@@ -1,0 +1,375 @@
+#! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: svcat.v0.1.34
+  namespace: placeholder
+spec:
+  displayName: Service Catalog
+  description: Service Catalog lets you provision cloud services directly from the comfort of native Kubernetes tooling. This project is in incubation to bring integration with service brokers to the Kubernetes ecosystem via the Open Service Broker API.
+  keywords: ['catalog', 'service', 'svcat', 'osb', 'broker']
+  maintainers:
+  - name: Red Hat
+    email: openshift-operators@redhat.com
+  provider:
+    name: Red Hat
+  links:
+  - name: Documentation
+    url: https://svc-cat.io/docs
+  - name: Service Catalog
+    url: https://github.com/kubernetes-incubator/service-catalog
+  install:
+    strategy: deployment
+    spec:
+      permissions:
+      - serviceAccountName: svcat-controller-manager
+        rules:
+        - apiGroups:     [""]
+          resources:     ["configmaps"]
+          resourceNames: ["cluster-info"]
+          verbs:         ["get","create","list","watch","update"]
+        - apiGroups: [""]
+          resources: ["configmaps"]
+          verbs:     ["create"]
+        - apiGroups:     [""]
+          resources:     ["configmaps"]
+          resourceNames: ["service-catalog-controller-manager"]
+          verbs:         ["get","update"]
+      clusterPermissions:
+      - serviceAccountName: svcat-controller-manager
+        rules:
+        - apiGroups: [""]
+          resources: ["events"]
+          verbs:     ["create","patch","update"]
+        - apiGroups: [""]
+          resources: ["secrets"]
+          verbs:     ["get","create","update","delete"]
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs:     ["get","list","update", "patch", "watch", "delete", "initialize"]
+        - apiGroups: [""]
+          resources: ["namespaces"]
+          verbs:     ["get","list","watch"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["clusterserviceclasses"]
+          verbs:     ["get","list","watch","create","patch","update","delete"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["clusterserviceplans"]
+          verbs:     ["get","list","watch","create","patch","update","delete"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["clusterservicebrokers"]
+          verbs:     ["get","list","watch"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["serviceinstances","servicebindings"]
+          verbs:     ["get","list","watch", "update"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["clusterservicebrokers/status","clusterserviceclasses/status","clusterserviceplans/status","serviceinstances/status","serviceinstances/reference","servicebindings/status"]
+          verbs:     ["update"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["serviceclasses"]
+          verbs:     ["get","list","watch","create","patch","update","delete"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["serviceplans"]
+          verbs:     ["get","list","watch","create","patch","update","delete"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["servicebrokers"]
+          verbs:     ["get","list","watch"]
+        - apiGroups: ["servicecatalog.k8s.io"]
+          resources: ["servicebrokers/status","serviceclasses/status","serviceplans/status"]
+          verbs:     ["update"]
+      - serviceAccountName: service-catalog-apiserver
+        rules:
+        - apiGroups: [""]
+          resources: ["namespaces"]
+          verbs:     ["get", "list", "watch"]
+        - apiGroups: ["admissionregistration.k8s.io"]
+          resources: ["validatingwebhookconfigurations"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: ["admissionregistration.k8s.io"]
+          resources: ["mutatingwebhookconfigurations"]
+          verbs: ["get", "list", "watch"]
+        - apiGroups: ["authentication.k8s.io"]
+          resources: ["tokenreviews"]
+          verbs: ["create"]
+        - apiGroups: ["authorization.k8s.io"]
+          resources: ["subjectaccessreviews"]
+          verbs: ["create"]
+      deployments:
+      - name: svcat-catalog-apiserver
+        spec:
+          replicas: 1
+          strategy:
+            type: RollingUpdate
+          selector:
+            matchLabels:
+              app: svcat-catalog-apiserver
+          template:
+            metadata:
+              labels:
+                app: svcat-catalog-apiserver
+            spec:
+              serviceAccountName: "service-catalog-apiserver"
+              containers:
+              - name: apiserver
+                image: quay.io/kubernetes-service-catalog/service-catalog:v0.1.34
+                imagePullPolicy: Always
+                resources:
+                  limits:
+                    cpu: 100m
+                    memory: 30Mi
+                  requests:
+                    cpu: 100m
+                    memory: 20Mi
+                args:
+                - apiserver
+                - --enable-admission-plugins
+                - "NamespaceLifecycle,DefaultServicePlan,ServiceBindingsLifecycle,ServicePlanChangeValidator,BrokerAuthSarCheck"
+                - --secure-port
+                - "443"
+                - --etcd-servers
+                - http://localhost:2379
+                - -v
+                - "10"
+                - --feature-gates
+                - OriginatingIdentity=true
+                - --feature-gates
+                - ServicePlanDefaults=false
+                ports:
+                - containerPort: 443
+                volumeMounts:
+                - name: apiservice-cert
+                  mountPath: /var/run/kubernetes-service-catalog
+                readinessProbe:
+                  httpGet:
+                    port: 443
+                    path: /healthz
+                    scheme: HTTPS
+                  failureThreshold: 1
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  successThreshold: 1
+                  timeoutSeconds: 2
+                livenessProbe:
+                  httpGet:
+                    port: 443
+                    path: /healthz
+                    scheme: HTTPS
+                  failureThreshold: 3
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  successThreshold: 1
+                  timeoutSeconds: 2
+              - name: etcd
+                image: quay.io/coreos/etcd:latest
+                imagePullPolicy: Always
+                resources:
+                  limits:
+                    cpu: 100m
+                    memory: 40Mi
+                  requests:
+                    cpu: 100m
+                    memory: 30Mi
+                env:
+                - name: ETCD_DATA_DIR
+                  value: /etcd-data-dir
+                command:
+                - /usr/local/bin/etcd
+                - --listen-client-urls
+                - http://0.0.0.0:2379
+                - --advertise-client-urls
+                - http://localhost:2379
+                ports:
+                - containerPort: 2379
+                volumeMounts:
+                - name: etcd-data-dir
+                  mountPath: /etcd-data-dir
+                readinessProbe:
+                  httpGet:
+                    port: 2379
+                    path: /health
+                  failureThreshold: 1
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  successThreshold: 1
+                  timeoutSeconds: 2
+                livenessProbe:
+                  httpGet:
+                    port: 2379
+                    path: /health
+                  failureThreshold: 3
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                  successThreshold: 1
+                  timeoutSeconds: 2
+              volumes:
+              - name: etcd-data-dir
+                emptyDir: {}
+      - name: svcat-controller-manager
+        spec:
+          replicas: 1
+          strategy:
+            type: RollingUpdate
+          selector:
+            matchLabels:
+              app: svcat-controller-manager
+          template:
+            metadata:
+              labels:
+                app: svcat-controller-manager
+            spec:
+              serviceAccountName: svcat-controller-manager
+              containers:
+              - name: controller-manager
+                image: quay.io/kubernetes-service-catalog/service-catalog:v0.1.34
+                imagePullPolicy: Always
+                resources:
+                  limits:
+                    cpu: 100m
+                    memory: 30Mi
+                  requests:
+                    cpu: 100m
+                    memory: 20Mi
+                env:
+                - name: K8S_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                args:
+                - controller-manager
+                - --secure-port
+                - "8444"
+                - "--cluster-id-configmap-namespace=default"
+                - "--leader-elect=false"
+                - -v
+                - "10"
+                - --resync-interval
+                - 5m
+                - --broker-relist-interval
+                - 24h
+                - --feature-gates
+                - OriginatingIdentity=true
+                - --feature-gates
+                - ServicePlanDefaults=false
+                ports:
+                - containerPort: 8444
+                readinessProbe:
+                  httpGet:
+                    port: 8444
+                    path: /healthz
+                    scheme: HTTPS
+                  failureThreshold: 1
+                  initialDelaySeconds: 20
+                  periodSeconds: 10
+                  successThreshold: 1
+                  timeoutSeconds: 2
+                livenessProbe:
+                  httpGet:
+                    port: 8444
+                    path: /healthz
+                    scheme: HTTPS
+                  failureThreshold: 3
+                  initialDelaySeconds: 20
+                  periodSeconds: 10
+                  successThreshold: 1
+                  timeoutSeconds: 2
+  maturity: alpha
+  version: 0.1.34
+  apiservicedefinitions:
+    owned:
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ClusterServiceClass
+      displayName: ClusterServiceClass
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ClusterServicePlan
+      displayName: ClusterServicePlan
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ClusterServiceBroker
+      displayName: ClusterServiceBroker
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ServiceInstance
+      displayName: ServiceInstance
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ServiceBinding
+      displayName: ServiceBinding
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ServiceClass
+      displayName: ServiceClass
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ServicePlan
+      displayName: ServicePlan
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+    - group: servicecatalog.k8s.io
+      version: v1beta1
+      kind: ServiceBroker
+      displayName: ServiceBroker
+      description: A service catalog resource
+      deploymentName: svcat-catalog-apiserver
+  customresourcedefinitions:
+    required:
+    - name: etcdclusters.etcd.database.coreos.com
+      version: v1beta2
+      kind: EtcdCluster
+      displayName: etcd Cluster
+      description: Represents a cluster of etcd nodes.
+      resources:
+      - kind: Service
+        version: v1
+      - kind: Pod
+        version: v1
+      specDescriptors:
+      - description: The desired number of member Pods for the etcd cluster.
+        displayName: Size
+        path: size
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+      statusDescriptors:
+      - description: The status of each of the member Pods for the etcd cluster.
+        displayName: Member Status
+        path: members
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      - description: The service at which the running etcd cluster can be accessed.
+        displayName: Service
+        path: service
+        x-descriptors:
+        - 'urn:alm:descriptor:io.kubernetes:Service'
+      - description: The current size of the etcd cluster.
+        displayName: Cluster Size
+        path: size
+      - description: The current version of the etcd cluster.
+        displayName: Current Version
+        path: currentVersion
+      - description: 'The target version of the etcd cluster, after upgrading.'
+        displayName: Target Version
+        path: targetVersion
+      - description: The current status of the etcd cluster.
+        displayName: Status
+        path: phase
+        x-descriptors:
+        - 'urn:alm:descriptor:io.kubernetes.phase'
+      - description: Explanation for the current status of the cluster.
+        displayName: Status Details
+        path: reason
+        x-descriptors:
+        - 'urn:alm:descriptor:io.kubernetes.phase:reason'

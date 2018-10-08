@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistration "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 )
 
@@ -19,7 +20,10 @@ type ClientInterface interface {
 	KubernetesInterface() kubernetes.Interface
 	ApiextensionsV1beta1Interface() apiextensions.Interface
 	ApiregistrationV1Interface() apiregistration.Interface
+	APIServiceClient
 	CustomResourceClient
+	SecretClient
+	ServiceClient
 	ServiceAccountClient
 	RoleClient
 	RoleBindingClient
@@ -41,6 +45,30 @@ type CustomResourceClient interface {
 	DeleteCustomResource(apiGroup, version, namespace, resourceKind, resourceName string) error
 	AtomicModifyCustomResource(apiGroup, version, namespace, resourceKind, resourceName string, f CustomResourceModifier, data interface{}) error
 	ListCustomResource(apiGroup, version, namespace, resourceKind string) (*CustomResourceList, error)
+}
+
+// APIServiceClient contains methods for manipulating APIServiceBindings.
+type APIServiceClient interface {
+	CreateAPIService(*apiregistrationv1.APIService) (*apiregistrationv1.APIService, error)
+	GetAPIService(name string) (*apiregistrationv1.APIService, error)
+	UpdateAPIService(modified *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error)
+	DeleteAPIService(name string, options *metav1.DeleteOptions) error
+}
+
+// SecretClient contains methods for manipulating Secrets
+type SecretClient interface {
+	CreateSecret(*v1.Secret) (*v1.Secret, error)
+	GetSecret(namespace, name string) (*v1.Secret, error)
+	UpdateSecret(modified *v1.Secret) (*v1.Secret, error)
+	DeleteSecret(namespace, name string, options *metav1.DeleteOptions) error
+}
+
+// ServiceClient contains methods for manipulating Services
+type ServiceClient interface {
+	CreateService(*v1.Service) (*v1.Service, error)
+	GetService(namespace, name string) (*v1.Service, error)
+	UpdateService(modified *v1.Service) (*v1.Service, error)
+	DeleteService(namespace, name string, options *metav1.DeleteOptions) error
 }
 
 // ServiceAccountClient contains methods for manipulating ServiceAccounts.

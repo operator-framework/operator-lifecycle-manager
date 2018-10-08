@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -333,7 +334,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 					{
 						DisplayName: "Not In Cluster",
 						Description: "An apiservice that is not currently in the cluster",
-						Name:        "not.in.cluster.com",
+						Group:       "not.in.cluster.com",
 						Version:     "v1alpha1",
 						Kind:        "NotInCluster",
 					},
@@ -402,7 +403,7 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
 					{
-						Name:        "packages.apps.redhat.com",
+						Group:       "packages.apps.redhat.com",
 						Version:     "v1alpha1",
 						Kind:        "PackageManifest",
 						DisplayName: "Package Manifest",
@@ -649,7 +650,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
 					{
-						Name:        "packages.apps.redhat.com",
+						Group:       "packages.apps.redhat.com",
 						Version:     "v1alpha1",
 						Kind:        "PackageManifest",
 						DisplayName: "Package Manifest",
@@ -743,6 +744,131 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
+}
+
+func TestCreateCSVWithOwnedAPIService(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Cheat and use a deployment of an extension-apiserver that we know already exists
+	depName := "package-server"
+	dep, err := c.KubernetesInterface().AppsV1().Deployments(testNamespace).Get(depName, metav1.GetOptions{})
+	require.NoError(t, err, fmt.Sprintf("deployment %s expected but not present in namespace %s", depName, testNamespace))
+
+	// Create CSV for the package-server
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: depName,
+				Spec: dep.Spec,
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+
+	csv := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: []v1alpha1.APIServiceDescription{
+					{
+						Group:          "packages.apps.redhat.com",
+						Version:        "v1alpha1",
+						Kind:           "PackageManifest",
+						DeploymentName: depName,
+						ContainerPort:  int32(443),
+						DisplayName:    "Package Manifest",
+						Description:    "An apiservice that exists",
+					},
+				},
+			},
+		},
+	}
+	csv.SetName(depName)
+
+	// Delete expected ClusterRoleBinding to system:auth-delegator
+	err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete("packagemanifest:system:auth-delegator", &metav1.DeleteOptions{})
+	require.NoError(t, waitForDelete(func() error {
+		_, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Get("packagemanifest:system:auth-delegator", metav1.GetOptions{})
+		return err
+	}), "could not delete expected ClusterRoleBinding before creating CSV")
+
+	// Delete expected RoleBinding to extension-apiserver-authentication-reader
+	err = c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Delete("packagemanifest-auth-reader", &metav1.DeleteOptions{})
+	require.NoError(t, waitForDelete(func() error {
+		_, err := c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Get("packagemanifest-auth-reader", metav1.GetOptions{})
+		return err
+	}), "could not delete expected ClusterRoleBinding before creating CSV")
+
+	_, err = createCSV(t, c, crc, csv, testNamespace, false)
+	require.NoError(t, err)
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should create deployment
+	dep, err = c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
+
+	apiServiceName := "v1alpha1.packages.apps.redhat.com"
+
+	// Remove owner references on generated APIService, Deployment, Role, RoleBinding(s), ClusterRoleBinding(s), Secret, and Service
+	apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiServiceName, metav1.GetOptions{})
+	require.NoError(t, err)
+	apiService.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Update(apiService)
+	require.NoError(t, err, "could not remove OwnerReferences on generated APIService")
+
+	dep.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.KubernetesInterface().AppsV1().Deployments(testNamespace).Update(dep)
+	require.NoError(t, err, "could not remove OwnerReferences on generated Deployment")
+
+	secret, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(apiServiceName+"-cert", metav1.GetOptions{})
+	require.NoError(t, err)
+	secret.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.KubernetesInterface().CoreV1().Secrets(testNamespace).Update(secret)
+	require.NoError(t, err, "could not remove OwnerReferences on generated Secret")
+
+	role, err := c.KubernetesInterface().RbacV1().Roles(testNamespace).Get(secret.GetName(), metav1.GetOptions{})
+	role.SetOwnerReferences([]metav1.OwnerReference{})
+	require.NoError(t, err)
+	_, err = c.KubernetesInterface().RbacV1().Roles(testNamespace).Update(role)
+	require.NoError(t, err, "could not remove OwnerReferences on generated Role")
+
+	roleBinding, err := c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Get(role.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	roleBinding.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Update(roleBinding)
+	require.NoError(t, err, "could not remove OwnerReferences on generated RoleBinding")
+
+	authDelegatorClusterRoleBinding, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Get(apiServiceName+"-system:auth-delegator", metav1.GetOptions{})
+	require.NoError(t, err)
+	authDelegatorClusterRoleBinding.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Update(authDelegatorClusterRoleBinding)
+	require.NoError(t, err, "could not remove OwnerReferences on generated auth delegator ClusterRoleBinding")
+
+	authReaderRoleBinding, err := c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Get(apiServiceName+"-auth-reader", metav1.GetOptions{})
+	require.NoError(t, err)
+	authReaderRoleBinding.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Update(authReaderRoleBinding)
+	require.NoError(t, err, "could not remove OwnerReferences on generated auth reader RoleBinding")
+
+	serviceName := strings.Replace(apiServiceName, ".", "-", -1)
+	service, err := c.KubernetesInterface().CoreV1().Services(testNamespace).Get(serviceName, metav1.GetOptions{})
+	require.NoError(t, err)
+	service.SetOwnerReferences([]metav1.OwnerReference{})
+	_, err = c.KubernetesInterface().CoreV1().Services(testNamespace).Update(service)
+	require.NoError(t, err, "could not remove OwnerReferences on generated Service")
 }
 
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
