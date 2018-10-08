@@ -1,11 +1,11 @@
 ##---
-# Source: olm/templates/30_06-rh-operators.configmap.yaml
+# Source: olm/templates/0000_30_06-rh-operators.configmap.yaml
 
 kind: ConfigMap
 apiVersion: v1
 metadata:
   name: rh-operators
-  namespace: openshift-operator-lifecycle-manager
+  namespace: olm
 
 data:
   customResourceDefinitions: |-
@@ -4472,6 +4472,1402 @@ data:
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
+        creationTimestamp: null
+        labels:
+          api: ""
+          kubebuilder.k8s.io: 0.1.10
+        name: clusters.clusterregistry.k8s.io
+      spec:
+        group: clusterregistry.k8s.io
+        names:
+          kind: Cluster
+          plural: clusters
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  authInfo:
+                    properties:
+                      controller:
+                        properties:
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        type: object
+                      user:
+                        properties:
+                          kind:
+                            type: string
+                          name:
+                            type: string
+                          namespace:
+                            type: string
+                        type: object
+                    type: object
+                  kubernetesApiEndpoints:
+                    properties:
+                      caBundle:
+                        items:
+                          type: byte
+                        type: string
+                      serverEndpoints:
+                        items:
+                          properties:
+                            clientCIDR:
+                              type: string
+                            serverAddress:
+                              type: string
+                          type: object
+                        type: array
+                    type: object
+                type: object
+              status:
+                properties:
+                  conditions:
+                    items:
+                      properties:
+                        lastHeartbeatTime:
+                          format: date-time
+                          type: string
+                        lastTransitionTime:
+                          format: date-time
+                          type: string
+                        message:
+                          type: string
+                        reason:
+                          type: string
+                        status:
+                          type: string
+                        type:
+                          type: string
+                      type: object
+                    type: array
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: dnsendpoints.multiclusterdns.federation.k8s.io
+      spec:
+        group: multiclusterdns.federation.k8s.io
+        names:
+          kind: DNSEndpoint
+          plural: dnsendpoints
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  endpoints:
+                    items:
+                      properties:
+                        dnsName:
+                          type: string
+                        labels:
+                          type: object
+                        recordTTL:
+                          format: int64
+                          type: integer
+                        recordType:
+                          type: string
+                        targets:
+                          items:
+                            type: string
+                          type: array
+                      type: object
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedclusters.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedCluster
+          plural: federatedclusters
+        scope: Namespaced
+        subresources:
+          status: {}
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterRef:
+                    type: object
+                  secretRef:
+                    type: object
+                type: object
+              status:
+                properties:
+                  conditions:
+                    items:
+                      properties:
+                        lastProbeTime:
+                          format: date-time
+                          type: string
+                        lastTransitionTime:
+                          format: date-time
+                          type: string
+                        message:
+                          type: string
+                        reason:
+                          type: string
+                        status:
+                          type: string
+                        type:
+                          type: string
+                      required:
+                      - type
+                      - status
+                      type: object
+                    type: array
+                  region:
+                    type: string
+                  zone:
+                    type: string
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedconfigmaps.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedConfigMap
+          plural: federatedconfigmaps
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedconfigmapoverrides.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedConfigMapOverride
+          plural: federatedconfigmapoverrides
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  overrides:
+                    items:
+                      properties:
+                        clusterName:
+                          type: string
+                        data:
+                          type: object
+                      type: object
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedconfigmapplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedConfigMapPlacement
+          plural: federatedconfigmapplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federateddeployments.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedDeployment
+          plural: federateddeployments
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federateddeploymentoverrides.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedDeploymentOverride
+          plural: federateddeploymentoverrides
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  overrides:
+                    items:
+                      properties:
+                        clusterName:
+                          type: string
+                        replicas:
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federateddeploymentplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedDeploymentPlacement
+          plural: federateddeploymentplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedingresses.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedIngress
+          plural: federatedingresses
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedingressplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedIngressPlacement
+          plural: federatedingressplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedjobs.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedJob
+          plural: federatedjobs
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedjoboverrides.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedJobOverride
+          plural: federatedjoboverrides
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  overrides:
+                    items:
+                      properties:
+                        clusterName:
+                          type: string
+                        parallelism:
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedjobplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedJobPlacement
+          plural: federatedjobplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatednamespaceplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedNamespacePlacement
+          plural: federatednamespaceplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedreplicasets.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedReplicaSet
+          plural: federatedreplicasets
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedreplicasetoverrides.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedReplicaSetOverride
+          plural: federatedreplicasetoverrides
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  overrides:
+                    items:
+                      properties:
+                        clusterName:
+                          type: string
+                        replicas:
+                          format: int32
+                          type: integer
+                      type: object
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedreplicasetplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedReplicaSetPlacement
+          plural: federatedreplicasetplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedsecrets.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedSecret
+          plural: federatedsecrets
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedsecretoverrides.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedSecretOverride
+          plural: federatedsecretoverrides
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  overrides:
+                    items:
+                      properties:
+                        clusterName:
+                          type: string
+                        data:
+                          type: object
+                      type: object
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedsecretplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedSecretPlacement
+          plural: federatedsecretplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedservices.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedService
+          plural: federatedservices
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedserviceaccounts.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedServiceAccount
+          plural: federatedserviceaccounts
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  template:
+                    type: object
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedserviceaccountplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedServiceAccountPlacement
+          plural: federatedserviceaccountplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedserviceplacements.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedServicePlacement
+          plural: federatedserviceplacements
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusterNames:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: federatedtypeconfigs.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: FederatedTypeConfig
+          plural: federatedtypeconfigs
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  comparisonField:
+                    type: string
+                  namespaced:
+                    type: boolean
+                  override:
+                    properties:
+                      group:
+                        type: string
+                      kind:
+                        type: string
+                      pluralName:
+                        type: string
+                      version:
+                        type: string
+                    required:
+                    - kind
+                    type: object
+                  overridePath:
+                    items:
+                      type: string
+                    type: array
+                  placement:
+                    properties:
+                      group:
+                        type: string
+                      kind:
+                        type: string
+                      pluralName:
+                        type: string
+                      version:
+                        type: string
+                    required:
+                    - kind
+                    type: object
+                  propagationEnabled:
+                    type: boolean
+                  target:
+                    properties:
+                      group:
+                        type: string
+                      kind:
+                        type: string
+                      pluralName:
+                        type: string
+                      version:
+                        type: string
+                    required:
+                    - kind
+                    type: object
+                  template:
+                    properties:
+                      group:
+                        type: string
+                      kind:
+                        type: string
+                      pluralName:
+                        type: string
+                      version:
+                        type: string
+                    required:
+                    - kind
+                    type: object
+                required:
+                - target
+                - namespaced
+                - comparisonField
+                - propagationEnabled
+                - template
+                - placement
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: multiclusteringressdnsrecords.multiclusterdns.federation.k8s.io
+      spec:
+        group: multiclusterdns.federation.k8s.io
+        names:
+          kind: MultiClusterIngressDNSRecord
+          plural: multiclusteringressdnsrecords
+        scope: Namespaced
+        subresources:
+          status: {}
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  hosts:
+                    items:
+                      type: string
+                    type: array
+                  recordTTL:
+                    format: int64
+                    type: integer
+                type: object
+              status:
+                properties:
+                  dns:
+                    items:
+                      properties:
+                        cluster:
+                          type: string
+                        loadBalancer:
+                          type: object
+                      type: object
+                    type: array
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: multiclusterservicednsrecords.multiclusterdns.federation.k8s.io
+      spec:
+        group: multiclusterdns.federation.k8s.io
+        names:
+          kind: MultiClusterServiceDNSRecord
+          plural: multiclusterservicednsrecords
+        scope: Namespaced
+        subresources:
+          status: {}
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  dnsSuffix:
+                    type: string
+                  federationName:
+                    type: string
+                  recordTTL:
+                    format: int64
+                    type: integer
+                type: object
+              status:
+                properties:
+                  dns:
+                    items:
+                      properties:
+                        cluster:
+                          type: string
+                        loadBalancer:
+                          type: object
+                        region:
+                          type: string
+                        zone:
+                          type: string
+                      type: object
+                    type: array
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: propagatedversions.core.federation.k8s.io
+      spec:
+        group: core.federation.k8s.io
+        names:
+          kind: PropagatedVersion
+          plural: propagatedversions
+        scope: Namespaced
+        subresources:
+          status: {}
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                type: object
+              status:
+                properties:
+                  clusterVersions:
+                    items:
+                      properties:
+                        clusterName:
+                          type: string
+                        version:
+                          type: string
+                      type: object
+                    type: array
+                  overridesVersion:
+                    type: string
+                  templateVersion:
+                    type: string
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        creationTimestamp: null
+        labels:
+          api: federation
+          kubebuilder.k8s.io: 1.0.3
+        name: replicaschedulingpreferences.scheduling.federation.k8s.io
+      spec:
+        group: scheduling.federation.k8s.io
+        names:
+          kind: ReplicaSchedulingPreference
+          plural: replicaschedulingpreferences
+        scope: Namespaced
+        validation:
+          openAPIV3Schema:
+            properties:
+              apiVersion:
+                type: string
+              kind:
+                type: string
+              metadata:
+                type: object
+              spec:
+                properties:
+                  clusters:
+                    type: object
+                  rebalance:
+                    type: boolean
+                  targetKind:
+                    type: string
+                  totalReplicas:
+                    format: int32
+                    type: integer
+                required:
+                - targetKind
+                - totalReplicas
+                type: object
+              status:
+                type: object
+        version: v1alpha1
+      status:
+        acceptedNames:
+          kind: ""
+          plural: ""
+        conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
         name: prometheuses.monitoring.coreos.com
       spec:
         group: monitoring.coreos.com
@@ -8896,6 +10292,270 @@ data:
                 x-descriptors: 
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
+    - apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
+      metadata:
+        name: federationv2.v0.0.2
+      spec:
+        displayName: FederationV2
+        description: |
+          Kubernetes Federation V2 namespace-scoped installation
+        version: 0.0.2
+        maturity: alpha
+        labels:
+          alm-owner-federationv2: federationv2
+          alm-status-descriptors: federationv2.v0.0.2
+      
+        install:
+          strategy: deployment
+          spec:
+            permissions:
+            - serviceAccountName: federation-controller-manager
+              rules:
+              - apiGroups:
+                - clusterregistry.k8s.io
+                resources:
+                - clusters
+                verbs:
+                - "*"
+              - apiGroups:
+                - core.federation.k8s.io
+                resources:
+                - "*"
+                verbs:
+                - "*"
+              - apiGroups:
+                - multiclusterdns.federation.k8s.io
+                resources:
+                - "*"
+                verbs:
+                - "*"
+              - apiGroups:
+                - scheduling.federation.k8s.io
+                resources:
+                - "*"
+                verbs:
+                - "*"
+              - apiGroups:
+                - ""
+                resources:
+                - pods
+                - services
+                - endpoints
+                - persistentvolumeclaims
+                - events
+                - configmaps
+                - secrets
+                verbs:
+                - "*"
+              - apiGroups:
+                - apps
+                resources:
+                - deployments
+                - daemonsets
+                - replicasets
+                - statefulsets
+                verbs:
+                - "*"
+            # TODO(font): use statefulset
+            deployments:
+            - name: federation-controller-manager
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: federation-controller-manager
+                template:
+                  metadata:
+                    labels:
+                      app: federation-controller-manager
+                  spec:
+                    containers:
+                      - name: controller-manager
+                        image: quay.io/kubernetes-multicluster/federation-v2:v0.0.2-rc.1
+                        resources:
+                          limits:
+                            cpu: 100m
+                            memory: 128Mi
+                          requests:
+                            cpu: 100m
+                            memory: 64Mi
+                        command:
+                          - /root/controller-manager
+                        args:
+                          - --federation-namespace=$(FEDERATION_NAMESPACE)
+                          - --install-crds=false
+                          - --limited-scope=true
+                          - --registry-namespace=$(CLUSTER_REGISTRY_NAMESPACE)
+                        imagePullPolicy: Always
+                        env:
+                        - name: FEDERATION_NAMESPACE
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.namespace
+                        - name: CLUSTER_REGISTRY_NAMESPACE
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.namespace
+                    restartPolicy: Always
+                    terminationGracePeriodSeconds: 5
+                    serviceAccountName: federation-controller-manager
+                    serviceAccount: federation-controller-manager
+        customresourcedefinitions:
+          owned:
+              # TODO(font): Move Cluster CRD to required once OLM supports CSVs
+              # without a deployment.
+            - description: Represents an instance of a Cluster Registry
+              displayName: Cluster Registry Application
+              kind: Cluster
+              name: clusters.clusterregistry.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedCluster resource
+              displayName: FederatedCluster Resource
+              kind: FederatedCluster
+              name: federatedclusters.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedConfigMap resource
+              displayName: FederatedConfigMap Resource
+              kind: FederatedConfigMap
+              name: federatedconfigmaps.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedConfigMapOverride resource
+              displayName: FederatedConfigMapOverride Resource
+              kind: FederatedConfigMapOverride
+              name: federatedconfigmapoverrides.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedConfigMapPlacement resource
+              displayName: FederatedConfigMapPlacement Resource
+              kind: FederatedConfigMapPlacement
+              name: federatedconfigmapplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedDeployment resource
+              displayName: FederatedDeployment Resource
+              kind: FederatedDeployment
+              name: federateddeployments.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedDeploymentOverride resource
+              displayName: FederatedDeploymentOverride Resource
+              kind: FederatedDeploymentOverride
+              name: federateddeploymentoverrides.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedDeploymentPlacement resource
+              displayName: FederatedDeploymentPlacement Resource
+              kind: FederatedDeploymentPlacement
+              name: federateddeploymentplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedIngress resource
+              displayName: FederatedIngress Resource
+              kind: FederatedIngress
+              name: federatedingresses.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedIngressPlacement resource
+              displayName: FederatedIngressPlacement Resource
+              kind: FederatedIngressPlacement
+              name: federatedingressplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedJob resource
+              displayName: FederatedJob Resource
+              kind: FederatedJob
+              name: federatedjobs.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedJobOverride resource
+              displayName: FederatedJobOverride Resource
+              kind: FederatedJobOverride
+              name: federatedjoboverrides.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedJobPlacement resource
+              displayName: FederatedJobPlacement Resource
+              kind: FederatedJobPlacement
+              name: federatedjobplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedNamespacePlacement resource
+              displayName: FederatedNamespacePlacement Resource
+              kind: FederatedNamespacePlacement
+              name: federatednamespaceplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedReplicaSet resource
+              displayName: FederatedReplicaSet Resource
+              kind: FederatedReplicaSet
+              name: federatedreplicasets.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedReplicaSetOverride resource
+              displayName: FederatedReplicaSetOverride Resource
+              kind: FederatedReplicaSetOverride
+              name: federatedreplicasetoverrides.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedReplicaSetPlacement resource
+              displayName: FederatedReplicaSetPlacement Resource
+              kind: FederatedReplicaSetPlacement
+              name: federatedreplicasetplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedSecret resource
+              displayName: FederatedSecret Resource
+              kind: FederatedSecret
+              name: federatedsecrets.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedSecretOverride resource
+              displayName: FederatedSecretOverride Resource
+              kind: FederatedSecretOverride
+              name: federatedsecretoverrides.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedSecretPlacement resource
+              displayName: FederatedSecretPlacement Resource
+              kind: FederatedSecretPlacement
+              name: federatedsecretplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedService resource
+              displayName: FederatedService Resource
+              kind: FederatedService
+              name: federatedservices.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedServiceAccount resource
+              displayName: FederatedServiceAccount Resource
+              kind: FederatedServiceAccount
+              name: federatedserviceaccounts.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedServiceAccountPlacement resource
+              displayName: FederatedServiceAccountPlacement Resource
+              kind: FederatedServiceAccountPlacement
+              name: federatedserviceaccountplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederatedServicePlacement resource
+              displayName: FederatedServicePlacement Resource
+              kind: FederatedServicePlacement
+              name: federatedserviceplacements.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a FederationV2 sync controller
+              displayName: FederationV2 Push Reconciler Application
+              kind: FederatedTypeConfig
+              name: federatedtypeconfigs.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a PropagatedVersion resource
+              displayName: PropagatedVersion Resource
+              kind: PropagatedVersion
+              name: propagatedversions.core.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a DNSEndpoint resource
+              displayName: DNSEndpoint Resource
+              kind: DNSEndpoint
+              name: dnsendpoints.multiclusterdns.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a MultiClusterIngressDNSRecord resource
+              displayName: MultiClusterIngressDNSRecord Resource
+              kind: MultiClusterIngressDNSRecord
+              name: multiclusteringressdnsrecords.multiclusterdns.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a MultiClusterServiceDNSRecord resource
+              displayName: MultiClusterServiceDNSRecord Resource
+              kind: MultiClusterServiceDNSRecord
+              name: multiclusterservicednsrecords.multiclusterdns.federation.k8s.io
+              version: v1alpha1
+            - description: Represents an instance of a ReplicaSchedulingPreference resource
+              displayName: ReplicaSchedulingPreference Resource
+              kind: ReplicaSchedulingPreference
+              name: replicaschedulingpreferences.scheduling.federation.k8s.io
+              version: v1alpha1
+      
     - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
@@ -9689,6 +11349,11 @@ data:
       channels:
       - name: alpha
         currentCSV: etcdoperator.v0.9.2
+      
+    - packageName: federationv2
+      channels:
+      - name: alpha
+        currentCSV: federationv2.v0.0.2
       
     - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/prometheusoperator.0.22.2.clusterserviceversion.yaml
       packageName: prometheus
