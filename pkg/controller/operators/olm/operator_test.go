@@ -17,8 +17,11 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -172,30 +175,32 @@ func deployment(deploymentName, namespace string) *appsv1.Deployment {
 
 func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
-	specs := []install.StrategyDeploymentSpec{
-		install.StrategyDeploymentSpec{
-			Name: deploymentName,
-			Spec: appsv1.DeploymentSpec{
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"app": deploymentName,
-					},
-				},
-				Replicas: &singleInstance,
-				Template: v1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: deploymentName,
+				Spec: appsv1.DeploymentSpec{
+					Selector: &metav1.LabelSelector{
+						MatchLabels: map[string]string{
 							"app": deploymentName,
 						},
 					},
-					Spec: v1.PodSpec{
-						Containers: []v1.Container{
-							{
-								Name:  deploymentName + "-c1",
-								Image: "nginx:1.7.9",
-								Ports: []v1.ContainerPort{
-									{
-										ContainerPort: 80,
+					Replicas: &singleInstance,
+					Template: v1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels: map[string]string{
+								"app": deploymentName,
+							},
+						},
+						Spec: v1.PodSpec{
+							Containers: []v1.Container{
+								{
+									Name:  deploymentName + "-c1",
+									Image: "nginx:1.7.9",
+									Ports: []v1.ContainerPort{
+										{
+											ContainerPort: 80,
+										},
 									},
 								},
 							},
@@ -206,52 +211,6 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 		},
 		Permissions:        permissions,
 		ClusterPermissions: clusterPermissions,
-	}
-
-	return specs
-}
-
-func getModifiedInstallStrategy(deploymentName string, deploymentFn func(string) []install.StrategyDeploymentSpec, permissionsFn func() []install.StrategyDeploymentPermissions, clusterPermissionsFn func() []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
-
-	var deploySpecs []install.StrategyDeploymentSpec
-	var permissions []install.StrategyDeploymentPermissions
-	var clusterPermissions []install.StrategyDeploymentPermissions
-	if deploymentFn != nil {
-		deploySpecs = deploymentFn(deploymentName)
-	} else {
-		deploySpecs = getStrategyDeploymentSpecs(deploymentName)
-	}
-	if permissionsFn != nil {
-		permissions = permissionsFn()
-	} else {
-		permissions = []install.StrategyDeploymentPermissions{}
-	}
-	if clusterPermissionsFn != nil {
-		clusterPermissions = clusterPermissionsFn()
-	} else {
-		clusterPermissions = []install.StrategyDeploymentPermissions{}
-	}
-
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs:    deploySpecs,
-		Permissions:        permissions,
-		ClusterPermissions: clusterPermissions,
-	}
-
-	strategyRaw, err := json.Marshal(strategy)
-	if err != nil {
-		panic(err)
-	}
-
-	return v1alpha1.NamedInstallStrategy{
-		StrategyName:    install.InstallStrategyNameDeployment,
-		StrategySpecRaw: strategyRaw,
-	}
-}
-
-func installStrategy(deploymentName string) v1alpha1.NamedInstallStrategy {
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: getStrategyDeploymentSpecs(deploymentName),
 	}
 	strategyRaw, err := json.Marshal(strategy)
 	if err != nil {
@@ -1134,30 +1093,22 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	testNS := "test-ns"
 	aLabel := map[string]string{"app": "matchLabel"}
-	newStrategySpecWithAnnotation := func(deploymentName string, namespace string) v1alpha1.NamedInstallStrategy {
-		deploymentFn := func(deploymentName string) []install.StrategyDeploymentSpec {
-			deploymentSpecs := getStrategyDeploymentSpecs(deploymentName)
-			for i := range deploymentSpecs {
-				metav1.SetMetaDataAnnotation(&deploymentSpecs[i].Spec.Template.ObjectMeta, "olm.targetNamespaces", namespace)
-			}
-			return deploymentSpecs
-		}
-		return getModifiedInstallStrategy(deploymentName, deploymentFn, nil, nil)
-	}
 
 	tests := []struct {
-		name           string
-		initialCsvs    []runtime.Object
-		initialCrds    []runtime.Object
-		initialObjs    []runtime.Object
-		initialApis    []runtime.Object
-		namespaces     []v1.Namespace
-		inputGroup     v1alpha2.OperatorGroup
-		expectedStatus v1alpha2.OperatorGroupStatus
-		expectedCSVs   []v1alpha1.ClusterServiceVersion
+		name               string
+		expectedEqual      bool
+		initialCsvs        []runtime.Object
+		initialCrds        []runtime.Object
+		initialObjs        []runtime.Object
+		initialApis        []runtime.Object
+		namespaces         []v1.Namespace
+		inputGroup         v1alpha2.OperatorGroup
+		expectedStatus     v1alpha2.OperatorGroupStatus
+		expectedAnnotation map[string]string
 	}{
 		{
-			name: "operator group with no matching namespace, no CSVs",
+			name:          "operator group with no matching namespace, no CSVs",
+			expectedEqual: true,
 			namespaces: []v1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -1180,12 +1131,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 			expectedStatus: v1alpha2.OperatorGroupStatus{},
 		},
 		{
-			name: "operator group with matching namespace, no CSVs",
+			name:          "operator group with matching namespace, no CSVs",
+			expectedEqual: true,
 			namespaces: []v1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:   testNS,
-						Labels: aLabel,
+						Name:        testNS,
+						Labels:      aLabel,
+						Annotations: map[string]string{"test": "annotation"},
 					},
 				},
 			},
@@ -1216,12 +1169,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 		},
 		{
-			name: "operator group with matching namespace, CSV present",
+			name:          "operator group with matching namespace, CSV present",
+			expectedEqual: false,
 			namespaces: []v1.Namespace{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:   testNS,
-						Labels: aLabel,
+						Name:        testNS,
+						Labels:      aLabel,
+						Annotations: map[string]string{"test": "annotation"},
 					},
 				},
 			},
@@ -1229,11 +1184,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 				csv("csv1",
 					testNS,
 					"",
-					installStrategy("csv1-dep1"),
+					installStrategy("csv1-dep1", nil, nil),
 					[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 					[]*v1beta1.CustomResourceDefinition{},
 					v1alpha1.CSVPhaseSucceeded,
 				),
+			},
+			initialObjs: []runtime.Object{
+				deployment("csv1-dep1", testNS),
 			},
 			inputGroup: v1alpha2.OperatorGroup{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1259,16 +1217,58 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 				LastUpdated: timeNow(),
 			},
-			expectedCSVs: []v1alpha1.ClusterServiceVersion{
-				*csv("csv1",
+			expectedAnnotation: map[string]string{"NOTFOUND": testNS},
+		},
+		{
+			name:          "operator group with matching namespace, CSV present",
+			expectedEqual: true,
+			namespaces: []v1.Namespace{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        testNS,
+						Labels:      aLabel,
+						Annotations: map[string]string{"test": "annotation"},
+					},
+				},
+			},
+			initialCsvs: []runtime.Object{
+				csv("csv1",
 					testNS,
 					"",
-					newStrategySpecWithAnnotation("csv1-dep1", testNS),
+					installStrategy("csv1-dep1", nil, nil),
 					[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 					[]*v1beta1.CustomResourceDefinition{},
 					v1alpha1.CSVPhaseSucceeded,
 				),
 			},
+			initialObjs: []runtime.Object{
+				deployment("csv1-dep1", testNS),
+			},
+			inputGroup: v1alpha2.OperatorGroup{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "operator-group-1",
+					Namespace: testNS,
+					Labels:    aLabel,
+				},
+				Spec: v1alpha2.OperatorGroupSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: aLabel,
+					},
+				},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{
+				Namespaces: []v1.Namespace{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        testNS,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+				},
+				LastUpdated: timeNow(),
+			},
+			expectedAnnotation: map[string]string{"olm.targetNamespaces": testNS},
 		},
 	}
 
@@ -1277,15 +1277,35 @@ func TestSyncOperatorGroups(t *testing.T) {
 			op, err := NewFakeOperator(tc.initialCsvs, tc.initialObjs, tc.initialCrds, tc.initialApis, &install.StrategyResolver{}, tc.namespaces)
 			require.NoError(t, err)
 
+			stopCh := make(chan struct{})
+			informerFactory := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), 1*time.Second)
+			deployInformer := informerFactory.Apps().V1().Deployments()
+			for _, informer := range []cache.SharedIndexInformer{deployInformer.Informer()} {
+				go informer.Run(stopCh)
+			}
+			op.deploymentLister[testNS] = deployInformer.Lister()
+			informerFactory.Start(stopCh)
+			informerFactory.WaitForCacheSync(stopCh)
+
 			err = op.syncOperatorGroups(&tc.inputGroup)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expectedStatus, tc.inputGroup.Status)
 
-			outCSVs, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(testNS).List(metav1.ListOptions{})
-			require.NoError(t, err)
-
-			if tc.initialCsvs != nil {
-				assert.Equal(t, tc.expectedCSVs, outCSVs.Items)
+			if tc.expectedAnnotation != nil {
+				// assuming CSVs are in correct namespace
+				for _, ns := range tc.namespaces {
+					deployments, err := op.deploymentLister[ns.Name].List(labels.Everything())
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, deploy := range deployments {
+						if tc.expectedEqual {
+							assert.Equal(t, tc.expectedAnnotation, deploy.Spec.Template.Annotations)
+						} else {
+							assert.NotEqual(t, tc.expectedAnnotation, deploy.Spec.Template.Annotations)
+						}
+					}
+				}
 			}
 		})
 	}

@@ -27,7 +27,10 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/informers"
+	cappsv1 "k8s.io/client-go/listers/apps/v1"
 	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -56,6 +59,7 @@ type Operator struct {
 	clusterRoleLister        crbacv1.ClusterRoleLister
 	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
 	operatorGroupLister      map[string]operatorgrouplister.OperatorGroupLister
+	deploymentLister         map[string]cappsv1.DeploymentLister
 	annotator                *annotator.Annotator
 	recorder                 record.EventRecorder
 	cleanupFunc              func()
@@ -203,10 +207,13 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 
 	// set up watch on deployments
 	depInformers := []cache.SharedIndexInformer{}
+	op.deploymentLister = make(map[string]cappsv1.DeploymentLister, len(namespaces))
 	for _, namespace := range namespaces {
 		log.Debugf("watching deployments in namespace %s", namespace)
-		informer := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace)).Apps().V1().Deployments().Informer()
-		depInformers = append(depInformers, informer)
+		informerFactory := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
+		informer := informerFactory.Apps().V1().Deployments()
+		depInformers = append(depInformers, informer.Informer())
+		op.deploymentLister[namespace] = informer.Lister()
 	}
 
 	depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csv-deployments")
@@ -400,17 +407,7 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 
 	currentNamespace := op.GetNamespace()
 	csvsInNamespace := a.csvsInNamespace(currentNamespace)
-	for csvName, csv := range csvsInNamespace {
-		strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
-		if err != nil {
-			return fmt.Errorf("error unmarshaling strategy from ClusterServiceVersion '%s' with error: %s", csvName, err), namespaceList.Items
-		}
-
-		strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
-		if !ok {
-			return fmt.Errorf("could not assert strategy implementation as deployment for CSV %s", csvName), namespaceList.Items
-		}
-
+	for _, csv := range csvsInNamespace {
 		managerPolicyRules := []rbacv1.PolicyRule{}
 		apiEditPolicyRules := []rbacv1.PolicyRule{}
 		apiViewPolicyRules := []rbacv1.PolicyRule{}
@@ -462,44 +459,45 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 			return err, namespaceList.Items
 		}
 
-		var nsList []string
-		for ix := range namespaceList.Items {
-			nsList = append(nsList, namespaceList.Items[ix].Name)
-		}
-		// write namespaces to watch in every deployment
-		// originalData, err := json.Marshal(csv)
-		// if err != nil {
-		// 	return err, namespaceList.Items
-		// }
+	}
 
-		for i, _ := range strategyDetailsDeployment.DeploymentSpecs {
-			deploy := &strategyDetailsDeployment.DeploymentSpecs[i]
-			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
-			log.Debugf("Wrote annotation '%v' on %v. Check: %#v\n", nsList, deploy.Name, deploy)
-		}
-		strategyRaw, err := json.Marshal(strategyDetailsDeployment)
+	var nsList []string
+	for ix := range namespaceList.Items {
+		nsList = append(nsList, namespaceList.Items[ix].Name)
+	}
+
+	// write above namespaces to watch in every deployment
+	for _, ns := range nsList {
+		//deploymentList, err := a.OpClient.KubernetesInterface().AppsV1().Deployments(ns).List(metav1.ListOptions{})
+		deploymentList, err := a.deploymentLister[ns].List(labels.Everything())
+		log.Debugf("JPEELER: looking at ns %v deployments:%v\n", ns, deploymentList)
 		if err != nil {
 			return err, namespaceList.Items
 		}
-		csv.Spec.InstallStrategy.StrategySpecRaw = strategyRaw
 
-		// JPEELER - this breaks things
-		// modifiedData, err := json.Marshal(csv)
-		// if err != nil {
-		// 	return err, namespaceList.Items
-		// }
-		// patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, csv)
-		// if err != nil {
-		// 	return err, namespaceList.Items
-		// }
+		for _, deploy := range deploymentList {
+			originalData, err := json.Marshal(deploy)
+			if err != nil {
+				return err, namespaceList.Items
+			}
 
-		// _, err = a.client.Operators().ClusterServiceVersions(currentNamespace).Patch(csvName, types.StrategicMergePatchType, patchBytes)
-		// if err != nil {
-		// 	return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err), namespaceList.Items
-		// }
-		_, err = a.client.Operators().ClusterServiceVersions(currentNamespace).Update(csv)
-		if err != nil {
-			return fmt.Errorf("CSV update for '%v' failed: %v\n", csvName, err), namespaceList.Items
+			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
+			log.Debugf("Wrote annotation '%v' on %v. Check: %#v\n", nsList, deploy.Name, deploy)
+
+			modifiedData, err := json.Marshal(deploy)
+			if err != nil {
+				return err, namespaceList.Items
+			}
+
+			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, deploy)
+			if err != nil {
+				return err, namespaceList.Items
+			}
+
+			_, err = a.OpClient.KubernetesInterface().AppsV1().Deployments(ns).Patch(deploy.Name, types.StrategicMergePatchType, patchBytes)
+			if err != nil {
+				return fmt.Errorf("Deployment update for '%v' failed: %v\n", deploy.Name, err), namespaceList.Items
+			}
 		}
 	}
 
