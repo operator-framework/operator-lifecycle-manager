@@ -644,6 +644,7 @@ spec:
                                         - patch
                                         - delete
                                         - deletecollection
+                                        - use
                       clusterPermissions:
                         type: array
                         description: Cluster permissions needed by the deployement to run correctly
