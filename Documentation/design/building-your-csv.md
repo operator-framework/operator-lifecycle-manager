@@ -158,6 +158,59 @@ metadata:
       [{"apiVersion":"etcd.database.coreos.com/v1beta2","kind":"EtcdCluster","metadata":{"name":"example","namespace":"default"},"spec":{"size":3,"version":"3.2.13"}},{"apiVersion":"etcd.database.coreos.com/v1beta2","kind":"EtcdRestore","metadata":{"name":"example-etcd-cluster"},"spec":{"etcdCluster":{"name":"example-etcd-cluster"},"backupStorageType":"S3","s3":{"path":"<full-s3-path>","awsSecret":"<aws-secret>"}}},{"apiVersion":"etcd.database.coreos.com/v1beta2","kind":"EtcdBackup","metadata":{"name":"example-etcd-cluster-backup"},"spec":{"etcdEndpoints":["<etcd-cluster-endpoints>"],"storageType":"S3","s3":{"path":"<full-s3-path>","awsSecret":"<aws-secret>"}}}]
 
 ```
+
+## Your API Services
+As with CRDs, there are two types of APIServices that your Operator may use, “owned” and "required".
+
+### Owned APIServices
+
+When a CSV owns an APIService, it is responsible for describing the deployment of the extension api-server that backs it and the group-version-kinds it provides.
+
+An APIService is uniquely identified by the group-version it provides and can be listed multiple times to denote the different kinds it is expected to provide.
+
+**DisplayName**: A human readable version of your APIService name, eg. “MongoDB Standalone”
+
+**Description**: A short description of how this APIService is used by the Operator or a description of the functionality provided by the APIService.
+
+**Group**: Group that the APIService provides, eg. database.example.com.
+
+**Version**: Version of the APIService, eg v1alpha1
+
+**Kind**: A kind that the APIService is expected to provide.
+
+**DeploymentName**: 
+Name of the deployment defined by your CSV that corresponds to your APIService (required for owned APIServices). During the CSV pending phase, the OLM Operator will search your CSV's InstallStrategy for a deployment spec with a matching name, and if not found, will not transition the CSV to the install ready phase.  
+
+**Resources**:
+Your APIServices will own one or more types of Kubernetes objects. These are listed in the resources section to inform your end-users of the objects they might need to troubleshoot or how to connect to the application, such as the Service or Ingress rule that exposes a database.
+
+It’s recommended to only list out the objects that are important to a human, not an exhaustive list of everything you orchestrate. For example, ConfigMaps that store internal state that shouldn’t be modified by a user shouldn’t appear here.
+
+**SpecDescriptors, StatusDescriptors, and ActionDescriptors**:
+Essentially the same as for owned CRDs.
+
+### APIService Resource Creation
+The Lifecycle Manage is responsible for creating or replacing the Service and APIService resources for each unique owned APIService. 
+* Service pod selectors are copied from the CSV deployment matching the APIServiceDescription's DeploymentName. 
+* A new CA key/cert pair is generated for for each installation and the base64 encoded CA bundle is embedded in the respective APIService resource.
+
+### APIService Serving Certs
+The Lifecycle Manager handles generating a serving key/cert pair whenever an owned APIService is being installed. The serving cert has a CN containing the host name of the generated Service resource and is signed by the private key of the CA bundle embedded in the corresponding APIService resource. The cert is stored as a type `kubernetes.io/tls` Secret in the deployment namespace and a Volume named "apiservice-cert" is automatically appended to the Volumes section of the deployment in the CSV matching the APIServiceDescription's `DeploymentName` field. If one does not already exist, a VolumeMount with a matching name is also appended to all containers of that deployment. This allows users to define a VolumeMount with the expected name to accommodate any custom path requirements. The generated VolumeMount's path defaults to `/apiserver.local.config/certificates` and any existing VolumeMounts with the same path are replaced.
+
+### Required APIServices
+
+The Lifecycle Manager will ensure all required CSVs have an APIService that is available and all expected group-version-kinds are discoverable before attempting installation. This allows a CSV to rely on specific kinds provided by APIServices it does not own.
+
+**DisplayName**: A human readable version of your APIService name, eg. “MongoDB Standalone”
+
+**Description**: A short description of how this APIService is used by the Operator or a description of the functionality provided by the APIService.
+
+**Group**: Group that the APIService provides, eg. database.example.com.
+
+**Version**: Version of the APIService, eg v1alpha1
+
+**Kind**: A kind that the APIService is expected to provide.
+
 ## Operator Metadata
 The metadata section contains general metadata around the name, version and other info that aids users in discovery of your Operator.
 
