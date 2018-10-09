@@ -1,6 +1,7 @@
 local utils = import '.gitlab-ci/utils.libsonnet';
 local vars = import '.gitlab-ci/vars.libsonnet';
 local baseJob = import '.gitlab-ci/base_jobs.libsonnet';
+local k8s = utils.k8s;
 local mergeJob = utils.ci.mergeJob;
 local images = vars.images;
 local docker = utils.docker;
@@ -200,7 +201,6 @@ local jobs = {
             image: images.release,
             domain: "console.apps.ui-preserve.origin-gce.dev.openshift.com",
             namespace: "operator-lifecycle-manager",
-            catalog_namespace: "operator-lifecycle-manager",
             channel: "staging",
             helm_opts: ["--force"],
             kubeconfig: "$OPENSHIFT_KUBECONFIG",

@@ -134,7 +134,7 @@ deploy-openshift:
 deploy-preview:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"operator-lifecycle-manager\",
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog.image.ref\": \"quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\",
     \"namespace\": \"ci-alm-${CI_COMMIT_REF_SLUG}\", \"package.image.ref\": \"quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre\", \"watchedNamespaces\": \"ci-alm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
   - cat params.json
   environment:
@@ -151,7 +151,7 @@ deploy-preview:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} deploy/chart --set alm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-    --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=operator-lifecycle-manager --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set package.image.ref=quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
+    --set catalog.image.ref=quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre --set catalog_namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set namespace=ci-alm-${CI_COMMIT_REF_SLUG} --set package.image.ref=quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=ci-alm-${CI_COMMIT_REF_SLUG} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do if [[ $f
     == *.configmap.yaml ]];then kubectl replace --force -f ${f};else kubectl apply -f ${f};fi;done;
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-${CI_COMMIT_REF_SLUG}
@@ -169,7 +169,7 @@ deploy-preview:
 deploy-staging:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"operator-lifecycle-manager\",
+  - 'echo "{\"alm.image.ref\": \"quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog.image.ref\": \"quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"catalog_namespace\": \"ci-alm-staging\",
     \"namespace\": \"ci-alm-staging\", \"package.image.ref\": \"quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}\", \"watchedNamespaces\": \"ci-alm-staging\"}" > params.json'
   - cat params.json
   environment:
@@ -182,7 +182,7 @@ deploy-staging:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
   - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=ci-alm-staging deploy/chart --set alm.image.ref=quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
-    --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=operator-lifecycle-manager --set namespace=ci-alm-staging --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
+    --set catalog.image.ref=quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8} --set catalog_namespace=ci-alm-staging --set namespace=ci-alm-staging --set package.image.ref=quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set watchedNamespaces=ci-alm-staging --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do if [[ $f == *.configmap.yaml
     ]];then kubectl replace --force -f ${f};else kubectl apply -f ${f};fi;done;
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-alm-staging
