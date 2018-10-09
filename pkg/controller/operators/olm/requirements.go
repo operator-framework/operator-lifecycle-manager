@@ -235,7 +235,7 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 	checkPermissions(strategyDetailsDeployment.Permissions, csv.GetNamespace())
 	checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
 
-	statuses := make([]v1alpha1.RequirementStatus, len(statusesSet))
+	statuses := []v1alpha1.RequirementStatus{}
 	for key, status := range statusesSet {
 		log.Infof("appending permission status: %s", key)
 		statuses = append(statuses, status)
