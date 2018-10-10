@@ -174,7 +174,7 @@ func (a *Operator) permissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, 
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) {
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
-			log.Infof("perm.ServiceName: %s", saName)
+			log.Infof("perm.ServiceAccountName: %s", saName)
 
 			var status v1alpha1.RequirementStatus
 			if stored, ok := statusesSet[saName]; !ok {
