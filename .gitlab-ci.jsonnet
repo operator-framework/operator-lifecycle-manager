@@ -44,7 +44,7 @@ local jobs = {
     },
 
     'container-build': baseJob.dockerBuild {
-        // Build and push the alm container.
+        // Build and push the olm container.
         // Docker Tag is the branch/tag name
         stage: stages.docker_build,
         before_script+: [
@@ -54,13 +54,11 @@ local jobs = {
         // builds a single multistage dockerfile and tags images based on labels
         // on the intermediate builds
         script: docker.multibuild_and_push("upstream.Dockerfile", labelImageMap={
-            'builder': images.ci.alm.name,
-            'olm': images.prerelease.alm.name,
-            'catalog': images.prerelease.catalog.name,
-            'package-server': images.prerelease.package.name,
+            'builder': images.ci.olm.name,
+            'olm': images.prerelease.olm.name,
             'e2e': images.e2e.name,
         }) +
-        docker.run(images.ci.alm.name, "make verify-codegen verify-catalog")
+        docker.run(images.ci.olm.name, "make verify-codegen verify-catalog")
     },
 
     'container-release': baseJob.dockerBuild {
@@ -69,7 +67,7 @@ local jobs = {
         stage: stages.docker_release,
         before_script+: ["mkdir -p $PWD/bin"],
         script:
-            docker.rename(images.prerelease.alm.name, images.release.alm.name) +
+            docker.rename(images.prerelease.olm.name, images.release.olm.name) +
             docker.rename(images.prerelease.catalog.name, images.release.catalog.name) +
             docker.rename(images.prerelease.package.name, images.release.package.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
@@ -82,7 +80,7 @@ local jobs = {
         stage: stages.docker_release,
         before_script+: ["mkdir -p $PWD/bin"],
         script:
-            docker.rename(images.prerelease.alm.name, images.tag.alm.name) +
+            docker.rename(images.prerelease.olm.name, images.tag.olm.name) +
             docker.rename(images.prerelease.catalog.name, images.tag.catalog.name) +
             docker.rename(images.prerelease.package.name, images.tag.package.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
@@ -93,22 +91,6 @@ local jobs = {
         stage: stages.wait_in_queue,
     },
     
-    // Unit-tests
-    local unittest_stage = baseJob.AlmTest {
-        stage: stages.tests,
-    },
-
-    'unit-tests': unittest_stage {
-        coverage: @"/\d\d\.\d.$/",
-        script: [
-            "make vendor",
-            "make verify-catalog",
-            "make verify-codegen",
-            "make coverage",
-        ],
-    },
-
-
     'e2e-setup': baseJob.Deploy {
         local _vars = self.localvars,
         localvars+:: {

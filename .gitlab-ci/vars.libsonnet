@@ -27,7 +27,7 @@ local utils = import "utils.libsonnet";
 
         // release is a copy of the quayci image to the 'prod' repository
         release: {
-            alm: {
+            olm: {
                 repo: "quay.io/coreos/olm",
                 tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
                 name: utils.containerName(self.repo, self.tag),
@@ -45,7 +45,7 @@ local utils = import "utils.libsonnet";
         },
 
         tag: {
-            alm: {
+            olm: {
                 repo: "quay.io/coreos/olm",
                 tag: "${CI_COMMIT_TAG}",
                 name: utils.containerName(self.repo, self.tag),
@@ -64,7 +64,7 @@ local utils = import "utils.libsonnet";
 
 
         ci: {
-            alm: {
+            olm: {
                 repo: "quay.io/coreos/alm-ci",
                 tag: "${CI_COMMIT_REF_SLUG}",
                 name: utils.containerName(self.repo, self.tag),
@@ -84,7 +84,7 @@ local utils = import "utils.libsonnet";
         },
 
         prerelease: {
-            alm: {
+            olm: {
                 repo: "quay.io/coreos/alm-ci",
                 tag: "${CI_COMMIT_REF_SLUG}-pre",
                 name: utils.containerName(self.repo, self.tag),

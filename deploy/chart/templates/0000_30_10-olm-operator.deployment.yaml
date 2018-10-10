@@ -8,7 +8,7 @@ metadata:
 spec:
   strategy:
     type: RollingUpdate
-  replicas: {{ .Values.alm.replicaCount }}
+  replicas: {{ .Values.olm.replicaCount }}
   selector:
     matchLabels:
       app: olm-operator
@@ -26,21 +26,21 @@ spec:
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}
           {{- end }}
-          {{- if .Values.alm.commandArgs }}
-          - {{ .Values.alm.commandArgs }}
+          {{- if .Values.olm.commandArgs }}
+          - {{ .Values.olm.commandArgs }}
           {{- end }}
-          image: {{ .Values.alm.image.ref }}
-          imagePullPolicy: {{ .Values.alm.image.pullPolicy }}
+          image: {{ .Values.olm.image.ref }}
+          imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.alm.service.internalPort }}
+            - containerPort: {{ .Values.olm.service.internalPort }}
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.alm.service.internalPort }}
+              port: {{ .Values.olm.service.internalPort }}
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.alm.service.internalPort }}
+              port: {{ .Values.olm.service.internalPort }}
           env:
           - name: OPERATOR_NAMESPACE
             valueFrom:
@@ -48,13 +48,13 @@ spec:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
             value: olm-operator
-          {{- if .Values.alm.resources }}
+          {{- if .Values.olm.resources }}
           resources:
-{{ toYaml .Values.alm.resources | indent 12 }}
+{{ toYaml .Values.olm.resources | indent 12 }}
           {{- end}}
-    {{- if .Values.alm.nodeSelector }}
+    {{- if .Values.olm.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.alm.nodeSelector | indent 8 }}
+{{ toYaml .Values.olm.nodeSelector | indent 8 }}
     {{- end }}
       imagePullSecrets:
         - name: coreos-pull-secret
