@@ -68,8 +68,6 @@ local jobs = {
         before_script+: ["mkdir -p $PWD/bin"],
         script:
             docker.rename(images.prerelease.olm.name, images.release.olm.name) +
-            docker.rename(images.prerelease.catalog.name, images.release.catalog.name) +
-            docker.rename(images.prerelease.package.name, images.release.package.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
         only: ['master'],
     },
@@ -81,8 +79,6 @@ local jobs = {
         before_script+: ["mkdir -p $PWD/bin"],
         script:
             docker.rename(images.prerelease.olm.name, images.tag.olm.name) +
-            docker.rename(images.prerelease.catalog.name, images.tag.catalog.name) +
-            docker.rename(images.prerelease.package.name, images.tag.package.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
         only: ['tags'],
     },

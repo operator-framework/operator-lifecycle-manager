@@ -2,7 +2,7 @@ local utils = import "utils.libsonnet";
 
 {
     deploy_keys: { operator_client: "$OPERATORCLENT_RSA_B64" },
-    alm_repo: "github.com/operator-framework/operator-lifecycle-manager",
+    olm_repo: "github.com/operator-framework/operator-lifecycle-manager",
     global: {
         // .gitlab-ci.yaml top `variables` key
         FAILFASTCI_NAMESPACE: "operator-framework",
@@ -11,8 +11,8 @@ local utils = import "utils.libsonnet";
     },
 
     paths: {
-        alm: {
-            src: "$GOPATH/src/%s" % $.alm_repo,
+        olm: {
+            src: "$GOPATH/src/%s" % $.olm_repo,
         },
     },
 
@@ -20,7 +20,7 @@ local utils = import "utils.libsonnet";
     images: {
         // Quay initial image, used in the Dockerfile FROM clause
         base: {
-            repo: "quay.io/coreos/alm-ci",
+            repo: "quay.io/coreos/olm-ci",
             tag: "base",
             name: utils.containerName(self.repo, self.tag),
         },
@@ -32,16 +32,6 @@ local utils = import "utils.libsonnet";
                 tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
                 name: utils.containerName(self.repo, self.tag),
             },
-            catalog: {
-                repo: "quay.io/coreos/catalog",
-                tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
-                name: utils.containerName(self.repo, self.tag),
-            },
-            package: {
-                repo: "quay.io/coreos/package-server",
-                tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
-                name: utils.containerName(self.repo, self.tag),
-            },
         },
 
         tag: {
@@ -50,52 +40,32 @@ local utils = import "utils.libsonnet";
                 tag: "${CI_COMMIT_TAG}",
                 name: utils.containerName(self.repo, self.tag),
             },
-            catalog: {
-                repo: "quay.io/coreos/catalog",
-                tag: "${CI_COMMIT_TAG}",
-                name: utils.containerName(self.repo, self.tag),
-            },
-            package: {
-                repo: "quay.io/coreos/package-server",
-                tag: "${CI_COMMIT_TAG}",
-                name: utils.containerName(self.repo, self.tag),
-            },
         },
 
 
         ci: {
             olm: {
-                repo: "quay.io/coreos/alm-ci",
+                repo: "quay.io/coreos/olm-ci",
                 tag: "${CI_COMMIT_REF_SLUG}",
                 name: utils.containerName(self.repo, self.tag),
             },
         },
 
         e2e: {
-            repo: "quay.io/coreos/alm-e2e",
+            repo: "quay.io/coreos/olm-e2e",
             tag: "${CI_COMMIT_REF_SLUG}-${SHA8}",
             name: utils.containerName(self.repo, self.tag),
         },
 
         e2elatest: {
-            repo: "quay.io/coreos/alm-e2e",
+            repo: "quay.io/coreos/olm-e2e",
             tag: "latest",
             name: utils.containerName(self.repo, self.tag),
         },
 
         prerelease: {
             olm: {
-                repo: "quay.io/coreos/alm-ci",
-                tag: "${CI_COMMIT_REF_SLUG}-pre",
-                name: utils.containerName(self.repo, self.tag),
-            },
-            catalog: {
-                repo: "quay.io/coreos/catalog-ci",
-                tag: "${CI_COMMIT_REF_SLUG}-pre",
-                name: utils.containerName(self.repo, self.tag),
-            },
-            package: {
-                repo: "quay.io/coreos/package-server-ci",
+                repo: "quay.io/coreos/olm-ci",
                 tag: "${CI_COMMIT_REF_SLUG}-pre",
                 name: utils.containerName(self.repo, self.tag),
             },

@@ -152,8 +152,6 @@ gen-all: gen-ci codegen generate-mock-client codegen-openapi
 release: ver=$(shell cat OLM_VERSION)
 release:
 	docker pull quay.io/coreos/olm:$(ver)
-	docker pull quay.io/coreos/catalog:$(ver)
-	docker pull quay.io/coreos/package-server:$(ver)
 	$(MAKE) target=upstream ver=$(ver) package
 	$(MAKE) target=okd ver=$(ver) package
 	$(MAKE) target=ocp ver=$(ver) package
@@ -168,8 +166,6 @@ endif
 ifndef ver
 	$(error ver is undefined)
 endif
-	yaml w -i deploy/$(target)/values.yaml alm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
-	yaml w -i deploy/$(target)/values.yaml catalog.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/catalog:$(ver)`
-	yaml w -i deploy/$(target)/values.yaml package.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/package-server:$(ver)`
+	yaml w -i deploy/$(target)/values.yaml olm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
 	./scripts/package-release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfF $(ver) deploy/$(target)/manifests/latest

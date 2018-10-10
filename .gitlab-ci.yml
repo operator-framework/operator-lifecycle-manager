@@ -41,8 +41,8 @@ container-base-build:
   - schedules
   - tags
   script:
-  - 'docker build --build-arg sshkey=$OPERATORCLENT_RSA_B64 --no-cache -f base.Dockerfile -t quay.io/coreos/alm-ci:base . '
-  - docker push quay.io/coreos/alm-ci:base
+  - 'docker build --build-arg sshkey=$OPERATORCLENT_RSA_B64 --no-cache -f base.Dockerfile -t quay.io/coreos/olm-ci:base . '
+  - docker push quay.io/coreos/olm-ci:base
   stage: docker_base
   tags:
   - kubernetes
@@ -56,13 +56,13 @@ container-build:
   image: docker:git
   script:
   - docker build -f upstream.Dockerfile .
-  - "docker tag $(docker images --filter 'label=stage=builder' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}"
-  - "docker tag $(docker images --filter 'label=stage=e2e' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}"
-  - "docker tag $(docker images --filter 'label=stage=olm' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre"
-  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}
-  - docker push quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker run  quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG} make verify-codegen verify-catalog
+  - "docker tag $(docker images --filter 'label=stage=builder' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}"
+  - "docker tag $(docker images --filter 'label=stage=e2e' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}"
+  - "docker tag $(docker images --filter 'label=stage=olm' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre"
+  - docker push quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}
+  - docker push quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker push quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker run  quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG} make verify-codegen verify-catalog
   stage: docker_build
   tags:
   - kubernetes
@@ -77,18 +77,12 @@ container-release:
   only:
   - master
   script:
-  - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker pull quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/catalog:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker pull quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker push quay.io/coreos/package-server:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
-  - docker push quay.io/coreos/alm-e2e:latest
+  - docker pull quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker tag quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/olm-e2e:latest
+  - docker push quay.io/coreos/olm-e2e:latest
   stage: docker_release
   tags:
   - kubernetes
@@ -130,8 +124,8 @@ deploy-openshift:
 deploy-preview:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"catalog.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"ci-olm-${CI_COMMIT_REF_SLUG}\", \"namespace\": \"ci-olm-${CI_COMMIT_REF_SLUG}\", \"olm.image.ref\":
-    \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"package.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"watchedNamespaces\": \"ci-olm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
+  - 'echo "{\"catalog.image.ref\": \"quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"ci-olm-${CI_COMMIT_REF_SLUG}\", \"namespace\": \"ci-olm-${CI_COMMIT_REF_SLUG}\", \"olm.image.ref\":
+    \"quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"package.image.ref\": \"quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"watchedNamespaces\": \"ci-olm-${CI_COMMIT_REF_SLUG}\"}" > params.json'
   - cat params.json
   environment:
     name: review/ci-olm-${CI_COMMIT_REF_SLUG}
@@ -146,8 +140,8 @@ deploy-preview:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=ci-olm-${CI_COMMIT_REF_SLUG} deploy/chart --set catalog.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-    --set catalog_namespace=ci-olm-${CI_COMMIT_REF_SLUG} --set namespace=ci-olm-${CI_COMMIT_REF_SLUG} --set olm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set package.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=ci-olm-${CI_COMMIT_REF_SLUG} deploy/chart --set catalog.image.ref=quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
+    --set catalog_namespace=ci-olm-${CI_COMMIT_REF_SLUG} --set namespace=ci-olm-${CI_COMMIT_REF_SLUG} --set olm.image.ref=quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre --set package.image.ref=quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=ci-olm-${CI_COMMIT_REF_SLUG} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do if [[ $f
     == *.configmap.yaml ]];then kubectl replace --force -f ${f};else kubectl apply -f ${f};fi;done;
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=ci-olm-${CI_COMMIT_REF_SLUG}
@@ -195,8 +189,8 @@ deploy-staging:
 e2e-setup:
   before_script:
   - 'echo "version: 1.0.0-${CI_COMMIT_REF_SLUG}-pre" >> deploy/chart/Chart.yaml'
-  - 'echo "{\"catalog.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\", \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\",
-    \"olm.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"package.image.ref\": \"quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\"}"
+  - 'echo "{\"catalog.image.ref\": \"quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"catalog_namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\", \"namespace\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\",
+    \"olm.image.ref\": \"quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"package.image.ref\": \"quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre\", \"watchedNamespaces\": \"e2e-${CI_COMMIT_REF_SLUG}-${SHA8}\"}"
     > params.json'
   - cat params.json
   environment:
@@ -206,8 +200,8 @@ e2e-setup:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
-  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} deploy/chart --set catalog.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-    --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set olm.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre --set package.image.ref=quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n olm --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} deploy/chart --set catalog.image.ref=quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
+    --set catalog_namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set olm.image.ref=quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre --set package.image.ref=quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
     --set watchedNamespaces=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/olm/templates/*.yaml);echo ${chartfilenames};for f in ${chartfilenames};do if
     [[ $f == *.configmap.yaml ]];then kubectl replace --force -f ${f};else kubectl apply -f ${f};fi;done;
   - kubectl create secret docker-registry coreos-pull-secret --docker-server quay.io --docker-username $DOCKER_USER --docker-password $DOCKER_PASS --docker-email ignored@example.com --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
@@ -250,7 +244,7 @@ e2e_tests:
   - 'kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} patch serviceaccount default -p ''{"imagePullSecrets": [{"name": "coreos-pull-secret"}]}'' || true'
   - kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}:default --namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
     || true
-  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n alm-e2e --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} test/e2e/chart --set e2e.image.ref=quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`;mkdir -p ${charttmpdir};helm template -n alm-e2e --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} test/e2e/chart --set e2e.image.ref=quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
     --set job_name=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --set namespace=e2e-${CI_COMMIT_REF_SLUG}-${SHA8} --output-dir ${charttmpdir};chartfilenames=$(ls ${charttmpdir}/alm-e2e/templates/*.yaml);echo ${chartfilenames};for
     f in ${chartfilenames};do if [[ $f == *.configmap.yaml ]];then kubectl replace --force -f ${f};else kubectl apply -f ${f};fi;done;
   - until kubectl -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8} logs job/e2e-${CI_COMMIT_REF_SLUG}-${SHA8} | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done
@@ -308,18 +302,12 @@ tag-release:
   only:
   - tags
   script:
-  - docker pull quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/alm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_TAG}
+  - docker pull quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
+  - docker tag quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/olm:${CI_COMMIT_TAG}
   - docker push quay.io/coreos/olm:${CI_COMMIT_TAG}
-  - docker pull quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/catalog-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/catalog:${CI_COMMIT_TAG}
-  - docker push quay.io/coreos/catalog:${CI_COMMIT_TAG}
-  - docker pull quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker tag quay.io/coreos/package-server-ci:${CI_COMMIT_REF_SLUG}-pre quay.io/coreos/package-server:${CI_COMMIT_TAG}
-  - docker push quay.io/coreos/package-server:${CI_COMMIT_TAG}
-  - docker pull quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
-  - docker tag quay.io/coreos/alm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/alm-e2e:latest
-  - docker push quay.io/coreos/alm-e2e:latest
+  - docker pull quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
+  - docker tag quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8} quay.io/coreos/olm-e2e:latest
+  - docker push quay.io/coreos/olm-e2e:latest
   stage: docker_release
   tags:
   - kubernetes
@@ -330,7 +318,7 @@ variables:
   FAILFASTCI_NAMESPACE: operator-framework
   GET_SOURCES_ATTEMPTS: '10'
 wait-in-queue:
-  image: quay.io/coreos/alm-e2e
+  image: quay.io/coreos/olm-e2e
   script:
   - . ${CI_PROJECT_DIR}/scripts/wait_in_queue.sh $CI_PROJECT_URL $CI_PIPELINE_ID
   stage: wait_in_queue
