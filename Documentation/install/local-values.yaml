@@ -3,7 +3,7 @@ namespace: local
 watchedNamespaces: local
 catalog_namespace: local
 
-alm:
+olm:
   replicaCount: 1
   image:
     ref: quay.io/coreos/olm:local
@@ -14,7 +14,7 @@ alm:
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/catalog:local
+    ref: quay.io/coreos/olm:local
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -22,7 +22,7 @@ catalog:
 package:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/package-server:local
+    ref: quay.io/coreos/olm:local
     pullPolicy: IfNotPresent
   service:
     internalPort: 443

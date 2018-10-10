@@ -2,7 +2,7 @@ rbacApiVersion: rbac.authorization.k8s.io
 namespace: olm
 catalog_namespace: olm
 imagestream: false
-alm:
+olm:
   replicaCount: 1
   image:
     ref: quay.io/coreos/olm@sha256:058731fac9ecad9a35276612ec79bed76f506aaecd80c8c1fe9d68a262edcddb

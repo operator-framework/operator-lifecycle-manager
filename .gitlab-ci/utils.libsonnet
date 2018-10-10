@@ -79,7 +79,7 @@
         ],
 
         tag_from_labels(labelImageMap={}):: [
-            "docker tag $(docker images --filter 'label=%s=true' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) %s"
+            "docker tag $(docker images --filter 'label=stage=%s' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) %s"
             % [label, labelImageMap[label]] for label in std.objectFields(labelImageMap)
         ],
 
