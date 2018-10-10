@@ -1,22 +1,23 @@
 package olm
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/types"
-
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/stretchr/testify/require"
 )
 
-func TestPermissionStatus(t *testing.T) {
+func TestRequirementAndPermissionStatus(t *testing.T) {
 	namespace := "ns"
 	type gvkn struct {
 		group   string
@@ -28,9 +29,27 @@ func TestPermissionStatus(t *testing.T) {
 		description                 string
 		csv                         *v1alpha1.ClusterServiceVersion
 		existingObjs                []runtime.Object
+		existingExtObjs             []runtime.Object
 		met                         bool
 		expectedRequirementStatuses map[gvkn]v1alpha1.RequirementStatus
+		expectedError               error
 	}{
+		{
+			description: "BadInstallStrategy",
+			csv: csv("csv1",
+				namespace,
+				"",
+				v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
+				nil,
+				nil,
+				v1alpha1.CSVPhasePending,
+			),
+			existingObjs:                nil,
+			existingExtObjs:             nil,
+			met:                         false,
+			expectedRequirementStatuses: nil,
+			expectedError:               fmt.Errorf("unexpected end of JSON input"),
+		},
 		{
 			description: "AllPermissionsMet",
 			csv: csv("csv1",
@@ -97,7 +116,8 @@ func TestPermissionStatus(t *testing.T) {
 					},
 				},
 			},
-			met: true,
+			existingExtObjs: nil,
+			met:             true,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
 				{"", "v1", "ServiceAccount", "sa"}: {
 					Group:   "",
@@ -114,15 +134,132 @@ func TestPermissionStatus(t *testing.T) {
 					},
 				},
 			},
+			expectedError: nil,
+		},
+		{
+			description: "AllRequirementsMet",
+			csv: csv("csv1",
+				namespace,
+				"",
+				installStrategy(
+					"csv1-dep",
+					[]install.StrategyDeploymentPermissions{
+						{
+							ServiceAccountName: "sa",
+							Rules: []rbacv1.PolicyRule{
+								{
+									APIGroups: []string{""},
+									Verbs:     []string{"*"},
+									Resources: []string{"donuts"},
+								},
+							},
+						},
+					},
+					nil,
+				),
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+				[]*v1beta1.CustomResourceDefinition{crd("c2", "v1")},
+				v1alpha1.CSVPhasePending,
+			),
+			existingObjs: []runtime.Object{
+				&corev1.ServiceAccount{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sa",
+						Namespace: namespace,
+						UID:       types.UID("sa"),
+					},
+				},
+				&rbacv1.Role{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "role",
+						Namespace: namespace,
+					},
+					Rules: []rbacv1.PolicyRule{
+						{
+							APIGroups: []string{""},
+							Verbs:     []string{"*"},
+							Resources: []string{"donuts"},
+						},
+					},
+				},
+				&rbacv1.RoleBinding{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "roleBinding",
+						Namespace: namespace,
+					},
+					Subjects: []rbacv1.Subject{
+						{
+							Kind:      "ServiceAccount",
+							APIGroup:  "",
+							Name:      "sa",
+							Namespace: namespace,
+						},
+					},
+					RoleRef: rbacv1.RoleRef{
+						APIGroup: "rbac.authorization.k8s.io",
+						Kind:     "Role",
+						Name:     "role",
+					},
+				},
+			},
+			existingExtObjs: []runtime.Object{
+				crd("c1", "v1"),
+				crd("c2", "v1"),
+			},
+			met: true,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"", "v1", "ServiceAccount", "sa"}: {
+					Group:   "",
+					Version: "v1",
+					Kind:    "ServiceAccount",
+					Name:    "sa",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+					Dependents: []v1alpha1.DependentStatus{
+						{
+							Group:   "rbac.authorization.k8s.io",
+							Kind:    "PolicyRule",
+							Version: "v1beta1",
+						},
+					},
+				},
+				{"", "v1", "ServiceAccount", "sa"}: {
+					Group:   "",
+					Version: "v1",
+					Kind:    "ServiceAccount",
+					Name:    "sa",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+					Dependents: []v1alpha1.DependentStatus{
+						{
+							Group:   "rbac.authorization.k8s.io",
+							Kind:    "PolicyRule",
+							Version: "v1beta1",
+						},
+					},
+				},
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+					Group:   "apiextensions.k8s.io",
+					Version: "v1beta1",
+					Kind:    "CustomResourceDefinition",
+					Name:    "c1group",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c2group"}: {
+					Group:   "apiextensions.k8s.io",
+					Version: "v1beta1",
+					Kind:    "CustomResourceDefinition",
+					Name:    "c2group",
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+				},
+			},
+			expectedError: nil,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			op, err := NewFakeOperator(nil, test.existingObjs, nil, nil, &install.StrategyResolver{}, namespace)
+			op, err := NewFakeOperator(nil, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, namespace)
 			require.NoError(t, err)
 
-			// stopCh is closed when op.Run(...) exits
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
 
@@ -131,8 +268,11 @@ func TestPermissionStatus(t *testing.T) {
 			<-ready
 			t.Log("queue informer operator ready")
 
-			// get the permission status
-			met, statuses := op.permissionStatus(test.csv)
+			// Get the permission status
+			met, statuses, err := op.requirementAndPermissionStatus(test.csv)
+			if test.expectedError != nil {
+				require.EqualError(t, test.expectedError, err.Error())
+			}
 			require.Equal(t, test.met, met)
 
 			for _, status := range statuses {
@@ -147,12 +287,11 @@ func TestPermissionStatus(t *testing.T) {
 				require.True(t, ok, fmt.Sprintf("permission requirement status %+v found but not expected", key))
 				require.Len(t, status.Dependents, len(expected.Dependents), "number of dependents is not what was expected")
 
-				// delete the requirement status to mark as found
+				// Delete the requirement status to mark as found
 				delete(test.expectedRequirementStatuses, key)
 			}
 
 			require.Len(t, test.expectedRequirementStatuses, 0, "not all expected permission requirement statuses were found")
-
 		})
 	}
 }

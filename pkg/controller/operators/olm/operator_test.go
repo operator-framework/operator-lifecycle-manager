@@ -371,6 +371,29 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
+			name: "SingleCSVPendingToFailed/BadStrategy",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
+				},
+			},
+		},
+		{
 			name: "SingleCSVPendingToPending/CRD",
 			initial: initial{
 				csvs: []runtime.Object{
