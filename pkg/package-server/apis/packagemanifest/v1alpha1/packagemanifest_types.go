@@ -32,7 +32,9 @@ type PackageManifestSpec struct{}
 // PackageManifestStatus represents the current status of the PackageManifest
 type PackageManifestStatus struct {
 	// CatalogSourceName is the name of the CatalogSource this package belongs to
-	CatalogSourceName string `json:"catalogSource"`
+	CatalogSourceName        string `json:"catalogSource"`
+	CatalogSourceDisplayName string `json:"catalogSourceDisplayName"`
+	CatalogSourcePublisher   string `json:"catalogSourcePublisher"`
 
 	//  CatalogSourceNamespace is the namespace of the owning CatalogSource
 	CatalogSourceNamespace string `json:"catalogSourceNamespace"`

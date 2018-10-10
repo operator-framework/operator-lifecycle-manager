@@ -76,7 +76,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 }
 
 // parsePackageManifestsFromConfigMap returns a list of PackageManifests from a given ConfigMap
-func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName, catalogSourceNamespace string) ([]packagev1alpha1.PackageManifest, error) {
+func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName, catalogSourceNamespace, catalogSourcePublisher, catalogSourceDisplayName string) ([]packagev1alpha1.PackageManifest, error) {
 	cmName := cm.GetName()
 	logger := log.WithFields(log.Fields{
 		"Action": "Load ConfigMap",
@@ -142,6 +142,8 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName,
 
 			manifest.Status.CatalogSourceName = catalogSourceName
 			manifest.Status.CatalogSourceNamespace = catalogSourceNamespace
+			manifest.Status.CatalogSourceDisplayName = catalogSourceDisplayName
+			manifest.Status.CatalogSourcePublisher = catalogSourcePublisher
 
 			// add all PackageChannel CSVDescriptions
 			for i, channel := range manifest.Status.Channels {
@@ -202,7 +204,7 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		}
 
 		// parse PackageManifest from ConfigMap
-		manifests, err = parsePackageManifestsFromConfigMap(cm, catsrc.GetName(), catsrc.GetNamespace())
+		manifests, err = parsePackageManifestsFromConfigMap(cm, catsrc.GetName(), catsrc.GetNamespace(), catsrc.Spec.Publisher, catsrc.Spec.DisplayName)
 		if err != nil {
 			return fmt.Errorf("failed to load package manifest from config map %s", cm.GetName())
 		}

@@ -321,6 +321,18 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 							Format:      "",
 						},
 					},
+					"catalogSourceDisplayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"catalogSourcePublisher": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
 					"catalogSourceNamespace": {
 						SchemaProps: spec.SchemaProps{
 							Description: "\n CatalogSourceNamespace is the namespace of the owning CatalogSource",
@@ -362,7 +374,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 						},
 					},
 				},
-				Required: []string{"catalogSource", "catalogSourceNamespace", "packageName", "channels", "defaultChannel"},
+				Required: []string{"catalogSource", "catalogSourceDisplayName", "catalogSourcePublisher", "catalogSourceNamespace", "packageName", "channels", "defaultChannel"},
 			},
 		},
 		Dependencies: []string{
