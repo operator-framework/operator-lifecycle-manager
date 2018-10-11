@@ -1,0 +1,16 @@
+##---
+# Source: olm/templates/0000_30_09-rh-operators.catalogsource.yaml
+
+#! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
+#! parse-kind: CatalogSource
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: rh-operators
+  namespace: openshift-operator-lifecycle-manager
+spec:
+  sourceType: internal
+  configMap: rh-operators
+  displayName: Red Hat Operators
+  publisher: Red Hat
+

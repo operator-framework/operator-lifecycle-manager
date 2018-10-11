@@ -159,6 +159,7 @@ release:
 	mkdir manifests
 	cp -R deploy/ocp/manifests/$(ver)/. manifests
 
+package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
 package:
 ifndef target
 	$(error target is undefined)
@@ -166,6 +167,8 @@ endif
 ifndef ver
 	$(error ver is undefined)
 endif
-	yaml w -i deploy/$(target)/values.yaml olm.image.ref `docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver)`
+	yaml w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
+	yaml w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
+	yaml w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
 	./scripts/package-release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
-	ln -sfF $(ver) deploy/$(target)/manifests/latest
+	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest

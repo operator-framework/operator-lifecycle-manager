@@ -20,18 +20,8 @@ local appr = utils.appr;
         ],
     } + job_tags,
 
-    AlmTest: {
-        before_script: [
-            "mkdir -p %s" % vars.paths.alm.src,
-            "cp -a $CI_PROJECT_DIR/* %s" % vars.paths.alm.src,
-            "cd %s" % vars.paths.alm.src,
-        ],
-        // base job to test the container
-        image: vars.images.ci.olm.name,
-    } + job_tags,
-
     WaitInQueue: {
-        image: vars.images.e2e.repo,
+        image: vars.images.e2e.name,
         script:
             [
                 ". ${CI_PROJECT_DIR}/scripts/wait_in_queue.sh $CI_PROJECT_URL $CI_PIPELINE_ID",
@@ -46,7 +36,7 @@ local appr = utils.appr;
             namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
             chart: "test/e2e/chart",
-            appversion: "1.0.0-e2e-%s" % self.image.alm.tag,
+            appversion: "1.0.0-e2e-%s" % self.image.olm.tag,
             helm_opts: [],
             params: {
                 namespace: _vars.namespace,
@@ -69,7 +59,7 @@ local appr = utils.appr;
             [
                 'kubectl -n %s create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=%s:default --namespace=%s || true' % [_vars.namespace, _vars.namespace, _vars.namespace],
             ] +
-            helm.templateApply("alm-e2e", _vars.chart, _vars.namespace, _vars.params) +
+            helm.templateApply("olm-e2e", _vars.chart, _vars.namespace, _vars.params) +
             [
                 "until kubectl -n %s logs job/%s | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % [_vars.namespace, _vars.jobname],
                 "kubectl -n %s logs job/%s -f" % [_vars.namespace, _vars.jobname],
@@ -88,7 +78,7 @@ local appr = utils.appr;
         local _vars = self.localvars,
         localvars:: {
             appversion: "1.0.0-%s" % self.image.olm.tag,
-            apprepo: "quay.io/coreos/alm-ci-app",
+            apprepo: "quay.io/coreos/olm-ci-app",
             appname: self.namespace,
             chart: "deploy/chart",
             app: "%s@%s" % [self.apprepo, self.appversion],
