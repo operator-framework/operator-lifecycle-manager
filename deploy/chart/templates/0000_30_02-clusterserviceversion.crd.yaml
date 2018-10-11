@@ -653,6 +653,8 @@ spec:
                                         - create
                                         - update
                                         - patch
+                                        - put
+                                        - post
                                         - delete
                                         - deletecollection
                                         - initialize
@@ -699,6 +701,8 @@ spec:
                                       - create
                                       - update
                                       - patch
+                                      - put
+                                      - post
                                       - delete
                                       - deletecollection
                                       - initialize
