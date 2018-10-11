@@ -260,6 +260,7 @@ spec:
                               items:
                                 type: string
                             value:
+                              # FIXME(alecmerdler): Doesn't allow boolean values
                               type: object
                               description: If present, the value of this status is the same for all instances of the API resource and can be found here instead of on the API resource.
                       specDescriptors:
