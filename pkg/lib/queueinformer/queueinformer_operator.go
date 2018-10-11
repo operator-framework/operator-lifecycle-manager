@@ -51,53 +51,67 @@ func (o *Operator) RegisterQueueInformer(queueInformer *QueueInformer) {
 }
 
 // Run starts the operator's control loops
-func (o *Operator) Run(stopc <-chan struct{}) error {
-	for _, queueInformer := range o.queueInformers {
-		defer queueInformer.queue.ShutDown()
-	}
+func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}) {
+	ready = make(chan struct{})
+	done = make(chan struct{})
 
-	errChan := make(chan error)
 	go func() {
-		v, err := o.OpClient.KubernetesInterface().Discovery().ServerVersion()
-		if err != nil {
-			errChan <- errors.Wrap(err, "communicating with server failed")
+		defer func() {
+			close(ready)
+			close(done)
+		}()
+
+		for _, queueInformer := range o.queueInformers {
+			defer queueInformer.queue.ShutDown()
+		}
+
+		errChan := make(chan error)
+		go func() {
+			v, err := o.OpClient.KubernetesInterface().Discovery().ServerVersion()
+			if err != nil {
+				errChan <- errors.Wrap(err, "communicating with server failed")
+				return
+			}
+			log.Infof("connection established. cluster-version: %v", v)
+			errChan <- nil
+		}()
+
+		var hasSyncedCheckFns []cache.InformerSynced
+		for _, queueInformer := range o.queueInformers {
+			hasSyncedCheckFns = append(hasSyncedCheckFns, queueInformer.informer.HasSynced)
+		}
+
+		select {
+		case err := <-errChan:
+			if err != nil {
+				log.Infof("operator not ready: %s", err.Error())
+				return
+			}
+			log.Info("operator ready")
+		case <-stopc:
 			return
 		}
-		log.Infof("connection established. cluster-version: %v", v)
-		errChan <- nil
+
+		log.Info("starting informers...")
+		for _, queueInformer := range o.queueInformers {
+			go queueInformer.informer.Run(stopc)
+		}
+
+		log.Info("waiting for caches to sync...")
+		if ok := cache.WaitForCacheSync(stopc, hasSyncedCheckFns...); !ok {
+			log.Info("failed to wait for caches to sync")
+			return
+		}
+
+		log.Info("starting workers...")
+		for _, queueInformer := range o.queueInformers {
+			go o.worker(queueInformer)
+		}
+		ready <- struct{}{}
+		<-stopc
 	}()
 
-	var hasSyncedCheckFns []cache.InformerSynced
-	for _, queueInformer := range o.queueInformers {
-		hasSyncedCheckFns = append(hasSyncedCheckFns, queueInformer.informer.HasSynced)
-	}
-
-	select {
-	case err := <-errChan:
-		if err != nil {
-			return err
-		}
-		log.Info("Operator ready")
-	case <-stopc:
-		return nil
-	}
-
-	log.Info("starting informers...")
-	for _, queueInformer := range o.queueInformers {
-		go queueInformer.informer.Run(stopc)
-	}
-
-	log.Info("waiting for caches to sync...")
-	if ok := cache.WaitForCacheSync(stopc, hasSyncedCheckFns...); !ok {
-		return fmt.Errorf("failed to wait for caches to sync")
-	}
-
-	log.Info("starting workers...")
-	for _, queueInformer := range o.queueInformers {
-		go o.worker(queueInformer)
-	}
-	<-stopc
-	return nil
+	return
 }
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.

@@ -121,5 +121,6 @@ func main() {
 	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(":8080", nil)
 
-	operator.Run(stopCh)
+	_, done := operator.Run(stopCh)
+	<-done
 }

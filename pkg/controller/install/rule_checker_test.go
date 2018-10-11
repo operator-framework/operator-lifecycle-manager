@@ -550,9 +550,7 @@ func TestRuleSatisfied(t *testing.T) {
 
 			// create the fake CSVRuleChecker
 			stopCh := make(chan struct{})
-			defer func() {
-				stopCh <- struct{}{}
-			}()
+			defer func() { close(stopCh) }()
 
 			t.Logf("calling NewFakeCSVRuleChecker...")
 			ruleChecker, err := NewFakeCSVRuleChecker(k8sObjs, csv, tt.namespace, stopCh)

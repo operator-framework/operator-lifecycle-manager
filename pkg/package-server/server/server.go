@@ -190,7 +190,8 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	go sourceProvider.Run(stopCh)
+	ready, _ := sourceProvider.Run(stopCh)
+	<-ready
 
 	return server.GenericAPIServer.PrepareRun().Run(stopCh)
 }

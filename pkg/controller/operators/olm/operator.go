@@ -308,7 +308,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		logger.Infof("scheduling ClusterServiceVersion for requirement verification")
 		out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
 	case v1alpha1.CSVPhasePending:
-		met, statuses := a.requirementStatus(out)
+		met, statuses, err := a.requirementAndPermissionStatus(out)
+		if err != nil {
+			logger.Info("invalid install strategy")
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()))
+			return
+		}
 		out.SetRequirementStatus(statuses)
 
 		if !met {
