@@ -109,21 +109,21 @@ func newNginxDeployment(name string) appsv1.DeploymentSpec {
 
 type csvConditionChecker func(csv *v1alpha1.ClusterServiceVersion) bool
 
-var csvPendingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
-	return csv.Status.Phase == v1alpha1.CSVPhasePending
+func buildCSVConditionChecker(phases ...v1alpha1.ClusterServiceVersionPhase) csvConditionChecker {
+	return func(csv *v1alpha1.ClusterServiceVersion) bool {
+		conditionMet := false
+		for _, phase := range phases {
+			conditionMet = conditionMet || csv.Status.Phase == phase
+		}
+		return conditionMet
+	}
 }
 
-var csvSucceededChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
-	return csv.Status.Phase == v1alpha1.CSVPhaseSucceeded
-}
-
-var csvReplacingChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
-	return csv.Status.Phase == v1alpha1.CSVPhaseReplacing || csv.Status.Phase == v1alpha1.CSVPhaseDeleting
-}
-
-var csvAnyChecker = func(csv *v1alpha1.ClusterServiceVersion) bool {
-	return csvPendingChecker(csv) || csvSucceededChecker(csv) || csvReplacingChecker(csv)
-}
+var csvPendingChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending)
+var csvSucceededChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded)
+var csvReplacingChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting)
+var csvFailedChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseFailed)
+var csvAnyChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting, v1alpha1.CSVPhaseFailed)
 
 func fetchCSV(t *testing.T, c versioned.Interface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion

@@ -70,5 +70,6 @@ func main() {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
 
-	catalogOperator.Run(stopCh)
+	_, done := catalogOperator.Run(stopCh)
+	<-done
 }

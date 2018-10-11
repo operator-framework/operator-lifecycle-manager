@@ -42,8 +42,7 @@ func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) [
 		attributes[i] = attribute
 		i++
 	}
-
-	log.Infof("attributes set %+v", attributes)
+	log.Debugf("attributes set %+v", attributes)
 
 	return attributes
 }
