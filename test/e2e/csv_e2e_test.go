@@ -461,6 +461,10 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 					APIGroups: []string{""},
 					Resources: []string{"deployment"},
 				},
+				{
+					Verbs:           []string{"put", "post", "get"},
+					NonResourceURLs: []string{"/osb", "/osb/*"},
+				},
 			},
 		},
 	}
@@ -560,6 +564,18 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err = c.CreateClusterRole(&clusterRole)
 	require.NoError(t, err, "could not create ClusterRole")
 
+	nonResourceClusterRole := rbacv1.ClusterRole{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:           []string{"put", "post", "get"},
+				NonResourceURLs: []string{"/osb", "/osb/*"},
+			},
+		},
+	}
+	nonResourceClusterRole.SetName(genName("dep-"))
+	_, err = c.CreateClusterRole(&nonResourceClusterRole)
+	require.NoError(t, err, "could not create ClusterRole")
+
 	clusterRoleBinding := rbacv1.ClusterRoleBinding{
 		Subjects: []rbacv1.Subject{
 			{
@@ -577,6 +593,25 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	}
 	clusterRoleBinding.SetName(genName("dep-"))
 	_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
+	require.NoError(t, err, "could not create ClusterRoleBinding")
+
+	nonResourceClusterRoleBinding := rbacv1.ClusterRoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     nonResourceClusterRole.GetName(),
+		},
+	}
+	nonResourceClusterRoleBinding.SetName(genName("dep-"))
+	_, err = c.CreateClusterRoleBinding(&nonResourceClusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
 	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)

@@ -653,8 +653,6 @@ spec:
                                         - create
                                         - update
                                         - patch
-                                        - put
-                                        - post
                                         - delete
                                         - deletecollection
                                         - initialize
@@ -674,6 +672,8 @@ spec:
                               type: array
                               items:
                                 type: object
+                                required:
+                                - verbs
                                 description: a rule required by the service account
                                 properties:
                                   apiGroups:
@@ -686,6 +686,10 @@ spec:
                                     items:
                                       type: string
                                   resourceNames:
+                                    type: array
+                                    items:
+                                      type: string
+                                  nonResourceURLs:
                                     type: array
                                     items:
                                       type: string

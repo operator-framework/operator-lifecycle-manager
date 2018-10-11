@@ -106,11 +106,11 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 }
 
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, csvNamespace string) (bool, []v1alpha1.RequirementStatus) {
+func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, csvNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
 	met := true
 
-	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) {
+	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) error {
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
 			log.Debugf("perm.ServiceAccountName: %s", saName)
@@ -153,10 +153,19 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 					status.Dependents = append(status.Dependents, dependent)
 					continue
 				}
-				dependent.Message = fmt.Sprintf("rule raw:%s", marshalled)
+
+				var scope string
+				if namespace == metav1.NamespaceAll {
+					scope = "cluster"
+				} else {
+					scope = "namespaced"
+				}
+				dependent.Message = fmt.Sprintf("%s rule:%s", scope, marshalled)
 
 				satisfied, err := ruleChecker.RuleSatisfied(sa, namespace, rule)
-				if err != nil || !satisfied {
+				if err != nil {
+					return err
+				} else if !satisfied {
 					met = false
 					dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
 					status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
@@ -169,10 +178,18 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 			statusesSet[saName] = status
 		}
+
+		return nil
 	}
 
-	checkPermissions(strategyDetailsDeployment.Permissions, csvNamespace)
-	checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
+	err := checkPermissions(strategyDetailsDeployment.Permissions, csvNamespace)
+	if err != nil {
+		return false, nil, err
+	}
+	err = checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
+	if err != nil {
+		return false, nil, err
+	}
 
 	statuses := []v1alpha1.RequirementStatus{}
 	for key, status := range statusesSet {
@@ -180,7 +197,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 		statuses = append(statuses, status)
 	}
 
-	return met, statuses
+	return met, statuses, nil
 }
 
 // requirementAndPermissionStatus returns the aggregate requirement and permissions statuses for the given CSV
@@ -198,10 +215,15 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 		return false, nil, fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
 	}
 
+	// Ensure permissions are valid
+
 	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions())
 
 	ruleChecker := install.NewCSVRuleChecker(a.roleLister, a.roleBindingLister, a.clusterRoleLister, a.clusterRoleBindingLister, csv)
-	permMet, permStatuses := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace())
+	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace())
+	if err != nil {
+		return false, nil, err
+	}
 
 	// Aggregate requirement and permissions statuses
 	statuses := append(reqStatuses, permStatuses...)

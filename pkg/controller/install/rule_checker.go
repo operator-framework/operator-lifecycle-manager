@@ -1,6 +1,8 @@
 package install
 
 import (
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +44,12 @@ func NewCSVRuleChecker(roleLister crbacv1.RoleLister, roleBindingLister crbacv1.
 
 // RuleSatisfied returns true if a ServiceAccount is authorized to perform all actions described by a PolicyRule in a namespace
 func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace string, rule rbacv1.PolicyRule) (bool, error) {
+	// check if the rule is valid
+	err := ruleValid(rule)
+	if err != nil {
+		return false, fmt.Errorf("rule invalid: %s", err.Error())
+	}
+
 	// get attributes set for the given Role and ServiceAccount
 	user := toDefaultInfo(sa)
 	attributesSet := toAttributesSet(user, namespace, rule)
@@ -154,4 +162,17 @@ func (c *CSVRuleChecker) hasOwnerConflicts(ownerRefs []metav1.OwnerReference) bo
 	}
 
 	return conflicts
+}
+
+func ruleValid(rule rbacv1.PolicyRule) error {
+	if len(rule.Verbs) == 0 {
+		return fmt.Errorf("policy rule must have at least one verb")
+	}
+
+	resourceCount := len(rule.APIGroups) + len(rule.Resources) + len(rule.ResourceNames)
+	if resourceCount > 0 && len(rule.NonResourceURLs) > 0 {
+		return fmt.Errorf("rule cannot apply to both regular resources and non-resource URLs")
+	}
+
+	return nil
 }

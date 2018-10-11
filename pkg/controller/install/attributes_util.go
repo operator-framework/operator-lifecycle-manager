@@ -9,10 +9,12 @@ import (
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 )
 
+// toAttributesSet converts the given user, namespace, and PolicyRule into a set of Attributes expected. This is useful for checking
+// if a composed set of Roles/RoleBindings satisfies a PolicyRule.
 func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) []authorizer.Attributes {
 	set := map[authorizer.AttributesRecord]struct{}{}
 
-	// add empty string for empty groups, resources, and resource names
+	// add empty string for empty groups, resources, resource names, and non resource urls
 	groups := rule.APIGroups
 	if len(groups) == 0 {
 		groups = make([]string, 1)
@@ -25,12 +27,18 @@ func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) [
 	if len(names) == 0 {
 		names = make([]string, 1)
 	}
+	nonResourceURLs := rule.NonResourceURLs
+	if len(nonResourceURLs) == 0 {
+		nonResourceURLs = make([]string, 1)
+	}
 
 	for _, verb := range rule.Verbs {
 		for _, group := range groups {
 			for _, resource := range resources {
 				for _, name := range names {
-					set[attributesRecord(user, namespace, verb, group, resource, name)] = struct{}{}
+					for _, nonResourceURL := range nonResourceURLs {
+						set[attributesRecord(user, namespace, verb, group, resource, name, nonResourceURL)] = struct{}{}
+					}
 				}
 			}
 		}
@@ -48,7 +56,8 @@ func toAttributesSet(user user.Info, namespace string, rule rbacv1.PolicyRule) [
 }
 
 // attribute creates a new AttributesRecord with the given info. Currently RBAC authz only looks at user, verb, apiGroup, resource, and name.
-func attributesRecord(user user.Info, namespace, verb, apiGroup, resource, name string) authorizer.AttributesRecord {
+func attributesRecord(user user.Info, namespace, verb, apiGroup, resource, name, path string) authorizer.AttributesRecord {
+	resourceRequest := path == ""
 	return authorizer.AttributesRecord{
 		User:            user,
 		Verb:            verb,
@@ -56,7 +65,8 @@ func attributesRecord(user user.Info, namespace, verb, apiGroup, resource, name 
 		APIGroup:        apiGroup,
 		Resource:        resource,
 		Name:            name,
-		ResourceRequest: true,
+		ResourceRequest: resourceRequest,
+		Path:            path,
 	}
 }
 
