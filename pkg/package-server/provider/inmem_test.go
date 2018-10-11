@@ -46,7 +46,7 @@ func TestList(t *testing.T) {
 		{
 			namespace:        "default",
 			storedPackages:   []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "global"}, {name: "vault", namespace: "local"}},
-			expectedPackages: []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "global"}},
+			expectedPackages: []packageValue{{name: "etcd", namespace: "default"}, {name: "prometheus", namespace: "default"}},
 			description:      "FilterNamespaceWithGlobal",
 		},
 		{
@@ -107,7 +107,7 @@ func TestGet(t *testing.T) {
 			namespace:       "default",
 			packageName:     "etcd",
 			storedPackages:  []packageValue{{name: "etcd", namespace: "global"}, {name: "prometheus", namespace: "local"}},
-			expectedPackage: packageValue{name: "etcd", namespace: "global"},
+			expectedPackage: packageValue{name: "etcd", namespace: "default"},
 			description:     "MatchesGlobal",
 		},
 		{

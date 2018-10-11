@@ -248,6 +248,7 @@ func (m *InMemoryProvider) Get(namespace, name string) (*packagev1alpha1.Package
 
 	for key, pm := range m.manifests {
 		if key.packageName == name && (key.catalogSourceNamespace == namespace || key.catalogSourceNamespace == m.globalNamespace) {
+			pm.SetNamespace(namespace)
 			return &pm, nil
 		}
 	}
@@ -265,6 +266,9 @@ func (m *InMemoryProvider) List(namespace string) (*packagev1alpha1.PackageManif
 		var matching []packagev1alpha1.PackageManifest
 		for key, pm := range m.manifests {
 			if namespace == metav1.NamespaceAll || key.catalogSourceNamespace == namespace || key.catalogSourceNamespace == m.globalNamespace {
+				if namespace != metav1.NamespaceAll && pm.GetNamespace() != namespace {
+					pm.SetNamespace(namespace)
+				}
 				matching = append(matching, pm)
 			}
 		}
