@@ -27,7 +27,7 @@ local appr = utils.appr;
             "cd %s" % vars.paths.alm.src,
         ],
         // base job to test the container
-        image: vars.images.ci.alm.name,
+        image: vars.images.ci.olm.name,
     } + job_tags,
 
     WaitInQueue: {
@@ -87,21 +87,21 @@ local appr = utils.appr;
         local this = self,
         local _vars = self.localvars,
         localvars:: {
-            appversion: "1.0.0-%s" % self.image.alm.tag,
+            appversion: "1.0.0-%s" % self.image.olm.tag,
             apprepo: "quay.io/coreos/alm-ci-app",
             appname: self.namespace,
             chart: "deploy/chart",
             app: "%s@%s" % [self.apprepo, self.appversion],
-            domain: "alm-%s.k8s.devtable.com" % "${CI_COMMIT_REF_SLUG}",
-            namespace: "ci-alm-%s" % "${CI_COMMIT_REF_SLUG}",
+            domain: "olm-%s.k8s.devtable.com" % "${CI_COMMIT_REF_SLUG}",
+            namespace: "ci-olm-%s" % "${CI_COMMIT_REF_SLUG}",
             image: vars.images.prerelease,
             channel: null,
             helm_opts: [],
             kubeconfig: "$CD_KUBECONFIG",
             params: {
-                "alm.image.ref": _vars.image.alm.name,
-                "catalog.image.ref": _vars.image.catalog.name,
-                "package.image.ref": _vars.image.package.name,
+                "olm.image.ref": _vars.image.olm.name,
+                "catalog.image.ref": _vars.image.olm.name,
+                "package.image.ref": _vars.image.olm.name,
                 watchedNamespaces: _vars.namespace,
                 catalog_namespace: _vars.namespace,
                 namespace: _vars.namespace,
