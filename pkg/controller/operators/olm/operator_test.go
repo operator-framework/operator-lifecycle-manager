@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -385,6 +386,50 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
+				},
+			},
+		},
+		{
+			name: "SingleCSVPendingToFailed/BadStrategyPermissions",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("csv1-dep1",
+							nil,
+							[]install.StrategyDeploymentPermissions{
+								{
+									ServiceAccountName: "sa",
+									Rules: []rbacv1.PolicyRule{
+										{
+											Verbs:           []string{"*"},
+											Resources:       []string{"*"},
+											NonResourceURLs: []string{"/osb"},
+										},
+									},
+								},
+							}),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					&v1.ServiceAccount{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sa",
+							Namespace: namespace,
+						},
+					},
 				},
 			},
 			expected: expected{

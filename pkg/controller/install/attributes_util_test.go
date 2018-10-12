@@ -29,7 +29,17 @@ func TestToAttributeSet(t *testing.T) {
 				Resources: []string{"*"},
 			},
 			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "*", "*", "*", ""): {},
+				attributesRecord(user, namespace, "*", "*", "*", "", ""): {},
+			},
+		},
+		{
+			description: "SimpleNonResourceRule",
+			rule: rbacv1.PolicyRule{
+				Verbs:           []string{"*"},
+				NonResourceURLs: []string{"/api"},
+			},
+			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+				attributesRecord(user, namespace, "*", "", "", "", "/api"): {},
 			},
 		},
 		{
@@ -40,8 +50,8 @@ func TestToAttributeSet(t *testing.T) {
 				Resources: []string{"*"},
 			},
 			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "create", "*", "*", ""): {},
-				attributesRecord(user, namespace, "delete", "*", "*", ""): {},
+				attributesRecord(user, namespace, "create", "*", "*", "", ""): {},
+				attributesRecord(user, namespace, "delete", "*", "*", "", ""): {},
 			},
 		},
 		{
@@ -51,10 +61,21 @@ func TestToAttributeSet(t *testing.T) {
 				Resources: []string{"donuts", "coffee"},
 			},
 			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "get", "", "donuts", ""):    {},
-				attributesRecord(user, namespace, "update", "", "donuts", ""): {},
-				attributesRecord(user, namespace, "get", "", "coffee", ""):    {},
-				attributesRecord(user, namespace, "update", "", "coffee", ""): {},
+				attributesRecord(user, namespace, "get", "", "donuts", "", ""):    {},
+				attributesRecord(user, namespace, "update", "", "donuts", "", ""): {},
+				attributesRecord(user, namespace, "get", "", "coffee", "", ""):    {},
+				attributesRecord(user, namespace, "update", "", "coffee", "", ""): {},
+			},
+		},
+		{
+			description: "MultipleNonResourceURLs",
+			rule: rbacv1.PolicyRule{
+				Verbs:           []string{"*"},
+				NonResourceURLs: []string{"/capybaras", "/caviidaes"},
+			},
+			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
+				attributesRecord(user, namespace, "*", "", "", "", "/capybaras"): {},
+				attributesRecord(user, namespace, "*", "", "", "", "/caviidaes"): {},
 			},
 		},
 		{
@@ -65,10 +86,10 @@ func TestToAttributeSet(t *testing.T) {
 				ResourceNames: []string{"nyc"},
 			},
 			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "get", "", "donuts", "nyc"):    {},
-				attributesRecord(user, namespace, "update", "", "donuts", "nyc"): {},
-				attributesRecord(user, namespace, "get", "", "coffee", "nyc"):    {},
-				attributesRecord(user, namespace, "update", "", "coffee", "nyc"): {},
+				attributesRecord(user, namespace, "get", "", "donuts", "nyc", ""):    {},
+				attributesRecord(user, namespace, "update", "", "donuts", "nyc", ""): {},
+				attributesRecord(user, namespace, "get", "", "coffee", "nyc", ""):    {},
+				attributesRecord(user, namespace, "update", "", "coffee", "nyc", ""): {},
 			},
 		},
 		{
@@ -80,14 +101,14 @@ func TestToAttributeSet(t *testing.T) {
 				ResourceNames: []string{"nyc"},
 			},
 			expectedAttributes: map[authorizer.AttributesRecord]struct{}{
-				attributesRecord(user, namespace, "get", "apps.coreos.com", "donuts", "nyc"):    {},
-				attributesRecord(user, namespace, "update", "apps.coreos.com", "donuts", "nyc"): {},
-				attributesRecord(user, namespace, "get", "apps.coreos.com", "coffee", "nyc"):    {},
-				attributesRecord(user, namespace, "update", "apps.coreos.com", "coffee", "nyc"): {},
-				attributesRecord(user, namespace, "get", "apps.redhat.com", "donuts", "nyc"):    {},
-				attributesRecord(user, namespace, "update", "apps.redhat.com", "donuts", "nyc"): {},
-				attributesRecord(user, namespace, "get", "apps.redhat.com", "coffee", "nyc"):    {},
-				attributesRecord(user, namespace, "update", "apps.redhat.com", "coffee", "nyc"): {},
+				attributesRecord(user, namespace, "get", "apps.coreos.com", "donuts", "nyc", ""):    {},
+				attributesRecord(user, namespace, "update", "apps.coreos.com", "donuts", "nyc", ""): {},
+				attributesRecord(user, namespace, "get", "apps.coreos.com", "coffee", "nyc", ""):    {},
+				attributesRecord(user, namespace, "update", "apps.coreos.com", "coffee", "nyc", ""): {},
+				attributesRecord(user, namespace, "get", "apps.redhat.com", "donuts", "nyc", ""):    {},
+				attributesRecord(user, namespace, "update", "apps.redhat.com", "donuts", "nyc", ""): {},
+				attributesRecord(user, namespace, "get", "apps.redhat.com", "coffee", "nyc", ""):    {},
+				attributesRecord(user, namespace, "update", "apps.redhat.com", "coffee", "nyc", ""): {},
 			},
 		},
 		{
