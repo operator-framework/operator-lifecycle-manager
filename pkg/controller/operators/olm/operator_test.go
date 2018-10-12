@@ -19,9 +19,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -1277,14 +1275,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 			require.NoError(t, err)
 
 			stopCh := make(chan struct{})
-			informerFactory := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), 1*time.Second)
-			deployInformer := informerFactory.Apps().V1().Deployments()
-			for _, informer := range []cache.SharedIndexInformer{deployInformer.Informer()} {
-				go informer.Run(stopCh)
-			}
-			op.deploymentLister[testNS] = deployInformer.Lister()
-			informerFactory.Start(stopCh)
-			informerFactory.WaitForCacheSync(stopCh)
+			defer func() { stopCh <- struct{}{} }()
+			ready, _ := op.Run(stopCh)
+			<-ready
 
 			// Could not put this in initialObjs - got "no kind is registered for the type v1alpha2.OperatorGroup"
 			op.client.OperatorsV1alpha2().OperatorGroups(tc.inputGroup.Namespace).Create(&tc.inputGroup)
