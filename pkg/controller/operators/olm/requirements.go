@@ -30,11 +30,35 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		if err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			met = false
-		} else {
+			statuses = append(statuses, status)
+			continue
+		}
+
+		if crd.Spec.Version == r.Version {
 			status.Status = v1alpha1.RequirementStatusReasonPresent
 			status.UUID = string(crd.GetUID())
+			statuses = append(statuses, status)
+			continue
 		}
-		statuses = append(statuses, status)
+
+		served := false
+		for _, version := range crd.Spec.Versions {
+			if version.Name == r.Version {
+				if version.Served {
+					status.Status = v1alpha1.RequirementStatusReasonPresent
+					status.UUID = string(crd.GetUID())
+					statuses = append(statuses, status)
+					served = true
+				}
+				break
+			}
+		}
+
+		if !served {
+			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			met = false
+			statuses = append(statuses, status)
+		}
 	}
 
 	// Check for required API services
@@ -214,8 +238,6 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	if !ok {
 		return false, nil, fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
 	}
-
-	// Ensure permissions are valid
 
 	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions())
 

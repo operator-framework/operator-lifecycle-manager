@@ -410,7 +410,7 @@ func TestTransitionCSV(t *testing.T) {
 										{
 											Verbs:           []string{"*"},
 											Resources:       []string{"*"},
-											NonResourceURLs: []string{"osb"},
+											NonResourceURLs: []string{"/osb"},
 										},
 									},
 								},
@@ -422,6 +422,14 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1"),
+				},
+				objs: []runtime.Object{
+					&v1.ServiceAccount{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sa",
+							Namespace: namespace,
+						},
+					},
 				},
 			},
 			expected: expected{
