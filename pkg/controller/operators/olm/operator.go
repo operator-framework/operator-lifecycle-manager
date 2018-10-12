@@ -365,9 +365,7 @@ func (a *Operator) syncServices(obj interface{}) (syncError error) {
 }
 
 func namespacesChanged(clusterNamespaces []corev1.Namespace, statusNamespaces []corev1.Namespace) bool {
-	nsCount := len(clusterNamespaces)
-
-	if len(statusNamespaces) != nsCount {
+	if len(clusterNamespaces) != len(statusNamespaces) {
 		return true
 	}
 
@@ -399,11 +397,16 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 
 	if !namespacesChanged(namespaceList.Items, op.Status.Namespaces) {
 		// status is current with correct namespaces, so no further updates required
-		log.Debugf("No namespace changes detected, found: %v", namespaceList.Items)
 		return nil, namespaceList.Items
 	}
-	op.Status.Namespaces = namespaceList.Items
+	log.Debugf("Namespace change detected, found: %v", namespaceList.Items)
+	op.Status.Namespaces = make([]corev1.Namespace, len(namespaceList.Items))
+	copy(op.Status.Namespaces, namespaceList.Items)
 	op.Status.LastUpdated = timeNow()
+	_, err = a.client.OperatorsV1alpha2().OperatorGroups(op.Namespace).UpdateStatus(op)
+	if err != nil {
+		return err, namespaceList.Items
+	}
 
 	currentNamespace := op.GetNamespace()
 	csvsInNamespace := a.csvsInNamespace(currentNamespace)
@@ -468,9 +471,7 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 
 	// write above namespaces to watch in every deployment
 	for _, ns := range nsList {
-		//deploymentList, err := a.OpClient.KubernetesInterface().AppsV1().Deployments(ns).List(metav1.ListOptions{})
 		deploymentList, err := a.deploymentLister[ns].List(labels.Everything())
-		log.Debugf("JPEELER: looking at ns %v deployments:%v\n", ns, deploymentList)
 		if err != nil {
 			return err, namespaceList.Items
 		}
@@ -517,23 +518,35 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return err
 	}
 
-	for _, ns := range targetedNamespaces {
-		csvsInNamespace := a.csvsInNamespace(ns.Name)
-		for _, csv := range csvsInNamespace {
-			if csv.Status.Phase == v1alpha1.CSVPhaseSucceeded {
-				newCSV := csv.DeepCopy()
-				newCSV.Status = v1alpha1.ClusterServiceVersionStatus{
-					Message:        "CSV copied to target namespace",
-					Reason:         v1alpha1.CSVReasonCopied,
-					LastUpdateTime: timeNow(),
-				}
-				metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.originalCSV", fmt.Sprintf("%v/%v", csv.GetNamespace(), csv.GetName()))
-				ownerutil.AddNonBlockingOwner(newCSV, csv)
-				if newCSV.GetNamespace() != ns.Name {
-					_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(newCSV.GetNamespace()).Create(newCSV)
-					if err != nil {
-						return err
-					}
+	csvsInNamespace := a.csvsInNamespace(op.Namespace)
+	for _, csv := range csvsInNamespace {
+		// TODO: handle CSV copying in a different place
+		// if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
+		// 	log.Debugf("JPEELER: continuing on, skipping CSV %v\n", csv.Name)
+		// 	continue
+		// }
+
+		// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
+		newCSV := v1alpha1.ClusterServiceVersion{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: csv.Name,
+			},
+			Spec: *csv.Spec.DeepCopy(),
+			Status: v1alpha1.ClusterServiceVersionStatus{
+				Message:        "CSV copied to target namespace",
+				Reason:         v1alpha1.CSVReasonCopied,
+				LastUpdateTime: timeNow(),
+			},
+		}
+
+		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.originalCSV", fmt.Sprintf("%v/%v", csv.GetNamespace(), csv.GetName()))
+		ownerutil.AddNonBlockingOwner(&newCSV, csv)
+		for _, ns := range targetedNamespaces {
+			newCSV.SetNamespace(ns.Name)
+			if ns.Name != op.Namespace {
+				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(newCSV.GetNamespace()).Create(&newCSV)
+				if err != nil {
+					return err
 				}
 			}
 		}

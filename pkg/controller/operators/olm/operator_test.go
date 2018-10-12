@@ -1086,7 +1086,7 @@ func TestTransitionCSV(t *testing.T) {
 }
 
 func TestSyncOperatorGroups(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	//log.SetLevel(log.DebugLevel)
 
 	nowTime := metav1.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600))
 	timeNow = func() metav1.Time { return nowTime }
@@ -1120,7 +1120,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "operator-group-1",
 					Namespace: testNS,
-					Labels:    map[string]string{"app": "matchLabel"},
 				},
 				Spec: v1alpha2.OperatorGroupSpec{
 					Selector: metav1.LabelSelector{
@@ -1286,6 +1285,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 			op.deploymentLister[testNS] = deployInformer.Lister()
 			informerFactory.Start(stopCh)
 			informerFactory.WaitForCacheSync(stopCh)
+
+			// Could not put this in initialObjs - got "no kind is registered for the type v1alpha2.OperatorGroup"
+			op.client.OperatorsV1alpha2().OperatorGroups(tc.inputGroup.Namespace).Create(&tc.inputGroup)
 
 			err = op.syncOperatorGroups(&tc.inputGroup)
 			require.NoError(t, err)
