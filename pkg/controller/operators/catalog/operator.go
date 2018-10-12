@@ -106,7 +106,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncCatalogSources,
 		nil,
 		"catsrc",
-		metrics.NewMetricsCatalogSource(op.Operator.OpClient),
+		metrics.NewMetricsCatalogSource(op.client),
 	)
 	for _, informer := range catsrcQueueInformer {
 		op.RegisterQueueInformer(informer)
@@ -120,7 +120,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncInstallPlans,
 		nil,
 		"installplan",
-		metrics.NewMetricsInstallPlan(op.Operator.OpClient),
+		metrics.NewMetricsInstallPlan(op.client),
 	)
 	for _, informer := range ipQueueInformers {
 		op.RegisterQueueInformer(informer)
@@ -134,7 +134,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		op.syncSubscriptions,
 		nil,
 		"subscription",
-		metrics.NewMetricsSubscription(op.Operator.OpClient),
+		metrics.NewMetricsSubscription(op.client),
 	)
 	op.subQueue = subscriptionQueue
 	for _, informer := range subscriptionQueueInformers {
