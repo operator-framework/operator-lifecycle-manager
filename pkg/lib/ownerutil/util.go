@@ -56,6 +56,36 @@ func GetOwnersByKind(object metav1.Object, ownerKind string) []metav1.OwnerRefer
 	return orefs
 }
 
+// HasOwnerConflicts checks if the given list of OwnerReferences points to owners other than the target.
+// This function returns true if the list of OwnerReferences contains elements of the same kind as the target
+// but does not include the target OwnerReference itself. This function returns false if the list contains
+// the target, is empty, or has no elements of the same kind as the target.
+//
+// Note: This is imporant when determining if a Role, RoleBinding, ClusterRole, or ClusterRoleBinding
+// can be used to satisfy permissions of a CSV. If the CSVRuleChecker's CSV is not a member of the RBAC resource's
+// OwnerReferences, then we know the resource can be garbage collected by OLM independently of the CSVRuleChecker's
+// CSV
+func HasOwnerConflicts(target Owner, owners []metav1.OwnerReference) bool {
+	// Infer TypeMeta for the target
+	if err := InferGroupVersionKind(target); err != nil {
+		log.Warn(err.Error())
+	}
+
+	conflicts := false
+	for _, owner := range owners {
+		gvk := target.GetObjectKind().GroupVersionKind()
+		if owner.Kind == gvk.Kind {
+			if owner.Name == target.GetName() && owner.UID == target.GetUID() {
+				return false
+			}
+
+			conflicts = true
+		}
+	}
+
+	return conflicts
+}
+
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.
 func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	// Most of the time we won't have TypeMeta on the object, so we infer it for types we know about
