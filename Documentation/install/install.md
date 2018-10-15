@@ -11,7 +11,6 @@ kubectl create -f deploy/upstream/manifests/latest/
 ## Install the latest release version of OLM for okd
 
 ```bash
-oc create namespace operator-lifecycle-manager
 oc create -f deploy/okd/manifests/latest/
 ```
 
