@@ -89,7 +89,7 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	}
 
 	// TODO(Nick): return more descriptive errors and return individual status conditions
-	// for all owned APIServiceDescriptions, create all resources required and update
+	// for all owned APIServiceDescriptions, create all resources required, and update
 	// the matching DeploymentSpec's Volume and VolumeMounts
 	apiDescs := csv.GetOwnedAPIServiceDescriptions()
 	for _, desc := range apiDescs {
@@ -138,6 +138,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			Selector: depSpec.Selector.MatchLabels,
 		},
 	}
+
 	// TODO(Nick): ensure service name is a valid DNS name
 	// replace all '.'s with "-"s to convert to a DNS-1035 label
 	service.SetName(strings.Replace(apiServiceName, ".", "-", -1))
@@ -378,50 +379,67 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		depSpec.Template.Spec.Containers[i] = container
 	}
 
-	// create APIService with fresh CA bundle
-	caCertPEM, _, err := ca.ToPEM()
-	if err != nil {
-		logger.Debugf("unable to convert CA certificate to PEM format for APIService %s", apiServiceName)
-		return nil, err
-	}
-
-	apiService := &apiregistrationv1.APIService{
-		Spec: apiregistrationv1.APIServiceSpec{
-			Service: &apiregistrationv1.ServiceReference{
-				Namespace: service.GetNamespace(),
-				Name:      service.GetName(),
-			},
-			Group:    desc.Group,
-			Version:  desc.Version,
-			CABundle: caCertPEM,
-			// TODO(Nick): are hardcoded priorities okay?
-			GroupPriorityMinimum: int32(2000),
-			VersionPriority:      int32(15),
-		},
-	}
-	apiService.SetName(apiServiceName)
-	ownerutil.AddNonBlockingOwner(apiService, csv)
-
-	_, err = a.OpClient.CreateAPIService(apiService)
-	if k8serrors.IsAlreadyExists(err) {
-		// attempt a replace
-		deleteErr := a.OpClient.DeleteAPIService(apiService.GetName(), &metav1.DeleteOptions{})
-		if _, err := a.OpClient.CreateAPIService(apiService); err != nil || deleteErr != nil {
-			logger.Debugf("could not replace APIService %s", apiService.GetName())
-			return nil, err
-		}
-	} else if err != nil {
-		log.Debugf("could not create APIService %s", apiService.GetName())
-		return nil, err
-	}
-
-	// change depSpec.Template's name to force rollout
-	// ensures that fresh secret is used by apiserver if not hot reloading
+	// changing depSpec.Template's name to force a rollout
+	// ensures that the new secret is used by the apiserver if not hot reloading
 	podTemplateName := names.SimpleNameGenerator.GenerateName(apiServiceName)
 	if podTemplateName == depSpec.Template.GetName() {
 		return nil, fmt.Errorf("a name collision occured when generating name for PodTemplate")
 	}
 	depSpec.Template.SetName(podTemplateName)
+
+	exists := true
+	apiService, err := a.OpClient.GetAPIService(apiServiceName)
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return nil, err
+		}
+
+		exists = false
+		apiService = &apiregistrationv1.APIService{
+			Spec: apiregistrationv1.APIServiceSpec{
+				Group:                desc.Group,
+				Version:              desc.Version,
+				GroupPriorityMinimum: int32(2000),
+				VersionPriority:      int32(15),
+			},
+		}
+		apiService.SetName(apiServiceName)
+	} else {
+		// check if the APIService is adoptable
+		if !ownerutil.Adoptable(csv, apiService.GetOwnerReferences()) {
+			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
+		}
+	}
+
+	// Add the CSV as an owner
+	ownerutil.AddNonBlockingOwner(apiService, csv)
+
+	// update the ServiceReference
+	apiService.Spec.Service = &apiregistrationv1.ServiceReference{
+		Namespace: service.GetNamespace(),
+		Name:      service.GetName(),
+	}
+
+	// create a fresh CA bundle
+	caCertPEM, _, err := ca.ToPEM()
+	if err != nil {
+		logger.Debugf("unable to convert CA certificate to PEM format for APIService %s", apiServiceName)
+		return nil, err
+	}
+	apiService.Spec.CABundle = caCertPEM
+
+	// attempt a update or create
+	if exists {
+		_, err = a.OpClient.UpdateAPIService(apiService)
+
+	} else {
+		_, err = a.OpClient.CreateAPIService(apiService)
+	}
+
+	if err != nil {
+		log.Debugf("could not create or update APIService %s", apiServiceName)
+		return nil, err
+	}
 
 	return &depSpec, nil
 }

@@ -81,7 +81,7 @@ func (c *CSVRuleChecker) GetRole(namespace, name string) (*rbacv1.Role, error) {
 	}
 
 	// check if the Role has an OwnerConflict with the client's CSV
-	if role != nil && ownerutil.HasOwnerConflicts(c.csv, role.GetOwnerReferences()) {
+	if role != nil && ownerutil.HasOwnerConflict(c.csv, role.GetOwnerReferences()) {
 		return &rbacv1.Role{}, nil
 	}
 
@@ -98,7 +98,7 @@ func (c *CSVRuleChecker) ListRoleBindings(namespace string) ([]*rbacv1.RoleBindi
 	// filter based on OwnerReferences
 	var filtered []*rbacv1.RoleBinding
 	for _, rb := range rbList {
-		if !ownerutil.HasOwnerConflicts(c.csv, rb.GetOwnerReferences()) {
+		if !ownerutil.HasOwnerConflict(c.csv, rb.GetOwnerReferences()) {
 			filtered = append(filtered, rb)
 		}
 	}
@@ -114,7 +114,7 @@ func (c *CSVRuleChecker) GetClusterRole(name string) (*rbacv1.ClusterRole, error
 	}
 
 	// check if the ClusterRole has an OwnerConflict with the client's CSV
-	if clusterRole != nil && ownerutil.HasOwnerConflicts(c.csv, clusterRole.GetOwnerReferences()) {
+	if clusterRole != nil && ownerutil.HasOwnerConflict(c.csv, clusterRole.GetOwnerReferences()) {
 		return &rbacv1.ClusterRole{}, nil
 	}
 
@@ -131,7 +131,7 @@ func (c *CSVRuleChecker) ListClusterRoleBindings() ([]*rbacv1.ClusterRoleBinding
 	// filter based on OwnerReferences
 	var filtered []*rbacv1.ClusterRoleBinding
 	for _, crb := range crbList {
-		if !ownerutil.HasOwnerConflicts(c.csv, crb.GetOwnerReferences()) {
+		if !ownerutil.HasOwnerConflict(c.csv, crb.GetOwnerReferences()) {
 			filtered = append(filtered, crb)
 		}
 	}

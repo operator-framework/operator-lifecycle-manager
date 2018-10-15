@@ -56,16 +56,16 @@ func GetOwnersByKind(object metav1.Object, ownerKind string) []metav1.OwnerRefer
 	return orefs
 }
 
-// HasOwnerConflicts checks if the given list of OwnerReferences points to owners other than the target.
-// This function returns true if the list of OwnerReferences contains elements of the same kind as the target
-// but does not include the target OwnerReference itself. This function returns false if the list contains
-// the target, is empty, or has no elements of the same kind as the target.
+// HasOwnerConflict checks if the given list of OwnerReferences points to owners other than the target.
+// This function returns true if the list of OwnerReferences is empty or contains elements of the same kind as
+// the target but does not include the target OwnerReference itself. This function returns false if the list contains
+// the target, or has no elements of the same kind as the target.
 //
 // Note: This is imporant when determining if a Role, RoleBinding, ClusterRole, or ClusterRoleBinding
-// can be used to satisfy permissions of a CSV. If the CSVRuleChecker's CSV is not a member of the RBAC resource's
-// OwnerReferences, then we know the resource can be garbage collected by OLM independently of the CSVRuleChecker's
+// can be used to satisfy permissions of a CSV. If the target CSV is not a member of the RBAC resource's
+// OwnerReferences, then we know the resource can be garbage collected by OLM independently of the target
 // CSV
-func HasOwnerConflicts(target Owner, owners []metav1.OwnerReference) bool {
+func HasOwnerConflict(target Owner, owners []metav1.OwnerReference) bool {
 	// Infer TypeMeta for the target
 	if err := InferGroupVersionKind(target); err != nil {
 		log.Warn(err.Error())
@@ -74,7 +74,7 @@ func HasOwnerConflicts(target Owner, owners []metav1.OwnerReference) bool {
 	conflicts := false
 	for _, owner := range owners {
 		gvk := target.GetObjectKind().GroupVersionKind()
-		if owner.Kind == gvk.Kind {
+		if owner.Kind == gvk.Kind && owner.APIVersion == gvk.Version {
 			if owner.Name == target.GetName() && owner.UID == target.GetUID() {
 				return false
 			}
@@ -84,6 +84,30 @@ func HasOwnerConflicts(target Owner, owners []metav1.OwnerReference) bool {
 	}
 
 	return conflicts
+}
+
+// Adoptable checks whether a resource with the given set of OwnerReferences is "adoptable" by
+// the target OwnerReference. This function returns true if there exists an element in owners
+// referencing the same kind target does, otherwise it returns false.
+func Adoptable(target Owner, owners []metav1.OwnerReference) bool {
+	if len(owners) == 0 {
+		// Resources with no owners are not adoptable
+		return false
+	}
+
+	// Infer TypeMeta for the target
+	if err := InferGroupVersionKind(target); err != nil {
+		log.Warn(err.Error())
+	}
+
+	for _, owner := range owners {
+		gvk := target.GetObjectKind().GroupVersionKind()
+		if owner.Kind == gvk.Kind {
+			return true
+		}
+	}
+
+	return false
 }
 
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.

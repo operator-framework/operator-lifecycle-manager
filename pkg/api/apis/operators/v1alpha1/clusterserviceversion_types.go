@@ -256,6 +256,13 @@ type RequirementStatus struct {
 	Dependents []DependentStatus `json:"dependents,omitempty"`
 }
 
+type CertExpiration struct {
+	APIServiceGroup   string `json:"apiServiceName"`
+	APIServiceVersion string ``
+	// Time when the APIService cert expires
+	ValidUntil metav1.Time `json:"validUntil"`
+}
+
 // ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual
 // state of a system.
 type ClusterServiceVersionStatus struct {
@@ -278,6 +285,9 @@ type ClusterServiceVersionStatus struct {
 	Conditions []ClusterServiceVersionCondition `json:"conditions,omitempty"`
 	// The status of each requirement for this CSV
 	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
+	// Cert expiration dates for owned APIServices
+	// +optional
+	CertExpirations []CertExpiration `json:"certExpirations,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
