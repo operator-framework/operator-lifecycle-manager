@@ -97,6 +97,7 @@ container: build
 
 clean:
 	rm -rf bin
+	rm -rf test/e2e/resources
 	rm -rf test/e2e/test-resources
 	rm -rf test/e2e/log
 
