@@ -111,7 +111,9 @@ spec:
         {{- end }}
         - --global-namespace
         - {{ .Values.namespace }}
+        {{- if .Values.debug }}
         - --debug
+        {{- end }}
         {{- if .Values.package.commandArgs }}
         - {{ .Values.package.commandArgs }}
         {{- end }}

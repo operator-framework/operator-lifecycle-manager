@@ -29,6 +29,9 @@ spec:
           {{- if .Values.olm.commandArgs }}
           - {{ .Values.olm.commandArgs }}
           {{- end }}
+          {{- if .Values.debug }}
+          - -debug
+          {{- end }}
           image: {{ .Values.olm.image.ref }}
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:

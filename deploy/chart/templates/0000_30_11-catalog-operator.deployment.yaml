@@ -28,7 +28,9 @@ spec:
           {{- end }}
           - '-namespace'
           - {{ .Values.catalog_namespace }}
+          {{- if .Values.debug }}
           - '-debug'
+          {{- end }}
           {{- if .Values.catalog.commandArgs }}
           - {{ .Values.catalog.commandArgs }}
           {{- end }}
