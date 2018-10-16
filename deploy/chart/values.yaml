@@ -24,7 +24,7 @@ package:
     ref: quay.io/coreos/olm:master
     pullPolicy: Always
   service:
-    internalPort: 443
+    internalPort: 5443
 
 catalog_sources:
  - rh-operators
