@@ -22,13 +22,13 @@ import (
 )
 
 const (
-	// Minimum number of seconds that a min-fresh value can be
+	// CertMinFreshSecondsThreshold is the minimum number of seconds that a min-fresh value can be
 	CertMinFreshSecondsThreshold = 10
-	// Default min-fresh value
+	// DefaultCertMinFreshSeconds is the default min-fresh value
 	DefaultCertMinFreshSeconds = 300
-	// Minimum number of days that a cert can be valid for
+	// CertValidForDaysThreshold is the minimum number of days that a cert can be valid for
 	CertValidForDaysThreshold = 1
-	// Default number of days a cert can be valid for
+	// DefaultCertValidForDays is the default number of days a cert can be valid for
 	DefaultCertValidForDays = 730
 )
 
@@ -45,6 +45,15 @@ func (a *Operator) syncAPIServices(obj interface{}) (syncError error) {
 	}
 
 	return nil
+}
+
+func (a *Operator) shouldRefreshCerts(csv *v1alpha1.ClusterServiceVersion) bool {
+	now := metav1.Now()
+	if !csv.Status.CertRefresh.IsZero() && csv.Status.CertRefresh.Before(&now) {
+		return true
+	}
+
+	return false
 }
 
 func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {

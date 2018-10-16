@@ -201,6 +201,7 @@ const (
 	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"
 	CSVReasonBeingReplaced       ConditionReason = "BeingReplaced"
 	CSVReasonReplaced            ConditionReason = "Replaced"
+	CSVReasonNeedCertRefresh     ConditionReason = "NeedCertRefresh"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
@@ -288,7 +289,7 @@ type ClusterServiceVersionStatus struct {
 	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
 	// Time to refresh generated owned APIService certs
 	// +optional
-	CertRefresh metav1.Time `json:"requirementStatus,omitempty"`
+	CertRefresh metav1.Time `json:"certRefresh,omitempty"`
 }
 
 // ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.

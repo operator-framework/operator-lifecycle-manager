@@ -43,6 +43,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				nil,
 				v1alpha1.CSVPhasePending,
+				0,
+				0,
 			),
 			existingObjs:                nil,
 			existingExtObjs:             nil,
@@ -84,6 +86,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				nil,
 				v1alpha1.CSVPhasePending,
+				0,
+				0,
 			),
 			existingObjs: []runtime.Object{
 				&corev1.ServiceAccount{
@@ -214,6 +218,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				nil,
 				v1alpha1.CSVPhasePending,
+				0,
+				0,
 			),
 			existingObjs: []runtime.Object{
 				&corev1.ServiceAccount{
@@ -334,6 +340,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 				[]*v1beta1.CustomResourceDefinition{crd("c2", "v1")},
 				v1alpha1.CSVPhasePending,
+				0,
+				0,
 			),
 			existingObjs: []runtime.Object{
 				&corev1.ServiceAccount{
@@ -436,6 +444,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
 				nil,
 				v1alpha1.CSVPhasePending,
+				0,
+				0,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{

@@ -335,7 +335,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		logger.Info("scheduling ClusterServiceVersion for install")
 		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install", a.recorder)
 	case v1alpha1.CSVPhaseInstallReady:
-
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			// parseStrategiesAndUpdateStatus sets CSV status
@@ -373,8 +372,15 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
+
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("unhealthy component: %s", installErr)
+		}
+
+		// Check if it's time to refresh owned APIService certs
+		if a.shouldRefreshCerts(out) {
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonInstallSuccessful, "owned APIServices need cert refresh")
+			return
 		}
 	case v1alpha1.CSVPhaseReplacing:
 		// determine CSVs that are safe to delete by finding a replacement chain to a CSV that's running
