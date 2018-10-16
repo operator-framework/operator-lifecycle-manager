@@ -27,13 +27,38 @@ spec:
             path: tokens
             x-descriptors:
               - 'urn:alm:descriptor:io.kubernetes:core:v1:Secret'
-          - description: >-
-              'Location of the Dynatrace API to connect to, including your
-              specific environment ID'
+          - description: Location of the Dynatrace API to connect to, including your specific environment ID.
             displayName: API URL
             path: apiUrl
             x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:label'
+          - description: Specifies if certificate checks should be skipped.
+            displayName: Skip Certificate Check
+            path: skipCertCheck
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:booleanCheck'
+          - description: Node selector for where pods should be scheduled.
+            displayName: Node Selector
+            path: nodeSelector
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:selector:core:v1:Node'
+          - description: The Dynatrace installer container image.
+            displayName: Image
+            path: image
+          - description: Define resources requests and limits for single Pods
+            displayName: Resource Requirements
+            path: resources
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+        statusDescriptors: 
+          - description: Dynatrace version being used.
+            displayName: Version
+            path: version
+          - description: The timestamp when the instance was last updated.
+            displayName: Last Updated
+            path: updatedTimestamp
+            x-descriptors:
+              - 'urn:alm:descriptor:timestamp'
         version: v1alpha1
   keywords:
     - monitoring
