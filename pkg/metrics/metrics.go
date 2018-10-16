@@ -1,8 +1,7 @@
 package metrics
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -12,15 +11,15 @@ type MetricsProvider interface {
 }
 
 type metricsCSV struct {
-	opClient operatorclient.ClientInterface
+	client versioned.Interface
 }
 
-func NewMetricsCSV(opClient operatorclient.ClientInterface) MetricsProvider {
-	return &metricsCSV{opClient}
+func NewMetricsCSV(client versioned.Interface) MetricsProvider {
+	return &metricsCSV{client}
 }
 
 func (m *metricsCSV) HandleMetrics() error {
-	cList, err := m.opClient.ListCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, metav1.NamespaceAll, v1alpha1.ClusterServiceVersionKind)
+	cList, err := m.client.OperatorsV1alpha1().ClusterServiceVersions(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -29,15 +28,15 @@ func (m *metricsCSV) HandleMetrics() error {
 }
 
 type metricsInstallPlan struct {
-	opClient operatorclient.ClientInterface
+	client versioned.Interface
 }
 
-func NewMetricsInstallPlan(opClient operatorclient.ClientInterface) MetricsProvider {
-	return &metricsInstallPlan{opClient}
+func NewMetricsInstallPlan(client versioned.Interface) MetricsProvider {
+	return &metricsInstallPlan{client}
 }
 
 func (m *metricsInstallPlan) HandleMetrics() error {
-	cList, err := m.opClient.ListCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, metav1.NamespaceAll, v1alpha1.InstallPlanKind)
+	cList, err := m.client.OperatorsV1alpha1().InstallPlans(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -46,15 +45,15 @@ func (m *metricsInstallPlan) HandleMetrics() error {
 }
 
 type metricsSubscription struct {
-	opClient operatorclient.ClientInterface
+	client versioned.Interface
 }
 
-func NewMetricsSubscription(opClient operatorclient.ClientInterface) MetricsProvider {
-	return &metricsSubscription{opClient}
+func NewMetricsSubscription(client versioned.Interface) MetricsProvider {
+	return &metricsSubscription{client}
 }
 
 func (m *metricsSubscription) HandleMetrics() error {
-	cList, err := m.opClient.ListCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, metav1.NamespaceAll, v1alpha1.SubscriptionKind)
+	cList, err := m.client.OperatorsV1alpha1().Subscriptions(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -63,16 +62,16 @@ func (m *metricsSubscription) HandleMetrics() error {
 }
 
 type metricsCatalogSource struct {
-	opClient operatorclient.ClientInterface
+	client versioned.Interface
 }
 
-func NewMetricsCatalogSource(opClient operatorclient.ClientInterface) MetricsProvider {
-	return &metricsCatalogSource{opClient}
+func NewMetricsCatalogSource(client versioned.Interface) MetricsProvider {
+	return &metricsCatalogSource{client}
 
 }
 
 func (m *metricsCatalogSource) HandleMetrics() error {
-	cList, err := m.opClient.ListCustomResource(v1alpha1.GroupName, v1alpha1.GroupVersion, metav1.NamespaceAll, v1alpha1.CatalogSourceKind)
+	cList, err := m.client.OperatorsV1alpha1().CatalogSources(metav1.NamespaceAll).List(metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

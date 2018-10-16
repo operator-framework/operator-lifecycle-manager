@@ -153,7 +153,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.syncClusterServiceVersion,
 		nil,
 		"csv",
-		metrics.NewMetricsCSV(op.Operator.OpClient),
+		metrics.NewMetricsCSV(op.client),
 	)
 	for _, informer := range queueInformers {
 		op.RegisterQueueInformer(informer)
