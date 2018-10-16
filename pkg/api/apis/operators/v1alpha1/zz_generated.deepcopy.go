@@ -478,6 +478,7 @@ func (in *ClusterServiceVersionStatus) DeepCopyInto(out *ClusterServiceVersionSt
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	in.CertRefresh.DeepCopyInto(&out.CertRefresh)
 	return
 }
 

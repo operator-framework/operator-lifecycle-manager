@@ -3,6 +3,7 @@ package olm
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,6 +19,17 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+)
+
+const (
+	// Minimum number of seconds that a min-fresh value can be
+	CertMinFreshSecondsThreshold = 10
+	// Default min-fresh value
+	DefaultCertMinFreshSeconds = 300
+	// Minimum number of days that a cert can be valid for
+	CertValidForDaysThreshold = 1
+	// Default number of days a cert can be valid for
+	DefaultCertValidForDays = 730
 )
 
 func (a *Operator) syncAPIServices(obj interface{}) (syncError error) {
@@ -70,18 +82,38 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 		"namespace": csv.GetNamespace(),
 	})
 
-	// generate ca
-	ca, err := certs.GenerateCA()
-	if err != nil {
-		logger.Debug("failed to generate CA")
-		return nil, err
-	}
-
 	// Assume the strategy is for a deployment
 	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
 	if !ok {
 		return nil, fmt.Errorf("unsupported InstallStrategy type")
 	}
+
+	// Return early if there are no owned APIServices
+	if len(csv.Spec.APIServiceDefinitions.Owned) == 0 {
+		return strategyDetailsDeployment, nil
+	}
+
+	certValidForDays := DefaultCertValidForDays
+	if csv.Spec.CertValidForDays >= CertValidForDaysThreshold {
+		certValidForDays = csv.Spec.CertValidForDays
+	}
+
+	certMinFreshSeconds := DefaultCertMinFreshSeconds
+	if csv.Spec.CertMinFreshSeconds >= DefaultCertMinFreshSeconds {
+		certMinFreshSeconds = csv.Spec.CertMinFreshSeconds
+	}
+
+	if certMinFreshSeconds/86400 >= certValidForDays {
+		return nil, fmt.Errorf("min-fresh value greater than or equal to cert valid-for")
+	}
+
+	// Create the CA
+	ca, expiration, err := certs.GenerateCA(certValidForDays)
+	if err != nil {
+		logger.Debug("failed to generate CA")
+		return nil, err
+	}
+	certRefresh := metav1.NewTime(expiration.Add(time.Duration(-1*certMinFreshSeconds) * time.Second))
 
 	depSpecs := make(map[string]appsv1.DeploymentSpec)
 	for _, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
@@ -97,7 +129,8 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 		if !ok {
 			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIService %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
 		}
-		newDepSpec, err := a.installAPIServiceRequirements(desc, ca, depSpec, csv)
+
+		newDepSpec, err := a.installAPIServiceRequirements(desc, ca, certValidForDays, depSpec, csv)
 		if err != nil {
 			return nil, err
 		}
@@ -111,10 +144,13 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 		}
 	}
 
+	// Set the cert refresh
+	csv.Status.CertRefresh = certRefresh
+
 	return strategyDetailsDeployment, nil
 }
 
-func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
+func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, certValidForDays int, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 	logger := log.WithFields(log.Fields{
 		"csv":        csv.GetName(),
@@ -163,7 +199,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		fmt.Sprintf("%s.%s", service.GetName(), csv.GetNamespace()),
 		fmt.Sprintf("%s.%s.svc", service.GetName(), csv.GetNamespace()),
 	}
-	servingPair, err := certs.CreateSignedServingPair(ca, hosts)
+	servingPair, err := certs.CreateSignedServingPair(certValidForDays, ca, hosts)
 	if err != nil {
 		log.Printf("could not generate signed certs for hosts %v", hosts)
 		return nil, err

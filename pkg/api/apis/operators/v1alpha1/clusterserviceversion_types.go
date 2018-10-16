@@ -135,6 +135,14 @@ type ClusterServiceVersionSpec struct {
 	// Label selector for related resources.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,2,opt,name=selector"`
+
+	// Number of days generated owned APIService certs are valid for
+	// +optional
+	CertValidForDays int `json:"certValidFor,omitempty"`
+
+	// Minimum freshness of a cert before it is renewed; in seconds
+	// +optional
+	CertMinFreshSeconds int `json:"certMinFresh,omitempty"`
 }
 
 type Maintainer struct {
@@ -225,7 +233,7 @@ func (csv ClusterServiceVersion) OwnsCRD(name string) bool {
 	return false
 }
 
-// ConditionReason is a camelcased reason for the status of a RequirementStatus or DependentStatus
+// StatusReason is a camelcased reason for the status of a RequirementStatus or DependentStatus
 type StatusReason string
 
 const (
@@ -256,13 +264,6 @@ type RequirementStatus struct {
 	Dependents []DependentStatus `json:"dependents,omitempty"`
 }
 
-type CertExpiration struct {
-	APIServiceGroup   string `json:"apiServiceName"`
-	APIServiceVersion string ``
-	// Time when the APIService cert expires
-	ValidUntil metav1.Time `json:"validUntil"`
-}
-
 // ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual
 // state of a system.
 type ClusterServiceVersionStatus struct {
@@ -285,14 +286,14 @@ type ClusterServiceVersionStatus struct {
 	Conditions []ClusterServiceVersionCondition `json:"conditions,omitempty"`
 	// The status of each requirement for this CSV
 	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
-	// Cert expiration dates for owned APIServices
+	// Time to refresh generated owned APIService certs
 	// +optional
-	CertExpirations []CertExpiration `json:"certExpirations,omitempty"`
+	CertRefresh metav1.Time `json:"requirementStatus,omitempty"`
 }
 
+// ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
-// ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.
 type ClusterServiceVersion struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
