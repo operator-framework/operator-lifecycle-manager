@@ -93,7 +93,8 @@ type CSVDescription struct {
 	Version semver.Version `json:"version,omitempty"`
 
 	// Provider is the CSV's provider
-	Provider AppLink `json:"provider,omitempty"`
+	Provider    AppLink           `json:"provider,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // AppLink defines a link to an application
