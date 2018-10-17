@@ -90,7 +90,7 @@ func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 		WatchedNamespaces: []string{v1.NamespaceAll},
 		WakeupInterval:    5 * time.Minute,
 
-		DisableAuthForTesting: true,
+		DisableAuthForTesting: false,
 		Debug:                 false,
 
 		StdOut: out,
