@@ -10,7 +10,7 @@ spec:
   customresourcedefinitions:
     owned:
       - description: Manages Couchbase clusters
-        displayName: Couchbase Operator
+        displayName: Couchbase Cluster
         kind: CouchbaseCluster
         name: couchbaseclusters.couchbase.com
         resources:
@@ -26,6 +26,62 @@ spec:
             path: authSecret
             x-descriptors:
               - 'urn:alm:descriptor:io.kubernetes:Secret'
+          - description: The name of the secret object that stores the server's TLS certificate.
+            displayName: Server TLS Secret
+            path: tls.static.member.serverSecret
+            x-descriptors:
+              - 'urn:alm:descriptor:io.kubernetes:Secret'
+          - description: The name of the secret object that stores the Operator's TLS certificate.
+            displayName: Operator TLS Secret
+            path: tls.static.operatorSecret
+            x-descriptors:
+              - 'urn:alm:descriptor:io.kubernetes:Secret'
+          - description: Specifies if the Operator will manage this cluster.
+            displayName: Paused
+            path: paused
+            value: false
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:booleanSwitch'
+          - description: Specifies if the Couchbase Server Web Console will be exposed externally.
+            displayName: Expose Console
+            path: exposeAdminConsole
+            value: false
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:booleanSwitch'
+          - description: Specifies whether or not two pods in this cluster can be deployed on the same Kubernetes node.
+            displayName: Anti Affinity
+            path: antiAffinity
+            value: false
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:booleanSwitch'
+          - description: Specifies if update notifications will be displayed in the Couchbase UI.
+            displayName: Show Update Notifications
+            path: softwareUpdateNotifications
+            value: false
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:booleanSwitch'
+          - description: Specifies if the Operator will create or delete buckets.
+            displayName: Disable Bucket Management
+            path: disableBucketManagement
+            value: false
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:booleanSwitch'
+          - description: The desired number of member Pods for the Couchbase cluster.
+            displayName: Size
+            path: servers[0].size
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+          - description: The maximum number of failover events tolerated before manual intervention is required.
+            displayName: Auto Failover Max Count
+            path: cluster.autoFailoverMaxCount
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:slider'
+              - 'urn:alm:descriptor:com.tectonic.ui:sliderStart:1'
+          - description: Limits describes the minimum/maximum amount of compute resources required/allowed.
+            displayName: Resource Requirements
+            path: servers[0].pod.resources
+            x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
         statusDescriptors:
           - description: The desired number of member Pods for the deployment.
             displayName: Size
@@ -46,20 +102,29 @@ spec:
             displayName: Member Status
             path: members
             x-descriptors:
+              # FIXME: Format doesn't match with what the OpenShift console's donut chart expects
               - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
           - description: The current version of the Couchbase cluster.
             displayName: Current Version
             path: currentVersion
-          - description: >-
-              The port the Couchbase Admin Console can be accessed on from any
-              node in the OpenShift cluster.
+          - description: The cluster identifier as provided by the Couchbase cluster.
+            displayName: Cluster ID
+            path: clusterID
+          - description: Specifies if the Operator is currently managing this cluster.
+            displayName: Control Paused
+            path: controlPaused
+          - description: The port that the web console can be accessed on from any node in the Kubernetes cluster.
             displayName: Admin Console Port
             path: adminConsolePort
-          - description: >-
-              The SSL port the Couchbase Admin Console can be accessed on from
-              any node in the OpenShift cluster.
+          - description: The SSL port that the web console can be accessed on from any node in the Kubernetes cluster.
             displayName: SSL Admin Console Port
             path: adminConsolePortSSL
+          - description: Conditions for the cluster
+            displayName: Conditions
+            path: conditions
+            x-descriptors:
+              # FIXME: Format doesn't match with normal Kubernetes conditions (map vs array)
+              - 'urn:alm:descriptor:io.kubernetes.conditions'
         version: v1
   keywords:
     - couchbase

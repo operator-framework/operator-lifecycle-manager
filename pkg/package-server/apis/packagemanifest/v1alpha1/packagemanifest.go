@@ -11,6 +11,7 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 			Name: csv.Spec.Provider.Name,
 			URL:  csv.Spec.Provider.URL,
 		},
+		Annotations: csv.GetAnnotations(),
 	}
 
 	icons := make([]Icon, len(csv.Spec.Icon))
