@@ -24,7 +24,7 @@ COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-man
 USER 1001
 
 EXPOSE 8080
-EXPOSE 443
+EXPOSE 5443
 
 # Apply labels as needed. ART build automation fills in others required for
 # shipping, including component NVR (name-version-release) and image name. OSBS
