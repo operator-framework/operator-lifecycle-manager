@@ -112,7 +112,9 @@ spec:
         - --secure-port={{ .Values.package.service.internalPort }}
         - --global-namespace
         - {{ .Values.namespace }}
+        {{- if .Values.debug }}
         - --debug
+        {{- end }}
         {{- if .Values.package.commandArgs }}
         - {{ .Values.package.commandArgs }}
         {{- end }}
