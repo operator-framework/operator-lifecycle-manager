@@ -31,6 +31,9 @@ You can verify that the OLM components have been successfully deployed by runnin
 ## Run locally with minishift
 
 This command starts minishift, builds the OLM containers locally with the minishift-provided docker, and uses the local configuration in [local-values-shift.yaml](local-values-shift.yaml) to build localized deployment resources for OLM.
+
+Note that this step requires the `helm` binary, which doesn't come with minishift by default, to be present in your PATH. It can be downloaded from the [helm releases page](https://github.com/helm/helm/releases)
+
 ```
 make run-local-shift
 ```
