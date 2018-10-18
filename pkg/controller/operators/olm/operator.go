@@ -86,11 +86,6 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.RegisterQueueInformer(queueInformer)
 	}
 
-	// annotate namespaces that ALM operator manages
-	if err := namespaceAnnotator.AnnotateNamespaces(namespaces); err != nil {
-		return nil, err
-	}
-
 	// set up RBAC informers
 	informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
 	roleInformer := informerFactory.Rbac().V1().Roles()

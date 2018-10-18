@@ -816,7 +816,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 						Version:        "v1alpha1",
 						Kind:           "PackageManifest",
 						DeploymentName: depName,
-						ContainerPort:  int32(443),
+						ContainerPort:  int32(5443),
 						DisplayName:    "Package Manifest",
 						Description:    "An apiservice that exists",
 					},

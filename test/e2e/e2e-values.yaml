@@ -24,7 +24,7 @@ package:
     ref: quay.io/coreos/olm:local
     pullPolicy: IfNotPresent
   service:
-    internalPort: 443
+    internalPort: 5443
   commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
 
 e2e:
