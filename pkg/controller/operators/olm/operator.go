@@ -468,6 +468,7 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 	for ix := range namespaceList.Items {
 		nsList = append(nsList, namespaceList.Items[ix].Name)
 	}
+	nsListJoined := strings.Join(nsList, ",")
 
 	// write above namespaces to watch in every deployment
 	for _, ns := range nsList {
@@ -477,12 +478,17 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 		}
 
 		for _, deploy := range deploymentList {
+			if lastAnnotation, ok := deploy.Spec.Template.Annotations["olm.targetNamespaces"]; ok {
+				if lastAnnotation == nsListJoined {
+					continue
+				}
+			}
 			originalData, err := json.Marshal(deploy)
 			if err != nil {
 				return err, namespaceList.Items
 			}
 
-			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
+			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", nsListJoined)
 			log.Debugf("Wrote annotation '%v' on %v. Check: %#v\n", nsList, deploy.Name, deploy)
 
 			modifiedData, err := json.Marshal(deploy)
@@ -517,12 +523,16 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	if err != nil {
 		return err
 	}
+	var nsList []string
+	for ix := range targetedNamespaces {
+		nsList = append(nsList, targetedNamespaces[ix].Name)
+	}
 
 	csvsInNamespace := a.csvsInNamespace(op.Namespace)
 	for _, csv := range csvsInNamespace {
 		// TODO: handle CSV copying in a different place
 		// if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
-		// 	log.Debugf("JPEELER: continuing on, skipping CSV %v\n", csv.Name)
+		// 	log.Debugf("continuing on, skipping CSV %v\n", csv.Name)
 		// 	continue
 		// }
 
@@ -540,6 +550,10 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		}
 
 		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.originalCSV", fmt.Sprintf("%v/%v", csv.GetNamespace(), csv.GetName()))
+		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
+		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorNamespace", a.annotator.Annotations["ALMManagedAnnotationKey"])
+		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorGroup", fmt.Sprintf("%v/%v", op.GetNamespace(), op.GetName()))
+
 		ownerutil.AddNonBlockingOwner(&newCSV, csv)
 		for _, ns := range targetedNamespaces {
 			newCSV.SetNamespace(ns.Name)
