@@ -180,17 +180,7 @@ spec:
                           values:
                             type: array
                             description: set of values for the expression
-            certValidForDays:
-              type: integer
-              description: Number of days generated APIService certs are valid for
-              format: int32
-              minimum: 1
-              maximum: 730
-            certMinFreshSeconds:
-              type: integer
-              description: Minimum freshness of a cert before it is renewed; in seconds
-              format: int32
-              minimum: 10
+                            
             apiservicedefinitions:
               type: object
               properties:

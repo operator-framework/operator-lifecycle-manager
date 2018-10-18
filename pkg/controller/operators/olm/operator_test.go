@@ -212,7 +212,7 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 	}
 }
 
-func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstallStrategy, owned, required []*v1beta1.CustomResourceDefinition, phase v1alpha1.ClusterServiceVersionPhase, certValidForDays, certMinFreshSeconds int) *v1alpha1.ClusterServiceVersion {
+func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstallStrategy, owned, required []*v1beta1.CustomResourceDefinition, phase v1alpha1.ClusterServiceVersionPhase) *v1alpha1.ClusterServiceVersion {
 	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, crd := range required {
 		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.Spec.Names.Kind})
@@ -239,8 +239,6 @@ func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstall
 				Owned:    ownedCRDDescs,
 				Required: requiredCRDDescs,
 			},
-			CertValidForDays:    certValidForDays,
-			CertMinFreshSeconds: certMinFreshSeconds,
 		},
 		Status: v1alpha1.ClusterServiceVersionStatus{
 			Phase: phase,
@@ -248,8 +246,9 @@ func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstall
 	}
 }
 
-func withCertRefresh(csv *v1alpha1.ClusterServiceVersion, certRefresh metav1.Time) *v1alpha1.ClusterServiceVersion {
-	csv.Status.CertRefresh = certRefresh
+func withCertInfo(csv *v1alpha1.ClusterServiceVersion, rotateAt metav1.Time, lastUpdated metav1.Time) *v1alpha1.ClusterServiceVersion {
+	csv.Status.CertsRotateAt = rotateAt
+	csv.Status.CertsLastUpdated = lastUpdated
 	return csv
 }
 
@@ -349,8 +348,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseNone,
-						0,
-						0,
 					),
 				},
 			},
@@ -371,8 +368,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseNone,
-						0,
-						0,
 					), nil, apis("a1.v1.a1Kind")),
 				},
 			},
@@ -393,8 +388,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -431,8 +424,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -464,8 +455,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{},
@@ -490,8 +479,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					), nil, apis("a1.v1.a1Kind")),
 				},
 			},
@@ -515,8 +502,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					), nil, apis("a1.v1.a1Kind")),
 				},
 				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionFalse)},
@@ -541,8 +526,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					), nil, apis("a1.v1.a1Kind")),
 				},
 				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionUnknown)},
@@ -567,8 +550,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					), apis("a1.v1.a1Kind"), nil),
 				},
 				crds: []runtime.Object{
@@ -595,8 +576,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 					csv("csv2",
 						namespace,
@@ -605,8 +584,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -637,8 +614,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -662,8 +637,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-						0,
-						0,
 					), nil, apis("a1.v1.a1Kind")),
 				},
 				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionTrue)},
@@ -685,8 +658,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -710,8 +681,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
-						0,
-						0,
 					), apis("a1.v1.a1Kind"), nil),
 				},
 				crds: []runtime.Object{
@@ -725,47 +694,17 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVInstallingToFailed/APIService/Owned/BadMinFresh",
+			name: "SingleCSVSucceededToPending/APIService/Owned/CertRotation",
 			initial: initial{
 				csvs: []runtime.Object{
-					withAPIServices(csv("csv1",
-						namespace,
-						"",
-						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
-						[]*v1beta1.CustomResourceDefinition{},
-						v1alpha1.CSVPhaseInstallReady,
-						1,
-						86400,
-					), apis("a1.v1.a1Kind"), nil),
-				},
-				crds: []runtime.Object{
-					crd("c1", "v1"),
-				},
-			},
-			expected: expected{
-				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
-				},
-				err: map[string]error{
-					"csv1": fmt.Errorf("min-fresh value greater than or equal to cert valid-for"),
-				},
-			},
-		},
-		{
-			name: "SingleCSVSucceededToPending/APIService/Owned/CertRefresh",
-			initial: initial{
-				csvs: []runtime.Object{
-					withCertRefresh(withAPIServices(csv("csv1",
+					withCertInfo(withAPIServices(csv("csv1",
 						namespace,
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						1,
-						86400,
-					), apis("a1.v1.a1Kind"), nil), metav1.Now()),
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1"),
@@ -788,8 +727,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -814,8 +751,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstalling,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -842,8 +777,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 					csv("csv2",
 						namespace,
@@ -852,8 +785,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseNone,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -881,8 +812,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-						0,
-						0,
 					),
 					csv("csv2",
 						namespace,
@@ -891,8 +820,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -921,8 +848,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseDeleting,
-						0,
-						0,
 					),
 					csv("csv2",
 						namespace,
@@ -931,8 +856,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -962,8 +885,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 					csv("csv1",
 						namespace,
@@ -972,8 +893,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-						0,
-						0,
 					),
 					csv("csv2",
 						namespace,
@@ -982,8 +901,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -1014,8 +931,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 					csv("csv1",
 						namespace,
@@ -1024,8 +939,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseDeleting,
-						0,
-						0,
 					),
 					csv("csv2",
 						namespace,
@@ -1034,8 +947,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -1066,8 +977,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-						0,
-						0,
 					),
 					csv("csv3",
 						namespace,
@@ -1076,8 +985,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -1107,8 +1014,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseDeleting,
-						0,
-						0,
 					),
 					csv("csv3",
 						namespace,
@@ -1117,8 +1022,6 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-						0,
-						0,
 					),
 				},
 				crds: []runtime.Object{
@@ -1185,7 +1088,7 @@ func TestIsReplacing(t *testing.T) {
 	}{
 		{
 			name: "QueryErr",
-			in:   csv("name", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("name", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{},
 			},
@@ -1193,30 +1096,30 @@ func TestIsReplacing(t *testing.T) {
 		},
 		{
 			name: "CSVInCluster/NotReplacing",
-			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{
-					csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/Replacing",
-			in:   csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{
-					csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
-			expected: csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			expected: csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 		},
 		{
 			name: "CSVInCluster/ReplacingNotFound",
-			in:   csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{
-					csv("csv3", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					csv("csv3", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
@@ -1250,28 +1153,28 @@ func TestIsBeingReplaced(t *testing.T) {
 	}{
 		{
 			name:     "QueryErr",
-			in:       csv("name", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:       csv("name", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/NotReplacing",
-			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					"csv2": csv("csv2", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/Replacing",
-			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					"csv2": csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
-			expected: csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			expected: csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 		},
 	}
 	for _, tt := range tests {
@@ -1298,28 +1201,28 @@ func TestCheckReplacement(t *testing.T) {
 	}{
 		{
 			name:     "QueryErr",
-			in:       csv("name", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:       csv("name", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/NotReplacing",
-			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					"csv2": csv("csv2", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/Replacing",
-			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			in:   csv("csv1", namespace, "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+					"csv2": csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
-			expected: csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded, 0, 0),
+			expected: csv("csv2", namespace, "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 		},
 	}
 	for _, tt := range tests {

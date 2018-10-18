@@ -12,7 +12,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apiserver/pkg/storage/names"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -22,14 +21,12 @@ import (
 )
 
 const (
-	// CertMinFreshSecondsThreshold is the minimum number of seconds that a min-fresh value can be
-	CertMinFreshSecondsThreshold = 10
-	// DefaultCertMinFreshSeconds is the default min-fresh value
-	DefaultCertMinFreshSeconds = 300
-	// CertValidForDaysThreshold is the minimum number of days that a cert can be valid for
-	CertValidForDaysThreshold = 1
-	// DefaultCertValidForDays is the default number of days a cert can be valid for
-	DefaultCertValidForDays = 730
+	// DefaultCertMinFresh is the default min-fresh value - 1 day
+	DefaultCertMinFresh = time.Hour * 24
+	// DefaultCertValidFor is the default duration a cert can be valid for - 2 years
+	DefaultCertValidFor = time.Hour * 24 * 730
+	// OLMCAHashAnnotationKey is the label key used to store the hash of the CA cert
+	OLMCAHashAnnotationKey = "olmcahash"
 )
 
 func (a *Operator) syncAPIServices(obj interface{}) (syncError error) {
@@ -47,13 +44,94 @@ func (a *Operator) syncAPIServices(obj interface{}) (syncError error) {
 	return nil
 }
 
-func (a *Operator) shouldRefreshCerts(csv *v1alpha1.ClusterServiceVersion) bool {
+func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	now := metav1.Now()
-	if !csv.Status.CertRefresh.IsZero() && csv.Status.CertRefresh.Before(&now) {
+	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
 		return true
 	}
 
 	return false
+}
+
+// checkAPIServiceResources checks if all expected generated resources for the given APIService exist
+func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) error {
+	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
+		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
+		logger := log.WithFields(log.Fields{
+			"csv":        csv.GetName(),
+			"namespace":  csv.GetNamespace(),
+			"apiservice": apiServiceName,
+		})
+
+		// Replace all '.'s with "-"s to convert to a DNS-1035 label
+		serviceName := APIServiceNameToServiceName(apiServiceName)
+		service, err := a.OpClient.GetService(csv.GetNamespace(), serviceName)
+		if k8serrors.IsNotFound(err) || err != nil {
+			logger.Warnf("generated Service not found")
+			return err
+		}
+
+		apiService, err := a.OpClient.GetAPIService(apiServiceName)
+		if k8serrors.IsNotFound(err) || err != nil {
+			logger.Warnf("generated APIService not found")
+			return err
+		}
+
+		// Check if the APIService points to the correct service
+		if apiService.Spec.Service.Name != serviceName || apiService.Spec.Service.Namespace != csv.GetNamespace() {
+			logger.Warnf("APIService service reference mismatch")
+			return fmt.Errorf("APIService service reference mismatch")
+		}
+
+		// Check if CA is Active
+		caBundle := apiService.Spec.CABundle
+		ca, err := certs.PEMToCert(caBundle)
+		if err != nil {
+			logger.Warnf("could not convert APIService CA bundle to x509 cert")
+			return err
+		}
+		if !certs.Active(ca) {
+			logger.Warnf("CA cert not active")
+			return fmt.Errorf("CA cert not active")
+		}
+
+		// Check if serving cert is active
+		secretName := apiServiceName + "-cert"
+		secret, err := a.OpClient.GetSecret(csv.GetNamespace(), secretName)
+		if k8serrors.IsNotFound(err) || err != nil {
+			logger.Warnf("generated Secret not found")
+			return err
+		}
+		cert, err := certs.PEMToCert(secret.Data["tls.crt"])
+		if err != nil {
+			logger.Warnf("could not convert serving cert to x509 cert")
+			return err
+		}
+		if !certs.Active(cert) {
+			logger.Warnf("serving cert not active")
+			return fmt.Errorf("serving cert not active")
+		}
+
+		// Check if CA hash matches expected
+		if secret.Annotations[OLMCAHashAnnotationKey] != hashFunc(caBundle) {
+			logger.Warnf("CA cert hash does not match expected")
+			return fmt.Errorf("CA cert hash does not match expected")
+		}
+
+		// Check if serving cert is trusted by the CA
+		hosts := []string{
+			fmt.Sprintf("%s.%s", service.GetName(), csv.GetNamespace()),
+			fmt.Sprintf("%s.%s.svc", service.GetName(), csv.GetNamespace()),
+		}
+		for _, host := range hosts {
+			if err := certs.VerifyCert(ca, cert, host); err != nil {
+				return fmt.Errorf("could not verify cert: %s", err.Error())
+			}
+
+		}
+	}
+
+	return nil
 }
 
 func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
@@ -102,36 +180,21 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 		return strategyDetailsDeployment, nil
 	}
 
-	certValidForDays := DefaultCertValidForDays
-	if csv.Spec.CertValidForDays >= CertValidForDaysThreshold {
-		certValidForDays = csv.Spec.CertValidForDays
-	}
-
-	certMinFreshSeconds := DefaultCertMinFreshSeconds
-	if csv.Spec.CertMinFreshSeconds >= DefaultCertMinFreshSeconds {
-		certMinFreshSeconds = csv.Spec.CertMinFreshSeconds
-	}
-
-	if certMinFreshSeconds/86400 >= certValidForDays {
-		return nil, fmt.Errorf("min-fresh value greater than or equal to cert valid-for")
-	}
-
 	// Create the CA
-	ca, expiration, err := certs.GenerateCA(certValidForDays)
+	expiration := time.Now().Add(DefaultCertValidFor)
+	ca, err := certs.GenerateCA(expiration)
 	if err != nil {
 		logger.Debug("failed to generate CA")
 		return nil, err
 	}
-	certRefresh := metav1.NewTime(expiration.Add(time.Duration(-1*certMinFreshSeconds) * time.Second))
+	rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
 
 	depSpecs := make(map[string]appsv1.DeploymentSpec)
 	for _, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
 		depSpecs[sddSpec.Name] = sddSpec.Spec
 	}
 
-	// TODO(Nick): return more descriptive errors and return individual status conditions
-	// for all owned APIServiceDescriptions, create all resources required, and update
-	// the matching DeploymentSpec's Volume and VolumeMounts
+	// Create all resources required, and update the matching DeploymentSpec's Volume and VolumeMounts
 	apiDescs := csv.GetOwnedAPIServiceDescriptions()
 	for _, desc := range apiDescs {
 		depSpec, ok := depSpecs[desc.DeploymentName]
@@ -139,7 +202,7 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIService %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
 		}
 
-		newDepSpec, err := a.installAPIServiceRequirements(desc, ca, certValidForDays, depSpec, csv)
+		newDepSpec, err := a.installAPIServiceRequirements(desc, ca, rotateAt, depSpec, csv)
 		if err != nil {
 			return nil, err
 		}
@@ -153,13 +216,14 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 		}
 	}
 
-	// Set the cert refresh
-	csv.Status.CertRefresh = certRefresh
+	// Set csv cert status
+	csv.Status.CertsLastUpdated = metav1.Now()
+	csv.Status.CertsRotateAt = metav1.NewTime(rotateAt)
 
 	return strategyDetailsDeployment, nil
 }
 
-func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, certValidForDays int, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
+func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 	logger := log.WithFields(log.Fields{
 		"csv":        csv.GetName(),
@@ -184,9 +248,8 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		},
 	}
 
-	// TODO(Nick): ensure service name is a valid DNS name
-	// replace all '.'s with "-"s to convert to a DNS-1035 label
-	service.SetName(strings.Replace(apiServiceName, ".", "-", -1))
+	// Replace all '.'s with "-"s to convert to a DNS-1035 label
+	service.SetName(APIServiceNameToServiceName(apiServiceName))
 	service.SetNamespace(csv.GetNamespace())
 	ownerutil.AddNonBlockingOwner(service, csv)
 
@@ -195,29 +258,29 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		// attempt a replace
 		deleteErr := a.OpClient.DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
 		if _, err := a.OpClient.CreateService(service); err != nil || deleteErr != nil {
-			logger.Debugf("could not replace service %s", service.GetName())
+			logger.Warnf("could not replace service %s", service.GetName())
 			return nil, err
 		}
 	} else if err != nil {
-		log.Debugf("could not create service %s", service.GetName())
+		logger.Warnf("could not create service %s", service.GetName())
 		return nil, err
 	}
 
-	// create signed serving cert
+	// Create signed serving cert
 	hosts := []string{
 		fmt.Sprintf("%s.%s", service.GetName(), csv.GetNamespace()),
 		fmt.Sprintf("%s.%s.svc", service.GetName(), csv.GetNamespace()),
 	}
-	servingPair, err := certs.CreateSignedServingPair(certValidForDays, ca, hosts)
+	servingPair, err := certs.CreateSignedServingPair(rotateAt, ca, hosts)
 	if err != nil {
-		log.Printf("could not generate signed certs for hosts %v", hosts)
+		logger.Warnf("could not generate signed certs for hosts %v", hosts)
 		return nil, err
 	}
 
-	// create Secret for serving cert
+	// Create Secret for serving cert
 	certPEM, privPEM, err := servingPair.ToPEM()
 	if err != nil {
-		logger.Debugf("unable to convert serving certificate and private key to PEM format for APIService %s", apiServiceName)
+		logger.Warnf("unable to convert serving certificate and private key to PEM format for APIService %s", apiServiceName)
 		return nil, err
 	}
 
@@ -230,17 +293,26 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	}
 	secret.SetName(apiServiceName + "-cert")
 	secret.SetNamespace(csv.GetNamespace())
+
+	// Add olmcasha hash as a label to the
+	caPEM, _, err := ca.ToPEM()
+	if err != nil {
+		logger.Warnf("unable to convert CA certificate to PEM format for APIService %s", apiServiceName)
+		return nil, err
+	}
+	caHash := certs.PEMSHA256(caPEM)
+	secret.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
 	ownerutil.AddNonBlockingOwner(secret, csv)
 
 	_, err = a.OpClient.CreateSecret(secret)
 	if k8serrors.IsAlreadyExists(err) {
 		// attempt an update
 		if _, err := a.OpClient.UpdateSecret(secret); err != nil {
-			logger.Debugf("could not update Secret %s", secret.GetName())
+			logger.Warnf("could not update Secret %s", secret.GetName())
 			return nil, err
 		}
 	} else if err != nil {
-		log.Debugf("could not create Secret %s", secret.GetName())
+		log.Warnf("could not create Secret %s", secret.GetName())
 		return nil, err
 	}
 
@@ -263,11 +335,11 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	if k8serrors.IsAlreadyExists(err) {
 		// attempt an update
 		if _, err := a.OpClient.UpdateRole(secretRole); err != nil {
-			logger.Debugf("could not update Role %s", secretRole.GetName())
+			logger.Warnf("could not update Role %s", secretRole.GetName())
 			return nil, err
 		}
 	} else if err != nil {
-		log.Debugf("could not create Role %s", secretRole.GetName())
+		log.Warnf("could not create Role %s", secretRole.GetName())
 		return nil, err
 	}
 
@@ -294,11 +366,11 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	if k8serrors.IsAlreadyExists(err) {
 		// attempt an update
 		if _, err := a.OpClient.UpdateRoleBinding(secretRoleBinding); err != nil {
-			logger.Debugf("could not update RoleBinding %s", secretRoleBinding.GetName())
+			logger.Warnf("could not update RoleBinding %s", secretRoleBinding.GetName())
 			return nil, err
 		}
 	} else if err != nil {
-		log.Debugf("could not create RoleBinding %s", secretRoleBinding.GetName())
+		log.Warnf("could not create RoleBinding %s", secretRoleBinding.GetName())
 		return nil, err
 	}
 
@@ -325,11 +397,11 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	if k8serrors.IsAlreadyExists(err) {
 		// attempt an update
 		if _, err := a.OpClient.UpdateClusterRoleBinding(authDelegatorClusterRoleBinding); err != nil {
-			logger.Debugf("could not update ClusterRoleBinding %s", authDelegatorClusterRoleBinding.GetName())
+			logger.Warnf("could not update ClusterRoleBinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, err
 		}
 	} else if err != nil {
-		log.Debugf("could not create ClusterRoleBinding %s", authDelegatorClusterRoleBinding.GetName())
+		log.Warnf("could not create ClusterRoleBinding %s", authDelegatorClusterRoleBinding.GetName())
 		return nil, err
 	}
 
@@ -357,11 +429,11 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	if k8serrors.IsAlreadyExists(err) {
 		// attempt an update
 		if _, err := a.OpClient.UpdateRoleBinding(authReaderRoleBinding); err != nil {
-			logger.Debugf("could not update RoleBinding %s", authReaderRoleBinding.GetName())
+			logger.Warnf("could not update RoleBinding %s", authReaderRoleBinding.GetName())
 			return nil, err
 		}
 	} else if err != nil {
-		log.Debugf("could not create RoleBinding %s", authReaderRoleBinding.GetName())
+		log.Warnf("could not create RoleBinding %s", authReaderRoleBinding.GetName())
 		return nil, err
 	}
 
@@ -424,13 +496,9 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		depSpec.Template.Spec.Containers[i] = container
 	}
 
-	// changing depSpec.Template's name to force a rollout
-	// ensures that the new secret is used by the apiserver if not hot reloading
-	podTemplateName := names.SimpleNameGenerator.GenerateName(apiServiceName)
-	if podTemplateName == depSpec.Template.GetName() {
-		return nil, fmt.Errorf("a name collision occured when generating name for PodTemplate")
-	}
-	depSpec.Template.SetName(podTemplateName)
+	// setting the olm hash label forces a rollout and ensures that the new secret
+	// is used by the apiserver if not hot reloading
+	depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
 
 	exists := true
 	apiService, err := a.OpClient.GetAPIService(apiServiceName)
@@ -466,25 +534,27 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	}
 
 	// create a fresh CA bundle
-	caCertPEM, _, err := ca.ToPEM()
-	if err != nil {
-		logger.Debugf("unable to convert CA certificate to PEM format for APIService %s", apiServiceName)
-		return nil, err
-	}
-	apiService.Spec.CABundle = caCertPEM
+	apiService.Spec.CABundle = caPEM
 
 	// attempt a update or create
 	if exists {
+		logger.Debug("updating APIService")
 		_, err = a.OpClient.UpdateAPIService(apiService)
-
 	} else {
+		logger.Debug("creating APIService")
 		_, err = a.OpClient.CreateAPIService(apiService)
 	}
 
 	if err != nil {
-		log.Debugf("could not create or update APIService %s", apiServiceName)
+		logger.Warnf("could not create or update APIService")
 		return nil, err
 	}
 
 	return &depSpec, nil
+}
+
+// APIServiceNameToServiceName returns the result of replacing all
+// periods in the given APIService name with hyphens
+func APIServiceNameToServiceName(apiServiceName string) string {
+	return strings.Replace(apiServiceName, ".", "-", -1)
 }

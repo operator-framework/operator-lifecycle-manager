@@ -135,14 +135,6 @@ type ClusterServiceVersionSpec struct {
 	// Label selector for related resources.
 	// +optional
 	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,2,opt,name=selector"`
-
-	// Number of days generated owned APIService certs are valid for
-	// +optional
-	CertValidForDays int `json:"certValidFor,omitempty"`
-
-	// Minimum freshness of a cert before it is renewed; in seconds
-	// +optional
-	CertMinFreshSeconds int `json:"certMinFresh,omitempty"`
 }
 
 type Maintainer struct {
@@ -189,19 +181,20 @@ const (
 type ConditionReason string
 
 const (
-	CSVReasonRequirementsUnknown ConditionReason = "RequirementsUnknown"
-	CSVReasonRequirementsNotMet  ConditionReason = "RequirementsNotMet"
-	CSVReasonRequirementsMet     ConditionReason = "AllRequirementsMet"
-	CSVReasonOwnerConflict       ConditionReason = "OwnerConflict"
-	CSVReasonComponentFailed     ConditionReason = "InstallComponentFailed"
-	CSVReasonInvalidStrategy     ConditionReason = "InvalidInstallStrategy"
-	CSVReasonWaiting             ConditionReason = "InstallWaiting"
-	CSVReasonInstallSuccessful   ConditionReason = "InstallSucceeded"
-	CSVReasonInstallCheckFailed  ConditionReason = "InstallCheckFailed"
-	CSVReasonComponentUnhealthy  ConditionReason = "ComponentUnhealthy"
-	CSVReasonBeingReplaced       ConditionReason = "BeingReplaced"
-	CSVReasonReplaced            ConditionReason = "Replaced"
-	CSVReasonNeedCertRefresh     ConditionReason = "NeedCertRefresh"
+	CSVReasonRequirementsUnknown     ConditionReason = "RequirementsUnknown"
+	CSVReasonRequirementsNotMet      ConditionReason = "RequirementsNotMet"
+	CSVReasonRequirementsMet         ConditionReason = "AllRequirementsMet"
+	CSVReasonOwnerConflict           ConditionReason = "OwnerConflict"
+	CSVReasonComponentFailed         ConditionReason = "InstallComponentFailed"
+	CSVReasonInvalidStrategy         ConditionReason = "InvalidInstallStrategy"
+	CSVReasonWaiting                 ConditionReason = "InstallWaiting"
+	CSVReasonInstallSuccessful       ConditionReason = "InstallSucceeded"
+	CSVReasonInstallCheckFailed      ConditionReason = "InstallCheckFailed"
+	CSVReasonComponentUnhealthy      ConditionReason = "ComponentUnhealthy"
+	CSVReasonBeingReplaced           ConditionReason = "BeingReplaced"
+	CSVReasonReplaced                ConditionReason = "Replaced"
+	CSVReasonNeedCertRotation        ConditionReason = "NeedCertRotation"
+	CSVReasonAPIServiceResourceIssue ConditionReason = "APIServiceResourceIssue"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
@@ -287,9 +280,12 @@ type ClusterServiceVersionStatus struct {
 	Conditions []ClusterServiceVersionCondition `json:"conditions,omitempty"`
 	// The status of each requirement for this CSV
 	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
-	// Time to refresh generated owned APIService certs
+	// Last time the owned APIService certs were updated
 	// +optional
-	CertRefresh metav1.Time `json:"certRefresh,omitempty"`
+	CertsLastUpdated metav1.Time `json:"certsLastUpdated,omitempty"`
+	// Time the owned APIService certs will rotate next
+	// +optional
+	CertsRotateAt metav1.Time `json:"certsRotateAt,omitempty"`
 }
 
 // ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.

@@ -51,7 +51,9 @@ func GetOwnerByKind(object metav1.Object, ownerKind string) metav1.OwnerReferenc
 func GetOwnersByKind(object metav1.Object, ownerKind string) []metav1.OwnerReference {
 	var orefs []metav1.OwnerReference
 	for _, oref := range object.GetOwnerReferences() {
-		orefs = append(orefs, oref)
+		if oref.Kind == ownerKind {
+			orefs = append(orefs, oref)
+		}
 	}
 	return orefs
 }

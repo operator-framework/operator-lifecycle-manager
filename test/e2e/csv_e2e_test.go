@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
@@ -21,7 +19,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 var singleInstance = int32(1)
@@ -878,11 +878,13 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	dep, err = c.GetDeployment(testNamespace, depName)
 	require.NoError(t, err)
 
-	// Store the podTemplateName
-	podTemplateName := dep.Spec.Template.GetName()
+	// Store the ca sha annotation
+	oldCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
+	require.True(t, ok, "expected olm sha annotation not present on existing pod template")
 
-	// Induce a cert refresh
-	fetchedCSV.Status.CertRefresh = metav1.Now()
+	// Induce a cert rotation
+	fetchedCSV.Status.CertsLastUpdated = metav1.Now()
+	fetchedCSV.Status.CertsRotateAt = metav1.Now()
 	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
 	require.NoError(t, err)
 
@@ -890,13 +892,19 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 		// Should create deployment
 		dep, err = c.GetDeployment(testNamespace, depName)
 		require.NoError(t, err)
-		if dep.Spec.Template.GetName() != podTemplateName {
+
+		// Should have a new ca hash annotation
+		newCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
+		require.True(t, ok, "expected olm sha annotation not present in new pod template")
+
+		if newCAAnnotation != oldCAAnnotation {
+			// Check for success
 			return csvSucceededChecker(csv)
 		}
 
 		return false
 	})
-	require.NoError(t, err, "failed to refresh cert")
+	require.NoError(t, err, "failed to rotate cert")
 
 	// Remove owner references on generated APIService, Deployment, Role, RoleBinding(s), ClusterRoleBinding(s), Secret, and Service
 	apiService, err = c.GetAPIService(apiServiceName)
@@ -939,7 +947,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	_, err = c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Update(authReaderRoleBinding)
 	require.NoError(t, err, "could not remove OwnerReferences on generated auth reader RoleBinding")
 
-	serviceName := strings.Replace(apiServiceName, ".", "-", -1)
+	serviceName := olm.APIServiceNameToServiceName(apiServiceName)
 	service, err := c.KubernetesInterface().CoreV1().Services(testNamespace).Get(serviceName, metav1.GetOptions{})
 	require.NoError(t, err)
 	service.SetOwnerReferences([]metav1.OwnerReference{})
