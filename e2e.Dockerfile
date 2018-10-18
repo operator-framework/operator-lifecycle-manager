@@ -20,7 +20,7 @@ COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-man
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/package-server /bin/package-server
 EXPOSE 8080
-EXPOSE 443
+EXPOSE 5443
 CMD ["/bin/olm"]
 
 FROM golang:1.10
