@@ -1153,7 +1153,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces: []v1.Namespace{
+				Namespaces: []*v1.Namespace{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        testNS,
@@ -1203,7 +1203,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces: []v1.Namespace{
+				Namespaces: []*v1.Namespace{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        testNS,
@@ -1254,7 +1254,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces: []v1.Namespace{
+				Namespaces: []*v1.Namespace{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        testNS,

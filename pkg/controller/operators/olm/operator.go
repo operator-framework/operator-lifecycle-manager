@@ -1,10 +1,8 @@
 package olm
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -25,13 +23,11 @@ import (
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/informers"
 	cappsv1 "k8s.io/client-go/listers/apps/v1"
+	cv1 "k8s.io/client-go/listers/core/v1"
 	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -61,6 +57,7 @@ type Operator struct {
 	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
 	operatorGroupLister      map[string]operatorgrouplister.OperatorGroupLister
 	deploymentLister         map[string]cappsv1.DeploymentLister
+	namespaceLister          cv1.NamespaceLister
 	annotator                *annotator.Annotator
 	recorder                 record.EventRecorder
 	cleanupFunc              func()
@@ -96,28 +93,25 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		},
 	}
 
-	// If watching all namespaces, set up a watch to annotate new namespaces
-	if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
-		log.Debug("watching all namespaces, setting up queue")
-		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
-		queueInformer := queueinformer.NewInformer(
-			workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
-			namespaceInformer.Informer(),
-			op.syncNamespace,
-			nil,
-			"namespace",
-			metrics.NewMetricsNil(),
-		)
-		op.RegisterQueueInformer(queueInformer)
-		op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	}
-
 	// Set up RBAC informers
 	informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
 	roleInformer := informerFactory.Rbac().V1().Roles()
 	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
 	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
 	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
+	namespaceInformer := informerFactory.Core().V1().Namespaces()
+
+	// register namespace queueinformer
+	queueInformer := queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
+		namespaceInformer.Informer(),
+		op.syncNamespace,
+		nil,
+		"namespace",
+		metrics.NewMetricsNil(),
+	)
+	op.RegisterQueueInformer(queueInformer)
+	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 
 	// Register RBAC QueueInformers
 	rbacInformers := []cache.SharedIndexInformer{
@@ -360,223 +354,6 @@ func (a *Operator) syncServices(obj interface{}) (syncError error) {
 	for _, oref := range ownerutil.GetOwnersByKind(service, v1alpha1.ClusterServiceVersionKind) {
 		logger.Infof("requeuing CSV %s", oref.Name)
 		a.requeueCSV(oref.Name, service.GetNamespace())
-	}
-
-	return nil
-}
-
-func namespacesChanged(clusterNamespaces []corev1.Namespace, statusNamespaces []corev1.Namespace) bool {
-	if len(clusterNamespaces) != len(statusNamespaces) {
-		return true
-	}
-
-	nsMap := map[string]struct{}{}
-	for _, v := range clusterNamespaces {
-		nsMap[v.Name] = struct{}{}
-	}
-	for _, v := range statusNamespaces {
-		if _, ok := nsMap[v.Name]; !ok {
-			return true
-		}
-	}
-	return false
-}
-
-func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error, []corev1.Namespace) {
-	// NOTE: if a CSV modification is required in the future, copy the original
-	// data as done in the bottom of this method first.
-
-	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
-	if err != nil {
-		return err, nil
-	}
-	operatorGroupOpts := metav1.ListOptions{LabelSelector: selector.String()}
-	namespaceList, err := a.OpClient.KubernetesInterface().CoreV1().Namespaces().List(operatorGroupOpts)
-	if err != nil {
-		return err, nil
-	}
-
-	if !namespacesChanged(namespaceList.Items, op.Status.Namespaces) {
-		// status is current with correct namespaces, so no further updates required
-		return nil, namespaceList.Items
-	}
-	log.Debugf("Namespace change detected, found: %v", namespaceList.Items)
-	op.Status.Namespaces = make([]corev1.Namespace, len(namespaceList.Items))
-	copy(op.Status.Namespaces, namespaceList.Items)
-	op.Status.LastUpdated = timeNow()
-	_, err = a.client.OperatorsV1alpha2().OperatorGroups(op.Namespace).UpdateStatus(op)
-	if err != nil {
-		return err, namespaceList.Items
-	}
-
-	currentNamespace := op.GetNamespace()
-	csvsInNamespace := a.csvsInNamespace(currentNamespace)
-	for _, csv := range csvsInNamespace {
-		managerPolicyRules := []rbacv1.PolicyRule{}
-		apiEditPolicyRules := []rbacv1.PolicyRule{}
-		apiViewPolicyRules := []rbacv1.PolicyRule{}
-		for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
-			resourceNames := []string{}
-			for _, resource := range owned.Resources {
-				resourceNames = append(resourceNames, resource.Name)
-			}
-			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Name}, Resources: resourceNames})
-			apiEditPolicyRules = append(apiEditPolicyRules, rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{owned.Name}, Resources: []string{owned.Kind}})
-			apiViewPolicyRules = append(apiViewPolicyRules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{owned.Name}, Resources: []string{owned.Kind}})
-		}
-		for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
-			resourceNames := []string{}
-			for _, resource := range owned.Resources {
-				resourceNames = append(resourceNames, resource.Name)
-			}
-			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Group}, Resources: resourceNames})
-		}
-		clusterRole := &rbacv1.ClusterRole{
-			Rules: managerPolicyRules,
-		}
-		ownerutil.AddNonBlockingOwner(clusterRole, csv)
-		clusterRole.SetGenerateName(fmt.Sprintf("owned-crd-manager-%s-", csv.Spec.DisplayName))
-		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
-		if k8serrors.IsAlreadyExists(err) {
-			if _, err = a.OpClient.UpdateClusterRole(clusterRole); err != nil {
-				return err, namespaceList.Items
-			}
-		} else if err != nil {
-			return err, namespaceList.Items
-		}
-
-		// operator group specific roles
-		operatorGroupEditClusterRole := &rbacv1.ClusterRole{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("%s-edit", op.Name),
-			},
-			Rules: apiEditPolicyRules,
-		}
-		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupEditClusterRole)
-		if k8serrors.IsAlreadyExists(err) {
-			if _, err = a.OpClient.UpdateClusterRole(operatorGroupEditClusterRole); err != nil {
-				return err, namespaceList.Items
-			}
-		} else if err != nil {
-			return err, namespaceList.Items
-		}
-		operatorGroupViewClusterRole := &rbacv1.ClusterRole{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: fmt.Sprintf("%s-view", op.Name),
-			},
-			Rules: apiViewPolicyRules,
-		}
-		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupViewClusterRole)
-		if k8serrors.IsAlreadyExists(err) {
-			if _, err = a.OpClient.UpdateClusterRole(operatorGroupViewClusterRole); err != nil {
-				return err, namespaceList.Items
-			}
-		} else if err != nil {
-			return err, namespaceList.Items
-		}
-
-	}
-
-	var nsList []string
-	for ix := range namespaceList.Items {
-		nsList = append(nsList, namespaceList.Items[ix].Name)
-	}
-	nsListJoined := strings.Join(nsList, ",")
-
-	// write above namespaces to watch in every deployment
-	for _, ns := range nsList {
-		deploymentList, err := a.deploymentLister[ns].List(labels.Everything())
-		if err != nil {
-			return err, namespaceList.Items
-		}
-
-		for _, deploy := range deploymentList {
-			if lastAnnotation, ok := deploy.Spec.Template.Annotations["olm.targetNamespaces"]; ok {
-				if lastAnnotation == nsListJoined {
-					continue
-				}
-			}
-			originalData, err := json.Marshal(deploy)
-			if err != nil {
-				return err, namespaceList.Items
-			}
-
-			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", nsListJoined)
-			log.Debugf("Wrote annotation '%v' on %v. Check: %#v\n", nsList, deploy.Name, deploy)
-
-			modifiedData, err := json.Marshal(deploy)
-			if err != nil {
-				return err, namespaceList.Items
-			}
-
-			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(originalData, modifiedData, deploy)
-			if err != nil {
-				return err, namespaceList.Items
-			}
-
-			_, err = a.OpClient.KubernetesInterface().AppsV1().Deployments(ns).Patch(deploy.Name, types.StrategicMergePatchType, patchBytes)
-			if err != nil {
-				return fmt.Errorf("Deployment update for '%v' failed: %v\n", deploy.Name, err), namespaceList.Items
-			}
-		}
-	}
-
-	return nil, namespaceList.Items
-}
-
-func (a *Operator) syncOperatorGroups(obj interface{}) error {
-	op, ok := obj.(*v1alpha2.OperatorGroup)
-	if !ok {
-		log.Debugf("wrong type: %#v\n", obj)
-		return fmt.Errorf("casting OperatorGroup failed")
-	}
-
-	err, targetedNamespaces := a.updateDeploymentAnnotation(op)
-	log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
-	if err != nil {
-		return err
-	}
-	var nsList []string
-	for ix := range targetedNamespaces {
-		nsList = append(nsList, targetedNamespaces[ix].Name)
-	}
-
-	csvsInNamespace := a.csvsInNamespace(op.Namespace)
-	for _, csv := range csvsInNamespace {
-		// TODO: handle CSV copying in a different place
-		// if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
-		// 	log.Debugf("continuing on, skipping CSV %v\n", csv.Name)
-		// 	continue
-		// }
-
-		// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
-		newCSV := v1alpha1.ClusterServiceVersion{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: csv.Name,
-			},
-			Spec: *csv.Spec.DeepCopy(),
-			Status: v1alpha1.ClusterServiceVersionStatus{
-				Message:        "CSV copied to target namespace",
-				Reason:         v1alpha1.CSVReasonCopied,
-				LastUpdateTime: timeNow(),
-			},
-		}
-
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.originalCSV", fmt.Sprintf("%v/%v", csv.GetNamespace(), csv.GetName()))
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorNamespace", a.annotator.Annotations["ALMManagedAnnotationKey"])
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorGroup", fmt.Sprintf("%v/%v", op.GetNamespace(), op.GetName()))
-
-		ownerutil.AddNonBlockingOwner(&newCSV, csv)
-		for _, ns := range targetedNamespaces {
-			newCSV.SetNamespace(ns.Name)
-			if ns.Name != op.Namespace {
-				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(newCSV.GetNamespace()).Create(&newCSV)
-				if err != nil {
-					return err
-				}
-			}
-		}
 	}
 
 	return nil
@@ -909,6 +686,7 @@ func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 		return err
 	}
 
+	// TODO: do we need this?
 	opGroupUpdate := map[*v1alpha2.OperatorGroup]struct{}{}
 	for _, op := range opGroupList {
 		selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
@@ -937,7 +715,7 @@ func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 	}
 
 	for op := range opGroupUpdate {
-		if err, _ := a.updateDeploymentAnnotation(op); err != nil {
+		if err, _ := a.updateNamespaceList(op); err != nil {
 			return err
 		}
 	}

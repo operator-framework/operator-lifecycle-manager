@@ -11,7 +11,7 @@ type OperatorGroupSpec struct {
 }
 
 type OperatorGroupStatus struct {
-	Namespaces  []corev1.Namespace `json:"namespaces"`
+	Namespaces  []*corev1.Namespace `json:"namespaces"`
 	LastUpdated metav1.Time        `json:"lastUpdated"`
 }
 

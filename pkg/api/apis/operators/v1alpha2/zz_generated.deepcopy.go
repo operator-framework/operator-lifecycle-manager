@@ -109,9 +109,14 @@ func (in *OperatorGroupStatus) DeepCopyInto(out *OperatorGroupStatus) {
 	*out = *in
 	if in.Namespaces != nil {
 		in, out := &in.Namespaces, &out.Namespaces
-		*out = make([]v1.Namespace, len(*in))
+		*out = make([]*v1.Namespace, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] == nil {
+				(*out)[i] = nil
+			} else {
+				(*out)[i] = new(v1.Namespace)
+				(*in)[i].DeepCopyInto((*out)[i])
+			}
 		}
 	}
 	in.LastUpdated.DeepCopyInto(&out.LastUpdated)
