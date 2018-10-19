@@ -126,7 +126,7 @@ spec:
                 - --enable-admission-plugins
                 - "NamespaceLifecycle,DefaultServicePlan,ServiceBindingsLifecycle,ServicePlanChangeValidator,BrokerAuthSarCheck"
                 - --secure-port
-                - "443"
+                - "5443"
                 - --etcd-servers
                 - http://localhost:2379
                 - -v
@@ -136,13 +136,13 @@ spec:
                 - --feature-gates
                 - ServicePlanDefaults=false
                 ports:
-                - containerPort: 443
+                - containerPort: 5443
                 volumeMounts:
                 - name: apiservice-cert
                   mountPath: /var/run/kubernetes-service-catalog
                 readinessProbe:
                   httpGet:
-                    port: 443
+                    port: 5443
                     path: /healthz
                     scheme: HTTPS
                   failureThreshold: 1
@@ -152,7 +152,7 @@ spec:
                   timeoutSeconds: 2
                 livenessProbe:
                   httpGet:
-                    port: 443
+                    port: 5443
                     path: /healthz
                     scheme: HTTPS
                   failureThreshold: 3
@@ -283,48 +283,56 @@ spec:
       displayName: ClusterServiceClass
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServicePlan
       displayName: ClusterServicePlan
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServiceBroker
       displayName: ClusterServiceBroker
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceInstance
       displayName: ServiceInstance
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceBinding
       displayName: ServiceBinding
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceClass
       displayName: ServiceClass
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServicePlan
       displayName: ServicePlan
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceBroker
       displayName: ServiceBroker
       description: A service catalog resource
       deploymentName: svcat-catalog-apiserver
+      containerPort: 5443
   customresourcedefinitions:
     required:
     - name: etcdclusters.etcd.database.coreos.com
