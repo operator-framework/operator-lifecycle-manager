@@ -1,0 +1,151 @@
+##---
+# Source: olm/templates/0000_30_13-packageserver.yaml
+apiVersion: apiregistration.k8s.io/v1beta1
+kind: APIService
+metadata:
+  name: v1alpha1.packages.apps.redhat.com
+spec:
+  caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM5VENDQWQyZ0F3SUJBZ0lCQVRBTkJna3Foa2lHOXcwQkFRc0ZBREFjTVJvd0dBWURWUVFERXhGd1lXTnIKWVdkbExYTmxjblpsY2kxallUQWVGdzB4T0RFd01Ua3hPRFEyTlRWYUZ3MHlPREV3TVRZeE9EUTJOVFZhTUJ3eApHakFZQmdOVkJBTVRFWEJoWTJ0aFoyVXRjMlZ5ZG1WeUxXTmhNSUlCSWpBTkJna3Foa2lHOXcwQkFRRUZBQU9DCkFROEFNSUlCQ2dLQ0FRRUF5TStIbFg0QWJoa2hQTnVhODlQZ0lhRUVVdzJGZTc2Zy9JSVhoVjdXOVRleWpCbnoKNUR1d2RWODBzV1krbitNcDl3cVYrMFk5TS9oK2FYVTlDT3VjaTNYMzdLQUk0NjYrYU5CYzJCK2pBMlVSamJaTQpKbnB5VlVidWowalY3SmFaNFVYZFBoQTlNNFJaMzVKSm1JTmErc0QzR2pKbEJWYVAxT2JtL3hxaWVaZW53djI3CjM3RzYvN2xIS0l5UGxKaGt6ekZ2c0x4MFZtdHZzS3NtdjQrbGFRWnVXOEIzaVNIK3AzRHRtMUpoWHJndXgwaG4KMXpxQ1JjdUsyVlJrT28xa3ZhUEh0ekJmdXVHd1FFWndWWDB0OHI2QmFQSUlZUEdlWjlwUGsvaEdkNldrMzgzTAovbVNOWHJ3cTM1VXVONmplVFUrTTdZSVJYbkRwbXIvTy9QYjdWd0lEQVFBQm8wSXdRREFPQmdOVkhROEJBZjhFCkJBTUNBcVF3SFFZRFZSMGxCQll3RkFZSUt3WUJCUVVIQXdFR0NDc0dBUVVGQndNQ01BOEdBMVVkRXdFQi93UUYKTUFNQkFmOHdEUVlKS29aSWh2Y05BUUVMQlFBRGdnRUJBR28rU3gxUlA4VGFQdVFybXI0TGk2T2M3K2ZKTEJjUQpjWTZONnRZSFFtd0F0UHBoTU43REVLL3NtR1BWMWhUWmptT0dENGdvYU4yTGRxTDVsZzNMQ2VSYWkwWXlRL0tDCjdjcVEzemZKaWwxNUpYN0ZvazQwWGJPMjFiOVBocUtrWTVIVktIeTRyK1pkUEI5dGlNOFVkN3pYd0l1TFFnK0IKazBxZUtoZk9vbjMyTjVObVlFMEFycUI4T3FHd2J0K1pVRThOMWFnWHEwWlYyM25IdmZWU0dJZENSRDZaU3VqbgpoWUtmODFNVUUzZ21KNXRxMXlxVjBpcyszK3hScWVGWlhtMTFmTnBnbTJhOXNna0J5NW5Dd0g0ZjM5aTdmN2FvCkZpV04wVzR5TUgvVUJGSEw3S0xVOElzbXR1TWdMSWRUYlo5c2p0VWg2ZkhldUNLakIzOU9tZWc9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+  group: packages.apps.redhat.com
+  groupPriorityMinimum: 2000
+  versionPriority: 15
+  service:
+    name: package-server
+    namespace: openshift-operator-lifecycle-manager
+  version: v1alpha1
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packagemanifest:system:auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: openshift-operator-lifecycle-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: packagemanifest-auth-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: openshift-operator-lifecycle-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packagemanifest-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: admin
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: openshift-operator-lifecycle-manager
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: package-apiserver-clusterrolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: aggregated-apiserver-clusterrole
+subjects:
+- kind: ServiceAccount
+  name: olm-operator-serviceaccount
+  namespace: openshift-operator-lifecycle-manager
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: package-server-certs
+  namespace: openshift-operator-lifecycle-manager
+  labels:
+    app: package-server
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURhakNDQWxLZ0F3SUJBZ0lCQVRBTkJna3Foa2lHOXcwQkFRc0ZBREFjTVJvd0dBWURWUVFERXhGd1lXTnIKWVdkbExYTmxjblpsY2kxallUQWVGdzB4T0RFd01Ua3hPRFEyTlRWYUZ3MHhPVEV3TVRreE9EUTJOVFZhTUJreApGekFWQmdOVkJBTVREbkJoWTJ0aFoyVXRjMlZ5ZG1WeU1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBCk1JSUJDZ0tDQVFFQXNLU1pIWGFVMkJKTE14REs1UVltc0J4S2JYQ05UcXVydFQwL2FjUE50bU1ueGZvS250M2wKSklSOGtqUmQ2UHY0MXoxc2VCS0tod0N2Z0pZTnYzZEJvemNxYmpuQVZnMkFHQlVuWjQ0T0o0YUplTFk0Q0NXQgpEbklSYnVheTdkandTM0hPTDdvbnRmenBraVhRZHBnRlNUU3lKMjJGdGZubE9raDNpSm1mSWUrM2s5UTlJYWdZCm05RGg1cjI2czlrZFRBK2tESXJ4b0p2aTcvc0ZqQkFjUTJGRTdlelFYdlhEMW5ZQi9WWWdJZUcwc2xaV05QU2gKVGNRalV5SnZPNlgwTkNqbVA0TXB5Ymp1V3c3aGFYU0liaGpORnpaVnNzSkptbWhSQVo2YmQ0WkkzOEt1dndjOApsUVR2QzlZa1dreUZIYmdWeUwrbmJhRm41b0tINXQ4bnFRSURBUUFCbzRHNU1JRzJNQTRHQTFVZER3RUIvd1FFCkF3SUZvREFkQmdOVkhTVUVGakFVQmdnckJnRUZCUWNEQVFZSUt3WUJCUVVIQXdJd0RBWURWUjBUQVFIL0JBSXcKQURCM0JnTlZIUkVFY0RCdWdqTndZV05yWVdkbExYTmxjblpsY2k1dmNHVnVjMmhwWm5RdGIzQmxjbUYwYjNJdApiR2xtWldONVkyeGxMVzFoYm1GblpYS0NOM0JoWTJ0aFoyVXRjMlZ5ZG1WeUxtOXdaVzV6YUdsbWRDMXZjR1Z5CllYUnZjaTFzYVdabFkzbGpiR1V0YldGdVlXZGxjaTV6ZG1Nd0RRWUpLb1pJaHZjTkFRRUxCUUFEZ2dFQkFCMHEKYnhYUXdFLzJ3bSsrUGJIMkJIM0ZmWWE5Sk5uQkFzYmdKUThEbU9KK2lWenhtYnNrZ1oyeDUwLzZhbHVWbzRpZApjZU1rYVVINzUzeTltMTJRWHhnbGI2QkpaM2N2WjR0MlUzcHluSUVNMkZrTytWZjczdk1QWFp3M0FvQVVEckgrCjQxMmVRVlRXOFl2a0FmQkxJNHZiQVZjSFE0Q08xanFJQ2pTVTZURTVKV1BOeGxuWEt4MWE3NFlIZVBhdkVnM2IKZUROeC9McEtrOHJxWXZ4NHMrZlNHTmZUd3JrWTV1d0RzU0lzbVZZOFVhQ2hURWVLczcra1RieC9jbmlKZUxYVgo2REFqL0tHSFhWN1ZuRjkxOHNkRElicHRreUJnYjM5UnFMbnRObDB3OXNsRFFBVUVWN3VOaTQrYUJjRjlyRHNVCmhBM3hYOWx0aldwaitqOW90SGs9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K
+  tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBc0tTWkhYYVUyQkpMTXhESzVRWW1zQnhLYlhDTlRxdXJ0VDAvYWNQTnRtTW54Zm9LCm50M2xKSVI4a2pSZDZQdjQxejFzZUJLS2h3Q3ZnSllOdjNkQm96Y3Fiam5BVmcyQUdCVW5aNDRPSjRhSmVMWTQKQ0NXQkRuSVJidWF5N2Rqd1MzSE9MN29udGZ6cGtpWFFkcGdGU1RTeUoyMkZ0Zm5sT2toM2lKbWZJZSszazlROQpJYWdZbTlEaDVyMjZzOWtkVEEra0RJcnhvSnZpNy9zRmpCQWNRMkZFN2V6UVh2WEQxbllCL1ZZZ0llRzBzbFpXCk5QU2hUY1FqVXlKdk82WDBOQ2ptUDRNcHlianVXdzdoYVhTSWJoak5GelpWc3NKSm1taFJBWjZiZDRaSTM4S3UKdndjOGxRVHZDOVlrV2t5RkhiZ1Z5TCtuYmFGbjVvS0g1dDhucVFJREFRQUJBb0lCQUFKUlpxRDRXV09zZWNnbAp4RVBWSE5UYXlpODlkdDA5YTNkcFlsZWs5aUlha3Y4S0ZQR1l2OVVHMkF1akhFaGVaaG1NK010cWt0N0twNExzCmRTbTZDdVoxWnQwamJONjBOcVlhUVBZZTZ4aWhyMVFpTUFJTFcvSXdsUUg3alFXSi96MCtOUkp6UXVva2Mzd3oKZXRUVGtkNHdEdFp0blgrUjArdzczeld2cm1Mbm1OQUVWU2ZxdFN3WHZEUVlhWHdMeitUdC9TTDR5d0xFZ2FXNwp6M2FxaFN4VGRwalBCK04wVHFRU0pVVlRTcCt4bkxzZis1d2RHRmgzUCtBWXZCTFl1Z1lMNGtIOU5DYjJhYUdvCnh0dkVMQytnV1FaUHFJYVBUTmxQbmRzZEo5NnVuVmdQUlpWWHlmQTZWWWNQZG4yQ2p6dEkzU2VNRE9ENm8xVFoKdEFydzVnRUNnWUVBMEE5UzNjaGNpRFFjQjVqelJOWG1YUStyU3llOHQ0d3hEY0E1dlFMelNLQUYzT0N4TzZ3YwpKQUJwRTFSS1FORmd6Ni9hTmV0TDhvWkRpNkkwc1NmVkV4dDQ3WlFHSTJFUHNJNzFUbWFTdk9zS05IMk5mS1Y3CkF1cWNrT3RHenRONkg5UnZFMVlieUJjY1dpUVBWVHMyZlVLUE9lWVpnampxVnFNcDNwOFR3ckVDZ1lFQTJWZ2IKMEdRTlV0aU5lTGVVYUtJSEFyRzE0K3RnRjY0cE9JblFaL0orZ3dPZE55YnhqTkNQTFdxblV0WWdJUnJhRWdscQpwRzByaGRTNGRDb3l3SlZkSDJEQWpQTVhMYWNCTFJzbzVqTE1ZR2l6Nk1hejZRKzJMK0dxcUthMktzRVRTL2dYCmxVWDdKZWFiMnIzT3JxN1pGWmh6dmY3ZCt6bWZLVHEwRkVCZXdua0NnWUE2K0V6bFhWZVVweWhXb3V3NFUyUHkKZG5GM1lMRGxXUS9DTlB4b2JRQ2xVZTIzZDl2ajdOa2cveGpKQ0xmdS9Ta3lWRVpGeUFZRG5EaGl5RHVsQm9RbQo0VDk2SHQxS2c4VWRwcmN5WEhJMHAyMkNDUi9qOTBjUlFZdlVxMHFyYmxjTDFIc1RBUEhvMlZ3STFIV2dFNk5UCkIxMXU3Si9JUC9kelROV2VLbnBBVVFLQmdRQ29RajNHSnE3cDVCd2h5SDFzUTRPSjRtb2QrS3A3cXFqZXpGSTcKSnRBcVBUSUk4RzB2eG9ZUmN1LzJnUzUrY250QVcybmp3V0JnU3o1Qk1DbjZUYWU2RXZ6K0lYTmdORm9Fd1hINApSSHRVWjdwZ0N2UmRDWHpSdExLWnZmWnBRdS9kY0VOUm5NdkJtN1lzc2FUQU56eDRLMzN2S05CUkhWcktZRmZwCkZheEdnUUtCZ1FETDZGUnZrWHhycFptNUFIWGg0d1VsMlRJSDVwREhILzVyb0ZYenFRRjBMYkhHWWNHdVFISWcKMUxGUHFsekJBSVd4N3h3blZaaUhucmxiUStnNlJvMTNuRE5OUmJoWWVDd0I5TG1OdFNCS25reVhXdEl2ajZDRwpaUlBkREdaVHlSd1NtZ3RGKzNCZWllN0xQQk1uSGlTTlZ0c2ZySWZ6NHBwaXEybVBiT0FCVUE9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: package-server
+  namespace: openshift-operator-lifecycle-manager
+  labels:
+    app: package-server
+spec:
+  strategy:
+    type: RollingUpdate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: package-server
+  template:
+    metadata:
+      labels:
+        app: package-server
+    spec:
+      serviceAccountName: olm-operator-serviceaccount
+      containers:
+      - name: package-server
+        command:
+        - /bin/package-server
+        - -v=4
+        - --secure-port=5443
+        - --global-namespace
+        - openshift-operator-lifecycle-manager
+        image: quay.io/coreos/olm@sha256:3f3909a6bdf6f4bf429e114832c8cfc03c731f9403b91417d5dc246ad0448772
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 5443
+        volumeMounts:
+        - name: certs
+          mountPath: /apiserver.local.config/certificates
+          readOnly: true
+        livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: 5443
+        readinessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /healthz
+              port: 5443
+      volumes:
+      - name: certs
+        secret:
+          secretName: package-server-certs
+          items:
+          - key: tls.crt
+            path: apiserver.crt
+          - key: tls.key
+            path: apiserver.key
+      imagePullSecrets:
+        - name: coreos-pull-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: package-server
+  namespace: openshift-operator-lifecycle-manager
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 5443
+  selector:
+    app: package-server
