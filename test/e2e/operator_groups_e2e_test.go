@@ -28,7 +28,7 @@ func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.Deploym
 }
 
 // Currently this function only modifies the watchedNamespace in the container command
-func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) {
+func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) []string {
 	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
 	require.NoError(t, err)
 
@@ -59,6 +59,7 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 	})
 
 	require.NoError(t, err)
+	return command
 }
 
 func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
@@ -84,7 +85,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	createdOtherNamespace, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&otherNamespace)
 	require.NoError(t, err)
 
-	patchOlmDeployment(t, c, otherNamespaceName)
+	oldCommand := patchOlmDeployment(t, c, otherNamespaceName)
 
 	var one = int32(1)
 	deployment := appsv1.Deployment{
@@ -157,9 +158,24 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 		}
 		return false, nil
 	})
+
+	// clean up
+	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
+	require.NoError(t, err)
+	runningDeploy.Spec.Template.Spec.Containers[0].Command = oldCommand
+	_, updated, err := c.UpdateDeployment(runningDeploy)
+	if err != nil || updated == false {
+		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
+	}
+	require.NoError(t, err)
+
+	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(otherNamespaceName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+	err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+	require.NoError(t, err)
 }
 
-func TestCreateOperatorCSVCopy(t *testing.T) {
+func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	// create operator namespace
 	// create operator group in OLM namespace
 	// create CSV in OLM namespace
@@ -215,7 +231,7 @@ func TestCreateOperatorCSVCopy(t *testing.T) {
 
 	// clean up
 	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(operatorNamespaceName, &metav1.DeleteOptions{})
-	if err != nil {
-		t.Errorf("Operator namespace cleanup failed: %v\n", err)
-	}
+	require.NoError(t, err)
+	err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+	require.NoError(t, err)
 }
