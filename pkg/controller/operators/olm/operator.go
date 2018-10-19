@@ -25,6 +25,7 @@ import (
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
@@ -436,7 +437,11 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 		ownerutil.AddNonBlockingOwner(clusterRole, csv)
 		clusterRole.SetGenerateName(fmt.Sprintf("owned-crd-manager-%s-", csv.Spec.DisplayName))
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
-		if err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			if _, err = a.OpClient.UpdateClusterRole(clusterRole); err != nil {
+				return err, namespaceList.Items
+			}
+		} else if err != nil {
 			return err, namespaceList.Items
 		}
 
@@ -448,7 +453,11 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 			Rules: apiEditPolicyRules,
 		}
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupEditClusterRole)
-		if err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			if _, err = a.OpClient.UpdateClusterRole(operatorGroupEditClusterRole); err != nil {
+				return err, namespaceList.Items
+			}
+		} else if err != nil {
 			return err, namespaceList.Items
 		}
 		operatorGroupViewClusterRole := &rbacv1.ClusterRole{
@@ -458,7 +467,11 @@ func (a *Operator) updateDeploymentAnnotation(op *v1alpha2.OperatorGroup) (error
 			Rules: apiViewPolicyRules,
 		}
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupViewClusterRole)
-		if err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			if _, err = a.OpClient.UpdateClusterRole(operatorGroupViewClusterRole); err != nil {
+				return err, namespaceList.Items
+			}
+		} else if err != nil {
 			return err, namespaceList.Items
 		}
 
