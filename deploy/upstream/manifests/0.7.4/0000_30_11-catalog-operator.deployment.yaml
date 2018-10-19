@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: catalog-operator
-  namespace: openshift-operator-lifecycle-manager
+  namespace: olm
   labels:
     app: catalog-operator
 spec:
@@ -25,7 +25,7 @@ spec:
           command:
           - /bin/catalog
           - '-namespace'
-          - openshift-operator-lifecycle-manager
+          - olm
           image: quay.io/coreos/olm@sha256:3f3909a6bdf6f4bf429e114832c8cfc03c731f9403b91417d5dc246ad0448772
           imagePullPolicy: IfNotPresent
           ports:
