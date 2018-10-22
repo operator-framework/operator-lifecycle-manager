@@ -1092,6 +1092,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 	testNS := "test-ns"
 	aLabel := map[string]string{"app": "matchLabel"}
 
+	ownedDeployment := deployment("csv1-dep1", testNS)
+	ownedDeployment.SetOwnerReferences([]metav1.OwnerReference{
+		{
+			Kind: "ClusterServiceVersion",
+			Name: "csv1-dep1",
+		},
+	})
+
 	tests := []struct {
 		name               string
 		expectedEqual      bool
@@ -1239,7 +1247,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				),
 			},
 			initialObjs: []runtime.Object{
-				deployment("csv1-dep1", testNS),
+				ownedDeployment,
 			},
 			inputGroup: v1alpha2.OperatorGroup{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1280,7 +1288,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 			<-ready
 
 			// Could not put this in initialObjs - got "no kind is registered for the type v1alpha2.OperatorGroup"
-			op.client.OperatorsV1alpha2().OperatorGroups(tc.inputGroup.Namespace).Create(&tc.inputGroup)
+			_, err = op.client.OperatorsV1alpha2().OperatorGroups(tc.inputGroup.Namespace).Create(&tc.inputGroup)
+			require.NoError(t, err)
 
 			err = op.syncOperatorGroups(&tc.inputGroup)
 			require.NoError(t, err)
