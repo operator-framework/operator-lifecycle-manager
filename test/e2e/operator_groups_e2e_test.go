@@ -73,7 +73,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	matchingLabel := map[string]string{"app": "matchLabel"}
+	matchingLabel := map[string]string{"matchLabel": testNamespace}
 	otherNamespaceName := testNamespace + "-namespace-two"
 
 	otherNamespace := corev1.Namespace{
@@ -130,7 +130,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	createdOperatorGroup, err := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
-		Namespaces: []corev1.Namespace{*createdOtherNamespace},
+		Namespaces: []*corev1.Namespace{createdOtherNamespace},
 	}
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -186,7 +186,7 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	crc := newCRClient(t)
 	operatorNamespaceName := testNamespace + "-operator"
 	csvName := "acsv-that-is-unique" // must be lowercase for DNS-1123 validation
-	matchingLabel := map[string]string{"app": "matchLabel"}
+	matchingLabel := map[string]string{"matchLabel": testNamespace}
 
 	operatorNamespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -196,6 +196,8 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	}
 	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&operatorNamespace)
 	require.NoError(t, err)
+
+	oldCommand := patchOlmDeployment(t, c, operatorNamespaceName)
 
 	operatorGroup := v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -230,6 +232,15 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	require.Equal(t, createdCSV.Spec, csvCopy.Spec)
 
 	// clean up
+	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
+	require.NoError(t, err)
+	runningDeploy.Spec.Template.Spec.Containers[0].Command = oldCommand
+	_, updated, err := c.UpdateDeployment(runningDeploy)
+	if err != nil || updated == false {
+		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
+	}
+	require.NoError(t, err)
+
 	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(operatorNamespaceName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 	err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
