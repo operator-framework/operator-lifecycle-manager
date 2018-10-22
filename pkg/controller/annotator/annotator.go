@@ -85,7 +85,9 @@ func (a *Annotator) getNamespaces(namespaceNames []string) (namespaces []corev1.
 	return namespaces, nil
 }
 
-func (a *Annotator) AnnotateNamespace(namespace *corev1.Namespace) error {
+func (a *Annotator) AnnotateNamespace(origNamespace *corev1.Namespace) error {
+	namespace := origNamespace.DeepCopy()
+
 	originalName := namespace.GetName()
 	originalData, err := json.Marshal(namespace)
 	if err != nil {

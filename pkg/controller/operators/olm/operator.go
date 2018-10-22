@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	operatorgrouplister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
@@ -24,7 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	cappsv1 "k8s.io/client-go/listers/apps/v1"
 	cv1 "k8s.io/client-go/listers/core/v1"
@@ -681,44 +679,6 @@ func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 		return err
 	}
 
-	opGroupList, err := a.operatorGroupLister[namespaceName].List(labels.Everything())
-	if err != nil {
-		return err
-	}
-
-	// TODO: do we need this?
-	opGroupUpdate := map[*v1alpha2.OperatorGroup]struct{}{}
-	for _, op := range opGroupList {
-		selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
-		if err != nil {
-			return err
-		}
-
-		if selector.Matches(labels.Set(namespace.GetLabels())) {
-			namespaceMatch := false
-			for _, seenNamespace := range op.Status.Namespaces {
-				if seenNamespace.Name == namespaceName {
-					namespaceMatch = true
-					break
-				}
-			}
-			if namespaceMatch == false {
-				opGroupUpdate[op] = struct{}{}
-			}
-		} else {
-			for _, seenNamespace := range op.Status.Namespaces {
-				if seenNamespace.Name == namespaceName {
-					opGroupUpdate[op] = struct{}{}
-				}
-			}
-		}
-	}
-
-	for op := range opGroupUpdate {
-		if err, _ := a.updateNamespaceList(op); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
