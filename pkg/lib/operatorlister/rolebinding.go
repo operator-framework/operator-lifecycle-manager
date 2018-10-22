@@ -1,6 +1,7 @@
 package operatorlister
 
 import (
+	"fmt"
 	"sync"
 
 	"k8s.io/api/rbac/v1"
@@ -20,7 +21,7 @@ func (rbl *UnionRoleBindingLister) List(selector labels.Selector) (ret []*v1.Rol
 	rbl.roleBindingLock.RLock()
 	defer rbl.roleBindingLock.RUnlock()
 
-	var set map[types.UID]*v1.RoleBinding
+	set := make(map[types.UID]*v1.RoleBinding)
 	for _, dl := range rbl.roleBindingListers {
 		roleBindings, err := dl.List(selector)
 		if err != nil {
@@ -54,7 +55,7 @@ func (rbl *UnionRoleBindingLister) RoleBindings(namespace string) rbacv1.RoleBin
 		return dl.RoleBindings(namespace)
 	}
 
-	return nil
+	return &NullRoleBindingNamespaceLister{}
 }
 
 func (rbl *UnionRoleBindingLister) RegisterRoleBindingLister(namespace string, lister rbacv1.RoleBindingLister) {
@@ -73,4 +74,21 @@ func (l *rbacV1Lister) RegisterRoleBindingLister(namespace string, lister rbacv1
 
 func (l *rbacV1Lister) RoleBindingLister() rbacv1.RoleBindingLister {
 	return l.roleBindingLister
+}
+
+// NullRoleBindingNamespaceLister is an implementation of a null RoleBindingNamespaceLister. It is
+// used to prevent nil pointers when no RoleBindingNamespaceLister has been registered for a given
+// namespace.
+type NullRoleBindingNamespaceLister struct {
+	rbacv1.RoleBindingNamespaceLister
+}
+
+// List returns nil and an error explaining that this is a NullRoleBindingNamespaceLister.
+func (n *NullRoleBindingNamespaceLister) List(selector labels.Selector) (ret []*v1.RoleBinding, err error) {
+	return nil, fmt.Errorf("cannot list RoleBindings with a NullRoleBindingNamespaceLister")
+}
+
+// Get returns nil and an error explaining that this is a NullRoleBindingNamespaceLister.
+func (n *NullRoleBindingNamespaceLister) Get(name string) (*v1.RoleBinding, error) {
+	return nil, fmt.Errorf("cannot get RoleBinding with a NullRoleBindingNamespaceLister")
 }

@@ -114,22 +114,13 @@ func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedInd
 	queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
 	if funcs != nil {
 		if funcs.AddFunc != nil {
-			queueInformer.resourceEventHandlerFuncs.AddFunc = func(obj interface{}) {
-				funcs.AddFunc(obj)
-				queueInformer.defaultAddFunc(obj)
-			}
+			queueInformer.resourceEventHandlerFuncs.AddFunc = funcs.AddFunc
 		}
 		if funcs.DeleteFunc != nil {
-			queueInformer.resourceEventHandlerFuncs.DeleteFunc = func(obj interface{}) {
-				funcs.DeleteFunc(obj)
-				queueInformer.defaultDeleteFunc(obj)
-			}
+			queueInformer.resourceEventHandlerFuncs.DeleteFunc = funcs.DeleteFunc
 		}
 		if funcs.UpdateFunc != nil {
-			queueInformer.resourceEventHandlerFuncs.UpdateFunc = func(oldObj, newObj interface{}) {
-				funcs.UpdateFunc(oldObj, newObj)
-				queueInformer.defaultUpdateFunc(oldObj, newObj)
-			}
+			queueInformer.resourceEventHandlerFuncs.UpdateFunc = funcs.UpdateFunc
 		}
 	}
 	queueInformer.informer.AddEventHandler(queueInformer.resourceEventHandlerFuncs)

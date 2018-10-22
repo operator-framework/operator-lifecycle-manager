@@ -1,6 +1,7 @@
 package operatorlister
 
 import (
+	"fmt"
 	"sync"
 
 	"k8s.io/api/core/v1"
@@ -20,7 +21,7 @@ func (usl *UnionServiceAccountLister) List(selector labels.Selector) (ret []*v1.
 	usl.serviceAccountLock.RLock()
 	defer usl.serviceAccountLock.RUnlock()
 
-	var set map[types.UID]*v1.ServiceAccount
+	set := make(map[types.UID]*v1.ServiceAccount)
 	for _, sl := range usl.serviceAccountListers {
 		serviceAccounts, err := sl.List(selector)
 		if err != nil {
@@ -54,8 +55,7 @@ func (usl *UnionServiceAccountLister) ServiceAccounts(namespace string) corev1.S
 		return sl.ServiceAccounts(namespace)
 	}
 
-	// TODO: Return dummy ServiceAccountNamespaceLister
-	return nil
+	return &NullServiceAccountNamespaceLister{}
 }
 
 func (usl *UnionServiceAccountLister) RegisterServiceAccountLister(namespace string, lister corev1.ServiceAccountLister) {
@@ -74,4 +74,21 @@ func (l *coreV1Lister) RegisterServiceAccountLister(namespace string, lister cor
 
 func (l *coreV1Lister) ServiceAccountLister() corev1.ServiceAccountLister {
 	return l.serviceAccountLister
+}
+
+// NullServiceAccountNamespaceLister is an implementation of a null ServiceAccountNamespaceLister. It is
+// used to prevent nil pointers when no ServiceAccountNamespaceLister has been registered for a given
+// namespace.
+type NullServiceAccountNamespaceLister struct {
+	corev1.ServiceAccountNamespaceLister
+}
+
+// List returns nil and an error explaining that this is a NullServiceAccountNamespaceLister.
+func (n *NullServiceAccountNamespaceLister) List(selector labels.Selector) (ret []*v1.ServiceAccount, err error) {
+	return nil, fmt.Errorf("cannot list ServiceAccounts with a NullServiceAccountNamespaceLister")
+}
+
+// Get returns nil and an error explaining that this is a NullServiceAccountNamespaceLister.
+func (n *NullServiceAccountNamespaceLister) Get(name string) (*v1.ServiceAccount, error) {
+	return nil, fmt.Errorf("cannot get ServiceAccount with a NullServiceAccountNamespaceLister")
 }

@@ -21,7 +21,7 @@ func (usl *UnionServiceLister) List(selector labels.Selector) (ret []*v1.Service
 	usl.serviceLock.RLock()
 	defer usl.serviceLock.RUnlock()
 
-	var set map[types.UID]*v1.Service
+	set := make(map[types.UID]*v1.Service)
 	for _, sl := range usl.serviceListers {
 		services, err := sl.List(selector)
 		if err != nil {
@@ -55,8 +55,7 @@ func (usl *UnionServiceLister) Services(namespace string) corev1.ServiceNamespac
 		return sl.Services(namespace)
 	}
 
-	// TODO: Return dummy Service namespace lister
-	return nil
+	return &NullServiceNamespaceLister{}
 }
 
 func (usl *UnionServiceLister) GetPodServices(pod *v1.Pod) ([]*v1.Service, error) {
@@ -92,4 +91,26 @@ func (l *coreV1Lister) RegisterServiceLister(namespace string, lister corev1.Ser
 
 func (l *coreV1Lister) ServiceLister() corev1.ServiceLister {
 	return l.serviceLister
+}
+
+// NullServiceNamespaceLister is an implementation of a null ServiceNamespaceLister. It is
+// used to prevent nil pointers when no ServiceNamespaceLister has been registered for a given
+// namespace.
+type NullServiceNamespaceLister struct {
+	corev1.ServiceNamespaceLister
+}
+
+// List returns nil and an error explaining that this is a NullServiceNamespaceLister.
+func (n *NullServiceNamespaceLister) List(selector labels.Selector) (ret []*v1.Service, err error) {
+	return nil, fmt.Errorf("cannot list Services with a NullServiceNamespaceLister")
+}
+
+// Get returns nil and an error explaining that this is a NullServiceNamespaceLister.
+func (n *NullServiceNamespaceLister) Get(name string) (*v1.Service, error) {
+	return nil, fmt.Errorf("cannot get Service with a NullServiceNamespaceLister")
+}
+
+// GetPodServices returns nil and an error explaining that this is a NullServiceNamespaceLister.
+func (n *NullServiceAccountNamespaceLister) GetPodServices(pod *v1.Pod) ([]*v1.Service, error) {
+	return nil, fmt.Errorf("could not get pod services with a NullServiceNamespaceLister")
 }

@@ -50,7 +50,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	log.Debug("Deployment annotation completed")
 
 	// annotate csvs
-	csvsInNamespace := a.csvsInNamespace(op.Namespace)
+	csvsInNamespace := a.csvSet(op.Namespace)
 	for _, csv := range csvsInNamespace {
 		origCSVannotations := csv.GetAnnotations()
 		a.addAnnotationsToObjectMeta(&csv.ObjectMeta, op, nsListJoined)
@@ -76,7 +76,7 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 		if ns.Name == operatorGroup.GetNamespace() {
 			continue
 		}
-		fetchedCSV, err := a.csvLister[ns.GetName()].ClusterServiceVersions(ns.GetName()).Get(csv.GetName())
+		fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns.GetName()).Get(csv.GetName())
 		if k8serrors.IsAlreadyExists(err) {
 			log.Debugf("Found existing CSV (%v), checking annotations", fetchedCSV.GetName())
 			if reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) == false {
@@ -174,7 +174,7 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]*corev1.Na
 
 func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 	currentNamespace := op.GetNamespace()
-	csvsInNamespace := a.csvsInNamespace(currentNamespace)
+	csvsInNamespace := a.csvSet(currentNamespace)
 	for _, csv := range csvsInNamespace {
 		managerPolicyRules := []rbacv1.PolicyRule{}
 		apiEditPolicyRules := []rbacv1.PolicyRule{}

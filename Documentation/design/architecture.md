@@ -54,9 +54,12 @@ While the OLM Operator is often configured to watch all namespaces, it can also 
 ```
            +------------------------------------------------------+
            |                                                      |
-           v                                      +--> Succeeded -+
-None --> Pending --> InstallReady --> Installing -|
-                                                  +--> Failed
+           |                                      +--> Succeeded -+
+           v                                      |               |
+None --> Pending --> InstallReady --> Installing -|               |
+           ^                                       +--> Failed <--+   
+           |                                              |
+           +----------------------------------------------+
 \                                                                 /
  +---------------------------------------------------------------+
     |
@@ -64,16 +67,16 @@ None --> Pending --> InstallReady --> Installing -|
 Replacing --> Deleting
 ```
 
-| Phase      | Description                                                                                                            |
-|------------|------------------------------------------------------------------------------------------------------------------------|
-| None       | initial phase, once seen by the Operator, it is immediately transitioned to `Pending`                                  |
-| Pending    | requirements in the CSV are not met, once they are this phase transitions to `Installing`                              |
-| InstallReady | all requirements in the CSV are present, the Operator will begin executing the install strategy                      |
-| Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready  |
-| Succeeded  | the execution of the Install Strategy was successful; if requirements disappear, this may transition back to `Pending` |
-| Failed     | upon failed execution of the Install Strategy, the CSV transitions to this terminal phase                              |
-| Replacing | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC       | 
-| Deleting | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon.                          |
+| Phase      | Description                                                                                                                                                                                                                           |
+|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| None       | initial phase, once seen by the Operator, it is immediately transitioned to `Pending`                                                                                                                                                 |
+| Pending    | requirements in the CSV are not met, once they are this phase transitions to `Installing`                                                                                                                                             |
+| InstallReady | all requirements in the CSV are present, the Operator will begin executing the install strategy                                                                                                                                     |
+| Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready                                                                                                                 |
+| Succeeded  | the execution of the Install Strategy was successful; if requirements disappear, or an APIService cert needs to be rotated this may transition back to `Pending`; if an installed component dissapears this may transition to `Failed`|
+| Failed     | upon failed execution of the Install Strategy, or an installed component dissapears the CSV transitions to this phase; if the component can be recreated by OLM, this may transition to `Pending`                                     |
+| Replacing  | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC                                                                                                                     | 
+| Deleting   | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon.                                                                                                                                       |
 
 ### Namespace Control Loop
 

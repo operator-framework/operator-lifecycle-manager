@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRequirementAndPermissionStatus(t *testing.T) {
@@ -44,9 +44,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
-			existingObjs:    nil,
-			existingExtObjs: nil,
-			met:             false,
+			existingObjs:                nil,
+			existingExtObjs:             nil,
+			met:                         false,
 			expectedRequirementStatuses: nil,
 			expectedError:               fmt.Errorf("unexpected end of JSON input"),
 		},
@@ -457,21 +457,16 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			namespaceObj := corev1.Namespace{
+			namespaceObj := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: namespace,
 				},
 			}
-			op, err := NewFakeOperator(nil, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, []corev1.Namespace{namespaceObj})
-			require.NoError(t, err)
-
+			test.existingObjs = append(test.existingObjs, namespaceObj)
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-
-			t.Log("starting queue informer operator...")
-			ready, _ := op.Run(stopCh)
-			<-ready
-			t.Log("queue informer operator ready")
+			op, err := NewFakeOperator([]runtime.Object{test.csv}, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			require.NoError(t, err)
 
 			// Get the permission status
 			met, statuses, err := op.requirementAndPermissionStatus(test.csv)
