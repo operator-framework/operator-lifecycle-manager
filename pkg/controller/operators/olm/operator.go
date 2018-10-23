@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"k8s.io/client-go/tools/record"
+
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +23,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -44,6 +47,7 @@ type Operator struct {
 	clusterRoleLister        crbacv1.ClusterRoleLister
 	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
 	annotator                *annotator.Annotator
+	recorder                 record.EventRecorder
 	cleanupFunc              func()
 }
 
@@ -60,12 +64,17 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		return nil, err
 	}
 	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
+	eventRecorder, err := event.NewRecorder(opClient.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
+	if err != nil {
+		return nil, err
+	}
 
 	op := &Operator{
 		Operator:  queueOperator,
 		client:    crClient,
 		resolver:  resolver,
 		annotator: namespaceAnnotator,
+		recorder:  eventRecorder,
 		cleanupFunc: func() {
 			namespaceAnnotator.CleanNamespaceAnnotations(namespaces)
 		},
@@ -281,8 +290,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	return
 }
 
-// transitionCSVState moves the CSV status state machine along based on the current value and the current cluster
-// state.
+// transitionCSVState moves the CSV status state machine along based on the current value and the current cluster state.
 func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v1alpha1.ClusterServiceVersion, syncError error) {
 	logger := log.WithFields(log.Fields{
 		"csv":       in.GetName(),
@@ -301,31 +309,31 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	switch out.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
 		logger.Infof("scheduling ClusterServiceVersion for requirement verification")
-		out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked")
+		out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked", a.recorder)
 	case v1alpha1.CSVPhasePending:
 		met, statuses, err := a.requirementAndPermissionStatus(out)
 		if err != nil {
 			logger.Info("invalid install strategy")
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()))
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), a.recorder)
 			return
 		}
 		out.SetRequirementStatus(statuses)
 
 		if !met {
 			logger.Info("requirements were not met")
-			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found")
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found", a.recorder)
 			syncError = ErrRequirementsNotMet
 			return
 		}
 
 		// check for CRD ownership conflicts
 		if syncError = a.crdOwnerConflicts(out, a.csvsInNamespace(out.GetNamespace())); syncError != nil {
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("owner conflict: %s", syncError))
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("owner conflict: %s", syncError), a.recorder)
 			return
 		}
 
 		logger.Info("scheduling ClusterServiceVersion for install")
-		out.SetPhase(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install")
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install", a.recorder)
 	case v1alpha1.CSVPhaseInstallReady:
 
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
@@ -337,16 +345,16 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Install owned APIServices and update strategy with serving cert data
 		strategy, syncError = a.installOwnedAPIServiceRequirements(out, strategy)
 		if syncError != nil {
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError))
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError), a.recorder)
 			return
 		}
 
 		if syncError = installer.Install(strategy); syncError != nil {
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError))
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError), a.recorder)
 			return
 		}
 
-		out.SetPhase(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy")
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", a.recorder)
 		a.requeueCSV(out.GetName(), out.GetNamespace())
 		return
 	case v1alpha1.CSVPhaseInstalling:
@@ -382,7 +390,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// if we can find a newer version that's successfully installed, we're safe to mark all intermediates
 		for _, csv := range a.findIntermediatesForDeletion(out) {
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
-			csv.SetPhase(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.")
+			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.", a.recorder)
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
 			a.requeueCSV(csv.GetName(), csv.GetNamespace())

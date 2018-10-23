@@ -6,6 +6,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// TODO(alecmerdler): Can we use this to emit Kubernetes events?
 type MetricsProvider interface {
 	HandleMetrics() error
 }

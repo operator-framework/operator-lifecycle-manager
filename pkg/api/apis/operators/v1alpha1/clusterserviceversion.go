@@ -1,13 +1,26 @@
 package v1alpha1
 
 import (
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 )
 
 // obsoleteReasons are the set of reasons that mean a CSV should no longer be processed as active
 var obsoleteReasons = map[ConditionReason]struct{}{
 	CSVReasonReplaced:      {},
 	CSVReasonBeingReplaced: {},
+}
+
+func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, recorder record.EventRecorder) {
+	var eventtype string
+	if phase == CSVPhaseFailed {
+		eventtype = v1.EventTypeWarning
+	} else {
+		eventtype = v1.EventTypeNormal
+	}
+	go recorder.Event(c, eventtype, string(reason), message)
+	c.SetPhase(phase, reason, message)
 }
 
 // SetPhase sets the current phase and adds a condition if necessary
