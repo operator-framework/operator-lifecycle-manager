@@ -43,11 +43,11 @@ spec:
   validation:
     openAPIV3Schema:
       properties:
+        type: object
+        description: Represents a catalog of operator data. OLM will query catalog sources to resolve dependencies.
+        required:
+        - spec
         spec:
-          type: object
-          description: Represents a subscription to a source and channel
-          required:
-          - spec
           type: object
           description: Spec for a catalog source.
           required:
@@ -55,9 +55,10 @@ spec:
           properties:
             sourceType:
               type: string
-              description: The type of the source. Currently the only supported type is "internal".
+              description: The type of the source. `configmap` is the new name for `internal`
               enum:
-              - internal
+              - internal   # deprecated
+              - configmap
 
             configMap:
               type: string
@@ -77,3 +78,44 @@ spec:
               items:
                 type: string
                 description: A name of a secret in the namespace where the CatalogSource is defined.
+        status:
+          type: object
+          description: The status of the CatalogSource
+          properties:
+            configMapReference:
+              type: object
+              description: If sourceType is `internal` or `configmap`, then this holds a reference to the configmap associated with this CatalogSource.
+              properties:
+                name:
+                  type: string
+                  description: name of the configmap
+                namespace:
+                  type: string
+                  description: namespace of the configmap
+                resourceVersion:
+                  type: string
+                  description: resourceVersion of the configmap
+                uid:
+                  type: string
+                  description: uid of the configmap
+            registryService:
+              type: object
+              properties:
+                protocol:
+                  type: string
+                  description: protocol of the registry service
+                  enum:
+                    - grpc
+                serviceName:
+                  type: string
+                  description: name of the registry service
+                serviceNamespace:
+                  type: string
+                  description: namespace of the registry service
+                port:
+                  type: string
+                  description: port of the registry service
+            lastSync:
+                type: string
+                description: the last time the catalog was updated. If this time is less than the last updated time on the object, the catalog will be re-cached.
+

@@ -11,10 +11,18 @@ const (
 	CatalogSourceKind          = "CatalogSource"
 )
 
+// Approval is the user approval policy for an InstallPlan.
+type SourceType string
+
+const (
+	SourceTypeInternal  SourceType = "internal"
+	SourceTypeConfigmap SourceType = "configmap"
+)
+
 type CatalogSourceSpec struct {
-	SourceType string   `json:"sourceType"`
-	ConfigMap  string   `json:"configMap,omitempty"`
-	Secrets    []string `json:"secrets,omitempty"`
+	SourceType SourceType `json:"sourceType"`
+	ConfigMap  string     `json:"configMap,omitempty"`
+	Secrets    []string   `json:"secrets,omitempty"`
 
 	// Metadata
 	DisplayName string `json:"displayName,omitempty"`
@@ -23,9 +31,18 @@ type CatalogSourceSpec struct {
 	Icon        Icon   `json:"icon,omitempty"`
 }
 
+type RegistryServiceStatus struct {
+	Protocol         string      `json:"protocol,omitempty"`
+	ServiceName      string      `json:"serviceName,omitempty"`
+	ServiceNamespace string      `json:"serviceNamespace,omitempty"`
+	Port             string      `json:"port,omitempty"`
+	CreatedAt        metav1.Time `json:"createdAt,omitempty"`
+}
+
 type CatalogSourceStatus struct {
-	ConfigMapResource *ConfigMapResourceReference `json:"configMapReference,omitempty"`
-	LastSync          metav1.Time                 `json:"lastSync,omitempty"`
+	ConfigMapResource     *ConfigMapResourceReference `json:"configMapReference,omitempty"`
+	RegistryServiceStatus *RegistryServiceStatus      `json:"registryService,omitempty"`
+	LastSync              metav1.Time                 `json:"lastSync,omitempty"`
 }
 type ConfigMapResourceReference struct {
 	Name      string `json:"name"`
