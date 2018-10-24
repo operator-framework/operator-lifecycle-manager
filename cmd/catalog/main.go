@@ -19,6 +19,7 @@ import (
 const (
 	defaultWakeupInterval   = 15 * time.Minute
 	defaultCatalogNamespace = "tectonic-system"
+	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -34,6 +35,9 @@ var (
 
 	catalogNamespace = flag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
+
+	configmapServerImage = flag.String(
+		"configmapServerImage", defaultConfigMapServerImage, "the image to use for serving the operator registry api for a configmap")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
