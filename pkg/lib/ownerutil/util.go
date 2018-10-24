@@ -3,14 +3,13 @@ package ownerutil
 import (
 	"fmt"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
 // Owner is used to build an OwnerReference, and we need type and object metadata

@@ -3,9 +3,14 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
@@ -15,13 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 var singleInstance = int32(1)

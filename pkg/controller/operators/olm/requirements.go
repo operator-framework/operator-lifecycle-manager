@@ -4,12 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	log "github.com/sirupsen/logrus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func (a *Operator) requirementStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
@@ -241,7 +240,13 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 
 	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions())
 
-	ruleChecker := install.NewCSVRuleChecker(a.roleLister, a.roleBindingLister, a.clusterRoleLister, a.clusterRoleBindingLister, csv)
+	rbacLister := a.lister.RbacV1()
+	roleLister := rbacLister.RoleLister()
+	roleBindingLister := rbacLister.RoleBindingLister()
+	clusterRoleLister := rbacLister.ClusterRoleLister()
+	clusterRoleBindingLister := rbacLister.ClusterRoleBindingLister()
+
+	ruleChecker := install.NewCSVRuleChecker(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister, csv)
 	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace())
 	if err != nil {
 		return false, nil, err

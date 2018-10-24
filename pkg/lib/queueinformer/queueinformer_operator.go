@@ -3,12 +3,11 @@ package queueinformer
 import (
 	"fmt"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/pkg/errors"
 )
 
 // An Operator is a collection of QueueInformers
@@ -47,6 +46,7 @@ func (o *Operator) RegisterQueueInformer(queueInformer *QueueInformer) {
 	if o.queueInformers == nil {
 		o.queueInformers = []*QueueInformer{}
 	}
+
 	o.queueInformers = append(o.queueInformers, queueInformer)
 }
 
