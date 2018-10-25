@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -127,19 +128,20 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 			},
 		},
 	}
-	createdOperatorGroup, err := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
 		Namespaces: []*corev1.Namespace{createdOtherNamespace},
 	}
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		createdOperatorGroup, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
+		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
+		if fetchErr != nil {
+			fmt.Println(fetchErr)
+			return false, fetchErr
 		}
-		if len(createdOperatorGroup.Status.Namespaces) > 0 {
-			require.Equal(t, expectedOperatorGroupStatus.Namespaces[0].Name, createdOperatorGroup.Status.Namespaces[0].Name)
+		if len(fetched.Status.Namespaces) > 0 {
+			require.Equal(t, expectedOperatorGroupStatus.Namespaces[0].Name, fetched.Status.Namespaces[0].Name)
 			return true, nil
 		}
 		return false, nil

@@ -9,6 +9,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	csvlister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	operatorgrouplister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
@@ -23,6 +24,7 @@ import (
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	cappsv1 "k8s.io/client-go/listers/apps/v1"
@@ -54,6 +56,7 @@ type Operator struct {
 	roleBindingLister        crbacv1.RoleBindingLister
 	clusterRoleLister        crbacv1.ClusterRoleLister
 	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
+	csvLister                map[string]csvlister.ClusterServiceVersionLister
 	operatorGroupLister      map[string]operatorgrouplister.OperatorGroupLister
 	deploymentLister         map[string]cappsv1.DeploymentLister
 	namespaceLister          cv1.NamespaceLister
@@ -176,12 +179,15 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 
 	// Set up watch on CSVs
 	csvInformers := []cache.SharedIndexInformer{}
+	csvLister := map[string]csvlister.ClusterServiceVersionLister{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching for CSVs in namespace %s", namespace)
 		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		informer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer()
-		csvInformers = append(csvInformers, informer)
+		informer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+		csvInformers = append(csvInformers, informer.Informer())
+		csvLister[namespace] = informer.Lister()
 	}
+	op.csvLister = csvLister
 
 	// csvInformers for each namespace all use the same backing queue
 	// queue keys are namespaced
@@ -368,21 +374,55 @@ func (a *Operator) deleteClusterServiceVersion(obj interface{}) {
 		return
 	}
 
+	logger := log.WithFields(log.Fields{
+		"csv":       clusterServiceVersion.GetName(),
+		"namespace": clusterServiceVersion.GetNamespace(),
+		"phase":     clusterServiceVersion.Status.Phase,
+	})
+
 	targetNamespaces, ok := clusterServiceVersion.Annotations["olm.targetNamespaces"]
-	if ok {
-		operatorNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
-		if !ok {
-			log.Debugf("missing operator namespace annotation on CSV %v", clusterServiceVersion)
-		}
-		for _, namespace := range strings.Split(targetNamespaces, ",") {
-			if namespace != operatorNamespace {
-				a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(clusterServiceVersion.GetName(), &metav1.DeleteOptions{})
-			}
-		}
-	} else {
-		log.Debugf("Ignoring CSV '%v' with no annotation", clusterServiceVersion)
+	if !ok {
+		logger.Debugf("Ignoring CSV with no annotation")
 	}
 
+	operatorNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
+	if !ok {
+		logger.Debugf("missing operator namespace annotation on CSV")
+	}
+
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied {
+		return
+	}
+	logger.Info("parent CSV deleted, GC children")
+	for _, namespace := range strings.Split(targetNamespaces, ",") {
+		if namespace != operatorNamespace {
+			if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(clusterServiceVersion.GetName(), &metav1.DeleteOptions{}); err != nil {
+				logger.WithError(err).Debug("error deleting child CSV")
+			}
+		}
+	}
+}
+
+func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
+	logger := log.WithFields(log.Fields{
+		"csv":       csv.GetName(),
+		"namespace": csv.GetNamespace(),
+		"phase":     csv.Status.Phase,
+	})
+
+	operatorNamespace, ok := csv.Annotations["olm.operatorNamespace"]
+	if !ok {
+		logger.Debugf("missing operator namespace annotation on copied CSV")
+		return fmt.Errorf("missing operator namespace annotation on copied CSV")
+	}
+
+	_, err := a.csvLister[operatorNamespace].ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
+	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) {
+		if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
@@ -397,6 +437,12 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
+
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied {
+		logger.Info("skip sync of dummy CSV")
+		return a.removeDanglingChildCSVs(clusterServiceVersion)
+	}
+
 	logger.Info("syncing")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
