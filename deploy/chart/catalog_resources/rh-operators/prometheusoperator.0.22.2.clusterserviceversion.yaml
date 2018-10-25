@@ -201,6 +201,8 @@ spec:
         version: v1
       - kind: ConfigMap
         version: v1
+      - kind: Service
+        version: v1
       specDescriptors:
       - description: Desired number of Pods for the cluster
         displayName: Size
@@ -260,6 +262,8 @@ spec:
       - kind: StatefulSet
         version: v1beta2
       - kind: Pod
+        version: v1
+      - kind: Service
         version: v1
       specDescriptors:
       - description: Desired number of Pods for the cluster
