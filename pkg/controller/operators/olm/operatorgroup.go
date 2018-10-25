@@ -58,7 +58,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			},
 		}
 
-		//TODO: listen to delete events on CSVS, delete all "target CSVs"
 		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
 		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorNamespace", op.GetNamespace())
 		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorGroup", op.GetName())
@@ -66,8 +65,20 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		for _, ns := range targetedNamespaces {
 			newCSV.SetNamespace(ns.Name)
 			if ns.Name != op.Namespace {
-				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(newCSV.GetNamespace()).Create(&newCSV)
-				if err != nil {
+				log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.GetName())
+				newCSVsynced, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Create(&newCSV)
+				if k8serrors.IsAlreadyExists(err) {
+					if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(newCSVsynced); err != nil {
+						return err
+					}
+				} else if err != nil {
+					return err
+				}
+			} else {
+				metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
+				metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.operatorNamespace", op.GetNamespace())
+				metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.operatorGroup", op.GetName())
+				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
 					return err
 				}
 			}

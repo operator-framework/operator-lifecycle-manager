@@ -3,6 +3,7 @@ package olm
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -185,11 +186,14 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	// csvInformers for each namespace all use the same backing queue
 	// queue keys are namespaced
 	csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterserviceversions")
+	csvHandlers := cache.ResourceEventHandlerFuncs{
+		DeleteFunc: op.deleteClusterServiceVersion,
+	}
 	queueInformers := queueinformer.New(
 		csvQueue,
 		csvInformers,
 		op.syncClusterServiceVersion,
-		nil,
+		&csvHandlers,
 		"csv",
 		metrics.NewMetricsCSV(op.client),
 	)
@@ -357,6 +361,30 @@ func (a *Operator) syncServices(obj interface{}) (syncError error) {
 	return nil
 }
 
+func (a *Operator) deleteClusterServiceVersion(obj interface{}) {
+	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return
+	}
+
+	targetNamespaces, ok := clusterServiceVersion.Annotations["olm.targetNamespaces"]
+	if ok {
+		operatorNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
+		if !ok {
+			log.Debugf("missing operator namespace annotation on CSV %v", clusterServiceVersion)
+		}
+		for _, namespace := range strings.Split(targetNamespaces, ",") {
+			if namespace != operatorNamespace {
+				a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(clusterServiceVersion.GetName(), &metav1.DeleteOptions{})
+			}
+		}
+	} else {
+		log.Debugf("Ignoring CSV '%v' with no annotation", clusterServiceVersion)
+	}
+
+}
+
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
 func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
@@ -372,6 +400,25 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	logger.Info("syncing")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
+
+	opNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
+	if ok {
+		// ensure "parent" CSV has not been deleted
+		csvs := a.csvsInNamespace(opNamespace)
+		csv, found := csvs[clusterServiceVersion.Name]
+		if !found {
+			targetNamespaces, ok := clusterServiceVersion.Annotations["olm.targetNamespaces"]
+			if !ok {
+				return fmt.Errorf("Did not find targetNamespaces annotation on %v", csv)
+			}
+			for _, ns := range strings.Split(targetNamespaces, ",") {
+				if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(csv.Name, &metav1.DeleteOptions{}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
 
 	// no changes in status, don't update
 	if outCSV.Status.Phase == clusterServiceVersion.Status.Phase && outCSV.Status.Reason == clusterServiceVersion.Status.Reason && outCSV.Status.Message == clusterServiceVersion.Status.Message {

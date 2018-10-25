@@ -176,28 +176,28 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 }
 
 func TestCreateOperatorGroupCSVCopy(t *testing.T) {
-	// create operator namespace
-	// create operator group in OLM namespace
+	// create target namespace
+	// create operator group in OLM namespace, which serves as operator namespace
 	// create CSV in OLM namespace
-	// verify CSV is copied to operator namespace
+	// verify CSV is copied to target namespace
 
 	log.SetLevel(log.DebugLevel)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	operatorNamespaceName := testNamespace + "-operator"
+	targetNamespaceName := testNamespace + "-target"
 	csvName := "acsv-that-is-unique" // must be lowercase for DNS-1123 validation
 	matchingLabel := map[string]string{"matchLabel": testNamespace}
 
 	operatorNamespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:   operatorNamespaceName,
+			Name:   targetNamespaceName,
 			Labels: matchingLabel,
 		},
 	}
 	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&operatorNamespace)
 	require.NoError(t, err)
 
-	oldCommand := patchOlmDeployment(t, c, operatorNamespaceName)
+	oldCommand := patchOlmDeployment(t, c, targetNamespaceName)
 
 	operatorGroup := v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
@@ -219,7 +219,7 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 
 	var csvCopy *v1alpha1.ClusterServiceVersion
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespaceName).Get(csvName, metav1.GetOptions{})
+		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(targetNamespaceName).Get(csvName, metav1.GetOptions{})
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -231,6 +231,22 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	require.Equal(t, createdCSV.Name, csvCopy.Name)
 	require.Equal(t, createdCSV.Spec, csvCopy.Spec)
 
+	// part 2 - ensure deletion cleans up copied CSV
+	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(targetNamespaceName).Get(csvName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, err
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
+
 	// clean up
 	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
 	require.NoError(t, err)
@@ -241,7 +257,7 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	}
 	require.NoError(t, err)
 
-	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(operatorNamespaceName, &metav1.DeleteOptions{})
+	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(targetNamespaceName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 	err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
 	require.NoError(t, err)

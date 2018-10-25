@@ -51,37 +51,43 @@ func (q *QueueInformer) keyFunc(obj interface{}) (string, bool) {
 	return k, true
 }
 
+func (q *QueueInformer) defaultAddFunc(obj interface{}) {
+	key, ok := q.keyFunc(obj)
+	if !ok {
+		return
+	}
+
+	log.Infof("%s added", key)
+	q.enqueue(key)
+}
+
+func (q *QueueInformer) defaultDeleteFunc(obj interface{}) {
+	key, ok := q.keyFunc(obj)
+	if !ok {
+		return
+	}
+
+	log.Infof("%s deleted", key)
+	q.queue.Forget(key)
+}
+
+func (q *QueueInformer) defaultUpdateFunc(oldObj, newObj interface{}) {
+	key, ok := q.keyFunc(newObj)
+	if !ok {
+		return
+	}
+
+	log.Infof("%s updated", key)
+	q.enqueue(key)
+}
+
 // defaultResourceEventhandlerFuncs provides the default implementation for responding to events
 // these simply log the event and add the object's key to the queue for later processing
 func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventHandlerFuncs {
 	return &cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			key, ok := q.keyFunc(obj)
-			if !ok {
-				return
-			}
-
-			log.Infof("%s added", key)
-			q.enqueue(key)
-		},
-		DeleteFunc: func(obj interface{}) {
-			key, ok := q.keyFunc(obj)
-			if !ok {
-				return
-			}
-
-			log.Infof("%s deleted", key)
-			q.queue.Forget(key)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			key, ok := q.keyFunc(newObj)
-			if !ok {
-				return
-			}
-
-			log.Infof("%s updated", key)
-			q.enqueue(key)
-		},
+		AddFunc:    q.defaultAddFunc,
+		DeleteFunc: q.defaultDeleteFunc,
+		UpdateFunc: q.defaultUpdateFunc,
 	}
 }
 
@@ -108,7 +114,25 @@ func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedInd
 	if funcs == nil {
 		queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
 	} else {
-		queueInformer.resourceEventHandlerFuncs = funcs
+		queueInformer.resourceEventHandlerFuncs = &cache.ResourceEventHandlerFuncs{}
+		if funcs.AddFunc != nil {
+			queueInformer.resourceEventHandlerFuncs.AddFunc = func(obj interface{}) {
+				funcs.AddFunc(obj)
+				queueInformer.defaultAddFunc(obj)
+			}
+		}
+		if funcs.DeleteFunc != nil {
+			queueInformer.resourceEventHandlerFuncs.DeleteFunc = func(obj interface{}) {
+				funcs.DeleteFunc(obj)
+				queueInformer.defaultDeleteFunc(obj)
+			}
+		}
+		if funcs.UpdateFunc != nil {
+			queueInformer.resourceEventHandlerFuncs.UpdateFunc = func(oldObj, newObj interface{}) {
+				funcs.UpdateFunc(oldObj, newObj)
+				queueInformer.defaultUpdateFunc(oldObj, newObj)
+			}
+		}
 	}
 	queueInformer.informer.AddEventHandler(queueInformer.resourceEventHandlerFuncs)
 	return queueInformer
