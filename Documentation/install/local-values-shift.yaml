@@ -4,7 +4,7 @@ watchedNamespaces: local
 catalog_namespace: local
 debug: true
 
-alm:
+olm:
   replicaCount: 1
   image:
     ref: quay.io/coreos/olm:local
