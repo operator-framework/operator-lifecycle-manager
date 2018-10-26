@@ -212,7 +212,12 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 	}
 }
 
-func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstallStrategy, owned, required []*v1beta1.CustomResourceDefinition, phase v1alpha1.ClusterServiceVersionPhase) *v1alpha1.ClusterServiceVersion {
+func csv(
+	name, namespace, replaces string,
+	installStrategy v1alpha1.NamedInstallStrategy,
+	owned, required []*v1beta1.CustomResourceDefinition,
+	phase v1alpha1.ClusterServiceVersionPhase,
+) *v1alpha1.ClusterServiceVersion {
 	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, crd := range required {
 		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: crd.GetName(), Version: crd.Spec.Versions[0].Name, Kind: crd.Spec.Names.Kind})

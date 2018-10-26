@@ -102,14 +102,15 @@ type APIServiceDefinitions struct {
 	Required []APIServiceDescription `json:"required,omitempty"`
 }
 
-// ClusterServiceVersionSpec declarations tell the OLM how to install an operator
-// that can manage apps for given version and AppType.
+// ClusterServiceVersionSpec declarations tell OLM how to install an operator
+// that can manage apps for a given version.
 type ClusterServiceVersionSpec struct {
 	InstallStrategy           NamedInstallStrategy      `json:"install"`
 	Version                   semver.Version            `json:"version,omitempty"`
 	Maturity                  string                    `json:"maturity,omitempty"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	APIServiceDefinitions     APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`
+	NativeAPIs                []metav1.GroupVersionKind `json:"nativeAPIs,omitempty"`
 	DisplayName               string                    `json:"displayName"`
 	Description               string                    `json:"description,omitempty"`
 	Keywords                  []string                  `json:"keywords,omitempty"`
