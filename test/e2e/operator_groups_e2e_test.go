@@ -63,9 +63,23 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 	return command
 }
 
+func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup, targetNamespaces string) error {
+	if annotation, ok := obj.GetAnnotations()["olm.targetNamespaces"]; !ok || annotation != targetNamespaces {
+		return fmt.Errorf("missing targetNamespaces annotation on %v", obj.GetName())
+	}
+	if annotation, ok := obj.GetAnnotations()["olm.operatorNamespace"]; !ok || annotation != op.GetNamespace() {
+		return fmt.Errorf("missing operatorNamespace on %v", obj.GetName())
+	}
+	if annotation, ok := obj.GetAnnotations()["olm.operatorGroup"]; !ok || annotation != op.GetName() {
+		return fmt.Errorf("missing operatorGroup annotation on %v", obj.GetName())
+	}
+
+	return nil
+}
+
 func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	// Create namespace with specific label
-	// Create CSV in opoerator namespace
+	// Create CSV in operator namespace
 	// Create operator group that watches namespace and uses specific label
 	// Verify operator group status contains correct status
 	// Verify csv in target namespace exists, has copied status, has annotations
@@ -171,8 +185,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 			fmt.Println(fetchErr)
 			return false, fetchErr
 		}
-		//TODO: check other annotations
-		if fetchedCSV.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
 			return true, nil
 		}
 		return false, nil
@@ -185,16 +198,17 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 			fmt.Println(fetchErr)
 			return false, fetchErr
 		}
-		//TODO: check other annotations
-		if fetchedCSV.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
 			return true, nil
 		}
+
 		return false, nil
 	})
-
-
-	// TODO: verify CSV in target namespace has correct annotations and status
-	// TODO: verify CSV in operator namespace has correct annotations
+	// since annotations are set along with status, no reason to poll for this check as done above
+	log.Debug("Checking status on CSV in target namespace")
+	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
+	require.NoError(t, err)
+	require.EqualValues(t, v1alpha1.CSVReasonCopied, fetchedCSV.Status.Reason)
 
 	//log.Debug("Waiting on deployment to have correct annotation")
 	//err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {

@@ -57,7 +57,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			return err
 		}
 
-		if err := a.copyCsvToTargetNamespace(csv, op, targetedNamespaces); err!=nil {
+		if err := a.copyCsvToTargetNamespace(csv, op, targetedNamespaces); err != nil {
 			return err
 		}
 	}
@@ -109,35 +109,41 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 }
 
 func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, targetNamespaces []*corev1.Namespace) error {
-	var nsList []string
-	for _, ns := range targetNamespaces {
-		nsList = append(nsList, ns.Name)
-	}
-	nsListJoined := strings.Join(nsList, ",")
-
-
 	for _, ns := range targetNamespaces {
 		if ns.Name == operatorGroup.GetNamespace() {
 			continue
 		}
+		// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
 		newCSV := v1alpha1.ClusterServiceVersion{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: csv.Name,
+				Name:        csv.Name,
+				Annotations: csv.Annotations,
 			},
 			Spec: *csv.Spec.DeepCopy(),
-			Status: v1alpha1.ClusterServiceVersionStatus{
+		}
+		newCSV.SetNamespace(ns.Name)
+
+		log.Debugf("Copying/updating CSV %v to/in namespace %v", csv.GetName(), ns.Name)
+		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Create(&newCSV)
+		if err == nil {
+			createdCSV.Status = v1alpha1.ClusterServiceVersionStatus{
 				Message:        "CSV copied to target namespace",
 				Reason:         v1alpha1.CSVReasonCopied,
 				LastUpdateTime: timeNow(),
-			},
+			}
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).UpdateStatus(createdCSV); err != nil {
+				log.Errorf("Status update for CSV failed: %v", err)
+				return err
+			}
 		}
-		a.addAnnotationsToCSV(&newCSV, operatorGroup, nsListJoined)
-		newCSV.SetNamespace(ns.Name)
-
-		log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.Name)
-		_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Create(&newCSV)
 		if k8serrors.IsAlreadyExists(err) {
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Update(&newCSV); err != nil {
+			fetchedCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Get(csv.GetName(), metav1.GetOptions{})
+			if err != nil {
+				log.Errorf("Create failed, yet get failed: %v", err)
+			}
+			// update the potentially different annotations
+			fetchedCSV.Annotations = csv.Annotations
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Update(fetchedCSV); err != nil {
 				log.Errorf("Update CSV in target namespace failed: %v", err)
 				return err
 			}
