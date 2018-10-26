@@ -41,16 +41,85 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	nsListJoined := strings.Join(nsList, ",")
 
-	if err := a.annotateDeployments(op.GetNamespace(), nsListJoined); err != nil {
-		log.Errorf("annotateDeployments error: %v", err)
-		return err
-	}
-	log.Debug("Deployment annotation completed")
+	//if err := a.annotateDeployments(op.GetNamespace(), nsListJoined); err != nil {
+	//	log.Errorf("annotateDeployments error: %v", err)
+	//	return err
+	//}
+	//log.Debug("Deployment annotation completed")
 
 	// annotate csvs
 	csvsInNamespace := a.csvsInNamespace(op.Namespace)
 	for _, csv := range csvsInNamespace {
-		// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
+		a.addAnnotationsToCSV(csv, op, nsListJoined)
+		// TODO: generate a patch
+		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
+			log.Errorf("Update for existing CSV failed: %v", err)
+			return err
+		}
+
+		if err := a.copyCsvToTargetNamespace(csv, op, targetedNamespaces); err!=nil {
+			return err
+		}
+	}
+
+	//	// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
+	//	newCSV := v1alpha1.ClusterServiceVersion{
+	//		ObjectMeta: metav1.ObjectMeta{
+	//			Name: csv.Name,
+	//		},
+	//		Spec: *csv.Spec.DeepCopy(),
+	//		Status: v1alpha1.ClusterServiceVersionStatus{
+	//			Message:        "CSV copied to target namespace",
+	//			Reason:         v1alpha1.CSVReasonCopied,
+	//			LastUpdateTime: timeNow(),
+	//		},
+	//	}
+	//
+	//	a.addAnnotationsToCSV(&newCSV, op, nsListJoined)
+	//
+	//
+	//	for _, ns := range targetedNamespaces {
+	//		newCSV.SetNamespace(ns.Name)
+	//		if ns.Name != op.Namespace {
+	//			log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.GetName())
+	//			_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Create(&newCSV)
+	//			if k8serrors.IsAlreadyExists(err) {
+	//				a.addAnnotationsToCSV(csv, op, nsListJoined)
+	//				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
+	//					log.Errorf("Update CSV in target namespace failed: %v", err)
+	//					return err
+	//				}
+	//			} else if err != nil {
+	//				log.Errorf("Create for new CSV failed: %v", err)
+	//				return err
+	//			}
+	//		} else {
+	//			a.addAnnotationsToCSV(csv, op, nsListJoined)
+	//			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
+	//				log.Errorf("Update for existing CSV failed: %v", err)
+	//				return err
+	//			}
+	//		}
+	//	}
+	//}
+	log.Debug("CSV annotation completed")
+	//TODO: ensure RBAC on operator serviceaccount
+
+	return nil
+}
+
+func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, targetNamespaces []*corev1.Namespace) error {
+	var nsList []string
+	for _, ns := range targetNamespaces {
+		nsList = append(nsList, ns.Name)
+	}
+	nsListJoined := strings.Join(nsList, ",")
+
+
+	for _, ns := range targetNamespaces {
+		if ns.Name == operatorGroup.GetNamespace() {
+			continue
+		}
 		newCSV := v1alpha1.ClusterServiceVersion{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: csv.Name,
@@ -62,36 +131,21 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 				LastUpdateTime: timeNow(),
 			},
 		}
+		a.addAnnotationsToCSV(&newCSV, operatorGroup, nsListJoined)
+		newCSV.SetNamespace(ns.Name)
 
-		a.addAnnotationsToCSV(&newCSV, op, nsListJoined)
-
-		for _, ns := range targetedNamespaces {
-			newCSV.SetNamespace(ns.Name)
-			if ns.Name != op.Namespace {
-				log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.GetName())
-				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Create(&newCSV)
-				if k8serrors.IsAlreadyExists(err) {
-					a.addAnnotationsToCSV(csv, op, nsListJoined)
-					if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
-						log.Errorf("Update CSV in target namespace failed: %v", err)
-						return err
-					}
-				} else if err != nil {
-					log.Errorf("Create for new CSV failed: %v", err)
-					return err
-				}
-			} else {
-				a.addAnnotationsToCSV(csv, op, nsListJoined)
-				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
-					log.Errorf("Update for existing CSV failed: %v", err)
-					return err
-				}
+		log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.Name)
+		_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Create(&newCSV)
+		if k8serrors.IsAlreadyExists(err) {
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Update(&newCSV); err != nil {
+				log.Errorf("Update CSV in target namespace failed: %v", err)
+				return err
 			}
+		} else if err != nil {
+			log.Errorf("Create for new CSV failed: %v", err)
+			return err
 		}
 	}
-	log.Debug("CSV annotation completed")
-	//TODO: ensure RBAC on operator serviceaccount
-
 	return nil
 }
 

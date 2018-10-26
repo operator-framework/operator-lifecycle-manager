@@ -65,10 +65,12 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 
 func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	// Create namespace with specific label
-	// Create CSV in namespace
+	// Create CSV in opoerator namespace
 	// Create operator group that watches namespace and uses specific label
 	// Verify operator group status contains correct status
+	// Verify csv in target namespace exists, has copied status, has annotations
 	// Verify deployments have correct namespace annotation
+	// (Verify that the operator can operate in the target namespace)
 
 	log.SetLevel(log.DebugLevel)
 	c := newKubeClient(t)
@@ -162,22 +164,56 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 		return false, nil
 	})
 
-	log.Debug("Waiting on deployment to have correct annotation")
+	log.Debug("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
+		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(csvName, metav1.GetOptions{})
+		if fetchErr != nil {
+			fmt.Println(fetchErr)
+			return false, fetchErr
 		}
-		if createdDeployment.Spec.Template.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+		//TODO: check other annotations
+		if fetchedCSV.Annotations["olm.targetNamespaces"] == otherNamespaceName {
 			return true, nil
 		}
 		return false, nil
 	})
 
+	log.Debug("Waiting for target namespace csv to have annotations")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
+		if fetchErr != nil {
+			fmt.Println(fetchErr)
+			return false, fetchErr
+		}
+		//TODO: check other annotations
+		if fetchedCSV.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+			return true, nil
+		}
+		return false, nil
+	})
+
+
+	// TODO: verify CSV in target namespace has correct annotations and status
+	// TODO: verify CSV in operator namespace has correct annotations
+
+	//log.Debug("Waiting on deployment to have correct annotation")
+	//err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	//	createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
+	//	if err != nil {
+	//		if errors.IsNotFound(err) {
+	//			return false, nil
+	//		}
+	//		return false, err
+	//	}
+	//	// TODO: verify operatorNamespace annotation, operatorGroup annotation
+	//	if createdDeployment.Spec.Template.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+	//		return true, nil
+	//	}
+	//	return false, nil
+	//})
+
 	// clean up
+	// TODO: unpatch function
 	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
 	require.NoError(t, err)
 	runningDeploy.Spec.Template.Spec.Containers[0].Command = oldCommand
