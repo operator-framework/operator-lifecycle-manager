@@ -25,12 +25,15 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	err, targetedNamespaces := a.updateNamespaceList(op)
 	log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
 	if err != nil {
+		log.Errorf("updateNamespaceList error: %v", err)
 		return err
 	}
 
 	if err := a.ensureClusterRoles(op); err != nil {
+		log.Errorf("ensureClusterRoles error: %v", err)
 		return err
 	}
+	log.Debug("Cluster roles completed")
 
 	var nsList []string
 	for ix := range targetedNamespaces {
@@ -38,9 +41,11 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	nsListJoined := strings.Join(nsList, ",")
 
-	if err := a.annotateDeployments(nsList, nsListJoined); err != nil {
+	if err := a.annotateDeployments(op.GetNamespace(), nsListJoined); err != nil {
+		log.Errorf("annotateDeployments error: %v", err)
 		return err
 	}
+	log.Debug("Deployment annotation completed")
 
 	// annotate csvs
 	csvsInNamespace := a.csvsInNamespace(op.Namespace)
@@ -58,36 +63,42 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			},
 		}
 
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorNamespace", op.GetNamespace())
-		metav1.SetMetaDataAnnotation(&newCSV.ObjectMeta, "olm.operatorGroup", op.GetName())
+		a.addAnnotationsToCSV(&newCSV, op, nsListJoined)
 
 		for _, ns := range targetedNamespaces {
 			newCSV.SetNamespace(ns.Name)
 			if ns.Name != op.Namespace {
 				log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.GetName())
-				newCSVsynced, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Create(&newCSV)
+				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Create(&newCSV)
 				if k8serrors.IsAlreadyExists(err) {
-					if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(newCSVsynced); err != nil {
+					a.addAnnotationsToCSV(csv, op, nsListJoined)
+					if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
+						log.Errorf("Update CSV in target namespace failed: %v", err)
 						return err
 					}
 				} else if err != nil {
+					log.Errorf("Create for new CSV failed: %v", err)
 					return err
 				}
 			} else {
-				metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.targetNamespaces", strings.Join(nsList, ","))
-				metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.operatorNamespace", op.GetNamespace())
-				metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.operatorGroup", op.GetName())
+				a.addAnnotationsToCSV(csv, op, nsListJoined)
 				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.GetName()).Update(csv); err != nil {
+					log.Errorf("Update for existing CSV failed: %v", err)
 					return err
 				}
 			}
 		}
 	}
-
+	log.Debug("CSV annotation completed")
 	//TODO: ensure RBAC on operator serviceaccount
 
 	return nil
+}
+
+func (a *Operator) addAnnotationsToCSV(csv *v1alpha1.ClusterServiceVersion, op *v1alpha2.OperatorGroup, targetNamespaces string) {
+	metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.targetNamespaces", targetNamespaces)
+	metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.operatorNamespace", op.GetNamespace())
+	metav1.SetMetaDataAnnotation(&csv.ObjectMeta, "olm.operatorGroup", op.GetName())
 }
 
 func namespacesChanged(clusterNamespaces []*corev1.Namespace, statusNamespaces []*corev1.Namespace) bool {
@@ -167,9 +178,11 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		_, err := a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
 		if k8serrors.IsAlreadyExists(err) {
 			if _, err = a.OpClient.UpdateClusterRole(clusterRole); err != nil {
+				log.Errorf("Update CRD existing cluster role failed: %v", err)
 				return err
 			}
 		} else if err != nil {
+			log.Errorf("Update CRD cluster role failed: %v", err)
 			return err
 		}
 
@@ -183,9 +196,11 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupEditClusterRole)
 		if k8serrors.IsAlreadyExists(err) {
 			if _, err = a.OpClient.UpdateClusterRole(operatorGroupEditClusterRole); err != nil {
+				log.Errorf("Update existing edit cluster role failed: %v", err)
 				return err
 			}
 		} else if err != nil {
+			log.Errorf("Update edit cluster role failed: %v", err)
 			return err
 		}
 		operatorGroupViewClusterRole := &rbacv1.ClusterRole{
@@ -197,43 +212,47 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupViewClusterRole)
 		if k8serrors.IsAlreadyExists(err) {
 			if _, err = a.OpClient.UpdateClusterRole(operatorGroupViewClusterRole); err != nil {
+				log.Errorf("Update existing view cluster role failed: %v", err)
 				return err
 			}
 		} else if err != nil {
+			log.Errorf("Update view cluster role failed: %v", err)
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *Operator) annotateDeployments(targetNamespaces []string, targetNamespaceString string) error {
-	// write above namespaces to watch in every deployment
-	for _, ns := range targetNamespaces {
-		deploymentList, err := a.deploymentLister[ns].List(labels.Everything())
-		if err != nil {
+func (a *Operator) annotateDeployments(operatorNamespace string, targetNamespaceString string) error {
+	// write above namespaces to watch in every deployment in operator namespace
+	deploymentList, err := a.deploymentLister[operatorNamespace].List(labels.Everything())
+	if err != nil {
+		log.Errorf("deployment list failed: %v\n", err)
+		return err
+	}
+
+	for _, deploy := range deploymentList {
+		// TODO: this will be incorrect if two operatorgroups own the same namespace
+		// also - will be incorrect if a CSV is manually installed into a namespace
+		if !ownerutil.IsOwnedByKind(deploy, "ClusterServiceVersion") {
+			log.Debugf("deployment '%v' not owned by CSV, skipping", deploy.GetName())
+			continue
+		}
+
+		if lastAnnotation, ok := deploy.Spec.Template.Annotations["olm.targetNamespaces"]; ok {
+			if lastAnnotation == targetNamespaceString {
+				log.Debugf("deployment '%v' already has annotation, skipping", deploy)
+				continue
+			}
+		}
+
+		originalDeploy := deploy.DeepCopy()
+		metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", targetNamespaceString)
+		if _, _, err := a.OpClient.PatchDeployment(originalDeploy, deploy); err != nil {
+			log.Errorf("patch deployment failed: %v\n", err)
 			return err
 		}
 
-		for _, deploy := range deploymentList {
-			// TODO: this will be incorrect if two operatorgroups own the same namespace
-			// also - will be incorrect if a CSV is manually installed into a namespace
-			if !ownerutil.IsOwnedByKind(deploy, "ClusterServiceVersion") {
-				continue
-			}
-
-			if lastAnnotation, ok := deploy.Spec.Template.Annotations["olm.targetNamespaces"]; ok {
-				if lastAnnotation == targetNamespaceString {
-					continue
-				}
-			}
-
-			originalDeploy := deploy.DeepCopy()
-			metav1.SetMetaDataAnnotation(&deploy.Spec.Template.ObjectMeta, "olm.targetNamespaces", targetNamespaceString)
-			if _, _, err := a.OpClient.PatchDeployment(originalDeploy, deploy); err != nil {
-				return err
-			}
-
-		}
 	}
 
 	return nil

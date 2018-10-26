@@ -412,12 +412,13 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 
 	operatorNamespace, ok := csv.Annotations["olm.operatorNamespace"]
 	if !ok {
-		logger.Debugf("missing operator namespace annotation on copied CSV")
+		logger.Debug("missing operator namespace annotation on copied CSV")
 		return fmt.Errorf("missing operator namespace annotation on copied CSV")
 	}
 
 	_, err := a.csvLister[operatorNamespace].ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
 	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) {
+		logger.Debug("deleting CSV since parent is missing")
 		if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{}); err != nil {
 			return err
 		}
@@ -443,7 +444,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		return a.removeDanglingChildCSVs(clusterServiceVersion)
 	}
 
-	logger.Info("syncing")
+	logger.Info("syncing CSV")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 

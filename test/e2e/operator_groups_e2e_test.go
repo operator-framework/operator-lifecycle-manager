@@ -65,7 +65,7 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 
 func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	// Create namespace with specific label
-	// Create deployment in namespace
+	// Create CSV in namespace
 	// Create operator group that watches namespace and uses specific label
 	// Verify operator group status contains correct status
 	// Verify deployments have correct namespace annotation
@@ -73,6 +73,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	csvName := "another-csv"
 
 	matchingLabel := map[string]string{"matchLabel": testNamespace}
 	otherNamespaceName := testNamespace + "-namespace-two"
@@ -88,35 +89,48 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 
 	oldCommand := patchOlmDeployment(t, c, otherNamespaceName)
 
-	var one = int32(1)
-	deployment := appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "deployment",
-			Namespace: otherNamespaceName,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: matchingLabel,
-			},
-			Replicas: &one,
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: matchingLabel,
-				},
-				Spec: corev1.PodSpec{Containers: []corev1.Container{
-					{
-						Name:  genName("nginx"),
-						Image: "nginx:1.7.9",
-						Ports: []corev1.ContainerPort{{ContainerPort: 80}},
-					},
-				}},
-			},
-		},
-	}
-
-	createdDeployment, err := c.CreateDeployment(&deployment)
+	log.Debug("Creating CSV")
+	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
+	// var one = int32(1)
+	// deployment := appsv1.Deployment{
+	// 	ObjectMeta: metav1.ObjectMeta{
+	// 		Name:      "operator-deployment",
+	// 		Namespace: testNamespace,
+	// 	},
+	// 	Spec: appsv1.DeploymentSpec{
+	// 		Selector: &metav1.LabelSelector{
+	// 			MatchLabels: matchingLabel,
+	// 		},
+	// 		Replicas: &one,
+	// 		Template: corev1.PodTemplateSpec{
+	// 			ObjectMeta: metav1.ObjectMeta{
+	// 				Labels: matchingLabel,
+	// 			},
+	// 			Spec: corev1.PodSpec{Containers: []corev1.Container{
+	// 				{
+	// 					Name:  genName("nginx"),
+	// 					Image: "nginx:1.7.9",
+	// 					Ports: []corev1.ContainerPort{{ContainerPort: 80}},
+	// 				},
+	// 			}},
+	// 		},
+	// 	},
+	// }
+	// deployment.SetOwnerReferences([]metav1.OwnerReference{
+	// 	{
+	// 		Kind: "ClusterServiceVersion",
+	// 		Name: "fake-csv",
+	// 	},
+	// })
+
+	// log.Debug("Creating deployment")
+	// createdDeployment, err := c.CreateDeployment(&deployment)
+	// require.NoError(t, err)
+
+	log.Debug("Creating operator group")
 	operatorGroup := v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "e2e-operator-group",
@@ -134,6 +148,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 		Namespaces: []*corev1.Namespace{createdOtherNamespace},
 	}
 
+	log.Debug("Waiting on operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 		if fetchErr != nil {
@@ -147,8 +162,9 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 		return false, nil
 	})
 
+	log.Debug("Waiting on deployment to have correct annotation")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		createdDeployment, err = c.GetDeployment(otherNamespaceName, "deployment")
+		createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
 		if err != nil {
 			if errors.IsNotFound(err) {
 				return false, nil
@@ -190,17 +206,19 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	csvName := "acsv-that-is-unique" // must be lowercase for DNS-1123 validation
 	matchingLabel := map[string]string{"matchLabel": testNamespace}
 
-	operatorNamespace := corev1.Namespace{
+	log.Debug("Creating operator namespace")
+	targetNamespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   targetNamespaceName,
 			Labels: matchingLabel,
 		},
 	}
-	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&operatorNamespace)
+	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&targetNamespace)
 	require.NoError(t, err)
 
 	oldCommand := patchOlmDeployment(t, c, targetNamespaceName)
 
+	log.Debug("Creating operator group")
 	operatorGroup := v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "e2e-operator-group",
@@ -215,10 +233,12 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 
+	log.Debug("Creating CSV")
 	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("aspec", nil, nil))
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
+	log.Debug("Waiting for CSV copy to have correct properties")
 	var csvCopy *v1alpha1.ClusterServiceVersion
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(targetNamespaceName).Get(csvName, metav1.GetOptions{})
@@ -234,9 +254,11 @@ func TestCreateOperatorGroupCSVCopy(t *testing.T) {
 	require.Equal(t, createdCSV.Spec, csvCopy.Spec)
 
 	// part 2 - ensure deletion cleans up copied CSV
+	log.Debug("Deleting CSV")
 	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 
+	log.Debug("Waiting for orphaned CSV to be deleted")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(targetNamespaceName).Get(csvName, metav1.GetOptions{})
 		if err != nil {
