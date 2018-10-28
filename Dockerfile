@@ -1,16 +1,15 @@
-FROM openshift/origin-release:golang-1.10 as builder
-RUN yum update -y
-RUN yum install -y make git
+FROM resin/raspberry-pi-alpine-golang:1.9.7-20180828 as builder
 
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
+RUN mkdir -p /go/src/github.com/operator-framework/operator-lifecycle-manager
 COPY . .
 RUN make build
 
 
-FROM openshift/origin-base
+FROM resin/raspberry-pi-alpine-golang:1.9.7-20180828
 
 ADD manifests/ /manifests
 LABEL io.openshift.release.operator=true
