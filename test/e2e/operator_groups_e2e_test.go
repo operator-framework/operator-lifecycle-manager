@@ -77,7 +77,7 @@ func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup
 	return nil
 }
 
-func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
+func TestOperatorGroup(t *testing.T) {
 	// Create namespace with specific label
 	// Create CSV in operator namespace
 	// Create operator group that watches namespace and uses specific label
@@ -89,7 +89,7 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	csvName := "another-csv"
+	csvName := "another-csv" // must be lowercase for DNS-1123 validation
 
 	matchingLabel := map[string]string{"matchLabel": testNamespace}
 	otherNamespaceName := testNamespace + "-namespace-two"
@@ -107,44 +107,8 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 
 	log.Debug("Creating CSV")
 	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
-	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
+	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
 	require.NoError(t, err)
-
-	// var one = int32(1)
-	// deployment := appsv1.Deployment{
-	// 	ObjectMeta: metav1.ObjectMeta{
-	// 		Name:      "operator-deployment",
-	// 		Namespace: testNamespace,
-	// 	},
-	// 	Spec: appsv1.DeploymentSpec{
-	// 		Selector: &metav1.LabelSelector{
-	// 			MatchLabels: matchingLabel,
-	// 		},
-	// 		Replicas: &one,
-	// 		Template: corev1.PodTemplateSpec{
-	// 			ObjectMeta: metav1.ObjectMeta{
-	// 				Labels: matchingLabel,
-	// 			},
-	// 			Spec: corev1.PodSpec{Containers: []corev1.Container{
-	// 				{
-	// 					Name:  genName("nginx"),
-	// 					Image: "nginx:1.7.9",
-	// 					Ports: []corev1.ContainerPort{{ContainerPort: 80}},
-	// 				},
-	// 			}},
-	// 		},
-	// 	},
-	// }
-	// deployment.SetOwnerReferences([]metav1.OwnerReference{
-	// 	{
-	// 		Kind: "ClusterServiceVersion",
-	// 		Name: "fake-csv",
-	// 	},
-	// })
-
-	// log.Debug("Creating deployment")
-	// createdDeployment, err := c.CreateDeployment(&deployment)
-	// require.NoError(t, err)
 
 	log.Debug("Creating operator group")
 	operatorGroup := v1alpha2.OperatorGroup{
@@ -205,26 +169,47 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 		return false, nil
 	})
 	// since annotations are set along with status, no reason to poll for this check as done above
-	log.Debug("Checking status on CSV in target namespace")
+	log.Debug("Checking status on csv in target namespace")
 	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.EqualValues(t, v1alpha1.CSVReasonCopied, fetchedCSV.Status.Reason)
+	// also check name and spec
+	require.Equal(t, createdCSV.Name, fetchedCSV.Name)
+	require.Equal(t, createdCSV.Spec, fetchedCSV.Spec)
 
-	//log.Debug("Waiting on deployment to have correct annotation")
-	//err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-	//	createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
-	//	if err != nil {
-	//		if errors.IsNotFound(err) {
-	//			return false, nil
-	//		}
-	//		return false, err
-	//	}
-	//	// TODO: verify operatorNamespace annotation, operatorGroup annotation
-	//	if createdDeployment.Spec.Template.Annotations["olm.targetNamespaces"] == otherNamespaceName {
-	//		return true, nil
-	//	}
-	//	return false, nil
-	//})
+	log.Debug("Waiting on deployment to have correct annotation")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		// TODO: verify operatorNamespace annotation, operatorGroup annotation
+		if createdDeployment.Spec.Template.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+			return true, nil
+		}
+		return false, nil
+	})
+
+	// ensure deletion cleans up copied CSV
+	log.Debug("Deleting CSV")
+	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	log.Debug("Waiting for orphaned CSV to be deleted")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return true, nil
+			}
+			return false, err
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
 
 	// clean up
 	// TODO: unpatch function
@@ -238,100 +223,6 @@ func TestCreateOperatorGroupWithMatchingNamespace(t *testing.T) {
 	require.NoError(t, err)
 
 	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(otherNamespaceName, &metav1.DeleteOptions{})
-	require.NoError(t, err)
-	err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
-	require.NoError(t, err)
-}
-
-func TestCreateOperatorGroupCSVCopy(t *testing.T) {
-	// create target namespace
-	// create operator group in OLM namespace, which serves as operator namespace
-	// create CSV in OLM namespace
-	// verify CSV is copied to target namespace
-
-	log.SetLevel(log.DebugLevel)
-	c := newKubeClient(t)
-	crc := newCRClient(t)
-	targetNamespaceName := testNamespace + "-target"
-	csvName := "acsv-that-is-unique" // must be lowercase for DNS-1123 validation
-	matchingLabel := map[string]string{"matchLabel": testNamespace}
-
-	log.Debug("Creating operator namespace")
-	targetNamespace := corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   targetNamespaceName,
-			Labels: matchingLabel,
-		},
-	}
-	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&targetNamespace)
-	require.NoError(t, err)
-
-	oldCommand := patchOlmDeployment(t, c, targetNamespaceName)
-
-	log.Debug("Creating operator group")
-	operatorGroup := v1alpha2.OperatorGroup{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "e2e-operator-group",
-			Namespace: testNamespace,
-		},
-		Spec: v1alpha2.OperatorGroupSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: matchingLabel,
-			},
-		},
-	}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
-	require.NoError(t, err)
-
-	log.Debug("Creating CSV")
-	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("aspec", nil, nil))
-	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
-	require.NoError(t, err)
-
-	log.Debug("Waiting for CSV copy to have correct properties")
-	var csvCopy *v1alpha1.ClusterServiceVersion
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(targetNamespaceName).Get(csvName, metav1.GetOptions{})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
-		}
-		return true, nil
-	})
-	require.Equal(t, createdCSV.Name, csvCopy.Name)
-	require.Equal(t, createdCSV.Spec, csvCopy.Spec)
-
-	// part 2 - ensure deletion cleans up copied CSV
-	log.Debug("Deleting CSV")
-	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvName, &metav1.DeleteOptions{})
-	require.NoError(t, err)
-
-	log.Debug("Waiting for orphaned CSV to be deleted")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		csvCopy, err = crc.OperatorsV1alpha1().ClusterServiceVersions(targetNamespaceName).Get(csvName, metav1.GetOptions{})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return true, nil
-			}
-			return false, err
-		}
-		return false, nil
-	})
-	require.NoError(t, err)
-
-	// clean up
-	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
-	require.NoError(t, err)
-	runningDeploy.Spec.Template.Spec.Containers[0].Command = oldCommand
-	_, updated, err := c.UpdateDeployment(runningDeploy)
-	if err != nil || updated == false {
-		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
-	}
-	require.NoError(t, err)
-
-	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(targetNamespaceName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 	err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
 	require.NoError(t, err)

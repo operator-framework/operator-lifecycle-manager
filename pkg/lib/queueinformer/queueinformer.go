@@ -111,10 +111,8 @@ func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedInd
 		name:            name,
 		MetricsProvider: metrics,
 	}
-	if funcs == nil {
-		queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
-	} else {
-		queueInformer.resourceEventHandlerFuncs = &cache.ResourceEventHandlerFuncs{}
+	queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
+	if funcs != nil {
 		if funcs.AddFunc != nil {
 			queueInformer.resourceEventHandlerFuncs.AddFunc = func(obj interface{}) {
 				funcs.AddFunc(obj)

@@ -41,11 +41,11 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	nsListJoined := strings.Join(nsList, ",")
 
-	//if err := a.annotateDeployments(op.GetNamespace(), nsListJoined); err != nil {
-	//	log.Errorf("annotateDeployments error: %v", err)
-	//	return err
-	//}
-	//log.Debug("Deployment annotation completed")
+	if err := a.annotateDeployments(op.GetNamespace(), nsListJoined); err != nil {
+		log.Errorf("annotateDeployments error: %v", err)
+		return err
+	}
+	log.Debug("Deployment annotation completed")
 
 	// annotate csvs
 	csvsInNamespace := a.csvsInNamespace(op.Namespace)
