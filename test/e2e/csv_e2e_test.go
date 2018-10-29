@@ -3,9 +3,14 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
@@ -15,11 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 var singleInstance = int32(1)
@@ -840,6 +840,32 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 		return err
 	}), "could not delete expected ClusterRoleBinding before creating CSV")
 
+	// Adopt existing APIService resource to dummy owner CSV (to allow adoption by new csv)
+	owner := &v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("owner"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(genName(depName), nil, nil),
+		},
+	}
+	_, err = createCSV(t, c, crc, *owner, testNamespace, false)
+	require.NoError(t, err)
+	owner, err = fetchCSV(t, crc, owner.GetName(), csvAnyChecker)
+	require.NoError(t, err)
+
+	apiServiceName := "v1alpha1.packages.apps.redhat.com"
+	apiService, err := c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "expected pre-existing APIService does not exist")
+	ownerutil.AddNonBlockingOwner(apiService, owner)
+	_, err = c.UpdateAPIService(apiService)
+	require.NoError(t, err, "could not update OwnerReferences to dummy CSV on pre-existing APIService")
+
+	// Create the APIService CSV
 	_, err = createCSV(t, c, crc, csv, testNamespace, false)
 	require.NoError(t, err)
 
@@ -850,18 +876,39 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	dep, err = c.GetDeployment(testNamespace, depName)
 	require.NoError(t, err)
 
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
+	// Store the ca sha annotation
+	oldCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
+	require.True(t, ok, "expected olm sha annotation not present on existing pod template")
 
-	apiServiceName := "v1alpha1.packages.apps.redhat.com"
+	// Induce a cert rotation
+	fetchedCSV.Status.CertsLastUpdated = metav1.Now()
+	fetchedCSV.Status.CertsRotateAt = metav1.Now()
+	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
+	require.NoError(t, err)
+
+	_, err = fetchCSV(t, crc, csv.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		// Should create deployment
+		dep, err = c.GetDeployment(testNamespace, depName)
+		require.NoError(t, err)
+
+		// Should have a new ca hash annotation
+		newCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
+		require.True(t, ok, "expected olm sha annotation not present in new pod template")
+
+		if newCAAnnotation != oldCAAnnotation {
+			// Check for success
+			return csvSucceededChecker(csv)
+		}
+
+		return false
+	})
+	require.NoError(t, err, "failed to rotate cert")
 
 	// Remove owner references on generated APIService, Deployment, Role, RoleBinding(s), ClusterRoleBinding(s), Secret, and Service
-	apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiServiceName, metav1.GetOptions{})
+	apiService, err = c.GetAPIService(apiServiceName)
 	require.NoError(t, err)
 	apiService.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Update(apiService)
+	_, err = c.UpdateAPIService(apiService)
 	require.NoError(t, err, "could not remove OwnerReferences on generated APIService")
 
 	dep.SetOwnerReferences([]metav1.OwnerReference{})
@@ -898,7 +945,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	_, err = c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Update(authReaderRoleBinding)
 	require.NoError(t, err, "could not remove OwnerReferences on generated auth reader RoleBinding")
 
-	serviceName := strings.Replace(apiServiceName, ".", "-", -1)
+	serviceName := olm.APIServiceNameToServiceName(apiServiceName)
 	service, err := c.KubernetesInterface().CoreV1().Services(testNamespace).Get(serviceName, metav1.GetOptions{})
 	require.NoError(t, err)
 	service.SetOwnerReferences([]metav1.OwnerReference{})

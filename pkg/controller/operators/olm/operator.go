@@ -5,29 +5,28 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/client-go/tools/record"
-
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
-	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 var ErrRequirementsNotMet = errors.New("requirements were not met")
@@ -39,16 +38,13 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue                 workqueue.RateLimitingInterface
-	client                   versioned.Interface
-	resolver                 install.StrategyResolverInterface
-	roleLister               crbacv1.RoleLister
-	roleBindingLister        crbacv1.RoleBindingLister
-	clusterRoleLister        crbacv1.ClusterRoleLister
-	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
-	annotator                *annotator.Annotator
-	recorder                 record.EventRecorder
-	cleanupFunc              func()
+	csvQueue    workqueue.RateLimitingInterface
+	client      versioned.Interface
+	resolver    install.StrategyResolverInterface
+	lister      operatorlister.OperatorLister
+	annotator   *annotator.Annotator
+	recorder    record.EventRecorder
+	cleanupFunc func()
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
@@ -72,6 +68,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	op := &Operator{
 		Operator:  queueOperator,
 		client:    crClient,
+		lister:    operatorlister.NewLister(),
 		resolver:  resolver,
 		annotator: namespaceAnnotator,
 		recorder:  eventRecorder,
@@ -80,29 +77,30 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		},
 	}
 
-	// if watching all namespaces, set up a watch to annotate new namespaces
+	// If watching all namespaces, set up a watch to annotate new namespaces
 	if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
 		log.Debug("watching all namespaces, setting up queue")
-		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces().Informer()
+		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
 		queueInformer := queueinformer.NewInformer(
 			workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
-			namespaceInformer,
+			namespaceInformer.Informer(),
 			op.annotateNamespace,
 			nil,
 			"namespace",
 			metrics.NewMetricsNil(),
 		)
 		op.RegisterQueueInformer(queueInformer)
+		op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	}
 
-	// set up RBAC informers
+	// Set up RBAC informers
 	informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
 	roleInformer := informerFactory.Rbac().V1().Roles()
 	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
 	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
 	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
 
-	// register RBAC QueueInformers
+	// Register RBAC QueueInformers
 	rbacInformers := []cache.SharedIndexInformer{
 		roleInformer.Informer(),
 		roleBindingInformer.Informer(),
@@ -122,24 +120,49 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		op.RegisterQueueInformer(informer)
 	}
 
-	// set listers (for RBAC CSV requirement checking)
-	op.roleLister = roleInformer.Lister()
-	op.roleBindingLister = roleBindingInformer.Lister()
-	op.clusterRoleLister = clusterRoleInformer.Lister()
-	op.clusterRoleBindingLister = clusterRoleBindingInformer.Lister()
+	// Set listers (for RBAC CSV requirement checking)
+	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
+	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
+	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
+	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
 
-	// register APIService QueueInformers
-	apiServiceSharedInformerFactory := kagg.NewSharedInformerFactory(opClient.ApiregistrationV1Interface(), wakeupInterval)
+	// Register APIService QueueInformers
+	apiServiceInformer := kagg.NewSharedInformerFactory(opClient.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
 	op.RegisterQueueInformer(queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservices"),
-		apiServiceSharedInformerFactory.Apiregistration().V1().APIServices().Informer(),
+		apiServiceInformer.Informer(),
 		op.syncAPIServices,
 		nil,
 		"apiservices",
 		metrics.NewMetricsNil(),
 	))
+	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
 
-	// set up watch on CSVs
+	// Register Secret QueueInformer
+	secretInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Core().V1().Secrets()
+	op.RegisterQueueInformer(queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "secrets"),
+		secretInformer.Informer(),
+		op.syncSecrets,
+		nil,
+		"secrets",
+		metrics.NewMetricsNil(),
+	))
+	op.lister.CoreV1().RegisterSecretLister(metav1.NamespaceAll, secretInformer.Lister())
+
+	// Register Service QueueInformer
+	serviceInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Core().V1().Services()
+	op.RegisterQueueInformer(queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "services"),
+		serviceInformer.Informer(),
+		op.syncServices,
+		nil,
+		"services",
+		metrics.NewMetricsNil(),
+	))
+	op.lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
+
+	// Set up watch on CSVs
 	csvInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching for CSVs in namespace %s", namespace)
@@ -246,11 +269,50 @@ func (a *Operator) syncRBAC(obj interface{}) (syncError error) {
 	}
 
 	// Requeue all owner CSVs
-	if ownerutil.IsOwnedByKind(rbac, v1alpha1.ClusterServiceVersionKind) {
-		orefs := ownerutil.GetOwnersByKind(rbac, v1alpha1.ClusterServiceVersionKind)
-		for _, oref := range orefs {
-			a.requeueCSV(oref.Name, rbac.GetNamespace())
-		}
+	for _, oref := range ownerutil.GetOwnersByKind(rbac, v1alpha1.ClusterServiceVersionKind) {
+		a.requeueCSV(oref.Name, rbac.GetNamespace())
+	}
+
+	return nil
+}
+
+func (a *Operator) syncSecrets(obj interface{}) (syncError error) {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Secret failed")
+	}
+
+	// Requeue all owner CSVs
+	logger := log.WithFields(log.Fields{
+		"secret":    secret.GetName(),
+		"namespace": secret.GetNamespace(),
+	})
+	for _, oref := range ownerutil.GetOwnersByKind(secret, v1alpha1.ClusterServiceVersionKind) {
+		logger.Infof("requeuing CSV %s", oref.Name)
+		// Note: If CSVs can own secrets outside of their namespace then this can result in
+		// requeuing non-existant CSVs
+		a.requeueCSV(oref.Name, secret.GetNamespace())
+	}
+
+	return nil
+}
+
+func (a *Operator) syncServices(obj interface{}) (syncError error) {
+	service, ok := obj.(*corev1.Service)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Service failed")
+	}
+
+	// Requeue all owner CSVs
+	logger := log.WithFields(log.Fields{
+		"service":   service.GetName(),
+		"namespace": service.GetNamespace(),
+	})
+	for _, oref := range ownerutil.GetOwnersByKind(service, v1alpha1.ClusterServiceVersionKind) {
+		logger.Infof("requeuing CSV %s", oref.Name)
+		a.requeueCSV(oref.Name, service.GetNamespace())
 	}
 
 	return nil
@@ -335,7 +397,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		logger.Info("scheduling ClusterServiceVersion for install")
 		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install", a.recorder)
 	case v1alpha1.CSVPhaseInstallReady:
-
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			// parseStrategiesAndUpdateStatus sets CSV status
@@ -373,8 +434,21 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			// parseStrategiesAndUpdateStatus sets CSV status
 			return
 		}
+
+		// Check if any generated resources are missing
+		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); resErr != nil {
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourceIssue, resErr.Error())
+			return
+		}
+
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("unhealthy component: %s", installErr)
+		}
+
+		// Check if it's time to refresh owned APIService certs
+		if a.shouldRotateCerts(out) {
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedCertRotation, "owned APIServices need cert refresh")
+			return
 		}
 	case v1alpha1.CSVPhaseReplacing:
 		// determine CSVs that are safe to delete by finding a replacement chain to a CSV that's running

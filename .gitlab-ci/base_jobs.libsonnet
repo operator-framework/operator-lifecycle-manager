@@ -136,6 +136,7 @@ local appr = utils.appr;
         before_script: [],
         script:
             k8s.setKubeConfig(self.localvars.kubeconfig) + [
+                "kubectl delete apiservice v1alpha1.packages.apps.redhat.com --ignore-not-found=true",
                 "kubectl delete ns --ignore-not-found=true %s" % self.localvars.namespace,
                 "kubectl get pods -o wide -n %s" % self.localvars.namespace,
             ],

@@ -246,6 +246,12 @@ func csv(name, namespace, replaces string, installStrategy v1alpha1.NamedInstall
 	}
 }
 
+func withCertInfo(csv *v1alpha1.ClusterServiceVersion, rotateAt metav1.Time, lastUpdated metav1.Time) *v1alpha1.ClusterServiceVersion {
+	csv.Status.CertsRotateAt = rotateAt
+	csv.Status.CertsLastUpdated = lastUpdated
+	return csv
+}
+
 func withAPIServices(csv *v1alpha1.ClusterServiceVersion, owned, required []v1alpha1.APIServiceDescription) *v1alpha1.ClusterServiceVersion {
 	csv.Spec.APIServiceDefinitions = v1alpha1.APIServiceDefinitions{
 		Owned:    owned,
@@ -684,6 +690,29 @@ func TestTransitionCSV(t *testing.T) {
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhaseInstalling},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToPending/APIService/Owned/CertRotation",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
 				},
 			},
 		},

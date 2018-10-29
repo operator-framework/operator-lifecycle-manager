@@ -225,6 +225,7 @@ e2e-teardown:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
+  - kubectl delete apiservice v1alpha1.packages.apps.redhat.com --ignore-not-found=true
   - kubectl delete ns --ignore-not-found=true e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   - kubectl get pods -o wide -n e2e-${CI_COMMIT_REF_SLUG}-${SHA8}
   stage: test_teardown
@@ -284,6 +285,7 @@ stop-preview:
   script:
   - echo $CD_KUBECONFIG | base64 -d > kubeconfig
   - export KUBECONFIG=./kubeconfig
+  - kubectl delete apiservice v1alpha1.packages.apps.redhat.com --ignore-not-found=true
   - kubectl delete ns --ignore-not-found=true ci-olm-${CI_COMMIT_REF_SLUG}
   - kubectl get pods -o wide -n ci-olm-${CI_COMMIT_REF_SLUG}
   stage: deploy_preview

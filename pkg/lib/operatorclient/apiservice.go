@@ -9,31 +9,31 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
-// CreateRoleBinding creates the roleBinding.
+// CreateAPIService creates the APIService.
 func (c *Client) CreateAPIService(ig *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
 	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Create(ig)
 }
 
-// GetRoleBinding returns the existing roleBinding.
+// GetAPIService returns the existing APIService.
 func (c *Client) GetAPIService(name string) (*apiregistrationv1.APIService, error) {
 	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(name, metav1.GetOptions{})
 }
 
-// DeleteRoleBinding deletes the roleBinding.
+// DeleteAPIService deletes the APIService.
 func (c *Client) DeleteAPIService(name string, options *metav1.DeleteOptions) error {
 	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(name, options)
 }
 
-// UpdateRoleBinding will update the given RoleBinding resource.
-func (c *Client) UpdateAPIService(crb *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
-	glog.V(4).Infof("[UPDATE RoleBinding]: %s", crb.GetName())
-	oldCrb, err := c.GetAPIService(crb.GetName())
+// UpdateAPIService will update the given APIService resource.
+func (c *Client) UpdateAPIService(apiService *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
+	glog.V(4).Infof("[UPDATE APIService]: %s", apiService.GetName())
+	oldAPIService, err := c.GetAPIService(apiService.GetName())
 	if err != nil {
 		return nil, err
 	}
-	patchBytes, err := createPatch(oldCrb, crb)
+	patchBytes, err := createPatch(oldAPIService, apiService)
 	if err != nil {
-		return nil, fmt.Errorf("error creating patch for RoleBinding: %v", err)
+		return nil, fmt.Errorf("error creating patch for APIService: %v", err)
 	}
-	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Patch(crb.GetName(), types.StrategicMergePatchType, patchBytes)
+	return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Patch(apiService.GetName(), types.StrategicMergePatchType, patchBytes)
 }
