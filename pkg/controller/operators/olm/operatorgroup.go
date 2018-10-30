@@ -21,6 +21,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		log.Debugf("wrong type: %#v\n", obj)
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
+	log.Infof("syncing operator group %v", op)
 
 	err, targetedNamespaces := a.updateNamespaceList(op)
 	log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)

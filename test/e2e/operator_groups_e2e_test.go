@@ -116,17 +116,22 @@ func TestOperatorGroup(t *testing.T) {
 			Name:      "e2e-operator-group",
 			Namespace: testNamespace,
 		},
-		Spec: v1alpha2.OperatorGroupSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: matchingLabel,
-			},
-		},
 	}
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
 		Namespaces: []*corev1.Namespace{createdOtherNamespace},
 	}
+
+	// instead of setting the label selector initially, do it here to force immediate reconcile
+	fetchedOpGroup, err := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Get(operatorGroup.GetName(), metav1.GetOptions{})
+	fetchedOpGroup.Spec = v1alpha2.OperatorGroupSpec{
+		Selector: metav1.LabelSelector{
+			MatchLabels: matchingLabel,
+		},
+	}
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Update(fetchedOpGroup)
+	require.NoError(t, err)
 
 	log.Debug("Waiting on operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
