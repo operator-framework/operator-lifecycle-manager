@@ -27,9 +27,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
-	cappsv1 "k8s.io/client-go/listers/apps/v1"
-	cv1 "k8s.io/client-go/listers/core/v1"
-	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -48,21 +45,15 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue                 workqueue.RateLimitingInterface
-	client                   versioned.Interface
-	resolver                 install.StrategyResolverInterface
-	lister                   operatorlister.OperatorLister
-	roleLister               crbacv1.RoleLister
-	roleBindingLister        crbacv1.RoleBindingLister
-	clusterRoleLister        crbacv1.ClusterRoleLister
-	clusterRoleBindingLister crbacv1.ClusterRoleBindingLister
-	csvLister                map[string]csvlister.ClusterServiceVersionLister
-	operatorGroupLister      map[string]operatorgrouplister.OperatorGroupLister
-	deploymentLister         map[string]cappsv1.DeploymentLister
-	namespaceLister          cv1.NamespaceLister
-	annotator                *annotator.Annotator
-	recorder                 record.EventRecorder
-	cleanupFunc              func()
+	csvQueue            workqueue.RateLimitingInterface
+	client              versioned.Interface
+	resolver            install.StrategyResolverInterface
+	lister              operatorlister.OperatorLister
+	csvLister           map[string]csvlister.ClusterServiceVersionLister
+	operatorGroupLister map[string]operatorgrouplister.OperatorGroupLister
+	annotator           *annotator.Annotator
+	recorder            record.EventRecorder
+	cleanupFunc         func()
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
@@ -210,13 +201,12 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 
 	// set up watch on deployments
 	depInformers := []cache.SharedIndexInformer{}
-	op.deploymentLister = make(map[string]cappsv1.DeploymentLister, len(namespaces))
 	for _, namespace := range namespaces {
 		log.Debugf("watching deployments in namespace %s", namespace)
 		informerFactory := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
 		informer := informerFactory.Apps().V1().Deployments()
 		depInformers = append(depInformers, informer.Informer())
-		op.deploymentLister[namespace] = informer.Lister()
+		op.lister.AppsV1().RegisterDeploymentLister(namespace, informer.Lister())
 	}
 
 	depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csv-deployments")

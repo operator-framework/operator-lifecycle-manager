@@ -182,7 +182,7 @@ func TestOperatorGroup(t *testing.T) {
 	require.Equal(t, createdCSV.Name, fetchedCSV.Name)
 	require.Equal(t, createdCSV.Spec, fetchedCSV.Spec)
 
-	log.Debug("Waiting on deployment to have correct annotation")
+	log.Debug("Waiting on deployment to have correct annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
 		if err != nil {
@@ -191,8 +191,7 @@ func TestOperatorGroup(t *testing.T) {
 			}
 			return false, err
 		}
-		// TODO: verify operatorNamespace annotation, operatorGroup annotation
-		if createdDeployment.Spec.Template.Annotations["olm.targetNamespaces"] == otherNamespaceName {
+		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, otherNamespaceName) == nil {
 			return true, nil
 		}
 		return false, nil

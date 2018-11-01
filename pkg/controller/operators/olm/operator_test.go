@@ -1273,7 +1273,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 				LastUpdated: timeNow(),
 			},
-			expectedAnnotation: map[string]string{"olm.targetNamespaces": testNS},
+			expectedAnnotation: map[string]string{"olm.targetNamespaces": testNS, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": testNS},
 		},
 	}
 
@@ -1298,7 +1298,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			if tc.expectedAnnotation != nil {
 				// assuming CSVs are in correct namespace
 				for _, ns := range tc.namespaces {
-					deployments, err := op.deploymentLister[ns.Name].List(labels.Everything())
+					deployments, err := op.lister.AppsV1().DeploymentLister().Deployments(ns.GetName()).List(labels.Everything())
 					if err != nil {
 						t.Fatal(err)
 					}
