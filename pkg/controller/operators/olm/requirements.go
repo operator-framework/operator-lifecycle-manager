@@ -12,7 +12,8 @@ import (
 )
 
 func (a *Operator) requirementStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
-	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription) (met bool, statuses []v1alpha1.RequirementStatus) {
+	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription,
+	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
 
 	// Check for CRDs
@@ -122,6 +123,27 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 			status.Status = "DeploymentNotFound"
 			statuses = append(statuses, status)
 			met = false
+		}
+	}
+
+	for _, r := range requiredNativeAPIs {
+		name := fmt.Sprintf("%s.%s", r.Version, r.Group)
+		status := v1alpha1.RequirementStatus{
+			Group:   r.Group,
+			Version: r.Version,
+			Kind:    r.Kind,
+			Name:    name,
+		}
+
+		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
+			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			met = false
+			statuses = append(statuses, status)
+			continue
+		} else {
+			status.Status = v1alpha1.RequirementStatusReasonPresent
+			statuses = append(statuses, status)
+			continue
 		}
 	}
 
@@ -238,7 +260,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 		return false, nil, fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
 	}
 
-	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions())
+	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
 
 	rbacLister := a.lister.RbacV1()
 	roleLister := rbacLister.RoleLister()

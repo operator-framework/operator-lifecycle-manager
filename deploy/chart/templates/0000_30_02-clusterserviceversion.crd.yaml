@@ -180,7 +180,25 @@ spec:
                           values:
                             type: array
                             description: set of values for the expression
-                            
+            nativeAPIs:
+              type: array
+              description: What resources are required by the Operator, but must be provided by the underlying cluster and not as an extension.
+              items:
+                type: object
+                required:
+                - group
+                - version
+                - kind
+                properties:
+                  group:
+                    type: string
+                    description: Group of the API resource
+                  version:
+                    type: string
+                    description: Version of the API resource
+                  kind:
+                    type: string
+                    description: Kind of the API resource        
             apiservicedefinitions:
               type: object
               properties:

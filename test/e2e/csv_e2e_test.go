@@ -426,6 +426,39 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCreateCSVWithUnmetRequirementsNativeAPI(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
+			NativeAPIs:      []metav1.GroupVersionKind{{Group: "kubenative.io", Version: "v1", Kind: "Native"}},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Shouldn't create deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.Error(t, err)
+}
+
 // TODO: same test but create serviceaccount instead
 func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)

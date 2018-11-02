@@ -402,6 +402,11 @@ func (in *ClusterServiceVersionSpec) DeepCopyInto(out *ClusterServiceVersionSpec
 	out.Version = in.Version
 	in.CustomResourceDefinitions.DeepCopyInto(&out.CustomResourceDefinitions)
 	in.APIServiceDefinitions.DeepCopyInto(&out.APIServiceDefinitions)
+	if in.NativeAPIs != nil {
+		in, out := &in.NativeAPIs, &out.NativeAPIs
+		*out = make([]v1.GroupVersionKind, len(*in))
+		copy(*out, *in)
+	}
 	if in.Keywords != nil {
 		in, out := &in.Keywords, &out.Keywords
 		*out = make([]string, len(*in))
