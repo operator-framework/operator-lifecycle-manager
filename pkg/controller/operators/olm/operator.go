@@ -191,8 +191,10 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	depInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching deployments in namespace %s", namespace)
-		informer := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace)).Apps().V1().Deployments().Informer()
-		depInformers = append(depInformers, informer)
+		informerFactory := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
+		informer := informerFactory.Apps().V1().Deployments()
+		depInformers = append(depInformers, informer.Informer())
+		op.lister.AppsV1().RegisterDeploymentLister(namespace, informer.Lister())
 	}
 
 	depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csv-deployments")
