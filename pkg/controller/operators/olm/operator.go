@@ -751,11 +751,11 @@ func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInN
 // syncNamespace is the method that gets called when we see a namespace event in the cluster
 func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 	namespace, ok := obj.(*corev1.Namespace)
-	namespaceName := namespace.GetName()
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Namespace failed")
 	}
+	namespaceName := namespace.GetName()
 
 	log.Infof("syncing Namespace: %s", namespaceName)
 	if err := a.annotator.AnnotateNamespace(namespace); err != nil {
