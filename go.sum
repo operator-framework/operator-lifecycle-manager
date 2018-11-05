@@ -238,5 +238,5 @@ k8s.io/kube-aggregator v0.0.0-20180905000155-efa32eb095fe h1:LM48rywzVEPRg+Os2oU
 k8s.io/kube-aggregator v0.0.0-20180905000155-efa32eb095fe/go.mod h1:8sbzT4QQKDEmSCIbfqjV0sd97GpUT7A4W626sBiYJmU=
 k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd h1:ggv/Vfza0i5xuhUZyYyxcc25AmQvHY8Zi1C2m8WgBvA=
 k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd/go.mod h1:BXM9ceUBTj2QnfH2MK1odQs778ajze1RxcmP6S8RVVc=
-k8s.io/kubernetes v1.11.5-beta.0.0.20181106200134-5bfe2967a4cd h1:G3Mi/dLCTnSgA4CLlsbMKbUwX82yDKQ2lH2qpupT44U=
-k8s.io/kubernetes v1.11.5-beta.0.0.20181106200134-5bfe2967a4cd/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
+k8s.io/kubernetes v1.11.5-beta.0.0.20181107171428-941010e531b7 h1:Mw61CrhX1Xb/A4JAe0HI3TMy0q2MFAMGUwjcz/2n/6A=
+k8s.io/kubernetes v1.11.5-beta.0.0.20181107171428-941010e531b7/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=

@@ -6,8 +6,13 @@ ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
+
+# copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
+COPY .git/HEAD .git/HEAD
+COPY .git/refs/heads/. .git/refs/heads
+RUN mkdir -p .git/objects
+
 COPY Makefile Makefile
-COPY .git .git
 COPY OLM_VERSION OLM_VERSION
 COPY pkg pkg
 COPY vendor vendor

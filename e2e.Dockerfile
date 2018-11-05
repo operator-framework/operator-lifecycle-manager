@@ -3,8 +3,11 @@ LABEL stage=builder
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 RUN curl -L https://github.com/stedolan/jq/releases/download/jq-1.5/jq-linux64 -o /bin/jq
 RUN chmod +x /bin/jq
+# copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
+COPY .git/HEAD .git/HEAD
+COPY .git/refs/heads/. .git/refs/heads
+RUN mkdir -p .git/objects
 COPY Makefile Makefile
-COPY .git .git
 COPY OLM_VERSION OLM_VERSION
 COPY pkg pkg
 COPY vendor vendor

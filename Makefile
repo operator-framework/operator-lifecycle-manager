@@ -12,6 +12,7 @@ IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiextensions-apiserver apimachinery code-generator kube-aggregator kubernetes
 KUBE_RELEASE := release-1.11
+MOD_FLAGS := $(shell (go version | grep -q 1.11) && echo -mod=vendor)
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
@@ -21,13 +22,13 @@ all: test build
 test: clean cover.out
 
 unit:
-	go test -mod=vendor -v -race ./pkg/...
+	go test $(MOD_FLAGS) -v -race ./pkg/...
 
 schema-check:
-	go run -mod=vendor ./cmd/validator/main.go ./deploy/chart/catalog_resources
+	go run $(MOD_FLAGS) ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
-	go test -mod=vendor -v -race -coverprofile=cover.out -covermode=atomic \
+	go test $(MOD_FLAGS) -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out
@@ -43,10 +44,9 @@ build: clean $(CMDS)
 build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
 build-coverage: clean $(CMDS)
 
-$(CMDS): mod_flags=$(shell [ -f go.mod ] && echo -mod=vendor)
 $(CMDS): version_flags=-ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	CGO_ENABLED=0 go $(build_cmd) $(mod_flags) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
+	CGO_ENABLED=0 go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
 
 run-local:
 	. ./scripts/build_local.sh
@@ -89,7 +89,7 @@ vendor: $(KUBE_DEPS)
 	go mod tidy
 	go mod vendor
 
-container: build
+container:
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
 clean:
@@ -109,6 +109,9 @@ gen-ci: $(CI)
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
 codegen:
+	cp scripts/generate_groups.sh vendor/k8s.io/code-generator/generate_groups.sh
+	mkdir -p vendor/k8s.io/code-generator/hack
+	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
 	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1alpha2"
 	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis "packagemanifest:v1alpha1"
@@ -127,7 +130,7 @@ verify-codegen: codegen
 	git diff --exit-code
 
 verify-catalog: schema-check
-	go test -mod=vendor -v ./test/schema/catalog_versions_test.go
+	go test $(MOD_FLAGS) -v ./test/schema/catalog_versions_test.go
 
 generate-mock-client:
 	go generate ./$(PKG_DIR)/...
