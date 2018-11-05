@@ -64,7 +64,10 @@ func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]v1alpha1.
 				"rbac.authorization.k8s.io/aggregate-to-view": "true",
 			},
 		},
-		Rules: []rbacv1.PolicyRule{{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
+		Rules: []rbacv1.PolicyRule{
+			{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}},
+			{Verbs: []string{"get", "watch"}, APIGroups: []string{v1beta1.GroupName}, Resources: []string{crd.GetName()}},
+		},
 	}
 	viewRoleStep, err := NewStepResourceFromObject(viewRole, viewRole.GetName())
 	if err != nil {
