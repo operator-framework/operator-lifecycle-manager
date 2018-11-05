@@ -1429,4 +1429,231 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create initial CRD which has 2 versions: v1alpha1 & v1alpha2
+	crdPlural := genName("ins4")
+	crdName := crdPlural + ".cluster.com"
+	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: extv1beta1.CustomResourceDefinitionSpec{
+			Group: "cluster.com",
+			Versions: []extv1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    "v1alpha1",
+					Served:  true,
+					Storage: true,
+				},
+				{
+					Name:    "v1alpha2",
+					Served:  true,
+					Storage: false,
+				},
+			},
+			Names: extv1beta1.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	// create initial deployment strategy
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: genName("dep1-"),
+				Spec: newNginxDeployment(genName("nginx-")),
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	require.NoError(t, err)
+
+	// First CSV with owning CRD v1alpha1
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "v1alpha1",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster4",
+					},
+				},
+			},
+		},
+	}
+
+	// CSV will be deleted by the upgrade process later
+	_, err = createCSV(t, c, crc, csv, testNamespace, true)
+	require.NoError(t, err)
+
+	// Wait for current CSV to succeed
+	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should have created deployment
+	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+	require.NotNil(t, dep)
+
+	// Create updated deployment strategy
+	strategyNew := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: genName("dep2-"),
+				Spec: newNginxDeployment(genName("nginx-")),
+			},
+		},
+	}
+	strategyNewRaw, err := json.Marshal(strategyNew)
+	require.NoError(t, err)
+
+	// Second CSV with owning CRD v1alpha1 and v1alpha2
+	csvNew := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv2"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			Replaces: csv.Name,
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyNewRaw,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "v1alpha1",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster4",
+					},
+					{
+						Name:        crdName,
+						Version:     "v1alpha2",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster4",
+					},
+				},
+			},
+		},
+	}
+
+	// Create newly updated CSV
+	_, err = createCSV(t, c, crc, csvNew, testNamespace, true)
+	require.NoError(t, err)
+
+	// Wait for updated CSV to succeed
+	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
+
+	// Should have created new deployment and deleted old one
+	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+	require.NotNil(t, depNew)
+	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+
+	// Create updated deployment strategy
+	strategyNew2 := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: genName("dep3-"),
+				Spec: newNginxDeployment(genName("nginx-")),
+			},
+		},
+	}
+	strategyNewRaw2, err := json.Marshal(strategyNew2)
+	require.NoError(t, err)
+
+	// Third CSV with owning CRD v1alpha2
+	csvNew2 := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv3"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			Replaces: csvNew.Name,
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyNewRaw2,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "v1alpha2",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster4",
+					},
+				},
+			},
+		},
+	}
+
+	// Create newly updated CSV
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew2, testNamespace, true)
+	require.NoError(t, err)
+	defer cleanupNewCSV()
+
+	// Wait for updated CSV to succeed
+	fetchedCSV, err = fetchCSV(t, crc, csvNew2.Name, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Fetch cluster service version again to check for unnecessary control loops
+	sameCSV, err = fetchCSV(t, crc, csvNew2.Name, csvSucceededChecker)
+	require.NoError(t, err)
+	compareResources(t, fetchedCSV, sameCSV)
+
+	// Should have created new deployment and deleted old one
+	depNew, err = c.GetDeployment(testNamespace, strategyNew2.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+	require.NotNil(t, depNew)
+	err = waitForDeploymentToDelete(t, c, strategyNew.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+
+	// Should clean up the CSV
+	err = waitForCSVToDelete(t, crc, csvNew.Name)
+	require.NoError(t, err)
+}
+
 // TODO: test behavior when replaces field doesn't point to existing CSV
