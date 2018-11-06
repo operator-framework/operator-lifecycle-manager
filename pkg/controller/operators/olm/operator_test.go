@@ -102,17 +102,11 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 }
 
 func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []v1.Namespace) (*Operator, error) {
-	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(extObjs, regObjs...))
 	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
 	annotations := map[string]string{"test": "annotation"}
-	for _, ns := range namespaces {
-		_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&ns)
-		if err != nil {
-			return nil, err
-		}
-	}
+	clientFake := fake.NewSimpleClientset(clientObjs...)
 
 	var nsList []string
 	for ix := range namespaces {
@@ -1101,35 +1095,37 @@ func TestSyncOperatorGroups(t *testing.T) {
 	})
 
 	tests := []struct {
-		name               string
-		expectedEqual      bool
-		initialCsvs        []runtime.Object
-		initialCrds        []runtime.Object
-		initialObjs        []runtime.Object
+		name          string
+		expectedEqual bool
+		// first item in initialObjs must be an OperatorGroup
+		initialObjs []runtime.Object
+		initialCrds []runtime.Object
+		// first item in initialK8sObjs must be a namespace
+		initialK8sObjs     []runtime.Object
 		initialApis        []runtime.Object
-		namespaces         []v1.Namespace
-		inputGroup         v1alpha2.OperatorGroup
 		expectedStatus     v1alpha2.OperatorGroupStatus
 		expectedAnnotation map[string]string
 	}{
 		{
 			name:          "operator group with no matching namespace, no CSVs",
 			expectedEqual: true,
-			namespaces: []v1.Namespace{
-				{
+			initialObjs: []runtime.Object{
+				&v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: testNS,
+						Name:      "operator-group-1",
+						Namespace: testNS,
+					},
+					Spec: v1alpha2.OperatorGroupSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: aLabel,
+						},
 					},
 				},
 			},
-			inputGroup: v1alpha2.OperatorGroup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "operator-group-1",
-					Namespace: testNS,
-				},
-				Spec: v1alpha2.OperatorGroupSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: aLabel,
+			initialK8sObjs: []runtime.Object{
+				&v1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: testNS,
 					},
 				},
 			},
@@ -1138,25 +1134,27 @@ func TestSyncOperatorGroups(t *testing.T) {
 		{
 			name:          "operator group with matching namespace, no CSVs",
 			expectedEqual: true,
-			namespaces: []v1.Namespace{
-				{
+			initialObjs: []runtime.Object{
+				&v1alpha2.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: testNS,
+					},
+					Spec: v1alpha2.OperatorGroupSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"app": "matchLabel",
+							},
+						},
+					},
+				},
+			},
+			initialK8sObjs: []runtime.Object{
+				&v1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:        testNS,
 						Labels:      aLabel,
 						Annotations: map[string]string{"test": "annotation"},
-					},
-				},
-			},
-			inputGroup: v1alpha2.OperatorGroup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "operator-group-1",
-					Namespace: testNS,
-				},
-				Spec: v1alpha2.OperatorGroupSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "matchLabel",
-						},
 					},
 				},
 			},
@@ -1176,16 +1174,19 @@ func TestSyncOperatorGroups(t *testing.T) {
 		{
 			name:          "operator group with matching namespace, CSV present",
 			expectedEqual: false,
-			namespaces: []v1.Namespace{
-				{
+			initialObjs: []runtime.Object{
+				&v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        testNS,
-						Labels:      aLabel,
-						Annotations: map[string]string{"test": "annotation"},
+						Name:      "operator-group-1",
+						Namespace: testNS,
+						Labels:    aLabel,
+					},
+					Spec: v1alpha2.OperatorGroupSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: aLabel,
+						},
 					},
 				},
-			},
-			initialCsvs: []runtime.Object{
 				csv("csv1",
 					testNS,
 					"",
@@ -1195,20 +1196,15 @@ func TestSyncOperatorGroups(t *testing.T) {
 					v1alpha1.CSVPhaseSucceeded,
 				),
 			},
-			initialObjs: []runtime.Object{
-				deployment("csv1-dep1", testNS),
-			},
-			inputGroup: v1alpha2.OperatorGroup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "operator-group-1",
-					Namespace: testNS,
-					Labels:    aLabel,
-				},
-				Spec: v1alpha2.OperatorGroupSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: aLabel,
+			initialK8sObjs: []runtime.Object{
+				&v1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        testNS,
+						Labels:      aLabel,
+						Annotations: map[string]string{"test": "annotation"},
 					},
 				},
+				deployment("csv1-dep1", testNS),
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
 				Namespaces: []*v1.Namespace{
@@ -1227,16 +1223,19 @@ func TestSyncOperatorGroups(t *testing.T) {
 		{
 			name:          "operator group with matching namespace, CSV present",
 			expectedEqual: true,
-			namespaces: []v1.Namespace{
-				{
+			initialObjs: []runtime.Object{
+				&v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:        testNS,
-						Labels:      aLabel,
-						Annotations: map[string]string{"test": "annotation"},
+						Name:      "operator-group-1",
+						Namespace: testNS,
+						Labels:    aLabel,
+					},
+					Spec: v1alpha2.OperatorGroupSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: aLabel,
+						},
 					},
 				},
-			},
-			initialCsvs: []runtime.Object{
 				csv("csv1",
 					testNS,
 					"",
@@ -1246,20 +1245,15 @@ func TestSyncOperatorGroups(t *testing.T) {
 					v1alpha1.CSVPhaseSucceeded,
 				),
 			},
-			initialObjs: []runtime.Object{
-				ownedDeployment,
-			},
-			inputGroup: v1alpha2.OperatorGroup{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "operator-group-1",
-					Namespace: testNS,
-					Labels:    aLabel,
-				},
-				Spec: v1alpha2.OperatorGroupSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: aLabel,
+			initialK8sObjs: []runtime.Object{
+				&v1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        testNS,
+						Labels:      aLabel,
+						Annotations: map[string]string{"test": "annotation"},
 					},
 				},
+				ownedDeployment,
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
 				Namespaces: []*v1.Namespace{
@@ -1279,7 +1273,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			op, err := NewFakeOperator(tc.initialCsvs, tc.initialObjs, tc.initialCrds, tc.initialApis, &install.StrategyResolver{}, tc.namespaces)
+			namespaceList := []v1.Namespace{*tc.initialK8sObjs[0].(*v1.Namespace)}
+			op, err := NewFakeOperator(tc.initialObjs, tc.initialK8sObjs, tc.initialCrds, tc.initialApis, &install.StrategyResolver{}, namespaceList)
 			require.NoError(t, err)
 
 			stopCh := make(chan struct{})
@@ -1287,17 +1282,16 @@ func TestSyncOperatorGroups(t *testing.T) {
 			ready, _ := op.Run(stopCh)
 			<-ready
 
-			// Could not put this in initialObjs - got "no kind is registered for the type v1alpha2.OperatorGroup"
-			_, err = op.client.OperatorsV1alpha2().OperatorGroups(tc.inputGroup.Namespace).Create(&tc.inputGroup)
-			require.NoError(t, err)
+			operatorGroup, ok := tc.initialObjs[0].(*v1alpha2.OperatorGroup)
+			require.True(t, ok)
 
-			err = op.syncOperatorGroups(&tc.inputGroup)
+			err = op.syncOperatorGroups(operatorGroup)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedStatus, tc.inputGroup.Status)
+			assert.Equal(t, tc.expectedStatus, operatorGroup.Status)
 
 			if tc.expectedAnnotation != nil {
 				// assuming CSVs are in correct namespace
-				for _, ns := range tc.namespaces {
+				for _, ns := range namespaceList {
 					deployments, err := op.lister.AppsV1().DeploymentLister().Deployments(ns.GetName()).List(labels.Everything())
 					if err != nil {
 						t.Fatal(err)
