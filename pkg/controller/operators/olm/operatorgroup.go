@@ -76,19 +76,36 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 		if ns.Name == operatorGroup.GetNamespace() {
 			continue
 		}
-		// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
-		newCSV := v1alpha1.ClusterServiceVersion{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        csv.Name,
-				Annotations: csv.Annotations,
-			},
-			Spec: *csv.Spec.DeepCopy(),
-		}
-		newCSV.SetNamespace(ns.Name)
+		fetchedCSV, err := a.csvLister[ns.GetName()].ClusterServiceVersions(ns.GetName()).Get(csv.GetName())
+		if k8serrors.IsAlreadyExists(err) {
+			log.Debugf("Found existing CSV (%v), checking annotations", fetchedCSV.GetName())
+			if reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) == false {
+				fetchedCSV.Annotations = csv.Annotations
+				// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
+				log.Debugf("Updating CSV %v in namespace %v", fetchedCSV.GetName(), ns.GetName())
+				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Update(fetchedCSV); err != nil {
+					log.Errorf("Update CSV in target namespace failed: %v", err)
+					return err
+				}
+			}
+			continue
+		} else if k8serrors.IsNotFound(err) {
+			// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
+			newCSV := v1alpha1.ClusterServiceVersion{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        csv.Name,
+					Annotations: csv.Annotations,
+				},
+				Spec: *csv.Spec.DeepCopy(),
+			}
+			newCSV.SetNamespace(ns.Name)
 
-		log.Debugf("Copying/updating CSV %v to/in namespace %v", csv.GetName(), ns.Name)
-		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Create(&newCSV)
-		if err == nil {
+			log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns.GetName())
+			createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Create(&newCSV)
+			if err != nil {
+				log.Errorf("Create for new CSV failed: %v", err)
+				return err
+			}
 			createdCSV.Status = v1alpha1.ClusterServiceVersionStatus{
 				Message:        "CSV copied to target namespace",
 				Reason:         v1alpha1.CSVReasonCopied,
@@ -98,21 +115,8 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 				log.Errorf("Status update for CSV failed: %v", err)
 				return err
 			}
-		}
-		if k8serrors.IsAlreadyExists(err) {
-			fetchedCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Get(csv.GetName(), metav1.GetOptions{})
-			if err != nil {
-				log.Errorf("Create failed, yet get failed: %v", err)
-			}
-			if reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) == false {
-				// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
-				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns.Name).Update(fetchedCSV); err != nil {
-					log.Errorf("Update CSV in target namespace failed: %v", err)
-					return err
-				}
-			}
 		} else if err != nil {
-			log.Errorf("Create for new CSV failed: %v", err)
+			log.Errorf("CSV fetch for %v failed: %v", csv.GetName(), err)
 			return err
 		}
 	}
