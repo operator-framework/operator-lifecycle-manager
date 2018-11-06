@@ -438,25 +438,6 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
-	opNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
-	if ok {
-		// ensure "parent" CSV has not been deleted
-		csvs := a.csvsInNamespace(opNamespace)
-		csv, found := csvs[clusterServiceVersion.Name]
-		if !found {
-			targetNamespaces, ok := clusterServiceVersion.Annotations["olm.targetNamespaces"]
-			if !ok {
-				return fmt.Errorf("Did not find targetNamespaces annotation on %v", csv)
-			}
-			for _, ns := range strings.Split(targetNamespaces, ",") {
-				if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(csv.Name, &metav1.DeleteOptions{}); err != nil {
-					return err
-				}
-			}
-			return nil
-		}
-	}
-
 	// no changes in status, don't update
 	if outCSV.Status.Phase == clusterServiceVersion.Status.Phase && outCSV.Status.Reason == clusterServiceVersion.Status.Reason && outCSV.Status.Message == clusterServiceVersion.Status.Message {
 		return
