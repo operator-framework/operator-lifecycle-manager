@@ -24,7 +24,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	log.Infof("syncing operator group %v", op)
 
-	err, targetedNamespaces := a.updateNamespaceList(op)
+	targetedNamespaces, err := a.updateNamespaceList(op)
 	log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
 	if err != nil {
 		log.Errorf("updateNamespaceList error: %v", err)
@@ -142,20 +142,20 @@ func namespacesChanged(clusterNamespaces []*corev1.Namespace, statusNamespaces [
 	return false
 }
 
-func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) (error, []*corev1.Namespace) {
+func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]*corev1.Namespace, error) {
 	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	namespaceList, err := a.lister.CoreV1().NamespaceLister().List(selector)
 	if err != nil {
-		return err, nil
+		return nil, err
 	}
 
 	if !namespacesChanged(namespaceList, op.Status.Namespaces) {
 		// status is current with correct namespaces, so no further updates required
-		return nil, namespaceList
+		return namespaceList, nil
 	}
 	log.Debugf("Namespace change detected, found: %v", namespaceList)
 	op.Status.Namespaces = make([]*corev1.Namespace, len(namespaceList))
@@ -163,9 +163,9 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) (error, []*co
 	op.Status.LastUpdated = timeNow()
 	_, err = a.client.OperatorsV1alpha2().OperatorGroups(op.Namespace).UpdateStatus(op)
 	if err != nil {
-		return err, namespaceList
+		return namespaceList, err
 	}
-	return nil, namespaceList
+	return namespaceList, nil
 }
 
 func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
