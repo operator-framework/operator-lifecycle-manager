@@ -70,17 +70,17 @@ func TestPackageManifestLoading(t *testing.T) {
 	pmc := newPMClient(t)
 
 	expectedStatus := packagev1alpha1.PackageManifestStatus{
-		CatalogSourceName:      catalogSourceName,
+		CatalogSource:          catalogSourceName,
 		CatalogSourceNamespace: testNamespace,
 		PackageName:            packageName,
 		Channels: []packagev1alpha1.PackageChannel{
 			{
 				Name:           stableChannel,
-				CurrentCSVName: packageStable,
+				CurrentCSV:     packageStable,
 				CurrentCSVDesc: packagev1alpha1.CreateCSVDescription(&csv),
 			},
 		},
-		DefaultChannelName: stableChannel,
+		DefaultChannel: stableChannel,
 	}
 
 	watcher, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})

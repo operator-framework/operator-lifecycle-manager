@@ -404,7 +404,7 @@ func installPlan(names ...string) v1alpha1.InstallPlan {
 			ClusterServiceVersionNames: names,
 		},
 		Status: v1alpha1.InstallPlanStatus{
-			Plan: []v1alpha1.Step{},
+			Plan: []*v1alpha1.Step{},
 		},
 	}
 }

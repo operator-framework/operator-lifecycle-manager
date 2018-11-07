@@ -1,0 +1,17 @@
+language: go
+
+matrix:
+  include:
+  - go: "1.10.x"
+    script: scripts/deps.sh && scripts/ci.sh
+  - go: "1.11.x"
+    script: scripts/ci.sh
+  - go: "tip"
+    script: scripts/ci.sh
+
+env:
+  - GO111MODULE=on
+
+install: true
+
+sudo : false # uses new containerized infrastructure

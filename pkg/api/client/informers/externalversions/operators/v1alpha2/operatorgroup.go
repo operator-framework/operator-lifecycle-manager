@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2018 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package v1alpha2
 import (
 	time "time"
 
-	operators_v1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	operatorsv1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/internalinterfaces"
 	v1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
@@ -70,7 +70,7 @@ func NewFilteredOperatorGroupInformer(client versioned.Interface, namespace stri
 				return client.OperatorsV1alpha2().OperatorGroups(namespace).Watch(options)
 			},
 		},
-		&operators_v1alpha2.OperatorGroup{},
+		&operatorsv1alpha2.OperatorGroup{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *operatorGroupInformer) defaultInformer(client versioned.Interface, resy
 }
 
 func (f *operatorGroupInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&operators_v1alpha2.OperatorGroup{}, f.defaultInformer)
+	return f.factory.InformerFor(&operatorsv1alpha2.OperatorGroup{}, f.defaultInformer)
 }
 
 func (f *operatorGroupInformer) Lister() v1alpha2.OperatorGroupLister {

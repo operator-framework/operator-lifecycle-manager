@@ -140,22 +140,22 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName,
 				Status: status,
 			}
 
-			manifest.Status.CatalogSourceName = catalogSourceName
+			manifest.Status.CatalogSource = catalogSourceName
 			manifest.Status.CatalogSourceNamespace = catalogSourceNamespace
 			manifest.Status.CatalogSourceDisplayName = catalogSourceDisplayName
 			manifest.Status.CatalogSourcePublisher = catalogSourcePublisher
 
 			// add all PackageChannel CSVDescriptions
 			for i, channel := range manifest.Status.Channels {
-				csv, ok := csvs[channel.CurrentCSVName]
+				csv, ok := csvs[channel.CurrentCSV]
 				if !ok {
-					return nil, fmt.Errorf("packagemanifest %s references non-existent csv %s", manifest.Status.PackageName, channel.CurrentCSVName)
+					return nil, fmt.Errorf("packagemanifest %s references non-existent csv %s", manifest.Status.PackageName, channel.CurrentCSV)
 				}
 
 				manifest.Status.Channels[i].CurrentCSVDesc = packagev1alpha1.CreateCSVDescription(&csv)
 
 				// set the Provider
-				if manifest.Status.DefaultChannelName != "" && csv.GetName() == manifest.Status.DefaultChannelName || i == 0 {
+				if manifest.Status.DefaultChannel != "" && csv.GetName() == manifest.Status.DefaultChannel || i == 0 {
 					manifest.Status.Provider = packagev1alpha1.AppLink{
 						Name: csv.Spec.Provider.Name,
 						URL:  csv.Spec.Provider.URL,
@@ -168,7 +168,7 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName,
 			}
 
 			// set CatalogSource labels
-			manifest.ObjectMeta.Labels["catalog"] = manifest.Status.CatalogSourceName
+			manifest.ObjectMeta.Labels["catalog"] = manifest.Status.CatalogSource
 			manifest.ObjectMeta.Labels["catalog-namespace"] = manifest.Status.CatalogSourceNamespace
 
 			log.Debugf("retrieved packagemanifest %s", manifest.GetName())
@@ -218,7 +218,7 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 	defer m.mu.Unlock()
 	for _, manifest := range manifests {
 		key := packageKey{
-			catalogSourceName:      manifest.Status.CatalogSourceName,
+			catalogSourceName:      manifest.Status.CatalogSource,
 			catalogSourceNamespace: manifest.Status.CatalogSourceNamespace,
 			packageName:            manifest.GetName(),
 		}

@@ -1,5 +1,5 @@
 /*
-Copyright The Kubernetes Authors.
+Copyright 2018 Red Hat, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ package v1alpha1
 import (
 	time "time"
 
-	packagemanifest_v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
+	packagemanifestv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/externalversions/internalinterfaces"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/listers/packagemanifest/v1alpha1"
@@ -70,7 +70,7 @@ func NewFilteredPackageManifestInformer(client versioned.Interface, namespace st
 				return client.PackagemanifestV1alpha1().PackageManifests(namespace).Watch(options)
 			},
 		},
-		&packagemanifest_v1alpha1.PackageManifest{},
+		&packagemanifestv1alpha1.PackageManifest{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,7 +81,7 @@ func (f *packageManifestInformer) defaultInformer(client versioned.Interface, re
 }
 
 func (f *packageManifestInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&packagemanifest_v1alpha1.PackageManifest{}, f.defaultInformer)
+	return f.factory.InformerFor(&packagemanifestv1alpha1.PackageManifest{}, f.defaultInformer)
 }
 
 func (f *packageManifestInformer) Lister() v1alpha1.PackageManifestLister {

@@ -31,8 +31,8 @@ type PackageManifestSpec struct{}
 
 // PackageManifestStatus represents the current status of the PackageManifest
 type PackageManifestStatus struct {
-	// CatalogSourceName is the name of the CatalogSource this package belongs to
-	CatalogSourceName        string `json:"catalogSource"`
+	// CatalogSource is the name of the CatalogSource this package belongs to
+	CatalogSource            string `json:"catalogSource"`
 	CatalogSourceDisplayName string `json:"catalogSourceDisplayName"`
 	CatalogSourcePublisher   string `json:"catalogSourcePublisher"`
 
@@ -48,17 +48,17 @@ type PackageManifestStatus struct {
 	// Channels are the declared channels for the package, ala `stable` or `alpha`.
 	Channels []PackageChannel `json:"channels"`
 
-	// DefaultChannelName is, if specified, the name of the default channel for the package. The
+	// DefaultChannel is, if specified, the name of the default channel for the package. The
 	// default channel will be installed if no other channel is explicitly given. If the package
 	// has a single channel, then that channel is implicitly the default.
-	DefaultChannelName string `json:"defaultChannel"`
+	DefaultChannel string `json:"defaultChannel"`
 }
 
 // GetDefaultChannel gets the default channel or returns the only one if there's only one. returns empty string if it
 // can't determine the default
 func (m PackageManifest) GetDefaultChannel() string {
-	if m.Status.DefaultChannelName != "" {
-		return m.Status.DefaultChannelName
+	if m.Status.DefaultChannel != "" {
+		return m.Status.DefaultChannel
 	}
 	if len(m.Status.Channels) == 1 {
 		return m.Status.Channels[0].Name
@@ -72,9 +72,9 @@ type PackageChannel struct {
 	// Name is the name of the channel, e.g. `alpha` or `stable`
 	Name string `json:"name"`
 
-	// CurrentCSVName defines a reference to the CSV holding the version of this package currently
+	// CurrentCSV defines a reference to the CSV holding the version of this package currently
 	// for the channel.
-	CurrentCSVName string `json:"currentCSV"`
+	CurrentCSV string `json:"currentCSV"`
 
 	// CurrentCSVSpec holds the spec of the current CSV
 	CurrentCSVDesc CSVDescription `json:"currentCSVDesc,omitempty"`
@@ -105,11 +105,11 @@ type AppLink struct {
 
 // Icon defines a base64 encoded icon and media type
 type Icon struct {
-	Data      string `json:"base64data,omitempty"`
-	MediaType string `json:"mediatype,omitempty"`
+	Base64Data string `json:"base64data,omitempty"`
+	Mediatype  string `json:"mediatype,omitempty"`
 }
 
 // IsDefaultChannel returns true if the PackageChannel is the default for the PackageManifest
 func (pc PackageChannel) IsDefaultChannel(pm PackageManifest) bool {
-	return pc.Name == pm.Status.DefaultChannelName || len(pm.Status.Channels) == 1
+	return pc.Name == pm.Status.DefaultChannel || len(pm.Status.Channels) == 1
 }

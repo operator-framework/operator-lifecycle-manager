@@ -27,7 +27,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
-	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi"
+	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/openapi"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/version"
 )
 

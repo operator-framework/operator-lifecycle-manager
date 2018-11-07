@@ -877,7 +877,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		dependentCRDStepResources, err := resolver.NewStepResourcesFromCRD(&dependentCRD)
 		require.NoError(t, err)
 
-		updated.Status.Plan = []v1alpha1.Step{{
+		updated.Status.Plan = []*v1alpha1.Step{{
 			Resource: dependentCSVStepResource,
 			Status:   v1alpha1.StepStatusPresent,
 		},
@@ -887,13 +887,13 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 			},
 		}
 		for _, step := range dependentCRDStepResources {
-			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+			updated.Status.Plan = append(updated.Status.Plan, &v1alpha1.Step{
 				Resource: step,
 				Status:   v1alpha1.StepStatusPresent,
 			})
 		}
 		for _, step := range crdStepResources {
-			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+			updated.Status.Plan = append(updated.Status.Plan, &v1alpha1.Step{
 				Resource: step,
 				Status:   v1alpha1.StepStatusPresent,
 			})
@@ -1032,7 +1032,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		dependentCRDStepResources, err := resolver.NewStepResourcesFromCRD(&dependentCRD)
 		require.NoError(t, err)
 
-		updated.Status.Plan = []v1alpha1.Step{
+		updated.Status.Plan = []*v1alpha1.Step{
 			{
 				Resource: dependentCSVStepResource,
 				Status:   v1alpha1.StepStatusUnknown,
@@ -1044,13 +1044,13 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		}
 
 		for _, step := range dependentCRDStepResources {
-			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+			updated.Status.Plan = append(updated.Status.Plan, &v1alpha1.Step{
 				Resource: step,
 				Status:   v1alpha1.StepStatusUnknown,
 			})
 		}
 		for _, step := range crdStepResources {
-			updated.Status.Plan = append(updated.Status.Plan, v1alpha1.Step{
+			updated.Status.Plan = append(updated.Status.Plan, &v1alpha1.Step{
 				Resource: step,
 				Status:   v1alpha1.StepStatusUnknown,
 			})

@@ -17,8 +17,8 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 	icons := make([]Icon, len(csv.Spec.Icon))
 	for i, icon := range csv.Spec.Icon {
 		icons[i] = Icon{
-			Data:      icon.Data,
-			MediaType: icon.MediaType,
+			Base64Data: icon.Data,
+			Mediatype:  icon.MediaType,
 		}
 	}
 
