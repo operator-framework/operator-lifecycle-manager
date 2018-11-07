@@ -59,7 +59,7 @@ watchedNamespaces: local
 catalog_namespace: local
 
 # OLM operator run configuration
-alm:
+olm:
   # OLM operator doesn't do any leader election (yet), set to 1
   replicaCount: 1
   # The image to run. If not building a local image, use sha256 image references
