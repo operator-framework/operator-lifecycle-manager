@@ -18,6 +18,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 )
@@ -530,7 +531,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	}
 
 	// Create dependency first (CRD)
-	cleanupCRD, err := createCRD(c, extv1beta1.CustomResourceDefinition{
+	crd := extv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -545,9 +546,9 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			},
 			Scope: "Namespaced",
 		},
-	})
+	}
+	cleanupCRD, err := createCRD(c, crd)
 	require.NoError(t, err)
-	defer cleanupCRD()
 
 	// Create Role/Cluster Roles and RoleBindings
 	role := rbacv1.Role{
@@ -663,6 +664,22 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
+
+	// Delete CRD
+	cleanupCRD()
+
+	// Wait for CSV failure
+	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Recreate the CRD
+	cleanupCRD, err = createCRD(c, crd)
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	// Wait for CSV success
+	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	require.NoError(t, err)
 }
 
 func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
@@ -937,6 +954,31 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	})
 	require.NoError(t, err, "failed to rotate cert")
 
+	// Get the APIService UID
+	oldAPIServiceUID := apiService.GetUID()
+
+	// Delete the APIService
+	err = c.DeleteAPIService(apiServiceName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	// Wait for CSV success
+	fetchedCSV, err = fetchCSV(t, crc, csv.GetName(), func(csv *v1alpha1.ClusterServiceVersion) bool {
+		// Should create an APIService
+		apiService, err := c.GetAPIService(apiServiceName)
+		if err != nil {
+			require.True(t, k8serrors.IsNotFound(err))
+			return false
+		}
+
+		if csvSucceededChecker(csv) {
+			require.NotEqual(t, oldAPIServiceUID, apiService.GetUID())
+			return true
+		}
+
+		return false
+	})
+	require.NoError(t, err)
+
 	// Remove owner references on generated APIService, Deployment, Role, RoleBinding(s), ClusterRoleBinding(s), Secret, and Service
 	apiService, err = c.GetAPIService(apiServiceName)
 	require.NoError(t, err)
@@ -944,6 +986,8 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	_, err = c.UpdateAPIService(apiService)
 	require.NoError(t, err, "could not remove OwnerReferences on generated APIService")
 
+	dep, err = c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err)
 	dep.SetOwnerReferences([]metav1.OwnerReference{})
 	_, err = c.KubernetesInterface().AppsV1().Deployments(testNamespace).Update(dep)
 	require.NoError(t, err, "could not remove OwnerReferences on generated Deployment")

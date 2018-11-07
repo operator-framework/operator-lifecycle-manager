@@ -1,10 +1,16 @@
 package olm
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
 	"strings"
-
 	"testing"
 	"time"
 
@@ -12,14 +18,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -27,8 +37,15 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 )
 
 // Fakes
@@ -101,18 +118,95 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	return apis
 }
 
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []v1.Namespace) (*Operator, error) {
+// NewFakeOperator creates a new operator using fake clients
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []string, stopCh <-chan struct{}) (*Operator, error) {
+	// Create client fakes
+	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	k8sClientFake.Resources = apiResourcesForObjects(append(extObjs, regObjs...))
 	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
-	annotations := map[string]string{"test": "annotation"}
-	clientFake := fake.NewSimpleClientset(clientObjs...)
 
-	var nsList []string
-	for ix := range namespaces {
-		nsList = append(nsList, namespaces[ix].Name)
+	annotations := map[string]string{"test": "annotation"}
+	namespaceAnnotator := annotator.NewAnnotator(opClientFake, annotations)
+	eventRecorder, err := event.NewRecorder(opClientFake.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
+	if err != nil {
+		return nil, err
 	}
-	return NewOperator(clientFake, opClientFake, resolver, 5*time.Second, annotations, nsList)
+
+	// Create the new operator
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake)
+	op := &Operator{
+		Operator:  queueOperator,
+		client:    clientFake,
+		lister:    operatorlister.NewLister(),
+		resolver:  resolver,
+		csvQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterserviceversions"),
+		annotator: namespaceAnnotator,
+		recorder:  eventRecorder,
+		cleanupFunc: func() {
+			namespaceAnnotator.CleanNamespaceAnnotations(namespaces)
+		},
+	}
+
+	wakeupInterval := 5 * time.Second
+
+	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), wakeupInterval)
+	roleInformer := informerFactory.Rbac().V1().Roles()
+	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
+	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
+	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
+	secretInformer := informerFactory.Core().V1().Secrets()
+	serviceInformer := informerFactory.Core().V1().Services()
+	serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
+	namespaceInformer := informerFactory.Core().V1().Namespaces()
+	apiServiceInformer := kagg.NewSharedInformerFactory(opClientFake.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
+
+	// Register informers
+	informerList := []cache.SharedIndexInformer{
+		roleInformer.Informer(),
+		roleBindingInformer.Informer(),
+		clusterRoleInformer.Informer(),
+		clusterRoleBindingInformer.Informer(),
+		secretInformer.Informer(),
+		serviceInformer.Informer(),
+		serviceAccountInformer.Informer(),
+		namespaceInformer.Informer(),
+		apiServiceInformer.Informer(),
+	}
+
+	for _, ns := range namespaces {
+		csvInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns)).Operators().V1alpha1().ClusterServiceVersions()
+		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(ns, csvInformer.Lister())
+		operatorGroupInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns)).Operators().V1alpha2().OperatorGroups()
+		op.lister.OperatorsV1alpha2().RegisterOperatorGroupLister(ns, operatorGroupInformer.Lister())
+		deploymentInformer := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(ns)).Apps().V1().Deployments()
+		op.lister.AppsV1().RegisterDeploymentLister(ns, deploymentInformer.Lister())
+		informerList = append(informerList, []cache.SharedIndexInformer{csvInformer.Informer(), operatorGroupInformer.Informer(), deploymentInformer.Informer()}...)
+	}
+
+	// Register listers
+	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
+	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
+	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
+	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
+	op.lister.CoreV1().RegisterSecretLister(metav1.NamespaceAll, secretInformer.Lister())
+	op.lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
+	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
+	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
+	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
+
+	var hasSyncedCheckFns []cache.InformerSynced
+	for _, informer := range informerList {
+		op.RegisterInformer(informer)
+		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
+		go informer.Run(stopCh)
+	}
+
+	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
+		return nil, fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	return op, nil
 }
 
 func (o *Operator) GetClient() versioned.Interface {
@@ -121,7 +215,7 @@ func (o *Operator) GetClient() versioned.Interface {
 
 // Tests
 
-func deployment(deploymentName, namespace string) *appsv1.Deployment {
+func deployment(deploymentName, namespace, serviceAccountName string, templateAnnotations map[string]string) *appsv1.Deployment {
 	var singleInstance = int32(1)
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -135,18 +229,20 @@ func deployment(deploymentName, namespace string) *appsv1.Deployment {
 				},
 			},
 			Replicas: &singleInstance,
-			Template: v1.PodTemplateSpec{
+			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: map[string]string{
 						"app": deploymentName,
 					},
+					Annotations: templateAnnotations,
 				},
-				Spec: v1.PodSpec{
-					Containers: []v1.Container{
+				Spec: corev1.PodSpec{
+					ServiceAccountName: serviceAccountName,
+					Containers: []corev1.Container{
 						{
 							Name:  deploymentName + "-c1",
 							Image: "nginx:1.7.9",
-							Ports: []v1.ContainerPort{
+							Ports: []corev1.ContainerPort{
 								{
 									ContainerPort: 80,
 								},
@@ -165,6 +261,149 @@ func deployment(deploymentName, namespace string) *appsv1.Deployment {
 	}
 }
 
+func serviceAccount(name, namespace string) *corev1.ServiceAccount {
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+	}
+
+	return serviceAccount
+}
+
+func service(name, namespace, deploymentName string, targetPort int) *corev1.Service {
+	service := &corev1.Service{
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
+				{
+					Port:       int32(443),
+					TargetPort: intstr.FromInt(targetPort),
+				},
+			},
+			Selector: map[string]string{
+				"app": deploymentName,
+			},
+		},
+	}
+	service.SetName(name)
+	service.SetNamespace(namespace)
+
+	return service
+}
+
+func clusterRoleBinding(name, clusterRoleName, serviceAccountName, serviceAccountNamespace string) *rbacv1.ClusterRoleBinding {
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      serviceAccountName,
+				Namespace: serviceAccountNamespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     clusterRoleName,
+		},
+	}
+	clusterRoleBinding.SetName(name)
+
+	return clusterRoleBinding
+}
+
+func clusterRole(name string, rules []rbacv1.PolicyRule) *rbacv1.ClusterRole {
+	clusterRole := &rbacv1.ClusterRole{
+		Rules: rules,
+	}
+	clusterRole.SetName(name)
+
+	return clusterRole
+}
+
+func role(name, namespace string, rules []rbacv1.PolicyRule) *rbacv1.Role {
+	role := &rbacv1.Role{
+		Rules: rules,
+	}
+	role.SetName(name)
+	role.SetNamespace(namespace)
+
+	return role
+}
+
+func roleBinding(name, namespace, roleName, serviceAccountName, serviceAccountNamespace string) *rbacv1.RoleBinding {
+	roleBinding := &rbacv1.RoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      serviceAccountName,
+				Namespace: serviceAccountNamespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     roleName,
+		},
+	}
+	roleBinding.SetName(name)
+	roleBinding.SetNamespace(namespace)
+
+	return roleBinding
+}
+
+func tlsSecret(name, namespace string, certPEM, privPEM []byte) *corev1.Secret {
+	secret := &corev1.Secret{
+		Data: map[string][]byte{
+			"tls.crt": certPEM,
+			"tls.key": privPEM,
+		},
+		Type: corev1.SecretTypeTLS,
+	}
+	secret.SetName(name)
+	secret.SetNamespace(namespace)
+
+	return secret
+}
+
+func keyPairToTLSSecret(name, namespace string, kp *certs.KeyPair) *corev1.Secret {
+	certPEM, privPEM, err := kp.ToPEM()
+	if err != nil {
+		panic(err)
+	}
+
+	return tlsSecret(name, namespace, certPEM, privPEM)
+}
+
+func signedServingPair(notAfter time.Time, ca *certs.KeyPair, hosts []string) *certs.KeyPair {
+	servingPair, err := certs.CreateSignedServingPair(notAfter, Organization, ca, hosts)
+	if err != nil {
+		panic(err)
+	}
+
+	return servingPair
+}
+
+func withAnnotations(obj runtime.Object, annotations map[string]string) runtime.Object {
+	switch v := obj.(type) {
+	case *appsv1.Deployment:
+		v.SetAnnotations(annotations)
+		obj = v
+	case *apiregistrationv1.APIService:
+		v.SetAnnotations(annotations)
+		obj = v
+	case *corev1.Secret:
+		v.SetAnnotations(annotations)
+		obj = v
+	default:
+		panic("could not assert object as Deployment, APIService, or Secret while adding annotations")
+	}
+
+	return obj
+}
+
 func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
 	strategy := install.StrategyDetailsDeployment{
@@ -178,18 +417,19 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 						},
 					},
 					Replicas: &singleInstance,
-					Template: v1.PodTemplateSpec{
+					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{
 								"app": deploymentName,
 							},
 						},
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
+						Spec: corev1.PodSpec{
+							ServiceAccountName: "sa",
+							Containers: []corev1.Container{
 								{
 									Name:  deploymentName + "-c1",
 									Image: "nginx:1.7.9",
-									Ports: []v1.ContainerPort{
+									Ports: []corev1.ContainerPort{
 										{
 											ContainerPort: 80,
 										},
@@ -282,13 +522,18 @@ func apis(apis ...string) []v1alpha1.APIServiceDescription {
 	return descs
 }
 
-func apiService(name, version string, availableStatus apiregistrationv1.ConditionStatus) *apiregistrationv1.APIService {
-	return &apiregistrationv1.APIService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("%s.%s", version, name),
-		},
+func apiService(group, version, serviceName, serviceNamespace, deploymentName string, caBundle []byte, availableStatus apiregistrationv1.ConditionStatus) *apiregistrationv1.APIService {
+	apiService := &apiregistrationv1.APIService{
 		Spec: apiregistrationv1.APIServiceSpec{
-			Version: version,
+			Group:                group,
+			Version:              version,
+			GroupPriorityMinimum: int32(2000),
+			VersionPriority:      int32(15),
+			CABundle:             caBundle,
+			Service: &apiregistrationv1.ServiceReference{
+				Name:      serviceName,
+				Namespace: serviceNamespace,
+			},
 		},
 		Status: apiregistrationv1.APIServiceStatus{
 			Conditions: []apiregistrationv1.APIServiceCondition{
@@ -299,6 +544,10 @@ func apiService(name, version string, availableStatus apiregistrationv1.Conditio
 			},
 		},
 	}
+	apiServiceName := fmt.Sprintf("%s.%s", version, group)
+	apiService.SetName(apiServiceName)
+
+	return apiService
 }
 
 func crd(name string, version string) *v1beta1.CustomResourceDefinition {
@@ -322,13 +571,72 @@ func crd(name string, version string) *v1beta1.CustomResourceDefinition {
 	}
 }
 
+func generateCA(notAfter time.Time, organization string) (*certs.KeyPair, error) {
+	notBefore := time.Now()
+
+	serial, err := rand.Int(rand.Reader, new(big.Int).SetInt64(math.MaxInt64))
+	if err != nil {
+		return nil, err
+	}
+
+	caDetails := &x509.Certificate{
+		SerialNumber: serial,
+		Subject: pkix.Name{
+			Organization: []string{organization},
+		},
+		NotBefore:             notBefore,
+		NotAfter:              notAfter,
+		IsCA:                  true,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth, x509.ExtKeyUsageServerAuth},
+		KeyUsage:              x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+	}
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+
+	publicKey := &privateKey.PublicKey
+	certRaw, err := x509.CreateCertificate(rand.Reader, caDetails, caDetails, publicKey, privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	cert, err := x509.ParseCertificate(certRaw)
+	if err != nil {
+		return nil, err
+	}
+
+	ca := &certs.KeyPair{
+		Cert: cert,
+		Priv: privateKey,
+	}
+
+	return ca, nil
+}
+
 func TestTransitionCSV(t *testing.T) {
 	log.SetLevel(log.DebugLevel)
 	namespace := "ns"
 
+	// Generate valid and expired CA fixtures
+	validCA, err := generateCA(time.Now().Add(10*365*24*time.Hour), Organization)
+	require.NoError(t, err)
+	validCAPEM, _, err := validCA.ToPEM()
+	require.NoError(t, err)
+	validCAHash := certs.PEMSHA256(validCAPEM)
+
+	expiredCA, err := generateCA(time.Now(), Organization)
+	require.NoError(t, err)
+	expiredCAPEM, _, err := expiredCA.ToPEM()
+	require.NoError(t, err)
+	expiredCAHash := certs.PEMSHA256(expiredCAPEM)
+
 	type csvState struct {
 		exists bool
 		phase  v1alpha1.ClusterServiceVersionPhase
+		reason v1alpha1.ConditionReason
 	}
 	type initial struct {
 		csvs []runtime.Object
@@ -376,7 +684,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseNone,
-					), nil, apis("a1.v1.a1Kind")),
+					), nil, apis("a1.corev1.a1Kind")),
 				},
 			},
 			expected: expected{
@@ -438,7 +746,7 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					&v1.ServiceAccount{
+					&corev1.ServiceAccount{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sa",
 							Namespace: namespace,
@@ -512,7 +820,7 @@ func TestTransitionCSV(t *testing.T) {
 						v1alpha1.CSVPhasePending,
 					), nil, apis("a1.v1.a1Kind")),
 				},
-				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionFalse)},
+				apis: []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionFalse)},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -536,7 +844,7 @@ func TestTransitionCSV(t *testing.T) {
 						v1alpha1.CSVPhasePending,
 					), nil, apis("a1.v1.a1Kind")),
 				},
-				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionUnknown)},
+				apis: []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionUnknown)},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -574,7 +882,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "CSVPendingToFailed/OwnerConflict",
+			name: "CSVPendingToFailed/CRDOwnerConflict",
 			initial: initial{
 				csvs: []runtime.Object{
 					csv("csv1",
@@ -598,16 +906,159 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
-					"csv2": {exists: true, phase: v1alpha1.CSVPhaseFailed},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonOwnerConflict},
 				},
 				err: map[string]error{
 					"csv2": ErrCRDOwnerConflict,
+				},
+			},
+		},
+		{
+			name: "CSVPendingToFailed/APIServiceOwnerConflict",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.NewTime(time.Now().Add(24*time.Hour)), metav1.NewTime(time.Now())),
+					withAPIServices(csv("csv2",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhasePending,
+					), apis("a1.v1.a1Kind"), nil),
+				},
+				apis: []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue)},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonOwnerConflict},
+				},
+				err: map[string]error{
+					"csv2": ErrAPIServiceOwnerConflict,
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToPending/Deployment",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonNeedsReinstall},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToPending/CRD",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", nil),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonRequirementsNotMet},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToFailed/BadStrategy",
+			initial: initial{
+				csvs: []runtime.Object{
+					csv("csv1",
+						namespace,
+						"",
+						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", nil),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonInvalidStrategy},
 				},
 			},
 		},
@@ -647,7 +1098,7 @@ func TestTransitionCSV(t *testing.T) {
 						v1alpha1.CSVPhasePending,
 					), nil, apis("a1.v1.a1Kind")),
 				},
-				apis: []runtime.Object{apiService("a1", "v1", apiregistrationv1.ConditionTrue)},
+				apis: []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionTrue)},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -714,13 +1165,526 @@ func TestTransitionCSV(t *testing.T) {
 						v1alpha1.CSVPhaseSucceeded,
 					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
 				crds: []runtime.Object{
 					crd("c1", "v1"),
 				},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonNeedsCertRotation},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCAHash/Deployment",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: "a-pretty-bad-hash",
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCAHash/Secret",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCAHash/DeploymentAndSecret",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: "a-pretty-bad-hash",
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/APIService/Owned/BadCA",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", []byte("a-bad-ca"), apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/APIService/Owned/BadServingCert",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					withAnnotations(tlsSecret("v1.a1-cert", namespace, []byte("bad-cert"), []byte("bad-key")), map[string]string{
+						OLMCAHashAnnotationKey: validCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/APIService/Owned/ExpiredCA",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: expiredCAHash,
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: expiredCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonAPIServiceResourceIssue},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToPending/APIService/Owned/ExpiredCA",
+			initial: initial{
+				csvs: []runtime.Object{
+					withCertInfo(withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+				},
+				apis: []runtime.Object{
+					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue),
+				},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", map[string]string{
+						OLMCAHashAnnotationKey: expiredCAHash,
+					}),
+					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+						OLMCAHashAnnotationKey: expiredCAHash,
+					}),
+					service("v1-a1", namespace, "a1", 80),
+					serviceAccount("sa", namespace),
+					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"secrets"},
+							ResourceNames: []string{"v1.a1-cert"},
+						},
+					}),
+					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
+						{
+							Verbs:         []string{"get"},
+							APIGroups:     []string{""},
+							Resources:     []string{"configmaps"},
+							ResourceNames: []string{"extension-apiserver-authentication"},
+						},
+					}),
+					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"tokenreviews"},
+						},
+						{
+							Verbs:     []string{"create"},
+							APIGroups: []string{"authentication.k8s.io"},
+							Resources: []string{"subjectaccessreviews"},
+						},
+					}),
+					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall},
 				},
 			},
 		},
@@ -747,7 +1711,6 @@ func TestTransitionCSV(t *testing.T) {
 				},
 			},
 		},
-
 		{
 			name: "SingleCSVInstallingToSucceeded",
 			initial: initial{
@@ -765,12 +1728,32 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/CRD",
+			initial: initial{
+				csvs: []runtime.Object{
+					withAPIServices(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), apis("a1.v1.a1Kind"), nil),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
 				},
 			},
 		},
@@ -799,7 +1782,7 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -834,8 +1817,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
-					deployment("csv2-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv2-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -870,8 +1853,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
-					deployment("csv2-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv2-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -915,9 +1898,9 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
-					deployment("csv2-dep1", namespace),
-					deployment("csv3-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv2-dep1", namespace, "sa", nil),
+					deployment("csv3-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -961,9 +1944,9 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace),
-					deployment("csv2-dep1", namespace),
-					deployment("csv3-dep1", namespace),
+					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv2-dep1", namespace, "sa", nil),
+					deployment("csv3-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -999,8 +1982,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv2-dep1", namespace),
-					deployment("csv3-dep1", namespace),
+					deployment("csv2-dep1", namespace, "sa", nil),
+					deployment("csv3-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -1036,8 +2019,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv2-dep1", namespace),
-					deployment("csv3-dep1", namespace),
+					deployment("csv2-dep1", namespace, "sa", nil),
+					deployment("csv3-dep1", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
@@ -1049,10 +2032,13 @@ func TestTransitionCSV(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		namespaceObj := v1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []v1.Namespace{namespaceObj})
+			namespaceObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
+			tt.initial.objs = append(tt.initial.objs, namespaceObj)
+			stopCh := make(chan struct{})
+			defer func() { stopCh <- struct{}{} }()
+			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
@@ -1076,6 +2062,9 @@ func TestTransitionCSV(t *testing.T) {
 				assert.Equal(t, ok, csvState.exists, "%s existence should be %t", csvName, csvState.exists)
 				if csvState.exists {
 					assert.Equal(t, csvState.phase, csv.Status.Phase, "%s had incorrect phase", csvName)
+					if csvState.reason != "" {
+						assert.Equal(t, csvState.reason, csv.Status.Reason, "%s had incorrect condition reason", csvName)
+					}
 				}
 			}
 		})
@@ -1083,15 +2072,13 @@ func TestTransitionCSV(t *testing.T) {
 }
 
 func TestSyncOperatorGroups(t *testing.T) {
-	//log.SetLevel(log.DebugLevel)
-
 	nowTime := metav1.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600))
 	timeNow = func() metav1.Time { return nowTime }
 
 	testNS := "test-ns"
 	aLabel := map[string]string{"app": "matchLabel"}
 
-	ownedDeployment := deployment("csv1-dep1", testNS)
+	ownedDeployment := deployment("csv1-dep1", testNS, "sa", nil)
 	ownedDeployment.SetOwnerReferences([]metav1.OwnerReference{
 		{
 			Kind: "ClusterServiceVersion",
@@ -1099,23 +2086,25 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	})
 
+	type initial struct {
+		operatorGroup *v1alpha2.OperatorGroup
+		clientObjs    []runtime.Object
+		crds          []runtime.Object
+		k8sObjs       []runtime.Object
+		apis          []runtime.Object
+	}
 	tests := []struct {
-		name          string
-		expectedEqual bool
-		// first item in initialObjs must be an OperatorGroup
-		initialObjs []runtime.Object
-		initialCrds []runtime.Object
-		// first item in initialK8sObjs must be a namespace
-		initialK8sObjs     []runtime.Object
-		initialApis        []runtime.Object
+		initial
+		name               string
+		expectedEqual      bool
 		expectedStatus     v1alpha2.OperatorGroupStatus
 		expectedAnnotation map[string]string
 	}{
 		{
 			name:          "operator group with no matching namespace, no CSVs",
 			expectedEqual: true,
-			initialObjs: []runtime.Object{
-				&v1alpha2.OperatorGroup{
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "operator-group-1",
 						Namespace: testNS,
@@ -1126,11 +2115,11 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 					},
 				},
-			},
-			initialK8sObjs: []runtime.Object{
-				&v1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: testNS,
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: testNS,
+						},
 					},
 				},
 			},
@@ -1139,8 +2128,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 		{
 			name:          "operator group with matching namespace, no CSVs",
 			expectedEqual: true,
-			initialObjs: []runtime.Object{
-				&v1alpha2.OperatorGroup{
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "operator-group-1",
 						Namespace: testNS,
@@ -1153,18 +2142,19 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 					},
 				},
-			},
-			initialK8sObjs: []runtime.Object{
-				&v1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        testNS,
-						Labels:      aLabel,
-						Annotations: map[string]string{"test": "annotation"},
+
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        testNS,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
 					},
 				},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces: []*v1.Namespace{
+				Namespaces: []*corev1.Namespace{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        testNS,
@@ -1177,10 +2167,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 		},
 		{
-			name:          "operator group with matching namespace, CSV present",
+			name:          "operator group with matching namespace, CSV present, not found",
 			expectedEqual: false,
-			initialObjs: []runtime.Object{
-				&v1alpha2.OperatorGroup{
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "operator-group-1",
 						Namespace: testNS,
@@ -1192,27 +2182,30 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 					},
 				},
-				csv("csv1",
-					testNS,
-					"",
-					installStrategy("csv1-dep1", nil, nil),
-					[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
-					[]*v1beta1.CustomResourceDefinition{},
-					v1alpha1.CSVPhaseSucceeded,
-				),
-			},
-			initialK8sObjs: []runtime.Object{
-				&v1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        testNS,
-						Labels:      aLabel,
-						Annotations: map[string]string{"test": "annotation"},
-					},
+
+				clientObjs: []runtime.Object{
+					csv("csv1",
+						testNS,
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
 				},
-				deployment("csv1-dep1", testNS),
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        testNS,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+					deployment("csv1-dep1", testNS, "sa", nil),
+				},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces: []*v1.Namespace{
+				Namespaces: []*corev1.Namespace{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        testNS,
@@ -1226,10 +2219,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 			expectedAnnotation: map[string]string{"NOTFOUND": testNS},
 		},
 		{
-			name:          "operator group with matching namespace, CSV present",
+			name:          "operator group with matching namespace, CSV present, found",
 			expectedEqual: true,
-			initialObjs: []runtime.Object{
-				&v1alpha2.OperatorGroup{
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "operator-group-1",
 						Namespace: testNS,
@@ -1241,27 +2234,29 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 					},
 				},
-				csv("csv1",
-					testNS,
-					"",
-					installStrategy("csv1-dep1", nil, nil),
-					[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
-					[]*v1beta1.CustomResourceDefinition{},
-					v1alpha1.CSVPhaseSucceeded,
-				),
-			},
-			initialK8sObjs: []runtime.Object{
-				&v1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:        testNS,
-						Labels:      aLabel,
-						Annotations: map[string]string{"test": "annotation"},
-					},
+				clientObjs: []runtime.Object{
+					csv("csv1",
+						testNS,
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					),
 				},
-				ownedDeployment,
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        testNS,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+					ownedDeployment,
+				},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces: []*v1.Namespace{
+				Namespaces: []*corev1.Namespace{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:        testNS,
@@ -1276,36 +2271,43 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			namespaceList := []v1.Namespace{*tc.initialK8sObjs[0].(*v1.Namespace)}
-			op, err := NewFakeOperator(tc.initialObjs, tc.initialK8sObjs, tc.initialCrds, tc.initialApis, &install.StrategyResolver{}, namespaceList)
-			require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			namespaces := []string{}
+			// Pick out Namespaces
+			for _, obj := range tt.initial.k8sObjs {
+				if ns, ok := obj.(*corev1.Namespace); ok {
+					namespaces = append(namespaces, ns.GetName())
+				}
+			}
+
+			// Append operatorGroup to initialObjs
+			tt.initial.clientObjs = append(tt.initial.clientObjs, tt.initial.operatorGroup)
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			ready, _ := op.Run(stopCh)
-			<-ready
-
-			operatorGroup, ok := tc.initialObjs[0].(*v1alpha2.OperatorGroup)
-			require.True(t, ok)
-
-			err = op.syncOperatorGroups(operatorGroup)
+			op, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedStatus, operatorGroup.Status)
 
-			if tc.expectedAnnotation != nil {
+			err = op.syncOperatorGroups(tt.initial.operatorGroup)
+			require.NoError(t, err)
+
+			operatorGroup, err := op.GetClient().OperatorsV1alpha2().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)
+
+			if tt.expectedAnnotation != nil {
 				// assuming CSVs are in correct namespace
-				for _, ns := range namespaceList {
-					deployments, err := op.lister.AppsV1().DeploymentLister().Deployments(ns.GetName()).List(labels.Everything())
+				for _, ns := range namespaces {
+					deployments, err := op.lister.AppsV1().DeploymentLister().Deployments(ns).List(labels.Everything())
 					if err != nil {
 						t.Fatal(err)
 					}
 					for _, deploy := range deployments {
-						if tc.expectedEqual {
-							assert.Equal(t, tc.expectedAnnotation, deploy.Spec.Template.Annotations)
+						if tt.expectedEqual {
+							assert.Equal(t, tt.expectedAnnotation, deploy.Spec.Template.Annotations)
 						} else {
-							assert.NotEqual(t, tc.expectedAnnotation, deploy.Spec.Template.Annotations)
+							assert.NotEqual(t, tt.expectedAnnotation, deploy.Spec.Template.Annotations)
 						}
 					}
 				}

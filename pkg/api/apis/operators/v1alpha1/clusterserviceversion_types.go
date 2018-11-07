@@ -182,21 +182,24 @@ const (
 type ConditionReason string
 
 const (
-	CSVReasonRequirementsUnknown     ConditionReason = "RequirementsUnknown"
-	CSVReasonRequirementsNotMet      ConditionReason = "RequirementsNotMet"
-	CSVReasonRequirementsMet         ConditionReason = "AllRequirementsMet"
-	CSVReasonOwnerConflict           ConditionReason = "OwnerConflict"
-	CSVReasonComponentFailed         ConditionReason = "InstallComponentFailed"
-	CSVReasonInvalidStrategy         ConditionReason = "InvalidInstallStrategy"
-	CSVReasonWaiting                 ConditionReason = "InstallWaiting"
-	CSVReasonInstallSuccessful       ConditionReason = "InstallSucceeded"
-	CSVReasonInstallCheckFailed      ConditionReason = "InstallCheckFailed"
-	CSVReasonComponentUnhealthy      ConditionReason = "ComponentUnhealthy"
-	CSVReasonBeingReplaced           ConditionReason = "BeingReplaced"
-	CSVReasonReplaced                ConditionReason = "Replaced"
-	CSVReasonNeedCertRotation        ConditionReason = "NeedCertRotation"
-	CSVReasonAPIServiceResourceIssue ConditionReason = "APIServiceResourceIssue"
-	CSVReasonCopied                  ConditionReason = "Copied"
+	CSVReasonRequirementsUnknown              ConditionReason = "RequirementsUnknown"
+	CSVReasonRequirementsNotMet               ConditionReason = "RequirementsNotMet"
+	CSVReasonRequirementsMet                  ConditionReason = "AllRequirementsMet"
+	CSVReasonOwnerConflict                    ConditionReason = "OwnerConflict"
+	CSVReasonComponentFailed                  ConditionReason = "InstallComponentFailed"
+	CSVReasonInvalidStrategy                  ConditionReason = "InvalidInstallStrategy"
+	CSVReasonWaiting                          ConditionReason = "InstallWaiting"
+	CSVReasonInstallSuccessful                ConditionReason = "InstallSucceeded"
+	CSVReasonInstallCheckFailed               ConditionReason = "InstallCheckFailed"
+	CSVReasonComponentUnhealthy               ConditionReason = "ComponentUnhealthy"
+	CSVReasonBeingReplaced                    ConditionReason = "BeingReplaced"
+	CSVReasonReplaced                         ConditionReason = "Replaced"
+	CSVReasonNeedsReinstall                   ConditionReason = "NeedsReinstall"
+	CSVReasonNeedsCertRotation                ConditionReason = "NeedsCertRotation"
+	CSVReasonAPIServiceResourceIssue          ConditionReason = "APIServiceResourceIssue"
+	CSVReasonAPIServiceResourcesNeedReinstall ConditionReason = "APIServiceResourcesNeedReinstall"
+	CSVReasonAPIServiceInstallFailed          ConditionReason = "APIServiceInstallFailed"
+	CSVReasonCopied                           ConditionReason = "Copied"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
@@ -220,8 +223,20 @@ type ClusterServiceVersionCondition struct {
 
 // OwnsCRD determines whether the current CSV owns a paritcular CRD.
 func (csv ClusterServiceVersion) OwnsCRD(name string) bool {
-	for _, crdDescription := range csv.Spec.CustomResourceDefinitions.Owned {
-		if crdDescription.Name == name {
+	for _, desc := range csv.Spec.CustomResourceDefinitions.Owned {
+		if desc.Name == name {
+			return true
+		}
+	}
+
+	return false
+}
+
+// OwnsAPIService determines whether the current CSV owns a paritcular APIService.
+func (csv ClusterServiceVersion) OwnsAPIService(name string) bool {
+	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
+		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
+		if apiServiceName == name {
 			return true
 		}
 	}

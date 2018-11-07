@@ -1,6 +1,8 @@
 package operatorlister
 
 import (
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 	appsv1 "k8s.io/client-go/listers/apps/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	rbacv1 "k8s.io/client-go/listers/rbac/v1"
@@ -13,6 +15,9 @@ type OperatorLister interface {
 	CoreV1() CoreV1Lister
 	RbacV1() RbacV1Lister
 	APIRegistrationV1() APIRegistrationV1Lister
+
+	OperatorsV1alpha1() OperatorsV1alpha1Lister
+	OperatorsV1alpha2() OperatorsV1alpha2Lister
 }
 
 type AppsV1Lister interface {
@@ -49,6 +54,18 @@ type APIRegistrationV1Lister interface {
 	RegisterAPIServiceLister(lister aregv1.APIServiceLister)
 
 	APIServiceLister() aregv1.APIServiceLister
+}
+
+type OperatorsV1alpha1Lister interface {
+	RegisterClusterServiceVersionLister(namespace string, lister v1alpha1.ClusterServiceVersionLister)
+
+	ClusterServiceVersionLister() v1alpha1.ClusterServiceVersionLister
+}
+
+type OperatorsV1alpha2Lister interface {
+	RegisterOperatorGroupLister(namespace string, lister v1alpha2.OperatorGroupLister)
+
+	OperatorGroupLister() v1alpha2.OperatorGroupLister
 }
 
 type appsV1Lister struct {
@@ -103,6 +120,26 @@ func newAPIRegistrationV1Lister() *apiRegistrationV1Lister {
 	}
 }
 
+type operatorsV1alpha1Lister struct {
+	clusterServiceVersionLister *UnionClusterServiceVersionLister
+}
+
+func newOperatorsV1alpha1Lister() *operatorsV1alpha1Lister {
+	return &operatorsV1alpha1Lister{
+		clusterServiceVersionLister: &UnionClusterServiceVersionLister{},
+	}
+}
+
+type operatorsV1alpha2Lister struct {
+	operatorGroupLister *UnionOperatorGroupLister
+}
+
+func newOperatorsV1alpha2Lister() *operatorsV1alpha2Lister {
+	return &operatorsV1alpha2Lister{
+		operatorGroupLister: &UnionOperatorGroupLister{},
+	}
+}
+
 // Interface assertion
 var _ OperatorLister = &lister{}
 
@@ -111,6 +148,9 @@ type lister struct {
 	coreV1Lister            *coreV1Lister
 	rbacV1Lister            *rbacV1Lister
 	apiRegistrationV1Lister *apiRegistrationV1Lister
+
+	operatorsV1alpha1Lister *operatorsV1alpha1Lister
+	operatorsV1alpha2Lister *operatorsV1alpha2Lister
 }
 
 func (l *lister) AppsV1() AppsV1Lister {
@@ -129,6 +169,14 @@ func (l *lister) APIRegistrationV1() APIRegistrationV1Lister {
 	return l.apiRegistrationV1Lister
 }
 
+func (l *lister) OperatorsV1alpha1() OperatorsV1alpha1Lister {
+	return l.operatorsV1alpha1Lister
+}
+
+func (l *lister) OperatorsV1alpha2() OperatorsV1alpha2Lister {
+	return l.operatorsV1alpha2Lister
+}
+
 func NewLister() OperatorLister {
 	// TODO: better initialization
 	return &lister{
@@ -136,5 +184,8 @@ func NewLister() OperatorLister {
 		coreV1Lister:            newCoreV1Lister(),
 		rbacV1Lister:            newRbacV1Lister(),
 		apiRegistrationV1Lister: newAPIRegistrationV1Lister(),
+
+		operatorsV1alpha1Lister: newOperatorsV1alpha1Lister(),
+		operatorsV1alpha2Lister: newOperatorsV1alpha2Lister(),
 	}
 }

@@ -15,10 +15,6 @@ import (
 	"time"
 )
 
-const (
-	Organization = "Red Hat, Inc."
-)
-
 // KeyPair stores an x509 certificate and its ECDSA private key
 type KeyPair struct {
 	Cert *x509.Certificate
@@ -49,7 +45,7 @@ func (kp *KeyPair) ToPEM() (certPEM []byte, privPEM []byte, err error) {
 }
 
 // GenerateCA generates a self-signed CA cert/key pair that expires in expiresIn days
-func GenerateCA(notAfter time.Time) (*KeyPair, error) {
+func GenerateCA(notAfter time.Time, organization string) (*KeyPair, error) {
 	notBefore := time.Now()
 	if notAfter.Before(notBefore) {
 		return nil, fmt.Errorf("invalid notAfter: %s before %s", notAfter.String(), notBefore.String())
@@ -63,7 +59,7 @@ func GenerateCA(notAfter time.Time) (*KeyPair, error) {
 	caDetails := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization: []string{Organization},
+			Organization: []string{organization},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
@@ -98,7 +94,7 @@ func GenerateCA(notAfter time.Time) (*KeyPair, error) {
 }
 
 // CreateSignedServingPair creates a serving cert/key pair signed by the given ca
-func CreateSignedServingPair(notAfter time.Time, ca *KeyPair, hosts []string) (*KeyPair, error) {
+func CreateSignedServingPair(notAfter time.Time, organization string, ca *KeyPair, hosts []string) (*KeyPair, error) {
 	notBefore := time.Now()
 	if notAfter.Before(notBefore) {
 		return nil, fmt.Errorf("invalid notAfter: %s before %s", notAfter.String(), notBefore.String())
@@ -112,7 +108,7 @@ func CreateSignedServingPair(notAfter time.Time, ca *KeyPair, hosts []string) (*
 	certDetails := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			Organization: []string{Organization},
+			Organization: []string{organization},
 		},
 		NotBefore:             notBefore,
 		NotAfter:              notAfter,
@@ -185,8 +181,10 @@ func Active(cert *x509.Certificate) bool {
 	return active
 }
 
+// PEMHash returns a hash of the given PEM encoded cert
 type PEMHash func(certPEM []byte) (hash string)
 
+// PEMSHA256 returns the hex encoded SHA 256 hash of the given PEM encoded cert
 func PEMSHA256(certPEM []byte) (hash string) {
 	hasher := sha256.New()
 	hasher.Write(certPEM)

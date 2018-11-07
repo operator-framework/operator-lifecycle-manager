@@ -1,6 +1,7 @@
 package operatorlister
 
 import (
+	"fmt"
 	"sync"
 
 	"k8s.io/api/rbac/v1"
@@ -20,7 +21,7 @@ func (rl *UnionRoleLister) List(selector labels.Selector) (ret []*v1.Role, err e
 	rl.roleLock.RLock()
 	defer rl.roleLock.RUnlock()
 
-	var set map[types.UID]*v1.Role
+	set := make(map[types.UID]*v1.Role)
 	for _, dl := range rl.roleListers {
 		roles, err := dl.List(selector)
 		if err != nil {
@@ -54,7 +55,7 @@ func (rl *UnionRoleLister) Roles(namespace string) rbacv1.RoleNamespaceLister {
 		return dl.Roles(namespace)
 	}
 
-	return nil
+	return &NullRoleNamespaceLister{}
 }
 
 func (rl *UnionRoleLister) RegisterRoleLister(namespace string, lister rbacv1.RoleLister) {
@@ -73,4 +74,21 @@ func (l *rbacV1Lister) RegisterRoleLister(namespace string, lister rbacv1.RoleLi
 
 func (l *rbacV1Lister) RoleLister() rbacv1.RoleLister {
 	return l.roleLister
+}
+
+// NullRoleNamespaceLister is an implementation of a null RoleNamespaceLister. It is
+// used to prevent nil pointers when no RoleNamespaceLister has been registered for a given
+// namespace.
+type NullRoleNamespaceLister struct {
+	rbacv1.RoleNamespaceLister
+}
+
+// List returns nil and an error explaining that this is a NullRoleNamespaceLister.
+func (n *NullRoleNamespaceLister) List(selector labels.Selector) (ret []*v1.Role, err error) {
+	return nil, fmt.Errorf("cannot list Roles with a NullRoleNamespaceLister")
+}
+
+// Get returns nil and an error explaining that this is a NullRoleNamespaceLister.
+func (n *NullRoleNamespaceLister) Get(name string) (*v1.Role, error) {
+	return nil, fmt.Errorf("cannot get Role with a NullRoleNamespaceLister")
 }

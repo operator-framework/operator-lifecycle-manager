@@ -287,10 +287,11 @@ func (a *Operator) isGVKRegistered(group, version, kind string) error {
 		"version": version,
 		"kind":    kind,
 	})
+
 	gv := metav1.GroupVersion{Group: group, Version: version}
 	resources, err := a.OpClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv.String())
 	if err != nil {
-		logger.WithField("err", err).Info("couldn't query for GVK in api discovery")
+		logger.WithField("err", err).Info("could not query for GVK in api discovery")
 		return err
 	}
 

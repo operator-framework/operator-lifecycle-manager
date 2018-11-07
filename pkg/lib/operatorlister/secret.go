@@ -1,6 +1,7 @@
 package operatorlister
 
 import (
+	"fmt"
 	"sync"
 
 	"k8s.io/api/core/v1"
@@ -20,7 +21,7 @@ func (usl *UnionSecretLister) List(selector labels.Selector) (ret []*v1.Secret, 
 	usl.secretLock.RLock()
 	defer usl.secretLock.RUnlock()
 
-	var set map[types.UID]*v1.Secret
+	set := make(map[types.UID]*v1.Secret)
 	for _, sl := range usl.secretListers {
 		secrets, err := sl.List(selector)
 		if err != nil {
@@ -54,7 +55,7 @@ func (usl *UnionSecretLister) Secrets(namespace string) corev1.SecretNamespaceLi
 		return sl.Secrets(namespace)
 	}
 
-	return nil
+	return &NullSecretNamespaceLister{}
 }
 
 func (usl *UnionSecretLister) RegisterSecretLister(namespace string, lister corev1.SecretLister) {
@@ -73,4 +74,21 @@ func (l *coreV1Lister) RegisterSecretLister(namespace string, lister corev1.Secr
 
 func (l *coreV1Lister) SecretLister() corev1.SecretLister {
 	return l.secretLister
+}
+
+// NullSecretNamespaceLister is an implementation of a null SecretNamespaceLister. It is
+// used to prevent nil pointers when no SecretNamespaceLister has been registered for a given
+// namespace.
+type NullSecretNamespaceLister struct {
+	corev1.SecretNamespaceLister
+}
+
+// List returns nil and an error explaining that this is a NullSecretNamespaceLister.
+func (n *NullSecretNamespaceLister) List(selector labels.Selector) (ret []*v1.Secret, err error) {
+	return nil, fmt.Errorf("cannot list Secrets with a NullSecretNamespaceLister")
+}
+
+// Get returns nil and an error explaining that this is a NullSecretNamespaceLister.
+func (n *NullSecretNamespaceLister) Get(name string) (*v1.Secret, error) {
+	return nil, fmt.Errorf("cannot get Secret with a NullSecretNamespaceLister")
 }

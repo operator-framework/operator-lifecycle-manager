@@ -55,8 +55,7 @@ func (udl *UnionDeploymentLister) Deployments(namespace string) appsv1.Deploymen
 		return dl.Deployments(namespace)
 	}
 
-	// TODO: Return dummy deployment namespace lister
-	return nil
+	return &NullDeploymentNamespaceLister{}
 }
 
 func (udl *UnionDeploymentLister) GetDeploymentsForReplicaSet(rs *v1.ReplicaSet) ([]*v1.Deployment, error) {
@@ -93,4 +92,26 @@ func (l *appsV1Lister) RegisterDeploymentLister(namespace string, lister appsv1.
 
 func (l *appsV1Lister) DeploymentLister() appsv1.DeploymentLister {
 	return l.deploymentLister
+}
+
+// NullDeploymentNamespaceLister is an implementation of a null DeploymentNamespaceLister. It is
+// used to prevent nil pointers when no DeploymentNamespaceLister has been registered for a given
+// namespace.
+type NullDeploymentNamespaceLister struct {
+	appsv1.DeploymentNamespaceLister
+}
+
+// List returns nil and an error explaining that this is a NullDeploymentNamespaceLister.
+func (n *NullDeploymentNamespaceLister) List(selector labels.Selector) (ret []*v1.Deployment, err error) {
+	return nil, fmt.Errorf("cannot list Deployments with a NullDeploymentNamespaceLister")
+}
+
+// Get returns nil and an error explaining that this is a NullDeploymentNamespaceLister.
+func (n *NullDeploymentNamespaceLister) Get(name string) (*v1.Deployment, error) {
+	return nil, fmt.Errorf("cannot get Deployment with a NullDeploymentNamespaceLister")
+}
+
+// GetDeploymentsForReplicaSet returns nil and an error explaining that this is a NullDeploymentNamespaceLister
+func (n *NullDeploymentNamespaceLister) GetDeploymentsForReplicaSet(rs *v1.ReplicaSet) ([]*v1.Deployment, error) {
+	return nil, fmt.Errorf("cannot get Deployments for a ReplicaSet with a NullDeploymentNamespaceLister")
 }

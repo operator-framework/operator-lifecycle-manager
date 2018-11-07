@@ -14,6 +14,7 @@ import (
 // OpClient is used to establish the connection to kubernetes
 type Operator struct {
 	queueInformers []*QueueInformer
+	informers      []cache.SharedIndexInformer
 	OpClient       operatorclient.ClientInterface
 }
 
@@ -46,8 +47,15 @@ func (o *Operator) RegisterQueueInformer(queueInformer *QueueInformer) {
 	if o.queueInformers == nil {
 		o.queueInformers = []*QueueInformer{}
 	}
-
 	o.queueInformers = append(o.queueInformers, queueInformer)
+}
+
+// RegisterInformer adds an Informer to this operator
+func (o *Operator) RegisterInformer(informer cache.SharedIndexInformer) {
+	if o.informers == nil {
+		o.informers = []cache.SharedIndexInformer{}
+	}
+	o.informers = append(o.informers, informer)
 }
 
 // Run starts the operator's control loops
@@ -80,6 +88,9 @@ func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}) {
 		for _, queueInformer := range o.queueInformers {
 			hasSyncedCheckFns = append(hasSyncedCheckFns, queueInformer.informer.HasSynced)
 		}
+		for _, informer := range o.informers {
+			hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
+		}
 
 		select {
 		case err := <-errChan:
@@ -95,6 +106,10 @@ func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}) {
 		log.Info("starting informers...")
 		for _, queueInformer := range o.queueInformers {
 			go queueInformer.informer.Run(stopc)
+		}
+
+		for _, informer := range o.informers {
+			go informer.Run(stopc)
 		}
 
 		log.Info("waiting for caches to sync...")
