@@ -1,0 +1,169 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterloggings.logging.openshift.io
+spec:
+  group: logging.openshift.io
+  names:
+    kind: ClusterLogging
+    listKind: ClusterLoggingList
+    plural: clusterloggings
+    singular: clusterlogging
+  scope: Namespaced
+  version: v1alpha1
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          description: Specification of the desired behavior of the Logging cluster.
+          properties:
+            visualization:
+              description: Specification of the Visualization component for the cluster
+              properties:
+                type:
+                  description: The type of Visualization to configure
+                  type: string
+                kibana:
+                  description: Specification of the Kibana Visualization component
+                  properties:
+                    resources:
+                      description: The resource requirements for Kibana
+                      properties:
+                        limits:
+                          description: 'Limits describes the maximum amount of compute
+                            resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                          type: object
+                        requests:
+                          description: 'Requests describes the minimum amount of compute
+                            resources required. If Requests is omitted for a container,
+                            it defaults to Limits if that is explicitly specified, otherwise
+                            to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                          type: object
+                    nodeSelector:
+                      description: Define which Nodes the Pods are scheduled on.
+                      type: object
+                    replicas:
+                      description: Number of instances to deploy for a Kibana deployment
+                      format: int32
+                      type: integer
+                    proxySpec:
+                      description: Specification of the Kibana Proxy component
+                      properties:
+                        resources:
+                          description: The resource requirements for Kibana
+                          properties:
+                            limits:
+                              description: 'Limits describes the maximum amount of compute
+                                resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                              type: object
+                            requests:
+                              description: 'Requests describes the minimum amount of compute
+                                resources required. If Requests is omitted for a container,
+                                it defaults to Limits if that is explicitly specified, otherwise
+                                to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                              type: object
+                  required:
+                  - replicas
+              required:
+              - type
+            logStore:
+              description: Specification of the Log Storage component for the cluster
+              properties:
+                type:
+                  description: The type of Log Storage to configure
+                  type: string
+                elasticsearch:
+                  description: Specification of the Elasticsearch Log Store component
+                  properties:
+                    resources:
+                      description: The resource requirements for Kibana
+                      properties:
+                        limits:
+                          description: 'Limits describes the maximum amount of compute
+                            resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                          type: object
+                        requests:
+                          description: 'Requests describes the minimum amount of compute
+                            resources required. If Requests is omitted for a container,
+                            it defaults to Limits if that is explicitly specified, otherwise
+                            to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                          type: object
+                    nodeSelector:
+                      description: Define which Nodes the Pods are scheduled on.
+                      type: object
+                    replicas:
+                      description: Number of nodes to deploy for Elasticsearch
+                      format: int32
+                      type: integer
+                    storage:
+                      description: 'The storage backing for Elasticsearch. More info: '
+                      type: object
+                  required:
+                  - replicas
+                  - storage
+              required:
+              - type
+            collection:
+              description: Specification of the Collection component for the cluster
+              properties:
+                logCollection:
+                  description: Specification of Log Collection for the cluster
+                  properties:
+                    type:
+                      description: The type of Log Collection to configure
+                      type: string
+                    fluentd:
+                      description: Specification of the Fluentd Log Collection component
+                      properties:
+                        resources:
+                          description: The resource requirements for Fluentd
+                          properties:
+                            limits:
+                              description: 'Limits describes the maximum amount of compute
+                                resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                              type: object
+                            requests:
+                              description: 'Requests describes the minimum amount of compute
+                                resources required. If Requests is omitted for a container,
+                                it defaults to Limits if that is explicitly specified, otherwise
+                                to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                              type: object
+                        nodeSelector:
+                          description: Define which Nodes the Pods are scheduled on.
+                          type: object
+                  required:
+                  - type
+                #eventCollection:
+                #normalizer:
+            curation:
+              description: Specification of the Curation component for the cluster
+              properties:
+                type:
+                  description: The kind of curation to configure
+                  type: string
+                curator:
+                  description: The specification of curation to configure
+                  properties:
+                    resources:
+                      description: The resource requirements for Curator
+                      properties:
+                        limits:
+                          description: 'Limits describes the maximum amount of compute
+                            resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                          type: object
+                        requests:
+                          description: 'Requests describes the minimum amount of compute
+                            resources required. If Requests is omitted for a container,
+                            it defaults to Limits if that is explicitly specified, otherwise
+                            to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                          type: object
+                    nodeSelector:
+                      description: Define which Nodes the Pods are scheduled on.
+                      type: object
+                    schedule:
+                      description: 'The cron schedule that the Curator job is run. Defaults to "30 3 * * *"'
+                      type: string
+                  required:
+                  - schedule
+              required:
+              - type
