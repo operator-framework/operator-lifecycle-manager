@@ -23,28 +23,28 @@ spec:
     strategy: deployment
     spec:
       permissions:
-      - serviceAccountName: svcat-controller-manager
+      - serviceAccountName: service-catalog-controller
         rules:
         - apiGroups:     [""]
           resources:     ["configmaps"]
           resourceNames: ["cluster-info"]
           verbs:         ["get","create","list","watch","update"]
-        - apiGroups: [""]
-          resources: ["configmaps"]
-          verbs:     ["create"]
+        - apiGroups:     [""]
+          resources:     ["configmaps"]
+          verbs:         ["create", "list", "watch", "get", "update"]
         - apiGroups:     [""]
           resources:     ["configmaps"]
           resourceNames: ["service-catalog-controller-manager"]
           verbs:         ["get","update"]
       clusterPermissions:
-      - serviceAccountName: svcat-controller-manager
+      - serviceAccountName: service-catalog-controller
         rules:
         - apiGroups: [""]
           resources: ["events"]
           verbs:     ["create","patch","update"]
         - apiGroups: [""]
           resources: ["secrets"]
-          verbs:     ["get","create","update","delete"]
+          verbs:     ["get","create","update","delete","list","watch","patch"]
         - apiGroups: [""]
           resources: ["pods"]
           verbs:     ["get","list","update", "patch", "watch", "delete", "initialize"]
@@ -80,6 +80,10 @@ spec:
           verbs:     ["update"]
       - serviceAccountName: service-catalog-apiserver
         rules:
+        - apiGroups:     [""]
+          resources:     ["configmaps"]
+          resourceNames: ["extension-apiserver-authentication"]
+          verbs:         ["get"]
         - apiGroups: [""]
           resources: ["namespaces"]
           verbs:     ["get", "list", "watch"]
@@ -96,24 +100,25 @@ spec:
           resources: ["subjectaccessreviews"]
           verbs: ["create"]
       deployments:
-      - name: svcat-catalog-apiserver
+      - name: apiserver
         spec:
           replicas: 1
           strategy:
             type: RollingUpdate
           selector:
             matchLabels:
-              app: svcat-catalog-apiserver
+              app: apiserver
           template:
             metadata:
               labels:
-                app: svcat-catalog-apiserver
+                app: apiserver
             spec:
-              serviceAccountName: "service-catalog-apiserver"
+              serviceAccountName: service-catalog-apiserver
               containers:
               - name: apiserver
-                image: quay.io/kubernetes-service-catalog/service-catalog:v0.1.34
-                imagePullPolicy: Always
+                image: registry.reg-aws.openshift.com:443/openshift/ose-service-catalog:v4.0.0
+                imagePullPolicy: IfNotPresent
+                command: ["/usr/bin/service-catalog"]
                 resources:
                   limits:
                     cpu: 100m
@@ -130,11 +135,11 @@ spec:
                 - --etcd-servers
                 - http://localhost:2379
                 - -v
-                - "10"
+                - "3"
                 - --feature-gates
                 - OriginatingIdentity=true
                 - --feature-gates
-                - ServicePlanDefaults=false
+                - NamespacedServiceBroker=true
                 ports:
                 - containerPort: 5443
                 volumeMounts:
@@ -146,20 +151,20 @@ spec:
                     path: /healthz
                     scheme: HTTPS
                   failureThreshold: 1
-                  initialDelaySeconds: 10
-                  periodSeconds: 10
+                  initialDelaySeconds: 30
+                  periodSeconds: 5
                   successThreshold: 1
-                  timeoutSeconds: 2
+                  timeoutSeconds: 5
                 livenessProbe:
                   httpGet:
                     port: 5443
                     path: /healthz
                     scheme: HTTPS
                   failureThreshold: 3
-                  initialDelaySeconds: 10
+                  initialDelaySeconds: 30
                   periodSeconds: 10
                   successThreshold: 1
-                  timeoutSeconds: 2
+                  timeoutSeconds: 5
               - name: etcd
                 image: quay.io/coreos/etcd:latest
                 imagePullPolicy: Always
@@ -189,40 +194,41 @@ spec:
                     port: 2379
                     path: /health
                   failureThreshold: 1
-                  initialDelaySeconds: 10
-                  periodSeconds: 10
+                  initialDelaySeconds: 30
+                  periodSeconds: 5
                   successThreshold: 1
-                  timeoutSeconds: 2
+                  timeoutSeconds: 5
                 livenessProbe:
                   httpGet:
                     port: 2379
                     path: /health
                   failureThreshold: 3
-                  initialDelaySeconds: 10
+                  initialDelaySeconds: 30
                   periodSeconds: 10
                   successThreshold: 1
-                  timeoutSeconds: 2
+                  timeoutSeconds: 5
               volumes:
               - name: etcd-data-dir
                 emptyDir: {}
-      - name: svcat-controller-manager
+      - name: controller-manager
         spec:
           replicas: 1
           strategy:
             type: RollingUpdate
           selector:
             matchLabels:
-              app: svcat-controller-manager
+              app: controller-manager
           template:
             metadata:
               labels:
-                app: svcat-controller-manager
+                app: controller-manager
             spec:
-              serviceAccountName: svcat-controller-manager
+              serviceAccountName: service-catalog-controller
               containers:
               - name: controller-manager
-                image: quay.io/kubernetes-service-catalog/service-catalog:v0.1.34
-                imagePullPolicy: Always
+                image: registry.reg-aws.openshift.com:443/openshift/ose-service-catalog:v4.0.0
+                imagePullPolicy: IfNotPresent
+                command: ["/usr/bin/service-catalog"]
                 resources:
                   limits:
                     cpu: 100m
@@ -239,18 +245,21 @@ spec:
                 - controller-manager
                 - --secure-port
                 - "8444"
-                - "--cluster-id-configmap-namespace=default"
-                - "--leader-elect=false"
                 - -v
-                - "10"
-                - --resync-interval
-                - 5m
+                - "3"
+                - --leader-election-namespace
+                - kube-service-catalog
+                - --leader-elect-resource-lock
+                - configmaps
+                - --cluster-id-configmap-namespace=kube-service-catalog
                 - --broker-relist-interval
-                - 24h
+                - "5m"
                 - --feature-gates
-                - OriginatingIdentity=true
+                - "OriginatingIdentity=true"
                 - --feature-gates
-                - ServicePlanDefaults=false
+                - "AsyncBindingOperations=true"
+                - --feature-gates
+                - "NamespacedServiceBroker=true"
                 ports:
                 - containerPort: 8444
                 readinessProbe:
@@ -273,6 +282,22 @@ spec:
                   periodSeconds: 10
                   successThreshold: 1
                   timeoutSeconds: 2
+                # The following apiservice-cert is borrowed from the apiservice - it should be
+                # replaced with one specific for the controller manager.  How to create service
+                # for controller manager??
+                volumeMounts:
+                - name: apiservice-cert
+                  mountPath: /var/run/kubernetes-service-catalog
+              volumes:
+              - name: apiservice-cert
+                secret:
+                  defaultMode: 420
+                  items:
+                  - key: tls.crt
+                    path: apiserver.crt
+                  - key: tls.key
+                    path: apiserver.key
+                  secretName: v1beta1.servicecatalog.k8s.io-cert
   maturity: alpha
   version: 0.1.34
   apiservicedefinitions:
@@ -282,102 +307,54 @@ spec:
       kind: ClusterServiceClass
       displayName: ClusterServiceClass
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServicePlan
       displayName: ClusterServicePlan
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServiceBroker
       displayName: ClusterServiceBroker
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceInstance
       displayName: ServiceInstance
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceBinding
       displayName: ServiceBinding
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceClass
       displayName: ServiceClass
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServicePlan
       displayName: ServicePlan
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceBroker
       displayName: ServiceBroker
       description: A service catalog resource
-      deploymentName: svcat-catalog-apiserver
+      deploymentName: apiserver
       containerPort: 5443
-  customresourcedefinitions:
-    required:
-    - name: etcdclusters.etcd.database.coreos.com
-      version: v1beta2
-      kind: EtcdCluster
-      displayName: etcd Cluster
-      description: Represents a cluster of etcd nodes.
-      resources:
-      - kind: Service
-        version: v1
-      - kind: Pod
-        version: v1
-      specDescriptors:
-      - description: The desired number of member Pods for the etcd cluster.
-        displayName: Size
-        path: size
-        x-descriptors:
-        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-      statusDescriptors:
-      - description: The status of each of the member Pods for the etcd cluster.
-        displayName: Member Status
-        path: members
-        x-descriptors:
-        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
-      - description: The service at which the running etcd cluster can be accessed.
-        displayName: Service
-        path: service
-        x-descriptors:
-        - 'urn:alm:descriptor:io.kubernetes:Service'
-      - description: The current size of the etcd cluster.
-        displayName: Cluster Size
-        path: size
-      - description: The current version of the etcd cluster.
-        displayName: Current Version
-        path: currentVersion
-      - description: 'The target version of the etcd cluster, after upgrading.'
-        displayName: Target Version
-        path: targetVersion
-      - description: The current status of the etcd cluster.
-        displayName: Status
-        path: phase
-        x-descriptors:
-        - 'urn:alm:descriptor:io.kubernetes.phase'
-      - description: Explanation for the current status of the cluster.
-        displayName: Status Details
-        path: reason
-        x-descriptors:
-        - 'urn:alm:descriptor:io.kubernetes.phase:reason'
