@@ -453,6 +453,58 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			expectedError: nil,
 		},
+		{
+			description: "RequirementNotMet/NotEstablishedCRDVersion",
+			csv: csv("csv1",
+				namespace,
+				"",
+				installStrategy("csv1-dep", nil, nil),
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				nil,
+				v1alpha1.CSVPhasePending,
+			),
+			existingObjs: nil,
+			existingExtObjs: []runtime.Object{
+				crd("c1", "v2"),
+			},
+			met: false,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+					Group:   "apiextensions.k8s.io",
+					Version: "v1beta1",
+					Kind:    "CustomResourceDefinition",
+					Name:    "c1group",
+					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			description: "RequirementNotMet/NamesConflictedCRDVersion",
+			csv: csv("csv1",
+				namespace,
+				"",
+				installStrategy("csv1-dep", nil, nil),
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				nil,
+				v1alpha1.CSVPhasePending,
+			),
+			existingObjs: nil,
+			existingExtObjs: []runtime.Object{
+				crd("c1", "v2"),
+			},
+			met: false,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+					Group:   "apiextensions.k8s.io",
+					Version: "v1beta1",
+					Kind:    "CustomResourceDefinition",
+					Name:    "c1group",
+					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
+				},
+			},
+			expectedError: nil,
+		},
 	}
 
 	for _, test := range tests {

@@ -3,11 +3,13 @@ package olm
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,26 +39,47 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 
 		if crd.Spec.Version == r.Version {
 			status.Status = v1alpha1.RequirementStatusReasonPresent
-			status.UUID = string(crd.GetUID())
-			statuses = append(statuses, status)
-			continue
-		}
-
-		served := false
-		for _, version := range crd.Spec.Versions {
-			if version.Name == r.Version {
-				if version.Served {
-					status.Status = v1alpha1.RequirementStatusReasonPresent
-					status.UUID = string(crd.GetUID())
-					statuses = append(statuses, status)
-					served = true
+		} else {
+			served := false
+			for _, version := range crd.Spec.Versions {
+				if version.Name == r.Version {
+					if version.Served {
+						status.Status = v1alpha1.RequirementStatusReasonPresent
+						served = true
+					}
+					break
 				}
-				break
+			}
+
+			if !served {
+				status.Status = v1alpha1.RequirementStatusReasonNotPresent
+				met = false
+				statuses = append(statuses, status)
+				continue
 			}
 		}
 
-		if !served {
-			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+		// Check if CRD has successfully registered with k8s API
+		established := false
+		namesAccepted := false
+		for _, cdt := range crd.Status.Conditions {
+			switch cdt.Type {
+			case v1beta1.Established:
+				if cdt.Status == v1beta1.ConditionTrue {
+					established = true
+				}
+			case v1beta1.NamesAccepted:
+				if cdt.Status == v1beta1.ConditionTrue {
+					namesAccepted = true
+				}
+			}
+		}
+
+		if established && namesAccepted {
+			status.UUID = string(crd.GetUID())
+			statuses = append(statuses, status)
+		} else {
+			status.Status = v1alpha1.RequirementStatusReasonNotAvailable
 			met = false
 			statuses = append(statuses, status)
 		}
