@@ -23,7 +23,7 @@ EXPOSE 8080
 EXPOSE 5443
 CMD ["/bin/olm"]
 
-FROM golang:1.10
+FROM alpine:latest
 LABEL stage=e2e
 RUN mkdir -p /var/e2e
 WORKDIR /var/e2e

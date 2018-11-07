@@ -6,7 +6,13 @@ ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
-COPY . .
+COPY Makefile Makefile
+COPY .git .git
+COPY OLM_VERSION OLM_VERSION
+COPY pkg pkg
+COPY vendor vendor
+COPY cmd cmd
+COPY test test
 RUN make build
 
 

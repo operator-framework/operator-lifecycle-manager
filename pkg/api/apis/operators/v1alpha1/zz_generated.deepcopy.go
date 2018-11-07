@@ -709,8 +709,15 @@ func (in *InstallPlanStatus) DeepCopyInto(out *InstallPlanStatus) {
 	}
 	if in.Plan != nil {
 		in, out := &in.Plan, &out.Plan
-		*out = make([]Step, len(*in))
-		copy(*out, *in)
+		*out = make([]*Step, len(*in))
+		for i := range *in {
+			if (*in)[i] == nil {
+				(*out)[i] = nil
+			} else {
+				(*out)[i] = new(Step)
+				(*in)[i].DeepCopyInto((*out)[i])
+			}
+		}
 	}
 	return
 }

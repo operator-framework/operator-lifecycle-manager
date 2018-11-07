@@ -8,8 +8,6 @@ CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -I{} basename {}))
 IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
 
-.FORCE:
-
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
 
@@ -18,13 +16,13 @@ all: test build
 test: schema-check cover.out
 
 unit:
-	go test -v -race ./pkg/...
+	go test -mod=vendor -v -race ./pkg/...
 
 schema-check:
-	go run ./cmd/validator/main.go ./deploy/chart/catalog_resources
+	go run -mod=vendor ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
-	go test -v -race -coverprofile=cover.out -covermode=atomic \
+	go test -mod=vendor -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out
@@ -33,22 +31,17 @@ coverage: cover.out
 coverage-html: cover.out
 	go tool cover -html=cover.out
 
-build: $(CMDS)
+build: build_cmd=build
+build: clean $(CMDS)
 
 # build versions of the binaries with coverage enabled
-build-coverage: GENCOVER=true
-build-coverage: $(CMDS)
+build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
+build-coverage: clean $(CMDS)
 
-$(CMDS): .FORCE
-	@if [ cover-$(GENCOVER) = cover-true ]; then \
-		echo "building bin/$(shell basename $@)" with coverage; \
-		CGO_ENABLED=0 go test -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
-		-o $@ -c -covermode=count -coverpkg ./pkg/controller/... $(PKG)/cmd/$(shell basename $@); \
-	else \
-		echo "building bin/$(shell basename $@)"; \
-		CGO_ENABLED=0 go build -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
-		-o $@ $(PKG)/cmd/$(shell basename $@); \
-	fi
+$(CMDS): mod_flags=$(shell [ -f go.mod ] && echo -mod=vendor)
+$(CMDS): version_flags=-ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
+$(CMDS):
+	CGO_ENABLED=0 go $(build_cmd) $(mod_flags) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
 
 run-local:
 	. ./scripts/build_local.sh
@@ -82,15 +75,8 @@ e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
-DEP := $(GOPATH)/bin/dep
-$(DEP):
-	go get -u github.com/golang/dep/cmd/dep
-
-vendor: $(DEP)
-	$(DEP) ensure -v -vendor-only
-
-vendor-update: $(DEP)
-	$(DEP) ensure -v
+vendor:
+	go mod vendor
 
 container: build
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
@@ -117,23 +103,35 @@ $(CODEGEN):
 	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
 
 pkg/package-server/generated/openapi/zz_generated.openapi.go:
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi/ -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
+	go run -mod=vendor vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi/ -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	
 clean-openapi:
 	rm -rf pkg/package-server/generated/openapi
 
 codegen-openapi: clean-openapi pkg/package-server/generated/openapi/zz_generated.openapi.go
 
+<<<<<<< HEAD
 # our version of hack/update-codegen.sh
+=======
+# Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
+# use container-codegen
+>>>>>>> b9933db3... chore(dependencies): migrate to go modules
 codegen: $(CODEGEN)
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1alpha2"
 	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis "packagemanifest:v1alpha1"
+
+container-codegen:
+	docker build -t olm:codegen -f codegen.Dockerfile .
+	docker run --name temp-codegen olm:codegen /bin/true
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/. ./pkg/api/client
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/. ./pkg/api/apis
+	docker rm temp-codegen
 
 verify-codegen: codegen
 	git diff --exit-code
 
 verify-catalog: schema-check
-	go test -v ./test/schema/catalog_versions_test.go
+	go test -mod=vendor -v ./test/schema/catalog_versions_test.go
 
 counterfeiter := $(GOBIN)/counterfeiter
 $(counterfeiter):
