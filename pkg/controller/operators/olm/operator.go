@@ -3,11 +3,14 @@ package olm
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	csvlister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	operatorgrouplister "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -21,6 +24,7 @@ import (
 	"k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -32,19 +36,24 @@ import (
 var ErrRequirementsNotMet = errors.New("requirements were not met")
 var ErrCRDOwnerConflict = errors.New("CRD owned by another ClusterServiceVersion")
 
+//TODO(jpeeler): copied from catalog/operator.go
+var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
+
 const (
 	FallbackWakeupInterval = 30 * time.Second
 )
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue    workqueue.RateLimitingInterface
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
-	lister      operatorlister.OperatorLister
-	annotator   *annotator.Annotator
-	recorder    record.EventRecorder
-	cleanupFunc func()
+	csvQueue            workqueue.RateLimitingInterface
+	client              versioned.Interface
+	resolver            install.StrategyResolverInterface
+	lister              operatorlister.OperatorLister
+	csvLister           map[string]csvlister.ClusterServiceVersionLister
+	operatorGroupLister map[string]operatorgrouplister.OperatorGroupLister
+	annotator           *annotator.Annotator
+	recorder            record.EventRecorder
+	cleanupFunc         func()
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
@@ -77,28 +86,25 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		},
 	}
 
-	// If watching all namespaces, set up a watch to annotate new namespaces
-	if len(namespaces) == 1 && namespaces[0] == metav1.NamespaceAll {
-		log.Debug("watching all namespaces, setting up queue")
-		namespaceInformer := informers.NewSharedInformerFactory(queueOperator.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
-		queueInformer := queueinformer.NewInformer(
-			workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
-			namespaceInformer.Informer(),
-			op.annotateNamespace,
-			nil,
-			"namespace",
-			metrics.NewMetricsNil(),
-		)
-		op.RegisterQueueInformer(queueInformer)
-		op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	}
-
 	// Set up RBAC informers
 	informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
 	roleInformer := informerFactory.Rbac().V1().Roles()
 	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
 	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
 	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
+	namespaceInformer := informerFactory.Core().V1().Namespaces()
+
+	// register namespace queueinformer
+	queueInformer := queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
+		namespaceInformer.Informer(),
+		op.syncNamespace,
+		nil,
+		"namespace",
+		metrics.NewMetricsNil(),
+	)
+	op.RegisterQueueInformer(queueInformer)
+	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 
 	// Register RBAC QueueInformers
 	rbacInformers := []cache.SharedIndexInformer{
@@ -164,21 +170,27 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 
 	// Set up watch on CSVs
 	csvInformers := []cache.SharedIndexInformer{}
+	csvLister := map[string]csvlister.ClusterServiceVersionLister{}
 	for _, namespace := range namespaces {
 		log.Debugf("watching for CSVs in namespace %s", namespace)
 		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		informer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer()
-		csvInformers = append(csvInformers, informer)
+		informer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+		csvInformers = append(csvInformers, informer.Informer())
+		csvLister[namespace] = informer.Lister()
 	}
+	op.csvLister = csvLister
 
 	// csvInformers for each namespace all use the same backing queue
 	// queue keys are namespaced
 	csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterserviceversions")
+	csvHandlers := cache.ResourceEventHandlerFuncs{
+		DeleteFunc: op.deleteClusterServiceVersion,
+	}
 	queueInformers := queueinformer.New(
 		csvQueue,
 		csvInformers,
 		op.syncClusterServiceVersion,
-		nil,
+		&csvHandlers,
 		"csv",
 		metrics.NewMetricsCSV(op.client),
 	)
@@ -209,6 +221,31 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	for _, informer := range depQueueInformers {
 		op.RegisterQueueInformer(informer)
 	}
+
+	// Create an informer for the operator group
+	operatorGroupInformers := []cache.SharedIndexInformer{}
+	op.operatorGroupLister = make(map[string]operatorgrouplister.OperatorGroupLister, len(namespaces))
+	for _, namespace := range namespaces {
+		informerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		informer := informerFactory.Operators().V1alpha2().OperatorGroups()
+		operatorGroupInformers = append(operatorGroupInformers, informer.Informer())
+		op.operatorGroupLister[namespace] = informer.Lister()
+	}
+
+	// Register OperatorGroup informers.
+	operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "operatorgroups")
+	operatorGroupQueueInformer := queueinformer.New(
+		operatorGroupQueue,
+		operatorGroupInformers,
+		op.syncOperatorGroups,
+		nil,
+		"operatorgroups",
+		metrics.NewMetricsNil(),
+	)
+	for _, informer := range operatorGroupQueueInformer {
+		op.RegisterQueueInformer(informer)
+	}
+
 	return op, nil
 }
 
@@ -320,6 +357,65 @@ func (a *Operator) syncServices(obj interface{}) (syncError error) {
 	return nil
 }
 
+func (a *Operator) deleteClusterServiceVersion(obj interface{}) {
+	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		log.Debugf("wrong type: %#v", obj)
+		return
+	}
+
+	logger := log.WithFields(log.Fields{
+		"csv":       clusterServiceVersion.GetName(),
+		"namespace": clusterServiceVersion.GetNamespace(),
+		"phase":     clusterServiceVersion.Status.Phase,
+	})
+
+	targetNamespaces, ok := clusterServiceVersion.Annotations["olm.targetNamespaces"]
+	if !ok {
+		logger.Debugf("Ignoring CSV with no annotation")
+	}
+
+	operatorNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
+	if !ok {
+		logger.Debugf("missing operator namespace annotation on CSV")
+	}
+
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied {
+		return
+	}
+	logger.Info("parent CSV deleted, GC children")
+	for _, namespace := range strings.Split(targetNamespaces, ",") {
+		if namespace != operatorNamespace {
+			if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(clusterServiceVersion.GetName(), &metav1.DeleteOptions{}); err != nil {
+				logger.WithError(err).Debug("error deleting child CSV")
+			}
+		}
+	}
+}
+
+func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
+	logger := log.WithFields(log.Fields{
+		"csv":       csv.GetName(),
+		"namespace": csv.GetNamespace(),
+		"phase":     csv.Status.Phase,
+	})
+
+	operatorNamespace, ok := csv.Annotations["olm.operatorNamespace"]
+	if !ok {
+		logger.Debug("missing operator namespace annotation on copied CSV")
+		return fmt.Errorf("missing operator namespace annotation on copied CSV")
+	}
+
+	_, err := a.csvLister[operatorNamespace].ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
+	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) {
+		logger.Debug("deleting CSV since parent is missing")
+		if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
 func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) {
 	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
@@ -332,7 +428,13 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
-	logger.Info("syncing")
+
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied {
+		logger.Info("skip sync of dummy CSV")
+		return a.removeDanglingChildCSVs(clusterServiceVersion)
+	}
+
+	logger.Info("syncing CSV")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
@@ -627,19 +729,21 @@ func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInN
 	return nil
 }
 
-// annotateNamespace is the method that gets called when we see a namespace event in the cluster
-func (a *Operator) annotateNamespace(obj interface{}) (syncError error) {
+// syncNamespace is the method that gets called when we see a namespace event in the cluster
+func (a *Operator) syncNamespace(obj interface{}) (syncError error) {
 	namespace, ok := obj.(*corev1.Namespace)
 	if !ok {
 		log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Namespace failed")
 	}
+	namespaceName := namespace.GetName()
 
-	log.Infof("syncing Namespace: %s", namespace.GetName())
+	log.Infof("syncing Namespace: %s", namespaceName)
 	if err := a.annotator.AnnotateNamespace(namespace); err != nil {
-		log.Infof("error annotating namespace '%s'", namespace.GetName())
+		log.Infof("error annotating namespace '%s'", namespaceName)
 		return err
 	}
+
 	return nil
 }
 

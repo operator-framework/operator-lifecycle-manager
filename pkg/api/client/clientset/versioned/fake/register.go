@@ -20,6 +20,7 @@ package fake
 
 import (
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha2 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -51,4 +52,5 @@ func init() {
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
 	operatorsv1alpha1.AddToScheme(scheme)
+	operatorsv1alpha2.AddToScheme(scheme)
 }

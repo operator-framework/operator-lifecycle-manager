@@ -44,9 +44,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
-			existingObjs:                nil,
-			existingExtObjs:             nil,
-			met:                         false,
+			existingObjs:    nil,
+			existingExtObjs: nil,
+			met:             false,
 			expectedRequirementStatuses: nil,
 			expectedError:               fmt.Errorf("unexpected end of JSON input"),
 		},
@@ -457,7 +457,12 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			op, err := NewFakeOperator(nil, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, namespace)
+			namespaceObj := corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			}
+			op, err := NewFakeOperator(nil, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, []corev1.Namespace{namespaceObj})
 			require.NoError(t, err)
 
 			stopCh := make(chan struct{})

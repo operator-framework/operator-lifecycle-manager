@@ -124,8 +124,9 @@ clean-openapi:
 
 codegen-openapi: clean-openapi pkg/package-server/generated/openapi/zz_generated.openapi.go
 
+# our version of hack/update-codegen.sh
 codegen: $(CODEGEN)
-	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1"
+	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1alpha2"
 	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis "packagemanifest:v1alpha1"
 
 verify-codegen: codegen
