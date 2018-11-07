@@ -69,6 +69,10 @@ run-local-shift:
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
+e2e:
+	export NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+	go test ./test/e2e/...
+
 e2e-local:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh $(TEST)
