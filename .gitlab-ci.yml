@@ -62,7 +62,6 @@ container-build:
   - docker push quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}
   - docker push quay.io/coreos/olm-e2e:${CI_COMMIT_REF_SLUG}-${SHA8}
   - docker push quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG}-pre
-  - docker run  quay.io/coreos/olm-ci:${CI_COMMIT_REF_SLUG} make verify-codegen verify-catalog
   stage: docker_build
   tags:
   - kubernetes

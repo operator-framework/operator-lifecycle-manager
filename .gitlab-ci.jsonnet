@@ -57,8 +57,7 @@ local jobs = {
             'builder': images.ci.olm.name,
             'olm': images.prerelease.olm.name,
             'e2e': images.e2e.name,
-        }) +
-        docker.run(images.ci.olm.name, "make verify-codegen verify-catalog")
+        })
     },
 
     'container-release': baseJob.dockerBuild {
