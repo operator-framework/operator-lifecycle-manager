@@ -1,0 +1,263 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: clusterlogging.v0.0.1
+  namespace: placeholder
+spec:
+  displayName: Cluster Logging Operator
+
+  description: |
+    The Cluster Logging Operator for OKD provides easy means for configuring and managing your aggregated logging stack.
+
+    Once installed, the Cluster Logging Operator provides the following features:
+    * **Create/Destroy**: Easily launch and create an aggregated logging stack in the `openshift-logging` namespace.
+    * **Simple Configuration**: Configure your aggregated logging cluster's structure like components and end points easily.
+
+  keywords: ['elasticsearch', 'kibana', 'fluentd', 'logging' 'aggregated', 'efk']
+
+  maintainers:
+  - name: Red Hat
+    email: aos-logging@redhat.com
+
+  provider:
+    name: Red Hat
+
+  links:
+  - name: Elastic
+    url: https://www.elastic.co/
+  - name: Fluentd
+    url: https://www.fluentd.org/
+  - name: Documentation
+    url: https://github.com/openshift/cluster-logging-operator/blob/master/README.md
+  - name: Cluster Logging Operator
+    url: https://github.com/openshift/cluster-logging-operator
+
+  install:
+    strategy: deployment
+    spec:
+      permissions:
+      - serviceAccountName: cluster-logging-operator
+        rules:
+        - apiGroups:
+          - logging.openshift.io
+          resources:
+          - "*"
+          verbs:
+          - "*"
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - endpoints
+          - persistentvolumeclaims
+          - events
+          - configmaps
+          - secrets
+          - serviceaccounts
+          verbs:
+          - "*"
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          - daemonsets
+          - replicasets
+          - statefulsets
+          verbs:
+          - "*"
+        - apiGroups:
+          - route.openshift.io
+          resources:
+          - routes
+          - routes/custom-host
+          verbs:
+          - "*"
+        - apiGroups:
+          - batch
+          resources:
+          - cronjobs
+          verbs:
+          - "*"
+      clusterPermissions:
+      - serviceAccountName: cluster-logging-operator
+        rules:
+        - apiGroups:
+          - scheduling.k8s.io
+          resources:
+          - priorityclasses
+          verbs:
+          - "*"
+        - apiGroups:
+          - oauth.openshift.io
+          resources:
+          - oauthclients
+          verbs:
+          - "*"
+      deployments:
+      - name: cluster-logging-operator
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: cluster-logging-operator
+          template:
+            metadata:
+              labels:
+                name: cluster-logging-operator
+            spec:
+              serviceAccountName: cluster-logging-operator
+              containers:
+              - name: cluster-logging-operator
+                image: quay.io/openshift/cluster-logging-operator:latest
+                imagePullPolicy: IfNotPresent
+                command:
+                - cluster-logging-operator
+                env:
+                  - name: WATCH_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                  - name: OPERATOR_NAME
+                    value: "cluster-logging-operator"
+
+  maturity: alpha
+  version: v0.0.1
+  customresourcedefinitions:
+    owned:
+    - name: clusterloggings.logging.openshift.io
+      version: v1alpha1
+      kind: ClusterLogging
+      displayName: Cluster Logging
+      description: A Cluster Logging instance
+      resources:
+      - kind: Deployment
+        version: v1
+      - kind: DaemonSet
+        version: v1
+      - kind: CronJob
+        version: v1beta1
+      - kind: ReplicaSet
+        version: v1
+      - kind: Pod
+        version: v1
+      - kind: ConfigMap
+        version: v1
+      - kind: Secret
+        version: v1
+      - kind: Service
+        version: v1
+      - kind: Route
+        version: v1
+      - kind: Elasticsearch
+        version: v1alpha1
+      specDescriptors:
+      # Kibana spec
+      - description: The desired number of Kibana Pods for the Visualization component
+        displayName: Kibana Size
+        path: visualization.kibana.replicas
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+      - description: Resource requirements for the Kibana pods
+        displayName: Kibana Resource Requirements
+        path: visualization.kibana.resources
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      - descriptor: The node selector to use for the Kibana Visualization component
+        displayName: Kibana Node Selector
+        path: visualization.kibana.nodeSelector
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+      # Elasticsearch spec
+      - description: The desired number of Elasticsearch Pods for the Log Storage component
+        displayName: Elasticsearch Size
+        path: logStore.elasticsearch.replicas
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+      - description: Resource requirements for the Elasticsearch pods
+        displayName: Elasticsearch Resource Requirements
+        path: logStore.elasticsearch.resources
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      - description: The node selector to use for the Elasticsearch Log Storage component
+        displayName: Elasticsearch Node Selector
+        path: logStore.elasticsearch.nodeSelector
+        - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+      # Fluentd spec
+      - description: Resource requirements for the Fluentd pods
+        displayName: Fluentd Resource Requirements
+        path: collection.logCollection.fluentd.resources
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      - description: The node selector to use for the Fluentd log collection component
+        displayName: Fluentd node selector
+        path: collection.logCollection.fluentd.nodeSelector
+        - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+      # Rsyslog spec
+      - description: Resource requirements for the Rsyslog pods
+        displayName: Rsyslog Resource Requirements
+        path: collection.logCollection.rsyslog.resources
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      - description: The node selector to use for the Rsyslog log collection component
+        displayName: Rsyslog node selector
+        path: collection.logCollection.rsyslog.nodeSelector
+        - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+      # Curator spec
+      - description: Resource requirements for the Curator pods
+        displayName: Curator Resource Requirements
+        path: curation.curator.resources
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      - description: The node selector to use for the Curator component
+        displayName: Curator Node Selector
+        path: curation.curator.nodeSelector
+        - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+      - description: The cron schedule for the Curator component
+        displayName: Curation Schedule
+        path: curation.curator.schedule
+      statusDescriptors:
+      # Kibana status
+      - description: The status for each of the Kibana pods for the Visualization component
+        displayName: Kibana Status
+        path: visualization.kibanaStatus.pods
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      # Elasticsearch status
+      - description: The status for each of the Elasticsearch Client pods for the Log Storage component
+        displayName: Elasticsearch Client Pod Status
+        path: logStore.elasticsearchStatus.pods.client
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      - description: The status for each of the Elasticsearch Data pods for the Log Storage component
+        displayName: Elasticsearch Data Pod Status
+        path: logStore.elasticsearchStatus.pods.data
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      - description: The status for each of the Elasticsearch Master pods for the Log Storage component
+        displayName: Elasticsearch Master Pod Status
+        path: logStore.elasticsearchStatus.pods.master
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      - description: The cluster status for each of the Elasticsearch Clusters for the Log Storage component
+        displayName: Elasticsearch Cluster Health
+        path: logstore.elasticsearchStatus.clusterHealth
+      # Fluentd status
+      - description: The status for each of the Fluentd pods for the Log Collection component
+        displayName: Fluentd status
+        path: collection.logCollection.fluentdStatus.pods
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      # Rsyslog status
+      - description: The status for each of the Rsyslog pods for the Log Collection component
+        displayName: Rsyslog status
+        path: collection.logCollection.rsyslogStatus.pods
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      # Curator status
+    required:
+    - name: elasticsearches.logging.openshift.io
+      version: v1alpha1
+      kind: Elasticsearch
+      displayName: Elasticsearch
+      description: An Elasticsearch cluster instance

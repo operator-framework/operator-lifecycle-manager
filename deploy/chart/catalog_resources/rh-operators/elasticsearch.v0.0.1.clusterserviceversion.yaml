@@ -1,0 +1,174 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: elasticsearches.v0.0.1
+  namespace: placeholder
+spec:
+  displayName: Elasticsearch Operator
+
+  description: |
+    The Elasticsearch Operator for OKD provides easy means for configuring and managing your Elasticsearch cluster.
+
+    Once installed, the Elasticsearch Operator provides the following features:
+    * **Create/Destroy**: Easily launch and create an elasticsearch cluster in the `openshift-logging` namespace.
+    * **Simple Configuration**: Configure your Elasticsearch's structure like node roles and node replica count easily.
+
+  keywords: ['elasticsearch', 'logging' 'aggregated', 'efk']
+
+  maintainers:
+  - name: Red Hat
+    email: aos-logging@redhat.com
+
+  provider:
+    name: Red Hat
+
+  links:
+  - name: Elastic
+    url: https://www.elastic.co/
+  - name: Documentation
+    url: https://github.com/openshift/elasticsearch-operator/blob/master/README.md
+  - name: Elasticsearch Operator
+    url: https://github.com/openshift/elasticsearch-operator
+
+  install:
+    strategy: deployment
+    spec:
+      permissions:
+      - serviceAccountName: elasticsearch-operator
+        rules:
+        - apiGroups:
+          - logging.openshift.io
+          resources:
+          - "*"
+          verbs:
+          - "*"
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - endpoints
+          - persistentvolumeclaims
+          - events
+          - configmaps
+          - secrets
+          - serviceaccounts
+          verbs:
+          - "*"
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          - daemonsets
+          - replicasets
+          - statefulsets
+          verbs:
+          - "*"
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - prometheusrules
+          - servicemonitors
+          verbs:
+          - "*"
+      deployments:
+      - name: elasticsearch-operator
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: elasticsearch-operator
+          template:
+            metadata:
+              labels:
+                name: elasticsearch-operator
+            spec:
+              serviceAccountName: elasticsearch-operator
+              containers:
+                - name: elasticsearch-operator
+                  image: quay.io/openshift/elasticsearch-operator:latest
+                  imagePullPolicy: IfNotPresent
+                  command:
+                  - elasticsearch-operator
+                  ports:
+                  - containerPort: 60000
+                    name: metrics
+                  env:
+                    - name: WATCH_NAMESPACE
+                      valueFrom:
+                        fieldRef:
+                          fieldPath: metadata.namespace
+                    - name: OPERATOR_NAME
+                      value: "elasticsearch-operator"
+  maturity: alpha
+  version: v0.0.1
+  customresourcedefinitions:
+    owned:
+    - name: elasticsearches.logging.openshift.io
+      version: v1alpha1
+      kind: Elasticsearch
+      displayName: Elasticsearch
+      description: An Elasticsearch cluster instance
+      resources:
+      - kind: Deployment
+        version: v1
+      - kind: StatefulSet
+        version: v1
+      - kind: ReplicaSet
+        version: v1
+      - kind: Pod
+        version: v1
+      - kind: ConfigMap
+        version: v1
+      - kind: Service
+        version: v1
+      - kind: Route
+        version: v1
+      specDescriptors:
+      - description: The name of the serviceaccount used by the Elasticsearch pods
+        displayName: Service Account
+        path: serviceAccountName
+        x-descriptors:
+          - 'urn:alm:descriptor:io.kubernetes:ServiceAccount'
+      - description: The name of the configmap used by the Elasticsearch pods
+        displayName: Config Map
+        path: configMapName
+        x-descriptors:
+          - 'urn:alm:descriptor:io.kubernetes:ConfigMap'
+      - description: The name of the secret used by the Elasticsearch pods
+        displayName: Secret
+        path: secretName
+        x-descriptors:
+          - 'urn:alm:descriptor:io.kubernetes:Secret'
+      - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+          displayName: Resource Requirements
+          path: nodeSpec.resources
+          x-descriptors:
+            - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+      statusDescriptors:
+      - description: The current health of Elasticsearch Cluster
+        displayName: Elasticsearch Cluster Health
+        path: clusterHealth
+        x-descriptors:
+          - 'urn:alm:descriptor:io.kubernetes.phase'
+      - description: The status for each of the Elasticsearch pods with the Client role
+        displayName: Elasticsearch Client Status
+        path: pods.client
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      - description: The status for each of the Elasticsearch pods with the Data role
+        displayName: Elasticsearch Data Status
+        path: pods.data
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      - description: The status for each of the Elasticsearch pods with the Master role
+        displayName: Elasticsearch Master Status
+        path: pods.master
+        x-descriptors:
+        - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+    required:
+    - name: clusterloggings.logging.openshift.io
+      version: v1alpha1
+      kind: ClusterLogging
+      displayName: Cluster Logging Operator
+      description: The operator that manages the aggregated logging certificates and components

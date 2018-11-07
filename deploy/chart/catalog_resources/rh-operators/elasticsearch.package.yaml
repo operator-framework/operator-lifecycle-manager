@@ -1,0 +1,5 @@
+#! package-manifest: ./deploy/chart/catalog_resources/rh-operators/elasticsearches.v0.0.1.clusterserviceversion.yaml
+packageName: elasticsearch
+channels:
+- name: preview
+  currentCSV: elasticsearch.v0.0.1
