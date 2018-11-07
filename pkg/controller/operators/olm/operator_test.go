@@ -603,6 +603,39 @@ func generateCA(notAfter time.Time, organization string) (*certs.KeyPair, error)
 	return ca, nil
 }
 
+func crdWithConditions(name string, version string, nameAccepted v1beta1.ConditionStatus, established v1beta1.ConditionStatus) *v1beta1.CustomResourceDefinition {
+	return &v1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name + "group",
+		},
+		Spec: v1beta1.CustomResourceDefinitionSpec{
+			Group: name + "group",
+			Versions: []v1beta1.CustomResourceDefinitionVersion{
+				{
+					Name:    version,
+					Storage: true,
+					Served:  true,
+				},
+			},
+			Names: v1beta1.CustomResourceDefinitionNames{
+				Kind: name,
+			},
+		},
+		Status: v1beta1.CustomResourceDefinitionStatus{
+			Conditions: []v1beta1.CustomResourceDefinitionCondition{
+				{
+					Type:   v1beta1.Established,
+					Status: established,
+				},
+				{
+					Type:   v1beta1.NamesAccepted,
+					Status: nameAccepted,
+				},
+			},
+		},
+	}
+}
+
 func TestTransitionCSV(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
@@ -694,7 +727,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -730,7 +763,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					&corev1.ServiceAccount{
@@ -856,7 +889,7 @@ func TestTransitionCSV(t *testing.T) {
 					), apis("a1.v1.a1Kind"), nil),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -890,7 +923,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -994,7 +1027,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1063,7 +1096,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1107,7 +1140,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1130,7 +1163,7 @@ func TestTransitionCSV(t *testing.T) {
 					), apis("a1.v1.a1Kind"), nil),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1197,7 +1230,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1264,7 +1297,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1331,7 +1364,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1398,7 +1431,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1465,7 +1498,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1532,7 +1565,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1599,7 +1632,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1666,7 +1699,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1689,7 +1722,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 			},
 			expected: expected{
@@ -1712,7 +1745,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -1766,7 +1799,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -1801,7 +1834,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -1837,7 +1870,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -1882,7 +1915,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -1928,7 +1961,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", nil),
@@ -1966,7 +1999,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv2-dep1", namespace, "sa", nil),
@@ -2003,7 +2036,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crdWithConditions("c1", "v1", v1beta1.ConditionTrue, v1beta1.ConditionTrue),
 				},
 				objs: []runtime.Object{
 					deployment("csv2-dep1", namespace, "sa", nil),

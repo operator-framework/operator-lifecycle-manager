@@ -252,8 +252,10 @@ const (
 	RequirementStatusReasonPresent             StatusReason = "Present"
 	RequirementStatusReasonNotPresent          StatusReason = "NotPresent"
 	RequirementStatusReasonPresentNotSatisfied StatusReason = "PresentNotSatisfied"
-	DependentStatusReasonSatisfied             StatusReason = "Satisfied"
-	DependentStatusReasonNotSatisfied          StatusReason = "NotSatisfied"
+	// The CRD is present but the Established condition is False (not available)
+	RequirementStatusReasonNotAvailable StatusReason = "PresentNotAvailable"
+	DependentStatusReasonSatisfied      StatusReason = "Satisfied"
+	DependentStatusReasonNotSatisfied   StatusReason = "NotSatisfied"
 )
 
 // DependentStatus is the status for a dependent requirement (to prevent infinite nesting)
