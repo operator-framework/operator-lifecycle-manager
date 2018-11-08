@@ -8,7 +8,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -24,7 +23,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/annotator"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
@@ -58,7 +56,6 @@ type Operator struct {
 	lister   operatorlister.OperatorLister
 	// csvLister           map[string]csvlister.ClusterServiceVersionLister
 	// operatorGroupLister map[string]operatorgrouplister.OperatorGroupLister
-	annotator   *annotator.Annotator
 	recorder    record.EventRecorder
 	cleanupFunc func()
 }
@@ -75,22 +72,17 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	if err != nil {
 		return nil, err
 	}
-	namespaceAnnotator := annotator.NewAnnotator(queueOperator.OpClient, annotations)
 	eventRecorder, err := event.NewRecorder(opClient.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
 	if err != nil {
 		return nil, err
 	}
 
 	op := &Operator{
-		Operator:  queueOperator,
-		client:    crClient,
-		lister:    operatorlister.NewLister(),
-		resolver:  resolver,
-		annotator: namespaceAnnotator,
-		recorder:  eventRecorder,
-		cleanupFunc: func() {
-			namespaceAnnotator.CleanNamespaceAnnotations(namespaces)
-		},
+		Operator: queueOperator,
+		client:   crClient,
+		lister:   operatorlister.NewLister(),
+		resolver: resolver,
+		recorder: eventRecorder,
 	}
 
 	// Set up RBAC informers
@@ -790,24 +782,6 @@ func (a *Operator) apiServiceOwnerConflicts(in *v1alpha1.ClusterServiceVersion, 
 	if owned {
 		return ErrAPIServiceOwnerConflict
 	}
-	return nil
-}
-
-// annotateNamespace is the method that gets called when we see a namespace event in the cluster
-func (a *Operator) annotateNamespace(obj interface{}) (syncError error) {
-	namespace, ok := obj.(*corev1.Namespace)
-	if !ok {
-		log.Debugf("wrong type: %#v", obj)
-		return fmt.Errorf("casting Namespace failed")
-	}
-	namespaceName := namespace.GetName()
-
-	log.Infof("syncing Namespace: %s", namespaceName)
-	if err := a.annotator.AnnotateNamespace(namespace); err != nil {
-		log.Infof("error annotating namespace '%s'", namespaceName)
-		return err
-	}
-
 	return nil
 }
 
