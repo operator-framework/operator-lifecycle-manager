@@ -171,10 +171,10 @@ spec:
                 resources:
                   limits:
                     cpu: 100m
-                    memory: 40Mi
+                    memory: 70Mi
                   requests:
                     cpu: 100m
-                    memory: 30Mi
+                    memory: 50Mi
                 env:
                 - name: ETCD_DATA_DIR
                   value: /etcd-data-dir
