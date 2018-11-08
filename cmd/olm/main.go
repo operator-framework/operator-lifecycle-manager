@@ -21,10 +21,6 @@ import (
 )
 
 const (
-	envOperatorName         = "OPERATOR_NAME"
-	envOperatorNamespace    = "OPERATOR_NAMESPACE"
-	ALMManagedAnnotationKey = "alm-manager"
-
 	defaultWakeupInterval = 5 * time.Minute
 )
 
@@ -75,17 +71,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Env Vars
-	operatorNamespace := envOrDie(
-		envOperatorNamespace, "used to set annotation indicating which ALM operator manages a namespace")
-
-	operatorName := envOrDie(
-		envOperatorName, "used to distinguish ALM operators of the same name")
-
-	annotation := map[string]string{
-		ALMManagedAnnotationKey: fmt.Sprintf("%s.%s", operatorNamespace, operatorName),
-	}
-
 	// Set log level to debug if `debug` flag set
 	if *debug {
 		log.SetLevel(log.DebugLevel)
@@ -104,12 +89,11 @@ func main() {
 	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath)
 
 	// Create a new instance of the operator.
-	operator, err := olm.NewOperator(crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, annotation, namespaces)
+	operator, err := olm.NewOperator(crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, namespaces)
 
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())
 	}
-	defer operator.Cleanup()
 
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
