@@ -66,6 +66,7 @@ type CRDDescription struct {
 
 // APIServiceDescription provides details to OLM about apis provided via aggregation
 type APIServiceDescription struct {
+	Name              string                 `json:"name"`
 	Group             string                 `json:"group"`
 	Version           string                 `json:"version"`
 	Kind              string                 `json:"kind"`

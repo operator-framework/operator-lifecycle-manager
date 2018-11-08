@@ -411,7 +411,7 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 			}
 
 			// Prepend any required secrets to the plan for that catalog source
-			plan.Status.Plan = append([]v1alpha1.Step{{
+			plan.Status.Plan = append([]*v1alpha1.Step{{
 				Resolving: "",
 				Resource: v1alpha1.StepResource{
 					Name:    secretName,

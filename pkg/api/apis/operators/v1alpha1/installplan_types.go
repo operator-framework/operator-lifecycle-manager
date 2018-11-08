@@ -83,7 +83,7 @@ type InstallPlanStatus struct {
 	Phase          InstallPlanPhase       `json:"phase"`
 	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
 	CatalogSources []string               `json:"catalogSources"`
-	Plan           []Step                 `json:"plan,omitempty"`
+	Plan           []*Step                `json:"plan,omitempty"`
 }
 
 // InstallPlanCondition represents the overall status of the execution of

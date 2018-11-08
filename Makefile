@@ -5,26 +5,30 @@
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
 CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -I{} basename {}))
+CODEGEN := ./vendor/k8s.io/code-generator/generate_groups.sh
+counterfeiter := $(GOBIN)/counterfeiter
+mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/coreos/olm
 IMAGE_TAG ?= "dev"
-
-.FORCE:
+KUBE_DEPS := api apiextensions-apiserver apimachinery code-generator kube-aggregator kubernetes
+KUBE_RELEASE := release-1.11
+MOD_FLAGS := $(shell (go version | grep -q 1.11) && echo -mod=vendor)
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
 
 all: test build
 
-test: schema-check cover.out
+test: clean cover.out
 
 unit:
-	go test -v -race ./pkg/...
+	go test $(MOD_FLAGS) -v -race ./pkg/...
 
 schema-check:
-	go run ./cmd/validator/main.go ./deploy/chart/catalog_resources
+	go run $(MOD_FLAGS) ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
-	go test -v -race -coverprofile=cover.out -covermode=atomic \
+	go test $(MOD_FLAGS) -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out
@@ -33,22 +37,16 @@ coverage: cover.out
 coverage-html: cover.out
 	go tool cover -html=cover.out
 
-build: $(CMDS)
+build: build_cmd=build
+build: clean $(CMDS)
 
 # build versions of the binaries with coverage enabled
-build-coverage: GENCOVER=true
-build-coverage: $(CMDS)
+build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
+build-coverage: clean $(CMDS)
 
-$(CMDS): .FORCE
-	@if [ cover-$(GENCOVER) = cover-true ]; then \
-		echo "building bin/$(shell basename $@)" with coverage; \
-		CGO_ENABLED=0 go test -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
-		-o $@ -c -covermode=count -coverpkg ./pkg/controller/... $(PKG)/cmd/$(shell basename $@); \
-	else \
-		echo "building bin/$(shell basename $@)"; \
-		CGO_ENABLED=0 go build -ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`" \
-		-o $@ $(PKG)/cmd/$(shell basename $@); \
-	fi
+$(CMDS): version_flags=-ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
+$(CMDS):
+	CGO_ENABLED=0 go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
 
 run-local:
 	. ./scripts/build_local.sh
@@ -82,24 +80,24 @@ e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
-DEP := $(GOPATH)/bin/dep
-$(DEP):
-	go get -u github.com/golang/dep/cmd/dep
+# kube dependencies all should be at the same release and should match up with client go
+# go.mod currently doesn't support specifying a branch name to track, and kube isn't publishing good version tags
+$(KUBE_DEPS):
+	go get -m k8s.io/$@@$(KUBE_RELEASE)
 
-vendor: $(DEP)
-	$(DEP) ensure -v -vendor-only
+vendor: $(KUBE_DEPS)
+	go mod tidy
+	go mod vendor
 
-vendor-update: $(DEP)
-	$(DEP) ensure -v
-
-container: build
+container:
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
 clean:
-	rm -rf bin
-	rm -rf test/e2e/resources
-	rm -rf test/e2e/test-resources
-	rm -rf test/e2e/log
+	@rm -rf cover.out
+	@rm -rf bin
+	@rm -rf test/e2e/resources
+	@rm -rf test/e2e/test-resources
+	@rm -rf test/e2e/log
 
 CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
 $(CI):
@@ -108,46 +106,37 @@ $(CI):
 gen-ci: $(CI)
 	ffctl gen
 
-CODEGEN := ./vendor/k8s.io/code-generator/generate-groups.sh
-
-$(CODEGEN):
-	# dep doesn't currently support downloading dependencies that don't have go in the top-level dir.
-	# can move to managing with dep when merged: https://github.com/golang/dep/pull/1545
-	mkdir -p vendor/k8s.io/code-generator
-	git clone --branch release-1.11 https://github.com/kubernetes/code-generator.git vendor/k8s.io/code-generator
-
-pkg/package-server/generated/openapi/zz_generated.openapi.go:
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/generated/openapi/ -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-	
-clean-openapi:
-	rm -rf pkg/package-server/generated/openapi
-
-codegen-openapi: clean-openapi pkg/package-server/generated/openapi/zz_generated.openapi.go
-
-# our version of hack/update-codegen.sh
-codegen: $(CODEGEN)
+# Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
+# use container-codegen
+codegen:
+	cp scripts/generate_groups.sh vendor/k8s.io/code-generator/generate_groups.sh
+	mkdir -p vendor/k8s.io/code-generator/hack
+	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1alpha2"
 	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis "packagemanifest:v1alpha1"
 
+container-codegen:
+	docker build -t olm:codegen -f codegen.Dockerfile .
+	docker run --name temp-codegen olm:codegen /bin/true
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/. ./pkg/api/client
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/. ./pkg/api/apis
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/. ./pkg/package-server/apis
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/. ./pkg/package-server/client
+	docker rm temp-codegen
+
+# Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 verify-codegen: codegen
 	git diff --exit-code
 
 verify-catalog: schema-check
-	go test -v ./test/schema/catalog_versions_test.go
+	go test $(MOD_FLAGS) -v ./test/schema/catalog_versions_test.go
 
-counterfeiter := $(GOBIN)/counterfeiter
-$(counterfeiter):
-	go install github.com/maxbrunsfeld/counterfeiter
-
-mockgen := $(GOBIN)/mockgen
-$(mockgen):
-	go install github.com/golang/mock/mockgen
-
-generate-mock-client: $(counterfeiter)
+generate-mock-client:
 	go generate ./$(PKG_DIR)/...
-	mockgen -source ./pkg/lib/operatorclient/client.go -destination ./pkg/lib/operatorclient/mock_client.go -package operatorclient
+	GO111MODULE=on mockgen -source ./pkg/lib/operatorclient/client.go -destination ./pkg/lib/operatorclient/mock_client.go -package operatorclient
 
-gen-all: gen-ci codegen generate-mock-client codegen-openapi
+gen-all: gen-ci container-codegen generate-mock-client
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION

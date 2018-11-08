@@ -18,14 +18,14 @@ import (
 // DependencyResolver defines how a something that resolves dependencies (CSVs, CRDs, etc...)
 // should behave
 type DependencyResolver interface {
-	ResolveInstallPlan(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, []registry.ResourceKey, error)
+	ResolveInstallPlan(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]*v1alpha1.Step, []registry.ResourceKey, error)
 }
 
 // MultiSourceResolver resolves resolves dependencies from multiple CatalogSources
 type MultiSourceResolver struct{}
 
 // ResolveInstallPlan resolves the given InstallPlan with all available sources
-func (resolver *MultiSourceResolver) ResolveInstallPlan(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]v1alpha1.Step, []registry.ResourceKey, error) {
+func (resolver *MultiSourceResolver) ResolveInstallPlan(sourceRefs []registry.SourceRef, existingCRDOwners map[string][]string, catalogLabelKey string, plan *v1alpha1.InstallPlan) ([]*v1alpha1.Step, []registry.ResourceKey, error) {
 	srm := make(stepResourceMap)
 	var usedSourceKeys []registry.ResourceKey
 
@@ -356,11 +356,11 @@ func resolveRBACStepResources(csv *v1alpha1.ClusterServiceVersion) ([]v1alpha1.S
 
 type stepResourceMap map[string][]v1alpha1.StepResource
 
-func (srm stepResourceMap) Plan() []v1alpha1.Step {
-	steps := make([]v1alpha1.Step, 0)
+func (srm stepResourceMap) Plan() []*v1alpha1.Step {
+	steps := make([]*v1alpha1.Step, 0)
 	for csvName, stepResSlice := range srm {
 		for _, stepRes := range stepResSlice {
-			steps = append(steps, v1alpha1.Step{
+			steps = append(steps, &v1alpha1.Step{
 				Resolving: csvName,
 				Resource:  stepRes,
 				Status:    v1alpha1.StepStatusUnknown,
