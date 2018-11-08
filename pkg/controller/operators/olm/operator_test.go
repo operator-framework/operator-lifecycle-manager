@@ -133,11 +133,11 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake)
 	op := &Operator{
-		Operator:  queueOperator,
-		client:    clientFake,
-		lister:    operatorlister.NewLister(),
-		resolver:  resolver,
-		csvQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterserviceversions"),
+		Operator: queueOperator,
+		client:   clientFake,
+		lister:   operatorlister.NewLister(),
+		resolver: resolver,
+		csvQueues: make(map[string]workqueue.RateLimitingInterface),
 		recorder:  eventRecorder,
 	}
 

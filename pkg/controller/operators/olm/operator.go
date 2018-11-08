@@ -50,10 +50,10 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueue workqueue.RateLimitingInterface
-	client   versioned.Interface
-	resolver install.StrategyResolverInterface
-	lister   operatorlister.OperatorLister
+	csvQueues   map[string]workqueue.RateLimitingInterface
+	client      versioned.Interface
+	resolver    install.StrategyResolverInterface
+	lister      operatorlister.OperatorLister
 	recorder    record.EventRecorder
 }
 
@@ -75,11 +75,12 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	}
 
 	op := &Operator{
-		Operator: queueOperator,
-		client:   crClient,
-		lister:   operatorlister.NewLister(),
-		resolver: resolver,
-		recorder: eventRecorder,
+		Operator:  queueOperator,
+		csvQueues: make(map[string]workqueue.RateLimitingInterface),
+		client:    crClient,
+		lister:    operatorlister.NewLister(),
+		resolver:  resolver,
+		recorder:  eventRecorder,
 	}
 
 	// Set up RBAC informers
@@ -96,7 +97,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		namespaceInformer.Informer(),
 		op.syncObject,
 		nil,
-		"namespace",
+		"namespaces",
 		metrics.NewMetricsNil(),
 	)
 	op.RegisterQueueInformer(queueInformer)
@@ -117,7 +118,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		&cache.ResourceEventHandlerFuncs{
 			DeleteFunc: op.handleDeletion,
 		},
-		"namespace",
+		"rbac",
 		metrics.NewMetricsNil(),
 	)
 	for _, informer := range rbacQueueInformers {
@@ -181,95 +182,74 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		&cache.ResourceEventHandlerFuncs{
 			DeleteFunc: op.handleDeletion,
 		},
-		"services",
+		"serviceaccounts",
 		metrics.NewMetricsNil(),
 	))
 	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
 
-	// Set up watch on CSVs
-	csvInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range namespaces {
-		log.Debugf("watching for CSVs in namespace %s", namespace)
-		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		informer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
-		csvInformers = append(csvInformers, informer.Informer())
-		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informer.Lister())
-	}
-
-	// csvInformers for each namespace all use the same backing queue
-	// queue keys are namespaced
-	csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterserviceversions")
-	csvHandlers := cache.ResourceEventHandlerFuncs{
+	// csvInformers for each namespace all use the same backing queue keys are namespaced
+	csvHandlers := &cache.ResourceEventHandlerFuncs{
 		DeleteFunc: op.deleteClusterServiceVersion,
 	}
-	queueInformers := queueinformer.New(
-		csvQueue,
-		csvInformers,
-		op.syncClusterServiceVersion,
-		&csvHandlers,
-		"csv",
-		metrics.NewMetricsCSV(op.client),
-	)
-	for _, informer := range queueInformers {
-		op.RegisterQueueInformer(informer)
-	}
-	op.csvQueue = csvQueue
-
-	// set up watch on deployments
-	depInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
-		log.Debugf("watching deployments in namespace %s", namespace)
-		informer := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace)).Apps().V1().Deployments()
-		depInformers = append(depInformers, informer.Informer())
-		op.lister.AppsV1().RegisterDeploymentLister(namespace, informer.Lister())
+		log.WithField("namespace", namespace).Infof("watching CSVs")
+		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		csvInformer := sharedInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
+
+		// Register queue and QueueInformer
+		queueName := fmt.Sprintf("%s/clusterserviceversions", namespace)
+		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
+		csvQueueInformer := queueinformer.NewInformer(csvQueue, csvInformer.Informer(), op.syncClusterServiceVersion, csvHandlers, queueName, metrics.NewMetricsCSV(op.client))
+		op.RegisterQueueInformer(csvQueueInformer)
+		op.csvQueues[namespace] = csvQueue
 	}
 
-	depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csv-deployments")
-	depQueueInformers := queueinformer.New(
-		depQueue,
-		depInformers,
-		op.syncDeployment,
-		&cache.ResourceEventHandlerFuncs{
-			DeleteFunc: op.handleDeletion,
-		},
-		"deployment",
-		metrics.NewMetricsNil(),
-	)
-	for _, informer := range depQueueInformers {
-		op.RegisterQueueInformer(informer)
+	// Set up watch on deployments
+	depHandlers := &cache.ResourceEventHandlerFuncs{
+		DeleteFunc: op.handleDeletion,
+	}
+	for _, namespace := range namespaces {
+		log.WithField("namespace", namespace).Infof("watching deployments")
+		depInformer := informers.NewSharedInformerFactoryWithOptions(opClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace)).Apps().V1().Deployments()
+		op.lister.AppsV1().RegisterDeploymentLister(namespace, depInformer.Lister())
+
+		// Register queue and QueueInformer
+		queueName := fmt.Sprintf("%s/csv-deployments", namespace)
+		depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
+		depQueueInformer := queueinformer.NewInformer(depQueue, depInformer.Informer(), op.syncDeployment, depHandlers, queueName, metrics.NewMetricsNil())
+		op.RegisterQueueInformer(depQueueInformer)
 	}
 
 	// Create an informer for the operator group
-	operatorGroupInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range namespaces {
-		informerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		informer := informerFactory.Operators().V1alpha2().OperatorGroups()
-		operatorGroupInformers = append(operatorGroupInformers, informer.Informer())
-		op.lister.OperatorsV1alpha2().RegisterOperatorGroupLister(namespace, informer.Lister())
-	}
+		log.WithField("namespace", namespace).Infof("watching OperatorGroups")
+		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		operatorGroupInformer := sharedInformerFactory.Operators().V1alpha2().OperatorGroups()
+		op.lister.OperatorsV1alpha2().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
 
-	// Register OperatorGroup informers.
-	operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "operatorgroups")
-	operatorGroupQueueInformer := queueinformer.New(
-		operatorGroupQueue,
-		operatorGroupInformers,
-		op.syncOperatorGroups,
-		nil,
-		"operatorgroups",
-		metrics.NewMetricsNil(),
-	)
-	for _, informer := range operatorGroupQueueInformer {
-		op.RegisterQueueInformer(informer)
+		// Register queue and QueueInformer
+		queueName := fmt.Sprintf("%s/operatorgroups", namespace)
+		operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
+		operatorGroupQueueInformer := queueinformer.NewInformer(operatorGroupQueue, operatorGroupInformer.Informer(), op.syncOperatorGroups, nil, queueName, metrics.NewMetricsNil())
+		op.RegisterQueueInformer(operatorGroupQueueInformer)
 	}
 
 	return op, nil
 }
 
 func (a *Operator) requeueCSV(name, namespace string) {
-	// we can build the key directly, will need to change if queue uses different key scheme
+	// We can build the key directly, will need to change if queue uses different key scheme
 	key := fmt.Sprintf("%s/%s", namespace, name)
-	log.Debugf("requeueing CSV %s", key)
-	a.csvQueue.AddRateLimited(key)
+	logger := log.WithField("key", key)
+	logger.Debugf("requeueing CSV")
+
+	if queue, ok := a.csvQueues[namespace]; ok {
+		queue.AddRateLimited(key)
+		return
+	}
+
+	logger.Debugf("couldn't find queue for CSV")
 }
 
 func (a *Operator) syncDeployment(obj interface{}) (syncError error) {
@@ -398,7 +378,9 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
 
-	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied {
+	operatorNamespace, ok := clusterServiceVersion.GetAnnotations()["olm.operatorNamespace"]
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied || 
+		ok && clusterServiceVersion.GetNamespace() != operatorNamespace {
 		logger.Info("skip sync of dummy CSV")
 		return a.removeDanglingChildCSVs(clusterServiceVersion)
 	}
