@@ -427,12 +427,12 @@ k8s.io/client-go/discovery/fake
 k8s.io/client-go/testing
 k8s.io/client-go/tools/cache
 k8s.io/client-go/listers/rbac/v1
-k8s.io/client-go/informers
 k8s.io/client-go/util/workqueue
-k8s.io/client-go/listers/core/v1
+k8s.io/client-go/informers
 k8s.io/client-go/kubernetes/typed/core/v1
 k8s.io/client-go/kubernetes
 k8s.io/client-go/listers/apps/v1
+k8s.io/client-go/listers/core/v1
 k8s.io/client-go/util/cert
 k8s.io/client-go/tools/reference
 k8s.io/client-go/pkg/version
@@ -645,7 +645,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.5-beta.0.0.20181107171428-941010e531b7
+# k8s.io/kubernetes v1.11.5-beta.0.0.20181108064615-3290824d1c7b
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
