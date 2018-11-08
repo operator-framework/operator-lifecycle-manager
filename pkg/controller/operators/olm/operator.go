@@ -54,13 +54,10 @@ type Operator struct {
 	client   versioned.Interface
 	resolver install.StrategyResolverInterface
 	lister   operatorlister.OperatorLister
-	// csvLister           map[string]csvlister.ClusterServiceVersionLister
-	// operatorGroupLister map[string]operatorgrouplister.OperatorGroupLister
 	recorder    record.EventRecorder
-	cleanupFunc func()
 }
 
-func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, annotations map[string]string, namespaces []string) (*Operator, error) {
+func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
 	if wakeupInterval < 0 {
 		wakeupInterval = FallbackWakeupInterval
 	}
@@ -266,11 +263,6 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	}
 
 	return op, nil
-}
-
-// Cleanup cleans up operator resources on the cluster
-func (a *Operator) Cleanup() {
-	a.cleanupFunc()
 }
 
 func (a *Operator) requeueCSV(name, namespace string) {

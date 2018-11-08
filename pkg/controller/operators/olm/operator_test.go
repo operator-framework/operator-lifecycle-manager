@@ -125,7 +125,6 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	k8sClientFake.Resources = apiResourcesForObjects(append(extObjs, regObjs...))
 	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
 
-	annotations := map[string]string{"test": "annotation"}
 	eventRecorder, err := event.NewRecorder(opClientFake.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
 	if err != nil {
 		return nil, err
@@ -140,9 +139,6 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		resolver:  resolver,
 		csvQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterserviceversions"),
 		recorder:  eventRecorder,
-		cleanupFunc: func() {
-			namespaceAnnotator.CleanNamespaceAnnotations(namespaces)
-		},
 	}
 
 	wakeupInterval := 5 * time.Second
