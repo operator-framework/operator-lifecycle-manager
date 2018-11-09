@@ -84,15 +84,57 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	}
 
 	// Set up RBAC informers
-	informerFactory := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval)
-	roleInformer := informerFactory.Rbac().V1().Roles()
-	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
-	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
-	namespaceInformer := informerFactory.Core().V1().Namespaces()
+	roleInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().Roles()
+	roleQueueInformer := queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "roles"),
+		roleInformer.Informer(),
+		op.syncObject,
+		nil,
+		"roles",
+		metrics.NewMetricsNil(),
+	)
+	op.RegisterQueueInformer(roleQueueInformer)
+	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
+
+	roleBindingInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().RoleBindings()
+	roleBindingQueueInformer := queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolebindings"),
+		roleBindingInformer.Informer(),
+		op.syncObject,
+		nil,
+		"rolebindings",
+		metrics.NewMetricsNil(),
+	)
+	op.RegisterQueueInformer(roleBindingQueueInformer)
+	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
+	
+	clusterRoleInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().ClusterRoles()
+	clusterRoleQueueInformer := queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterroles"),
+		clusterRoleInformer.Informer(),
+		op.syncObject,
+		nil,
+		"clusterroles",
+		metrics.NewMetricsNil(),
+	)
+	op.RegisterQueueInformer(clusterRoleQueueInformer)
+	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
+	
+	clusterRoleBindingInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().ClusterRoleBindings()
+	clusterRoleBindingQueueInformer := queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterrolebindings"),
+		clusterRoleBindingInformer.Informer(),
+		op.syncObject,
+		nil,
+		"clusterrolebindings",
+		metrics.NewMetricsNil(),
+	)
+	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
+	op.RegisterQueueInformer(clusterRoleBindingQueueInformer)
 
 	// register namespace queueinformer
-	queueInformer := queueinformer.NewInformer(
+	namespaceInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
+	namespaceQueueInformer := queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "namespaces"),
 		namespaceInformer.Informer(),
 		op.syncObject,
@@ -100,36 +142,8 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		"namespaces",
 		metrics.NewMetricsNil(),
 	)
-	op.RegisterQueueInformer(queueInformer)
+	op.RegisterQueueInformer(namespaceQueueInformer)
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-
-	// Register RBAC QueueInformers
-	rbacInformers := []cache.SharedIndexInformer{
-		roleInformer.Informer(),
-		roleBindingInformer.Informer(),
-		clusterRoleInformer.Informer(),
-		clusterRoleBindingInformer.Informer(),
-	}
-
-	rbacQueueInformers := queueinformer.New(
-		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rbac"),
-		rbacInformers,
-		op.syncObject,
-		&cache.ResourceEventHandlerFuncs{
-			DeleteFunc: op.handleDeletion,
-		},
-		"rbac",
-		metrics.NewMetricsNil(),
-	)
-	for _, informer := range rbacQueueInformers {
-		op.RegisterQueueInformer(informer)
-	}
-
-	// Set listers (for RBAC CSV requirement checking)
-	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
-	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
-	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
-	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
 
 	// Register APIService QueueInformers
 	apiServiceInformer := kagg.NewSharedInformerFactory(opClient.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
