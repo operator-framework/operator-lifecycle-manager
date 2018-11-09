@@ -9,16 +9,14 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"github.com/coreos/go-semver/semver"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-
-	"github.com/coreos/go-semver/semver"
-	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.DeploymentStatus) bool {
@@ -37,7 +35,7 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 	re, err := regexp.Compile(`-watchedNamespaces\W(\S+)`)
 	require.NoError(t, err)
 	newCommand := re.ReplaceAllString(strings.Join(command, " "), "$0"+","+newNamespace)
-	log.Debugf("original=%#v newCommand=%#v", command, newCommand)
+	t.Logf("original=%#v newCommand=%#v", command, newCommand)
 	finalNewCommand := strings.Split(newCommand, " ")
 	runningDeploy.Spec.Template.Spec.Containers[0].Command = make([]string, len(finalNewCommand))
 	copy(runningDeploy.Spec.Template.Spec.Containers[0].Command, finalNewCommand)
@@ -49,6 +47,7 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 	require.NoError(t, err)
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		t.Log("Polling for OLM deployment update...")
 		fetchedDeployment, err := c.GetDeployment(newDeployment.Namespace, newDeployment.Name)
 		if err != nil {
 			return false, err
@@ -86,7 +85,6 @@ func TestOperatorGroup(t *testing.T) {
 	// Verify deployments have correct namespace annotation
 	// (Verify that the operator can operate in the target namespace)
 
-	log.SetLevel(log.DebugLevel)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	csvName := "another-csv" // must be lowercase for DNS-1123 validation
@@ -105,16 +103,21 @@ func TestOperatorGroup(t *testing.T) {
 
 	oldCommand := patchOlmDeployment(t, c, otherNamespaceName)
 
-	log.Debug("Creating CSV")
+	t.Log("Creating CSV")
 	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
-	log.Debug("Creating operator group")
+	t.Log("Creating operator group")
 	operatorGroup := v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "e2e-operator-group",
 			Namespace: testNamespace,
+		},
+		Spec: v1alpha2.OperatorGroupSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: matchingLabel,
+			},
 		},
 	}
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
@@ -123,21 +126,10 @@ func TestOperatorGroup(t *testing.T) {
 		Namespaces: []*corev1.Namespace{createdOtherNamespace},
 	}
 
-	// instead of setting the label selector initially, do it here to force immediate reconcile
-	fetchedOpGroup, err := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Get(operatorGroup.GetName(), metav1.GetOptions{})
-	fetchedOpGroup.Spec = v1alpha2.OperatorGroupSpec{
-		Selector: metav1.LabelSelector{
-			MatchLabels: matchingLabel,
-		},
-	}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Update(fetchedOpGroup)
-	require.NoError(t, err)
-
-	log.Debug("Waiting on operator group to have correct status")
+	t.Log("Waiting on operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 		if fetchErr != nil {
-			fmt.Println(fetchErr)
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
@@ -147,11 +139,11 @@ func TestOperatorGroup(t *testing.T) {
 		return false, nil
 	})
 
-	log.Debug("Waiting for operator namespace csv to have annotations")
+	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
-			fmt.Println(fetchErr)
+			t.Log(fetchErr.Error())
 			return false, fetchErr
 		}
 		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
@@ -160,11 +152,11 @@ func TestOperatorGroup(t *testing.T) {
 		return false, nil
 	})
 
-	log.Debug("Waiting for target namespace csv to have annotations")
+	t.Log("Waiting for target namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
-			fmt.Println(fetchErr)
+			t.Log(fetchErr.Error())
 			return false, fetchErr
 		}
 		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
@@ -174,7 +166,7 @@ func TestOperatorGroup(t *testing.T) {
 		return false, nil
 	})
 	// since annotations are set along with status, no reason to poll for this check as done above
-	log.Debug("Checking status on csv in target namespace")
+	t.Log("Checking status on csv in target namespace")
 	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 	require.NoError(t, err)
 	require.EqualValues(t, v1alpha1.CSVReasonCopied, fetchedCSV.Status.Reason)
@@ -182,7 +174,7 @@ func TestOperatorGroup(t *testing.T) {
 	require.Equal(t, createdCSV.Name, fetchedCSV.Name)
 	require.Equal(t, createdCSV.Spec, fetchedCSV.Spec)
 
-	log.Debug("Waiting on deployment to have correct annotations")
+	t.Log("Waiting on deployment to have correct annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		createdDeployment, err := c.GetDeployment(testNamespace, "operator-deployment")
 		if err != nil {
@@ -198,11 +190,11 @@ func TestOperatorGroup(t *testing.T) {
 	})
 
 	// ensure deletion cleans up copied CSV
-	log.Debug("Deleting CSV")
+	t.Log("Deleting CSV")
 	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 
-	log.Debug("Waiting for orphaned CSV to be deleted")
+	t.Log("Waiting for orphaned CSV to be deleted")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if err != nil {

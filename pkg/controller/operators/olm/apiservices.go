@@ -53,7 +53,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		serviceName := APIServiceNameToServiceName(apiServiceName)
 		service, err := a.lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(serviceName)
 		if err != nil {
-			logger.Warnf("could not retrieve generated Service %s", serviceName)
+			logger.WithField("service", serviceName).Warnf("could not retrieve generated Service")
 			return err
 		}
 
@@ -65,7 +65,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Check if the APIService points to the correct service
 		if apiService.Spec.Service.Name != serviceName || apiService.Spec.Service.Namespace != csv.GetNamespace() {
-			logger.Warnf("APIService service reference mismatch %s %s", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace)
+			logger.WithFields(log.Fields{"service": apiService.Spec.Service.Name, "serviceNamespace": apiService.Spec.Service.Namespace}).Warnf("APIService service reference mismatch")
 			return fmt.Errorf("APIService service reference mismatch")
 		}
 
@@ -85,7 +85,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		secretName := apiServiceName + "-cert"
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
 		if err != nil {
-			logger.Warnf("could not retrieve generated Secret %s", secretName)
+			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret")
 			return err
 		}
 		cert, err := certs.PEMToCert(secret.Data["tls.crt"])
@@ -101,7 +101,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		// Check if CA hash matches expected
 		caHash := hashFunc(caBundle)
 		if hash, ok := secret.GetAnnotations()[OLMCAHashAnnotationKey]; !ok || hash != caHash {
-			logger.Warnf("secret %s CA cert hash does not match expected", secretName)
+			logger.WithField("secret", secretName).Warnf("secret CA cert hash does not match expected")
 			return fmt.Errorf("secret %s CA cert hash does not match expected", secretName)
 		}
 
@@ -119,11 +119,11 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		// Ensure the existing Deployment has a matching CA hash annotation
 		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).Get(desc.DeploymentName)
 		if k8serrors.IsNotFound(err) || err != nil {
-			logger.Warnf("expected Deployment %s could not be retrieved", desc.DeploymentName)
+			logger.WithField("deployment", desc.DeploymentName).Warnf("expected Deployment could not be retrieved")
 			return err
 		}
 		if hash, ok := deployment.Spec.Template.GetAnnotations()[OLMCAHashAnnotationKey]; !ok || hash != caHash {
-			logger.Warnf("Deployment %s CA cert hash does not match expected", desc.DeploymentName)
+			logger.WithField("deployment", desc.DeploymentName).Warnf("Deployment CA cert hash does not match expected")
 			return fmt.Errorf("Deployment %s CA cert hash does not match expected", desc.DeploymentName)
 		}
 
@@ -131,7 +131,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		serviceAccountName := deployment.Spec.Template.Spec.ServiceAccountName
 		serviceAccount, err := a.lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
 		if err != nil {
-			logger.Warnf("could not retrieve ServiceAccount %s", serviceAccountName)
+			logger.WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
 			return err
 		}
 
@@ -170,11 +170,11 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			for _, rule := range rules {
 				satisfied, err := ruleChecker.RuleSatisfied(serviceAccount, namespace, rule)
 				if err != nil {
-					logger.Warnf("error checking Rule %+v", rule)
+					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("error checking Rule")
 					return err
 				}
 				if !satisfied {
-					logger.Warnf("Rule %+v not satisfied", rule)
+					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("Rule not satisfied")
 					return fmt.Errorf("Rule %+v not satisfied", rule)
 				}
 			}
