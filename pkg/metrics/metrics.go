@@ -1,9 +1,12 @@
 package metrics
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/prometheus/client_golang/prometheus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 
 // TODO(alecmerdler): Can we use this to emit Kubernetes events?
@@ -12,19 +15,19 @@ type MetricsProvider interface {
 }
 
 type metricsCSV struct {
-	client versioned.Interface
+	lister v1alpha1.ClusterServiceVersionLister
 }
 
-func NewMetricsCSV(client versioned.Interface) MetricsProvider {
-	return &metricsCSV{client}
+func NewMetricsCSV(lister v1alpha1.ClusterServiceVersionLister) MetricsProvider {
+	return &metricsCSV{lister}
 }
 
 func (m *metricsCSV) HandleMetrics() error {
-	cList, err := m.client.OperatorsV1alpha1().ClusterServiceVersions(metav1.NamespaceAll).List(metav1.ListOptions{})
+	cList, err := m.lister.List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	csvCount.Set(float64(len(cList.Items)))
+	csvCount.Set(float64(len(cList)))
 	return nil
 }
 

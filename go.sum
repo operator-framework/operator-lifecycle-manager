@@ -214,12 +214,14 @@ k8s.io/api v0.0.0-20181108095152-eee84a6322ca h1:0gIeW03B5m7yni69Y95oPgDXv7ow7pu
 k8s.io/api v0.0.0-20181108095152-eee84a6322ca/go.mod h1:iuAfoD4hCxJ8Onx9kaTIt30j7jUFS00AXQi6QMi99vA=
 k8s.io/apiextensions-apiserver v0.0.0-20180905004947-16750353bf97 h1:s4lWWs6JN5kWVzk5bztddkr5kgO/cGIbqTDP+QttUeQ=
 k8s.io/apiextensions-apiserver v0.0.0-20180905004947-16750353bf97/go.mod h1:IxkesAMoaCRoLrPJdZNZUQp9NfZnzqaVzLhb2VEQzXE=
+k8s.io/apiextensions-apiserver v0.0.0-20181110192823-2c43ee60e25b h1:O3KqnOdhludLAAHs7bvV7UpPYow3gqLqF5Junc5hbw8=
 k8s.io/apimachinery v0.0.0-20181026144827-8ee1a638bafa h1:i0EOpPFWExNx7efINILpw8LJeah7gakRl1zjvwVfjiI=
 k8s.io/apimachinery v0.0.0-20181026144827-8ee1a638bafa/go.mod h1:ccL7Eh7zubPUSh9A3USN90/OzHNSVN6zxzde07TDCL0=
 k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170 h1:CqI85nZvPaV+7JFono0nAOGOx2brocqefcOhDPVhHKI=
 k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170/go.mod h1:6bqaTSOSJavUIXUtfaR9Os9JtTCm8ZqH2SUl2S60C4w=
 k8s.io/client-go v8.0.0+incompatible h1:tTI4hRmb1DRMl4fG6Vclfdi6nTM82oIrTT7HfitmxC4=
 k8s.io/client-go v8.0.0+incompatible/go.mod h1:7vJpHMYJwNQCWgzmNV+VYUl1zCObLyodBc8nIyt8L5s=
+k8s.io/client-go v9.0.0+incompatible h1:2kqW3X2xQ9SbFvWZjGEHBLlWc1LG9JIJNXWkuqwdZ3A=
 k8s.io/code-generator v0.0.0-20180904193909-8c97d6ab64da h1:L6YB6ObZIbZlYikTQcCjzZGilwS3OVyQBA2esULs8VM=
 k8s.io/code-generator v0.0.0-20180904193909-8c97d6ab64da/go.mod h1:MYiN+ZJZ9HkETbgVZdWw2AsuAi9PZ4V80cwfuf2axe8=
 k8s.io/gengo v0.0.0-20181106084056-51747d6e00da h1:ZMvcXtMVbhUCtCuiSEzBV+Eur4swzfdxx6ZyX3qT6dk=
@@ -228,6 +230,7 @@ k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 h1:PgoMI/L1Nu5Vmvgm+vGheLuxKST8h6
 k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92/go.mod h1:Gq+BEi5rUBO/HRz0bTSXDUcqjScdoY3a9IHpCEIOOfk=
 k8s.io/kube-aggregator v0.0.0-20180905000155-efa32eb095fe h1:LM48rywzVEPRg+Os2oUL9/vsztPQGoxmiD3m5VySchw=
 k8s.io/kube-aggregator v0.0.0-20180905000155-efa32eb095fe/go.mod h1:8sbzT4QQKDEmSCIbfqjV0sd97GpUT7A4W626sBiYJmU=
+k8s.io/kube-aggregator v0.0.0-20181110192014-6f96af33cb59 h1:8VFjmCurXo3sMW0ASrUvoE4aT8FCzsIz55uic1EyUIc=
 k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd h1:ggv/Vfza0i5xuhUZyYyxcc25AmQvHY8Zi1C2m8WgBvA=
 k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd/go.mod h1:BXM9ceUBTj2QnfH2MK1odQs778ajze1RxcmP6S8RVVc=
 k8s.io/kubernetes v1.11.5-beta.0.0.20181108064615-3290824d1c7b h1:i9PV0cnNZrleFj2YjDYDAUku1qg/SlKfdm4LdTJzAFo=

@@ -26,7 +26,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
-		crd, err := a.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(r.Name, metav1.GetOptions{})
+		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
 		if err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			met = false
@@ -80,7 +80,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 
 		// Check if APIService is registered
-		apiService, err := a.OpClient.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(name, metav1.GetOptions{})
+		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(name)
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false
