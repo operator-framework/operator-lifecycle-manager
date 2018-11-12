@@ -6,6 +6,7 @@ SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
 CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -I{} basename {}))
 CODEGEN := ./vendor/k8s.io/code-generator/generate_groups.sh
+MOCKGEN := ./scripts/generate_mocks.sh
 counterfeiter := $(GOBIN)/counterfeiter
 mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/coreos/olm
@@ -125,6 +126,14 @@ container-codegen:
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/. ./pkg/package-server/client
 	docker rm temp-codegen
 
+container-mockgen:
+	docker build -t olm:mockgen -f mockgen.Dockerfile .
+	docker run --name temp-mockgen olm:mockgen /bin/true
+	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
+	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes
+	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/mock_client.go ./pkg/lib/operatorclient/mock_client.go
+	docker rm temp-mockgen
+
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 verify-codegen: codegen
 	git diff --exit-code
@@ -132,11 +141,10 @@ verify-codegen: codegen
 verify-catalog: schema-check
 	go test $(MOD_FLAGS) -v ./test/schema/catalog_versions_test.go
 
-generate-mock-client:
-	go generate ./$(PKG_DIR)/...
-	GO111MODULE=on mockgen -source ./pkg/lib/operatorclient/client.go -destination ./pkg/lib/operatorclient/mock_client.go -package operatorclient
+generate-mock-client: 
+	$(MOCKGEN)
 
-gen-all: gen-ci container-codegen generate-mock-client
+gen-all: gen-ci container-codegen container-mockgen
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
