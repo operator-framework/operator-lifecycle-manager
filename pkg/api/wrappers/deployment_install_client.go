@@ -2,14 +2,16 @@
 package wrappers
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 var ErrNilObject = errors.New("Bad object supplied: <nil>")
@@ -27,14 +29,16 @@ type InstallStrategyDeploymentInterface interface {
 
 type InstallStrategyDeploymentClientForNamespace struct {
 	opClient  operatorclient.ClientInterface
+	opLister  operatorlister.OperatorLister
 	Namespace string
 }
 
 var _ InstallStrategyDeploymentInterface = &InstallStrategyDeploymentClientForNamespace{}
 
-func NewInstallStrategyDeploymentClient(opClient operatorclient.ClientInterface, namespace string) InstallStrategyDeploymentInterface {
+func NewInstallStrategyDeploymentClient(opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, namespace string) InstallStrategyDeploymentInterface {
 	return &InstallStrategyDeploymentClientForNamespace{
 		opClient:  opClient,
+		opLister: opLister,
 		Namespace: namespace,
 	}
 }
@@ -52,7 +56,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) EnsureServiceAccount(servi
 		return nil, ErrNilObject
 	}
 
-	foundAccount, err := c.opClient.GetServiceAccount(c.Namespace, serviceAccount.Name)
+	foundAccount, err := c.opLister.CoreV1().ServiceAccountLister().ServiceAccounts(c.Namespace).Get(serviceAccount.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, errors.Wrap(err, "checking for existing serviceacccount failed")
 	}
@@ -96,14 +100,13 @@ func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(d
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {
-	return c.opClient.KubernetesInterface().CoreV1().ServiceAccounts(c.Namespace).Get(serviceAccountName, metav1.GetOptions{})
+	return c.opLister.CoreV1().ServiceAccountLister().ServiceAccounts(c.Namespace).Get(serviceAccountName)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1.Deployment, error) {
 	var deployments []*appsv1.Deployment
 	for _, depName := range depNames {
-		fetchedDep, err := c.opClient.GetDeployment(c.Namespace, depName)
-
+		fetchedDep, err := c.opLister.AppsV1().DeploymentLister().Deployments(c.Namespace).Get(depName)
 		if err == nil {
 			deployments = append(deployments, fetchedDep)
 		} else {

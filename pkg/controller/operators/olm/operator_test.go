@@ -32,6 +32,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
+	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -44,7 +46,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
-	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 )
 
 // Fakes
@@ -118,7 +119,7 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 }
 
 // NewFakeOperator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []string, stopCh <-chan struct{}) (*Operator, error) {
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
 	// Create client fakes
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
@@ -127,7 +128,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 
 	eventRecorder, err := event.NewRecorder(opClientFake.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create the new operator
@@ -141,7 +142,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		recorder:  eventRecorder,
 	}
 
-	wakeupInterval := 5 * time.Second
+	wakeupInterval := 5 * time.Minute
 
 	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), wakeupInterval)
 	roleInformer := informerFactory.Rbac().V1().Roles()
@@ -153,7 +154,8 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
 	namespaceInformer := informerFactory.Core().V1().Namespaces()
 	apiServiceInformer := kagg.NewSharedInformerFactory(opClientFake.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
-
+	customResourceDefinitionInformer := aextv1beta1.NewSharedInformerFactory(opClientFake.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
+	
 	// Register informers
 	informerList := []cache.SharedIndexInformer{
 		roleInformer.Informer(),
@@ -165,6 +167,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		serviceAccountInformer.Informer(),
 		namespaceInformer.Informer(),
 		apiServiceInformer.Informer(),
+		customResourceDefinitionInformer.Informer(),
 	}
 
 	for _, ns := range namespaces {
@@ -187,6 +190,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
+	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(customResourceDefinitionInformer.Lister())
 
 	var hasSyncedCheckFns []cache.InformerSynced
 	for _, informer := range informerList {
@@ -196,10 +200,10 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	}
 
 	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
-		return nil, fmt.Errorf("failed to wait for caches to sync")
+		return nil, nil, fmt.Errorf("failed to wait for caches to sync")
 	}
 
-	return op, nil
+	return op, hasSyncedCheckFns, nil
 }
 
 func (o *Operator) GetClient() versioned.Interface {
@@ -2031,7 +2035,7 @@ func TestTransitionCSV(t *testing.T) {
 			tt.initial.objs = append(tt.initial.objs, namespaceObj)
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			op, hasSyncedFns, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
@@ -2039,6 +2043,10 @@ func TestTransitionCSV(t *testing.T) {
 				err := op.syncClusterServiceVersion(csv)
 				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
 				require.Equal(t, expectedErr, err)
+
+				// wait for informers to sync before continuing
+				ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
+				require.True(t, ok, "wait for cache sync failed")
 			}
 
 			// get csvs in the cluster
@@ -2279,7 +2287,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
+			op, _, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
 			require.NoError(t, err)
 
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
@@ -2364,11 +2372,10 @@ func TestIsReplacing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			clientFake := fake.NewSimpleClientset(tt.initial.csvs...)
-
-			op := &Operator{
-				client: clientFake,
-			}
+			stopCh := make(chan struct{})
+			defer func() { stopCh <- struct{}{} }()
+			op, _, err := NewFakeOperator(tt.initial.csvs, nil, nil, nil, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			require.NoError(t, err)
 
 			require.Equal(t, tt.expected, op.isReplacing(tt.in))
 		})

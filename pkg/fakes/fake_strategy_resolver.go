@@ -7,17 +7,19 @@ import (
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	install "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	operatorclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	operatorlister "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	ownerutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 type FakeStrategyResolverInterface struct {
-	InstallerForStrategyStub        func(string, operatorclient.ClientInterface, ownerutil.Owner, install.Strategy) install.StrategyInstaller
+	InstallerForStrategyStub        func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, install.Strategy) install.StrategyInstaller
 	installerForStrategyMutex       sync.RWMutex
 	installerForStrategyArgsForCall []struct {
 		arg1 string
 		arg2 operatorclient.ClientInterface
-		arg3 ownerutil.Owner
-		arg4 install.Strategy
+		arg3 operatorlister.OperatorLister
+		arg4 ownerutil.Owner
+		arg5 install.Strategy
 	}
 	installerForStrategyReturns struct {
 		result1 install.StrategyInstaller
@@ -42,19 +44,20 @@ type FakeStrategyResolverInterface struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg2 operatorclient.ClientInterface, arg3 ownerutil.Owner, arg4 install.Strategy) install.StrategyInstaller {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategy(arg1 string, arg2 operatorclient.ClientInterface, arg3 operatorlister.OperatorLister, arg4 ownerutil.Owner, arg5 install.Strategy) install.StrategyInstaller {
 	fake.installerForStrategyMutex.Lock()
 	ret, specificReturn := fake.installerForStrategyReturnsOnCall[len(fake.installerForStrategyArgsForCall)]
 	fake.installerForStrategyArgsForCall = append(fake.installerForStrategyArgsForCall, struct {
 		arg1 string
 		arg2 operatorclient.ClientInterface
-		arg3 ownerutil.Owner
-		arg4 install.Strategy
-	}{arg1, arg2, arg3, arg4})
-	fake.recordInvocation("InstallerForStrategy", []interface{}{arg1, arg2, arg3, arg4})
+		arg3 operatorlister.OperatorLister
+		arg4 ownerutil.Owner
+		arg5 install.Strategy
+	}{arg1, arg2, arg3, arg4, arg5})
+	fake.recordInvocation("InstallerForStrategy", []interface{}{arg1, arg2, arg3, arg4, arg5})
 	fake.installerForStrategyMutex.Unlock()
 	if fake.InstallerForStrategyStub != nil {
-		return fake.InstallerForStrategyStub(arg1, arg2, arg3, arg4)
+		return fake.InstallerForStrategyStub(arg1, arg2, arg3, arg4, arg5)
 	}
 	if specificReturn {
 		return ret.result1
@@ -69,17 +72,17 @@ func (fake *FakeStrategyResolverInterface) InstallerForStrategyCallCount() int {
 	return len(fake.installerForStrategyArgsForCall)
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategyCalls(stub func(string, operatorclient.ClientInterface, ownerutil.Owner, install.Strategy) install.StrategyInstaller) {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategyCalls(stub func(string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, install.Strategy) install.StrategyInstaller) {
 	fake.installerForStrategyMutex.Lock()
 	defer fake.installerForStrategyMutex.Unlock()
 	fake.InstallerForStrategyStub = stub
 }
 
-func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int) (string, operatorclient.ClientInterface, ownerutil.Owner, install.Strategy) {
+func (fake *FakeStrategyResolverInterface) InstallerForStrategyArgsForCall(i int) (string, operatorclient.ClientInterface, operatorlister.OperatorLister, ownerutil.Owner, install.Strategy) {
 	fake.installerForStrategyMutex.RLock()
 	defer fake.installerForStrategyMutex.RUnlock()
 	argsForCall := fake.installerForStrategyArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
 }
 
 func (fake *FakeStrategyResolverInterface) InstallerForStrategyReturns(result1 install.StrategyInstaller) {

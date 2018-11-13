@@ -10,6 +10,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
@@ -24,7 +25,7 @@ type StrategyInstaller interface {
 
 type StrategyResolverInterface interface {
 	UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error)
-	InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller
+	InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller
 }
 
 type StrategyResolver struct{}
@@ -42,10 +43,10 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 	return
 }
 
-func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
+func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	switch strategyName {
 	case InstallStrategyNameDeployment:
-		strategyClient := wrappers.NewInstallStrategyDeploymentClient(opClient, owner.GetNamespace())
+		strategyClient := wrappers.NewInstallStrategyDeploymentClient(opClient, opLister, owner.GetNamespace())
 		return NewStrategyDeploymentInstaller(strategyClient, owner, previousStrategy)
 	}
 

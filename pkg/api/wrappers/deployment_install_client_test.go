@@ -3,10 +3,9 @@ package wrappers
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
@@ -14,11 +13,17 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
+	
+	listerfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/client-go/listers"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
 )
 
 var (
 	Controller         = false
 	BlockOwnerDeletion = false
+	WakeupInterval = 5 * time.Second
 )
 
 func ownerReferenceFromCSV(csv *v1alpha1.ClusterServiceVersion) metav1.OwnerReference {
@@ -405,13 +410,18 @@ func TestEnsureServiceAccount(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockOpClient := operatorclient.NewMockClientInterface(ctrl)
-			client := NewInstallStrategyDeploymentClient(mockOpClient, tt.state.namespace)
+			fakeLister := &operatorlisterfakes.FakeOperatorLister{}
+			fakeCoreV1Lister := &operatorlisterfakes.FakeCoreV1Lister{}
+			fakeServiceAccountLister := &listerfakes.FakeServiceAccountLister{}
+			fakeServiceAccountNamespacedLister := &listerfakes.FakeServiceAccountNamespaceLister{}
+			fakeServiceAccountNamespacedLister.GetReturns(tt.state.existingServiceAccount, tt.state.getServiceAccountError)
+			fakeServiceAccountLister.ServiceAccountsReturns(fakeServiceAccountNamespacedLister)
+			fakeCoreV1Lister.ServiceAccountListerReturns(fakeServiceAccountLister)
+			fakeLister.CoreV1Returns(fakeCoreV1Lister)
 
-			mockOpClient.EXPECT().
-				GetServiceAccount(tt.state.namespace, tt.input.serviceAccountName).
-				Return(tt.state.existingServiceAccount, tt.state.getServiceAccountError).
-				AnyTimes()
+			client := NewInstallStrategyDeploymentClient(mockOpClient, fakeLister, tt.state.namespace)
 
+			
 			mockOpClient.EXPECT().
 				CreateServiceAccount(tt.input.serviceAccount).
 				Return(tt.state.createServiceAccountResult, tt.state.createServiceAccountError).

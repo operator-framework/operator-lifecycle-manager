@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
+	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -145,7 +146,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	op.RegisterQueueInformer(namespaceQueueInformer)
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 
-	// Register APIService QueueInformers
+	// Register APIService QueueInformer
 	apiServiceInformer := kagg.NewSharedInformerFactory(opClient.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
 	op.RegisterQueueInformer(queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservices"),
@@ -158,6 +159,20 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		metrics.NewMetricsNil(),
 	))
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
+	
+	// Register CustomResourceDefinition QueueInformer
+	customResourceDefinitionInformer := aextv1beta1.NewSharedInformerFactory(opClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
+	op.RegisterQueueInformer(queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "customresourcedefinitions"),
+		customResourceDefinitionInformer.Informer(),
+		op.syncObject,
+		&cache.ResourceEventHandlerFuncs{
+			DeleteFunc: op.handleDeletion,
+		},
+		"customresourcedefinitions",
+		metrics.NewMetricsNil(),
+	))
+	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(customResourceDefinitionInformer.Lister())
 
 	// Register Secret QueueInformer
 	secretInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Core().V1().Secrets()
@@ -214,7 +229,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		// Register queue and QueueInformer
 		queueName := fmt.Sprintf("%s/clusterserviceversions", namespace)
 		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		csvQueueInformer := queueinformer.NewInformer(csvQueue, csvInformer.Informer(), op.syncClusterServiceVersion, csvHandlers, queueName, metrics.NewMetricsCSV(op.client))
+		csvQueueInformer := queueinformer.NewInformer(csvQueue, csvInformer.Informer(), op.syncClusterServiceVersion, csvHandlers, queueName, metrics.NewMetricsCSV(op.lister.OperatorsV1alpha1().ClusterServiceVersionLister()))
 		op.RegisterQueueInformer(csvQueueInformer)
 		op.csvQueues[namespace] = csvQueue
 	}
@@ -592,6 +607,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		for _, csv := range a.findIntermediatesForDeletion(out) {
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
 			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.", a.recorder)
+			
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
 			a.requeueCSV(csv.GetName(), csv.GetNamespace())
@@ -726,7 +742,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, csv, previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, a.lister, csv, previousStrategy)
 	return installer, strategy, previousStrategy
 }
 
@@ -790,7 +806,7 @@ func (a *Operator) isReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clu
 	if in.Spec.Replaces == "" {
 		return nil
 	}
-	previous, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces, metav1.GetOptions{})
+	previous, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces)
 	if err != nil {
 		log.Debugf("unable to get previous csv: %s", err.Error())
 		return nil

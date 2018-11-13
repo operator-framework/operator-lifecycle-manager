@@ -1,31 +1,37 @@
 package operatorlister
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
+	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1"
 	appsv1 "k8s.io/client-go/listers/apps/v1"
 	corev1 "k8s.io/client-go/listers/core/v1"
 	rbacv1 "k8s.io/client-go/listers/rbac/v1"
 	aregv1 "k8s.io/kube-aggregator/pkg/client/listers/apiregistration/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 )
 
 // OperatorLister is a union of versioned informer listers
+//go:generate counterfeiter . OperatorLister
 type OperatorLister interface {
 	AppsV1() AppsV1Lister
 	CoreV1() CoreV1Lister
 	RbacV1() RbacV1Lister
 	APIRegistrationV1() APIRegistrationV1Lister
+	APIExtensionsV1beta1() APIExtensionsV1beta1Lister
 
 	OperatorsV1alpha1() OperatorsV1alpha1Lister
 	OperatorsV1alpha2() OperatorsV1alpha2Lister
 }
 
+//go:generate counterfeiter . AppsV1Lister
 type AppsV1Lister interface {
 	DeploymentLister() appsv1.DeploymentLister
 
 	RegisterDeploymentLister(namespace string, lister appsv1.DeploymentLister)
 }
 
+//go:generate counterfeiter . CoreV1Lister
 type CoreV1Lister interface {
 	RegisterSecretLister(namespace string, lister corev1.SecretLister)
 	RegisterServiceLister(namespace string, lister corev1.ServiceLister)
@@ -38,6 +44,7 @@ type CoreV1Lister interface {
 	NamespaceLister() corev1.NamespaceLister
 }
 
+//go:generate counterfeiter . RbacV1Lister
 type RbacV1Lister interface {
 	RegisterClusterRoleLister(lister rbacv1.ClusterRoleLister)
 	RegisterClusterRoleBindingLister(lister rbacv1.ClusterRoleBindingLister)
@@ -50,18 +57,28 @@ type RbacV1Lister interface {
 	RoleBindingLister() rbacv1.RoleBindingLister
 }
 
+//go:generate counterfeiter . APIRegistrationV1Lister
 type APIRegistrationV1Lister interface {
 	RegisterAPIServiceLister(lister aregv1.APIServiceLister)
 
 	APIServiceLister() aregv1.APIServiceLister
 }
 
+//go:generate counterfeiter . APIExtensionsV1beta1Lister
+type APIExtensionsV1beta1Lister interface {
+	RegisterCustomResourceDefinitionLister(lister aextv1beta1.CustomResourceDefinitionLister)
+
+	CustomResourceDefinitionLister() aextv1beta1.CustomResourceDefinitionLister
+}
+
+//go:generate counterfeiter . OperatorsV1alpha1Lister
 type OperatorsV1alpha1Lister interface {
 	RegisterClusterServiceVersionLister(namespace string, lister v1alpha1.ClusterServiceVersionLister)
 
 	ClusterServiceVersionLister() v1alpha1.ClusterServiceVersionLister
 }
 
+//go:generate counterfeiter . OperatorsV1alpha2Lister
 type OperatorsV1alpha2Lister interface {
 	RegisterOperatorGroupLister(namespace string, lister v1alpha2.OperatorGroupLister)
 
@@ -120,6 +137,16 @@ func newAPIRegistrationV1Lister() *apiRegistrationV1Lister {
 	}
 }
 
+type apiExtensionsV1beta1Lister struct {
+	customResourceDefinitionLister *UnionCustomResourceDefinitionLister
+}
+
+func newAPIExtensionsV1beta1Lister() *apiExtensionsV1beta1Lister {
+	return &apiExtensionsV1beta1Lister{
+		customResourceDefinitionLister: &UnionCustomResourceDefinitionLister{},
+	}
+}
+
 type operatorsV1alpha1Lister struct {
 	clusterServiceVersionLister *UnionClusterServiceVersionLister
 }
@@ -144,10 +171,11 @@ func newOperatorsV1alpha2Lister() *operatorsV1alpha2Lister {
 var _ OperatorLister = &lister{}
 
 type lister struct {
-	appsV1Lister            *appsV1Lister
-	coreV1Lister            *coreV1Lister
-	rbacV1Lister            *rbacV1Lister
-	apiRegistrationV1Lister *apiRegistrationV1Lister
+	appsV1Lister               *appsV1Lister
+	coreV1Lister               *coreV1Lister
+	rbacV1Lister               *rbacV1Lister
+	apiRegistrationV1Lister    *apiRegistrationV1Lister
+	apiExtensionsV1beta1Lister *apiExtensionsV1beta1Lister
 
 	operatorsV1alpha1Lister *operatorsV1alpha1Lister
 	operatorsV1alpha2Lister *operatorsV1alpha2Lister
@@ -169,6 +197,10 @@ func (l *lister) APIRegistrationV1() APIRegistrationV1Lister {
 	return l.apiRegistrationV1Lister
 }
 
+func (l *lister) APIExtensionsV1beta1() APIExtensionsV1beta1Lister {
+	return l.apiExtensionsV1beta1Lister
+}
+
 func (l *lister) OperatorsV1alpha1() OperatorsV1alpha1Lister {
 	return l.operatorsV1alpha1Lister
 }
@@ -184,7 +216,8 @@ func NewLister() OperatorLister {
 		coreV1Lister:            newCoreV1Lister(),
 		rbacV1Lister:            newRbacV1Lister(),
 		apiRegistrationV1Lister: newAPIRegistrationV1Lister(),
-
+		apiExtensionsV1beta1Lister: newAPIExtensionsV1beta1Lister(),
+		
 		operatorsV1alpha1Lister: newOperatorsV1alpha1Lister(),
 		operatorsV1alpha2Lister: newOperatorsV1alpha2Lister(),
 	}
