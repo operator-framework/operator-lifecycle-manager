@@ -29,20 +29,20 @@ func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.Deploym
 }
 
 // Currently this function only modifies the watchedNamespace in the container command
-func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) []string {
+func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) (cleanupFunc func() error) {
 	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
 	require.NoError(t, err)
 
-	command := runningDeploy.Spec.Template.Spec.Containers[0].Command
+	oldCommand := runningDeploy.Spec.Template.Spec.Containers[0].Command
 	re, err := regexp.Compile(`-watchedNamespaces\W(\S+)`)
 	require.NoError(t, err)
-	newCommand := re.ReplaceAllString(strings.Join(command, " "), "$0"+","+newNamespace)
-	t.Logf("original=%#v newCommand=%#v", command, newCommand)
+	newCommand := re.ReplaceAllString(strings.Join(oldCommand, " "), "$0"+","+newNamespace)
+	t.Logf("original=%#v newCommand=%#v", oldCommand, newCommand)
 	finalNewCommand := strings.Split(newCommand, " ")
 	runningDeploy.Spec.Template.Spec.Containers[0].Command = make([]string, len(finalNewCommand))
 	copy(runningDeploy.Spec.Template.Spec.Containers[0].Command, finalNewCommand)
 
-	newDeployment, updated, err := c.UpdateDeployment(runningDeploy)
+	olmDeployment, updated, err := c.UpdateDeployment(runningDeploy)
 	if err != nil || updated == false {
 		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
 	}
@@ -50,18 +50,28 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Log("Polling for OLM deployment update...")
-		fetchedDeployment, err := c.GetDeployment(newDeployment.Namespace, newDeployment.Name)
+		fetchedDeployment, err := c.GetDeployment(olmDeployment.Namespace, olmDeployment.Name)
 		if err != nil {
 			return false, err
 		}
-		if DeploymentComplete(newDeployment, &fetchedDeployment.Status) {
+		if DeploymentComplete(olmDeployment, &fetchedDeployment.Status) {
 			return true, nil
 		}
 		return false, nil
 	})
-
 	require.NoError(t, err)
-	return command
+
+	return func() error {
+		olmDeployment.Spec.Template.Spec.Containers[0].Command = oldCommand
+		_, updated, err := c.UpdateDeployment(olmDeployment)
+		if err != nil || updated == false {
+			t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
+		}
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup, targetNamespaces string) error {
@@ -104,7 +114,7 @@ func TestOperatorGroup(t *testing.T) {
 	createdOtherNamespace, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&otherNamespace)
 	require.NoError(t, err)
 
-	oldCommand := patchOlmDeployment(t, c, otherNamespaceName)
+	cleanupOlmDeployment := patchOlmDeployment(t, c, otherNamespaceName)
 
 	t.Log("Creating CRD")
 	mainCRDPlural := genName("ins")
@@ -231,27 +241,14 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Waiting for orphaned CSV to be deleted")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err = waitForDelete(func() error {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return true, nil
-			}
-			return false, err
-		}
-		return false, nil
+		return err
 	})
 	require.NoError(t, err)
 
 	// clean up
-	// TODO: unpatch function
-	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
-	require.NoError(t, err)
-	runningDeploy.Spec.Template.Spec.Containers[0].Command = oldCommand
-	_, updated, err := c.UpdateDeployment(runningDeploy)
-	if err != nil || updated == false {
-		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
-	}
+	err = cleanupOlmDeployment()
 	require.NoError(t, err)
 
 	cleanupCRD()
