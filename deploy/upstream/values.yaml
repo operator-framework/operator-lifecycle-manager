@@ -5,21 +5,21 @@ imagestream: false
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:3f3909a6bdf6f4bf429e114832c8cfc03c731f9403b91417d5dc246ad0448772
+    ref: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:3f3909a6bdf6f4bf429e114832c8cfc03c731f9403b91417d5dc246ad0448772
+    ref: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
 package:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:3f3909a6bdf6f4bf429e114832c8cfc03c731f9403b91417d5dc246ad0448772
+    ref: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
     pullPolicy: Always
   service:
     internalPort: 5443
