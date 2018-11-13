@@ -25,6 +25,36 @@ spec:
           properties:
             selector:
               type: object
+              description: Label selector to find resources associated with or managed by the operator
+              properties:
+                matchLabels:
+                  type: object
+                  description: Label key:value pairs to match directly
+                matchExpressions:
+                  type: array
+                  description: A set of expressions to match against the resource.
+                  items:
+                    allOf:
+                      - type: object
+                        required:
+                        - key
+                        - operator
+                        - values
+                        properties:
+                          key:
+                            type: string
+                            description: the key to match
+                          operator:
+                            type: string
+                            description: the operator for the expression
+                            enum:
+                            - In
+                            - NotIn
+                            - Exists
+                            - DoesNotExist
+                          values:
+                            type: array
+                            description: set of values for the expression
             serviceAccountName:
               type: string
           required:
