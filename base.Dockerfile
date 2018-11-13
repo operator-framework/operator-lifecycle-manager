@@ -9,5 +9,4 @@ RUN apt-get install make git openssh-client gcc g++
 
 RUN echo $sshkey | base64 -d > ~/.ssh/id_rsa  \
     && chmod 400 ~/.ssh/id_rsa \
-    && ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts \
-    && make vendor
+    && ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
