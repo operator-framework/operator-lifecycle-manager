@@ -28,6 +28,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
 		crd, err := a.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(r.Name, metav1.GetOptions{})
 		if err != nil {
+			log.Debugf("Setting 'met' to false, %v with err: %v", r.Name, err)
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			met = false
 			statuses = append(statuses, status)
@@ -277,6 +278,9 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	// Aggregate requirement and permissions statuses
 	statuses := append(reqStatuses, permStatuses...)
 	met := reqMet && permMet
+	if !met {
+		log.Debugf("reqMet=%#v permMet=%v\n", reqMet, permMet)
+	}
 
 	return met, statuses, nil
 }
