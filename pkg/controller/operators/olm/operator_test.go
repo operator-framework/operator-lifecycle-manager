@@ -134,10 +134,10 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake)
 	op := &Operator{
-		Operator: queueOperator,
-		client:   clientFake,
-		lister:   operatorlister.NewLister(),
-		resolver: resolver,
+		Operator:  queueOperator,
+		client:    clientFake,
+		lister:    operatorlister.NewLister(),
+		resolver:  resolver,
 		csvQueues: make(map[string]workqueue.RateLimitingInterface),
 		recorder:  eventRecorder,
 	}
@@ -2183,13 +2183,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 					},
 				},
-
 				clientObjs: []runtime.Object{
 					csv("csv1",
 						testNS,
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1.fake.api.group", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					),
@@ -2240,7 +2239,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						testNS,
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1.fake.api.group", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					),

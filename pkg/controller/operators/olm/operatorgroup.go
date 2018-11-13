@@ -180,22 +180,18 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		apiEditPolicyRules := []rbacv1.PolicyRule{}
 		apiViewPolicyRules := []rbacv1.PolicyRule{}
 		for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
-			resourceNames := []string{}
-			for _, resource := range owned.Resources {
-				resourceNames = append(resourceNames, resource.Name)
+			nameGroupPair := strings.SplitN(owned.Name, ".", 2) // -> etcdclusters etcd.database.coreos.com
+			if len(nameGroupPair) != 2 {
+				return fmt.Errorf("Invalid parsing of name '%v', got %v", owned.Name, nameGroupPair)
 			}
-			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Name}, Resources: resourceNames})
-			apiEditPolicyRules = append(apiEditPolicyRules, rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{owned.Name}, Resources: []string{owned.Kind}})
-			apiViewPolicyRules = append(apiViewPolicyRules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{owned.Name}, Resources: []string{owned.Kind}})
+			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{nameGroupPair[1]}, Resources: []string{nameGroupPair[0]}})
+			apiEditPolicyRules = append(apiEditPolicyRules, rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{nameGroupPair[1]}, Resources: []string{nameGroupPair[0]}})
+			apiViewPolicyRules = append(apiViewPolicyRules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{nameGroupPair[1]}, Resources: []string{nameGroupPair[0]}})
 		}
 		for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
-			resourceNames := []string{}
-			for _, resource := range owned.Resources {
-				resourceNames = append(resourceNames, resource.Name)
-			}
-			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Group}, Resources: resourceNames})
-			apiEditPolicyRules = append(apiEditPolicyRules, rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{owned.Group}, Resources: []string{owned.Kind}})
-			apiViewPolicyRules = append(apiViewPolicyRules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{owned.Group}, Resources: []string{owned.Kind}})
+			managerPolicyRules = append(managerPolicyRules, rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{owned.Group}, Resources: []string{owned.Name}})
+			apiEditPolicyRules = append(apiEditPolicyRules, rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{owned.Group}, Resources: []string{owned.Name}})
+			apiViewPolicyRules = append(apiViewPolicyRules, rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{owned.Group}, Resources: []string{owned.Name}})
 		}
 
 		clusterRole := &rbacv1.ClusterRole{

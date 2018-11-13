@@ -6,13 +6,15 @@ import (
 	"strings"
 	"testing"
 
-	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -27,20 +29,20 @@ func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.Deploym
 }
 
 // Currently this function only modifies the watchedNamespace in the container command
-func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) []string {
+func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) (cleanupFunc func() error) {
 	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
 	require.NoError(t, err)
 
-	command := runningDeploy.Spec.Template.Spec.Containers[0].Command
+	oldCommand := runningDeploy.Spec.Template.Spec.Containers[0].Command
 	re, err := regexp.Compile(`-watchedNamespaces\W(\S+)`)
 	require.NoError(t, err)
-	newCommand := re.ReplaceAllString(strings.Join(command, " "), "$0"+","+newNamespace)
-	t.Logf("original=%#v newCommand=%#v", command, newCommand)
+	newCommand := re.ReplaceAllString(strings.Join(oldCommand, " "), "$0"+","+newNamespace)
+	t.Logf("original=%#v newCommand=%#v", oldCommand, newCommand)
 	finalNewCommand := strings.Split(newCommand, " ")
 	runningDeploy.Spec.Template.Spec.Containers[0].Command = make([]string, len(finalNewCommand))
 	copy(runningDeploy.Spec.Template.Spec.Containers[0].Command, finalNewCommand)
 
-	newDeployment, updated, err := c.UpdateDeployment(runningDeploy)
+	olmDeployment, updated, err := c.UpdateDeployment(runningDeploy)
 	if err != nil || updated == false {
 		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
 	}
@@ -48,18 +50,28 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Log("Polling for OLM deployment update...")
-		fetchedDeployment, err := c.GetDeployment(newDeployment.Namespace, newDeployment.Name)
+		fetchedDeployment, err := c.GetDeployment(olmDeployment.Namespace, olmDeployment.Name)
 		if err != nil {
 			return false, err
 		}
-		if DeploymentComplete(newDeployment, &fetchedDeployment.Status) {
+		if DeploymentComplete(olmDeployment, &fetchedDeployment.Status) {
 			return true, nil
 		}
 		return false, nil
 	})
-
 	require.NoError(t, err)
-	return command
+
+	return func() error {
+		olmDeployment.Spec.Template.Spec.Containers[0].Command = oldCommand
+		_, updated, err := c.UpdateDeployment(olmDeployment)
+		if err != nil || updated == false {
+			t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
+		}
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 }
 
 func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup, targetNamespaces string) error {
@@ -78,6 +90,7 @@ func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup
 
 func TestOperatorGroup(t *testing.T) {
 	// Create namespace with specific label
+	// Create CRD
 	// Create CSV in operator namespace
 	// Create operator group that watches namespace and uses specific label
 	// Verify operator group status contains correct status
@@ -101,10 +114,18 @@ func TestOperatorGroup(t *testing.T) {
 	createdOtherNamespace, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&otherNamespace)
 	require.NoError(t, err)
 
-	oldCommand := patchOlmDeployment(t, c, otherNamespaceName)
+	cleanupOlmDeployment := patchOlmDeployment(t, c, otherNamespaceName)
+
+	t.Log("Creating CRD")
+	mainCRDPlural := genName("ins")
+	apiGroup := "cluster.com"
+	mainCRDName := mainCRDPlural + "." + apiGroup
+	mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+	cleanupCRD, err := createCRD(c, mainCRD)
+	require.NoError(t, err)
 
 	t.Log("Creating CSV")
-	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
+	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
@@ -119,6 +140,7 @@ func TestOperatorGroup(t *testing.T) {
 				MatchLabels: matchingLabel,
 			},
 		},
+		//ServiceAccountName: "default-sa",
 	}
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
@@ -133,11 +155,35 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.Equal(t, expectedOperatorGroupStatus.Namespaces[0].Name, fetched.Status.Namespaces[0].Name)
+			require.EqualValues(t, expectedOperatorGroupStatus.Namespaces[0].Name, fetched.Status.Namespaces[0].Name)
 			return true, nil
 		}
 		return false, nil
 	})
+
+	t.Log("Checking for proper RBAC permissions in target namespace")
+	roleList, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(metav1.ListOptions{})
+	for _, item := range roleList.Items {
+		role, err := c.GetClusterRole(item.GetName())
+		require.NoError(t, err)
+		switch roleName := item.GetName(); roleName {
+		case "owned-crd-manager-another-csv":
+			managerPolicyRules := []rbacv1.PolicyRule{
+				rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+			}
+			require.Equal(t, managerPolicyRules, role.Rules)
+		case "e2e-operator-group-edit":
+			editPolicyRules := []rbacv1.PolicyRule{
+				rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+			}
+			require.Equal(t, editPolicyRules, role.Rules)
+		case "e2e-operator-group-view":
+			viewPolicyRules := []rbacv1.PolicyRule{
+				rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+			}
+			require.Equal(t, viewPolicyRules, role.Rules)
+		}
+	}
 
 	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -171,8 +217,8 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, v1alpha1.CSVReasonCopied, fetchedCSV.Status.Reason)
 	// also check name and spec
-	require.Equal(t, createdCSV.Name, fetchedCSV.Name)
-	require.Equal(t, createdCSV.Spec, fetchedCSV.Spec)
+	require.EqualValues(t, createdCSV.Name, fetchedCSV.Name)
+	require.EqualValues(t, createdCSV.Spec, fetchedCSV.Spec)
 
 	t.Log("Waiting on deployment to have correct annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -195,28 +241,17 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Waiting for orphaned CSV to be deleted")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err = waitForDelete(func() error {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return true, nil
-			}
-			return false, err
-		}
-		return false, nil
+		return err
 	})
 	require.NoError(t, err)
 
 	// clean up
-	// TODO: unpatch function
-	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
+	err = cleanupOlmDeployment()
 	require.NoError(t, err)
-	runningDeploy.Spec.Template.Spec.Containers[0].Command = oldCommand
-	_, updated, err := c.UpdateDeployment(runningDeploy)
-	if err != nil || updated == false {
-		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
-	}
-	require.NoError(t, err)
+
+	cleanupCRD()
 
 	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(otherNamespaceName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
