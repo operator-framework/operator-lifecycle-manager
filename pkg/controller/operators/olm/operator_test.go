@@ -2330,7 +2330,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						operatorNamespace,
 						"",
 						installStrategy("csv1-dep1", permissions, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1.fake.operator.group", "v1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					),
