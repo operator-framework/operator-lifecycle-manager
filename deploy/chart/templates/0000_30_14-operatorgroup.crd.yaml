@@ -67,7 +67,7 @@ spec:
               type: string
             namespaces:
               items:
-                type: object
+                type: string
               type: array
           required:
           - namespaces
