@@ -39,6 +39,7 @@ const (
 	expectedEtcdNodes      = 3
 	expectedPrometheusSize = 3
 	ocsConfigMap           = "rh-operators"
+	packageServerCSV 	   = "packageserver.v8.0.0"
 )
 
 var (
@@ -49,6 +50,8 @@ var (
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
 	persistentConfigMapNames             = []string{ocsConfigMap}
 	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
+	persistentCSVNames 				     = []string{packageServerCSV}
+	nonPersistentCSVFieldSelector        = createFieldNotEqualSelector("metadata.name", persistentCSVNames...)
 )
 
 type namespaceCleaner struct {
@@ -282,7 +285,7 @@ func cleanupOLM(t *testing.T, namespace string) {
 	t.Log("cleaning up any remaining non persistent resources...")
 	deleteOptions := &metav1.DeleteOptions{GracePeriodSeconds: &immediate}
 	listOptions := metav1.ListOptions{}
-	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(deleteOptions, listOptions))
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector}))
 	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(namespace).DeleteCollection(deleteOptions, listOptions))
 	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(deleteOptions, listOptions))
 	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector}))

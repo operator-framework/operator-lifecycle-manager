@@ -468,7 +468,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		ownerutil.AddNonBlockingOwner(secretRoleBinding, csv)
 		_, err = a.OpClient.CreateRoleBinding(secretRoleBinding)
 		if err != nil {
-			log.Warnf("could not create secret rolebinding %s", secretRoleBinding.GetName())
+			log.Warnf("could not create secret rolebinding with dep spec: %+v", depSpec)
 			return nil, err
 		}
 	} else {

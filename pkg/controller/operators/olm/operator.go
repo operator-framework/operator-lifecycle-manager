@@ -871,6 +871,8 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 		csvSet[csv.GetUID()] = csv
 	}
 
+	logger.Infof("CSV set: %+v", csvSet)
+
 	// Requeue existing owner CSVs
 	for _, owner := range owners {
 		csv, ok := csvSet[owner.UID]

@@ -625,6 +625,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		UID: fetchedCSV.GetUID(),
 	}})
 	cleanupCRD, err := createCRD(c, crd)
+	defer cleanupCRD()
 	require.NoError(t, err)
 
 	// Create Role/Cluster Roles and RoleBindings
