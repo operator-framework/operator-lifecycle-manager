@@ -76,4 +76,3 @@ spec:
       required:
       - metadata
       - spec
-  version: v1alpha2

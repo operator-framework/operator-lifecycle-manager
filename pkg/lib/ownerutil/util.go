@@ -2,15 +2,18 @@ package ownerutil
 
 import (
 	"fmt"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
+
+const OwnerKey = "olm.owner"
+const OwnerNamespaceKey = "olm.owner.namespace"
 
 // Owner is used to build an OwnerReference, and we need type and object metadata
 type Owner interface {
@@ -113,6 +116,16 @@ func Adoptable(target Owner, owners []metav1.OwnerReference) bool {
 
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.
 func AddNonBlockingOwner(object metav1.Object, owner Owner) {
+	ownerRefs := object.GetOwnerReferences()
+	if ownerRefs == nil {
+		ownerRefs = []metav1.OwnerReference{}
+	}
+	ownerRefs = append(ownerRefs, NonBlockingOwner(owner))
+	object.SetOwnerReferences(ownerRefs)
+}
+
+// NonBlockingOwner returns an ownerrefence to be added to an ownerref list
+func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 	// Most of the time we won't have TypeMeta on the object, so we infer it for types we know about
 	if err := InferGroupVersionKind(owner); err != nil {
 		log.Warn(err.Error())
@@ -120,21 +133,30 @@ func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	blockOwnerDeletion := false
 	isController := false
 
-	ownerRefs := object.GetOwnerReferences()
-	if ownerRefs == nil {
-		ownerRefs = []metav1.OwnerReference{}
-	}
 	gvk := owner.GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
-	ownerRefs = append(ownerRefs, metav1.OwnerReference{
+
+	return metav1.OwnerReference{
 		APIVersion:         apiVersion,
 		Kind:               kind,
 		Name:               owner.GetName(),
 		UID:                owner.GetUID(),
 		BlockOwnerDeletion: &blockOwnerDeletion,
 		Controller:         &isController,
-	})
-	object.SetOwnerReferences(ownerRefs)
+	}
+}
+
+// OwnerLabel returns a label added to generated objects for later querying
+func CSVOwnerLabel(owner *v1alpha1.ClusterServiceVersion) map[string]string {
+	return map[string]string{
+		OwnerKey:          owner.GetName(),
+		OwnerNamespaceKey: owner.GetNamespace(),
+	}
+}
+
+// OwnerQuery returns a label selector to find generated objects owned by owner
+func CSVOwnerSelector(owner *v1alpha1.ClusterServiceVersion) labels.Selector {
+	return labels.SelectorFromSet(CSVOwnerLabel(owner))
 }
 
 // AddOwner adds an owner to the ownerref list.

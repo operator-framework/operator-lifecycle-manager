@@ -145,7 +145,7 @@ func TestOperatorGroup(t *testing.T) {
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
-		Namespaces: []*corev1.Namespace{createdOtherNamespace},
+		Namespaces: []string{createdOtherNamespace.GetName()},
 	}
 
 	t.Log("Waiting on operator group to have correct status")
@@ -155,7 +155,7 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.EqualValues(t, expectedOperatorGroupStatus.Namespaces[0].Name, fetched.Status.Namespaces[0].Name)
+			require.Equal(t, expectedOperatorGroupStatus.Namespaces[0], fetched.Status.Namespaces[0])
 			return true, nil
 		}
 		return false, nil

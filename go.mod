@@ -66,7 +66,7 @@ require (
 	google.golang.org/grpc v1.16.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20170531160350-a96e63847dc3 // indirect
-	k8s.io/api v0.0.0-20181108095152-eee84a6322ca
+	k8s.io/api v0.0.0-20180904230853-4e7be11eab3f
 	k8s.io/apiextensions-apiserver v0.0.0-20180905004947-16750353bf97
 	k8s.io/apimachinery v0.0.0-20181026144827-8ee1a638bafa
 	k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
