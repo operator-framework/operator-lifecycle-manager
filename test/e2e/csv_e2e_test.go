@@ -596,11 +596,16 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		},
 	}
 
-	// Create dependency first (CRD)
+	// Create CSV first, knowing it will fail
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
 	crd := extv1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: crdName,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: crdName},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{
 			Group:   "cluster.com",
 			Version: "v1alpha1",
@@ -613,6 +618,12 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Scope: "Namespaced",
 		},
 	}
+	crd.SetOwnerReferences([]metav1.OwnerReference{{
+		Name: fetchedCSV.GetName(),
+		APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		Kind: v1alpha1.ClusterServiceVersionKind,
+		UID: fetchedCSV.GetUID(),
+	}})
 	cleanupCRD, err := createCRD(c, crd)
 	require.NoError(t, err)
 
@@ -714,39 +725,12 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&nonResourceClusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
-	require.NoError(t, err)
-	defer cleanupCSV()
-
-	fmt.Println("checking for deployment")
-	// Poll for deployment to be ready
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		dep, err := c.GetDeployment(testNamespace, depName)
-		if k8serrors.IsNotFound(err) {
-			fmt.Printf("deployment %s not found\n", depName)
-			return false, nil
-		} else if err != nil {
-			fmt.Printf("unexpected error fetching deployment %s\n", depName)
-			return false, err
-		}
-		if dep.Status.UpdatedReplicas == *(dep.Spec.Replicas) &&
-			dep.Status.Replicas == *(dep.Spec.Replicas) &&
-			dep.Status.AvailableReplicas == *(dep.Spec.Replicas) {
-			fmt.Println("deployment ready")
-			return true, nil
-		}
-		fmt.Println("deployment not ready")
-		return false, nil
-	})
+	// Wait for CSV success
+	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 
 	// Delete CRD
 	cleanupCRD()
@@ -760,7 +744,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	// Wait for CSV success
+	// Wait for CSV success again
 	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 }
