@@ -104,6 +104,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	matchingLabel := map[string]string{"matchLabel": testNamespace}
 	otherNamespaceName := testNamespace + "-namespace-two"
+	bothNamespaceNames := otherNamespaceName + "," + testNamespace
 
 	otherNamespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -192,7 +193,7 @@ func TestOperatorGroup(t *testing.T) {
 			t.Log(fetchErr.Error())
 			return false, fetchErr
 		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
 			return true, nil
 		}
 		return false, nil
@@ -205,7 +206,7 @@ func TestOperatorGroup(t *testing.T) {
 			t.Log(fetchErr.Error())
 			return false, fetchErr
 		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
 			return true, nil
 		}
 
@@ -229,7 +230,7 @@ func TestOperatorGroup(t *testing.T) {
 			}
 			return false, err
 		}
-		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, otherNamespaceName) == nil {
+		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, bothNamespaceNames) == nil {
 			return true, nil
 		}
 		return false, nil
