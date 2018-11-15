@@ -7,7 +7,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"k8s.io/api/apps/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -246,7 +245,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		// Register queue and QueueInformer
 		queueName := fmt.Sprintf("%s/csv-deployments", namespace)
 		depQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		depQueueInformer := queueinformer.NewInformer(depQueue, depInformer.Informer(), op.syncDeployment, depHandlers, queueName, metrics.NewMetricsNil())
+		depQueueInformer := queueinformer.NewInformer(depQueue, depInformer.Informer(), op.syncObject, depHandlers, queueName, metrics.NewMetricsNil())
 		op.RegisterQueueInformer(depQueueInformer)
 	}
 
@@ -271,29 +270,19 @@ func (a *Operator) requeueCSV(name, namespace string) {
 	// We can build the key directly, will need to change if queue uses different key scheme
 	key := fmt.Sprintf("%s/%s", namespace, name)
 	logger := log.WithField("key", key)
-	logger.Debugf("requeueing CSV")
+	logger.Debug("requeueing CSV")
+
+	if queue, ok := a.csvQueues[metav1.NamespaceAll]; len(a.csvQueues) == 1 && ok {
+		queue.AddRateLimited(key)
+		return
+	} 
 
 	if queue, ok := a.csvQueues[namespace]; ok {
 		queue.AddRateLimited(key)
 		return
 	}
 
-	logger.Debugf("couldn't find queue for CSV")
-}
-
-func (a *Operator) syncDeployment(obj interface{}) (syncError error) {
-	deployment, ok := obj.(*v1.Deployment)
-	if !ok {
-		log.Debugf("wrong type: %#v", obj)
-		return fmt.Errorf("casting Deployment failed")
-	}
-
-	// Requeue owner CSVs
-	if ownerutil.IsOwnedByKind(deployment, v1alpha1.ClusterServiceVersionKind) {
-		a.requeueOwnerCSVs(deployment)
-	}
-
-	return nil
+	logger.Debug("couldn't find queue for CSV")
 }
 
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
@@ -837,11 +826,13 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	logger := log.WithFields(log.Fields{
 		"ownee":    ownee.GetName(),
 		"selflink": ownee.GetSelfLink(),
+		"namespace": ownee.GetNamespace(),
 	})
 
 	// Attempt to requeue CSV owners in the same namespace as the object
 	owners := ownerutil.GetOwnersByKind(ownee, v1alpha1.ClusterServiceVersionKind)
 	if len(owners) == 0 {
+		logger.Debugf("No ownerreferences found")
 		return
 	}
 
