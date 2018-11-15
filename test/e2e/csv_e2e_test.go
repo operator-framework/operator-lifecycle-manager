@@ -530,11 +530,16 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		},
 	}
 
-	// Create dependency first (CRD)
+	// Create CSV first, knowing it will fail
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
 	crd := extv1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: crdName,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: crdName},
 		Spec: extv1beta1.CustomResourceDefinitionSpec{
 			Group:   "cluster.com",
 			Version: "v1alpha1",
@@ -547,6 +552,12 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Scope: "Namespaced",
 		},
 	}
+	crd.SetOwnerReferences([]metav1.OwnerReference{{
+		Name: fetchedCSV.GetName(),
+		APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		Kind: v1alpha1.ClusterServiceVersionKind,
+		UID: fetchedCSV.GetUID(),
+	}})
 	cleanupCRD, err := createCRD(c, crd)
 	require.NoError(t, err)
 
@@ -648,22 +659,14 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&nonResourceClusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
-	require.NoError(t, err)
-	defer cleanupCSV()
-
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	// Wait for CSV success
+	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should create deployment
 	dep, err := c.GetDeployment(testNamespace, depName)
 	require.NoError(t, err)
 	require.Equal(t, depName, dep.Name)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 
 	// Delete CRD
 	cleanupCRD()
@@ -677,7 +680,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	// Wait for CSV success
+	// Wait for CSV success again
 	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 }
@@ -813,6 +816,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
+	// TODO(alecmerdler): Create CSV first to fix e2e timeout
 	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
 	require.NoError(t, err)
 	defer cleanupCSV()

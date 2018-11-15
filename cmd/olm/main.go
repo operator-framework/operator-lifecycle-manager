@@ -42,9 +42,9 @@ var (
 		"interval", defaultWakeupInterval, "wake up interval")
 
 	watchedNamespaces = flag.String(
-		"watchedNamespaces", "", "comma separated list of namespaces for alm operator to watch. "+
+		"watchedNamespaces", "", "comma separated list of namespaces for olm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
-			"alm operator will watch all namespaces in the cluster.")
+			"olm operator will watch all namespaces in the cluster.")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
@@ -56,7 +56,7 @@ func init() {
 	metrics.Register()
 }
 
-// main function - entrypoint to ALM operator
+// main function - entrypoint to OLM operator
 func main() {
 	stopCh := signals.SetupSignalHandler()
 
