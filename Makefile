@@ -114,8 +114,10 @@ codegen:
 	mkdir -p vendor/k8s.io/code-generator/hack
 	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
 	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/packagemanifest/v1alpha1 -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/mock-ext-server/apis/anything/v1alpha1 -p $(PKG)/pkg/mock-ext-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1alpha2"
 	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis "packagemanifest:v1alpha1"
+	$(CODEGEN) all $(PKG)/pkg/mock-ext-server/client $(PKG)/pkg/mock-ext-server/apis "anything:v1alpha1"
 
 container-codegen:
 	docker build -t olm:codegen -f codegen.Dockerfile .
@@ -124,6 +126,7 @@ container-codegen:
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/. ./pkg/api/apis
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/. ./pkg/package-server/apis
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/. ./pkg/package-server/client
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/mock-ext-server/apis/. ./pkg/mock-ext-server/apis
 	docker rm temp-codegen
 
 container-mockgen:

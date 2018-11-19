@@ -2,7 +2,7 @@
 FROM golang:1.11
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 COPY . .
-RUN make build && cp bin/olm /bin/olm && cp bin/catalog /bin/catalog && cp bin/package-server /bin/package-server
+RUN make build && cp bin/olm /bin/olm && cp bin/catalog /bin/catalog && cp bin/package-server /bin/package-server && cp bin/mock-ext-server /bin/mock-ext-server
 
 COPY deploy/chart/catalog_resources /var/catalog_resources
 
