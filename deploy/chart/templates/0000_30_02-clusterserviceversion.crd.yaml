@@ -723,6 +723,7 @@ spec:
                                       - delete
                                       - deletecollection
                                       - initialize
+                                      - use
         status:
           type: object
           description: Status for a ClusterServiceVersion
