@@ -114,7 +114,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 	}
 
 	for _, r := range ownedRoles {
-		// don't trust the owner label
+		// don't trust the owner label, check ownerreferences here
 		if !ownerutil.IsOwnedBy(r, csv) {
 			continue
 		}
@@ -127,6 +127,8 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: r.GetName(),
+					OwnerReferences: r.OwnerReferences,
+					Labels: ownerutil.CSVOwnerLabel(csv),
 				},
 				Rules: r.Rules,
 			}
@@ -143,7 +145,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 	}
 
 	for _, r := range ownedRoleBindings {
-		// don't trust the owner label
+		// don't trust the owner label, check ownerreferences here
 		if !ownerutil.IsOwnedBy(r, csv) {
 			continue
 		}
@@ -156,6 +158,8 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: r.GetName(),
+					OwnerReferences: r.OwnerReferences,
+					Labels: ownerutil.CSVOwnerLabel(csv),
 				},
 				Subjects: r.Subjects,
 				RoleRef: rbacv1.RoleRef{
@@ -250,26 +254,18 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 			}
 			continue
 		} else if k8serrors.IsNotFound(err) {
-			// create new CSV instead of DeepCopy as namespace and resource version (and status) will be different
-			newCSV := v1alpha1.ClusterServiceVersion{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        csv.Name,
-					Annotations: csv.Annotations,
-				},
-				Spec: *csv.Spec.DeepCopy(),
-			}
+			newCSV := csv.DeepCopy()
 			newCSV.SetNamespace(ns)
+			newCSV.SetResourceVersion("")
+			newCSV.Status.Reason = v1alpha1.CSVReasonCopied
+			newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+			newCSV.Status.LastUpdateTime = timeNow()
 
 			log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns)
-			createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Create(&newCSV)
+			createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Create(newCSV)
 			if err != nil {
 				log.Errorf("Create for new CSV failed: %v", err)
 				return err
-			}
-			createdCSV.Status = v1alpha1.ClusterServiceVersionStatus{
-				Message:        "CSV copied to target namespace",
-				Reason:         v1alpha1.CSVReasonCopied,
-				LastUpdateTime: timeNow(),
 			}
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(createdCSV); err != nil {
 				log.Errorf("Status update for CSV failed: %v", err)
@@ -429,7 +425,7 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 }
 
 func (a *Operator) annotateDeployments(op *v1alpha2.OperatorGroup, targetNamespaceString string) error {
-	// write above namespaces to watch in every deployment in operator namespace
+	// write above namespaces to watch in every operator deployment in operator namespace
 	deploymentList, err := a.lister.AppsV1().DeploymentLister().Deployments(op.GetNamespace()).List(labels.Everything())
 	if err != nil {
 		log.Errorf("deployment list failed: %v\n", err)
@@ -439,7 +435,7 @@ func (a *Operator) annotateDeployments(op *v1alpha2.OperatorGroup, targetNamespa
 	for _, deploy := range deploymentList {
 		// TODO: this will be incorrect if two operatorgroups own the same namespace
 		// also - will be incorrect if a CSV is manually installed into a namespace
-		if !ownerutil.IsOwnedByKind(deploy, "ClusterServiceVersion") {
+		if !ownerutil.IsOwnedByKind(deploy, v1alpha1.ClusterServiceVersionKind) {
 			log.Debugf("deployment '%v' not owned by CSV, skipping", deploy.GetName())
 			continue
 		}

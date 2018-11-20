@@ -8,7 +8,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/json"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"math"
 	"math/big"
 	"strings"
@@ -46,6 +45,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
@@ -385,21 +385,12 @@ func signedServingPair(notAfter time.Time, ca *certs.KeyPair, hosts []string) *c
 }
 
 func withAnnotations(obj runtime.Object, annotations map[string]string) runtime.Object {
-	switch v := obj.(type) {
-	case *appsv1.Deployment:
-		v.SetAnnotations(annotations)
-		obj = v
-	case *apiregistrationv1.APIService:
-		v.SetAnnotations(annotations)
-		obj = v
-	case *corev1.Secret:
-		v.SetAnnotations(annotations)
-		obj = v
-	default:
+	meta, ok := obj.(metav1.Object)
+	if !ok {
 		panic("could not assert object as Deployment, APIService, or Secret while adding annotations")
 	}
-
-	return obj
+	meta.SetAnnotations(annotations)
+	return meta.(runtime.Object)
 }
 
 func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
@@ -2104,6 +2095,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	}
 
 	serviceAccount := serviceAccount("test-sa", operatorNamespace)
+
 	permissions := []install.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccount.GetName(),
@@ -2136,11 +2128,19 @@ func TestSyncOperatorGroups(t *testing.T) {
 		v1alpha1.CSVPhaseSucceeded,
 	)
 	targetCSV.Status.Reason = v1alpha1.CSVReasonCopied
+	targetCSV.Status.Message = "The operator is running in operator-ns but is managing this namespace"
+	targetCSV.Status.LastUpdateTime = timeNow()
 
 	ownerutil.AddNonBlockingOwner(serviceAccount, operatorCSV)
 
 	ownedDeployment := deployment("csv1-dep1", operatorNamespace, serviceAccount.GetName(), nil)
 	ownerutil.AddNonBlockingOwner(ownedDeployment, operatorCSV)
+
+	annotatedDeployment := ownedDeployment.DeepCopy()
+	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace})
+
+	annotatedGlobalDeployment := ownedDeployment.DeepCopy()
+	annotatedGlobalDeployment.Spec.Template.SetAnnotations(map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace})
 
 	role := &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
@@ -2148,9 +2148,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 			APIVersion: rbacv1.GroupName,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "csv-role",
-			Namespace: operatorNamespace,
-			Labels: ownerutil.CSVOwnerLabel(operatorCSV),
+			Name:            "csv-role",
+			Namespace:       operatorNamespace,
+			Labels:          ownerutil.CSVOwnerLabel(operatorCSV),
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
 		},
 		Rules: permissions[0].Rules,
@@ -2162,9 +2162,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 			APIVersion: rbacv1.GroupName,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "csv-rolebinding",
-			Namespace: operatorNamespace,
-			Labels: ownerutil.CSVOwnerLabel(operatorCSV),
+			Name:            "csv-rolebinding",
+			Namespace:       operatorNamespace,
+			Labels:          ownerutil.CSVOwnerLabel(operatorCSV),
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
 		},
 		Subjects: []rbacv1.Subject{
@@ -2305,24 +2305,61 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedAnnotation: map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace},
 			final: final{objects: map[string][]runtime.Object{
+				operatorNamespace: {
+					withAnnotations(operatorCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+					annotatedDeployment,
+				},
 				targetNamespace: {
-					targetCSV,
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Role",
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:            "csv-role",
-							Namespace:       targetNamespace,
-							Labels:          ownerutil.CSVOwnerLabel(operatorCSV),
-							OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
+							Name:      "csv-role",
+							Namespace: targetNamespace,
+							Labels: map[string]string{
+								"olm.owner": "csv1",
+								"olm.owner.namespace": "operator-ns",
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								ownerutil.NonBlockingOwner(targetCSV),
+							},
 						},
 						Rules: permissions[0].Rules,
 					},
+					&rbacv1.RoleBinding{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "RoleBinding",
+							APIVersion: rbacv1.GroupName,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "csv-rolebinding",
+							Namespace: targetNamespace,
+							Labels: map[string]string{
+								"olm.owner": "csv1",
+								"olm.owner.namespace": "operator-ns",
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								ownerutil.NonBlockingOwner(targetCSV),
+							},
+						},
+						Subjects: []rbacv1.Subject{
+							{
+								Kind: rbacv1.ServiceAccountKind,
+								Name: serviceAccount.GetName(),
+								Namespace: operatorNamespace,
+							},
+						},
+						RoleRef: rbacv1.RoleRef{
+							APIGroup: rbacv1.GroupName,
+							Kind: role.GroupVersionKind().Kind,
+							Name: "csv-role",
+						},
+					},
 				},
-				},
-			},
+			}},
 		},
 		{
 			name:          "operator group all namespaces, CSV present, found",
@@ -2345,6 +2382,13 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Annotations: map[string]string{"test": "annotation"},
 						},
 					},
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        targetNamespace,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
 					ownedDeployment,
 					serviceAccount,
 					role,
@@ -2356,6 +2400,62 @@ func TestSyncOperatorGroups(t *testing.T) {
 				LastUpdated: timeNow(),
 			},
 			expectedAnnotation: map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace},
+			final: final{objects: map[string][]runtime.Object{
+				operatorNamespace: {
+					withAnnotations(operatorCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+					annotatedGlobalDeployment,
+				},
+				"": {
+					&rbacv1.ClusterRole{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterRole",
+							APIVersion: rbacv1.GroupName,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "csv-role",
+							Labels: map[string]string{
+								"olm.owner": "csv1",
+								"olm.owner.namespace": "operator-ns",
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								ownerutil.NonBlockingOwner(targetCSV),
+							},
+						},
+						Rules: permissions[0].Rules,
+					},
+					&rbacv1.ClusterRoleBinding{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterRoleBinding",
+							APIVersion: rbacv1.GroupName,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "csv-rolebinding",
+							Labels: map[string]string{
+								"olm.owner": "csv1",
+								"olm.owner.namespace": "operator-ns",
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								ownerutil.NonBlockingOwner(targetCSV),
+							},
+						},
+						Subjects: []rbacv1.Subject{
+							{
+								Kind: rbacv1.ServiceAccountKind,
+								Name: serviceAccount.GetName(),
+								Namespace: operatorNamespace,
+							},
+						},
+						RoleRef: rbacv1.RoleRef{
+							APIGroup: rbacv1.GroupName,
+							Kind: "ClusterRole",
+							Name: "csv-role",
+						},
+					},
+				},
+				targetNamespace: {
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+				},
+			}},
 		},
 	}
 
@@ -2406,6 +2506,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 					var err error
 					var fetched runtime.Object
 					switch o := object.(type) {
+					case *appsv1.Deployment:
+						fetched, err = op.OpClient.GetDeployment(namespace, o.GetName())
 					case *rbacv1.ClusterRole:
 						fetched, err = op.OpClient.GetClusterRole(o.GetName())
 					case *rbacv1.Role:
@@ -2416,8 +2518,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 						fetched, err = op.OpClient.GetRoleBinding(namespace, o.GetName())
 					case *v1alpha1.ClusterServiceVersion:
 						fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+					default:
+						require.Fail(t, "couldn't find expected object %#v", object)
 					}
-					require.NoError(t, err)
+					require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
 					require.Equal(t, object, fetched)
 				}
 			}
