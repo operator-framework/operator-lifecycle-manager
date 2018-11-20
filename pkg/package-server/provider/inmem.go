@@ -76,7 +76,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 }
 
 // parsePackageManifestsFromConfigMap returns a list of PackageManifests from a given ConfigMap
-func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName, catalogSourceNamespace, catalogSourcePublisher, catalogSourceDisplayName string) ([]packagev1alpha1.PackageManifest, error) {
+func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv1alpha1.CatalogSource) ([]packagev1alpha1.PackageManifest, error) {
 	cmName := cm.GetName()
 	logger := log.WithFields(log.Fields{
 		"Action": "Load ConfigMap",
@@ -140,10 +140,10 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName,
 				Status: status,
 			}
 
-			manifest.Status.CatalogSource = catalogSourceName
-			manifest.Status.CatalogSourceNamespace = catalogSourceNamespace
-			manifest.Status.CatalogSourceDisplayName = catalogSourceDisplayName
-			manifest.Status.CatalogSourcePublisher = catalogSourcePublisher
+			manifest.Status.CatalogSource = catsrc.GetName()
+			manifest.Status.CatalogSourceNamespace = catsrc.GetNamespace()
+			manifest.Status.CatalogSourceDisplayName = catsrc.Spec.DisplayName
+			manifest.Status.CatalogSourcePublisher = catsrc.Spec.Publisher
 
 			// add all PackageChannel CSVDescriptions
 			for i, channel := range manifest.Status.Channels {
@@ -170,6 +170,9 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catalogSourceName,
 			// set CatalogSource labels
 			manifest.ObjectMeta.Labels["catalog"] = manifest.Status.CatalogSource
 			manifest.ObjectMeta.Labels["catalog-namespace"] = manifest.Status.CatalogSourceNamespace
+			for k, v := range catsrc.GetLabels() {
+				manifest.ObjectMeta.Labels[k] = v
+			}
 
 			log.Debugf("retrieved packagemanifest %s", manifest.GetName())
 			manifests = append(manifests, manifest)
@@ -204,7 +207,7 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		}
 
 		// parse PackageManifest from ConfigMap
-		manifests, err = parsePackageManifestsFromConfigMap(cm, catsrc.GetName(), catsrc.GetNamespace(), catsrc.Spec.Publisher, catsrc.Spec.DisplayName)
+		manifests, err = parsePackageManifestsFromConfigMap(cm, catsrc)
 		if err != nil {
 			return fmt.Errorf("failed to load package manifest from config map %s", cm.GetName())
 		}
