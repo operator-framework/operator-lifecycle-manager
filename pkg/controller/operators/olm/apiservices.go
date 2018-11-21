@@ -129,6 +129,9 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Ensure the Deployment's ServiceAccount exists
 		serviceAccountName := deployment.Spec.Template.Spec.ServiceAccountName
+		if serviceAccountName == "" {
+			serviceAccountName = "default"
+		}
 		serviceAccount, err := a.lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
 		if err != nil {
 			logger.WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
@@ -423,6 +426,10 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 	} else {
 		return nil, err
+	}
+
+	if depSpec.Template.Spec.ServiceAccountName == "" {
+		depSpec.Template.Spec.ServiceAccountName = "default"
 	}
 
 	secretRoleBinding := &rbacv1.RoleBinding{

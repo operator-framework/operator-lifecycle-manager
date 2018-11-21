@@ -25,9 +25,9 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/informers"
 
+	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/openapi"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
-	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/openapi"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/version"
 )
 
@@ -69,7 +69,7 @@ type completedConfig struct {
 func (c *Config) Complete(informers informers.SharedInformerFactory) completedConfig {
 	c.GenericConfig.Version = version.VersionInfo()
 
-	// enable OpenAPI schemas
+	// Enable OpenAPI schemas
 	c.GenericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(generatedopenapi.GetOpenAPIDefinitions, openapinamer.NewDefinitionNamer(generic.Scheme))
 	c.GenericConfig.OpenAPIConfig.Info.Title = "Package API server"
 	c.GenericConfig.OpenAPIConfig.Info.Version = strings.Split(c.GenericConfig.Version.String(), "-")[0]

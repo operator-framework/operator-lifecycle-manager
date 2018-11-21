@@ -38,7 +38,7 @@ var _ InstallStrategyDeploymentInterface = &InstallStrategyDeploymentClientForNa
 func NewInstallStrategyDeploymentClient(opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, namespace string) InstallStrategyDeploymentInterface {
 	return &InstallStrategyDeploymentClientForNamespace{
 		opClient:  opClient,
-		opLister: opLister,
+		opLister:  opLister,
 		Namespace: namespace,
 	}
 }

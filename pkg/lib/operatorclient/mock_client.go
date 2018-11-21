@@ -5,6 +5,8 @@
 package operatorclient
 
 import (
+	reflect "reflect"
+
 	gomock "github.com/golang/mock/gomock"
 	v1 "k8s.io/api/apps/v1"
 	v10 "k8s.io/api/core/v1"
@@ -16,7 +18,6 @@ import (
 	kubernetes "k8s.io/client-go/kubernetes"
 	v13 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	clientset0 "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
-	reflect "reflect"
 )
 
 // MockClientInterface is a mock of ClientInterface interface

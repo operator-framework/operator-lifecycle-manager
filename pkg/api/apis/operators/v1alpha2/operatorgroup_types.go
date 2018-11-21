@@ -12,7 +12,7 @@ type OperatorGroupSpec struct {
 
 type OperatorGroupStatus struct {
 	Namespaces  []*corev1.Namespace `json:"namespaces"`
-	LastUpdated metav1.Time        `json:"lastUpdated"`
+	LastUpdated metav1.Time         `json:"lastUpdated"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

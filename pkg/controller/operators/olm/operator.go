@@ -7,6 +7,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,7 +19,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
-	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -50,11 +50,11 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueues   map[string]workqueue.RateLimitingInterface
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
-	lister      operatorlister.OperatorLister
-	recorder    record.EventRecorder
+	csvQueues map[string]workqueue.RateLimitingInterface
+	client    versioned.Interface
+	resolver  install.StrategyResolverInterface
+	lister    operatorlister.OperatorLister
+	recorder  record.EventRecorder
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -107,7 +107,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	)
 	op.RegisterQueueInformer(roleBindingQueueInformer)
 	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
-	
+
 	clusterRoleInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().ClusterRoles()
 	clusterRoleQueueInformer := queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterroles"),
@@ -119,7 +119,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	)
 	op.RegisterQueueInformer(clusterRoleQueueInformer)
 	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
-	
+
 	clusterRoleBindingInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().ClusterRoleBindings()
 	clusterRoleBindingQueueInformer := queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterrolebindings"),
@@ -158,7 +158,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		metrics.NewMetricsNil(),
 	))
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
-	
+
 	// Register CustomResourceDefinition QueueInformer
 	customResourceDefinitionInformer := aextv1beta1.NewSharedInformerFactory(opClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
 	op.RegisterQueueInformer(queueinformer.NewInformer(
@@ -275,7 +275,7 @@ func (a *Operator) requeueCSV(name, namespace string) {
 	if queue, ok := a.csvQueues[metav1.NamespaceAll]; len(a.csvQueues) == 1 && ok {
 		queue.AddRateLimited(key)
 		return
-	} 
+	}
 
 	if queue, ok := a.csvQueues[namespace]; ok {
 		queue.AddRateLimited(key)
@@ -397,7 +397,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	})
 
 	operatorNamespace, ok := clusterServiceVersion.GetAnnotations()["olm.operatorNamespace"]
-	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied || 
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied ||
 		ok && clusterServiceVersion.GetNamespace() != operatorNamespace {
 		logger.Info("skip sync of dummy CSV")
 		return a.removeDanglingChildCSVs(clusterServiceVersion)
@@ -596,7 +596,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		for _, csv := range a.findIntermediatesForDeletion(out) {
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
 			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.", a.recorder)
-			
+
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
 			a.requeueCSV(csv.GetName(), csv.GetNamespace())
@@ -824,8 +824,8 @@ func (a *Operator) handleDeletion(obj interface{}) {
 
 func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	logger := log.WithFields(log.Fields{
-		"ownee":    ownee.GetName(),
-		"selflink": ownee.GetSelfLink(),
+		"ownee":     ownee.GetName(),
+		"selflink":  ownee.GetSelfLink(),
 		"namespace": ownee.GetNamespace(),
 	})
 
