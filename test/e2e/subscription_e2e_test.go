@@ -356,7 +356,7 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	require.NoError(t, initCatalog(t, c, crc))
 
 	// Will be cleaned up by the upgrade process
-	_, err := createCSV(t, c, crc, stableCSV, testNamespace, true)
+	_, err := createCSV(t, c, crc, stableCSV, testNamespace, false, false)
 	require.NoError(t, err)
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
