@@ -53,6 +53,15 @@ subjects:
   name: olm-operator-serviceaccount
   namespace: {{ .Values.namespace }}
 ---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: packagemanifest:aggregated-apiserver-clusterrole
+rules:
+- apiGroups: ["admissionregistration.k8s.io"]
+  resources: ["mutatingwebhookconfigurations", "validatingwebhookconfigurations"]
+  verbs: ["get", "watch", "list"]
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -60,7 +69,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: aggregated-apiserver-clusterrole
+  name: packagemanifest:aggregated-apiserver-clusterrole
 subjects:
 - kind: ServiceAccount
   name: olm-operator-serviceaccount
