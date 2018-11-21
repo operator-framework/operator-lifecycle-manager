@@ -14,7 +14,6 @@ WORKDIR /
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/package-server /bin/package-server
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/mock-ext-server /bin/mock-ext-server
 EXPOSE 8080
 EXPOSE 5443
 CMD ["/bin/olm"]
