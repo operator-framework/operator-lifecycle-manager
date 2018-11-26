@@ -147,7 +147,7 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 }
 
 // OwnerLabel returns a label added to generated objects for later querying
-func CSVOwnerLabel(owner *v1alpha1.ClusterServiceVersion) map[string]string {
+func OwnerLabel(owner metav1.Object) map[string]string {
 	return map[string]string{
 		OwnerKey:          owner.GetName(),
 		OwnerNamespaceKey: owner.GetNamespace(),
@@ -156,7 +156,7 @@ func CSVOwnerLabel(owner *v1alpha1.ClusterServiceVersion) map[string]string {
 
 // OwnerQuery returns a label selector to find generated objects owned by owner
 func CSVOwnerSelector(owner *v1alpha1.ClusterServiceVersion) labels.Selector {
-	return labels.SelectorFromSet(CSVOwnerLabel(owner))
+	return labels.SelectorFromSet(OwnerLabel(owner))
 }
 
 // AddOwner adds an owner to the ownerref list.

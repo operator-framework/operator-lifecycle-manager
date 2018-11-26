@@ -12,7 +12,7 @@ var obsoleteReasons = map[ConditionReason]struct{}{
 	CSVReasonBeingReplaced: {},
 }
 
-func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, recorder record.EventRecorder) {
+func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
 	var eventtype string
 	if phase == CSVPhaseFailed {
 		eventtype = v1.EventTypeWarning
@@ -20,15 +20,15 @@ func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPha
 		eventtype = v1.EventTypeNormal
 	}
 	go recorder.Event(c, eventtype, string(reason), message)
-	c.SetPhase(phase, reason, message)
+	c.SetPhase(phase, reason, message, now)
 }
 
 // SetPhase sets the current phase and adds a condition if necessary
-func (c *ClusterServiceVersion) SetPhase(phase ClusterServiceVersionPhase, reason ConditionReason, message string) {
-	c.Status.LastUpdateTime = metav1.Now()
+func (c *ClusterServiceVersion) SetPhase(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time) {
+	c.Status.LastUpdateTime = now
 	if c.Status.Phase != phase {
 		c.Status.Phase = phase
-		c.Status.LastTransitionTime = metav1.Now()
+		c.Status.LastTransitionTime = now
 	}
 	c.Status.Message = message
 	c.Status.Reason = reason

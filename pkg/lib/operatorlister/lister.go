@@ -212,12 +212,12 @@ func (l *lister) OperatorsV1alpha2() OperatorsV1alpha2Lister {
 func NewLister() OperatorLister {
 	// TODO: better initialization
 	return &lister{
-		appsV1Lister:            newAppsV1Lister(),
-		coreV1Lister:            newCoreV1Lister(),
-		rbacV1Lister:            newRbacV1Lister(),
-		apiRegistrationV1Lister: newAPIRegistrationV1Lister(),
+		appsV1Lister:               newAppsV1Lister(),
+		coreV1Lister:               newCoreV1Lister(),
+		rbacV1Lister:               newRbacV1Lister(),
+		apiRegistrationV1Lister:    newAPIRegistrationV1Lister(),
 		apiExtensionsV1beta1Lister: newAPIExtensionsV1beta1Lister(),
-		
+
 		operatorsV1alpha1Lister: newOperatorsV1alpha1Lister(),
 		operatorsV1alpha2Lister: newOperatorsV1alpha2Lister(),
 	}

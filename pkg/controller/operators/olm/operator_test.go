@@ -24,7 +24,6 @@ import (
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
@@ -115,7 +114,6 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 			})
 		}
 	}
-	log.Info(apis)
 	return apis
 }
 
@@ -387,7 +385,7 @@ func signedServingPair(notAfter time.Time, ca *certs.KeyPair, hosts []string) *c
 func withAnnotations(obj runtime.Object, annotations map[string]string) runtime.Object {
 	meta, ok := obj.(metav1.Object)
 	if !ok {
-		panic("could not assert object as Deployment, APIService, or Secret while adding annotations")
+		panic("could not find metadata on object")
 	}
 	meta.SetAnnotations(annotations)
 	return meta.(runtime.Object)
@@ -2094,7 +2092,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	}
 
-	serviceAccount := serviceAccount("test-sa", operatorNamespace)
+	serviceAccount := serviceAccount("sa", operatorNamespace)
 
 	permissions := []install.StrategyDeploymentPermissions{
 		{
@@ -2109,21 +2107,91 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	}
 
+	crd := crd("c1.fake.api.group", "v1")
 	operatorCSV := csv("csv1",
 		operatorNamespace,
 		"",
 		installStrategy("csv1-dep1", permissions, nil),
-		[]*v1beta1.CustomResourceDefinition{crd("c1.fake.api.group", "v1")},
+		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseSucceeded,
 	)
+
+	// after state transitions from operatorgroups, this is the operator csv we expect
+	operatorCSVFinal := operatorCSV.DeepCopy()
+	operatorCSVFinal.Status.Message = "install strategy completed with no errors"
+	operatorCSVFinal.Status.Reason = v1alpha1.CSVReasonInstallSuccessful
+	operatorCSVFinal.Status.LastUpdateTime = timeNow()
+	operatorCSVFinal.Status.LastTransitionTime = timeNow()
+	operatorCSVFinal.Status.RequirementStatus = []v1alpha1.RequirementStatus{
+		{
+			Group:   "apiextensions.k8s.io",
+			Version: "v1beta1",
+			Kind:    "CustomResourceDefinition",
+			Name:    crd.GetName(),
+			Status:  v1alpha1.RequirementStatusReasonPresent,
+		},
+		{
+			Group:   "",
+			Version: "v1",
+			Kind:    "ServiceAccount",
+			Name:    serviceAccount.GetName(),
+			Status:  v1alpha1.RequirementStatusReasonPresent,
+			Dependents: []v1alpha1.DependentStatus{
+				{
+					Group:   "rbac.authorization.k8s.io",
+					Version: "v1beta1",
+					Kind:    "PolicyRule",
+					Status:  "Satisfied",
+					Message: "namespaced rule:{\"verbs\":[\"get\"],\"apiGroups\":[\"my.api.group\"],\"resources\":[\"apis\"]}",
+				},
+			},
+		},
+	}
+	operatorCSVFinal.Status.Conditions = []v1alpha1.ClusterServiceVersionCondition{
+		{
+			Phase:              v1alpha1.CSVPhaseFailed,
+			Reason:             v1alpha1.CSVReasonComponentUnhealthy,
+			Message:            "installing: AnnotationsMissing: no annotations found on deployment",
+			LastUpdateTime:     timeNow(),
+			LastTransitionTime: timeNow(),
+		},
+		{
+			Phase:              v1alpha1.CSVPhasePending,
+			Reason:             v1alpha1.CSVReasonNeedsReinstall,
+			Message:            "installing: AnnotationsMissing: no annotations found on deployment",
+			LastUpdateTime:     timeNow(),
+			LastTransitionTime: timeNow(),
+		},
+		{
+			Phase:              v1alpha1.CSVPhaseInstallReady,
+			Reason:             v1alpha1.CSVReasonRequirementsMet,
+			Message:            "all requirements found, attempting install",
+			LastUpdateTime:     timeNow(),
+			LastTransitionTime: timeNow(),
+		},
+		{
+			Phase:              v1alpha1.CSVPhaseInstalling,
+			Reason:             v1alpha1.CSVReasonInstallSuccessful,
+			Message:            "waiting for install components to report healthy",
+			LastUpdateTime:     timeNow(),
+			LastTransitionTime: timeNow(),
+		},
+		{
+			Phase:              v1alpha1.CSVPhaseSucceeded,
+			Reason:             v1alpha1.CSVReasonInstallSuccessful,
+			Message:            "install strategy completed with no errors",
+			LastUpdateTime:     timeNow(),
+			LastTransitionTime: timeNow(),
+		},
+	}
 
 	// everything the same, but in target namespace, and copied status reason
 	targetCSV := csv("csv1",
 		targetNamespace,
 		"",
 		installStrategy("csv1-dep1", permissions, nil),
-		[]*v1beta1.CustomResourceDefinition{crd("c1.fake.api.group", "v1")},
+		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseSucceeded,
 	)
@@ -2138,9 +2206,17 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	annotatedDeployment := ownedDeployment.DeepCopy()
 	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace})
+	annotatedDeployment.SetLabels(map[string]string{
+		"olm.owner":           "csv1",
+		"olm.owner.namespace": "operator-ns",
+	})
 
 	annotatedGlobalDeployment := ownedDeployment.DeepCopy()
 	annotatedGlobalDeployment.Spec.Template.SetAnnotations(map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace})
+	annotatedGlobalDeployment.SetLabels(map[string]string{
+		"olm.owner":           "csv1",
+		"olm.owner.namespace": "operator-ns",
+	})
 
 	role := &rbacv1.Role{
 		TypeMeta: metav1.TypeMeta{
@@ -2150,7 +2226,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "csv-role",
 			Namespace:       operatorNamespace,
-			Labels:          ownerutil.CSVOwnerLabel(operatorCSV),
+			Labels:          ownerutil.OwnerLabel(operatorCSV),
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
 		},
 		Rules: permissions[0].Rules,
@@ -2164,7 +2240,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "csv-rolebinding",
 			Namespace:       operatorNamespace,
-			Labels:          ownerutil.CSVOwnerLabel(operatorCSV),
+			Labels:          ownerutil.OwnerLabel(operatorCSV),
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
 		},
 		Subjects: []rbacv1.Subject{
@@ -2193,12 +2269,11 @@ func TestSyncOperatorGroups(t *testing.T) {
 		objects map[string][]runtime.Object
 	}
 	tests := []struct {
-		initial            initial
-		name               string
-		expectedEqual      bool
-		expectedStatus     v1alpha2.OperatorGroupStatus
-		expectedAnnotation map[string]string
-		final              final
+		initial        initial
+		name           string
+		expectedEqual  bool
+		expectedStatus v1alpha2.OperatorGroupStatus
+		final          final
 	}{
 		{
 			name:          "operator group with no matching namespace, no CSVs",
@@ -2254,33 +2329,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 		},
 		{
-			name:          "operator group with matching namespace, CSV present, not found",
-			expectedEqual: false,
-			initial: initial{
-				operatorGroup: &v1alpha2.OperatorGroup{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "operator-group-1",
-						Namespace: operatorNamespace,
-						Labels:    aLabel,
-					},
-					Spec: v1alpha2.OperatorGroupSpec{
-						Selector: metav1.LabelSelector{
-							MatchLabels: aLabel,
-						},
-					},
-				},
-				clientObjs: []runtime.Object{operatorCSV},
-				k8sObjs: append(
-					namespaces,
-					deployment("csv1-dep1", operatorNamespace, serviceAccount.GetName(), nil)),
-			},
-			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces:  []string{targetNamespace, operatorNamespace},
-				LastUpdated: timeNow(),
-			},
-			expectedAnnotation: map[string]string{"NOTFOUND": operatorNamespace},
-		},
-		{
 			name:          "operator group with matching namespace, CSV present, found",
 			expectedEqual: true,
 			initial: initial{
@@ -2297,20 +2345,20 @@ func TestSyncOperatorGroups(t *testing.T) {
 					},
 				},
 				clientObjs: []runtime.Object{operatorCSV},
-				k8sObjs: append(namespaces, ownedDeployment, serviceAccount, role, roleBinding),
+				k8sObjs:    append(namespaces, ownedDeployment, serviceAccount, role, roleBinding),
+				crds:       []runtime.Object{crd},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
 				Namespaces:  []string{targetNamespace, operatorNamespace},
 				LastUpdated: timeNow(),
 			},
-			expectedAnnotation: map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
-					withAnnotations(operatorCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
 					annotatedDeployment,
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Role",
@@ -2320,7 +2368,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:      "csv-role",
 							Namespace: targetNamespace,
 							Labels: map[string]string{
-								"olm.owner": "csv1",
+								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -2338,7 +2386,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:      "csv-rolebinding",
 							Namespace: targetNamespace,
 							Labels: map[string]string{
-								"olm.owner": "csv1",
+								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -2347,15 +2395,15 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 						Subjects: []rbacv1.Subject{
 							{
-								Kind: rbacv1.ServiceAccountKind,
-								Name: serviceAccount.GetName(),
+								Kind:      rbacv1.ServiceAccountKind,
+								Name:      serviceAccount.GetName(),
 								Namespace: operatorNamespace,
 							},
 						},
 						RoleRef: rbacv1.RoleRef{
 							APIGroup: rbacv1.GroupName,
-							Kind: role.GroupVersionKind().Kind,
-							Name: "csv-role",
+							Kind:     role.GroupVersionKind().Kind,
+							Name:     "csv-role",
 						},
 					},
 				},
@@ -2394,15 +2442,15 @@ func TestSyncOperatorGroups(t *testing.T) {
 					role,
 					roleBinding,
 				},
+				crds: []runtime.Object{crd},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
 				LastUpdated: timeNow(),
 			},
-			expectedAnnotation: map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
-					withAnnotations(operatorCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
 					annotatedGlobalDeployment,
 				},
 				"": {
@@ -2412,9 +2460,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      "csv-role",
+							Name: "csv-role",
 							Labels: map[string]string{
-								"olm.owner": "csv1",
+								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -2429,9 +2477,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      "csv-rolebinding",
+							Name: "csv-rolebinding",
 							Labels: map[string]string{
-								"olm.owner": "csv1",
+								"olm.owner":           "csv1",
 								"olm.owner.namespace": "operator-ns",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -2440,20 +2488,20 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 						Subjects: []rbacv1.Subject{
 							{
-								Kind: rbacv1.ServiceAccountKind,
-								Name: serviceAccount.GetName(),
+								Kind:      rbacv1.ServiceAccountKind,
+								Name:      serviceAccount.GetName(),
 								Namespace: operatorNamespace,
 							},
 						},
 						RoleRef: rbacv1.RoleRef{
 							APIGroup: rbacv1.GroupName,
-							Kind: "ClusterRole",
-							Name: "csv-role",
+							Kind:     "ClusterRole",
+							Name:     "csv-role",
 						},
 					},
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace} ),
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
 				},
 			}},
 		},
@@ -2480,26 +2528,20 @@ func TestSyncOperatorGroups(t *testing.T) {
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
 			require.NoError(t, err)
 
+			// Sync csvs enough to get them back to succeeded state
+			for i := 0; i < 6; i++ {
+				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
+				require.NoError(t, err)
+
+				for _, obj := range opGroupCSVs.Items {
+					err = op.syncClusterServiceVersion(&obj)
+					require.NoError(t, err, "%#v", obj)
+				}
+			}
+
 			operatorGroup, err := op.GetClient().OperatorsV1alpha2().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)
-
-			if tt.expectedAnnotation != nil {
-				// assuming CSVs are in correct namespace
-				for _, ns := range namespaces {
-					deployments, err := op.lister.AppsV1().DeploymentLister().Deployments(ns).List(labels.Everything())
-					if err != nil {
-						t.Fatal(err)
-					}
-					for _, deploy := range deployments {
-						if tt.expectedEqual {
-							assert.Equal(t, tt.expectedAnnotation, deploy.Spec.Template.Annotations)
-						} else {
-							assert.NotEqual(t, tt.expectedAnnotation, deploy.Spec.Template.Annotations)
-						}
-					}
-				}
-			}
 
 			for namespace, objects := range tt.final.objects {
 				for _, object := range objects {
@@ -2519,7 +2561,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					case *v1alpha1.ClusterServiceVersion:
 						fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
 					default:
-						require.Fail(t, "couldn't find expected object %#v", object)
+						require.Failf(t, "couldn't find expected object", "%#v", object)
 					}
 					require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
 					require.Equal(t, object, fetched)

@@ -2,12 +2,14 @@ package resolver
 
 import (
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 type OperatorPermissions struct {
@@ -77,7 +79,7 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 				Name:            fmt.Sprintf("%s-%d", csv.GetName(), i),
 				Namespace:       csv.GetNamespace(),
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(csv)},
-				Labels:          ownerutil.CSVOwnerLabel(csv),
+				Labels:          ownerutil.OwnerLabel(csv),
 			},
 			Rules: permission.Rules,
 		}
@@ -89,7 +91,7 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 				Name:            fmt.Sprintf("%s-%s", role.GetName(), permission.ServiceAccountName),
 				Namespace:       csv.GetNamespace(),
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(csv)},
-				Labels:          ownerutil.CSVOwnerLabel(csv),
+				Labels:          ownerutil.OwnerLabel(csv),
 			},
 			RoleRef: rbacv1.RoleRef{
 				Kind:     "Role",
@@ -119,9 +121,8 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 		role := &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            fmt.Sprintf("%s-%d", csv.GetName(), i),
-				Namespace:       csv.GetNamespace(),
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(csv)},
-				Labels:          ownerutil.CSVOwnerLabel(csv),
+				Labels:          ownerutil.OwnerLabel(csv),
 			},
 			Rules: permission.Rules,
 		}
@@ -133,7 +134,7 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 				Name:            fmt.Sprintf("%s-%s", role.GetName(), permission.ServiceAccountName),
 				Namespace:       csv.GetNamespace(),
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(csv)},
-				Labels:          ownerutil.CSVOwnerLabel(csv),
+				Labels:          ownerutil.OwnerLabel(csv),
 			},
 			RoleRef: rbacv1.RoleRef{
 				Kind:     "ClusterRole",

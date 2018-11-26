@@ -7,6 +7,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -18,7 +19,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
-	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -39,22 +39,19 @@ var (
 	ErrAPIServiceOwnerConflict = errors.New("APIService owned by another ClusterServiceVersion")
 )
 
-//TODO(jpeeler): copied from catalog/operator.go
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 const (
 	FallbackWakeupInterval = 30 * time.Second
-	DeletionPollInterval   = 1 * time.Second
-	DeletionPollDuration   = 30 * time.Second
 )
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueues   map[string]workqueue.RateLimitingInterface
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
-	lister      operatorlister.OperatorLister
-	recorder    record.EventRecorder
+	csvQueues map[string]workqueue.RateLimitingInterface
+	client    versioned.Interface
+	resolver  install.StrategyResolverInterface
+	lister    operatorlister.OperatorLister
+	recorder  record.EventRecorder
 }
 
 func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -107,7 +104,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	)
 	op.RegisterQueueInformer(roleBindingQueueInformer)
 	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
-	
+
 	clusterRoleInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().ClusterRoles()
 	clusterRoleQueueInformer := queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterroles"),
@@ -119,7 +116,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 	)
 	op.RegisterQueueInformer(clusterRoleQueueInformer)
 	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
-	
+
 	clusterRoleBindingInformer := informers.NewSharedInformerFactory(opClient.KubernetesInterface(), wakeupInterval).Rbac().V1().ClusterRoleBindings()
 	clusterRoleBindingQueueInformer := queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "clusterrolebindings"),
@@ -158,7 +155,7 @@ func NewOperator(crClient versioned.Interface, opClient operatorclient.ClientInt
 		metrics.NewMetricsNil(),
 	))
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
-	
+
 	// Register CustomResourceDefinition QueueInformer
 	customResourceDefinitionInformer := aextv1beta1.NewSharedInformerFactory(opClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
 	op.RegisterQueueInformer(queueinformer.NewInformer(
@@ -275,7 +272,7 @@ func (a *Operator) requeueCSV(name, namespace string) {
 	if queue, ok := a.csvQueues[metav1.NamespaceAll]; len(a.csvQueues) == 1 && ok {
 		queue.AddRateLimited(key)
 		return
-	} 
+	}
 
 	if queue, ok := a.csvQueues[namespace]; ok {
 		queue.AddRateLimited(key)
@@ -397,7 +394,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	})
 
 	operatorNamespace, ok := clusterServiceVersion.GetAnnotations()["olm.operatorNamespace"]
-	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied || 
+	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied ||
 		ok && clusterServiceVersion.GetNamespace() != operatorNamespace {
 		logger.Info("skip sync of dummy CSV")
 		return a.removeDanglingChildCSVs(clusterServiceVersion)
@@ -441,23 +438,25 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		return
 	}
 
+	now := timeNow()
+
 	switch out.Status.Phase {
 	case v1alpha1.CSVPhaseNone:
 		logger.Infof("scheduling ClusterServiceVersion for requirement verification")
-		out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked", a.recorder)
+		out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "requirements not yet checked", now, a.recorder)
 	case v1alpha1.CSVPhasePending:
 		met, statuses, err := a.requirementAndPermissionStatus(out)
 		if err != nil {
 			// TODO: account for Bad Rule as well
 			logger.Info("invalid install strategy")
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), now, a.recorder)
 			return
 		}
 		out.SetRequirementStatus(statuses)
 
 		if !met {
 			logger.Info("requirements were not met")
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found", a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found", now, a.recorder)
 			syncError = ErrRequirementsNotMet
 			return
 		}
@@ -465,18 +464,18 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check for CRD ownership conflicts
 		csvSet := a.csvSet(out.GetNamespace())
 		if syncError = a.crdOwnerConflicts(out, csvSet); syncError != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("crd owner conflict: %s", syncError), a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("crd owner conflict: %s", syncError), now, a.recorder)
 			return
 		}
 
 		// check for APIServices ownership conflicts
 		if syncError = a.apiServiceOwnerConflicts(out, csvSet); syncError != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("apiService owner conflict: %s", syncError), a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("apiService owner conflict: %s", syncError), now, a.recorder)
 			return
 		}
 
 		logger.Info("scheduling ClusterServiceVersion for install")
-		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install", a.recorder)
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstallReady, v1alpha1.CSVReasonRequirementsMet, "all requirements found, attempting install", now, a.recorder)
 	case v1alpha1.CSVPhaseInstallReady:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
@@ -487,16 +486,16 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Install owned APIServices and update strategy with serving cert data
 		strategy, syncError = a.installOwnedAPIServiceRequirements(out, strategy)
 		if syncError != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError), a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install API services failed: %s", syncError), now, a.recorder)
 			return
 		}
 
 		if syncError = installer.Install(strategy); syncError != nil {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError), a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError), now, a.recorder)
 			return
 		}
 
-		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", a.recorder)
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", now, a.recorder)
 		a.requeueCSV(out.GetName(), out.GetNamespace())
 		return
 	case v1alpha1.CSVPhaseInstalling:
@@ -526,23 +525,23 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		met, statuses, err := a.requirementAndPermissionStatus(out)
 		if err != nil {
 			logger.Info("invalid install strategy")
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()))
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), now)
 			return
 		} else if !met {
 			out.SetRequirementStatus(statuses)
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements no longer met"))
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements no longer met"), now)
 			return
 		}
 
 		// Check if any generated resources are missing
 		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); resErr != nil {
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, resErr.Error())
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, resErr.Error(), now)
 			return
 		}
 
 		// Check if it's time to refresh owned APIService certs
 		if a.shouldRotateCerts(out) {
-			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh")
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now)
 			return
 		}
 	case v1alpha1.CSVPhaseFailed:
@@ -562,23 +561,23 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		met, statuses, err := a.requirementAndPermissionStatus(out)
 		if err != nil {
 			logger.Warn("invalid install strategy")
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()))
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), now)
 			return
 		} else if !met {
 			out.SetRequirementStatus(statuses)
-			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements not met"))
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, fmt.Sprintf("requirements not met"), now)
 			return
 		}
 
 		// Check if any generated resources are missing
 		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); resErr != nil {
-			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, resErr.Error())
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, resErr.Error(), now)
 			return
 		}
 
 		// Check if it's time to refresh owned APIService certs
 		if a.shouldRotateCerts(out) {
-			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh")
+			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now)
 			return
 		}
 	case v1alpha1.CSVPhaseReplacing:
@@ -595,8 +594,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// if we can find a newer version that's successfully installed, we're safe to mark all intermediates
 		for _, csv := range a.findIntermediatesForDeletion(out) {
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
-			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.", a.recorder)
-			
+			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseDeleting, v1alpha1.CSVReasonReplaced, "has been replaced by a newer ClusterServiceVersion that has successfully installed.", now, a.recorder)
+
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
 			a.requeueCSV(csv.GetName(), csv.GetNamespace())
@@ -668,7 +667,7 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 	if replacement := a.isBeingReplaced(csv, a.csvSet(csv.GetNamespace())); replacement != nil {
 		log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
 		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
-		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg)
+		csv.SetPhase(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg, timeNow())
 		metrics.CSVUpgradeCount.Inc()
 
 		return fmt.Errorf("replacing")
@@ -679,33 +678,35 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller, strategy install.Strategy, requeuePhase v1alpha1.ClusterServiceVersionPhase, requeueConditionReason v1alpha1.ConditionReason) error {
 	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv.Spec.APIServiceDefinitions.Owned)
 	strategyInstalled, strategyErr := installer.CheckInstalled(strategy)
+	now := timeNow()
+
 	if strategyInstalled && apiServicesInstalled {
 		// if there's no error, we're successfully running
 		if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
-			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors")
+			csv.SetPhase(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors", now)
 		}
 		return nil
 	}
 
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
 	if install.IsErrorUnrecoverable(strategyErr) {
-		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", strategyErr))
+		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", strategyErr), now)
 		return strategyErr
 	}
 
 	if apiServiceErr != nil {
-		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceInstallFailed, fmt.Sprintf("APIService install failed: %s", apiServiceErr))
+		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceInstallFailed, fmt.Sprintf("APIService install failed: %s", apiServiceErr), now)
 		return apiServiceErr
 	}
 
 	if !apiServicesInstalled {
-		csv.SetPhase(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"))
+		csv.SetPhase(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"), now)
 		a.requeueCSV(csv.GetName(), csv.GetNamespace())
 		return fmt.Errorf("APIServices not installed")
 	}
 
 	if strategyErr != nil {
-		csv.SetPhase(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr))
+		csv.SetPhase(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now)
 		return strategyErr
 	}
 
@@ -716,7 +717,7 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVersion) (install.StrategyInstaller, install.Strategy, install.Strategy) {
 	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 	if err != nil {
-		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err))
+		csv.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err), timeNow())
 		return nil, nil, nil
 	}
 
@@ -731,7 +732,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, a.lister, csv, previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, a.OpClient, a.lister, csv, csv.Annotations, previousStrategy)
 	return installer, strategy, previousStrategy
 }
 
@@ -824,8 +825,8 @@ func (a *Operator) handleDeletion(obj interface{}) {
 
 func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	logger := log.WithFields(log.Fields{
-		"ownee":    ownee.GetName(),
-		"selflink": ownee.GetSelfLink(),
+		"ownee":     ownee.GetName(),
+		"selflink":  ownee.GetSelfLink(),
 		"namespace": ownee.GetNamespace(),
 	})
 

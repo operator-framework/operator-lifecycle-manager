@@ -2,19 +2,20 @@ package olm
 
 import (
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"reflect"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func (a *Operator) syncOperatorGroups(obj interface{}) error {
@@ -23,7 +24,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		log.Debugf("wrong type: %#v\n", obj)
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
-	log.Infof("syncing operator group %v", op)
 
 	targetedNamespaces, err := a.updateNamespaceList(op)
 	log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
@@ -39,12 +39,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	log.Debug("Cluster roles completed")
 
 	nsListJoined := strings.Join(targetedNamespaces, ",")
-
-	if err := a.annotateDeployments(op, nsListJoined); err != nil {
-		log.Errorf("annotateDeployments error: %v", err)
-		return err
-	}
-	log.Debug("Deployment annotation completed")
 
 	// annotate csvs
 	csvsInNamespace := a.csvSet(op.Namespace)
@@ -126,9 +120,9 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 					APIVersion: r.APIVersion,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: r.GetName(),
+					Name:            r.GetName(),
 					OwnerReferences: r.OwnerReferences,
-					Labels: ownerutil.CSVOwnerLabel(csv),
+					Labels:          ownerutil.OwnerLabel(csv),
 				},
 				Rules: r.Rules,
 			}
@@ -157,9 +151,9 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 					APIVersion: r.APIVersion,
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name: r.GetName(),
+					Name:            r.GetName(),
 					OwnerReferences: r.OwnerReferences,
-					Labels: ownerutil.CSVOwnerLabel(csv),
+					Labels:          ownerutil.OwnerLabel(csv),
 				},
 				Subjects: r.Subjects,
 				RoleRef: rbacv1.RoleRef{
@@ -421,39 +415,5 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (a *Operator) annotateDeployments(op *v1alpha2.OperatorGroup, targetNamespaceString string) error {
-	// write above namespaces to watch in every operator deployment in operator namespace
-	deploymentList, err := a.lister.AppsV1().DeploymentLister().Deployments(op.GetNamespace()).List(labels.Everything())
-	if err != nil {
-		log.Errorf("deployment list failed: %v\n", err)
-		return err
-	}
-
-	for _, deploy := range deploymentList {
-		// TODO: this will be incorrect if two operatorgroups own the same namespace
-		// also - will be incorrect if a CSV is manually installed into a namespace
-		if !ownerutil.IsOwnedByKind(deploy, v1alpha1.ClusterServiceVersionKind) {
-			log.Debugf("deployment '%v' not owned by CSV, skipping", deploy.GetName())
-			continue
-		}
-
-		if lastAnnotation, ok := deploy.Spec.Template.Annotations["olm.targetNamespaces"]; ok {
-			if lastAnnotation == targetNamespaceString {
-				log.Debugf("deployment '%v' already has annotation, skipping", deploy)
-				continue
-			}
-		}
-
-		originalDeploy := deploy.DeepCopy()
-		a.addAnnotationsToObjectMeta(&deploy.Spec.Template.ObjectMeta, op, targetNamespaceString)
-		if _, _, err := a.OpClient.PatchDeployment(originalDeploy, deploy); err != nil {
-			log.Errorf("patch deployment failed: %v\n", err)
-			return err
-		}
-	}
-
 	return nil
 }
