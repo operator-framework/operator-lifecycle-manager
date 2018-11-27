@@ -5,9 +5,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -38,9 +36,10 @@ type StrategyDetailsDeployment struct {
 }
 
 type StrategyDeploymentInstaller struct {
-	strategyClient   wrappers.InstallStrategyDeploymentInterface
-	owner            ownerutil.Owner
-	previousStrategy Strategy
+	strategyClient      wrappers.InstallStrategyDeploymentInterface
+	owner               ownerutil.Owner
+	previousStrategy    Strategy
+	templateAnnotations map[string]string
 }
 
 func (d *StrategyDetailsDeployment) GetStrategyName() string {
@@ -50,70 +49,27 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
+func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
-		strategyClient:   strategyClient,
-		owner:            owner,
-		previousStrategy: previousStrategy,
+		strategyClient:      strategyClient,
+		owner:               owner,
+		previousStrategy:    previousStrategy,
+		templateAnnotations: templateAnnotations,
 	}
-}
-
-func (i *StrategyDeploymentInstaller) installPermissions(perms []StrategyDeploymentPermissions) error {
-	for _, permission := range perms {
-		// create role
-		role := &rbac.Role{
-			Rules: permission.Rules,
-		}
-		ownerutil.AddNonBlockingOwner(role, i.owner)
-		role.SetGenerateName(fmt.Sprintf("%s-role-", i.owner.GetName()))
-		createdRole, err := i.strategyClient.CreateRole(role)
-		if err != nil {
-			return err
-		}
-
-		// create serviceaccount if necessary
-		serviceAccount := &corev1.ServiceAccount{}
-		serviceAccount.SetName(permission.ServiceAccountName)
-		// EnsureServiceAccount verifies/creates ownerreferences so we don't add them here
-		serviceAccount, err = i.strategyClient.EnsureServiceAccount(serviceAccount, i.owner)
-		if err != nil {
-			return err
-		}
-
-		// create rolebinding
-		roleBinding := &rbac.RoleBinding{
-			RoleRef: rbac.RoleRef{
-				Kind:     "Role",
-				Name:     createdRole.GetName(),
-				APIGroup: rbac.GroupName},
-			Subjects: []rbac.Subject{{
-				Kind:      "ServiceAccount",
-				Name:      permission.ServiceAccountName,
-				Namespace: i.owner.GetNamespace(),
-			}},
-		}
-		ownerutil.AddNonBlockingOwner(roleBinding, i.owner)
-		roleBinding.SetGenerateName(fmt.Sprintf("%s-%s-rolebinding-", createdRole.Name, serviceAccount.Name))
-
-		if _, err := i.strategyClient.CreateRoleBinding(roleBinding); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
 	for _, d := range deps {
-		// Create or Update Deployment
 		dep := &appsv1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.owner.GetNamespace())
+		dep.Spec.Template.SetAnnotations(i.templateAnnotations)
 		ownerutil.AddNonBlockingOwner(dep, i.owner)
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})
 		}
-		dep.Labels["alm-owner-name"] = i.owner.GetName()
-		dep.Labels["alm-owner-namespace"] = i.owner.GetNamespace()
+		dep.Labels["olm.owner"] = i.owner.GetName()
+		dep.Labels["olm.owner.namespace"] = i.owner.GetNamespace()
 		if _, err := i.strategyClient.CreateOrUpdateDeployment(dep); err != nil {
 			return err
 		}
@@ -167,31 +123,11 @@ func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (installed bool
 		return false, StrategyError{Reason: StrategyErrReasonInvalidStrategy, Message: fmt.Sprintf("attempted to check %s strategy with deployment installer", strategy.GetStrategyName())}
 	}
 
-	// Check service accounts
-	for _, perm := range strategy.Permissions {
-		if err := i.checkForServiceAccount(perm.ServiceAccountName); err != nil {
-			return false, err
-		}
-	}
-
 	// Check deployments
 	if err := i.checkForDeployments(strategy.DeploymentSpecs); err != nil {
 		return false, err
 	}
 	return true, nil
-}
-
-func (i *StrategyDeploymentInstaller) checkForServiceAccount(serviceAccountName string) error {
-	if _, err := i.strategyClient.GetServiceAccountByName(serviceAccountName); err != nil {
-		if apierrors.IsNotFound(err) {
-			log.Debugf("service account not found: %s", serviceAccountName)
-			return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("service account not found: %s", serviceAccountName)}
-		}
-		log.Debugf("error querying for %s: %s", serviceAccountName, err)
-		return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying for %s: %s", serviceAccountName, err)}
-	}
-	// TODO: use a SelfSubjectRulesReview (or a sync version) to verify ServiceAccount has correct access
-	return nil
 }
 
 func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []StrategyDeploymentSpec) error {
@@ -223,6 +159,16 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []Stra
 		}
 		if !ready {
 			return StrategyError{Reason: StrategyErrReasonWaiting, Message: fmt.Sprintf("waiting for deployment %s to become ready: %s", dep.Name, reason)}
+		}
+
+		// check annotations
+		if len(i.templateAnnotations) > 0 && dep.Spec.Template.Annotations == nil {
+			return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("no annotations found on deployment")}
+		}
+		for key, value := range i.templateAnnotations {
+			if dep.Spec.Template.Annotations[key] != value {
+				return StrategyError{Reason: StrategyErrReasonAnnotationsMissing, Message: fmt.Sprintf("annotations on deployment don't match. couldn't find %s: %s", key, value)}
+			}
 		}
 	}
 	return nil

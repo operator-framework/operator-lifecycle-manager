@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestSetRequirementStatus(t *testing.T) {
@@ -51,7 +52,7 @@ func TestSetPhase(t *testing.T) {
 					Conditions: tt.currentConditions,
 				},
 			}
-			csv.SetPhase(tt.inPhase, "test", "test")
+			csv.SetPhase(tt.inPhase, "test", "test", metav1.Now())
 			require.EqualValues(t, tt.outPhase, csv.Status.Phase)
 		})
 	}

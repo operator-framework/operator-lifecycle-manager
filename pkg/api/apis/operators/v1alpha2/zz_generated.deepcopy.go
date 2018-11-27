@@ -21,7 +21,6 @@ limitations under the License.
 package v1alpha2
 
 import (
-	v1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -109,14 +108,8 @@ func (in *OperatorGroupStatus) DeepCopyInto(out *OperatorGroupStatus) {
 	*out = *in
 	if in.Namespaces != nil {
 		in, out := &in.Namespaces, &out.Namespaces
-		*out = make([]*v1.Namespace, len(*in))
-		for i := range *in {
-			if (*in)[i] != nil {
-				in, out := &(*in)[i], &(*out)[i]
-				*out = new(v1.Namespace)
-				(*in).DeepCopyInto(*out)
-			}
-		}
+		*out = make([]string, len(*in))
+		copy(*out, *in)
 	}
 	in.LastUpdated.DeepCopyInto(&out.LastUpdated)
 	return

@@ -104,6 +104,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	matchingLabel := map[string]string{"matchLabel": testNamespace}
 	otherNamespaceName := testNamespace + "-namespace-two"
+	bothNamespaceNames := otherNamespaceName + "," + testNamespace
 
 	otherNamespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -145,7 +146,7 @@ func TestOperatorGroup(t *testing.T) {
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
-		Namespaces: []*corev1.Namespace{createdOtherNamespace},
+		Namespaces: []string{createdOtherNamespace.GetName()},
 	}
 
 	t.Log("Waiting on operator group to have correct status")
@@ -155,7 +156,7 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.EqualValues(t, expectedOperatorGroupStatus.Namespaces[0].Name, fetched.Status.Namespaces[0].Name)
+			require.Equal(t, expectedOperatorGroupStatus.Namespaces[0], fetched.Status.Namespaces[0])
 			return true, nil
 		}
 		return false, nil
@@ -192,7 +193,7 @@ func TestOperatorGroup(t *testing.T) {
 			t.Log(fetchErr.Error())
 			return false, fetchErr
 		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
 			return true, nil
 		}
 		return false, nil
@@ -205,7 +206,7 @@ func TestOperatorGroup(t *testing.T) {
 			t.Log(fetchErr.Error())
 			return false, fetchErr
 		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, otherNamespaceName) == nil {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
 			return true, nil
 		}
 
@@ -229,7 +230,7 @@ func TestOperatorGroup(t *testing.T) {
 			}
 			return false, err
 		}
-		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, otherNamespaceName) == nil {
+		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, bothNamespaceNames) == nil {
 			return true, nil
 		}
 		return false, nil

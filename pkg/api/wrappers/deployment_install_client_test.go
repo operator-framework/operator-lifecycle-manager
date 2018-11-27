@@ -13,9 +13,9 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
-	
-	listerfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/client-go/listers"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	listerfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/client-go/listers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
 )
@@ -23,7 +23,7 @@ import (
 var (
 	Controller         = false
 	BlockOwnerDeletion = false
-	WakeupInterval = 5 * time.Second
+	WakeupInterval     = 5 * time.Second
 )
 
 func ownerReferenceFromCSV(csv *v1alpha1.ClusterServiceVersion) metav1.OwnerReference {
@@ -421,7 +421,6 @@ func TestEnsureServiceAccount(t *testing.T) {
 
 			client := NewInstallStrategyDeploymentClient(mockOpClient, fakeLister, tt.state.namespace)
 
-			
 			mockOpClient.EXPECT().
 				CreateServiceAccount(tt.input.serviceAccount).
 				Return(tt.state.createServiceAccountResult, tt.state.createServiceAccountError).
