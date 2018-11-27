@@ -251,9 +251,6 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 			newCSV := csv.DeepCopy()
 			newCSV.SetNamespace(ns)
 			newCSV.SetResourceVersion("")
-			newCSV.Status.Reason = v1alpha1.CSVReasonCopied
-			newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
-			newCSV.Status.LastUpdateTime = timeNow()
 
 			log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns)
 			createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Create(newCSV)
@@ -261,6 +258,9 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 				log.Errorf("Create for new CSV failed: %v", err)
 				return err
 			}
+			createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
+			createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+			createdCSV.Status.LastUpdateTime = timeNow()
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(createdCSV); err != nil {
 				log.Errorf("Status update for CSV failed: %v", err)
 				return err
