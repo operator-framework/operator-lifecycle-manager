@@ -42,4 +42,4 @@ trap cleanupAndExit SIGINT SIGTERM EXIT
 
 # run tests
 e2e_kubeconfig=${KUBECONFIG:-~/.kube/config}
-KUBECONFIG=${e2e_kubeconfig} NAMESPACE=${namespace} go test -v -timeout 20m ./test/e2e/... ${1/[[:alnum:]-]*/-run ${1}}
+KUBECONFIG=${e2e_kubeconfig} NAMESPACE=${namespace} go test -v -mod=vendor -timeout 20m ./test/e2e/... ${1/[[:alnum:]-]*/-run ${1}}
