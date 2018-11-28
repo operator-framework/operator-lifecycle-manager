@@ -152,6 +152,13 @@ func schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref comm
 							},
 						},
 					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LongDescription is the CSV's description",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
 			},
 		},
