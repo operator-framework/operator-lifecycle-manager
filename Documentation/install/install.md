@@ -22,6 +22,7 @@ repo is periodically synced with openshift-ansible and should only be used for t
 ## Run locally with minikube
 
 This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
+
 ```
 make run-local
 ```
@@ -87,17 +88,17 @@ To configure a release of OLM for installation in a cluster:
 
 1. Create a `my-values.yaml` like the example above with the desired configuration or choose an existing one from this repository. The latest production values can be found in [deploy/tectonic-alm-operator/values.yaml](../../deploy/tectonic-alm-operator/values.yaml).
 1. Generate deployment files from the templates and the `my-values.yaml` using `package-release.sh`
+
    ```bash
    # first arg must be a semver-compatible version string
    # second arg is the output directory
    # third arg is the values.yaml file
    ./scripts/package-release.sh 1.0.0-myolm ./my-olm-deployment my-values.yaml
    ```
+
 1. Deploy to kubernetes: `kubectl apply -f ./my-olm-deployment/templates/`
 
-
 The above steps are automated for official releases with `make ver=0.3.0 release`, which will output new versions of manifests in `deploy/tectonic-alm-operator/manifests/$(ver)`.
-
 
 ## Subscribe to a Package and Channel
 

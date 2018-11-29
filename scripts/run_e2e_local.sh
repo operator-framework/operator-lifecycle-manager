@@ -18,8 +18,8 @@ echo "catalog_namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources ${tmpdir}/e2e-values.yaml
 
 function cleanup {
- 	kubectl delete namespace ${namespace}
- 	rm -rf test/e2e/resources
+	kubectl delete namespace ${namespace}
+	rm -rf test/e2e/resources
 }
 
 function cleanupAndExit {
