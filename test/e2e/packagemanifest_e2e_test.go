@@ -84,7 +84,9 @@ func TestPackageManifestLoading(t *testing.T) {
 	}
 
 	watcher, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
+	defer watcher.Stop()
 	require.NoError(t, err)
+	receivedPackage := make(chan bool)
 	go func() {
 		event := <-watcher.ResultChan()
 		pkg := event.Object.(*packagev1alpha1.PackageManifest)
@@ -93,6 +95,7 @@ func TestPackageManifestLoading(t *testing.T) {
 		require.NotNil(t, pkg)
 		require.Equal(t, packageName, pkg.GetName())
 		require.Equal(t, expectedStatus, pkg.Status)
+		receivedPackage <- true
 		return
 	}()
 
@@ -102,8 +105,26 @@ func TestPackageManifestLoading(t *testing.T) {
 
 	pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
 
+	require.True(t, <-receivedPackage)
 	require.NoError(t, err, "error getting package manifest")
 	require.NotNil(t, pm)
 	require.Equal(t, packageName, pm.GetName())
 	require.Equal(t, expectedStatus, pm.Status)
+}
+
+func TestPackageManifestMultipleWatches(t *testing.T) {
+	pmc := newPMClient(t)
+
+	watcherA, _ := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
+	watcherB, _ := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
+	watcherC, _ := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
+
+	defer watcherB.Stop()
+	defer watcherC.Stop()
+	watcherA.Stop()
+
+	list, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+
+	require.NoError(t, err)
+	require.NotEqual(t, 0, len(list.Items))
 }

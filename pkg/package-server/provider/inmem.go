@@ -91,14 +91,14 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv
 		logger.Debug("ConfigMap contains CSVs")
 		csvListJSON, err := yaml.YAMLToJSON([]byte(csvListYaml))
 		if err != nil {
-			logrus.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
+			logger.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
 			return nil, fmt.Errorf("error loading CSV list yaml from ConfigMap %s: %s", cmName, err)
 		}
 
 		var parsedCSVList []operatorsv1alpha1.ClusterServiceVersion
 		err = json.Unmarshal([]byte(csvListJSON), &parsedCSVList)
 		if err != nil {
-			logrus.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
+			logger.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
 			return nil, fmt.Errorf("error parsing CSV list (json) from ConfigMap %s: %s", cmName, err)
 		}
 
@@ -106,7 +106,7 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv
 			found = true
 
 			// TODO: add check for invalid CSV definitions
-			logrus.Debugf("found csv %s", csv.GetName())
+			logger.Debugf("found csv %s", csv.GetName())
 			csvs[csv.GetName()] = csv
 		}
 	}
@@ -175,7 +175,7 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv
 				manifest.ObjectMeta.Labels[k] = v
 			}
 
-			logrus.Debugf("retrieved packagemanifest %s", manifest.GetName())
+			logger.Debugf("retrieved packagemanifest %s", manifest.GetName())
 			manifests = append(manifests, manifest)
 		}
 	}
@@ -195,6 +195,12 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		logrus.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting catalog source failed")
 	}
+
+	logger := logrus.WithFields(logrus.Fields{
+		"Action": "Sync CatalogSource",
+		"name":   catsrc.GetName(),
+		"namespace": catsrc.GetNamespace(),
+	})
 
 	var manifests []packagev1alpha1.PackageManifest
 
@@ -217,7 +223,7 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		return fmt.Errorf("catalog source %s in namespace %s source type %s not recognized", catsrc.GetName(), catsrc.GetNamespace(), catsrc.Spec.SourceType)
 	}
 
-	// update manifests
+	logger.Debug("updating in-memory PackageManifests")
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, manifest := range manifests {
@@ -228,18 +234,18 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 		}
 
 		if pm, ok := m.manifests[key]; ok {
-			// use existing CreationTimestamp
+			logger.Debugf("package %s already exists", key.packageName)
 			manifest.CreationTimestamp = pm.ObjectMeta.CreationTimestamp
 		} else {
-			// set CreationTimestamp if first time seeing the PackageManifest
+			logger.Debugf("new package %s found", key.packageName)
 			manifest.CreationTimestamp = metav1.NewTime(time.Now())
 			for _, add := range m.add {
 				if add.namespace == manifest.Status.CatalogSourceNamespace || add.namespace == metav1.NamespaceAll || manifest.Status.CatalogSourceNamespace == m.globalNamespace {
+					logger.Debugf("sending new package %s to watcher for namespace %s", key.packageName, add.namespace)
 					add.ch <- manifest
 				}
 			}
 		}
-
 		m.manifests[key] = manifest
 	}
 
@@ -276,45 +282,48 @@ func (m *InMemoryProvider) List(namespace string) (*packagev1alpha1.PackageManif
 				matching = append(matching, pm)
 			}
 		}
-
 		manifestList.Items = matching
 	}
-
 	return manifestList, nil
 }
 
 func (m *InMemoryProvider) Subscribe(namespace string, stopCh <-chan struct{}) (PackageChan, PackageChan, PackageChan, error) {
+	logger := logrus.WithFields(logrus.Fields{
+		"Action":    "PackageManifest Subscribe",
+		"namespace": namespace,
+	})
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	add := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
-	modify := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
-	delete := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
-	addIndex := len(m.add)
-	modifyIndex := len(m.modify)
-	deleteIndex := len(m.delete)
-	m.add = append(m.add, add)
-	m.modify = append(m.modify, modify)
-	m.delete = append(m.delete, delete)
+	addEvent := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
+	modifyEvent := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
+	deleteEvent := eventChan{namespace, make(chan packagev1alpha1.PackageManifest)}
+	m.add = append(m.add, addEvent)
+	m.modify = append(m.modify, modifyEvent)
+	m.delete = append(m.delete, deleteEvent)
+
+	removeChan := func(target chan packagev1alpha1.PackageManifest, all []eventChan) []eventChan {
+		for i, event := range all {
+			if event.ch == target {
+				logger.Debugf("closing channel")
+				close(event.ch)
+				return append(all[:i], all[i+1:]...)
+			}
+		}
+		return all
+	}
 
 	go func() {
 		<-stopCh
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		for _, add := range m.add {
-			m.add = append(m.add[:addIndex], m.add[:addIndex+1]...)
-			close(add.ch)
-		}
-		for _, modify := range m.modify {
-			m.modify = append(m.modify[:modifyIndex], m.modify[:modifyIndex+1]...)
-			close(modify.ch)
-		}
-		for _, delete := range m.delete {
-			m.delete = append(m.delete[:deleteIndex], m.delete[:deleteIndex+1]...)
-			close(delete.ch)
-		}
+
+		m.add = removeChan(addEvent.ch, m.add)
+		m.modify = removeChan(modifyEvent.ch, m.modify)
+		m.delete = removeChan(deleteEvent.ch, m.delete)
 		return
 	}()
 
-	return add.ch, modify.ch, delete.ch, nil
+	return addEvent.ch, modifyEvent.ch, deleteEvent.ch, nil
 }
