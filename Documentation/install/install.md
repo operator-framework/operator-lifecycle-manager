@@ -58,6 +58,8 @@ watchedNamespaces: local
 # catalog_namespace is the namespace where the catalog operator will look for global catalogs.
 # entries in global catalogs can be resolved in any watched namespace
 catalog_namespace: local
+# operator_namespace is the namespace where the operator runs
+operator_namespace: local
 
 # OLM operator run configuration
 olm:

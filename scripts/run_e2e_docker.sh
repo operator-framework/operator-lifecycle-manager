@@ -6,15 +6,18 @@ set -e
 
 timestamp=$(date +%s)
 namespace="e2e-tests-${timestamp}-$RANDOM"
+operator_namespace="$namespace-operator"
 
 tmpdir=$(mktemp -d 2>/dev/null || mktemp -d -t 'valuetmpdir')
-cp test/e2e/e2e-values.yaml "${tmpdir}/e2e-values.yaml"
+test_e2e_config=${tmpdir}/e2e-values.yaml
+cp test/e2e/e2e-values.yaml "$test_e2e_config"
 
-echo "namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
-echo "watchedNamespaces: ${namespace}" >> ${tmpdir}/e2e-values.yaml
-echo "catalog_namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
+{ echo "namespace: ${namespace}";
+  echo "watchedNamespaces: \"\"";
+  echo "catalog_namespace: ${namespace}";
+  echo "operator_namespace: ${operator_namespace}"; }  >> "$test_e2e_config"
 
-./scripts/package-release.sh 1.0.0-e2e test/e2e/resources "${tmpdir}/e2e-values.yaml"
+./scripts/package-release.sh 1.0.0-e2e test/e2e/resources "$test_e2e_config"
 
 function cleanup {
 	kubectl delete namespace "${namespace}"
