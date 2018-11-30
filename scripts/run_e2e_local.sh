@@ -21,7 +21,11 @@ cp test/e2e/e2e-values.yaml "$test_e2e_config"
 ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources "$test_e2e_config"
 
 function cleanup {
-	kubectl delete namespace "${namespace}"
+	for resource in test/e2e/resources/*.yaml; do
+		[ -e "$resource" ] || continue
+		echo "Running kubectl delete -f $resource..."
+		kubectl delete -f "$resource" &> /dev/null || continue
+	done
 	rm -rf test/e2e/resources
 }
 
