@@ -12,7 +12,7 @@ tmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'valuetmpdir'`
 cp test/e2e/e2e-values.yaml ${tmpdir}/e2e-values.yaml
 
 echo "namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
-echo "watchedNamespaces: ${namespace}" >> ${tmpdir}/e2e-values.yaml
+#echo "watchedNamespaces: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 echo "catalog_namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 
 ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources ${tmpdir}/e2e-values.yaml

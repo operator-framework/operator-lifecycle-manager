@@ -1,3 +1,5 @@
+// +build !bare
+
 package e2e
 
 import (
@@ -14,7 +16,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	c := newKubeClient(t)
 
 	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
-	podList, err := c.KubernetesInterface().CoreV1().Pods(e2eNamespace).List(listOptions)
+	podList, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(listOptions)
 	if err != nil {
 		log.Infof("Error %v\n", err)
 		t.Fatalf("Listing pods failed: %v\n", err)
@@ -25,7 +27,7 @@ func TestMetricsEndpoint(t *testing.T) {
 
 	podName := podList.Items[0].GetName()
 
-	rawOutput, err := getMetricsFromPod(t, c, podName, e2eNamespace, 8080)
+	rawOutput, err := getMetricsFromPod(t, c, podName, testNamespace, 8080)
 	if err != nil {
 		t.Fatalf("Metrics test failed: %v\n", err)
 	}

@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -131,7 +131,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	}
 
 	// Create the new operator
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake)
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
 	op := &Operator{
 		Operator:  queueOperator,
 		client:    clientFake,
@@ -604,7 +604,7 @@ func generateCA(notAfter time.Time, organization string) (*certs.KeyPair, error)
 }
 
 func TestTransitionCSV(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
 
 	// Generate valid and expired CA fixtures
@@ -2572,7 +2572,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 }
 
 func TestIsReplacing(t *testing.T) {
-	log.SetLevel(log.DebugLevel)
+	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
 
 	type initial struct {
@@ -2677,7 +2677,7 @@ func TestIsBeingReplaced(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op := &Operator{}
+			op := &Operator{Operator: &queueinformer.Operator{Log: logrus.New()}}
 
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
@@ -2725,7 +2725,7 @@ func TestCheckReplacement(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op := &Operator{}
+			op := &Operator{Operator: &queueinformer.Operator{Log: logrus.New()}}
 
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})

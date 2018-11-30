@@ -1,12 +1,12 @@
+// +build !bare
+
 package e2e
 
 import (
 	"fmt"
+	"github.com/coreos/go-semver/semver"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-
-	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -15,6 +15,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 func TestCatalogLoadingBetweenRestarts(t *testing.T) {
@@ -25,10 +26,10 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	stableChannel := "stable"
 	packageStable := packageName + "-stable"
 	manifests := []registry.PackageManifest{
-		registry.PackageManifest{
+		{
 			PackageName: packageName,
 			Channels: []registry.PackageChannel{
-				registry.PackageChannel{Name: stableChannel, CurrentCSVName: packageStable},
+				{Name: stableChannel, CurrentCSVName: packageStable},
 			},
 			DefaultChannelName: stableChannel,
 		},

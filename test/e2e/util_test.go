@@ -1,9 +1,8 @@
 package e2e
 
 import (
-	"flag"
 	"fmt"
-	"os"
+	"github.com/sirupsen/logrus"
 	"strings"
 	"testing"
 	"time"
@@ -42,26 +41,14 @@ const (
 )
 
 var (
-	cleaner       *namespaceCleaner
-	testNamespace = metav1.NamespaceDefault
-	genName       = names.SimpleNameGenerator.GenerateName
-	e2eNamespace  string
+	cleaner *namespaceCleaner
+	genName = names.SimpleNameGenerator.GenerateName
 
 	persistentCatalogNames               = []string{ocsConfigMap}
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
 	persistentConfigMapNames             = []string{ocsConfigMap}
 	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
 )
-
-func init() {
-	e2eNamespace = os.Getenv("NAMESPACE")
-	if e2eNamespace != "" {
-		testNamespace = e2eNamespace
-	}
-	flag.Set("logtostderr", "true")
-	flag.Parse()
-	cleaner = newNamespaceCleaner(testNamespace)
-}
 
 type namespaceCleaner struct {
 	namespace      string
@@ -91,32 +78,30 @@ func (c *namespaceCleaner) NotifyTestComplete(t *testing.T, cleanup bool) {
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
 func newKubeClient(t *testing.T) operatorclient.ClientInterface {
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	if kubeconfigPath == "" {
+	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
 	// TODO: impersonate ALM serviceaccount
-	return operatorclient.NewClientFromConfig(kubeconfigPath)
+	// TODO: thread logger from test
+	return operatorclient.NewClientFromConfig(*kubeConfigPath, logrus.New())
 }
 
 func newCRClient(t *testing.T) versioned.Interface {
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	if kubeconfigPath == "" {
+	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
 	// TODO: impersonate ALM serviceaccount
-	crclient, err := client.NewClient(kubeconfigPath)
+	crclient, err := client.NewClient(*kubeConfigPath)
 	require.NoError(t, err)
 	return crclient
 }
 
 func newPMClient(t *testing.T) pmversioned.Interface {
-	kubeconfigPath := os.Getenv("KUBECONFIG")
-	if kubeconfigPath == "" {
+	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
 	// TODO: impersonate ALM serviceaccount
-	pmc, err := pmclient.NewClient(kubeconfigPath)
+	pmc, err := pmclient.NewClient(*kubeConfigPath)
 	require.NoError(t, err)
 	return pmc
 }
@@ -289,7 +274,7 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 func cleanupOLM(t *testing.T, namespace string) {
 	var immediate int64 = 0
 	crc := newCRClient(t)
-	c := newKubeClient(t)
+	//c := newKubeClient(t)
 
 	// Cleanup non persistent OLM CRs
 	t.Log("cleaning up any remaining non persistent resources...")
@@ -300,8 +285,9 @@ func cleanupOLM(t *testing.T, namespace string) {
 	require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(namespace).DeleteCollection(deleteOptions, listOptions))
 	require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector}))
 
+	// error: the server does not allow this method on the requested resource
 	// Cleanup non persistent configmaps
-	require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentConfigMapsFieldSelector}))
+	//require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentConfigMapsFieldSelector}))
 }
 
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {

@@ -69,13 +69,22 @@ run-local-shift:
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
+setup-bare:
+	. ./scripts/build_bare.sh
+	. ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources test/e2e/e2e-bare-values.yaml
+	. ./scripts/install_bare.sh e2e test/e2e/resources
+
 e2e:
-	export NAMESPACE=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
+	export NAMESPACE=default
 	go test ./test/e2e/...
 
 e2e-local:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh $(TEST)
+
+e2e-bare:
+	. ./scripts/build_bare.sh
+	. ./scripts/run_e2e_bare.sh $(TEST)
 
 e2e-local-shift:
 	. ./scripts/build_local_shift.sh

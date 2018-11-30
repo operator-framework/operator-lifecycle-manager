@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"errors"
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	"github.com/ghodss/yaml"
@@ -110,7 +111,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		transitioner := &mockTransitioner{tt.transError}
 
 		// Attempt to transition phases.
-		out, _ := transitionInstallPlanState(transitioner, *plan)
+		out, _ := transitionInstallPlanState(logrus.New(), transitioner, *plan)
 
 		// Assert that the final phase is as expected.
 		require.Equal(t, tt.expected, out.Status.Phase)
@@ -386,7 +387,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	}
 
 	// Create the new operator
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake)
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
 	op := &Operator{
 		Operator:           queueOperator,
 		client:             clientFake,

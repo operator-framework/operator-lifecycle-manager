@@ -534,7 +534,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	sa.SetName(genName("sa-"))
 	sa.SetNamespace(testNamespace)
 	_, err := c.CreateServiceAccount(&sa)
-	require.NoError(t, err, "could not create ServiceAccount")
+	require.NoError(t, err, "could not create ServiceAccount %#v", sa)
 
 	permissions := []install.StrategyDeploymentPermissions{
 		{

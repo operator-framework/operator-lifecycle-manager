@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
@@ -67,6 +67,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 		nil,
 		"catsrc",
 		metrics.NewMetricsNil(),
+		logrus.New(),
 	)
 	for _, informer := range queueInformers {
 		prov.RegisterQueueInformer(informer)
@@ -78,7 +79,7 @@ func NewInMemoryProvider(informers []cache.SharedIndexInformer, queueOperator *q
 // parsePackageManifestsFromConfigMap returns a list of PackageManifests from a given ConfigMap
 func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv1alpha1.CatalogSource) ([]packagev1alpha1.PackageManifest, error) {
 	cmName := cm.GetName()
-	logger := log.WithFields(log.Fields{
+	logger := logrus.WithFields(logrus.Fields{
 		"Action": "Load ConfigMap",
 		"name":   cmName,
 	})
@@ -90,14 +91,14 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv
 		logger.Debug("ConfigMap contains CSVs")
 		csvListJSON, err := yaml.YAMLToJSON([]byte(csvListYaml))
 		if err != nil {
-			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
+			logrus.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
 			return nil, fmt.Errorf("error loading CSV list yaml from ConfigMap %s: %s", cmName, err)
 		}
 
 		var parsedCSVList []operatorsv1alpha1.ClusterServiceVersion
 		err = json.Unmarshal([]byte(csvListJSON), &parsedCSVList)
 		if err != nil {
-			log.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
+			logrus.Debugf("Load ConfigMap     -- ERROR %s : error=%s", cmName, err)
 			return nil, fmt.Errorf("error parsing CSV list (json) from ConfigMap %s: %s", cmName, err)
 		}
 
@@ -105,7 +106,7 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv
 			found = true
 
 			// TODO: add check for invalid CSV definitions
-			log.Debugf("found csv %s", csv.GetName())
+			logrus.Debugf("found csv %s", csv.GetName())
 			csvs[csv.GetName()] = csv
 		}
 	}
@@ -174,7 +175,7 @@ func parsePackageManifestsFromConfigMap(cm *corev1.ConfigMap, catsrc *operatorsv
 				manifest.ObjectMeta.Labels[k] = v
 			}
 
-			log.Debugf("retrieved packagemanifest %s", manifest.GetName())
+			logrus.Debugf("retrieved packagemanifest %s", manifest.GetName())
 			manifests = append(manifests, manifest)
 		}
 	}
@@ -191,7 +192,7 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 	// assert as CatalogSource
 	catsrc, ok := obj.(*operatorsv1alpha1.CatalogSource)
 	if !ok {
-		log.Debugf("wrong type: %#v", obj)
+		logrus.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting catalog source failed")
 	}
 

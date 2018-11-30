@@ -173,7 +173,7 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
 	}
 
-	queueOperator, err := queueinformer.NewOperator(o.Kubeconfig)
+	queueOperator, err := queueinformer.NewOperator(o.Kubeconfig, log.New())
 	if err != nil {
 		return err
 	}

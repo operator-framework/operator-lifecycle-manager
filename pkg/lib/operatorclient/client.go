@@ -1,7 +1,7 @@
 package operatorclient
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -137,20 +137,20 @@ type Client struct {
 }
 
 // NewClient creates a kubernetes client or bails out on on failures.
-func NewClientFromConfig(kubeconfig string) ClientInterface {
+func NewClientFromConfig(kubeconfig string, logger *logrus.Logger) ClientInterface {
 	var config *rest.Config
 	var err error
 
 	if kubeconfig != "" {
-		log.Infof("Loading kube client config from path %q", kubeconfig)
+		logger.Infof("Loading kube client config from path %q", kubeconfig)
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	} else {
-		log.Infof("Using in-cluster kube client config")
+		logger.Infof("Using in-cluster kube client config")
 		config, err = rest.InClusterConfig()
 	}
 
 	if err != nil {
-		log.Fatalf("Cannot load config for REST client: %v", err)
+		logger.Fatalf("Cannot load config for REST client: %v", err)
 	}
 
 	return &Client{kubernetes.NewForConfigOrDie(config), apiextensions.NewForConfigOrDie(config), apiregistration.NewForConfigOrDie(config)}
