@@ -69,21 +69,20 @@ run-local-shift:
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
+# useful if running e2e directly with `go test -tags=bare`
 setup-bare:
 	. ./scripts/build_bare.sh
 	. ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources test/e2e/e2e-bare-values.yaml
-	. ./scripts/install_bare.sh e2e test/e2e/resources
+	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:
-	export NAMESPACE=default
-	go test ./test/e2e/...
+	go test -v -timeout 20m ./test/e2e/... -namespace=default -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
 
 e2e-local:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh $(TEST)
 
-e2e-bare:
-	. ./scripts/build_bare.sh
+e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
 
 e2e-local-shift:

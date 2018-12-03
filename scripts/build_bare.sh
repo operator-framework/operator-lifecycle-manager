@@ -12,10 +12,9 @@ if [ -z "$NO_MINIKUBE" ]; then
   umask 0077 && kubectl config view --minify --flatten --context=minikube > minikube.kubeconfig
 fi
 
-kubectl delete crds --all
-kubectl delete namespace e2e || true
-kubectl wait --for=delete namespace/e2e || true
-kubectl create namespace e2e
+timestamp=$(date +%s)
+namespace="e2e-tests-${timestamp}-$RANDOM"
+printf  "${namespace}" > e2e.namespace
 
-# only used for package server, other operators run locally
-docker build -t quay.io/coreos/olm:local .
+kubectl delete crds --all
+kubectl create namespace ${namespace}

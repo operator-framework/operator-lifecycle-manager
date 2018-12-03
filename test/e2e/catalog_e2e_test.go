@@ -4,9 +4,9 @@ package e2e
 
 import (
 	"fmt"
-	"github.com/coreos/go-semver/semver"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -37,7 +37,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
-	crd := newCRD(crdName, testNamespace, crdPlural)
+	crd := newCRD(crdName, crdPlural)
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)
 
@@ -45,14 +45,13 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	crc := newCRClient(t)
 
 	catalogSourceName := genName("mock-ocs")
-	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 	require.NoError(t, err)
 	defer cleanupCatalogSource()
 
 	// ensure the mock catalog exists and has been synced by the catalog operator
-	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
 	require.NoError(t, err)
-	t.Logf("catalogSource: %+v", catalogSource)
 
 	// get catalog operator deployment
 	deployment, err := getOperatorDeployment(c, labels.Set{"app": "catalog-operator"})
@@ -67,7 +66,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 
 	// check for last synced update to catalogsource
 	t.Log("Checking for catalogsource lastSync updates")
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, func(cs *v1alpha1.CatalogSource) bool {
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, func(cs *v1alpha1.CatalogSource) bool {
 		if cs.Status.LastSync.After(catalogSource.Status.LastSync.Time) {
 			t.Logf("lastSync updated: %s -> %s", catalogSource.Status.LastSync, cs.Status.LastSync)
 			return true
@@ -79,7 +78,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, operatorLabels labels.Set) (*appsv1.Deployment, error) {
-	deployments, err := c.ListDeploymentsWithLabels(testNamespace, operatorLabels)
+	deployments, err := c.ListDeploymentsWithLabels(operatorNamespace, operatorLabels)
 	if err != nil || deployments == nil || len(deployments.Items) != 1 {
 		return nil, fmt.Errorf("Error getting single operator deployment for label: %v", operatorLabels)
 	}
@@ -96,7 +95,7 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	}
 
 	waitForScaleup := func() (bool, error) {
-		fetchedDeployment, err := c.GetDeployment(testNamespace, deployment.GetName())
+		fetchedDeployment, err := c.GetDeployment(operatorNamespace, deployment.GetName())
 		if err != nil {
 			return true, err
 		}

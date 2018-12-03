@@ -103,7 +103,7 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
 								Name:  genName("nginx"),
-								Image: "nginx:1.7.9",
+								Image: "bitnami/nginx:latest",
 								Ports: []corev1.ContainerPort{{ContainerPort: 80}},
 							},
 						}},
@@ -123,11 +123,10 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 	return namedStrategy
 }
 
-func newCRD(name, namespace, plural string) extv1beta1.CustomResourceDefinition {
+func newCRD(name, plural string) extv1beta1.CustomResourceDefinition {
 	crd := extv1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+			Name: name,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind: "CustomResourceDefinition",
@@ -203,7 +202,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	inMem, err := registry.NewInMemoryFromConfigMap(c, testNamespace, ocsConfigMap)
+	inMem, err := registry.NewInMemoryFromConfigMap(c, operatorNamespace, ocsConfigMap)
 	require.NoError(t, err)
 	require.NotNil(t, inMem)
 	latestEtcdCSV, err := inMem.FindCSVForPackageNameUnderChannel("etcd", "alpha")
@@ -222,7 +221,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	}
 
 	// Attempt to get the catalog source before creating install plan
-	_, err = fetchCatalogSource(t, crc, ocsConfigMap, testNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 
 	// Create a new InstallPlan for Vault with manual approval
@@ -322,7 +321,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	}
 
 	// Attempt to get the catalog source before creating install plan
-	_, err := fetchCatalogSource(t, crc, ocsConfigMap, testNamespace, catalogSourceSynced)
+	_, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 
 	cleanup, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, installPlan)
@@ -360,7 +359,7 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
 
-	dependentCRD := newCRD(crdName, testNamespace, crdPlural)
+	dependentCRD := newCRD(crdName, crdPlural)
 	mainCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), nil, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
 	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 
@@ -392,27 +391,27 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	}
 
 	// Create the catalog sources
-	_, cleanupDependentCatalogSource, err := createInternalCatalogSource(t, c, crc, dependentCatalogName, testNamespace, dependentManifests, []extv1beta1.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV})
+	_, cleanupDependentCatalogSource, err := createInternalCatalogSource(t, c, crc, dependentCatalogName, operatorNamespace, dependentManifests, []extv1beta1.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV})
 	require.NoError(t, err)
 	defer cleanupDependentCatalogSource()
 	// Attempt to get the catalog source before creating install plan
-	_, err = fetchCatalogSource(t, crc, dependentCatalogName, testNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, dependentCatalogName, operatorNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 
-	_, cleanupMainCatalogSource, err := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+	_, cleanupMainCatalogSource, err := createInternalCatalogSource(t, c, crc, mainCatalogName, operatorNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 	require.NoError(t, err)
 	defer cleanupMainCatalogSource()
 	// Attempt to get the catalog source before creating install plan
-	_, err = fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, mainCatalogName, operatorNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 
 	// Create expected install plan step sources
 	expectedStepSources := map[registry.ResourceKey]registry.ResourceKey{
-		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                           {Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}: {Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}: {Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:    {Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:         {Name: mainCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: crdName, Kind: "CustomResourceDefinition"}:                           {Name: dependentCatalogName, Namespace: operatorNamespace},
+		registry.ResourceKey{Name: fmt.Sprintf("edit-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}: {Name: dependentCatalogName, Namespace: operatorNamespace},
+		registry.ResourceKey{Name: fmt.Sprintf("view-%s-%s", crdName, "v1alpha1"), Kind: "ClusterRole"}: {Name: dependentCatalogName, Namespace: operatorNamespace},
+		registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:    {Name: dependentCatalogName, Namespace: operatorNamespace},
+		registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:         {Name: mainCatalogName, Namespace: operatorNamespace},
 	}
 
 	// Fetch list of catalog sources
@@ -505,7 +504,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		// Create new CRDs
 		mainCRDPlural := genName("ins")
 		mainCRDName := mainCRDPlural + ".cluster.com"
-		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+		mainCRD := newCRD(mainCRDName, mainCRDPlural)
 
 		// Create a new named install strategy
 		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
@@ -513,7 +512,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
-		dependentCRD := newCRD(dependentCRDName, testNamespace, dependentCRDPlural)
+		dependentCRD := newCRD(dependentCRDName, dependentCRDPlural)
 
 		// Create new CSVs
 		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
@@ -542,11 +541,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create the catalog source
 		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
@@ -636,7 +635,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		// Create new CRDs
 		mainCRDPlural := genName("ins")
 		mainCRDName := mainCRDPlural + ".cluster.com"
-		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+		mainCRD := newCRD(mainCRDName, mainCRDPlural)
 
 		// Create a new named install strategy
 		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
@@ -644,7 +643,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
-		dependentCRD := newCRD(dependentCRDName, testNamespace, dependentCRDPlural)
+		dependentCRD := newCRD(dependentCRDName, dependentCRDPlural)
 
 		// Create new CSVs
 		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
@@ -673,11 +672,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create the catalog source
 		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
 		require.NoError(t, err)
 
 		secondOwnerCSV := v1alpha1.ClusterServiceVersion{
@@ -771,7 +770,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		// Create new CRDs
 		mainCRDPlural := genName("ins")
 		mainCRDName := mainCRDPlural + ".cluster.com"
-		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+		mainCRD := newCRD(mainCRDName, mainCRDPlural)
 
 		// Create a new named install strategy
 		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
@@ -779,7 +778,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
-		dependentCRD := newCRD(dependentCRDName, testNamespace, dependentCRDPlural)
+		dependentCRD := newCRD(dependentCRDName, dependentCRDPlural)
 
 		// Create new CSVs
 		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
@@ -792,11 +791,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create the catalog source
 		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
 		require.NoError(t, err)
 
 		// Create default test installplan
@@ -953,7 +952,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		// Create new CRDs
 		mainCRDPlural := genName("ins")
 		mainCRDName := mainCRDPlural + ".cluster.com"
-		mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+		mainCRD := newCRD(mainCRDName, mainCRDPlural)
 
 		// Create a new named install strategy
 		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
@@ -961,7 +960,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		dependentCRDPlural := genName("ins")
 		dependentCRDName := dependentCRDPlural + ".cluster.com"
-		dependentCRD := newCRD(dependentCRDName, testNamespace, dependentCRDPlural)
+		dependentCRD := newCRD(dependentCRDName, dependentCRDPlural)
 
 		// Create new CSVs
 		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, []extv1beta1.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
@@ -974,11 +973,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Create the catalog source
 		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, mainManifests, []extv1beta1.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
 		require.NoError(t, err)
 
 		// Create a dummy installplan with a non-existent csv
@@ -1091,7 +1090,7 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	// Create new CRDs
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
-	crd := newCRD(crdName, testNamespace, crdPlural)
+	crd := newCRD(crdName, crdPlural)
 
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
@@ -1132,12 +1131,12 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 
 	// Create CatalogSource
 	catalogSourceName := genName("nginx-catalog")
-	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{stableCSV})
+	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{stableCSV})
 	require.NoError(t, err)
 	defer cleanupCatalogSource()
 
 	// Attempt to get CatalogSource
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
 	require.NoError(t, err)
 
 	// Create InstallPlan

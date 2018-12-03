@@ -60,7 +60,7 @@ func TestPackageManifestLoading(t *testing.T) {
 
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
-	crd := newCRD(crdName, testNamespace, crdPlural)
+	crd := newCRD(crdName, crdPlural)
 	catalogSourceName := genName("mock-ocs")
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)

@@ -116,7 +116,7 @@ func newNginxDeployment(name string) appsv1.DeploymentSpec {
 				Containers: []v1.Container{
 					{
 						Name:  genName("nginx"),
-						Image: "nginx:1.7.9",
+						Image: "bitnami/nginx:latest",
 						Ports: []v1.ContainerPort{
 							{
 								ContainerPort: 80,
@@ -202,6 +202,9 @@ func fetchCSV(t *testing.T, c versioned.Interface, name string, checker csvCondi
 		return checker(fetched), nil
 	})
 
+	if err != nil {
+		t.Logf("never got correct status: %#v", fetched.Status)
+	}
 	return fetched, err
 }
 
@@ -715,13 +718,30 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	fmt.Println("checking for deployment")
+	// Poll for deployment to be ready
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		dep, err := c.GetDeployment(testNamespace, depName)
+		if k8serrors.IsNotFound(err) {
+			fmt.Printf("deployment %s not found", depName)
+			return false, nil
+		} else if err != nil {
+			fmt.Printf("unexpected error fetching deployment %s", depName)
+			return false, err
+		}
+		if dep.Status.UpdatedReplicas == *(dep.Spec.Replicas) &&
+			dep.Status.Replicas == *(dep.Spec.Replicas) &&
+			dep.Status.AvailableReplicas == *(dep.Spec.Replicas) {
+			fmt.Printf("deployment ready")
+			return true, nil
+		}
+		fmt.Printf("deployment not ready")
+		return false, nil
+	})
 	require.NoError(t, err)
 
-	// Should create deployment
-	dep, err := c.GetDeployment(testNamespace, depName)
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
-	require.Equal(t, depName, dep.Name)
 
 	// Fetch cluster service version again to check for unnecessary control loops
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
@@ -883,11 +903,6 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
-	// Should create deployment
-	dep, err := c.GetDeployment(testNamespace, depName)
-	require.NoError(t, err)
-	require.Equal(t, depName, dep.Name)
-
 	// Fetch cluster service version again to check for unnecessary control loops
 	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
@@ -994,12 +1009,12 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	// Induce a cert rotation
 	fetchedCSV.Status.CertsLastUpdated = metav1.Now()
 	fetchedCSV.Status.CertsRotateAt = metav1.Now()
-	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
+	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).UpdateStatus(fetchedCSV)
 	require.NoError(t, err)
 
 	_, err = fetchCSV(t, crc, csv.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
 		// Should create deployment
-		dep, err = c.GetDeployment(testNamespace, depName)
+		dep, err = c.GetDeployment(operatorNamespace, depName)
 		require.NoError(t, err)
 
 		// Should have a new ca hash annotation

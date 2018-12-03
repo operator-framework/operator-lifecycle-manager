@@ -2,10 +2,11 @@ package e2e
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,7 @@ import (
 
 const (
 	pollInterval = 1 * time.Second
-	pollDuration = 5 * time.Minute
+	pollDuration = 2 * time.Minute
 
 	etcdVersion            = "3.2.13"
 	prometheusVersion      = "v2.3.2"
@@ -239,6 +240,7 @@ func catalogSourceSynced(catalog *v1alpha1.CatalogSource) bool {
 	if !catalog.Status.LastSync.IsZero() {
 		return true
 	}
+	fmt.Printf("not synced: %#v", catalog)
 	return false
 }
 

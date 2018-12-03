@@ -30,7 +30,7 @@ func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.Deploym
 
 // Currently this function only modifies the watchedNamespace in the container command
 func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) (cleanupFunc func() error) {
-	runningDeploy, err := c.GetDeployment(testNamespace, "olm-operator")
+	runningDeploy, err := c.GetDeployment(operatorNamespace, "olm-operator")
 	require.NoError(t, err)
 
 	oldCommand := runningDeploy.Spec.Template.Spec.Containers[0].Command
@@ -115,15 +115,14 @@ func TestOperatorGroup(t *testing.T) {
 	createdOtherNamespace, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&otherNamespace)
 	require.NoError(t, err)
 
-	cleanupOlmDeployment := patchOlmDeployment(t, c, otherNamespaceName)
-
 	t.Log("Creating CRD")
 	mainCRDPlural := genName("ins")
 	apiGroup := "cluster.com"
 	mainCRDName := mainCRDPlural + "." + apiGroup
-	mainCRD := newCRD(mainCRDName, testNamespace, mainCRDPlural)
+	mainCRD := newCRD(mainCRDName, mainCRDPlural)
 	cleanupCRD, err := createCRD(c, mainCRD)
 	require.NoError(t, err)
+	defer cleanupCRD()
 
 	t.Log("Creating CSV")
 	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
@@ -156,13 +155,13 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.Equal(t, expectedOperatorGroupStatus.Namespaces[0], fetched.Status.Namespaces[0])
+			require.Equal(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
 			return true, nil
 		}
 		return false, nil
 	})
 
-	t.Log("Checking for proper RBAC permissions in target namespace")
+	t.Log("Checking for proper generated operator-group RBAC roles")
 	roleList, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(metav1.ListOptions{})
 	for _, item := range roleList.Items {
 		role, err := c.GetClusterRole(item.GetName())
@@ -170,17 +169,18 @@ func TestOperatorGroup(t *testing.T) {
 		switch roleName := item.GetName(); roleName {
 		case "owned-crd-manager-another-csv":
 			managerPolicyRules := []rbacv1.PolicyRule{
-				rbacv1.PolicyRule{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+				{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
 			}
 			require.Equal(t, managerPolicyRules, role.Rules)
 		case "e2e-operator-group-edit":
 			editPolicyRules := []rbacv1.PolicyRule{
-				rbacv1.PolicyRule{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+				{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
 			}
+			t.Log(role)
 			require.Equal(t, editPolicyRules, role.Rules)
 		case "e2e-operator-group-view":
 			viewPolicyRules := []rbacv1.PolicyRule{
-				rbacv1.PolicyRule{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+				{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
 			}
 			require.Equal(t, viewPolicyRules, role.Rules)
 		}
@@ -247,12 +247,6 @@ func TestOperatorGroup(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-
-	// clean up
-	err = cleanupOlmDeployment()
-	require.NoError(t, err)
-
-	cleanupCRD()
 
 	err = c.KubernetesInterface().CoreV1().Namespaces().Delete(otherNamespaceName, &metav1.DeleteOptions{})
 	require.NoError(t, err)

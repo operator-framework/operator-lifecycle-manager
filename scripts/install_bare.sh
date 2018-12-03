@@ -28,6 +28,3 @@ do
         kubectl apply -f ${f};
     fi
 done
-
-# wait for package server to be ready
-#kubectl rollout status -w deployment.apps/package-server --namespace=${namespace}
