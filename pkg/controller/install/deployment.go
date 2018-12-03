@@ -63,7 +63,17 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 		dep := &appsv1.Deployment{Spec: d.Spec}
 		dep.SetName(d.Name)
 		dep.SetNamespace(i.owner.GetNamespace())
-		dep.Spec.Template.SetAnnotations(i.templateAnnotations)
+
+		// Merge annotations (to avoid losing info from pod template)
+		annotations := map[string]string{}
+		for k, v := range i.templateAnnotations {
+			annotations[k] = v
+		}
+		for k, v := range dep.Spec.Template.GetAnnotations() {
+			annotations[k] = v
+		}
+		dep.Spec.Template.SetAnnotations(annotations)
+
 		ownerutil.AddNonBlockingOwner(dep, i.owner)
 		if dep.Labels == nil {
 			dep.SetLabels(map[string]string{})

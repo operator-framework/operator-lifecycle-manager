@@ -171,6 +171,13 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 								"olm.owner.namespace": mockOwner.GetNamespace(),
 							},
 						},
+						Spec: appsv1.DeploymentSpec{
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Annotations: map[string]string{},
+								},
+							},
+						},
 					},
 					returnError: nil,
 				},
@@ -185,6 +192,13 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 								"olm.owner.namespace": mockOwner.GetNamespace(),
 							},
 						},
+						Spec: appsv1.DeploymentSpec{
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Annotations: map[string]string{},
+								},
+							},
+						},
 					},
 					returnError: nil,
 				},
@@ -197,6 +211,13 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 							Labels: map[string]string{
 								"olm.owner":           mockOwner.GetName(),
 								"olm.owner.namespace": mockOwner.GetNamespace(),
+							},
+						},
+						Spec: appsv1.DeploymentSpec{
+							Template: corev1.PodTemplateSpec{
+								ObjectMeta: metav1.ObjectMeta{
+									Annotations: map[string]string{},
+								},
 							},
 						},
 					},
@@ -215,7 +236,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 				fakeClient.CreateDeploymentReturns(nil, m.returnError)
 				defer func(i int, expectedDeployment appsv1.Deployment) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
-					require.Equal(t, expectedDeployment, *dep)
+					assert.Equal(t, expectedDeployment, *dep)
 				}(i, m.expectedDeployment)
 			}
 
