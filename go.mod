@@ -74,7 +74,7 @@ require (
 	k8s.io/code-generator v0.0.0-20180904193909-8c97d6ab64da
 	k8s.io/gengo v0.0.0-20181106084056-51747d6e00da // indirect
 	k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 // indirect
-	k8s.io/kube-aggregator v0.0.0-20180905000155-efa32eb095fe
+	k8s.io/kube-aggregator v0.0.0-20181121072050-af204e4cff09
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
 	k8s.io/kubernetes v1.11.6-beta.0.0.20181126160157-5933b9771b71
 )

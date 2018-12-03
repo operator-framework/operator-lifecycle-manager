@@ -5,10 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,6 +13,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -129,6 +130,9 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Ensure the Deployment's ServiceAccount exists
 		serviceAccountName := deployment.Spec.Template.Spec.ServiceAccountName
+		if serviceAccountName == "" {
+			serviceAccountName = "default"
+		}
 		serviceAccount, err := a.lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
 		if err != nil {
 			logger.WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
@@ -423,6 +427,10 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 	} else {
 		return nil, err
+	}
+
+	if depSpec.Template.Spec.ServiceAccountName == "" {
+		depSpec.Template.Spec.ServiceAccountName = "default"
 	}
 
 	secretRoleBinding := &rbacv1.RoleBinding{

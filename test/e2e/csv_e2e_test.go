@@ -3,14 +3,9 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/api/core/v1"
@@ -21,6 +16,12 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 var singleInstance = int32(1)
@@ -29,12 +30,18 @@ type cleanupFunc func()
 
 var immediateDeleteGracePeriod int64 = 0
 
-func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs bool) cleanupFunc {
+func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
 		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{}))
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
 				buildCRDCleanupFunc(c, crd.Name)()
+			}
+		}
+
+		if deleteAPIServices {
+			for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
+				buildAPIServiceCleanupFunc(c, desc.Name)()
 			}
 		}
 
@@ -45,12 +52,12 @@ func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc ver
 	}
 }
 
-func createCSV(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs bool) (cleanupFunc, error) {
+func createCSV(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, cleanupCRDs, cleanupAPIServices bool) (cleanupFunc, error) {
 	csv.Kind = v1alpha1.ClusterServiceVersionKind
 	csv.APIVersion = v1alpha1.SchemeGroupVersion.String()
 	_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(&csv)
 	require.NoError(t, err)
-	return buildCSVCleanupFunc(t, c, crc, csv, namespace, cleanupCRDs), nil
+	return buildCSVCleanupFunc(t, c, crc, csv, namespace, cleanupCRDs, cleanupAPIServices), nil
 
 }
 
@@ -63,6 +70,20 @@ func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) clean
 
 		waitForDelete(func() error {
 			_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			return err
+		})
+	}
+}
+
+func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName string) cleanupFunc {
+	return func() {
+		err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(apiServiceName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		waitForDelete(func() error {
+			_, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiServiceName, metav1.GetOptions{})
 			return err
 		})
 	}
@@ -99,6 +120,48 @@ func newNginxDeployment(name string) appsv1.DeploymentSpec {
 						Ports: []v1.ContainerPort{
 							{
 								ContainerPort: 80,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func newMockExtServerDeployment(name, mockGroupVersion string, mockKinds []string) appsv1.DeploymentSpec {
+	return appsv1.DeploymentSpec{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app": name,
+			},
+		},
+		Replicas: &singleInstance,
+		Template: v1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app": name,
+				},
+			},
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Name:    genName(name),
+						Image:   "quay.io/coreos/mock-extension-apiserver:master",
+						Command: []string{"/bin/mock-extension-apiserver"},
+						Args: []string{
+							"-v=4",
+							"--mock-kinds",
+							strings.Join(mockKinds, ","),
+							"--mock-group-version",
+							mockGroupVersion,
+							"--secure-port",
+							"5443",
+							"--debug",
+						},
+						Ports: []v1.ContainerPort{
+							{
+								ContainerPort: 5443,
 							},
 						},
 					},
@@ -208,7 +271,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 		},
 	}
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -300,7 +363,7 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -344,7 +407,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 		},
 	}
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -415,7 +478,7 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 		},
 	}
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -448,7 +511,7 @@ func TestCreateCSVWithUnmetRequirementsNativeAPI(t *testing.T) {
 		},
 	}
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -648,7 +711,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&nonResourceClusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -813,7 +876,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 	defer cleanupCSV()
 
@@ -837,21 +900,38 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	// Cheat and use a deployment of an extension-apiserver that we know already exists
-	depName := "package-server"
-	dep, err := c.KubernetesInterface().AppsV1().Deployments(testNamespace).Get(depName, metav1.GetOptions{})
-	require.NoError(t, err, fmt.Sprintf("deployment %s expected but not present in namespace %s", depName, testNamespace))
+	depName := genName("hat-server")
+	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	version := "v1alpha1"
+	mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
+	mockKinds := []string{"fez", "fedora"}
+	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
+	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 	// Create CSV for the package-server
 	strategy := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
 				Name: depName,
-				Spec: dep.Spec,
+				Spec: depSpec,
 			},
 		},
 	}
 	strategyRaw, err := json.Marshal(strategy)
+
+	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+	for i, kind := range mockKinds {
+		owned[i] = v1alpha1.APIServiceDescription{
+			Name: 			apiServiceName,
+			Group:          mockGroup,
+			Version:        version,
+			Kind:           kind,
+			DeploymentName: depName,
+			ContainerPort:  int32(5443),
+			DisplayName:    kind,
+			Description:    fmt.Sprintf("A %s", kind),
+		}
+	}
 
 	csv := v1alpha1.ClusterServiceVersion{
 		Spec: v1alpha1.ClusterServiceVersionSpec{
@@ -860,71 +940,52 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 				StrategySpecRaw: strategyRaw,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
-				Owned: []v1alpha1.APIServiceDescription{
-					{
-						Group:          "packages.apps.redhat.com",
-						Version:        "v1alpha1",
-						Kind:           "PackageManifest",
-						DeploymentName: depName,
-						ContainerPort:  int32(5443),
-						DisplayName:    "Package Manifest",
-						Description:    "An apiservice that exists",
-					},
-				},
+				Owned: owned,
 			},
 		},
 	}
 	csv.SetName(depName)
 
-	// Delete expected ClusterRoleBinding to system:auth-delegator
-	err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete("packagemanifest:system:auth-delegator", &metav1.DeleteOptions{})
-	require.NoError(t, waitForDelete(func() error {
-		_, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Get("packagemanifest:system:auth-delegator", metav1.GetOptions{})
-		return err
-	}), "could not delete expected ClusterRoleBinding before creating CSV")
-
-	// Delete expected RoleBinding to extension-apiserver-authentication-reader
-	err = c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Delete("packagemanifest-auth-reader", &metav1.DeleteOptions{})
-	require.NoError(t, waitForDelete(func() error {
-		_, err := c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Get("packagemanifest-auth-reader", metav1.GetOptions{})
-		return err
-	}), "could not delete expected ClusterRoleBinding before creating CSV")
-
-	// Adopt existing APIService resource to dummy owner CSV (to allow adoption by new csv)
-	owner := &v1alpha1.ClusterServiceVersion{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: genName("owner"),
-		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: newNginxInstallStrategy(genName(depName), nil, nil),
-		},
-	}
-	_, err = createCSV(t, c, crc, *owner, testNamespace, false)
-	require.NoError(t, err)
-	owner, err = fetchCSV(t, crc, owner.GetName(), csvAnyChecker)
-	require.NoError(t, err)
-
-	apiServiceName := "v1alpha1.packages.apps.redhat.com"
-	apiService, err := c.GetAPIService(apiServiceName)
-	require.NoError(t, err, "expected pre-existing APIService does not exist")
-	ownerutil.AddNonBlockingOwner(apiService, owner)
-	_, err = c.UpdateAPIService(apiService)
-	require.NoError(t, err, "could not update OwnerReferences to dummy CSV on pre-existing APIService")
-
 	// Create the APIService CSV
-	_, err = createCSV(t, c, crc, csv, testNamespace, false)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, true)
 	require.NoError(t, err)
+	defer cleanupCSV()
 
 	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
-	// Should create deployment
-	dep, err = c.GetDeployment(testNamespace, depName)
-	require.NoError(t, err)
+	// Should create Deployment
+	dep, err := c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err, "error getting expected Deployment")
+
+	// Should create APIService
+	apiService, err := c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "error getting expected APIService")
+
+	// Should create Service
+	_, err = c.GetService(testNamespace, olm.APIServiceNameToServiceName(apiServiceName))
+	require.NoError(t, err, "error getting expected Service")
+
+	// Should create certificate Secret
+	secretName := fmt.Sprintf("%s-cert", apiServiceName)
+	_, err = c.GetSecret(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret")
+
+	// Should create a Role for the Secret
+	_, err = c.GetRole(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret Role")
+
+	// Should create a RoleBinding for the Secret
+	_, err = c.GetRoleBinding(testNamespace, secretName)
+	require.NoError(t, err, "error getting exptected Secret RoleBinding")
+
+	// Should create a system:auth-delegator Cluster RoleBinding
+	_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", apiServiceName))
+	require.NoError(t, err, "error getting expected system:auth-delegator ClusterRoleBinding")
+
+	// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+	_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", apiServiceName))
+	require.NoError(t, err, "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
 	// Store the ca sha annotation
 	oldCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
@@ -978,56 +1039,6 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
-
-	// Remove owner references on generated APIService, Deployment, Role, RoleBinding(s), ClusterRoleBinding(s), Secret, and Service
-	apiService, err = c.GetAPIService(apiServiceName)
-	require.NoError(t, err)
-	apiService.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.UpdateAPIService(apiService)
-	require.NoError(t, err, "could not remove OwnerReferences on generated APIService")
-
-	dep, err = c.GetDeployment(testNamespace, depName)
-	require.NoError(t, err)
-	dep.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.KubernetesInterface().AppsV1().Deployments(testNamespace).Update(dep)
-	require.NoError(t, err, "could not remove OwnerReferences on generated Deployment")
-
-	secret, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).Get(apiServiceName+"-cert", metav1.GetOptions{})
-	require.NoError(t, err)
-	secret.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.KubernetesInterface().CoreV1().Secrets(testNamespace).Update(secret)
-	require.NoError(t, err, "could not remove OwnerReferences on generated Secret")
-
-	role, err := c.KubernetesInterface().RbacV1().Roles(testNamespace).Get(secret.GetName(), metav1.GetOptions{})
-	role.SetOwnerReferences([]metav1.OwnerReference{})
-	require.NoError(t, err)
-	_, err = c.KubernetesInterface().RbacV1().Roles(testNamespace).Update(role)
-	require.NoError(t, err, "could not remove OwnerReferences on generated Role")
-
-	roleBinding, err := c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Get(role.GetName(), metav1.GetOptions{})
-	require.NoError(t, err)
-	roleBinding.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Update(roleBinding)
-	require.NoError(t, err, "could not remove OwnerReferences on generated RoleBinding")
-
-	authDelegatorClusterRoleBinding, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Get(apiServiceName+"-system:auth-delegator", metav1.GetOptions{})
-	require.NoError(t, err)
-	authDelegatorClusterRoleBinding.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.KubernetesInterface().RbacV1().ClusterRoleBindings().Update(authDelegatorClusterRoleBinding)
-	require.NoError(t, err, "could not remove OwnerReferences on generated auth delegator ClusterRoleBinding")
-
-	authReaderRoleBinding, err := c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Get(apiServiceName+"-auth-reader", metav1.GetOptions{})
-	require.NoError(t, err)
-	authReaderRoleBinding.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.KubernetesInterface().RbacV1().RoleBindings("kube-system").Update(authReaderRoleBinding)
-	require.NoError(t, err, "could not remove OwnerReferences on generated auth reader RoleBinding")
-
-	serviceName := olm.APIServiceNameToServiceName(apiServiceName)
-	service, err := c.KubernetesInterface().CoreV1().Services(testNamespace).Get(serviceName, metav1.GetOptions{})
-	require.NoError(t, err)
-	service.SetOwnerReferences([]metav1.OwnerReference{})
-	_, err = c.KubernetesInterface().CoreV1().Services(testNamespace).Update(service)
-	require.NoError(t, err, "could not remove OwnerReferences on generated Service")
 }
 
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
@@ -1099,7 +1110,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	}
 
 	// Don't need to cleanup this CSV, it will be deleted by the upgrade process
-	_, err = createCSV(t, c, crc, csv, testNamespace, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -1153,7 +1164,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true, false)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
@@ -1245,7 +1256,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	}
 
 	// don't need to clean up this CSV, it will be deleted by the upgrade process
-	_, err = createCSV(t, c, crc, csv, testNamespace, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -1297,7 +1308,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true, false)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
@@ -1396,7 +1407,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	}
 
 	// don't need to clean up this CSV, it will be deleted by the upgrade process
-	_, err = createCSV(t, c, crc, csv, testNamespace, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -1448,7 +1459,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 		},
 	}
 
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew, testNamespace, true, false)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
@@ -1553,7 +1564,7 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	}
 
 	// CSV will be deleted by the upgrade process later
-	_, err = createCSV(t, c, crc, csv, testNamespace, true)
+	_, err = createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
@@ -1614,7 +1625,7 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	}
 
 	// Create newly updated CSV
-	_, err = createCSV(t, c, crc, csvNew, testNamespace, true)
+	_, err = createCSV(t, c, crc, csvNew, testNamespace, false, false)
 	require.NoError(t, err)
 
 	// Wait for updated CSV to succeed
@@ -1675,7 +1686,7 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	}
 
 	// Create newly updated CSV
-	cleanupNewCSV, err := createCSV(t, c, crc, csvNew2, testNamespace, true)
+	cleanupNewCSV, err := createCSV(t, c, crc, csvNew2, testNamespace, true, false)
 	require.NoError(t, err)
 	defer cleanupNewCSV()
 
