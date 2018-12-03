@@ -40,6 +40,18 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 
 	nsListJoined := strings.Join(targetedNamespaces, ",")
 
+	for _, csv := range csvsInNamespace {
+		if err := a.copyCsvToTargetNamespace(csv, op, targetedNamespaces); err != nil {
+			return err
+		}
+	}
+
+	for _, csv := range csvsInNamespace {
+		if err := a.ensureRBACInTargetNamespace(csv, op, targetedNamespaces); err != nil {
+			return err
+		}
+	}
+
 	// annotate csvs
 	csvsInNamespace := a.csvSet(op.Namespace)
 	for _, csv := range csvsInNamespace {
@@ -50,18 +62,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
 				log.Errorf("Update for existing CSV failed: %v", err)
 			}
-		}
-	}
-
-	for _, csv := range csvsInNamespace {
-		if err := a.copyCsvToTargetNamespace(csv, op, targetedNamespaces); err != nil {
-			return err
-		}
-	}
-
-	for _, csv := range csvsInNamespace {
-		if err := a.ensureRBACInTargetNamespace(csv, op, targetedNamespaces); err != nil {
-			return err
 		}
 	}
 	log.Debug("CSV annotation completed")
