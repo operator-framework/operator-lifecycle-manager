@@ -9,6 +9,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
@@ -58,6 +59,16 @@ func main() {
 		log.SetLevel(log.DebugLevel)
 	}
 
+	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
+	// the empty string, the resulting array will be `[]string{""}`.
+	namespaces := strings.Split(*watchedNamespaces, ",")
+	for _, ns := range namespaces {
+		if ns == v1.NamespaceAll {
+			namespaces = []string{v1.NamespaceAll}
+			break
+		}
+	}
+
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -65,7 +76,7 @@ func main() {
 	go http.ListenAndServe(":8080", nil)
 
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, *wakeupInterval, *catalogNamespace, strings.Split(*watchedNamespaces, ",")...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, log.New(), *wakeupInterval, *catalogNamespace, namespaces...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

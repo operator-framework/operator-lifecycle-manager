@@ -2,7 +2,7 @@ package queueinformer
 
 import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -20,6 +20,7 @@ type QueueInformer struct {
 	resourceEventHandlerFuncs *cache.ResourceEventHandlerFuncs
 	name                      string
 	metrics.MetricsProvider
+	log *logrus.Logger
 }
 
 // enqueue adds a key to the queue. If obj is a key already it gets added directly.
@@ -44,7 +45,7 @@ func (q *QueueInformer) enqueue(obj interface{}) {
 func (q *QueueInformer) keyFunc(obj interface{}) (string, bool) {
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
-		log.Infof("creating key failed: %s", err)
+		q.log.Infof("creating key failed: %s", err)
 		return k, false
 	}
 
@@ -57,7 +58,7 @@ func (q *QueueInformer) defaultAddFunc(obj interface{}) {
 		return
 	}
 
-	log.Infof("%s added", key)
+	q.log.Infof("%s added", key)
 	q.enqueue(key)
 }
 
@@ -67,7 +68,7 @@ func (q *QueueInformer) defaultDeleteFunc(obj interface{}) {
 		return
 	}
 
-	log.Infof("%s deleted", key)
+	q.log.Infof("%s deleted", key)
 	q.queue.Forget(key)
 }
 
@@ -77,12 +78,12 @@ func (q *QueueInformer) defaultUpdateFunc(oldObj, newObj interface{}) {
 		return
 	}
 
-	log.Infof("%s updated", key)
+	q.log.Infof("%s updated", key)
 	q.enqueue(key)
 }
 
 // defaultResourceEventhandlerFuncs provides the default implementation for responding to events
-// these simply log the event and add the object's key to the queue for later processing
+// these simply Log the event and add the object's key to the queue for later processing
 func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventHandlerFuncs {
 	return &cache.ResourceEventHandlerFuncs{
 		AddFunc:    q.defaultAddFunc,
@@ -93,23 +94,24 @@ func (q *QueueInformer) defaultResourceEventHandlerFuncs() *cache.ResourceEventH
 
 // New creates a set of new queueinformers given a name, a set of informers, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func New(queue workqueue.RateLimitingInterface, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs, name string, metrics metrics.MetricsProvider) []*QueueInformer {
+func New(queue workqueue.RateLimitingInterface, informers []cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs, name string, metrics metrics.MetricsProvider, logger *logrus.Logger) []*QueueInformer {
 	queueInformers := []*QueueInformer{}
 	for _, informer := range informers {
-		queueInformers = append(queueInformers, NewInformer(queue, informer, handler, funcs, name, metrics))
+		queueInformers = append(queueInformers, NewInformer(queue, informer, handler, funcs, name, metrics, logger))
 	}
 	return queueInformers
 }
 
 // NewInformer creates a new queueinformer given a name, an informer, and a sync handler to handle the objects
 // that the operator is managing. Optionally, custom event handler funcs can be passed in (defaults will be provided)
-func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs, name string, metrics metrics.MetricsProvider) *QueueInformer {
+func NewInformer(queue workqueue.RateLimitingInterface, informer cache.SharedIndexInformer, handler SyncHandler, funcs *cache.ResourceEventHandlerFuncs, name string, metrics metrics.MetricsProvider, logger *logrus.Logger) *QueueInformer {
 	queueInformer := &QueueInformer{
 		queue:           queue,
 		informer:        informer,
 		syncHandler:     handler,
 		name:            name,
 		MetricsProvider: metrics,
+		log:             logger,
 	}
 	queueInformer.resourceEventHandlerFuncs = queueInformer.defaultResourceEventHandlerFuncs()
 	if funcs != nil {

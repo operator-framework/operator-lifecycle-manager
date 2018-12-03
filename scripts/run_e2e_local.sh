@@ -12,7 +12,7 @@ tmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'valuetmpdir'`
 cp test/e2e/e2e-values.yaml ${tmpdir}/e2e-values.yaml
 
 echo "namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
-echo "watchedNamespaces: ${namespace}" >> ${tmpdir}/e2e-values.yaml
+#echo "watchedNamespaces: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 echo "catalog_namespace: ${namespace}" >> ${tmpdir}/e2e-values.yaml
 
 ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources ${tmpdir}/e2e-values.yaml
@@ -41,5 +41,11 @@ trap cleanupAndExit SIGINT SIGTERM EXIT
 ./scripts/install_local.sh ${namespace} test/e2e/resources
 
 # run tests
-e2e_kubeconfig=${KUBECONFIG:-~/.kube/config}
-KUBECONFIG=${e2e_kubeconfig} NAMESPACE=${namespace} go test -v -mod=vendor -timeout 20m ./test/e2e/... ${1/[[:alnum:]-]*/-run ${1}}
+if [ -z "$1" ]; then
+  test_flags="";
+else
+  test_flags="-test.run ${1}"
+fi
+
+echo "${test_flags}"
+go test -mod=vendor -tags=local -covermode=count -coverpkg ./pkg/controller/...  -test.v -test.timeout 20m ${test_flags} ./test/e2e/... -kubeconfig=${KUBECONFIG:-~/.kube/config} -namespace=${namespace} -olmNamespace=${namespace}

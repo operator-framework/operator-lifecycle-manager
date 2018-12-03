@@ -152,7 +152,7 @@ var (
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
 								Name:  genName("nginx"),
-								Image: "nginx:1.7.9",
+								Image: "bitnami/nginx:latest",
 								Ports: []corev1.ContainerPort{{ContainerPort: 80}},
 							},
 						}},
@@ -207,14 +207,14 @@ func init() {
 
 func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface) error {
 	// Create configmap containing catalog
-	dummyCatalogConfigMap.SetNamespace(testNamespace)
-	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap)
+	dummyCatalogConfigMap.SetNamespace(operatorNamespace)
+	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(operatorNamespace).Create(dummyCatalogConfigMap)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
 
 	// Create catalog source custom resource pointing to ConfigMap
-	dummyCatalogSource.SetNamespace(testNamespace)
+	dummyCatalogSource.SetNamespace(operatorNamespace)
 	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
 	require.NoError(t, err)
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csUnst})
@@ -264,8 +264,12 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Reason, fetchedSubscription.Status.Install)
 		return checker(fetchedSubscription), nil
 	})
+	if err != nil {
+		t.Logf("never got correct status: %#v", fetchedSubscription.Status)
+	}
 	return fetchedSubscription, err
 }
 

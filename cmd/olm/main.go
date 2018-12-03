@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/api/core/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -24,15 +25,6 @@ const (
 	defaultWakeupInterval = 5 * time.Minute
 )
 
-// helper function for required env vars
-func envOrDie(varname, description string) string {
-	val := os.Getenv(varname)
-	if len(val) == 0 {
-		log.Fatalf("must set env %s - %s", varname, description)
-	}
-	return val
-}
-
 // config flags defined globally so that they appear on the test binary as well
 var (
 	kubeConfigPath = flag.String(
@@ -44,7 +36,7 @@ var (
 	watchedNamespaces = flag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces for alm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
-			"alm operator will watch all namespaces in the cluster.")
+			"olm operator will watch all namespaces in the cluster.")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
@@ -79,6 +71,12 @@ func main() {
 	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
 	// the empty string, the resulting array will be `[]string{""}`.
 	namespaces := strings.Split(*watchedNamespaces, ",")
+	for _, ns := range namespaces {
+		if ns == v1.NamespaceAll {
+			namespaces = []string{v1.NamespaceAll}
+			break
+		}
+	}
 
 	// Create a client for OLM
 	crClient, err := client.NewClient(*kubeConfigPath)
@@ -86,10 +84,12 @@ func main() {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath)
+	logger := log.New()
+
+	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
 
 	// Create a new instance of the operator.
-	operator, err := olm.NewOperator(crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, namespaces)
+	operator, err := olm.NewOperator(logger, crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, namespaces)
 
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())

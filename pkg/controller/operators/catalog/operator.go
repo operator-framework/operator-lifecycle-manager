@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -55,7 +55,7 @@ type Operator struct {
 }
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
+func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval time.Duration, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
 	// Default to watching all namespaces.
 	if watchedNamespaces == nil {
 		watchedNamespaces = []string{metav1.NamespaceAll}
@@ -84,7 +84,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 	}
 
 	// Create a new queueinformer-based operator.
-	queueOperator, err := queueinformer.NewOperator(kubeconfigPath)
+	queueOperator, err := queueinformer.NewOperator(kubeconfigPath, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +107,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		nil,
 		"catsrc",
 		metrics.NewMetricsCatalogSource(op.client),
+		logger,
 	)
 	for _, informer := range catsrcQueueInformer {
 		op.RegisterQueueInformer(informer)
@@ -121,6 +122,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		nil,
 		"installplan",
 		metrics.NewMetricsInstallPlan(op.client),
+		logger,
 	)
 	for _, informer := range ipQueueInformers {
 		op.RegisterQueueInformer(informer)
@@ -135,6 +137,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 		nil,
 		"subscription",
 		metrics.NewMetricsSubscription(op.client),
+		logger,
 	)
 	op.subQueue = subscriptionQueue
 	for _, informer := range subscriptionQueueInformers {
@@ -147,7 +150,7 @@ func NewOperator(kubeconfigPath string, wakeupInterval time.Duration, operatorNa
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	catsrc, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
-		log.Debugf("wrong type: %#v", obj)
+		o.Log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
@@ -198,11 +201,11 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
-		log.Debugf("wrong type: %#v", obj)
+		o.Log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Subscription failed")
 	}
 
-	logger := log.WithFields(log.Fields{
+	logger := o.Log.WithFields(logrus.Fields{
 		"sub":       sub.GetName(),
 		"namespace": sub.GetNamespace(),
 		"source":    sub.Spec.CatalogSource,
@@ -248,18 +251,18 @@ func (o *Operator) requeueInstallPlan(name, namespace string) {
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
-		log.Debugf("wrong type: %#v", obj)
+		o.Log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting InstallPlan failed")
 	}
 
-	logger := log.WithFields(log.Fields{
+	logger := o.Log.WithFields(logrus.Fields{
 		"ip":        plan.GetName(),
 		"namespace": plan.GetNamespace(),
 		"phase":     plan.Status.Phase,
 	})
 
 	logger.Info("syncing")
-	outInstallPlan, syncError := transitionInstallPlanState(o, *plan)
+	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan)
 
 	if syncError != nil {
 		logger = logger.WithField("syncError", syncError)
@@ -297,23 +300,17 @@ type installPlanTransitioner interface {
 
 var _ installPlanTransitioner = &Operator{}
 
-func transitionInstallPlanState(transitioner installPlanTransitioner, in v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error) {
-	logger := log.WithFields(log.Fields{
-		"ip":        in.GetName(),
-		"namespace": in.GetNamespace(),
-		"phase":     in.Status.Phase,
-	})
-
+func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTransitioner, in v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error) {
 	out := in.DeepCopy()
 
 	switch in.Status.Phase {
 	case v1alpha1.InstallPlanPhaseNone:
-		logger.Debugf("setting phase to %s", v1alpha1.InstallPlanPhasePlanning)
+		log.Debugf("setting phase to %s", v1alpha1.InstallPlanPhasePlanning)
 		out.Status.Phase = v1alpha1.InstallPlanPhasePlanning
 		return out, nil
 
 	case v1alpha1.InstallPlanPhasePlanning:
-		logger.Debug("attempting to resolve")
+		log.Debug("attempting to resolve")
 		if err := transitioner.ResolvePlan(out); err != nil {
 			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanResolved,
 				v1alpha1.InstallPlanReasonInstallCheckFailed, err))
@@ -331,15 +328,15 @@ func transitionInstallPlanState(transitioner installPlanTransitioner, in v1alpha
 
 	case v1alpha1.InstallPlanPhaseRequiresApproval:
 		if out.Spec.Approved {
-			logger.Debugf("approved, setting to %s", v1alpha1.InstallPlanPhasePlanning)
+			log.Debugf("approved, setting to %s", v1alpha1.InstallPlanPhasePlanning)
 			out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 		} else {
-			logger.Debug("not approved, skipping sync")
+			log.Debug("not approved, skipping sync")
 		}
 		return out, nil
 
 	case v1alpha1.InstallPlanPhaseInstalling:
-		logger.Debug("attempting to install")
+		log.Debug("attempting to install")
 		if err := transitioner.ExecutePlan(out); err != nil {
 			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
 				v1alpha1.InstallPlanReasonComponentFailed, err))
@@ -447,8 +444,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			continue
 
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			log.Debugf("resource kind: %s", step.Resource.Kind)
-			log.Debugf("resource name: %s", step.Resource.Name)
+			o.Log.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.

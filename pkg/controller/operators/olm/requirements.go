@@ -3,11 +3,11 @@ package olm
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,7 +28,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
 		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
 		if err != nil {
-			log.Debugf("Setting 'met' to false, %v with err: %v", r.Name, err)
+			a.Log.Debugf("Setting 'met' to false, %v with err: %v", r.Name, err)
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			met = false
 			statuses = append(statuses, status)
@@ -159,7 +159,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) error {
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
-			log.Debugf("perm.ServiceAccountName: %s", saName)
+			a.Log.Debugf("perm.ServiceAccountName: %s", saName)
 
 			var status v1alpha1.RequirementStatus
 			if stored, ok := statusesSet[saName]; !ok {
@@ -239,7 +239,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 	statuses := []v1alpha1.RequirementStatus{}
 	for key, status := range statusesSet {
-		log.Debugf("appending permission status: %s", key)
+		a.Log.Debugf("appending permission status: %s", key)
 		statuses = append(statuses, status)
 	}
 
@@ -279,14 +279,14 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	statuses := append(reqStatuses, permStatuses...)
 	met := reqMet && permMet
 	if !met {
-		log.Debugf("reqMet=%#v permMet=%v\n", reqMet, permMet)
+		a.Log.Debugf("reqMet=%#v permMet=%v\n", reqMet, permMet)
 	}
 
 	return met, statuses, nil
 }
 
 func (a *Operator) isGVKRegistered(group, version, kind string) error {
-	logger := log.WithFields(log.Fields{
+	logger := a.Log.WithFields(logrus.Fields{
 		"group":   group,
 		"version": version,
 		"kind":    kind,

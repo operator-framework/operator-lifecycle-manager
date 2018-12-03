@@ -26,6 +26,7 @@ spec:
           - /bin/catalog
           - '-namespace'
           - openshift-operator-lifecycle-manager
+          - -debug
           image: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
           imagePullPolicy: IfNotPresent
           ports:
