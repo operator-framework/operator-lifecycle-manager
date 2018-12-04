@@ -54,7 +54,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	require.NoError(t, err)
 
 	// get catalog operator deployment
-	deployment, err := getOperatorDeployment(c, labels.Set{"app": "catalog-operator"})
+	deployment, err := getOperatorDeployment(c, operatorNamespace, labels.Set{"app": "catalog-operator"})
 	require.NoError(t, err)
 	require.NotNil(t, deployment, "Could not find catalog operator deployment")
 
@@ -77,8 +77,8 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	t.Logf("Catalog source sucessfully loaded after rescale")
 }
 
-func getOperatorDeployment(c operatorclient.ClientInterface, operatorLabels labels.Set) (*appsv1.Deployment, error) {
-	deployments, err := c.ListDeploymentsWithLabels(operatorNamespace, operatorLabels)
+func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
+	deployments, err := c.ListDeploymentsWithLabels(namespace, operatorLabels)
 	if err != nil || deployments == nil || len(deployments.Items) != 1 {
 		return nil, fmt.Errorf("Error getting single operator deployment for label: %v", operatorLabels)
 	}
@@ -95,7 +95,7 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	}
 
 	waitForScaleup := func() (bool, error) {
-		fetchedDeployment, err := c.GetDeployment(operatorNamespace, deployment.GetName())
+		fetchedDeployment, err := c.GetDeployment(deployment.GetNamespace(), deployment.GetName())
 		if err != nil {
 			return true, err
 		}

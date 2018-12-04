@@ -723,19 +723,19 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		dep, err := c.GetDeployment(testNamespace, depName)
 		if k8serrors.IsNotFound(err) {
-			fmt.Printf("deployment %s not found", depName)
+			fmt.Printf("deployment %s not found\n", depName)
 			return false, nil
 		} else if err != nil {
-			fmt.Printf("unexpected error fetching deployment %s", depName)
+			fmt.Printf("unexpected error fetching deployment %s\n", depName)
 			return false, err
 		}
 		if dep.Status.UpdatedReplicas == *(dep.Spec.Replicas) &&
 			dep.Status.Replicas == *(dep.Spec.Replicas) &&
 			dep.Status.AvailableReplicas == *(dep.Spec.Replicas) {
-			fmt.Printf("deployment ready")
+			fmt.Println("deployment ready")
 			return true, nil
 		}
-		fmt.Printf("deployment not ready")
+		fmt.Println("deployment not ready")
 		return false, nil
 	})
 	require.NoError(t, err)
@@ -1009,12 +1009,12 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	// Induce a cert rotation
 	fetchedCSV.Status.CertsLastUpdated = metav1.Now()
 	fetchedCSV.Status.CertsRotateAt = metav1.Now()
-	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).UpdateStatus(fetchedCSV)
+	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
 	require.NoError(t, err)
 
 	_, err = fetchCSV(t, crc, csv.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
 		// Should create deployment
-		dep, err = c.GetDeployment(operatorNamespace, depName)
+		dep, err = c.GetDeployment(testNamespace, depName)
 		require.NoError(t, err)
 
 		// Should have a new ca hash annotation
