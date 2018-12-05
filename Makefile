@@ -112,13 +112,6 @@ clean:
 	@rm -rf test/e2e/test-resources
 	@rm -rf test/e2e/log
 
-CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
-$(CI):
-	jsonnet fmt -i -n 4 $@
-
-gen-ci: $(CI)
-	ffctl gen
-
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
 codegen:
@@ -157,7 +150,7 @@ verify-catalog: schema-check
 generate-mock-client: 
 	$(MOCKGEN)
 
-gen-all: gen-ci container-codegen container-mockgen
+gen-all: container-codegen container-mockgen
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
