@@ -20,59 +20,6 @@ local appr = utils.appr;
         ],
     } + job_tags,
 
-    WaitInQueue: {
-        image: vars.images.e2e.name,
-        script:
-            [
-                ". ${CI_PROJECT_DIR}/scripts/wait_in_queue.sh $CI_PROJECT_URL $CI_PIPELINE_ID",
-            ],
-    } + job_tags,
-
-
-    EndToEndTest: {
-        local _vars = self.localvars,
-        localvars:: {
-            appname: self.namespace,
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            jobname: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            chart: "test/e2e/chart",
-            appversion: "1.0.0-e2e-%s" % self.image.olm.tag,
-            helm_opts: [],
-            params: {
-                namespace: _vars.namespace,
-                "e2e.image.ref": vars.images.e2e.name,
-                job_name: _vars.jobname,
-            },
-            patch: "{\"imagePullSecrets\": [{\"name\": \"coreos-pull-secret\"}]}",
-        },
-        image: "quay.io/coreos/alm-ci-build:latest",
-        script:
-            k8s.setKubeConfig("$CD_KUBECONFIG") +
-            k8s.createPullSecret("coreos-pull-secret",
-                                 _vars.namespace,
-                                 "quay.io",
-                                 "$DOCKER_USER",
-                                 "$DOCKER_PASS") +
-            [
-                'kubectl -n %s patch serviceaccount default -p %s || true' % [_vars.namespace, std.escapeStringBash(_vars.patch)],
-            ] +
-            [
-                'kubectl -n %s create rolebinding e2e-admin-rb --clusterrole=cluster-admin --serviceaccount=%s:default --namespace=%s || true' % [_vars.namespace, _vars.namespace, _vars.namespace],
-            ] +
-            helm.templateApply("olm-e2e", _vars.chart, _vars.namespace, _vars.params) +
-            [
-                "until kubectl -n %s logs job/%s | grep -v 'ContainerCreating'; do echo 'waiting for job to run' && sleep 1; done" % [_vars.namespace, _vars.jobname],
-                "kubectl -n %s logs job/%s -f" % [_vars.namespace, _vars.jobname],
-                "kubectl -n %s logs job/%s > e2e.log" % [_vars.namespace, _vars.jobname],
-                "if cat e2e.log | grep -q '^not'; then echo 'err' && exit 1; else echo 'no err' && exit 0; fi",
-            ],
-
-        variables: {
-            NAMESPACE: _vars.namespace,
-            K8S_NAMESPACE: _vars.namespace,
-        },
-    } + job_tags,
-
     Deploy: {
         local this = self,
         local _vars = self.localvars,

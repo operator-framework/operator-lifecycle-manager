@@ -10,7 +10,6 @@ local stages_list = [
     'docker_base',
     'docker_build',
     'deploy_preview',
-    'wait_in_queue',
     'test_setup',
     'tests',
     'test_teardown',
@@ -80,36 +79,6 @@ local jobs = {
             docker.rename(images.prerelease.olm.name, images.tag.olm.name) +
             docker.rename(images.e2e.name, images.e2elatest.name),
         only: ['tags'],
-    },
-
-    'wait-in-queue': baseJob.WaitInQueue {
-        stage: stages.wait_in_queue,
-    },
-    
-    'e2e-setup': baseJob.Deploy {
-        local _vars = self.localvars,
-        localvars+:: {
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-        },
-        stage: stages.test_setup,
-    },
-
-    'e2e-teardown': baseJob.DeployStop {
-        local _vars = self.localvars,
-        localvars+:: {
-            namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-            catalog_namespace: "e2e-%s" % "${CI_COMMIT_REF_SLUG}-${SHA8}",
-        },
-        stage: stages.test_teardown,
-    },
-
-    // End2End tests
-    local integration_test = baseJob.EndToEndTest {
-        stage: stages.tests,
-    },
-
-    e2e_tests: integration_test {
     },
 
     "deploy-preview": baseJob.Deploy {
