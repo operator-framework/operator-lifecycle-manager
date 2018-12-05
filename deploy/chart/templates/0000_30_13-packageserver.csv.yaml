@@ -18,6 +18,37 @@ spec:
   install:
     strategy: deployment
     spec:
+      permissions:
+      - serviceAccountName: package-server-serviceaccount
+        rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - "operators.redhat.com"
+          resources:
+          - catalogsources
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - "packages.apps.redhat.com"
+          resources:
+          - packagemanifests
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - delete
+          - patch
+          - update     
       deployments:
       - name: package-server
         spec:
@@ -32,7 +63,7 @@ spec:
               labels:
                 app: package-server
             spec:
-              serviceAccountName: olm-operator-serviceaccount
+              serviceAccountName: package-server-serviceaccount
               containers:
               - name: package-server
                 command:
@@ -73,6 +104,6 @@ spec:
       version: v1alpha1
       kind: PackageManifest
       displayName: PackageManifest
-      description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
+      description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
       deploymentName: package-server
       containerPort: {{ .Values.package.service.internalPort }}
