@@ -116,10 +116,11 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("Creating CRD")
-	mainCRDPlural := genName("ins")
-	apiGroup := "cluster.com"
+	mainCRDPlural := genName("opgroup")
+	apiGroup := "opcluster.com"
 	mainCRDName := mainCRDPlural + "." + apiGroup
 	mainCRD := newCRD(mainCRDName, mainCRDPlural)
+	mainCRD.Spec.Group = apiGroup
 	cleanupCRD, err := createCRD(c, mainCRD)
 	require.NoError(t, err)
 	defer cleanupCRD()
@@ -127,6 +128,10 @@ func TestOperatorGroup(t *testing.T) {
 	t.Log("Creating CSV")
 	aCSV := newCSV(csvName, testNamespace, "", *semver.New("0.0.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, nil, newNginxInstallStrategy("operator-deployment", nil, nil))
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&aCSV)
+	require.NoError(t, err)
+
+	t.Log("wait for CSV to succeed")
+	_, err = fetchCSV(t, crc, createdCSV.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
 
 	t.Log("Creating operator group")
@@ -145,7 +150,7 @@ func TestOperatorGroup(t *testing.T) {
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
-		Namespaces: []string{createdOtherNamespace.GetName()},
+		Namespaces: []string{createdOtherNamespace.GetName(), testNamespace},
 	}
 
 	t.Log("Waiting on operator group to have correct status")
@@ -161,30 +166,51 @@ func TestOperatorGroup(t *testing.T) {
 		return false, nil
 	})
 
-	t.Log("Checking for proper generated operator-group RBAC roles")
-	roleList, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(metav1.ListOptions{})
-	for _, item := range roleList.Items {
-		role, err := c.GetClusterRole(item.GetName())
-		require.NoError(t, err)
-		switch roleName := item.GetName(); roleName {
-		case "owned-crd-manager-another-csv":
-			managerPolicyRules := []rbacv1.PolicyRule{
-				{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+	t.Log("Waiting for expected operator group test APIGroup from CSV")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		// (view role is the last role created, so the rest should exist as well by this point)
+		viewRole, fetchErr := c.KubernetesInterface().RbacV1().ClusterRoles().Get("e2e-operator-group-view", metav1.GetOptions{})
+		if fetchErr != nil {
+			if errors.IsNotFound(fetchErr) {
+				return false, nil
 			}
-			require.Equal(t, managerPolicyRules, role.Rules)
-		case "e2e-operator-group-edit":
-			editPolicyRules := []rbacv1.PolicyRule{
-				{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
-			}
-			t.Log(role)
-			require.Equal(t, editPolicyRules, role.Rules)
-		case "e2e-operator-group-view":
-			viewPolicyRules := []rbacv1.PolicyRule{
-				{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
-			}
-			require.Equal(t, viewPolicyRules, role.Rules)
+			t.Logf("Unable to fetch view role: %v", fetchErr.Error())
+			return false, fetchErr
 		}
+		for _, rule := range viewRole.Rules {
+			for _, group := range rule.APIGroups {
+				if group == apiGroup {
+					return true, nil
+				}
+			}
+		}
+		return false, nil
+	})
+
+	t.Log("Checking for proper generated operator group RBAC roles")
+	editRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get("e2e-operator-group-edit", metav1.GetOptions{})
+	require.NoError(t, err)
+	editPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
 	}
+	t.Log(editRole)
+	require.Equal(t, editPolicyRules, editRole.Rules)
+
+	viewRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get("e2e-operator-group-view", metav1.GetOptions{})
+	require.NoError(t, err)
+	viewPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+	}
+	t.Log(viewRole)
+	require.Equal(t, viewPolicyRules, viewRole.Rules)
+
+	managerRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get("owned-crd-manager-another-csv", metav1.GetOptions{})
+	require.NoError(t, err)
+	managerPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+	}
+	t.Log(managerRole)
+	require.Equal(t, managerPolicyRules, managerRole.Rules)
 
 	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -203,7 +229,10 @@ func TestOperatorGroup(t *testing.T) {
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
-			t.Log(fetchErr.Error())
+			if errors.IsNotFound(fetchErr) {
+				return false, nil
+			}
+			t.Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
 			return false, fetchErr
 		}
 		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
@@ -214,12 +243,21 @@ func TestOperatorGroup(t *testing.T) {
 	})
 	// since annotations are set along with status, no reason to poll for this check as done above
 	t.Log("Checking status on csv in target namespace")
-	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
+		if fetchErr != nil {
+			if errors.IsNotFound(fetchErr) {
+				return false, nil
+			}
+			t.Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
+			return false, fetchErr
+		}
+		if fetchedCSV.Status.Reason == v1alpha1.CSVReasonCopied {
+			return true, nil
+		}
+		return false, nil
+	})
 	require.NoError(t, err)
-	require.EqualValues(t, v1alpha1.CSVReasonCopied, fetchedCSV.Status.Reason)
-	// also check name and spec
-	require.EqualValues(t, createdCSV.Name, fetchedCSV.Name)
-	require.EqualValues(t, createdCSV.Spec, fetchedCSV.Spec)
 
 	t.Log("Waiting on deployment to have correct annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
