@@ -43,7 +43,7 @@ ClusterServiceVersion:
 
 ## OLM Operator
 
-The OLM Operator is responsible to deploying applications defined by ClusterServiceVersion resources once the required resources specified in the ClusterServiceVersion are present in the cluster.
+The OLM Operator is responsible for deploying applications defined by ClusterServiceVersion resources once the required resources specified in the ClusterServiceVersion are present in the cluster.
 The OLM Operator is not concerned with the creation of the required resources; users can choose to manually create these resources using `kubectl` or users can choose to create these resources using the Catalog Operator.
 This separation of concern enables users incremental buy-in in terms of how much of the OLM framework they choose to leverage for their application.
 
