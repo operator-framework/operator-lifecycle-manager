@@ -240,7 +240,7 @@ func catalogSourceSynced(catalog *v1alpha1.CatalogSource) bool {
 	if !catalog.Status.LastSync.IsZero() {
 		return true
 	}
-	fmt.Printf("not synced: %#v", catalog)
+
 	return false
 }
 
