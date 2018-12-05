@@ -239,6 +239,10 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 			log.Debugf("Found existing CSV (%v), checking annotations", fetchedCSV.GetName())
 			if reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) == false {
 				fetchedCSV.Annotations = csv.Annotations
+				// Remove olm.targetNamespaces annotation on the copied CSV
+				fetchedAnnotations := fetchedCSV.Annotations
+				delete(fetchedAnnotations, "olm.targetNamespaces")
+				fetchedCSV.SetAnnotations(fetchedAnnotations)
 				// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 				log.Debugf("Updating CSV %v in namespace %v", fetchedCSV.GetName(), ns)
 				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Update(fetchedCSV); err != nil {
