@@ -1,4 +1,4 @@
-##---
+---
 # Source: olm/templates/0000_30_12-aggregated.clusterrole.yaml
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
