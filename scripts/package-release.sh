@@ -19,7 +19,7 @@ charttmpdir=`mktemp -d 2>/dev/null || mktemp -d -t 'charttmpdir'`
 charttmpdir=${charttmpdir}/chart
 
 cp -R deploy/chart/ ${charttmpdir}
-echo "version: $1" >> ${charttmpdir}/Chart.yaml
+echo "Version: $1" >> ${charttmpdir}/Chart.yaml
 
 mkdir -p ${chartdir}
 

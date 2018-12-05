@@ -1,0 +1,112 @@
+{{- define "packageserver.clusterserviceversion" }}
+- apiVersion: operators.coreos.com/v1alpha1
+  kind: ClusterServiceVersion
+  metadata:
+    name: packageserver.v{{ .Chart.Version }}
+    namespace: {{ .Values.namespace }}
+  spec:
+    displayName: Package Server
+    description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
+    keywords: ['packagemanifests', 'olm', 'packages']
+    maintainers:
+    - name: Red Hat
+      email: openshift-operators@redhat.com
+    provider:
+      name: Red Hat
+    links:
+    - name: Package Server
+      url: https://github.com/operator-framework/operator-lifecycle-manager/tree/master/pkg/packageserver
+    install:
+      strategy: deployment
+      spec:
+        permissions:
+        - serviceAccountName: packageserver
+          rules:
+          - apiGroups:
+            - ""
+            resources:
+            - configmaps
+            verbs:
+            - get
+            - list
+            - watch
+          - apiGroups:
+            - "operators.coreos.com"
+            resources:
+            - catalogsources
+            verbs:
+            - get
+            - list
+            - watch
+          - apiGroups:
+            - "packages.apps.redhat.com"
+            resources:
+            - packagemanifests
+            verbs:
+            - get
+            - list
+            - watch
+            - create
+            - delete
+            - patch
+            - update     
+        deployments:
+        - name: packageserver
+          spec:
+            replicas: {{ .Values.package.replicaCount }}
+            strategy:
+              type: RollingUpdate
+            selector:
+              matchLabels:
+                app: packageserver
+            template:
+              metadata:
+                labels:
+                  app: packageserver
+              spec:
+                serviceAccountName: packageserver
+                containers:
+                - name: packageserver
+                  command:
+                  - /bin/package-server
+                  - -v=4
+                  {{- if .Values.watchedNamespaces }}
+                  - --watched-namespaces
+                  - {{ .Values.watchedNamespaces }}
+                  {{- end }}
+                  - --secure-port
+                  - {{ .Values.package.service.internalPort | quote }}
+                  - --global-namespace
+                  - {{ .Values.namespace }}
+                  {{- if .Values.debug }}
+                  - --debug
+                  {{- end }}
+                  {{- if .Values.package.commandArgs }}
+                  - {{ .Values.package.commandArgs }}
+                  {{- end }}
+                  image: {{ .Values.package.image.ref }}
+                  imagePullPolicy: {{ .Values.package.image.pullPolicy }}
+                  ports:
+                  - containerPort: {{ .Values.package.service.internalPort }}
+                  livenessProbe:
+                      httpGet:
+                        scheme: HTTPS
+                        path: /healthz
+                        port: {{ .Values.package.service.internalPort }}
+                  readinessProbe:
+                      httpGet:
+                        scheme: HTTPS
+                        path: /healthz
+                        port: {{ .Values.package.service.internalPort }}
+    maturity: alpha
+    version: {{ .Chart.Version }}
+    apiservicedefinitions:
+      owned:
+      - group: packages.apps.redhat.com
+        version: v1alpha1
+        kind: PackageManifest
+        displayName: PackageManifest
+        description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
+        deploymentName: packageserver
+        containerPort: {{ .Values.package.service.internalPort }}
+{{- end }}
