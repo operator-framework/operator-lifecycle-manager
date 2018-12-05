@@ -1,4 +1,4 @@
-##---
+---
 # Source: olm/templates/0000_30_07-certified-operators.configmap.yaml
 
 kind: ConfigMap

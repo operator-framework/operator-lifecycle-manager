@@ -1,4 +1,4 @@
-##---
+---
 # Source: olm/templates/0000_30_06-rh-operators.configmap.yaml
 
 kind: ConfigMap

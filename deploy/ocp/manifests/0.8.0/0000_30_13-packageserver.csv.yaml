@@ -1,8 +1,10 @@
+---
+# Source: olm/templates/0000_30_13-packageserver.csv.yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: packageserver.v8.0.0
-  namespace: {{ .Values.namespace }}
+  namespace: openshift-operator-lifecycle-manager
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
@@ -21,7 +23,7 @@ spec:
       deployments:
       - name: package-server
         spec:
-          replicas: {{ .Values.package.replicaCount }}
+          replicas: 1
           strategy:
             type: RollingUpdate
           selector:
@@ -38,33 +40,23 @@ spec:
                 command:
                 - /bin/package-server
                 - -v=4
-                {{- if .Values.watchedNamespaces }}
-                - --watched-namespaces
-                - {{ .Values.watchedNamespaces }}
-                {{- end }}
-                - --secure-port={{ .Values.package.service.internalPort }}
+                - --secure-port=5443
                 - --global-namespace
-                - {{ .Values.namespace }}
-                {{- if .Values.debug }}
-                - --debug
-                {{- end }}
-                {{- if .Values.package.commandArgs }}
-                - {{ .Values.package.commandArgs }}
-                {{- end }}
-                image: {{ .Values.package.image.ref }}
-                imagePullPolicy: {{ .Values.package.image.pullPolicy }}
+                - openshift-operator-lifecycle-manager
+                image: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
+                imagePullPolicy: Always
                 ports:
-                - containerPort: {{ .Values.package.service.internalPort }}
+                - containerPort: 5443
                 livenessProbe:
                     httpGet:
                       scheme: HTTPS
                       path: /healthz
-                      port: {{ .Values.package.service.internalPort }}
+                      port: 5443
                 readinessProbe:
                     httpGet:
                       scheme: HTTPS
                       path: /healthz
-                      port: {{ .Values.package.service.internalPort }}
+                      port: 5443
   maturity: alpha
   version: 8.0.0
   apiservicedefinitions:
@@ -75,4 +67,4 @@ spec:
       displayName: PackageManifest
       description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
       deploymentName: package-server
-      containerPort: {{ .Values.package.service.internalPort }}
+      containerPort: 5443
