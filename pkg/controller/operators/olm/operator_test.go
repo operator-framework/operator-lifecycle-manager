@@ -2522,8 +2522,11 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
+			op, hasSyncedFns, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
 			require.NoError(t, err)
+
+			ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
+			require.True(t, ok, "wait for cache sync failed")
 
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
 			require.NoError(t, err)
