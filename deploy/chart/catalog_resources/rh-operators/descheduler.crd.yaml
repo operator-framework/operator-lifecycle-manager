@@ -1,0 +1,28 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: deschedulers.descheduler.io
+spec:
+  group: descheduler.io
+  names:
+    kind: Descheduler
+    listKind: DeschedulerList
+    plural: deschedulers
+    singular: descheduler
+  scope: Namespaced
+  version: v1alpha1
+  validation:
+    openAPIV3Schema:
+      properties:
+        spec:
+          strategies:
+            type: array
+            uniqueItems: true
+            minItems: 1
+            maxItems: 4
+            collectionFormat: pipes
+            items:
+              type: string
+          schedule:
+            type: string
+            pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'

@@ -1,0 +1,4 @@
+packageName: descheduler
+channels:
+- name: alpha
+  currentCSV: descheduler.v0.0.1
