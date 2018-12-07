@@ -77,4 +77,3 @@ spec:
           type: object
       required:
       - metadata
-      - spec

@@ -2,6 +2,7 @@ rbacApiVersion: rbac.authorization.k8s.io
 namespace: local
 watchedNamespaces: local
 catalog_namespace: local
+operator_namespace: local
 debug: true
 
 olm:
