@@ -18,6 +18,8 @@ spec:
     singular: subscription
     kind: Subscription
     listKind: SubscriptionList
+    shortNames:
+    - sub
     categories:
     - all
     - olm

@@ -18,6 +18,8 @@ spec:
     singular: catalogsource
     kind: CatalogSource
     listKind: CatalogSourceList
+    shortNames:
+    - catsrc
     categories:
     - all
     - olm
