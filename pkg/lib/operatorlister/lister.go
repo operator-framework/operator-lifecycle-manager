@@ -74,8 +74,10 @@ type APIExtensionsV1beta1Lister interface {
 //go:generate counterfeiter . OperatorsV1alpha1Lister
 type OperatorsV1alpha1Lister interface {
 	RegisterClusterServiceVersionLister(namespace string, lister v1alpha1.ClusterServiceVersionLister)
+	RegisterSubscriptionLister(namespace string, lister v1alpha1.SubscriptionLister)
 
 	ClusterServiceVersionLister() v1alpha1.ClusterServiceVersionLister
+	SubscriptionLister() v1alpha1.SubscriptionLister
 }
 
 //go:generate counterfeiter . OperatorsV1alpha2Lister
@@ -149,11 +151,13 @@ func newAPIExtensionsV1beta1Lister() *apiExtensionsV1beta1Lister {
 
 type operatorsV1alpha1Lister struct {
 	clusterServiceVersionLister *UnionClusterServiceVersionLister
+	subscriptionLister          *UnionSubscriptionLister
 }
 
 func newOperatorsV1alpha1Lister() *operatorsV1alpha1Lister {
 	return &operatorsV1alpha1Lister{
 		clusterServiceVersionLister: &UnionClusterServiceVersionLister{},
+		subscriptionLister:          &UnionSubscriptionLister{},
 	}
 }
 

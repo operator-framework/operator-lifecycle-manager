@@ -2,11 +2,12 @@ package catalog
 
 import (
 	"errors"
-	"github.com/sirupsen/logrus"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ghodss/yaml"
-
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -15,14 +16,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
@@ -262,7 +266,9 @@ func TestSyncCatalogSources(t *testing.T) {
 			k8sObjs := []runtime.Object{tt.configMap}
 
 			// Create test operator
-			op, err := NewFakeOperator(clientObjs, k8sObjs, nil, nil, resolver, tt.operatorNamespace)
+			stopCh := make(chan struct{})
+			defer func() { stopCh <- struct{}{} }()
+			op, _, err := NewFakeOperator(clientObjs, k8sObjs, nil, nil, resolver, tt.operatorNamespace, stopCh)
 			require.NoError(t, err)
 
 			// Run sync
@@ -375,7 +381,7 @@ func fakeConfigMapData() map[string]string {
 }
 
 // NewFakeOprator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver resolver.DependencyResolver, namespace string) (*Operator, error) {
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver resolver.DependencyResolver, namespace string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
 	// Create client fakes
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
@@ -383,7 +389,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create test namespace
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Create the new operator
@@ -391,12 +397,32 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	op := &Operator{
 		Operator:           queueOperator,
 		client:             clientFake,
+		lister:             operatorlister.NewLister(),
 		namespace:          namespace,
 		sources:            make(map[registry.ResourceKey]registry.Source),
 		dependencyResolver: resolver,
 	}
 
-	return op, nil
+	// Register informers
+	wakeupInterval := 5 * time.Minute
+	informerList := []cache.SharedIndexInformer{}
+	subscriptionInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().Subscriptions()
+	op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subscriptionInformer.Lister())
+	informerList = append(informerList, subscriptionInformer.Informer())
+
+	// Wait for caches to sync
+	var hasSyncedCheckFns []cache.InformerSynced
+	for _, informer := range informerList {
+		op.RegisterInformer(informer)
+		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
+		go informer.Run(stopCh)
+	}
+
+	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
+		return nil, nil, fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	return op, hasSyncedCheckFns, nil
 }
 
 func installPlan(names ...string) v1alpha1.InstallPlan {

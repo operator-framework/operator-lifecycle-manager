@@ -13,6 +13,7 @@ import (
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -23,6 +24,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
@@ -46,6 +48,7 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 type Operator struct {
 	*queueinformer.Operator
 	client             versioned.Interface
+	lister             operatorlister.OperatorLister
 	namespace          string
 	sources            map[registry.ResourceKey]registry.Source
 	sourcesLock        sync.RWMutex
@@ -67,6 +70,9 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		return nil, err
 	}
 
+	// Create an OperatorLister
+	lister := operatorlister.NewLister()
+
 	// Create an informer for each watched namespace.
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
@@ -74,6 +80,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
 		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
+		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
 	}
 
 	// Create an informer for each catalog namespace
@@ -93,6 +100,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	op := &Operator{
 		Operator:           queueOperator,
 		client:             crClient,
+		lister:             lister,
 		namespace:          operatorNamespace,
 		sources:            make(map[registry.ResourceKey]registry.Source),
 		dependencyResolver: &resolver.MultiSourceResolver{},
@@ -195,6 +203,28 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	o.sources[sourceKey] = src
 	o.sourcesLastUpdate = timeNow()
 
+	logger := logrus.WithFields(logrus.Fields{"catalogSource": out.GetName(), "catalogNamespace": out.GetNamespace()})
+
+	// Sync any dependent Subscriptions
+	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().List(labels.Everything())
+	if err != nil {
+		logger.Warnf("could not list Subscriptions")
+		return nil
+	}
+
+	for _, sub := range subs {
+		subLogger := logger.WithFields(logrus.Fields{"subscriptionCatalogSource": sub.Spec.CatalogSource, "subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace})
+		catalogNamespace := sub.Spec.CatalogSourceNamespace
+		if catalogNamespace == "" {
+			catalogNamespace = o.namespace
+		}
+		subLogger.Debug("checking subscription")
+		if sub.Spec.CatalogSource == out.GetName() && catalogNamespace == out.GetNamespace() {
+			logger.Debug("requeueing subscription")
+			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
+		}
+	}
+
 	return nil
 }
 
@@ -241,7 +271,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) (syncError error) {
 	return
 }
 
-func (o *Operator) requeueInstallPlan(name, namespace string) {
+func (o *Operator) requeueSubscription(name, namespace string) {
 	// we can build the key directly, will need to change if queue uses different key scheme
 	key := fmt.Sprintf("%s/%s", namespace, name)
 	o.subQueue.AddRateLimited(key)
@@ -276,7 +306,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	// notify subscription loop of installplan changes
 	if ownerutil.IsOwnedByKind(outInstallPlan, v1alpha1.SubscriptionKind) {
 		oref := ownerutil.GetOwnerByKind(outInstallPlan, v1alpha1.SubscriptionKind)
-		o.requeueInstallPlan(oref.Name, outInstallPlan.GetNamespace())
+		o.requeueSubscription(oref.Name, outInstallPlan.GetNamespace())
 	}
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.

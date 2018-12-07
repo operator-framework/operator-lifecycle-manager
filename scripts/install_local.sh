@@ -28,4 +28,19 @@ done
 # wait for deployments to be ready
 kubectl rollout status -w deployment/olm-operator --namespace=${namespace}
 kubectl rollout status -w deployment/catalog-operator --namespace=${namespace}
-kubectl rollout status -w deployment/package-server --namespace=${namespace}
+
+# wait for packageserver deployment to be ready
+retries=10
+until [[ $retries == 0 ||  $(kubectl rollout status -w deployment/packageserver --namespace=${namespace}) ]]; do
+    sleep 5
+    retries=$((retries - 1))
+    echo "retrying check rollout status for deployment \"packageserver\"..."
+done
+
+if [ $retries == 0 ]
+then
+    echo "deployment \"packageserver\" failed to roll out"
+    exit 1
+fi
+
+ echo "deployment \"packageserver\" successfully rolled out"

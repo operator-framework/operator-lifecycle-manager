@@ -2,7 +2,7 @@ package event
 
 import (
 	"github.com/golang/glog"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
 

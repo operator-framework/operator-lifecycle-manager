@@ -16,7 +16,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/stretchr/testify/require"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

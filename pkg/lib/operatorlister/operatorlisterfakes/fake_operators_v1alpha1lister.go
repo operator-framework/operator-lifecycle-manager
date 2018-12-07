@@ -25,6 +25,22 @@ type FakeOperatorsV1alpha1Lister struct {
 		arg1 string
 		arg2 v1alpha1.ClusterServiceVersionLister
 	}
+	RegisterSubscriptionListerStub        func(string, v1alpha1.SubscriptionLister)
+	registerSubscriptionListerMutex       sync.RWMutex
+	registerSubscriptionListerArgsForCall []struct {
+		arg1 string
+		arg2 v1alpha1.SubscriptionLister
+	}
+	SubscriptionListerStub        func() v1alpha1.SubscriptionLister
+	subscriptionListerMutex       sync.RWMutex
+	subscriptionListerArgsForCall []struct {
+	}
+	subscriptionListerReturns struct {
+		result1 v1alpha1.SubscriptionLister
+	}
+	subscriptionListerReturnsOnCall map[int]struct {
+		result1 v1alpha1.SubscriptionLister
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -113,6 +129,90 @@ func (fake *FakeOperatorsV1alpha1Lister) RegisterClusterServiceVersionListerArgs
 	return argsForCall.arg1, argsForCall.arg2
 }
 
+func (fake *FakeOperatorsV1alpha1Lister) RegisterSubscriptionLister(arg1 string, arg2 v1alpha1.SubscriptionLister) {
+	fake.registerSubscriptionListerMutex.Lock()
+	fake.registerSubscriptionListerArgsForCall = append(fake.registerSubscriptionListerArgsForCall, struct {
+		arg1 string
+		arg2 v1alpha1.SubscriptionLister
+	}{arg1, arg2})
+	fake.recordInvocation("RegisterSubscriptionLister", []interface{}{arg1, arg2})
+	fake.registerSubscriptionListerMutex.Unlock()
+	if fake.RegisterSubscriptionListerStub != nil {
+		fake.RegisterSubscriptionListerStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterSubscriptionListerCallCount() int {
+	fake.registerSubscriptionListerMutex.RLock()
+	defer fake.registerSubscriptionListerMutex.RUnlock()
+	return len(fake.registerSubscriptionListerArgsForCall)
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterSubscriptionListerCalls(stub func(string, v1alpha1.SubscriptionLister)) {
+	fake.registerSubscriptionListerMutex.Lock()
+	defer fake.registerSubscriptionListerMutex.Unlock()
+	fake.RegisterSubscriptionListerStub = stub
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterSubscriptionListerArgsForCall(i int) (string, v1alpha1.SubscriptionLister) {
+	fake.registerSubscriptionListerMutex.RLock()
+	defer fake.registerSubscriptionListerMutex.RUnlock()
+	argsForCall := fake.registerSubscriptionListerArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) SubscriptionLister() v1alpha1.SubscriptionLister {
+	fake.subscriptionListerMutex.Lock()
+	ret, specificReturn := fake.subscriptionListerReturnsOnCall[len(fake.subscriptionListerArgsForCall)]
+	fake.subscriptionListerArgsForCall = append(fake.subscriptionListerArgsForCall, struct {
+	}{})
+	fake.recordInvocation("SubscriptionLister", []interface{}{})
+	fake.subscriptionListerMutex.Unlock()
+	if fake.SubscriptionListerStub != nil {
+		return fake.SubscriptionListerStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.subscriptionListerReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) SubscriptionListerCallCount() int {
+	fake.subscriptionListerMutex.RLock()
+	defer fake.subscriptionListerMutex.RUnlock()
+	return len(fake.subscriptionListerArgsForCall)
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) SubscriptionListerCalls(stub func() v1alpha1.SubscriptionLister) {
+	fake.subscriptionListerMutex.Lock()
+	defer fake.subscriptionListerMutex.Unlock()
+	fake.SubscriptionListerStub = stub
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) SubscriptionListerReturns(result1 v1alpha1.SubscriptionLister) {
+	fake.subscriptionListerMutex.Lock()
+	defer fake.subscriptionListerMutex.Unlock()
+	fake.SubscriptionListerStub = nil
+	fake.subscriptionListerReturns = struct {
+		result1 v1alpha1.SubscriptionLister
+	}{result1}
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) SubscriptionListerReturnsOnCall(i int, result1 v1alpha1.SubscriptionLister) {
+	fake.subscriptionListerMutex.Lock()
+	defer fake.subscriptionListerMutex.Unlock()
+	fake.SubscriptionListerStub = nil
+	if fake.subscriptionListerReturnsOnCall == nil {
+		fake.subscriptionListerReturnsOnCall = make(map[int]struct {
+			result1 v1alpha1.SubscriptionLister
+		})
+	}
+	fake.subscriptionListerReturnsOnCall[i] = struct {
+		result1 v1alpha1.SubscriptionLister
+	}{result1}
+}
+
 func (fake *FakeOperatorsV1alpha1Lister) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -120,6 +220,10 @@ func (fake *FakeOperatorsV1alpha1Lister) Invocations() map[string][][]interface{
 	defer fake.clusterServiceVersionListerMutex.RUnlock()
 	fake.registerClusterServiceVersionListerMutex.RLock()
 	defer fake.registerClusterServiceVersionListerMutex.RUnlock()
+	fake.registerSubscriptionListerMutex.RLock()
+	defer fake.registerSubscriptionListerMutex.RUnlock()
+	fake.subscriptionListerMutex.RLock()
+	defer fake.subscriptionListerMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

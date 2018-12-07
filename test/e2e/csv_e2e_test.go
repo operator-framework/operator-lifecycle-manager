@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -619,10 +619,10 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		},
 	}
 	crd.SetOwnerReferences([]metav1.OwnerReference{{
-		Name: fetchedCSV.GetName(),
+		Name:       fetchedCSV.GetName(),
 		APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-		Kind: v1alpha1.ClusterServiceVersionKind,
-		UID: fetchedCSV.GetUID(),
+		Kind:       v1alpha1.ClusterServiceVersionKind,
+		UID:        fetchedCSV.GetUID(),
 	}})
 	cleanupCRD, err := createCRD(c, crd)
 	defer cleanupCRD()
@@ -922,7 +922,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
 	for i, kind := range mockKinds {
 		owned[i] = v1alpha1.APIServiceDescription{
-			Name: 			apiServiceName,
+			Name:           apiServiceName,
 			Group:          mockGroup,
 			Version:        version,
 			Kind:           kind,

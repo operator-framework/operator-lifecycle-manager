@@ -19,7 +19,7 @@
     install:
       strategy: deployment
       spec:
-        permissions:
+        clusterPermissions:
         - serviceAccountName: packageserver
           rules:
           - apiGroups:
@@ -49,7 +49,7 @@
             - create
             - delete
             - patch
-            - update     
+            - update
         deployments:
         - name: packageserver
           spec:

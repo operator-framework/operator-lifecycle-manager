@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"k8s.io/api/rbac/v1"
+	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	rbacv1 "k8s.io/client-go/listers/rbac/v1"
 )

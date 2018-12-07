@@ -16,7 +16,7 @@ data:
   {{- end }}
 {{- end }}
   clusterServiceVersions: |- 
-{{ include "packageserver.clusterserviceversion" . | nindent 4 }}
+{{- include "packageserver.clusterserviceversion" . | nindent 4 }}
 {{- range $path, $bytes := .Files.Glob "catalog_resources/olm-operators/**.clusterserviceversion.yaml" }}
   {{- range $index, $line  := $root.Files.Lines $path }}
     {{- if eq $index 0 }}
@@ -27,7 +27,7 @@ data:
   {{- end }}
 {{- end }}
   packages: |- 
-{{ include "packageserver.package" . | nindent 4 }}
+{{- include "packageserver.package" . | nindent 4 }}
 {{- range $path, $bytes := .Files.Glob "catalog_resources/olm-operators/**.package.yaml" }}
   {{- range $index, $line  := $root.Files.Lines $path }}
     {{- if eq $index 0 }}

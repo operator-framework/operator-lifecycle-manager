@@ -39,18 +39,19 @@ const (
 	expectedEtcdNodes      = 3
 	expectedPrometheusSize = 3
 	ocsConfigMap           = "rh-operators"
-	packageServerCSV 	   = "packageserver.v8.0.0"
+	olmConfigMap           = "olm-operators"
+	packageServerCSV       = "packageserver.v1.0.0"
 )
 
 var (
 	cleaner *namespaceCleaner
 	genName = names.SimpleNameGenerator.GenerateName
 
-	persistentCatalogNames               = []string{ocsConfigMap}
+	persistentCatalogNames               = []string{ocsConfigMap, olmConfigMap}
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
-	persistentConfigMapNames             = []string{ocsConfigMap}
+	persistentConfigMapNames             = []string{ocsConfigMap, olmConfigMap}
 	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
-	persistentCSVNames 				     = []string{packageServerCSV}
+	persistentCSVNames                   = []string{packageServerCSV}
 	nonPersistentCSVFieldSelector        = createFieldNotEqualSelector("metadata.name", persistentCSVNames...)
 )
 
