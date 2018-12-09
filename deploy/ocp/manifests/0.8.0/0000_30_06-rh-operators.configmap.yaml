@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_06-rh-operators.configmap.yaml
 
 kind: ConfigMap
@@ -4424,6 +4424,35 @@ data:
                     - acls
                 required:
                 - authentication
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: deschedulers.descheduler.io
+      spec:
+        group: descheduler.io
+        names:
+          kind: Descheduler
+          listKind: DeschedulerList
+          plural: deschedulers
+          singular: descheduler
+        scope: Namespaced
+        version: v1alpha1
+        validation:
+          openAPIV3Schema:
+            properties:
+              spec:
+                strategies:
+                  type: array
+                  uniqueItems: true
+                  minItems: 1
+                  maxItems: 4
+                  collectionFormat: pipes
+                  items:
+                    type: string
+                schedule:
+                  type: string
+                  pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
+      
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
@@ -9550,6 +9579,142 @@ data:
                 path: authorization.type
                 x-descriptors:
                   - 'urn:alm:descriptor:com.tectonic.ui:label'
+    - apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
+      metadata:
+        annotations:
+          categories: openshift optional
+          certifiedLevel: Primed
+          containerImage: registry.svc.ci.openshift.org/openshift/origin-v4.0:descheduler-operator
+          createdAt: 2019/11/15
+          description: An operator to run the OpenShift descheduler
+          healthIndex: B
+          repository: https://github.com/openshift/descheduler-operator
+          support: Red Hat
+        name: descheduler.v0.0.1
+        namespace: openshift-descheduler-operator
+      spec:
+        description: |
+            # Descheduler for Kubernetes
+      
+            ## Introduction
+      
+            Scheduling in Kubernetes is the process of binding pending pods to nodes, and is performed by
+            a component of Kubernetes called kube-scheduler. The scheduler's decisions, whether or where a
+            pod can or can not be scheduled, are guided by its configurable policy which comprises of set of
+            rules, called predicates and priorities. The scheduler's decisions are influenced by its view of
+            a Kubernetes cluster at that point of time when a new pod appears first time for scheduling.
+            As Kubernetes clusters are very dynamic and their state change over time, there may be desired
+            to move already running pods to some other nodes for various reasons
+      
+            * Some nodes are under or over utilized.
+            * The original scheduling decision does not hold true any more, as taints or labels are added to
+            or removed from nodes, pod/node affinity requirements are not satisfied any more.
+            * Some nodes failed and their pods moved to other nodes.
+             New nodes are added to clusters.
+      
+            Consequently, there might be several pods scheduled on less desired nodes in a cluster.
+            Descheduler, based on its policy, finds pods that can be moved and evicts them. Please
+            note, in current implementation, descheduler does not schedule replacement of evicted pods
+            but relies on the default scheduler for that.
+      
+            ## Note
+      
+            Any api could be changed any time with out any notice. That said, your feedback is
+            very important and appreciated to make this project more stable and useful.
+         
+        customresourcedefinitions:
+          owned:
+          - description: Represents an instance of a Descheduler application
+            displayName: Descheduler Operator
+            kind: Descheduler
+            name: deschedulers.descheduler.io
+            version: v1alpha1
+        displayName: Descheduler
+        install:
+          spec:
+            clusterPermissions:
+            - rules:
+              - apiGroups:
+                - ""
+                resources:
+                - services
+                - pods
+                - configmaps
+                - secrets
+                - names
+                - nodes
+                - pods/eviction
+                verbs:
+                - '*'
+              - apiGroups:
+                - apps
+                resources:
+                - deployments
+                verbs:
+                - '*'
+              - apiGroups:
+                - batch
+                - extensions
+                resources:
+                - jobs
+                verbs:
+                - '*'
+              - apiGroups:
+                - descheduler.io
+                resources:
+                - '*'
+                verbs:
+                - '*'
+              serviceAccountName: openshift-descheduler
+            deployments:
+            - name: descheduler-operator
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    app: descheduler-operator
+                template:
+                  metadata:
+                    labels:
+                      app: descheduler-operator
+                  spec:
+                    containers:
+                    - command:
+                      - descheduler-operator
+                      env:
+                      - name: MY_POD_NAMESPACE
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.namespace
+                      - name: MY_POD_NAME
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.name
+                      - name: WATCH_NAMESPACE
+                        valueFrom:
+                          fieldRef:
+                            fieldPath: metadata.namespace
+                      - name: OPERATOR_NAME
+                        value: descheduler-operator
+                      image: registry.svc.ci.openshift.org/openshift/origin-v4.0:descheduler-operator
+                      imagePullPolicy: Always
+                      name: descheduler-operator
+                    restartPolicy: Always
+                    serviceAccount: openshift-descheduler
+                    serviceAccountName: openshift-descheduler
+                    terminationGracePeriodSeconds: 5
+          strategy: deployment
+        labels:
+          olm-owner-enterprise-app: descheduler-operator
+          olm-status-descriptors: descheduler.v0.0.1
+        maintainers:
+        - email: support@redhat.com
+          name: Red Hat
+        provider:
+          name: Red Hat
+        version: 0.0.1
+      
     - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
@@ -11712,6 +11877,11 @@ data:
       channels:
       - name: preview
         currentCSV: amqstreams.v1.0.0.beta
+      
+    - packageName: descheduler
+      channels:
+      - name: alpha
+        currentCSV: descheduler.v0.0.1
       
     - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/etcdoperator.v0.9.2.clusterserviceversion.yaml
       packageName: etcd
