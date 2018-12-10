@@ -64,7 +64,7 @@ spec:
           resources: ["serviceinstances","servicebindings"]
           verbs:     ["get","list","watch", "update"]
         - apiGroups: ["servicecatalog.k8s.io"]
-          resources: ["clusterservicebrokers/status","clusterserviceclasses/status","clusterserviceplans/status","serviceinstances/status","serviceinstances/reference","servicebindings/status"]
+          resources: ["clusterservicebrokers/status","clusterserviceclasses/status","clusterserviceplans/status","serviceinstances/status","serviceinstances/reference","servicebindings/status","servicebindings/finalizers"]
           verbs:     ["update"]
         - apiGroups: ["servicecatalog.k8s.io"]
           resources: ["serviceclasses"]
