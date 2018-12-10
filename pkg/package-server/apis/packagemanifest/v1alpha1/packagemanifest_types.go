@@ -95,6 +95,9 @@ type CSVDescription struct {
 	// Provider is the CSV's provider
 	Provider    AppLink           `json:"provider,omitempty"`
 	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// LongDescription is the CSV's description
+	LongDescription string `json:"description,omitempty"`
 }
 
 // AppLink defines a link to an application
