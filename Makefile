@@ -52,27 +52,27 @@ $(CMDS):
 run-local:
 	. ./scripts/build_local.sh
 	mkdir -p build/resources
-	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values.yaml
+	. ./scripts/package-release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
 deploy-local:
 	mkdir -p build/resources
-	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values.yaml
+	. ./scripts/package-release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
 run-local-shift:
 	. ./scripts/build_local_shift.sh
 	mkdir -p build/resources
-	. ./scripts/package-release.sh 1.0.0-local build/resources Documentation/install/local-values-shift.yaml
+	. ./scripts/package-release.sh 1.0.0 build/resources Documentation/install/local-values-shift.yaml
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
 # useful if running e2e directly with `go test -tags=bare`
 setup-bare:
 	. ./scripts/build_bare.sh
-	. ./scripts/package-release.sh 1.0.0-e2e test/e2e/resources test/e2e/e2e-bare-values.yaml
+	. ./scripts/package-release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:

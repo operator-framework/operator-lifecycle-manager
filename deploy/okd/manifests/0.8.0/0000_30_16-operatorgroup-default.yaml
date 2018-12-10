@@ -1,5 +1,5 @@
-##---
-# Source: olm/templates/0000_30_15-operatorgroup-default.yaml
+---
+# Source: olm/templates/0000_30_16-operatorgroup-default.yaml
 apiVersion: operators.coreos.com/v1alpha2
 kind: OperatorGroup
 metadata:

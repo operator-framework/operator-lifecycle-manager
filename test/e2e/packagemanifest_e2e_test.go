@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"testing"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
@@ -83,9 +84,20 @@ func TestPackageManifestLoading(t *testing.T) {
 		DefaultChannel: stableChannel,
 	}
 
+	// Wait for package-server to be ready
+	err := wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
+		t.Logf("Polling package-server...")
+		_, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+		if err == nil {
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err, "package-server not available")
+
 	watcher, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
-	defer watcher.Stop()
 	require.NoError(t, err)
+	defer watcher.Stop()
 	receivedPackage := make(chan bool)
 	go func() {
 		event := <-watcher.ResultChan()

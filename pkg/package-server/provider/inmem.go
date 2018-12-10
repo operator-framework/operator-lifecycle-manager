@@ -197,8 +197,8 @@ func (m *InMemoryProvider) syncCatalogSource(obj interface{}) error {
 	}
 
 	logger := logrus.WithFields(logrus.Fields{
-		"Action": "Sync CatalogSource",
-		"name":   catsrc.GetName(),
+		"Action":    "Sync CatalogSource",
+		"name":      catsrc.GetName(),
 		"namespace": catsrc.GetNamespace(),
 	})
 

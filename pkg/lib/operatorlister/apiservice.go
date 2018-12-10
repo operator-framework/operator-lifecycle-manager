@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	v1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	aregv1 "k8s.io/kube-aggregator/pkg/client/listers/apiregistration/v1"
 )
 

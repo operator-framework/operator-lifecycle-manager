@@ -2525,9 +2525,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 			op, hasSyncedFns, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
 			require.NoError(t, err)
 
-			ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
-			require.True(t, ok, "wait for cache sync failed")
-
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
 			require.NoError(t, err)
 
@@ -2537,6 +2534,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, obj := range opGroupCSVs.Items {
+					// wait for informers to sync before continuing
+					ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
+					require.True(t, ok, "wait for cache sync failed")
+
 					err = op.syncClusterServiceVersion(&obj)
 					require.NoError(t, err, "%#v", obj)
 				}
