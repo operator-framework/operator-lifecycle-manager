@@ -30,7 +30,7 @@ data:
         install:
           strategy: deployment
           spec:
-            permissions:
+            clusterPermissions:
             - serviceAccountName: packageserver
               rules:
               - apiGroups:
@@ -60,7 +60,7 @@ data:
                 - create
                 - delete
                 - patch
-                - update     
+                - update
             deployments:
             - name: packageserver
               spec:
