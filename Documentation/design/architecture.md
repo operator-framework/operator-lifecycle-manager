@@ -23,24 +23,24 @@ Each of these Operators are also responsible for creating resources:
 | Catalog  | Custom Resource Definition |
 | Catalog  | ClusterServiceVersion   |
 
-
-## What is a ClusterServiceVersion?
+## What is a ClusterServiceVersion
 
 ClusterServiceVersion combines metadata and runtime information about a service that allows OLM to manage it.
 
 ClusterServiceVersion:
- - Metadata (name, description, version, links, labels, icon, etc)
- - Install strategy
-    - Type: Deployment
-       - Set of service accounts / required permissions
-       - Set of deployments
- - CRDs
-   - Type
-   - Owned - managed by this service
-   - Required - must exist in the cluster for this service to run
-   - Resources - a list of k8s resources that the Operator interacts with
-   - Descriptors - annotate CRD spec and status fields to provide semantic information
 
+- Metadata (name, description, version, links, labels, icon, etc)
+- Install strategy
+  - Type: Deployment
+    - Set of service accounts / required permissions
+    - Set of deployments
+
+- CRDs
+  - Type
+  - Owned - managed by this service
+  - Required - must exist in the cluster for this service to run
+  - Resources - a list of k8s resources that the Operator interacts with
+  - Descriptors - annotate CRD spec and status fields to provide semantic information
 
 ## OLM Operator
 
@@ -58,7 +58,7 @@ While the OLM Operator is often configured to watch all namespaces, it can also 
            |                                      +--> Succeeded -+
            v                                      |               |
 None --> Pending --> InstallReady --> Installing -|               |
-           ^                                       +--> Failed <--+   
+           ^                                       +--> Failed <--+
            |                                              |
            +----------------------------------------------+
 \                                                                 /
@@ -76,7 +76,7 @@ Replacing --> Deleting
 | Installing | the install strategy is being executed and resources are being created, but not all components are reporting as ready                                                                                                                 |
 | Succeeded  | the execution of the Install Strategy was successful; if requirements disappear, or an APIService cert needs to be rotated this may transition back to `Pending`; if an installed component dissapears this may transition to `Failed`|
 | Failed     | upon failed execution of the Install Strategy, or an installed component dissapears the CSV transitions to this phase; if the component can be recreated by OLM, this may transition to `Pending`                                     |
-| Replacing  | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC                                                                                                                     | 
+| Replacing  | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC                                                                                                                     |
 | Deleting   | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon.                                                                                                                                       |
 
 ## Catalog Operator
@@ -118,7 +118,6 @@ None --> UpgradeAvailable --> UpgradePending --> AtLatestKnown -+
 | UpgradeAvailable | catalog contains a CSV which replaces the `status.installedCSV`, but no `InstallPlan` has been created yet |
 | UpgradePending   | `InstallPlan` has been created (referenced in `status.installplan`) to install a new CSV                   |
 | AtLatestKnown    | `status.installedCSV` matches the latest available CSV in catalog                                             |
-
 
 ## Catalog (Registry) Design
 
