@@ -10,6 +10,7 @@ Each of these Operators are responsible for managing the CRDs that are the basis
 | InstallPlan           | IP         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
 | CatalogSource         | CS         | Catalog | a repository of CSVs, CRDs, and packages that define an application                        |
 | Subscription          | Sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
+| OperatorGroup         | <None>     | OLM     | method to group multiple namespaces and prepare for use by an operator                     |
 
 Each of these Operators are also responsible for creating resources:
 
@@ -17,8 +18,8 @@ Each of these Operators are also responsible for creating resources:
 |----------|----------------------------|
 | OLM      | Deployment                 |
 | OLM      | Service Account            |
-| OLM      | Roles                      |
-| OLM      | RoleBindings               |
+| OLM      | (Cluster)Roles             |
+| OLM      | (Cluster)RoleBindings      |
 | Catalog  | Custom Resource Definition |
 | Catalog  | ClusterServiceVersion   |
 
@@ -78,12 +79,6 @@ Replacing --> Deleting
 | Replacing  | a newer CSV that replaces this one has been discovered in the cluster. This status means the CSV is marked for GC                                                                                                                     | 
 | Deleting   | the GC loop has determined this CSV is safe to delete from the cluster. It will disappear soon.                                                                                                                                       |
 
-### Namespace Control Loop
-
-In addition to watching the creation of ClusterServiceVersions in a set of namespaces, the OLM Operator also watches those namespaces themselves.
-If a namespace that the OLM Operator is configured to watch is created, the OLM Operator will annotate that namespace with the `alm-manager` key.
-This enables dashboards and users of `kubectl` to filter namespaces based on what OLM is managing.
-
 ## Catalog Operator
 
 The Catalog Operator is responsible for resolving and installing ClusterServiceVersions and the required resources they specify. It is also responsible for watching catalog sources for updates to packages in channels, and upgrading them (optionally automatically) to the latest available versions.
@@ -140,3 +135,17 @@ Package {name}
   |
   +-- Channel {name} --> CSV {version}
 ```
+
+## Operator Group design
+
+An operator group consists of a group of target namespaces as specified by the label selector in the spec, plus the namespace that the operator group is created within known as the operator namespace. The operator namespace is always considered to also be a target namespace, without regard to matching the label selector. The operator namespace is where the operator actually runs and the target namespace(s) are namespaces the operator have permissions to operate in.
+
+Once an operator group has been created, the focus is around the target namespaces and the resources contained in those namespaces. The status for an operator group is constantly updated to always list the namespaces matching the label selector as specified in the spec. In addition to maintaining an updated status, the operator group control loop also maintains creating RBAC rules and providing operator group knowledge to operators. Some operations such as copying CSVs and creating additional RBAC rules are handled by the CSV control loop. Details for these operations are described further below.
+
+RBAC rules are created for two reasons. The first reason is for restricting access to the API (CRDs) of the installed operators. It is possible that the administrator does not want the full functionality of the operator to be granted in all cases. The second reason is to give the operator the necessary permissions to operate, which is tied to the specified operator group service account.
+
+Operator group target namespace information is made available to operators via annotations on the deployment. A second step of using downward API is technically necessary to pass this information, which is used to know where the operator has permissions to operate.
+
+Each CSV in the operator namespace is copied into the target namespace(s), which is done in case a user does not have access to the operator namespace. The copied CSV is annotated with the operator group name and the operator namespace (the target namespace list is intentionally not included for security reasons).
+
+In summary, the goal of the above functionality is to assist in bringing multitenancy features to running operators in a cluster in the easiest most automated way. For creating your own operator group resource, refer to the operator group custom resource definition file in the templates directory.
