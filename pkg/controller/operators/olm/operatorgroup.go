@@ -258,6 +258,7 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 				log.Errorf("Create for new CSV failed: %v", err)
 				return err
 			}
+			createdCSV.Status.Phase = v1alpha1.CSVPhaseSucceeded
 			createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
 			createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
 			createdCSV.Status.LastUpdateTime = timeNow()
