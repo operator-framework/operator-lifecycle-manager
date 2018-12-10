@@ -459,7 +459,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				namespace,
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "version-not-found")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
@@ -480,7 +480,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			description: "RequirementNotMet/NamesConflictedCRDVersion",
+			description: "RequirementNotMet/NamesConflictedCRD",
 			csv: csv("csv1",
 				namespace,
 				"",
@@ -491,7 +491,45 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
-				crd("c1", "v2"),
+				func() *v1beta1.CustomResourceDefinition {
+					newCRD := crd("c1", "v2")
+					// condition order: established, name accepted
+					newCRD.Status.Conditions[0].Status = v1beta1.ConditionTrue
+					newCRD.Status.Conditions[1].Status = v1beta1.ConditionFalse
+					return newCRD
+				}(),
+			},
+			met: false,
+			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+					Group:   "apiextensions.k8s.io",
+					Version: "v1beta1",
+					Kind:    "CustomResourceDefinition",
+					Name:    "c1group",
+					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
+				},
+			},
+			expectedError: nil,
+		},
+		{
+			description: "RequirementNotMet/CRDResourceInactive",
+			csv: csv("csv1",
+				namespace,
+				"",
+				installStrategy("csv1-dep", nil, nil),
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				nil,
+				v1alpha1.CSVPhasePending,
+			),
+			existingObjs: nil,
+			existingExtObjs: []runtime.Object{
+				func() *v1beta1.CustomResourceDefinition {
+					newCRD := crd("c1", "v2")
+					// condition order: established, name accepted
+					newCRD.Status.Conditions[0].Status = v1beta1.ConditionFalse
+					newCRD.Status.Conditions[1].Status = v1beta1.ConditionTrue
+					return newCRD
+				}(),
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{

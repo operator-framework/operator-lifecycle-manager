@@ -555,6 +555,18 @@ func crd(name string, version string) *v1beta1.CustomResourceDefinition {
 				Kind: name,
 			},
 		},
+		Status: v1beta1.CustomResourceDefinitionStatus{
+			Conditions: []v1beta1.CustomResourceDefinitionCondition{
+				{
+					Type:   v1beta1.Established,
+					Status: v1beta1.ConditionTrue,
+				},
+				{
+					Type:   v1beta1.NamesAccepted,
+					Status: v1beta1.ConditionTrue,
+				},
+			},
+		},
 	}
 }
 

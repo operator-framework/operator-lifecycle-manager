@@ -30,8 +30,8 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
 		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
 		if err != nil {
-			a.Log.Debugf("Setting 'met' to false, %v with err: %v", r.Name, err)
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			a.Log.Debugf("Setting 'met' to false, %v with status %v, with err: %v", r.Name, status, err)
 			met = false
 			statuses = append(statuses, status)
 			continue
@@ -53,6 +53,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 
 			if !served {
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
+				a.Log.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
 				met = false
 				statuses = append(statuses, status)
 				continue
@@ -81,6 +82,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		} else {
 			status.Status = v1alpha1.RequirementStatusReasonNotAvailable
 			met = false
+			a.Log.Debugf("Setting 'met' to false, %v with status %v, established=%v, namesAccepted=%v", r.Name, status, established, namesAccepted)
 			statuses = append(statuses, status)
 		}
 	}
