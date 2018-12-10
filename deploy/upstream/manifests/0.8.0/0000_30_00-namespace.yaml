@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_00-namespace.yaml
 apiVersion: v1
 kind: Namespace
@@ -6,3 +6,8 @@ metadata:
   name: olm
   labels:
     openshift.io/run-level: "1"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operators
