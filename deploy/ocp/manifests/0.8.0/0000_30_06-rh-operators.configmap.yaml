@@ -11628,7 +11628,7 @@ data:
                     serviceAccountName: service-catalog-apiserver
                     containers:
                     - name: apiserver
-                      image: registry.reg-aws.openshift.com:443/openshift/ose-service-catalog:v4.0.0
+                      image: quay.io/openshift/origin-service-catalog:v4.0.0
                       imagePullPolicy: IfNotPresent
                       command: ["/usr/bin/service-catalog"]
                       resources:
@@ -11738,7 +11738,7 @@ data:
                     serviceAccountName: service-catalog-controller
                     containers:
                     - name: controller-manager
-                      image: registry.reg-aws.openshift.com:443/openshift/ose-service-catalog:v4.0.0
+                      image: quay.io/openshift/origin-service-catalog:v4.0.0
                       imagePullPolicy: IfNotPresent
                       command: ["/usr/bin/service-catalog"]
                       resources:
