@@ -3,3 +3,13 @@ kind: OperatorGroup
 metadata:
   name: global-operators
   namespace: {{ .Values.operator_namespace }}
+---
+apiVersion: operators.coreos.com/v1alpha2
+kind: OperatorGroup
+metadata:
+  name: olm-operators
+  namespace: {{ .Values.namespace }}
+spec:
+  selector:
+    matchLabels:
+      olm.components: "global"

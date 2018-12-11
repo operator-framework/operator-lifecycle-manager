@@ -7,7 +7,7 @@ olm:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
-  commandArgs: -test.coverprofile=/tmp/coverage/alm-coverage.cov
+  commandArgs: -debug
 
 catalog:
   replicaCount: 1
@@ -16,7 +16,7 @@ catalog:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
-  commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
+  commandArgs: -debug
 
 package:
   replicaCount: 1
@@ -25,7 +25,7 @@ package:
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
-  commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
+  commandArgs: -debug
 
 e2e:
   image:

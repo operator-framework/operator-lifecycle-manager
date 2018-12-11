@@ -63,11 +63,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Set log level to debug if `debug` flag set
-	if *debug {
-		log.SetLevel(log.DebugLevel)
-	}
-
 	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
 	// the empty string, the resulting array will be `[]string{""}`.
 	namespaces := strings.Split(*watchedNamespaces, ",")
@@ -85,6 +80,12 @@ func main() {
 	}
 
 	logger := log.New()
+
+	// Set log level to debug if `debug` flag set
+	if *debug {
+		logger.SetLevel(log.DebugLevel)
+	}
+	logger.Infof("log level %s", logger.Level)
 
 	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
 

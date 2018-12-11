@@ -5,7 +5,6 @@ import (
 	"reflect"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -18,63 +17,55 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
+const (
+	operatorGroupAnnotationKey          = "olm.operatorGroup"
+	operatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
+	operatorGroupTargetsAnnotationKey   = "olm.targetNamespaces"
+)
+
 func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	op, ok := obj.(*v1alpha2.OperatorGroup)
 	if !ok {
-		log.Debugf("wrong type: %#v\n", obj)
+		a.Log.Debugf("wrong type: %#v\n", obj)
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
 
 	targetedNamespaces, err := a.updateNamespaceList(op)
-	log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
+	a.Log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
 	if err != nil {
-		log.Errorf("updateNamespaceList error: %v", err)
+		a.Log.Errorf("updateNamespaceList error: %v", err)
 		return err
 	}
 
 	if err := a.ensureClusterRoles(op); err != nil {
-		log.Errorf("ensureClusterRoles error: %v", err)
+		a.Log.Errorf("ensureClusterRoles error: %v", err)
 		return err
 	}
-	log.Debug("Cluster roles completed")
+	a.Log.Debug("Cluster roles completed")
 
-	nsListJoined := strings.Join(targetedNamespaces, ",")
-
-	// annotate csvs
-	csvsInNamespace := a.csvSet(op.Namespace)
-	for _, csv := range csvsInNamespace {
+	for _, csv := range a.csvSet(op.Namespace, v1alpha1.CSVPhaseSucceeded) {
 		origCSVannotations := csv.GetAnnotations()
-		a.addAnnotationsToObjectMeta(&csv.ObjectMeta, op, nsListJoined)
+		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op)
 		if reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) == false {
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
-				log.Errorf("Update for existing CSV failed: %v", err)
+				a.Log.Errorf("Update for existing CSV failed: %v", err)
 			}
 		}
 	}
 
-	for _, csv := range csvsInNamespace {
-		if err := a.copyCsvToTargetNamespace(csv, op, targetedNamespaces); err != nil {
-			return err
-		}
-	}
-
-	for _, csv := range csvsInNamespace {
-		if err := a.ensureRBACInTargetNamespace(csv, op, targetedNamespaces); err != nil {
-			return err
-		}
-	}
-	log.Debug("CSV annotation completed")
+	a.Log.Debug("CSV annotation completed")
 
 	return nil
 }
 
-func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, targetNamespaces []string) error {
+func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup) error {
 	opPerms, err := resolver.RBACForClusterServiceVersion(csv)
 	if err != nil {
 		return err
 	}
 
+	targetNamespaces := operatorGroup.Status.Namespaces
 	if targetNamespaces == nil {
 		return nil
 	}
@@ -217,66 +208,90 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 	return nil
 }
 
-func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, targetNamespaces []string) error {
-	namespaces := targetNamespaces
-	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup) error {
+	namespaces := make([]string, 0)
+	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
 		namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
 		if err != nil {
 			return err
 		}
-		namespaces = []string{}
 		for _, ns := range namespaceObjs {
 			namespaces = append(namespaces, ns.GetName())
 		}
+	} else {
+		namespaces = operatorGroup.Status.Namespaces
 	}
 
+	logger := a.Log.WithField("operator-ns", operatorGroup.GetNamespace())
 	for _, ns := range namespaces {
 		if ns == operatorGroup.GetNamespace() {
 			continue
 		}
+		logger = logger.WithField("target-ns", ns)
+
 		fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
-		if k8serrors.IsAlreadyExists(err) {
-			log.Debugf("Found existing CSV (%v), checking annotations", fetchedCSV.GetName())
-			if reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) == false {
+
+		logger = logger.WithField("csv", csv.GetName())
+		if fetchedCSV != nil {
+			logger.Debug("checking annotations")
+			if !reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) {
 				fetchedCSV.Annotations = csv.Annotations
-				// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
-				log.Debugf("Updating CSV %v in namespace %v", fetchedCSV.GetName(), ns)
+				// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
+				logger.Debug("updating target CSV")
 				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Update(fetchedCSV); err != nil {
-					log.Errorf("Update CSV in target namespace failed: %v", err)
+					logger.WithError(err).Error("update target CSV failed")
 					return err
 				}
 			}
+
+			logger.Debug("checking status")
+			newCSV := fetchedCSV.DeepCopy()
+			newCSV.Status = csv.Status
+			newCSV.Status.Reason = v1alpha1.CSVReasonCopied
+			newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+
+			if !reflect.DeepEqual(fetchedCSV.Status, newCSV.Status) {
+				logger.Debug("updating status")
+				newCSV.SetNamespace(ns)
+				newCSV.Status.LastUpdateTime = timeNow()
+				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(newCSV); err != nil {
+					logger.WithError(err).Error("status update for target CSV failed")
+					return err
+				}
+			}
+
 			continue
 		} else if k8serrors.IsNotFound(err) {
 			newCSV := csv.DeepCopy()
 			newCSV.SetNamespace(ns)
 			newCSV.SetResourceVersion("")
 
-			log.Debugf("Copying CSV %v to namespace %v", csv.GetName(), ns)
+			logger.Debug("copying CSV")
 			createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Create(newCSV)
 			if err != nil {
-				log.Errorf("Create for new CSV failed: %v", err)
+				a.Log.Errorf("Create for new CSV failed: %v", err)
 				return err
 			}
 			createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
 			createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
 			createdCSV.Status.LastUpdateTime = timeNow()
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(createdCSV); err != nil {
-				log.Errorf("Status update for CSV failed: %v", err)
+				a.Log.Errorf("Status update for CSV failed: %v", err)
 				return err
 			}
+
 		} else if err != nil {
-			log.Errorf("CSV fetch for %v failed: %v", csv.GetName(), err)
+			logger.WithError(err).Error("couldn't get CSV")
 			return err
 		}
 	}
 	return nil
 }
 
-func (a *Operator) addAnnotationsToObjectMeta(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, targetNamespaces string) {
-	metav1.SetMetaDataAnnotation(obj, "olm.targetNamespaces", targetNamespaces)
-	metav1.SetMetaDataAnnotation(obj, "olm.operatorNamespace", op.GetNamespace())
-	metav1.SetMetaDataAnnotation(obj, "olm.operatorGroup", op.GetName())
+func (a *Operator) addOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup) {
+	metav1.SetMetaDataAnnotation(obj, operatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
+	metav1.SetMetaDataAnnotation(obj, operatorGroupNamespaceAnnotationKey, op.GetNamespace())
+	metav1.SetMetaDataAnnotation(obj, operatorGroupAnnotationKey, op.GetName())
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
@@ -329,7 +344,7 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 		// status is current with correct namespaces, so no further updates required
 		return namespaceList, nil
 	}
-	log.Debugf("Namespace change detected, found: %v", namespaceList)
+	a.Log.Debugf("Namespace change detected, found: %v", namespaceList)
 	op.Status = v1alpha2.OperatorGroupStatus{
 		Namespaces:  namespaceList,
 		LastUpdated: timeNow(),
@@ -343,7 +358,7 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 
 func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 	currentNamespace := op.GetNamespace()
-	csvsInNamespace := a.csvSet(currentNamespace)
+	csvsInNamespace := a.csvSet(currentNamespace, v1alpha1.CSVPhaseSucceeded)
 	for _, csv := range csvsInNamespace {
 		managerPolicyRules := []rbacv1.PolicyRule{}
 		apiEditPolicyRules := []rbacv1.PolicyRule{}
@@ -373,11 +388,11 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		_, err := a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
 		if k8serrors.IsAlreadyExists(err) {
 			if _, err = a.OpClient.UpdateClusterRole(clusterRole); err != nil {
-				log.Errorf("Update CRD existing cluster role failed: %v", err)
+				a.Log.Errorf("Update CRD existing cluster role failed: %v", err)
 				return err
 			}
 		} else if err != nil {
-			log.Errorf("Update CRD cluster role failed: %v", err)
+			a.Log.Errorf("Update CRD cluster role failed: %v", err)
 			return err
 		}
 
@@ -392,11 +407,11 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupEditClusterRole)
 		if k8serrors.IsAlreadyExists(err) {
 			if _, err = a.OpClient.UpdateClusterRole(operatorGroupEditClusterRole); err != nil {
-				log.Errorf("Update existing edit cluster role failed: %v", err)
+				a.Log.Errorf("Update existing edit cluster role failed: %v", err)
 				return err
 			}
 		} else if err != nil {
-			log.Errorf("Update edit cluster role failed: %v", err)
+			a.Log.Errorf("Update edit cluster role failed: %v", err)
 			return err
 		}
 		operatorGroupViewClusterRole := &rbacv1.ClusterRole{
@@ -409,11 +424,11 @@ func (a *Operator) ensureClusterRoles(op *v1alpha2.OperatorGroup) error {
 		_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(operatorGroupViewClusterRole)
 		if k8serrors.IsAlreadyExists(err) {
 			if _, err = a.OpClient.UpdateClusterRole(operatorGroupViewClusterRole); err != nil {
-				log.Errorf("Update existing view cluster role failed: %v", err)
+				a.Log.Errorf("Update existing view cluster role failed: %v", err)
 				return err
 			}
 		} else if err != nil {
-			log.Errorf("Update view cluster role failed: %v", err)
+			a.Log.Errorf("Update view cluster role failed: %v", err)
 			return err
 		}
 	}

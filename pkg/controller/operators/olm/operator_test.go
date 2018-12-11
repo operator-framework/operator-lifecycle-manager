@@ -391,6 +391,17 @@ func withAnnotations(obj runtime.Object, annotations map[string]string) runtime.
 	return meta.(runtime.Object)
 }
 
+func addAnnotations(annotations map[string]string, add map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range annotations {
+		out[k] = v
+	}
+	for k, v := range add {
+		out[k] = v
+	}
+	return out
+}
+
 func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
 	strategy := install.StrategyDetailsDeployment{
@@ -606,6 +617,27 @@ func generateCA(notAfter time.Time, organization string) (*certs.KeyPair, error)
 func TestTransitionCSV(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
+
+	operatorGroup := &v1alpha2.OperatorGroup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "OperatorGroup",
+			APIVersion: v1alpha2.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: namespace,
+		},
+		Spec: v1alpha2.OperatorGroupSpec{},
+		Status: v1alpha2.OperatorGroupStatus{
+			Namespaces: []string{namespace},
+		},
+	}
+
+	templateAnnotations := map[string]string{
+		operatorGroupTargetsAnnotationKey:   namespace,
+		operatorGroupNamespaceAnnotationKey: namespace,
+		operatorGroupAnnotationKey:          operatorGroup.GetName(),
+	}
 
 	// Generate valid and expired CA fixtures
 	validCA, err := generateCA(time.Now().Add(10*365*24*time.Hour), Organization)
@@ -893,7 +925,7 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -929,9 +961,9 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				apis: []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue)},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
@@ -1017,7 +1049,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", nil),
+					deployment("a1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1040,7 +1072,7 @@ func TestTransitionCSV(t *testing.T) {
 					),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", nil),
+					deployment("a1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1156,9 +1188,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
@@ -1223,9 +1255,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: "a-pretty-bad-hash",
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
@@ -1290,9 +1322,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
 					}),
@@ -1357,9 +1389,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: "a-pretty-bad-hash",
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: "also-a-pretty-bad-hash",
 					}),
@@ -1424,9 +1456,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", []byte("a-bad-ca"), apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
@@ -1491,9 +1523,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
-					}),
+					})),
 					withAnnotations(tlsSecret("v1.a1-cert", namespace, []byte("bad-cert"), []byte("bad-key")), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
@@ -1558,9 +1590,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: expiredCAHash,
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: expiredCAHash,
 					}),
@@ -1625,9 +1657,9 @@ func TestTransitionCSV(t *testing.T) {
 					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue),
 				},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", map[string]string{
+					deployment("a1", namespace, "sa", addAnnotations(templateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: expiredCAHash,
-					}),
+					})),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), expiredCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: expiredCAHash,
 					}),
@@ -1715,7 +1747,7 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1769,7 +1801,7 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1804,8 +1836,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
-					deployment("csv2-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv2-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1840,8 +1872,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
-					deployment("csv2-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv2-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1885,9 +1917,9 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
-					deployment("csv2-dep1", namespace, "sa", nil),
-					deployment("csv3-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv2-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv3-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1931,9 +1963,9 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", nil),
-					deployment("csv2-dep1", namespace, "sa", nil),
-					deployment("csv3-dep1", namespace, "sa", nil),
+					deployment("csv1-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv2-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv3-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -1969,8 +2001,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv2-dep1", namespace, "sa", nil),
-					deployment("csv3-dep1", namespace, "sa", nil),
+					deployment("csv2-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv3-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -2006,8 +2038,8 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv2-dep1", namespace, "sa", nil),
-					deployment("csv3-dep1", namespace, "sa", nil),
+					deployment("csv2-dep1", namespace, "sa", templateAnnotations),
+					deployment("csv3-dep1", namespace, "sa", templateAnnotations),
 				},
 			},
 			expected: expected{
@@ -2023,13 +2055,21 @@ func TestTransitionCSV(t *testing.T) {
 			// configure cluster state
 			namespaceObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
 			tt.initial.objs = append(tt.initial.objs, namespaceObj)
+
+			// put csvs in operatorgroup
+			csvs := make([]runtime.Object, 0)
+			for _, csv := range tt.initial.csvs {
+				csvs = append(csvs, withAnnotations(csv, templateAnnotations))
+			}
+			clientObjs := append(csvs, operatorGroup)
+
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, hasSyncedFns, err := NewFakeOperator(tt.initial.csvs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			op, hasSyncedFns, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
-			for _, csv := range tt.initial.csvs {
+			for _, csv := range csvs {
 				err := op.syncClusterServiceVersion(csv)
 				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
 				require.Equal(t, expectedErr, err)
@@ -2050,11 +2090,11 @@ func TestTransitionCSV(t *testing.T) {
 			// verify expectations of csvs in cluster
 			for csvName, csvState := range tt.expected.csvStates {
 				csv, ok := outCSVMap[csvName]
-				assert.Equal(t, ok, csvState.exists, "%s existence should be %t", csvName, csvState.exists)
+				require.Equal(t, ok, csvState.exists, "%s existence should be %t", csvName, csvState.exists)
 				if csvState.exists {
-					assert.Equal(t, csvState.phase, csv.Status.Phase, "%s had incorrect phase", csvName)
+					require.EqualValues(t, string(csvState.phase), string(csv.Status.Phase), "%s had incorrect phase", csvName)
 					if csvState.reason != "" {
-						assert.Equal(t, csvState.reason, csv.Status.Reason, "%s had incorrect condition reason", csvName)
+						require.EqualValues(t, string(csvState.reason), string(csv.Status.Reason), "%s had incorrect condition reason", csvName)
 					}
 				}
 			}
@@ -2114,11 +2154,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 		installStrategy("csv1-dep1", permissions, nil),
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
-		v1alpha1.CSVPhaseSucceeded,
+		v1alpha1.CSVPhaseNone,
 	)
 
 	// after state transitions from operatorgroups, this is the operator csv we expect
 	operatorCSVFinal := operatorCSV.DeepCopy()
+	operatorCSVFinal.Status.Phase = v1alpha1.CSVPhaseSucceeded
 	operatorCSVFinal.Status.Message = "install strategy completed with no errors"
 	operatorCSVFinal.Status.Reason = v1alpha1.CSVReasonInstallSuccessful
 	operatorCSVFinal.Status.LastUpdateTime = timeNow()
@@ -2150,16 +2191,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 	}
 	operatorCSVFinal.Status.Conditions = []v1alpha1.ClusterServiceVersionCondition{
 		{
-			Phase:              v1alpha1.CSVPhaseFailed,
-			Reason:             v1alpha1.CSVReasonComponentUnhealthy,
-			Message:            "installing: AnnotationsMissing: no annotations found on deployment",
-			LastUpdateTime:     timeNow(),
-			LastTransitionTime: timeNow(),
-		},
-		{
 			Phase:              v1alpha1.CSVPhasePending,
-			Reason:             v1alpha1.CSVReasonNeedsReinstall,
-			Message:            "installing: AnnotationsMissing: no annotations found on deployment",
+			Reason:             v1alpha1.CSVReasonRequirementsUnknown,
+			Message:            "requirements not yet checked",
 			LastUpdateTime:     timeNow(),
 			LastTransitionTime: timeNow(),
 		},
@@ -2186,15 +2220,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	}
 
-	// everything the same, but in target namespace, and copied status reason
-	targetCSV := csv("csv1",
-		targetNamespace,
-		"",
-		installStrategy("csv1-dep1", permissions, nil),
-		[]*v1beta1.CustomResourceDefinition{crd},
-		[]*v1beta1.CustomResourceDefinition{},
-		v1alpha1.CSVPhaseSucceeded,
-	)
+	targetCSV := operatorCSVFinal.DeepCopy()
+	targetCSV.SetNamespace(targetNamespace)
 	targetCSV.Status.Reason = v1alpha1.CSVReasonCopied
 	targetCSV.Status.Message = "The operator is running in operator-ns but is managing this namespace"
 	targetCSV.Status.LastUpdateTime = timeNow()
@@ -2534,7 +2561,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, obj := range opGroupCSVs.Items {
-					// wait for informers to sync before continuing
 					ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
 					require.True(t, ok, "wait for cache sync failed")
 
@@ -2568,7 +2594,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						require.Failf(t, "couldn't find expected object", "%#v", object)
 					}
 					require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
-					require.Equal(t, object, fetched)
+					require.Equal(t, object, fetched, "%s in %s not equal", object.GetObjectKind().GroupVersionKind().String(), namespace)
 				}
 			}
 		})

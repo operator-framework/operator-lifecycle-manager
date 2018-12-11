@@ -13,14 +13,20 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const OwnerKey = "olm.owner"
-const OwnerNamespaceKey = "olm.owner.namespace"
+const (
+	OwnerKey          = "olm.owner"
+	OwnerNamespaceKey = "olm.owner.namespace"
+)
+
+var (
+	NotController          = false
+	DontBlockOwnerDeletion = false
+)
 
 // Owner is used to build an OwnerReference, and we need type and object metadata
 type Owner interface {
 	metav1.Object
 	runtime.Object
-	schema.ObjectKind
 }
 
 func IsOwnedBy(object metav1.Object, owner Owner) bool {
@@ -131,10 +137,8 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 	if err := InferGroupVersionKind(owner); err != nil {
 		log.Warn(err.Error())
 	}
-	blockOwnerDeletion := false
-	isController := false
 
-	gvk := owner.GroupVersionKind()
+	gvk := owner.GetObjectKind().GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
 
 	return metav1.OwnerReference{
@@ -142,8 +146,8 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 		Kind:               kind,
 		Name:               owner.GetName(),
 		UID:                owner.GetUID(),
-		BlockOwnerDeletion: &blockOwnerDeletion,
-		Controller:         &isController,
+		BlockOwnerDeletion: &DontBlockOwnerDeletion,
+		Controller:         &NotController,
 	}
 }
 
@@ -171,7 +175,7 @@ func AddOwner(object metav1.Object, owner Owner, blockOwnerDeletion, isControlle
 	if ownerRefs == nil {
 		ownerRefs = []metav1.OwnerReference{}
 	}
-	gvk := owner.GroupVersionKind()
+	gvk := owner.GetObjectKind().GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
 	ownerRefs = append(ownerRefs, metav1.OwnerReference{
 		APIVersion:         apiVersion,

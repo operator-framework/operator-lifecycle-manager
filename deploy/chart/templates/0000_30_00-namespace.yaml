@@ -4,6 +4,7 @@ metadata:
   name: {{ .Values.namespace }}
   labels:
     openshift.io/run-level: "1"
+    olm.components: "global"
 ---
 apiVersion: v1
 kind: Namespace

@@ -16,11 +16,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-var (
-	Controller         = false
-	BlockOwnerDeletion = false
-)
-
 func testDeployment(name, namespace string, mockOwner ownerutil.Owner) appsv1.Deployment {
 	testDeploymentLabels := map[string]string{"olm.owner": mockOwner.GetName(), "olm.owner.namespace": mockOwner.GetNamespace()}
 
@@ -34,8 +29,8 @@ func testDeployment(name, namespace string, mockOwner ownerutil.Owner) appsv1.De
 					Kind:               v1alpha1.ClusterServiceVersionKind,
 					Name:               mockOwner.GetName(),
 					UID:                mockOwner.GetUID(),
-					Controller:         &Controller,
-					BlockOwnerDeletion: &BlockOwnerDeletion,
+					Controller:         &ownerutil.NotController,
+					BlockOwnerDeletion: &ownerutil.DontBlockOwnerDeletion,
 				},
 			},
 			Labels: testDeploymentLabels,
@@ -53,8 +48,8 @@ func testServiceAccount(name string, mockOwner ownerutil.Owner) *corev1.ServiceA
 			Kind:               v1alpha1.ClusterServiceVersionKind,
 			Name:               mockOwner.GetName(),
 			UID:                mockOwner.GetUID(),
-			Controller:         &Controller,
-			BlockOwnerDeletion: &BlockOwnerDeletion,
+			Controller:         &ownerutil.NotController,
+			BlockOwnerDeletion: &ownerutil.DontBlockOwnerDeletion,
 		},
 	})
 	return serviceAccount
@@ -102,8 +97,8 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 			Kind:               v1alpha1.ClusterServiceVersionKind,
 			Name:               mockOwner.GetName(),
 			UID:                mockOwner.UID,
-			Controller:         &Controller,
-			BlockOwnerDeletion: &BlockOwnerDeletion,
+			Controller:         &ownerutil.NotController,
+			BlockOwnerDeletion: &ownerutil.DontBlockOwnerDeletion,
 		}}
 	)
 
@@ -236,7 +231,8 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 				fakeClient.CreateDeploymentReturns(nil, m.returnError)
 				defer func(i int, expectedDeployment appsv1.Deployment) {
 					dep := fakeClient.CreateOrUpdateDeploymentArgsForCall(i)
-					assert.Equal(t, expectedDeployment, *dep)
+					expectedDeployment.Spec.Template.Annotations = map[string]string{}
+					require.Equal(t, expectedDeployment.OwnerReferences, dep.OwnerReferences)
 				}(i, m.expectedDeployment)
 			}
 
