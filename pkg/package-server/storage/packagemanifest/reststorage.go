@@ -31,7 +31,7 @@ var _ rest.Lister = &PackageManifestStorage{}
 var _ rest.Scoper = &PackageManifestStorage{}
 var _ rest.Watcher = &PackageManifestStorage{}
 
-// NewStorage returns an in-memory implementation of storage.Interface.
+// NewStorage returns a struct that implements methods needed for Kubernetes to satisfy API requests for the `PackageManifest` resource
 func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifestProvider) *PackageManifestStorage {
 	return &PackageManifestStorage{
 		groupResource: groupResource,

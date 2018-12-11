@@ -67,6 +67,7 @@ type PackageServerOptions struct {
 	WakeupInterval    time.Duration
 
 	Kubeconfig string
+	RegistryAddr string
 
 	// Only to be used to for testing
 	DisableAuthForTesting bool
@@ -178,7 +179,9 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	sourceProvider := provider.NewInMemoryProvider(catsrcSharedIndexInformers, queueOperator, o.GlobalNamespace)
+	// TODO(alecmerdler): Use `operator-registry` as provider instead which watches `CatalogSources` and establishes gRPC connections to each
+	sourceProvider := provider.NewRegistryProvider(catsrcSharedIndexInformers, queueOperator, o.GlobalNamespace)
+	// sourceProvider := provider.NewInMemoryProvider(catsrcSharedIndexInformers, queueOperator, o.GlobalNamespace)
 	config.ProviderConfig.Provider = sourceProvider
 	// we should never need to resync, since we're not worried about missing events,
 	// and resync is actually for regular interval-based reconciliation these days,

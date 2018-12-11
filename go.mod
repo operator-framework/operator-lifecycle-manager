@@ -30,14 +30,17 @@ require (
 	github.com/hashicorp/golang-lru v0.5.0 // indirect
 	github.com/jonboulle/clockwork v0.1.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
-	github.com/maxbrunsfeld/counterfeiter v0.0.0-20181017030959-1aadac120687
+	github.com/maxbrunsfeld/counterfeiter v0.0.0-20181208044822-f7ba71b5fb12
 	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/onsi/ginkgo v1.7.0 // indirect
+	github.com/onsi/gomega v1.4.3 // indirect
 	github.com/operator-framework/operator-registry v1.0.1
 	github.com/pkg/errors v0.8.0
 	github.com/prometheus/client_golang v0.8.0
 	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910 // indirect
 	github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e // indirect
 	github.com/prometheus/procfs v0.0.0-20180725123919-05ee40e3a273 // indirect
+	github.com/sclevine/spec v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.1.1
 	github.com/soheilhy/cmux v0.1.4 // indirect
 	github.com/spf13/cobra v0.0.3
@@ -46,10 +49,15 @@ require (
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20171017195756-830351dc03c6 // indirect
 	github.com/ugorji/go v1.1.1 // indirect
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
+	golang.org/x/net v0.0.0-20181217023233-e147a9138326 // indirect
 	golang.org/x/oauth2 v0.0.0-20181105165119-ca4130e427c7 // indirect
-	golang.org/x/tools v0.0.0-20181207222222-4c874b978acb // indirect
+	golang.org/x/sync v0.0.0-20181108010431-42b317875d0f // indirect
+	golang.org/x/sys v0.0.0-20181217223516-dcdaa6325bcb // indirect
+	golang.org/x/tools v0.0.0-20181218020041-13ba8ad772df // indirect
 	google.golang.org/grpc v1.16.0
+	gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20170531160350-a96e63847dc3 // indirect
+	gopkg.in/yaml.v2 v2.2.2 // indirect
 	k8s.io/api v0.0.0-20181203235848-2dd39edadc55
 	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
 	k8s.io/apimachinery v0.0.0-20181203235515-3d8ee2261517
@@ -60,5 +68,5 @@ require (
 	k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.6-beta.0.0.20181212102158-c4240ecfddd7
+	k8s.io/kubernetes v1.11.7-beta.0.0.20181216055235-9829d4590b4d
 )
