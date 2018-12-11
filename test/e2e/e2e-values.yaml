@@ -25,7 +25,7 @@ package:
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
-  commandArgs: -debug
+  commandArgs: --debug
 
 e2e:
   image:

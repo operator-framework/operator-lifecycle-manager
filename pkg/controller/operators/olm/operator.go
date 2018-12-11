@@ -460,8 +460,14 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
 	}
 
+	// Ensure operator has access to targetnamespaces
 	if err := a.ensureRBACInTargetNamespace(updatedCSV, operatorGroup); err != nil {
 		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
+	}
+
+	// Ensure cluster roles exist for using provided apis
+	if err := a.ensureClusterRolesForCSV(updatedCSV, operatorGroup); err != nil {
+		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
 	}
 
 	return

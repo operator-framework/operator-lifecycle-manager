@@ -254,52 +254,6 @@ func TestOperatorGroup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Log("Waiting for expected operator group test APIGroup from CSV")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		// (view role is the last role created, so the rest should exist as well by this point)
-		viewRole, fetchErr := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return false, nil
-			}
-			t.Logf("Unable to fetch view role: %v", fetchErr.Error())
-			return false, fetchErr
-		}
-		for _, rule := range viewRole.Rules {
-			for _, group := range rule.APIGroups {
-				if group == apiGroup {
-					return true, nil
-				}
-			}
-		}
-		return false, nil
-	})
-	require.NoError(t, err)
-
-	t.Log("Checking for proper generated operator group RBAC roles")
-	editRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-edit", metav1.GetOptions{})
-	require.NoError(t, err)
-	editPolicyRules := []rbacv1.PolicyRule{
-		{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
-	}
-	require.Equal(t, editPolicyRules, editRole.Rules)
-
-	viewRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
-	require.NoError(t, err)
-	viewPolicyRules := []rbacv1.PolicyRule{
-		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
-	}
-	t.Log(viewRole)
-	require.Equal(t, viewPolicyRules, viewRole.Rules)
-
-	managerRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get("owned-crd-manager-"+csvName, metav1.GetOptions{})
-	require.NoError(t, err)
-	managerPolicyRules := []rbacv1.PolicyRule{
-		{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
-	}
-	t.Log(managerRole)
-	require.Equal(t, managerPolicyRules, managerRole.Rules)
-
 	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
@@ -408,6 +362,28 @@ func TestOperatorGroup(t *testing.T) {
 		}
 		return true, nil
 	})
+
+	// validate provided API clusterroles for the operatorgroup
+	adminRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-admin", metav1.GetOptions{})
+	require.NoError(t, err)
+	adminPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+	}
+	require.Equal(t, adminPolicyRules, adminRole.Rules)
+
+	editRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-edit", metav1.GetOptions{})
+	require.NoError(t, err)
+	editPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+	}
+	require.Equal(t, editPolicyRules, editRole.Rules)
+
+	viewRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
+	require.NoError(t, err)
+	viewPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+	}
+	require.Equal(t, viewPolicyRules, viewRole.Rules)
 
 	// ensure deletion cleans up copied CSV
 	t.Log("Deleting CSV")

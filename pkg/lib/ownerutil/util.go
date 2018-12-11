@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -252,6 +254,12 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Group:   v1alpha1.GroupName,
 			Version: v1alpha1.GroupVersion,
 			Kind:    v1alpha1.CatalogSourceKind,
+		})
+	case *v1alpha2.OperatorGroup:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1alpha2.GroupName,
+			Version: v1alpha2.GroupVersion,
+			Kind:    "OperatorGroup",
 		})
 	default:
 		return fmt.Errorf("could not infer GVK for object: %#v, %#v", obj, objectKind)
