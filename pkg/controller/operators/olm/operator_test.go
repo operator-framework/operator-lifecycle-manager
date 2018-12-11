@@ -634,9 +634,9 @@ func TestTransitionCSV(t *testing.T) {
 	}
 
 	templateAnnotations := map[string]string{
-		operatorGroupTargetsAnnotationKey:   namespace,
-		operatorGroupNamespaceAnnotationKey: namespace,
-		operatorGroupAnnotationKey:          operatorGroup.GetName(),
+		v1alpha2.OperatorGroupTargetsAnnotationKey:   namespace,
+		v1alpha2.OperatorGroupNamespaceAnnotationKey: namespace,
+		v1alpha2.OperatorGroupAnnotationKey:          operatorGroup.GetName(),
 	}
 
 	// Generate valid and expired CA fixtures
@@ -2232,14 +2232,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 	ownerutil.AddNonBlockingOwner(ownedDeployment, operatorCSV)
 
 	annotatedDeployment := ownedDeployment.DeepCopy()
-	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace})
+	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: targetNamespace + "," + operatorNamespace, v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedDeployment.SetLabels(map[string]string{
 		"olm.owner":           "csv1",
 		"olm.owner.namespace": "operator-ns",
 	})
 
 	annotatedGlobalDeployment := ownedDeployment.DeepCopy()
-	annotatedGlobalDeployment.Spec.Template.SetAnnotations(map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace})
+	annotatedGlobalDeployment.Spec.Template.SetAnnotations(map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: "", v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedGlobalDeployment.SetLabels(map[string]string{
 		"olm.owner":           "csv1",
 		"olm.owner.namespace": "operator-ns",
@@ -2381,11 +2381,11 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
-					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
+					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: targetNamespace + "," + operatorNamespace, v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 					annotatedDeployment,
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Role",

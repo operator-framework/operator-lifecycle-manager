@@ -18,14 +18,11 @@ import (
 )
 
 const (
-	operatorGroupAnnotationKey          = "olm.operatorGroup"
-	operatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
-	operatorGroupTargetsAnnotationKey   = "olm.targetNamespaces"
-	operatorGroupAggregrationKeyPrefix  = "olm.opgroup.permissions/aggregate-to-"
-	kubeRBACAggregationKeyPrefix        = "rbac.authorization.k8s.io/aggregate-to-"
-	AdminSuffix                         = "admin"
-	EditSuffix                          = "edit"
-	ViewSuffix                          = "view"
+	operatorGroupAggregrationKeyPrefix = "olm.opgroup.permissions/aggregate-to-"
+	kubeRBACAggregationKeyPrefix       = "rbac.authorization.k8s.io/aggregate-to-"
+	AdminSuffix                        = "admin"
+	EditSuffix                         = "edit"
+	ViewSuffix                         = "view"
 )
 
 var (
@@ -371,9 +368,9 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 }
 
 func (a *Operator) addOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup) {
-	metav1.SetMetaDataAnnotation(obj, operatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
-	metav1.SetMetaDataAnnotation(obj, operatorGroupNamespaceAnnotationKey, op.GetNamespace())
-	metav1.SetMetaDataAnnotation(obj, operatorGroupAnnotationKey, op.GetName())
+	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
+	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupNamespaceAnnotationKey, op.GetNamespace())
+	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupAnnotationKey, op.GetName())
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
