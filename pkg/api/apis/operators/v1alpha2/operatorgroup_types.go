@@ -32,3 +32,9 @@ type OperatorGroupList struct {
 
 	Items []OperatorGroup `json:"items"`
 }
+
+const (
+	OperatorGroupAnnotationKey          = "olm.operatorGroup"
+	OperatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
+	OperatorGroupTargetsAnnotationKey   = "olm.targetNamespaces"
+)

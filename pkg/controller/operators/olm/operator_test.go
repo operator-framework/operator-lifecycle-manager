@@ -2385,7 +2385,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					annotatedDeployment,
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": targetNamespace + "," + operatorNamespace, "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Role",
@@ -2477,7 +2477,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
-					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
+					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: "", v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 					annotatedGlobalDeployment,
 				},
 				"": {
@@ -2528,7 +2528,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					},
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{"olm.targetNamespaces": "", "olm.operatorGroup": "operator-group-1", "olm.operatorNamespace": operatorNamespace}),
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 				},
 			}},
 		},

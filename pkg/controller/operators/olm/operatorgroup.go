@@ -305,19 +305,21 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 	}
 
 	logger := a.Log.WithField("operator-ns", operatorGroup.GetNamespace())
+	newCSV := csv.DeepCopy()
+	delete(newCSV.Annotations, v1alpha2.OperatorGroupTargetsAnnotationKey)
 	for _, ns := range namespaces {
 		if ns == operatorGroup.GetNamespace() {
 			continue
 		}
 		logger = logger.WithField("target-ns", ns)
 
-		fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
+		fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(newCSV.GetName())
 
 		logger = logger.WithField("csv", csv.GetName())
 		if fetchedCSV != nil {
 			logger.Debug("checking annotations")
-			if !reflect.DeepEqual(fetchedCSV.Annotations, csv.Annotations) {
-				fetchedCSV.Annotations = csv.Annotations
+			if !reflect.DeepEqual(fetchedCSV.Annotations, newCSV.Annotations) {
+				fetchedCSV.Annotations = newCSV.Annotations
 				// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
 				logger.Debug("updating target CSV")
 				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Update(fetchedCSV); err != nil {
@@ -327,7 +329,6 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 			}
 
 			logger.Debug("checking status")
-			newCSV := fetchedCSV.DeepCopy()
 			newCSV.Status = csv.Status
 			newCSV.Status.Reason = v1alpha1.CSVReasonCopied
 			newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
@@ -344,7 +345,6 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 
 			continue
 		} else if k8serrors.IsNotFound(err) {
-			newCSV := csv.DeepCopy()
 			newCSV.SetNamespace(ns)
 			newCSV.SetResourceVersion("")
 
