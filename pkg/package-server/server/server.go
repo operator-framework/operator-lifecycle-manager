@@ -14,11 +14,9 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver"
 	genericpackagemanifests "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
@@ -66,7 +64,8 @@ type PackageServerOptions struct {
 	WatchedNamespaces []string
 	WakeupInterval    time.Duration
 
-	Kubeconfig string
+	Kubeconfig   string
+	RegistryAddr string
 
 	// Only to be used to for testing
 	DisableAuthForTesting bool
@@ -165,21 +164,14 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	log.Infof("package-server configured to watch namespaces %v", o.WatchedNamespaces)
-
-	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range o.WatchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, o.WakeupInterval, externalversions.WithNamespace(namespace))
-		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
-	}
-
 	queueOperator, err := queueinformer.NewOperator(o.Kubeconfig, log.New())
 	if err != nil {
 		return err
 	}
 
-	sourceProvider := provider.NewInMemoryProvider(catsrcSharedIndexInformers, queueOperator, o.GlobalNamespace)
+	sourceProvider := provider.NewRegistryProvider(crClient, queueOperator, o.WakeupInterval, o.WatchedNamespaces, o.GlobalNamespace)
 	config.ProviderConfig.Provider = sourceProvider
+
 	// we should never need to resync, since we're not worried about missing events,
 	// and resync is actually for regular interval-based reconciliation these days,
 	// so set the default resync interval to 0

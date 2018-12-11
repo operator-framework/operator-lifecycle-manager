@@ -36,7 +36,7 @@ type simpleEncDriver struct {
 	// encNoSeparator
 	e *Encoder
 	h *SimpleHandle
-	w *encWriterSwitch
+	w encWriter
 	b [8]byte
 	// c containerState
 	encDriverTrackContainerWriter
@@ -157,11 +157,7 @@ func (e *simpleEncDriver) WriteMapStart(length int) {
 	e.encLen(simpleVdMap, length)
 }
 
-// func (e *simpleEncDriver) EncodeSymbol(v string) {
-// 	e.EncodeString(cUTF8, v)
-// }
-
-func (e *simpleEncDriver) EncodeStringEnc(c charEncoding, v string) {
+func (e *simpleEncDriver) EncodeString(c charEncoding, v string) {
 	if false && e.h.EncZeroValuesAsNil && e.c != containerMapKey && v == "" {
 		e.EncodeNil()
 		return
@@ -170,15 +166,11 @@ func (e *simpleEncDriver) EncodeStringEnc(c charEncoding, v string) {
 	e.w.writestr(v)
 }
 
-func (e *simpleEncDriver) EncodeString(c charEncoding, v string) {
-	e.EncodeStringEnc(c, v)
-}
+// func (e *simpleEncDriver) EncodeSymbol(v string) {
+// 	e.EncodeString(cUTF8, v)
+// }
 
 func (e *simpleEncDriver) EncodeStringBytes(c charEncoding, v []byte) {
-	e.EncodeStringBytesRaw(v)
-}
-
-func (e *simpleEncDriver) EncodeStringBytesRaw(v []byte) {
 	// if e.h.EncZeroValuesAsNil && e.c != containerMapKey && v == nil {
 	if v == nil {
 		e.EncodeNil()
@@ -209,7 +201,7 @@ func (e *simpleEncDriver) EncodeTime(t time.Time) {
 type simpleDecDriver struct {
 	d      *Decoder
 	h      *SimpleHandle
-	r      *decReaderSwitch
+	r      decReader
 	bdRead bool
 	bd     byte
 	br     bool // a bytes reader?
@@ -459,7 +451,7 @@ func (d *simpleDecDriver) DecodeBytes(bs []byte, zerocopy bool) (bsOut []byte) {
 	d.bdRead = false
 	if zerocopy {
 		if d.br {
-			return d.r.readx(uint(clen))
+			return d.r.readx(clen)
 		} else if len(bs) == 0 {
 			bs = d.d.b[:]
 		}
@@ -481,7 +473,7 @@ func (d *simpleDecDriver) DecodeTime() (t time.Time) {
 	}
 	d.bdRead = false
 	clen := int(d.r.readn1())
-	b := d.r.readx(uint(clen))
+	b := d.r.readx(clen)
 	if err := (&t).UnmarshalBinary(b); err != nil {
 		d.d.errorv(err)
 	}
@@ -518,7 +510,7 @@ func (d *simpleDecDriver) decodeExtV(verifyTag bool, tag byte) (xtag byte, xbs [
 			return
 		}
 		if d.br {
-			xbs = d.r.readx(uint(l))
+			xbs = d.r.readx(l)
 		} else {
 			xbs = decByteSlice(d.r, l, d.d.h.MaxInitLen, d.d.b[:])
 		}
@@ -538,7 +530,7 @@ func (d *simpleDecDriver) DecodeNaked() {
 		d.readNextBd()
 	}
 
-	n := d.d.naked()
+	n := d.d.n
 	var decodeFurther bool
 
 	switch d.bd {
@@ -583,7 +575,7 @@ func (d *simpleDecDriver) DecodeNaked() {
 		l := d.decLen()
 		n.u = uint64(d.r.readn1())
 		if d.br {
-			n.l = d.r.readx(uint(l))
+			n.l = d.r.readx(l)
 		} else {
 			n.l = decByteSlice(d.r, l, d.d.h.MaxInitLen, d.d.b[:])
 		}
@@ -601,6 +593,7 @@ func (d *simpleDecDriver) DecodeNaked() {
 	if !decodeFurther {
 		d.bdRead = false
 	}
+	return
 }
 
 //------------------------------------

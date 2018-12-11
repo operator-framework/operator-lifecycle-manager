@@ -7,9 +7,9 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -35,7 +35,7 @@ func fetchPackageManifest(t *testing.T, pmc pmversioned.Interface, namespace, na
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Polling...")
 		fetched, err = pmc.PackagemanifestV1alpha1().PackageManifests(namespace).Get(name, metav1.GetOptions{})
-		if err != nil {
+		if err != nil && !errors.IsNotFound(err) {
 			return true, err
 		}
 		return check(fetched), nil
@@ -94,49 +94,16 @@ func TestPackageManifestLoading(t *testing.T) {
 	})
 	require.NoError(t, err, "package-server not available")
 
-	watcher, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
-	require.NoError(t, err)
-	defer watcher.Stop()
-
-	receivedPackage := make(chan bool)
-	go func() {
-		event := <-watcher.ResultChan()
-		pkg := event.Object.(*packagev1alpha1.PackageManifest)
-
-		require.Equal(t, watch.Added, event.Type)
-		require.NotNil(t, pkg)
-		require.Equal(t, packageName, pkg.GetName())
-		require.Equal(t, expectedStatus, pkg.Status)
-		receivedPackage <- true
-		return
-	}()
-
 	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 	require.NoError(t, err)
 	defer cleanupCatalogSource()
 
-	pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
 
-	require.True(t, <-receivedPackage)
+	pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
 	require.NoError(t, err, "error getting package manifest")
 	require.NotNil(t, pm)
 	require.Equal(t, packageName, pm.GetName())
 	require.Equal(t, expectedStatus, pm.Status)
-}
-
-func TestPackageManifestMultipleWatches(t *testing.T) {
-	pmc := newPMClient(t)
-
-	watcherA, _ := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
-	watcherB, _ := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
-	watcherC, _ := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
-
-	defer watcherB.Stop()
-	defer watcherC.Stop()
-	watcherA.Stop()
-
-	list, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).List(metav1.ListOptions{})
-
-	require.NoError(t, err)
-	require.NotEqual(t, 0, len(list.Items))
 }

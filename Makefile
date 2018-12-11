@@ -23,13 +23,13 @@ all: test build
 test: clean cover.out
 
 unit:
-	go test $(MOD_FLAGS) -v -race ./pkg/...
+	go test $(MOD_FLAGS) -v -race -tags=json1 -count=1 ./pkg/...
 
 schema-check:
 	go run $(MOD_FLAGS) ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
-	go test $(MOD_FLAGS) -v -race -coverprofile=cover.out -covermode=atomic \
+	go test $(MOD_FLAGS) -v -race -tags=json1 -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out

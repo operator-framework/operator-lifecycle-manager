@@ -40,13 +40,12 @@ func init() {
 	metav1.AddToGroupVersion(Scheme, schema.GroupVersion{Version: "v1"})
 }
 
-// ProviderConfig holds the providers for node and pod metrics
-// for serving the resource metrics API.
+// ProviderConfig holds the providers for packagemanifests.
 type ProviderConfig struct {
 	Provider provider.PackageManifestProvider
 }
 
-// BuildStorage constructs APIGroupInfo the metrics.k8s.io API group using the given providers.
+// BuildStorage constructs APIGroupInfo the packages.apps.redhat.com API group.
 func BuildStorage(providers *ProviderConfig) genericapiserver.APIGroupInfo {
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(packagemanifest.Group, Scheme, metav1.ParameterCodec, Codecs)
 

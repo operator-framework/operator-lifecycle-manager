@@ -33,7 +33,8 @@ require (
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/pflag v1.0.3 // indirect
 	github.com/stretchr/testify v1.2.2
-	github.com/ugorji/go/codec v0.0.0-20181209151446-772ced7fd4c2 // indirect
+	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
+	github.com/ugorji/go/codec v0.0.0-20181022190402-e5e69e061d4f // indirect
 	go.uber.org/atomic v1.3.2 // indirect
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1 // indirect
@@ -52,5 +53,5 @@ require (
 	k8s.io/klog v0.1.0 // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.7-beta.0.0.20190105100524-8bc0774147c7
+	k8s.io/kubernetes v1.11.7-beta.0.0.20190108024450-5a0d4e5b8d31
 )
