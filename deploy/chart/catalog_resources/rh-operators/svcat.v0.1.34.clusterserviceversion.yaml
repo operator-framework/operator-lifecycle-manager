@@ -1,4 +1,4 @@
-#! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+#! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
 #! parse-kind: ClusterServiceVersion
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
@@ -305,6 +305,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServiceClass
+      name: clusterserviceclasses
       displayName: ClusterServiceClass
       description: A service catalog resource
       deploymentName: apiserver
@@ -312,6 +313,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServicePlan
+      name: clusterserviceplans
       displayName: ClusterServicePlan
       description: A service catalog resource
       deploymentName: apiserver
@@ -319,6 +321,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ClusterServiceBroker
+      name: clusterservicebrokers
       displayName: ClusterServiceBroker
       description: A service catalog resource
       deploymentName: apiserver
@@ -326,6 +329,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceInstance
+      name: serviceinstances
       displayName: ServiceInstance
       description: A service catalog resource
       deploymentName: apiserver
@@ -333,6 +337,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceBinding
+      name: servicebindings
       displayName: ServiceBinding
       description: A service catalog resource
       deploymentName: apiserver
@@ -340,6 +345,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceClass
+      name: serviceclasses
       displayName: ServiceClass
       description: A service catalog resource
       deploymentName: apiserver
@@ -347,6 +353,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServicePlan
+      name: serviceplans
       displayName: ServicePlan
       description: A service catalog resource
       deploymentName: apiserver
@@ -354,6 +361,7 @@ spec:
     - group: servicecatalog.k8s.io
       version: v1beta1
       kind: ServiceBroker
+      name: servicebrokers
       displayName: ServiceBroker
       description: A service catalog resource
       deploymentName: apiserver

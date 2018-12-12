@@ -9715,7 +9715,7 @@ data:
           name: Red Hat
         version: 0.0.1
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
@@ -9891,7 +9891,7 @@ data:
                 x-descriptors:
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
@@ -10174,7 +10174,7 @@ data:
                 x-descriptors: 
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
@@ -10723,7 +10723,7 @@ data:
               name: replicaschedulingpreferences.scheduling.federation.k8s.io
               version: v1alpha1
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
@@ -10965,7 +10965,7 @@ data:
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:podCount'
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
@@ -11231,7 +11231,7 @@ data:
               x-descriptors:
                 - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
@@ -11510,7 +11510,7 @@ data:
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       
-    - #! validate-crd: ./deploy/chart/templates/03-clusterserviceversion.crd.yaml
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
