@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
@@ -13,14 +15,20 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-const OwnerKey = "olm.owner"
-const OwnerNamespaceKey = "olm.owner.namespace"
+const (
+	OwnerKey          = "olm.owner"
+	OwnerNamespaceKey = "olm.owner.namespace"
+)
+
+var (
+	NotController          = false
+	DontBlockOwnerDeletion = false
+)
 
 // Owner is used to build an OwnerReference, and we need type and object metadata
 type Owner interface {
 	metav1.Object
 	runtime.Object
-	schema.ObjectKind
 }
 
 func IsOwnedBy(object metav1.Object, owner Owner) bool {
@@ -131,10 +139,8 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 	if err := InferGroupVersionKind(owner); err != nil {
 		log.Warn(err.Error())
 	}
-	blockOwnerDeletion := false
-	isController := false
 
-	gvk := owner.GroupVersionKind()
+	gvk := owner.GetObjectKind().GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
 
 	return metav1.OwnerReference{
@@ -142,8 +148,8 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 		Kind:               kind,
 		Name:               owner.GetName(),
 		UID:                owner.GetUID(),
-		BlockOwnerDeletion: &blockOwnerDeletion,
-		Controller:         &isController,
+		BlockOwnerDeletion: &DontBlockOwnerDeletion,
+		Controller:         &NotController,
 	}
 }
 
@@ -171,7 +177,7 @@ func AddOwner(object metav1.Object, owner Owner, blockOwnerDeletion, isControlle
 	if ownerRefs == nil {
 		ownerRefs = []metav1.OwnerReference{}
 	}
-	gvk := owner.GroupVersionKind()
+	gvk := owner.GetObjectKind().GroupVersionKind()
 	apiVersion, kind := gvk.ToAPIVersionAndKind()
 	ownerRefs = append(ownerRefs, metav1.OwnerReference{
 		APIVersion:         apiVersion,
@@ -248,6 +254,12 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Group:   v1alpha1.GroupName,
 			Version: v1alpha1.GroupVersion,
 			Kind:    v1alpha1.CatalogSourceKind,
+		})
+	case *v1alpha2.OperatorGroup:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   v1alpha2.GroupName,
+			Version: v1alpha2.GroupVersion,
+			Kind:    "OperatorGroup",
 		})
 	default:
 		return fmt.Errorf("could not infer GVK for object: %#v, %#v", obj, objectKind)

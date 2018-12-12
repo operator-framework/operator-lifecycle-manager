@@ -55,10 +55,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *debug {
-		log.SetLevel(log.DebugLevel)
-	}
-
 	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
 	// the empty string, the resulting array will be `[]string{""}`.
 	namespaces := strings.Split(*watchedNamespaces, ",")
@@ -75,8 +71,14 @@ func main() {
 	})
 	go http.ListenAndServe(":8080", nil)
 
+	logger := log.New()
+	if *debug {
+		logger.SetLevel(log.DebugLevel)
+	}
+	logger.Infof("log level %s", logger.Level)
+
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, log.New(), *wakeupInterval, *catalogNamespace, namespaces...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *catalogNamespace, namespaces...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

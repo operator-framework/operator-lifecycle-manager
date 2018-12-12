@@ -67,15 +67,15 @@ require (
 	google.golang.org/grpc v1.16.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20170531160350-a96e63847dc3 // indirect
-	k8s.io/api v0.0.0-20180904230853-4e7be11eab3f
-	k8s.io/apiextensions-apiserver v0.0.0-20180905004947-16750353bf97
-	k8s.io/apimachinery v0.0.0-20181126123124-70adfbae261e
+	k8s.io/api v0.0.0-20181203235848-2dd39edadc55
+	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
+	k8s.io/apimachinery v0.0.0-20181203235515-3d8ee2261517
 	k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
 	k8s.io/client-go v8.0.0+incompatible
-	k8s.io/code-generator v0.0.0-20180904193909-8c97d6ab64da
+	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
 	k8s.io/gengo v0.0.0-20181106084056-51747d6e00da // indirect
 	k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 // indirect
-	k8s.io/kube-aggregator v0.0.0-20181201191901-6466d3c7f6e4
+	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.6-beta.0.0.20181126160157-5933b9771b71
+	k8s.io/kubernetes v1.11.6-beta.0.0.20181207014600-4600add36de5
 )

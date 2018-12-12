@@ -234,7 +234,7 @@ gopkg.in/inf.v0
 gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v2 v2.2.1
 gopkg.in/yaml.v2
-# k8s.io/api v0.0.0-20180904230853-4e7be11eab3f
+# k8s.io/api v0.0.0-20181203235848-2dd39edadc55
 k8s.io/api/core/v1
 k8s.io/api/apps/v1
 k8s.io/api/rbac/v1
@@ -265,7 +265,7 @@ k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
 k8s.io/api/admission/v1beta1
-# k8s.io/apiextensions-apiserver v0.0.0-20180905004947-16750353bf97
+# k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions
@@ -281,7 +281,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextension
 k8s.io/apiextensions-apiserver/pkg/features
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1/fake
 k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1
-# k8s.io/apimachinery v0.0.0-20181126123124-70adfbae261e
+# k8s.io/apimachinery v0.0.0-20181203235515-3d8ee2261517
 k8s.io/apimachinery/pkg/apis/meta/v1
 k8s.io/apimachinery/pkg/runtime
 k8s.io/apimachinery/pkg/runtime/schema
@@ -578,7 +578,7 @@ k8s.io/client-go/listers/settings/v1alpha1
 k8s.io/client-go/listers/storage/v1
 k8s.io/client-go/listers/storage/v1alpha1
 k8s.io/client-go/listers/storage/v1beta1
-# k8s.io/code-generator v0.0.0-20180904193909-8c97d6ab64da
+# k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
 k8s.io/code-generator/cmd/client-gen
 k8s.io/code-generator/cmd/conversion-gen/
 k8s.io/code-generator/cmd/deepcopy-gen
@@ -621,7 +621,7 @@ k8s.io/gengo/parser
 k8s.io/gengo/examples/set-gen/sets
 # k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92
 k8s.io/klog
-# k8s.io/kube-aggregator v0.0.0-20180905000155-efa32eb095fe
+# k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
 k8s.io/kube-aggregator/pkg/client/informers/externalversions
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset
@@ -650,7 +650,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.6-beta.0.0.20181126160157-5933b9771b71
+# k8s.io/kubernetes v1.11.6-beta.0.0.20181207014600-4600add36de5
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation

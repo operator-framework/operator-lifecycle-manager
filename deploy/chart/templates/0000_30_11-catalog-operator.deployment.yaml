@@ -22,6 +22,7 @@ spec:
         - name: catalog-operator
           command:
           - /bin/catalog
+          args:
           {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}

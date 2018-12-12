@@ -177,6 +177,8 @@ const (
 	CSVPhaseReplacing ClusterServiceVersionPhase = "Replacing"
 	// CSVPhaseDeleting means that a CSV has been replaced by a new one and will be checked for safety before being deleted
 	CSVPhaseDeleting ClusterServiceVersionPhase = "Deleting"
+	// CSVPhaseAny matches all other phases in CSV queries
+	CSVPhaseAny ClusterServiceVersionPhase = ""
 )
 
 // ConditionReason is a camelcased reason for the state transition

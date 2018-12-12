@@ -22,6 +22,7 @@ spec:
         - name: olm-operator
           command:
           - /bin/olm
+          args:
           {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}

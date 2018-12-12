@@ -98,6 +98,7 @@ func TestPackageManifestLoading(t *testing.T) {
 	watcher, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
 	require.NoError(t, err)
 	defer watcher.Stop()
+	
 	receivedPackage := make(chan bool)
 	go func() {
 		event := <-watcher.ResultChan()
