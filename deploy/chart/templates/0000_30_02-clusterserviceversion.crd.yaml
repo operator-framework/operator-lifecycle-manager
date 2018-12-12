@@ -211,6 +211,7 @@ spec:
                     - group
                     - version
                     - kind
+                    - name
                     - deploymentName
                     - displayName
                     - description
@@ -218,6 +219,9 @@ spec:
                       group:
                         type: string
                         description: Group of the APIService (e.g. app.coreos.com)
+                      name:
+                        type: string
+                        description: The plural name for the APIService provided
                       version:
                         type: string
                         description: The version field of the APIService
@@ -341,6 +345,7 @@ spec:
                     - group
                     - version
                     - kind
+                    - name
                     - displayName
                     - description
                     properties:
@@ -353,6 +358,9 @@ spec:
                       kind:
                         type: string
                         description: The kind field of the APIService
+                      name:
+                        type: string
+                        description: The plural name for the APIService provided
                       deploymentName:
                         type: string
                         description: Name of the extension api-server's deployment

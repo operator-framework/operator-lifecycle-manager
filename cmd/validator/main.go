@@ -11,7 +11,6 @@ import (
 
 func main() {
 	manifestDir := os.Args[1]
-
 	err := schema.CheckCatalogResources(manifestDir)
 	if err != nil {
 		log.Fatal(err)

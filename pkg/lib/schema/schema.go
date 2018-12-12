@@ -215,6 +215,7 @@ func validateCRD(schemaFileName string, fileBytes []byte) error {
 
 	unversionedCRD := apiextensions.CustomResourceDefinition{}
 	scheme.Converter().Convert(&crd, &unversionedCRD, conversion.SourceToDest, nil)
+	unversionedCRD.Status.StoredVersions = []string{unversionedCRD.Spec.Versions[0].Name}
 	errList := validation.ValidateCustomResourceDefinition(&unversionedCRD)
 	if len(errList) > 0 {
 		for _, ferr := range errList {
@@ -305,7 +306,7 @@ func validateResources(directory string) error {
 		}
 
 		fmt.Printf("validate %s\n", path)
-		if validateResource(path, f, err) != nil {
+		if err := validateResource(path, f, err); err != nil {
 			return err
 		}
 

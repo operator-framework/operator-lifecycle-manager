@@ -1,4 +1,4 @@
-#! package-manifest: ./deploy/chart/catalog_resources/rh-operators/amq-streams.v1.0.0-clusterserviceversion
+#! package-manifest: deploy/chart/catalog_resources/rh-operators/amq-streams.v1.0.0.clusterserviceversion.yaml
 packageName: amq-streams
 channels:
 - name: preview
