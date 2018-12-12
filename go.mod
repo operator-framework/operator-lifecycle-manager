@@ -77,5 +77,5 @@ require (
 	k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.6-beta.0.0.20181207014600-4600add36de5
+	k8s.io/kubernetes v1.11.6-beta.0.0.20181212204048-1992b4c4dc1b
 )

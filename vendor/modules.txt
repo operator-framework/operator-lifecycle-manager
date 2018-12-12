@@ -181,15 +181,17 @@ golang.org/x/text/width
 golang.org/x/text/transform
 # golang.org/x/time v0.0.0-20180412165947-fbb02b2291d2
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20181011152555-a398e557df60
+# golang.org/x/tools v0.0.0-20181207222222-4c874b978acb
 golang.org/x/tools/go/packages
 golang.org/x/tools/go/types/typeutil
 golang.org/x/tools/imports
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/cgo
+golang.org/x/tools/internal/gopathwalk
+golang.org/x/tools/internal/semver
 golang.org/x/tools/go/ast/astutil
-golang.org/x/tools/internal/fastwalk
 golang.org/x/tools/go/internal/gcimporter
+golang.org/x/tools/internal/fastwalk
 # google.golang.org/appengine v1.1.0
 google.golang.org/appengine/urlfetch
 google.golang.org/appengine/internal
@@ -650,7 +652,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.6-beta.0.0.20181207014600-4600add36de5
+# k8s.io/kubernetes v1.11.6-beta.0.0.20181212204048-1992b4c4dc1b
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
