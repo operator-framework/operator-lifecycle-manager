@@ -82,7 +82,7 @@ func main() {
 	logger.Infof("log level %s", logger.Level)
 
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *catalogNamespace, namespaces...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

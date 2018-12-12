@@ -43,10 +43,6 @@ spec:
   validation:
     openAPIV3Schema:
       properties:
-        type: object
-        description: Represents a catalog of operator data. OLM will query catalog sources to resolve dependencies.
-        required:
-        - spec
         spec:
           type: object
           description: Spec for a catalog source.
