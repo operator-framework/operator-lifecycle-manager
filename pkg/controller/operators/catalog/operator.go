@@ -13,14 +13,11 @@ import (
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -45,21 +42,21 @@ const (
 	roleBindingKind        = "RoleBinding"
 )
 
-//for test stubbing and for ensuring standardization of timezones to UTC
+// for test stubbing and for ensuring standardization of timezones to UTC
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	client             versioned.Interface
-	lister             operatorlister.OperatorLister
-	namespace          string
-	sources            map[registry.ResourceKey]registry.Source
-	sourcesLock        sync.RWMutex
-	sourcesLastUpdate  metav1.Time
-	dependencyResolver resolver.DependencyResolver
-	subQueue           workqueue.RateLimitingInterface
+	client                      versioned.Interface
+	lister                      operatorlister.OperatorLister
+	namespace                   string
+	sources                     map[registry.ResourceKey]registry.Source
+	sourcesLock                 sync.RWMutex
+	sourcesLastUpdate           metav1.Time
+	dependencyResolver          resolver.DependencyResolver
+	subQueue                    workqueue.RateLimitingInterface
 	catSrcQueue                 workqueue.RateLimitingInterface
 	configmapRegistryReconciler *registry.ConfigMapRegistryReconciler
 }
@@ -92,7 +89,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 
 	// Create an informer for each catalog namespace
 	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range []string{operatorNamespace} {
+	for _, namespace := range watchedNamespaces {
 		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
 	}
@@ -109,7 +106,6 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		client:             crClient,
 		lister:             lister,
 		namespace:          operatorNamespace,
-		lister:             operatorlister.NewLister(),
 		sources:            make(map[registry.ResourceKey]registry.Source),
 		dependencyResolver: &resolver.MultiSourceResolver{},
 	}
@@ -282,7 +278,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	})
 
 	if catsrc.Spec.SourceType == v1alpha1.SourceTypeInternal || catsrc.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
-		return o.syncConfigMapSource(logger.Logger, catsrc)
+		return o.syncConfigMapSource(logger, catsrc)
 	}
 
 	logger.WithField("sourceType", catsrc.Spec.SourceType).Warn("unknown source type")
@@ -292,8 +288,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	return nil
 }
 
-func (o *Operator) syncConfigMapSource(logger *logrus.Logger, catsrc *v1alpha1.CatalogSource) (syncError error) {
-
+func (o *Operator) syncConfigMapSource(logger *logrus.Entry, catsrc *v1alpha1.CatalogSource) (syncError error) {
 	// Get the catalog source's config map
 	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap)
 	if err != nil {
@@ -302,7 +297,7 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Logger, catsrc *v1alpha1.C
 
 	sourceKey := registry.ResourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
 
-	if catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
+	if _, ok := o.sources[sourceKey]; !ok || catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
 		// configmap ref nonexistant or updated, write out the new configmap ref to status and exit
 		out := catsrc.DeepCopy()
 		out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
@@ -330,19 +325,6 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Logger, catsrc *v1alpha1.C
 		return nil
 	}
 
-	// configmap not parsed to memory, but also not out of date
-	if _, ok := o.sources[sourceKey]; !ok {
-		// update source map
-		o.sourcesLock.Lock()
-		defer o.sourcesLock.Unlock()
-		src, err := registry.NewInMemoryFromConfigMap(o.OpClient, catsrc.GetNamespace(), catsrc.Spec.ConfigMap)
-		o.sources[sourceKey] = src
-		if err != nil {
-			return err
-		}
-		o.sourcesLastUpdate = timeNow()
-	}
-
 	// configmap ref is up to date, continue parsing
 	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
 		// if registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
@@ -361,30 +343,7 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Logger, catsrc *v1alpha1.C
 		if _, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 			return err
 		}
-		o.sourcesLastUpdate = timeNow()
 		return nil
-	}
-
-	logger := logrus.WithFields(logrus.Fields{"catalogSource": out.GetName(), "catalogNamespace": out.GetNamespace()})
-
-	// Sync any dependent Subscriptions
-	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().List(labels.Everything())
-	if err != nil {
-		logger.Warnf("could not list Subscriptions")
-		return nil
-	}
-
-	for _, sub := range subs {
-		subLogger := logger.WithFields(logrus.Fields{"subscriptionCatalogSource": sub.Spec.CatalogSource, "subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace})
-		catalogNamespace := sub.Spec.CatalogSourceNamespace
-		if catalogNamespace == "" {
-			catalogNamespace = o.namespace
-		}
-		subLogger.Debug("checking subscription")
-		if sub.Spec.CatalogSource == out.GetName() && catalogNamespace == out.GetNamespace() {
-			logger.Debug("requeueing subscription")
-			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
-		}
 	}
 
 	return nil

@@ -14,7 +14,7 @@ const (
 	CatalogSourceKind          = "CatalogSource"
 )
 
-// Approval is the user approval policy for an InstallPlan.
+// SourceType indicates the type of backing store for a CatalogSource
 type SourceType string
 
 const (

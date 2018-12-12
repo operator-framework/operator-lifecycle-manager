@@ -206,6 +206,7 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), catalog.Status.RegistryServiceStatus.Address())
 		return true
 	}
+	fmt.Printf("%#v\n", catalog.Status)
 	return false
 }
 
@@ -216,8 +217,10 @@ func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace s
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || fetched == nil {
+			fmt.Println(err)
 			return false, err
 		}
+		fmt.Printf("%#v\n", fetched)
 		return check(fetched), nil
 	})
 

@@ -203,18 +203,19 @@ func init() {
 		panic(err)
 	}
 	dummyCatalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
+	dummyCatalogConfigMap.Data[registry.ConfigMapCRDName] = ""
 }
 
 func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface) error {
 	// Create configmap containing catalog
-	dummyCatalogConfigMap.SetNamespace(operatorNamespace)
-	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(operatorNamespace).Create(dummyCatalogConfigMap)
+	dummyCatalogConfigMap.SetNamespace(testNamespace)
+	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap)
 	if err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
 
 	// Create catalog source custom resource pointing to ConfigMap
-	dummyCatalogSource.SetNamespace(operatorNamespace)
+	dummyCatalogSource.SetNamespace(testNamespace)
 	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
 	require.NoError(t, err)
 	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csUnst})
@@ -303,10 +304,11 @@ func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, 
 			Name:      name,
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
-			CatalogSource:       catalogSourceName,
-			Package:             testPackageName,
-			Channel:             channel,
-			InstallPlanApproval: approval,
+			CatalogSource:          catalogSourceName,
+			CatalogSourceNamespace: namespace,
+			Package:                testPackageName,
+			Channel:                channel,
+			InstallPlanApproval:    approval,
 		},
 	}
 

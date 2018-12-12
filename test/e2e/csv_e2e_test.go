@@ -726,10 +726,6 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&nonResourceClusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
-	require.NoError(t, err)
-	defer cleanupCSV()
-
 	fmt.Println("checking for deployment")
 	// Poll for deployment to be ready
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -750,9 +746,6 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		fmt.Println("deployment not ready")
 		return false, nil
 	})
-	require.NoError(t, err)
-
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)

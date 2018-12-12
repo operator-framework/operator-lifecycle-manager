@@ -87,7 +87,7 @@ func (s *catalogSourceDecorator) Pod(image string) *v1.Pod {
 				{
 					Name:  "configmap-registry-server",
 					Image: image,
-					Args:  []string{"-c", s.GetName(), "-n", s.GetNamespace()},
+					Args:  []string{"-c", s.Spec.ConfigMap, "-n", s.GetNamespace()},
 					Ports: []v1.ContainerPort{
 						{
 							Name:          "grpc",
@@ -279,6 +279,7 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 
 	if overwritePod {
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
+			CreatedAt:        timeNow(),
 			Protocol:         "grpc",
 			ServiceName:      source.Service().GetName(),
 			ServiceNamespace: source.GetNamespace(),

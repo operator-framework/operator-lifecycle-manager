@@ -175,6 +175,9 @@ func modifyObjName(objs []runtime.Object, kind, newName string) []runtime.Object
 }
 
 func TestConfigMapRegistryReconciler(t *testing.T) {
+	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
+	timeNow = func() metav1.Time { return nowTime }
+
 	validConfigMap := validConfigMap()
 	validCatalogSource := validCatalogSource(validConfigMap)
 	outdatedCatalogSource := validCatalogSource.DeepCopy()
@@ -215,6 +218,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -232,6 +236,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -249,6 +254,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -266,6 +272,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -283,6 +290,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -300,6 +308,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -317,6 +326,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,

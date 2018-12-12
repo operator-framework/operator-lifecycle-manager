@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	defaultWakeupInterval   = 15 * time.Minute
-	defaultCatalogNamespace = "tectonic-system"
+	defaultWakeupInterval       = 15 * time.Minute
+	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
 	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
 )
 

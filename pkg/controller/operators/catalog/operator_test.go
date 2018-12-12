@@ -436,7 +436,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
 	subscriptionInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().Subscriptions()
 
-	// register informers 
+	// register informers
 	registryInformers := []cache.SharedIndexInformer{
 		roleInformer.Informer(),
 		roleBindingInformer.Informer(),
@@ -446,7 +446,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		configMapInformer.Informer(),
 		subscriptionInformer.Informer(),
 	}
-	
+
 	// register listers
 	lister := operatorlister.NewLister()
 	lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
@@ -478,14 +478,14 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	for _, informer := range registryInformers {
 		op.RegisterInformer(informer)
 		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
-		go informer.Run(stopc)
+		go informer.Run(stopCh)
 	}
 
-	if ok := cache.WaitForCacheSync(stopc, hasSyncedCheckFns...); !ok {
-		return nil, fmt.Errorf("failed to wait for caches to sync")
+	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
+		return nil, nil, fmt.Errorf("failed to wait for caches to sync")
 	}
 
-	return op, nil
+	return op, hasSyncedCheckFns, nil
 }
 
 func installPlan(names ...string) v1alpha1.InstallPlan {

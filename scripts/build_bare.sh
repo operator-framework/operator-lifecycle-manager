@@ -12,9 +12,5 @@ if [ -z "$NO_MINIKUBE" ]; then
   umask 0077 && kubectl config view --minify --flatten --context=minikube > minikube.kubeconfig
 fi
 
-timestamp=$(date +%s)
-namespace="e2e-tests-${timestamp}-$RANDOM"
-printf  "${namespace}" > e2e.namespace
-
 kubectl delete crds --all
-kubectl create namespace ${namespace}
+kubectl create namespace $(cat $(pwd)/e2e.namespace)

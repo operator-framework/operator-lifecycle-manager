@@ -3,15 +3,11 @@
 package e2e
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	registryclient "github.com/operator-framework/operator-registry/pkg/client"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	appsv1 "k8s.io/api/apps/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -21,37 +17,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
-
-func waitForRegistryPodService(catalogSource *v1alpha1.CatalogSource) (*registryclient.Client, error) {
-	var client *registryclient.Client
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		conn, err := grpc.Dial(catalogSource.Status.RegistryServiceStatus.Address(), grpc.WithInsecure())
-		if err != nil {
-			fmt.Println(err)
-			return false, nil
-		}
-		healthClient := api.NewHealthClient(conn)
-		resp, err := healthClient.Check(context.TODO(), &api.HealthCheckRequest{"Registry"})
-		if err != nil {
-			fmt.Println(err)
-			return false, nil
-		}
-		if resp.Status != api.HealthCheckResponse_SERVING {
-			fmt.Println(resp.String())
-			return false, nil
-		}
-
-		client, err = registryclient.NewClient(catalogSource.Status.RegistryServiceStatus.Address())
-		if err != nil {
-			fmt.Println(err)
-			return false, nil
-		}
-		return true, nil
-	})
-	return client, err
-}
 
 func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
@@ -88,14 +53,6 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
-	// verify that registry pod is available and usable
-	client, err := waitForRegistryPodService(catalogSource)
-	require.NoError(t, err)
-	bundle, err := client.GetBundleThatProvides(context.TODO(), "etcd.database.coreos.com", "v1beta2", "EtcdCluster")
-	require.NoError(t, err)
-	_, err = bundle.ClusterServiceVersion()
-	require.NoError(t, err)
-
 	// get catalog operator deployment
 	deployment, err := getOperatorDeployment(c, operatorNamespace, labels.Set{"app": "catalog-operator"})
 	require.NoError(t, err)
@@ -118,14 +75,6 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	})
 	require.NoError(t, err, "Catalog source never loaded into memory after catalog operator rescale")
 	t.Logf("Catalog source sucessfully loaded after rescale")
-
-	// verify that registry pod is available and usable
-	client, err = waitForRegistryPodService(catalogSource)
-	require.NoError(t, err)
-	bundle, err = client.GetBundleThatProvides(context.TODO(), "etcd.database.coreos.com", "v1beta2", "EtcdCluster")
-	require.NoError(t, err)
-	_, err = bundle.ClusterServiceVersion()
-	require.NoError(t, err)
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
