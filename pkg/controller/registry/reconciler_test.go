@@ -2,9 +2,13 @@ package registry
 
 import (
 	"fmt"
+	"testing"
+	"time"
+
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -14,12 +18,13 @@ import (
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	"testing"
-	"time"
 )
+
 const (
 	registryImageName = "test:image"
+	testNamespace     = "testns"
 )
+
 func reconciler(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (*ConfigMapRegistryReconciler, operatorclient.ClientInterface) {
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), nil, nil)
 
@@ -41,15 +46,18 @@ func reconciler(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (
 		configMapInformer.Informer(),
 	}
 
+	lister := operatorlister.NewLister()
+	lister.RbacV1().RegisterRoleLister(testNamespace, roleInformer.Lister())
+	lister.RbacV1().RegisterRoleBindingLister(testNamespace, roleBindingInformer.Lister())
+	lister.CoreV1().RegisterServiceAccountLister(testNamespace, serviceAccountInformer.Lister())
+	lister.CoreV1().RegisterServiceLister(testNamespace, serviceInformer.Lister())
+	lister.CoreV1().RegisterPodLister(testNamespace, podInformer.Lister())
+	lister.CoreV1().RegisterConfigMapLister(testNamespace, configMapInformer.Lister())
+
 	rec := &ConfigMapRegistryReconciler{
-		Image:                registryImageName,
-		OpClient:             opClientFake,
-		RoleLister:           roleInformer.Lister(),
-		RoleBindingLister:    roleBindingInformer.Lister(),
-		ServiceAccountLister: serviceAccountInformer.Lister(),
-		ServiceLister:        serviceInformer.Lister(),
-		PodLister:            podInformer.Lister(),
-		ConfigMapLister:      configMapInformer.Lister(),
+		Image:    registryImageName,
+		OpClient: opClientFake,
+		Lister:   lister,
 	}
 
 	var hasSyncedCheckFns []cache.InformerSynced
@@ -69,11 +77,11 @@ func crd(name string) v1beta1.CustomResourceDefinition {
 			Name: name,
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
-			Group:   name + "group",
+			Group: name + "group",
 			Versions: []v1beta1.CustomResourceDefinitionVersion{
 				{
-					Name: "v1",
-					Served: true,
+					Name:    "v1",
+					Served:  true,
 					Storage: true,
 				},
 			},
@@ -91,7 +99,7 @@ func validConfigMap() *corev1.ConfigMap {
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "cool-configmap",
-			Namespace:       "cool-namespace",
+			Namespace:       testNamespace,
 			UID:             types.UID("configmap-uid"),
 			ResourceVersion: "resource-version",
 		},
@@ -109,7 +117,7 @@ func validCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {
 	return &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cool-catalog",
-			Namespace: "cool-namespace",
+			Namespace: testNamespace,
 			UID:       types.UID("catalog-uid"),
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
@@ -118,9 +126,9 @@ func validCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {
 		},
 		Status: v1alpha1.CatalogSourceStatus{
 			ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
-				Name: configMap.GetName(),
-				Namespace: configMap.GetNamespace(),
-				UID: configMap.GetUID(),
+				Name:            configMap.GetName(),
+				Namespace:       configMap.GetNamespace(),
+				UID:             configMap.GetUID(),
 				ResourceVersion: configMap.GetResourceVersion(),
 			},
 		},
@@ -154,7 +162,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 
 func modifyObjName(objs []runtime.Object, kind, newName string) []runtime.Object {
 	out := []runtime.Object{}
-	for _, o :=range objs {
+	for _, o := range objs {
 		if o.GetObjectKind().GroupVersionKind().Kind == kind {
 			mo := o.(metav1.Object)
 			mo.SetName(newName)
@@ -176,7 +184,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 	}
 	type in struct {
 		cluster cluster
-		catsrc *v1alpha1.CatalogSource
+		catsrc  *v1alpha1.CatalogSource
 	}
 	type out struct {
 		status *v1alpha1.RegistryServiceStatus
@@ -191,7 +199,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "NoConfigMap",
 			in: in{
 				cluster: cluster{},
-				catsrc: &v1alpha1.CatalogSource{},
+				catsrc:  &v1alpha1.CatalogSource{},
 			},
 			out: out{
 				err: fmt.Errorf("unable to get configmap / from cache"),
@@ -209,7 +217,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},
@@ -226,7 +234,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},
@@ -243,7 +251,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},
@@ -260,7 +268,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},
@@ -277,7 +285,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},
@@ -294,7 +302,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},
@@ -311,7 +319,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 				status: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
-					ServiceNamespace: "cool-namespace",
+					ServiceNamespace: testNamespace,
 					Port:             "50051",
 				},
 			},

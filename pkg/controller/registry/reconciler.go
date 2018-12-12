@@ -2,8 +2,11 @@ package registry
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
@@ -11,9 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	v1lister "k8s.io/client-go/listers/core/v1"
-	rbacv1lister "k8s.io/client-go/listers/rbac/v1"
-	"time"
 )
 
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
@@ -104,7 +104,7 @@ func (s *catalogSourceDecorator) Pod(image string) *v1.Pod {
 }
 
 func (s *catalogSourceDecorator) ServiceAccount() *v1.ServiceAccount {
-	sa:= &v1.ServiceAccount{
+	sa := &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.serviceAccountName(),
 			Namespace: s.GetNamespace(),
@@ -115,7 +115,7 @@ func (s *catalogSourceDecorator) ServiceAccount() *v1.ServiceAccount {
 }
 
 func (s *catalogSourceDecorator) Role() *rbacv1.Role {
-	role:= &rbacv1.Role{
+	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.roleName(),
 			Namespace: s.GetNamespace(),
@@ -134,7 +134,7 @@ func (s *catalogSourceDecorator) Role() *rbacv1.Role {
 }
 
 func (s *catalogSourceDecorator) RoleBinding() *rbacv1.RoleBinding {
-	rb:=&rbacv1.RoleBinding{
+	rb := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.GetName() + "-server-configmap-reader",
 			Namespace: s.GetNamespace(),
@@ -161,21 +161,16 @@ type RegistryReconciler interface {
 }
 
 type ConfigMapRegistryReconciler struct {
-	ConfigMapLister      v1lister.ConfigMapLister
-	ServiceLister        v1lister.ServiceLister
-	RoleBindingLister    rbacv1lister.RoleBindingLister
-	RoleLister           rbacv1lister.RoleLister
-	PodLister            v1lister.PodLister
-	ServiceAccountLister v1lister.ServiceAccountLister
-	OpClient             operatorclient.ClientInterface
-	Image                string
+	Lister   operatorlister.OperatorLister
+	OpClient operatorclient.ClientInterface
+	Image    string
 }
 
 var _ RegistryReconciler = &ConfigMapRegistryReconciler{}
 
 func (c *ConfigMapRegistryReconciler) currentService(source catalogSourceDecorator) *v1.Service {
 	serviceName := source.Service().GetName()
-	service, err := c.ServiceLister.Services(source.GetNamespace()).Get(serviceName)
+	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
 		logrus.WithField("service", serviceName).Warn("couldn't find service in cache")
 		return nil
@@ -185,7 +180,7 @@ func (c *ConfigMapRegistryReconciler) currentService(source catalogSourceDecorat
 
 func (c *ConfigMapRegistryReconciler) currentServiceAccount(source catalogSourceDecorator) *v1.ServiceAccount {
 	serviceAccountName := source.ServiceAccount().GetName()
-	serviceAccount, err := c.ServiceAccountLister.ServiceAccounts(source.GetNamespace()).Get(serviceAccountName)
+	serviceAccount, err := c.Lister.CoreV1().ServiceAccountLister().ServiceAccounts(source.GetNamespace()).Get(serviceAccountName)
 	if err != nil {
 		logrus.WithField("serviceAccouint", serviceAccountName).WithError(err).Warn("couldn't find service account in cache")
 		return nil
@@ -195,7 +190,7 @@ func (c *ConfigMapRegistryReconciler) currentServiceAccount(source catalogSource
 
 func (c *ConfigMapRegistryReconciler) currentRole(source catalogSourceDecorator) *rbacv1.Role {
 	roleName := source.Role().GetName()
-	role, err := c.RoleLister.Roles(source.GetNamespace()).Get(roleName)
+	role, err := c.Lister.RbacV1().RoleLister().Roles(source.GetNamespace()).Get(roleName)
 	if err != nil {
 		logrus.WithField("role", roleName).WithError(err).Warn("couldn't find role in cache")
 		return nil
@@ -205,7 +200,7 @@ func (c *ConfigMapRegistryReconciler) currentRole(source catalogSourceDecorator)
 
 func (c *ConfigMapRegistryReconciler) currentRoleBinding(source catalogSourceDecorator) *rbacv1.RoleBinding {
 	roleBindingName := source.RoleBinding().GetName()
-	roleBinding, err := c.RoleBindingLister.RoleBindings(source.GetNamespace()).Get(roleBindingName)
+	roleBinding, err := c.Lister.RbacV1().RoleBindingLister().RoleBindings(source.GetNamespace()).Get(roleBindingName)
 	if err != nil {
 		logrus.WithField("roleBinding", roleBindingName).WithError(err).Warn("couldn't find role binding in cache")
 		return nil
@@ -215,7 +210,7 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source catalogSourceDec
 
 func (c *ConfigMapRegistryReconciler) currentPods(source catalogSourceDecorator, image string) []*v1.Pod {
 	podName := source.Pod(image).GetName()
-	pods, err := c.PodLister.Pods(source.GetNamespace()).List(source.Selector())
+	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.Selector())
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Warn("couldn't find pod in cache")
 		return nil
@@ -228,7 +223,7 @@ func (c *ConfigMapRegistryReconciler) currentPods(source catalogSourceDecorator,
 
 func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source catalogSourceDecorator, image string) []*v1.Pod {
 	podName := source.Pod(image).GetName()
-	pods, err := c.PodLister.Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
+	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Warn("couldn't find pod in cache")
 		return nil
@@ -244,7 +239,7 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 	source := catalogSourceDecorator{catalogSource}
 
 	// fetch configmap first, exit early if we can't find it
-	configMap, err := c.ConfigMapLister.ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
+	configMap, err := c.Lister.CoreV1().ConfigMapLister().ConfigMaps(source.GetNamespace()).Get(source.Spec.ConfigMap)
 	if err != nil {
 		return fmt.Errorf("unable to get configmap %s/%s from cache", source.GetNamespace(), source.Spec.ConfigMap)
 	}

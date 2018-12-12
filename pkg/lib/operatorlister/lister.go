@@ -36,12 +36,16 @@ type CoreV1Lister interface {
 	RegisterSecretLister(namespace string, lister corev1.SecretLister)
 	RegisterServiceLister(namespace string, lister corev1.ServiceLister)
 	RegisterServiceAccountLister(namespace string, lister corev1.ServiceAccountLister)
+	RegisterPodLister(namespace string, lister corev1.PodLister)
+	RegisterConfigMapLister(namespace string, lister corev1.ConfigMapLister)
 	RegisterNamespaceLister(lister corev1.NamespaceLister)
 
 	SecretLister() corev1.SecretLister
 	ServiceLister() corev1.ServiceLister
 	ServiceAccountLister() corev1.ServiceAccountLister
 	NamespaceLister() corev1.NamespaceLister
+	PodLister() corev1.PodLister
+	ConfigMapLister() corev1.ConfigMapLister
 }
 
 //go:generate counterfeiter . RbacV1Lister
@@ -102,6 +106,8 @@ type coreV1Lister struct {
 	serviceLister        *UnionServiceLister
 	serviceAccountLister *UnionServiceAccountLister
 	namespaceLister      *UnionNamespaceLister
+	podLister            *UnionPodLister
+	configMapLister      *UnionConfigMapLister
 }
 
 func newCoreV1Lister() *coreV1Lister {
@@ -110,6 +116,8 @@ func newCoreV1Lister() *coreV1Lister {
 		serviceLister:        &UnionServiceLister{},
 		serviceAccountLister: &UnionServiceAccountLister{},
 		namespaceLister:      &UnionNamespaceLister{},
+		podLister:            &UnionPodLister{},
+		configMapLister:      &UnionConfigMapLister{},
 	}
 }
 
