@@ -26,7 +26,7 @@ func TestInstallEtcdOCS(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceSynced)
+	catalogSource, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, operatorNamespace, catalogSource.Spec.ConfigMap)
@@ -166,7 +166,7 @@ func TestInstallPrometheusOCS(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceSynced)
+	catalogSource, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 	require.NotNil(t, catalogSource)
 	inMem, err := registry.NewInMemoryFromConfigMap(c, operatorNamespace, catalogSource.Spec.ConfigMap)

@@ -8,18 +8,19 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/informers"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -182,12 +183,12 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		configMapInformer := informerFactory.Core().V1().ConfigMaps()
 
 		queueInformers := []*queueinformer.QueueInformer{
-			queueinformer.NewInformer(roleQueue, roleInformer.Informer(), op.syncObject, handleDelete, "role", metrics.NewMetricsNil()),
-			queueinformer.NewInformer(roleBindingQueue, roleBindingInformer.Informer(), op.syncObject, handleDelete, "rolebinding", metrics.NewMetricsNil()),
-			queueinformer.NewInformer(serviceAccountQueue, serviceAccountInformer.Informer(), op.syncObject, handleDelete, "serviceaccount", metrics.NewMetricsNil()),
-			queueinformer.NewInformer(serviceQueue, serviceInformer.Informer(), op.syncObject, handleDelete, "service", metrics.NewMetricsNil()),
-			queueinformer.NewInformer(podQueue, podInformer.Informer(), op.syncObject, handleDelete, "pod", metrics.NewMetricsNil()),
-			queueinformer.NewInformer(configmapQueue, configMapInformer.Informer(), op.syncObject, handleDelete, "configmap", metrics.NewMetricsNil()),
+			queueinformer.NewInformer(roleQueue, roleInformer.Informer(), op.syncObject, handleDelete, "role", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(roleBindingQueue, roleBindingInformer.Informer(), op.syncObject, handleDelete, "rolebinding", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(serviceAccountQueue, serviceAccountInformer.Informer(), op.syncObject, handleDelete, "serviceaccount", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(serviceQueue, serviceInformer.Informer(), op.syncObject, handleDelete, "service", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(podQueue, podInformer.Informer(), op.syncObject, handleDelete, "pod", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(configmapQueue, configMapInformer.Informer(), op.syncObject, handleDelete, "configmap", metrics.NewMetricsNil(), logger),
 		}
 		for _, q := range queueInformers {
 			op.RegisterQueueInformer(q)
@@ -213,12 +214,12 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 	runtimeObj, ok := obj.(runtime.Object)
 	if !ok {
 		syncError = errors.New("object sync: casting to runtime.Object failed")
-		log.Warn(syncError.Error())
+		o.Log.Warn(syncError.Error())
 		return
 	}
 
 	gvk := runtimeObj.GetObjectKind().GroupVersionKind()
-	logger := log.WithFields(log.Fields{
+	logger := o.Log.WithFields(logrus.Fields{
 		"group":   gvk.Group,
 		"version": gvk.Version,
 		"kind":    gvk.Kind,
@@ -231,7 +232,7 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 		logger.Warn(syncError.Error())
 		return
 	}
-	logger = logger.WithFields(log.Fields{
+	logger = logger.WithFields(logrus.Fields{
 		"name":      metaObj.GetName(),
 		"namespace": metaObj.GetNamespace(),
 	})
@@ -276,12 +277,12 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
-	logger := log.WithFields(log.Fields{
+	logger := o.Log.WithFields(logrus.Fields{
 		"source": catsrc.GetName(),
 	})
 
 	if catsrc.Spec.SourceType == v1alpha1.SourceTypeInternal || catsrc.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
-		return o.syncConfigMapSource(logger, catsrc)
+		return o.syncConfigMapSource(logger.Logger, catsrc)
 	}
 
 	logger.WithField("sourceType", catsrc.Spec.SourceType).Warn("unknown source type")
@@ -291,7 +292,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	return nil
 }
 
-func (o *Operator) syncConfigMapSource(logger *log.Entry, catsrc *v1alpha1.CatalogSource) (syncError error) {
+func (o *Operator) syncConfigMapSource(logger *logrus.Logger, catsrc *v1alpha1.CatalogSource) (syncError error) {
 
 	// Get the catalog source's config map
 	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap)

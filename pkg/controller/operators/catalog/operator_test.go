@@ -6,10 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
-
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -19,11 +15,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
-	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"

@@ -1,9 +1,12 @@
 package v1alpha1
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
 
 const (
@@ -37,6 +40,10 @@ type RegistryServiceStatus struct {
 	ServiceNamespace string      `json:"serviceNamespace,omitempty"`
 	Port             string      `json:"port,omitempty"`
 	CreatedAt        metav1.Time `json:"createdAt,omitempty"`
+}
+
+func (s *RegistryServiceStatus) Address() string {
+	return fmt.Sprintf("%s.%s.svc.cluster.local:%s", s.ServiceName, s.ServiceNamespace, s.Port)
 }
 
 type CatalogSourceStatus struct {

@@ -99,7 +99,7 @@ func TestMain(m *testing.M) {
 		logrus.WithError(err).Fatalf("error configuring olm")
 	}
 	olmready, _ := olmOperator.Run(olmStopCh)
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, catlogger, time.Minute, *namespace, namespaces...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, catlogger, time.Minute, "quay.io/operatorframework/configmap-operator-registry:latest", *namespace, namespaces...)
 	if err != nil {
 		logrus.WithError(err).Fatalf("error configuring catalog")
 	}

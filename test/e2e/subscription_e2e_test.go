@@ -223,7 +223,7 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.I
 	}
 
 	// Wait for the catalog source to be created
-	fetched, err := fetchCatalogSource(t, crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceSynced)
+	fetched, err := fetchCatalogSource(t, crc, dummyCatalogSource.GetName(), dummyCatalogSource.GetNamespace(), catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 	require.NotNil(t, fetched)
 

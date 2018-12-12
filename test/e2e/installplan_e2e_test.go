@@ -221,7 +221,7 @@ func TestCreateInstallPlanManualApproval(t *testing.T) {
 	}
 
 	// Attempt to get the catalog source before creating install plan
-	_, err = fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	// Create a new InstallPlan for Vault with manual approval
@@ -321,7 +321,7 @@ func TestCreateInstallPlanFromInvalidClusterServiceVersionName(t *testing.T) {
 	}
 
 	// Attempt to get the catalog source before creating install plan
-	_, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceSynced)
+	_, err := fetchCatalogSource(t, crc, ocsConfigMap, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	cleanup, err := decorateCommonAndCreateInstallPlan(crc, testNamespace, installPlan)
@@ -395,14 +395,14 @@ func TestCreateInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupDependentCatalogSource()
 	// Attempt to get the catalog source before creating install plan
-	_, err = fetchCatalogSource(t, crc, dependentCatalogName, operatorNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, dependentCatalogName, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	_, cleanupMainCatalogSource, err := createInternalCatalogSource(t, c, crc, mainCatalogName, operatorNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 	require.NoError(t, err)
 	defer cleanupMainCatalogSource()
 	// Attempt to get the catalog source before creating install plan
-	_, err = fetchCatalogSource(t, crc, mainCatalogName, operatorNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, mainCatalogName, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	// Create expected install plan step sources
@@ -545,7 +545,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
@@ -676,7 +676,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(t, err)
 
 		secondOwnerCSV := v1alpha1.ClusterServiceVersion{
@@ -795,7 +795,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(t, err)
 
 		// Create default test installplan
@@ -977,7 +977,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
+		_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(t, err)
 
 		// Create a dummy installplan with a non-existent csv
@@ -1136,7 +1136,7 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	defer cleanupCatalogSource()
 
 	// Attempt to get CatalogSource
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	// Create InstallPlan

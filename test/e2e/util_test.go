@@ -25,7 +25,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	pmclient "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
@@ -174,44 +173,6 @@ func waitForAndFetchCustomResource(t *testing.T, c operatorclient.ClientInterfac
 	return res, err
 }
 
-/// waitForAndFetchCustomResource is same as pollForCustomResource but returns the fetched unstructured resource
-func waitForAndFetchChildren(t *testing.T, c operatorclient.ClientInterface, version string, kind string, owner ownerutil.Owner, count int) ([]*unstructured.Unstructured, error) {
-	t.Logf("Looking for %d %s in %s\n", count, kind, testNamespace)
-	var res []*unstructured.Unstructured
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		crList, err := c.ListCustomResource(v1alpha1.GroupName, version, testNamespace, kind)
-		if err != nil {
-			t.Log(err)
-			return false, nil
-		}
-
-		owned := 0
-		for _, obj := range crList.Items {
-			if ownerutil.IsOwnedBy(obj, owner) {
-				owned += 1
-				res = append(res, obj)
-			}
-		}
-
-		// waiting for count number of objects to exist
-		if owned != count {
-			return false, nil
-		}
-		return true, nil
-	})
-
-	return res, err
-}
-
-func cleanupCustomResource(t *testing.T, c operatorclient.ClientInterface, group, kind, name string) cleanupFunc {
-	return func() {
-		t.Logf("deleting %s %s", kind, name)
-		require.NoError(t, c.DeleteCustomResource(v1alpha1.GroupName, group, testNamespace, kind, name))
-	}
-}
-
 // compareResources compares resource equality then prints a diff for easier debugging
 func compareResources(t *testing.T, expected, actual interface{}) {
 	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
@@ -240,11 +201,11 @@ func waitForDelete(checkResource checkResourceFunc) error {
 
 type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool
 
-func catalogSourceSynced(catalog *v1alpha1.CatalogSource) bool {
-	if !catalog.Status.LastSync.IsZero() {
+func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
+	if !catalog.Status.LastSync.IsZero() && catalog.Status.RegistryServiceStatus != nil {
+		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), catalog.Status.RegistryServiceStatus.Address())
 		return true
 	}
-
 	return false
 }
 

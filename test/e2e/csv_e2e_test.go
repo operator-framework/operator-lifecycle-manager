@@ -726,8 +726,33 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err = c.CreateClusterRoleBinding(&nonResourceClusterRoleBinding)
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
-	// Wait for CSV success
-	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	fmt.Println("checking for deployment")
+	// Poll for deployment to be ready
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		dep, err := c.GetDeployment(testNamespace, depName)
+		if k8serrors.IsNotFound(err) {
+			fmt.Printf("deployment %s not found\n", depName)
+			return false, nil
+		} else if err != nil {
+			fmt.Printf("unexpected error fetching deployment %s\n", depName)
+			return false, err
+		}
+		if dep.Status.UpdatedReplicas == *(dep.Spec.Replicas) &&
+			dep.Status.Replicas == *(dep.Spec.Replicas) &&
+			dep.Status.AvailableReplicas == *(dep.Spec.Replicas) {
+			fmt.Println("deployment ready")
+			return true, nil
+		}
+		fmt.Println("deployment not ready")
+		return false, nil
+	})
+	require.NoError(t, err)
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
 	require.NoError(t, err)
 
 	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)

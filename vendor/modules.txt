@@ -123,6 +123,10 @@ github.com/mitchellh/mapstructure
 github.com/modern-go/concurrent
 # github.com/modern-go/reflect2 v1.0.1
 github.com/modern-go/reflect2
+# github.com/operator-framework/operator-registry v1.0.1
+github.com/operator-framework/operator-registry/pkg/client
+github.com/operator-framework/operator-registry/pkg/api
+github.com/operator-framework/operator-registry/pkg/registry
 # github.com/pborman/uuid v1.2.0
 github.com/pborman/uuid
 # github.com/peterbourgon/diskv v2.0.1+incompatible
@@ -202,31 +206,31 @@ google.golang.org/appengine/internal/remote_api
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.16.0
 google.golang.org/grpc
-google.golang.org/grpc/codes
-google.golang.org/grpc/credentials
-google.golang.org/grpc/grpclog
-google.golang.org/grpc/health/grpc_health_v1
-google.golang.org/grpc/keepalive
-google.golang.org/grpc/metadata
-google.golang.org/grpc/status
 google.golang.org/grpc/balancer
 google.golang.org/grpc/balancer/roundrobin
+google.golang.org/grpc/codes
 google.golang.org/grpc/connectivity
+google.golang.org/grpc/credentials
 google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/proto
+google.golang.org/grpc/grpclog
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
 google.golang.org/grpc/internal/channelz
 google.golang.org/grpc/internal/envconfig
 google.golang.org/grpc/internal/grpcrand
 google.golang.org/grpc/internal/transport
+google.golang.org/grpc/keepalive
+google.golang.org/grpc/metadata
 google.golang.org/grpc/naming
 google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
 google.golang.org/grpc/resolver/dns
 google.golang.org/grpc/resolver/passthrough
 google.golang.org/grpc/stats
+google.golang.org/grpc/status
 google.golang.org/grpc/tap
+google.golang.org/grpc/health/grpc_health_v1
 google.golang.org/grpc/balancer/base
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
@@ -290,8 +294,8 @@ k8s.io/apimachinery/pkg/runtime/serializer
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/api/errors
-k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/util/runtime
+k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/runtime/serializer/json
 k8s.io/apimachinery/pkg/api/meta
@@ -432,8 +436,8 @@ k8s.io/client-go/discovery/fake
 k8s.io/client-go/testing
 k8s.io/client-go/tools/cache
 k8s.io/client-go/listers/rbac/v1
-k8s.io/client-go/util/workqueue
 k8s.io/client-go/informers
+k8s.io/client-go/util/workqueue
 k8s.io/client-go/listers/core/v1
 k8s.io/client-go/kubernetes/typed/core/v1
 k8s.io/client-go/kubernetes
