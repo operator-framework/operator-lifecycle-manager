@@ -381,6 +381,7 @@ func TestOperatorGroup(t *testing.T) {
 	viewRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
 	require.NoError(t, err)
 	viewPolicyRules := []rbacv1.PolicyRule{
+		{Verbs: []string{"get"}, APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, ResourceNames: []string{mainCRDName}},
 		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
 	}
 	require.Equal(t, viewPolicyRules, viewRole.Rules)

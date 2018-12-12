@@ -76,7 +76,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type
-func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1alpha2.OperatorGroup, csv *v1alpha1.ClusterServiceVersion, namePrefix, suffix, group, resource string) error {
+func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1alpha2.OperatorGroup, csv *v1alpha1.ClusterServiceVersion, namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string) error {
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namePrefix + suffix,
@@ -85,7 +85,7 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1alpha2.Operator
 				operatorGroupAggregrationKeyPrefix + suffix: operatorGroup.GetName(),
 			},
 		},
-		Rules: []rbacv1.PolicyRule{{Verbs: VerbsForSuffix[suffix], APIGroups: []string{group}, Resources: []string{resource}}},
+		Rules: []rbacv1.PolicyRule{{Verbs: verbs, APIGroups: []string{group}, Resources: []string{resource}, ResourceNames: resourceNames}},
 	}
 	ownerutil.AddNonBlockingOwner(clusterRole, csv)
 	existingCR, err := a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
@@ -115,26 +115,30 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion,
 		group := nameGroupPair[1]
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, AdminSuffix, group, plural); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, AdminSuffix, VerbsForSuffix[AdminSuffix], group, plural, nil); err != nil {
 			return err
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, EditSuffix, group, plural); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, EditSuffix, VerbsForSuffix[EditSuffix], group, plural, nil); err != nil {
 			return err
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, ViewSuffix, group, plural); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, ViewSuffix, VerbsForSuffix[ViewSuffix], group, plural, nil); err != nil {
+			return err
+		}
+
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix+"-crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}); err != nil {
 			return err
 		}
 	}
 	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, AdminSuffix, owned.Group, owned.Name); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, AdminSuffix, VerbsForSuffix[AdminSuffix], owned.Group, owned.Name, nil); err != nil {
 			return err
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, EditSuffix, owned.Group, owned.Name); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, EditSuffix, VerbsForSuffix[EditSuffix], owned.Group, owned.Name, nil); err != nil {
 			return err
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, ViewSuffix, owned.Group, owned.Name); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, ViewSuffix, VerbsForSuffix[ViewSuffix], owned.Group, owned.Name, nil); err != nil {
 			return err
 		}
 	}
