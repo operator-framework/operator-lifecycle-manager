@@ -1,0 +1,5 @@
+packageName: marketplace
+channels:
+- name: alpha
+  currentCSV: marketplace-operator.v0.0.1
+  
