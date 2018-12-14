@@ -60,5 +60,3 @@ spec:
       nodeSelector:
 {{ toYaml .Values.olm.nodeSelector | indent 8 }}
     {{- end }}
-      imagePullSecrets:
-        - name: coreos-pull-secret
