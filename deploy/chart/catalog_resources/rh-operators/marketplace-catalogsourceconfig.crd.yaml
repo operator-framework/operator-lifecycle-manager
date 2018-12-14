@@ -41,10 +41,6 @@ spec:
       properties:
         spec:
           type: object
-          description: Represents the configuration of a CatalogSourceConfig
-          required:
-          - spec
-          type: object
           description: Spec for a CatalogSourceConfig
           required:
           - targetNamespace

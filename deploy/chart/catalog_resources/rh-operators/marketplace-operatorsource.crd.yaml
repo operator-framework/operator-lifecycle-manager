@@ -45,10 +45,6 @@ spec:
       properties:
         spec:
           type: object
-          description: Represents the configuration of an OperatorSource
-          required:
-          - spec
-          type: object
           description: Spec for an OperatorSource.
           required:
           - type

@@ -1,3 +1,5 @@
+#! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
@@ -88,7 +90,7 @@ spec:
                           fieldPath: metadata.namespace
                     - name: OPERATOR_NAME
                       value: "marketplace-operator"
-customresourcedefinitions:
+  customresourcedefinitions:
     owned:
     - name: operatorsources.marketplace.redhat.com
       version: v1alpha1
