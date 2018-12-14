@@ -9,5 +9,6 @@ metadata:
   namespace: olm
 spec:
   source: olm-operators
+  sourceNamespace: olm
   name: packageserver
   channel: alpha
