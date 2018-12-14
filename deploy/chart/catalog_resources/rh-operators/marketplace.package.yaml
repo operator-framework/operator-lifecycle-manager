@@ -1,0 +1,5 @@
+#! package-manifest: deploy/chart/catalog_resources/rh-operators/marketplace.v0.0.1.clusterserviceversion.yaml
+packageName: marketplace
+channels:
+- name: alpha
+  currentCSV: marketplace-operator.v0.0.1
