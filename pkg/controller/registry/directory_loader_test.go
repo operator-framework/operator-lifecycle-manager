@@ -15,12 +15,14 @@ func TestDirectoryLoader(t *testing.T) {
 	catalog, err := NewInMemoryFromDirectory("../../../deploy/chart/catalog_resources/rh-operators")
 	require.NoError(t, err)
 
-	require.Contains(t, catalog.packages, "etcd")
-	require.Contains(t, catalog.packages, "prometheus")
 	require.Contains(t, catalog.packages, "amq-streams")
-	require.Contains(t, catalog.packages, "federationv2")
+	require.Contains(t, catalog.packages, "cluster-logging")
 	require.Contains(t, catalog.packages, "descheduler")
-	require.Len(t, catalog.packages, 6)
+	require.Contains(t, catalog.packages, "etcd")
+	require.Contains(t, catalog.packages, "federationv2")
+	require.Contains(t, catalog.packages, "prometheus")
+	require.Contains(t, catalog.packages, "svcat")
+	require.Len(t, catalog.packages, 7)
 }
 
 func TestDirectoryLoaderHiddenDirs(t *testing.T) {

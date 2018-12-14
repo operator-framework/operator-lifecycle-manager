@@ -1,0 +1,5 @@
+#! package-manifest: ./deploy/chart/catalog_resources/rh-operators/clusterlogging.v0.0.1.clusterserviceversion.yaml
+packageName: cluster-logging
+channels:
+- name: preview
+  currentCSV: clusterlogging.v0.0.1
