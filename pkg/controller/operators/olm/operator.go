@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
+	operatorv1 "github.com/openshift/api/operator/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -969,4 +970,13 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 
 		a.requeueCSV(csv.GetName(), csv.GetNamespace())
 	}
+}
+
+// These methods are stubs, I don't know what to put here
+func (a *Operator) CurrentStatus() (operatorv1.OperatorStatus, error) {
+	return operatorv1.OperatorStatus{}, nil
+}
+
+func (a *Operator) Informer() cache.SharedIndexInformer {
+	return nil
 }

@@ -8,10 +8,14 @@ import (
 	"strings"
 	"time"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/status"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
@@ -19,6 +23,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 const (
@@ -78,6 +83,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
+	// create a config client for operator status
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+	configClient, err := configv1client.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
 
 	logger := log.New()
 
@@ -91,10 +105,23 @@ func main() {
 
 	// Create a new instance of the operator.
 	operator, err := olm.NewOperator(logger, crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, namespaces)
-
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())
 	}
+
+	controllerRef, err := events.GetControllerReferenceForCurrentPod(opClient.KubernetesInterface(), "openshift-operator-lifecycle-manager", nil)
+	if err != nil {
+		log.Fatalf("error get controller reference: %s", err.Error())
+	}
+
+	kubeEventRecorder := events.NewKubeRecorder(opClient.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll), "changeme-component-name", controllerRef)
+
+	clusterOperatorStatus := status.NewClusterOperatorStatusController(
+		"openshift-operator-lifecycle-manager",
+		configClient.ConfigV1(),
+		operator,
+		kubeEventRecorder,
+	)
 
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +132,8 @@ func main() {
 	//mux.Handle("/metrics", promhttp.Handler()) //other form is deprecated
 	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(":8080", nil)
+
+	go clusterOperatorStatus.Run(1, stopCh)
 
 	_, done := operator.Run(stopCh)
 	<-done
