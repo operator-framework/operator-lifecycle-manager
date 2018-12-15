@@ -345,12 +345,12 @@ func (a *Operator) deleteClusterServiceVersion(obj interface{}) {
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
 
-	targetNamespaces, ok := clusterServiceVersion.Annotations["olm.targetNamespaces"]
+	targetNamespaces, ok := clusterServiceVersion.Annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
 	if !ok {
 		logger.Debugf("Ignoring CSV with no annotation")
 	}
 
-	operatorNamespace, ok := clusterServiceVersion.Annotations["olm.operatorNamespace"]
+	operatorNamespace, ok := clusterServiceVersion.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debugf("missing operator namespace annotation on CSV")
 	}
@@ -375,7 +375,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 		"phase":     csv.Status.Phase,
 	})
 
-	operatorNamespace, ok := csv.Annotations["olm.operatorNamespace"]
+	operatorNamespace, ok := csv.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debug("missing operator namespace annotation on copied CSV")
 		return fmt.Errorf("missing operator namespace annotation on copied CSV")
@@ -427,7 +427,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		return
 	}
 
-	operatorNamespace, ok := clusterServiceVersion.GetAnnotations()[operatorGroupNamespaceAnnotationKey]
+	operatorNamespace, ok := clusterServiceVersion.GetAnnotations()[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 
 	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied ||
 		ok && clusterServiceVersion.GetNamespace() != operatorNamespace {
@@ -484,12 +484,12 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 	}
 
 	// not in the operatorgroup namespace
-	if annotations[operatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
+	if annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
 		logger.Info("not in operatorgroup namespace, skipping")
 		return nil
 	}
 
-	operatorGroupName, ok := annotations[operatorGroupAnnotationKey]
+	operatorGroupName, ok := annotations[v1alpha2.OperatorGroupAnnotationKey]
 
 	// no operatorgroup annotation
 	if !ok {
@@ -507,7 +507,7 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 	}
 
 	// target namespaces don't match
-	if annotations[operatorGroupTargetsAnnotationKey] != strings.Join(operatorGroup.Status.Namespaces, ",") {
+	if annotations[v1alpha2.OperatorGroupTargetsAnnotationKey] != strings.Join(operatorGroup.Status.Namespaces, ",") {
 		logger.Info("target namespace annotation doesn't match operatorgroup namespace list")
 		return nil
 	}

@@ -79,14 +79,21 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 	}
 }
 
-func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup, targetNamespaces string) error {
-	if annotation, ok := obj.GetAnnotations()["olm.targetNamespaces"]; !ok || annotation != targetNamespaces {
-		return fmt.Errorf("missing targetNamespaces annotation on %v", obj.GetName())
+func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
+	if checkTargetNamespaces {
+		if annotation, ok := obj.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]; !ok || annotation != targetNamespaces {
+			return fmt.Errorf("missing targetNamespaces annotation on %v", obj.GetName())
+		}
+	} else {
+		if _, found := obj.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]; found {
+			return fmt.Errorf("targetNamespaces annotation unexpectedly found on %v", obj.GetName())
+		}
 	}
-	if annotation, ok := obj.GetAnnotations()["olm.operatorNamespace"]; !ok || annotation != op.GetNamespace() {
+
+	if annotation, ok := obj.GetAnnotations()[v1alpha2.OperatorGroupNamespaceAnnotationKey]; !ok || annotation != op.GetNamespace() {
 		return fmt.Errorf("missing operatorNamespace on %v", obj.GetName())
 	}
-	if annotation, ok := obj.GetAnnotations()["olm.operatorGroup"]; !ok || annotation != op.GetName() {
+	if annotation, ok := obj.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey]; !ok || annotation != op.GetName() {
 		return fmt.Errorf("missing operatorGroup annotation on %v", obj.GetName())
 	}
 
@@ -181,6 +188,7 @@ func TestOperatorGroup(t *testing.T) {
 		}
 		return false, nil
 	})
+	require.NoError(t, err)
 
 	t.Log("Creating CSV")
 	// Generate permissions
@@ -258,16 +266,20 @@ func TestOperatorGroup(t *testing.T) {
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
-			t.Log(fetchErr.Error())
+			if errors.IsNotFound(fetchErr) {
+				return false, nil
+			}
+			t.Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
 			return false, fetchErr
 		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, true, bothNamespaceNames) == nil {
 			return true, nil
 		}
 		return false, nil
 	})
+	require.NoError(t, err)
 
-	t.Log("Waiting for target namespace csv to have annotations")
+	t.Log("Waiting for target namespace csv to have annotations (but not target namespaces)")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
@@ -277,7 +289,7 @@ func TestOperatorGroup(t *testing.T) {
 			t.Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
 			return false, fetchErr
 		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, bothNamespaceNames) == nil {
+		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, false, "") == nil {
 			return true, nil
 		}
 
@@ -310,11 +322,12 @@ func TestOperatorGroup(t *testing.T) {
 			}
 			return false, err
 		}
-		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, bothNamespaceNames) == nil {
+		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, true, bothNamespaceNames) == nil {
 			return true, nil
 		}
 		return false, nil
 	})
+	require.NoError(t, err)
 
 	// check rbac in target namespace
 	informerFactory := informers.NewSharedInformerFactory(c.KubernetesInterface(), 1*time.Second)
