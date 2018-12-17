@@ -1,0 +1,7 @@
+apiVersion: operatorstatus.openshift.io
+kind: ClusterOperator
+metadata:
+  namespace: openshift-operator-lifecycle-manager
+  name: operator-lifecycle-manager
+status:
+  version: 1.0.0

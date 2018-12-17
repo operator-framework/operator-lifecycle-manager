@@ -1,4 +1,5 @@
 rbacApiVersion: rbac.authorization.k8s.io
+writeStatusName: '""'
 
 olm:
   replicaCount: 1

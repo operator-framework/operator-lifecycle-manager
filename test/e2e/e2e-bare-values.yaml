@@ -1,6 +1,7 @@
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
 catalog_namespace: operator-lifecycle-manager
+writeStatusName: '""'
 olm:
   replicaCount: 1
   image:

@@ -2,6 +2,7 @@ rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
 catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
+writeStatusName: '""'
 imagestream: false
 debug: false
 olm:
