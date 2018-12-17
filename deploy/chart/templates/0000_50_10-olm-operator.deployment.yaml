@@ -33,6 +33,10 @@ spec:
           {{- if .Values.debug }}
           - -debug
           {{- end }}
+          {{- if .Values.writeStatusName }}
+          - -writeStatusName
+          - {{ .Values.writeStatusName }}
+          {{- end }}
           image: {{ .Values.olm.image.ref }}
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:

@@ -3,6 +3,7 @@ namespace: operator-lifecycle-manager
 catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
 minKubeVersion: 1.11.0
+writeStatusName: '""'
 imagestream: false
 debug: false
 olm:

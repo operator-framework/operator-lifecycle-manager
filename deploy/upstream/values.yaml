@@ -3,6 +3,7 @@ namespace: olm
 catalog_namespace: olm
 operator_namespace: operators
 imagestream: false
+writeStatusName: '""'
 olm:
   replicaCount: 1
   image:

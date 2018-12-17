@@ -1,5 +1,6 @@
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: local
+writeStatusName: '""'
 catalog_namespace: local
 operator_namespace: local-operators
 debug: true
