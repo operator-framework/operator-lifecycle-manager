@@ -13,6 +13,7 @@ import (
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
@@ -295,11 +296,11 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Entry, catsrc *v1alpha1.Ca
 		return fmt.Errorf("failed to get catalog config map %s: %s", catsrc.Spec.ConfigMap, err)
 	}
 
+	out := catsrc.DeepCopy()
 	sourceKey := registry.ResourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
 
 	if _, ok := o.sources[sourceKey]; !ok || catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
 		// configmap ref nonexistant or updated, write out the new configmap ref to status and exit
-		out := catsrc.DeepCopy()
 		out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
 			Name:            configMap.GetName(),
 			Namespace:       configMap.GetNamespace(),
@@ -344,6 +345,28 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Entry, catsrc *v1alpha1.Ca
 			return err
 		}
 		return nil
+	}
+
+	logger = logger.WithFields(logrus.Fields{"catalogSource": out.GetName(), "catalogNamespace": out.GetNamespace()})
+
+	// Sync any dependent Subscriptions
+	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().List(labels.Everything())
+	if err != nil {
+		logger.Warnf("could not list Subscriptions")
+		return nil
+	}
+
+	for _, sub := range subs {
+		subLogger := logger.WithFields(logrus.Fields{"subscriptionCatalogSource": sub.Spec.CatalogSource, "subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace})
+		catalogNamespace := sub.Spec.CatalogSourceNamespace
+		if catalogNamespace == "" {
+			catalogNamespace = o.namespace
+		}
+		subLogger.Debug("checking subscription")
+		if sub.Spec.CatalogSource == out.GetName() && catalogNamespace == out.GetNamespace() {
+			logger.Debug("requeueing subscription")
+			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
+		}
 	}
 
 	return nil

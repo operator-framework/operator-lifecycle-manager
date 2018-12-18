@@ -46,7 +46,7 @@ func (o *Operator) syncSubscription(in *v1alpha1.Subscription) (*v1alpha1.Subscr
 	}
 	catalog, ok := o.sources[registry.ResourceKey{Name: out.Spec.CatalogSource, Namespace: catalogNamespace}]
 	if !ok {
-		out.Status.State = v1alpha1.SubscriptionStateAtLatest
+		out.Status.State = v1alpha1.SubscriptionStateFailed
 		out.Status.Reason = v1alpha1.SubscriptionReasonInvalidCatalog
 		return out, fmt.Errorf("unknown catalog source %s in namespace %s", out.Spec.CatalogSource, catalogNamespace)
 	}
