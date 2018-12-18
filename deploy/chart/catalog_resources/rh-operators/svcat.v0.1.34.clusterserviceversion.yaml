@@ -122,10 +122,10 @@ spec:
                 resources:
                   limits:
                     cpu: 100m
-                    memory: 30Mi
+                    memory: 60Mi
                   requests:
                     cpu: 100m
-                    memory: 20Mi
+                    memory: 40Mi
                 args:
                 - apiserver
                 - --enable-admission-plugins
@@ -171,7 +171,7 @@ spec:
                 resources:
                   limits:
                     cpu: 100m
-                    memory: 70Mi
+                    memory: 150Mi
                   requests:
                     cpu: 100m
                     memory: 50Mi
@@ -232,10 +232,10 @@ spec:
                 resources:
                   limits:
                     cpu: 100m
-                    memory: 30Mi
+                    memory: 60Mi
                   requests:
                     cpu: 100m
-                    memory: 20Mi
+                    memory: 40Mi
                 env:
                 - name: K8S_NAMESPACE
                   valueFrom:
