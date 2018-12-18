@@ -13,6 +13,7 @@ spec:
     listKind: ClusterServiceVersionList
     shortNames:
     - csv
+    - csvs
     categories:
     - all
     - olm
@@ -198,7 +199,7 @@ spec:
                     description: Version of the API resource
                   kind:
                     type: string
-                    description: Kind of the API resource        
+                    description: Kind of the API resource
             apiservicedefinitions:
               type: object
               properties:
