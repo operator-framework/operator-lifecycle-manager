@@ -16,7 +16,6 @@ spec:
     shortNames:
     - csv
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: Display

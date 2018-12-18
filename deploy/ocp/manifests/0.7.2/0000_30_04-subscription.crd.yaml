@@ -21,7 +21,6 @@ spec:
     kind: Subscription
     listKind: SubscriptionList
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: Package

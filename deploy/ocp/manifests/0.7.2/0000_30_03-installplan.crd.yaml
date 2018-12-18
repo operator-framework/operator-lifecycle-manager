@@ -21,7 +21,6 @@ spec:
     kind: InstallPlan
     listKind: InstallPlanList
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: CSV

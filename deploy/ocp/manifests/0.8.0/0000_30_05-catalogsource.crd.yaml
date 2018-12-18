@@ -21,7 +21,6 @@ spec:
     kind: CatalogSource
     listKind: CatalogSourceList
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: Name
