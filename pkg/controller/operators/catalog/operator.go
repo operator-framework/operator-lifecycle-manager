@@ -13,7 +13,9 @@ import (
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -40,25 +42,27 @@ const (
 	roleBindingKind        = "RoleBinding"
 )
 
-//for test stubbing and for ensuring standardization of timezones to UTC
+// for test stubbing and for ensuring standardization of timezones to UTC
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	client             versioned.Interface
-	lister             operatorlister.OperatorLister
-	namespace          string
-	sources            map[registry.ResourceKey]registry.Source
-	sourcesLock        sync.RWMutex
-	sourcesLastUpdate  metav1.Time
-	dependencyResolver resolver.DependencyResolver
-	subQueue           workqueue.RateLimitingInterface
+	client                      versioned.Interface
+	lister                      operatorlister.OperatorLister
+	namespace                   string
+	sources                     map[registry.ResourceKey]registry.Source
+	sourcesLock                 sync.RWMutex
+	sourcesLastUpdate           metav1.Time
+	dependencyResolver          resolver.DependencyResolver
+	subQueue                    workqueue.RateLimitingInterface
+	catSrcQueue                 workqueue.RateLimitingInterface
+	configmapRegistryReconciler *registry.ConfigMapRegistryReconciler
 }
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval time.Duration, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
+func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval time.Duration, configmapRegistryImage, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
 	// Default to watching all namespaces.
 	if watchedNamespaces == nil {
 		watchedNamespaces = []string{metav1.NamespaceAll}
@@ -85,7 +89,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 
 	// Create an informer for each catalog namespace
 	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range []string{operatorNamespace} {
+	for _, namespace := range watchedNamespaces {
 		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
 	}
@@ -120,6 +124,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	for _, informer := range catsrcQueueInformer {
 		op.RegisterQueueInformer(informer)
 	}
+	op.catSrcQueue = catsrcQueue
 
 	// Register InstallPlan informers.
 	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installplans")
@@ -152,7 +157,113 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		op.RegisterQueueInformer(informer)
 	}
 
+	handleDelete := &cache.ResourceEventHandlerFuncs{
+		DeleteFunc: op.handleDeletion,
+	}
+	// Set up informers for requeuing catalogs
+	for _, namespace := range watchedNamespaces {
+		roleQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "role")
+		roleBindingQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolebinding")
+		serviceAccountQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount")
+		serviceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "service")
+		podQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
+		configmapQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configmap")
+
+		informers.NewSharedInformerFactoryWithOptions(op.OpClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
+		informerFactory := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval)
+		roleInformer := informerFactory.Rbac().V1().Roles()
+		roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
+		serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
+		serviceInformer := informerFactory.Core().V1().Services()
+		podInformer := informerFactory.Core().V1().Pods()
+		configMapInformer := informerFactory.Core().V1().ConfigMaps()
+
+		queueInformers := []*queueinformer.QueueInformer{
+			queueinformer.NewInformer(roleQueue, roleInformer.Informer(), op.syncObject, handleDelete, "role", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(roleBindingQueue, roleBindingInformer.Informer(), op.syncObject, handleDelete, "rolebinding", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(serviceAccountQueue, serviceAccountInformer.Informer(), op.syncObject, handleDelete, "serviceaccount", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(serviceQueue, serviceInformer.Informer(), op.syncObject, handleDelete, "service", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(podQueue, podInformer.Informer(), op.syncObject, handleDelete, "pod", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(configmapQueue, configMapInformer.Informer(), op.syncObject, handleDelete, "configmap", metrics.NewMetricsNil(), logger),
+		}
+		for _, q := range queueInformers {
+			op.RegisterQueueInformer(q)
+		}
+
+		op.lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
+		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
+		op.lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
+		op.lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
+		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
+		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
+	}
+	op.configmapRegistryReconciler = &registry.ConfigMapRegistryReconciler{
+		Image:    configmapRegistryImage,
+		OpClient: op.OpClient,
+		Lister:   op.lister,
+	}
 	return op, nil
+}
+
+func (o *Operator) syncObject(obj interface{}) (syncError error) {
+	// Assert as runtime.Object
+	runtimeObj, ok := obj.(runtime.Object)
+	if !ok {
+		syncError = errors.New("object sync: casting to runtime.Object failed")
+		o.Log.Warn(syncError.Error())
+		return
+	}
+
+	gvk := runtimeObj.GetObjectKind().GroupVersionKind()
+	logger := o.Log.WithFields(logrus.Fields{
+		"group":   gvk.Group,
+		"version": gvk.Version,
+		"kind":    gvk.Kind,
+	})
+
+	// Assert as metav1.Object
+	metaObj, ok := obj.(metav1.Object)
+	if !ok {
+		syncError = errors.New("object sync: casting to metav1.Object failed")
+		logger.Warn(syncError.Error())
+		return
+	}
+	logger = logger.WithFields(logrus.Fields{
+		"name":      metaObj.GetName(),
+		"namespace": metaObj.GetNamespace(),
+	})
+
+	logger.Debug("syncing")
+
+	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.CatalogSourceKind) {
+		logger.Debug("requeueing owner CatalogSource")
+		owner := ownerutil.GetOwnerByKind(metaObj, v1alpha1.CatalogSourceKind)
+		o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", metaObj.GetNamespace(), owner.Name))
+	}
+
+	return nil
+}
+
+func (o *Operator) handleDeletion(obj interface{}) {
+	ownee, ok := obj.(metav1.Object)
+	if !ok {
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			return
+		}
+
+		ownee, ok = tombstone.Obj.(metav1.Object)
+		if !ok {
+			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Namespace %#v", obj))
+			return
+		}
+	}
+
+	if ownerutil.IsOwnedByKind(ownee, v1alpha1.CatalogSourceKind) {
+		owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind)
+		o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", ownee.GetNamespace(), owner.Name))
+	}
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
@@ -162,67 +273,77 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
+	logger := o.Log.WithFields(logrus.Fields{
+		"source": catsrc.GetName(),
+	})
+
+	if catsrc.Spec.SourceType == v1alpha1.SourceTypeInternal || catsrc.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
+		return o.syncConfigMapSource(logger, catsrc)
+	}
+
+	logger.WithField("sourceType", catsrc.Spec.SourceType).Warn("unknown source type")
+
+	// TODO: write status about invalid source type
+
+	return nil
+}
+
+func (o *Operator) syncConfigMapSource(logger *logrus.Entry, catsrc *v1alpha1.CatalogSource) (syncError error) {
 	// Get the catalog source's config map
-	configMap, err := o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap, metav1.GetOptions{})
+	configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap)
 	if err != nil {
-		return fmt.Errorf("failed to get catalog config map %s when updating status: %s", catsrc.Spec.ConfigMap, err)
+		return fmt.Errorf("failed to get catalog config map %s: %s", catsrc.Spec.ConfigMap, err)
 	}
 
-	o.sourcesLock.Lock()
-	defer o.sourcesLock.Unlock()
 	sourceKey := registry.ResourceKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
-	_, ok = o.sources[sourceKey]
 
-	// Check for catalog source changes
-	if ok && catsrc.Status.ConfigMapResource != nil && catsrc.Status.ConfigMapResource.Name == configMap.GetName() && catsrc.Status.ConfigMapResource.ResourceVersion == configMap.GetResourceVersion() {
+	if _, ok := o.sources[sourceKey]; !ok || catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
+		// configmap ref nonexistant or updated, write out the new configmap ref to status and exit
+		out := catsrc.DeepCopy()
+		out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
+			Name:            configMap.GetName(),
+			Namespace:       configMap.GetNamespace(),
+			UID:             configMap.GetUID(),
+			ResourceVersion: configMap.GetResourceVersion(),
+		}
+		out.Status.LastSync = timeNow()
+
+		// update source map
+		o.sourcesLock.Lock()
+		defer o.sourcesLock.Unlock()
+		src, err := registry.NewInMemoryFromConfigMap(o.OpClient, out.GetNamespace(), out.Spec.ConfigMap)
+		o.sources[sourceKey] = src
+		if err != nil {
+			return err
+		}
+
+		// update status
+		if _, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+			return err
+		}
+		o.sourcesLastUpdate = timeNow()
 		return nil
 	}
 
-	// Update status subresource
-	out := catsrc.DeepCopy()
-	out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
-		Name:            configMap.GetName(),
-		Namespace:       configMap.GetNamespace(),
-		UID:             configMap.GetUID(),
-		ResourceVersion: configMap.GetResourceVersion(),
-	}
-	out.Status.LastSync = timeNow()
+	// configmap ref is up to date, continue parsing
+	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
+		// if registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
 
-	_, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out)
-	if err != nil {
-		return fmt.Errorf("failed to update catalog source %s status: %s", out.GetName(), err)
-	}
+		out := catsrc.DeepCopy()
+		if err := o.configmapRegistryReconciler.EnsureRegistryServer(out); err != nil {
+			logger.WithError(err).Warn("couldn't ensure registry server")
+			return err
+		}
 
-	// Create a new in-mem registry
-	src, err := registry.NewInMemoryFromConfigMap(o.OpClient, out.GetNamespace(), out.Spec.ConfigMap)
-	if err != nil {
-		return fmt.Errorf("failed to create catalog source from ConfigMap %s: %s", out.Spec.ConfigMap, err)
-	}
+		if !catsrc.Status.LastSync.Before(&out.Status.LastSync) {
+			return nil
+		}
 
-	// Update sources map
-	o.sources[sourceKey] = src
-	o.sourcesLastUpdate = timeNow()
-
-	logger := logrus.WithFields(logrus.Fields{"catalogSource": out.GetName(), "catalogNamespace": out.GetNamespace()})
-
-	// Sync any dependent Subscriptions
-	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().List(labels.Everything())
-	if err != nil {
-		logger.Warnf("could not list Subscriptions")
+		// update status
+		if _, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+			return err
+		}
 		return nil
-	}
-
-	for _, sub := range subs {
-		subLogger := logger.WithFields(logrus.Fields{"subscriptionCatalogSource": sub.Spec.CatalogSource, "subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace})
-		catalogNamespace := sub.Spec.CatalogSourceNamespace
-		if catalogNamespace == "" {
-			catalogNamespace = o.namespace
-		}
-		subLogger.Debug("checking subscription")
-		if sub.Spec.CatalogSource == out.GetName() && catalogNamespace == out.GetNamespace() {
-			logger.Debug("requeueing subscription")
-			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
-		}
 	}
 
 	return nil

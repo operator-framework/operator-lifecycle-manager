@@ -6,6 +6,11 @@ import (
 	"flag"
 	"os"
 	"testing"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 )
 
 var (
@@ -31,6 +36,27 @@ func TestMain(m *testing.M) {
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
 	cleaner = newNamespaceCleaner(testNamespace)
+
+	c, err := client.NewClient(*kubeConfigPath)
+	if err != nil {
+		panic(err)
+	}
+
+	groups, err := c.OperatorsV1alpha2().OperatorGroups(testNamespace).List(metav1.ListOptions{})
+	if err != nil {
+		panic(err)
+	}
+	if len(groups.Items) == 0 {
+		_, err = c.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&v1alpha2.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "opgroup",
+				Namespace: testNamespace,
+			},
+		})
+		if err != nil {
+			panic(err)
+		}
+	}
 
 	// run tests
 	os.Exit(m.Run())

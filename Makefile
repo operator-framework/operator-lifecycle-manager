@@ -69,8 +69,11 @@ run-local-shift:
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
+e2e.namespace:
+	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
+
 # useful if running e2e directly with `go test -tags=bare`
-setup-bare:
+setup-bare: clean e2e.namespace
 	. ./scripts/build_bare.sh
 	. ./scripts/package-release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
@@ -111,6 +114,7 @@ clean:
 	@rm -rf test/e2e/resources
 	@rm -rf test/e2e/test-resources
 	@rm -rf test/e2e/log
+	@rm -rf e2e.namespace
 
 CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
 $(CI):

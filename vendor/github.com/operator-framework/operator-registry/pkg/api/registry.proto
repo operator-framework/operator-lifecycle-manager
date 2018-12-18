@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package api;
+
+service Registry {
+    rpc ListPackages(ListPackageRequest) returns (stream PackageName) {}
+    rpc GetPackage(GetPackageRequest) returns (Package) {}
+	rpc GetBundleForChannel(GetBundleInChannelRequest) returns (Bundle) {}
+	rpc GetChannelEntriesThatReplace(GetAllReplacementsRequest) returns (stream ChannelEntry) {}
+	rpc GetBundleThatReplaces(GetReplacementRequest) returns (Bundle) {}
+	rpc GetChannelEntriesThatProvide(GetAllProvidersRequest) returns (stream ChannelEntry) {}
+	rpc GetLatestChannelEntriesThatProvide(GetLatestProvidersRequest) returns (stream ChannelEntry) {}
+	rpc GetDefaultBundleThatProvides(GetDefaultProviderRequest) returns (Bundle) {}
+}
+
+
+message Channel{
+	string name = 1;
+	string csvName = 2;
+}
+
+message PackageName{
+	string name = 1;
+}
+
+message Package{
+	string name = 1;
+	repeated Channel channels = 2;
+	string defaultChannelName = 3;
+}
+
+message Bundle{
+	string csvName = 1;
+	string packageName = 2;
+	string channelName = 3;
+	string csvJson = 4;
+	repeated string object = 5;
+}
+
+message ChannelEntry{
+	string packageName = 1;
+	string channelName = 2;
+	string bundleName = 3;
+	string replaces = 4;
+}
+
+message ListPackageRequest{}
+
+message GetPackageRequest{
+	string name = 1;
+}
+
+message GetBundleRequest{
+	string csvName = 1;
+}
+
+message GetBundleInChannelRequest{
+	string pkgName = 1;
+	string channelName = 2;
+}
+
+message GetAllReplacementsRequest{
+	string csvName = 1;
+}
+
+message GetReplacementRequest{
+	string csvName = 1;
+	string pkgName = 2;
+	string channelName = 3;
+}
+
+message GetAllProvidersRequest{
+	string groupOrName = 1;
+	string version = 2;
+	string kind = 3;
+}
+
+message GetLatestProvidersRequest{
+	string groupOrName = 1;
+	string version = 2;
+	string kind = 3;
+}
+
+message GetDefaultProviderRequest{
+	string groupOrName = 1;
+	string version = 2;
+	string kind = 3;
+}
+

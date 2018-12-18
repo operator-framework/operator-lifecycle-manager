@@ -1,4 +1,4 @@
-// +build !bare
+//  +build !bare
 
 package e2e
 
@@ -50,7 +50,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	defer cleanupCatalogSource()
 
 	// ensure the mock catalog exists and has been synced by the catalog operator
-	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceSynced)
+	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	// get catalog operator deployment

@@ -111,6 +111,6 @@ func (n *NullServiceNamespaceLister) Get(name string) (*v1.Service, error) {
 }
 
 // GetPodServices returns nil and an error explaining that this is a NullServiceNamespaceLister.
-func (n *NullServiceAccountNamespaceLister) GetPodServices(pod *v1.Pod) ([]*v1.Service, error) {
+func (n *NullServiceNamespaceLister) GetPodServices(pod *v1.Pod) ([]*v1.Service, error) {
 	return nil, fmt.Errorf("could not get pod services with a NullServiceNamespaceLister")
 }

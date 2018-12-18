@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	defaultWakeupInterval   = 15 * time.Minute
-	defaultCatalogNamespace = "tectonic-system"
+	defaultWakeupInterval       = 15 * time.Minute
+	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
+	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -34,6 +35,9 @@ var (
 
 	catalogNamespace = flag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
+
+	configmapServerImage = flag.String(
+		"configmapServerImage", defaultConfigMapServerImage, "the image to use for serving the operator registry api for a configmap")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
@@ -78,7 +82,7 @@ func main() {
 	logger.Infof("log level %s", logger.Level)
 
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *catalogNamespace, namespaces...)
+	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
