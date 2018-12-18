@@ -1,3 +1,4 @@
+//go:generate counterfeiter -o fakes/fake_registry_client.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/client/client.go Interface
 package resolver
 
 import (
