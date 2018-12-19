@@ -13,8 +13,8 @@ spec:
     listKind: ClusterServiceVersionList
     shortNames:
     - csv
+    - csvs
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: Display

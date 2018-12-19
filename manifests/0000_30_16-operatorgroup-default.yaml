@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_16-operatorgroup-default.yaml
 apiVersion: operators.coreos.com/v1alpha2
 kind: OperatorGroup
@@ -11,3 +11,7 @@ kind: OperatorGroup
 metadata:
   name: olm-operators
   namespace: openshift-operator-lifecycle-manager
+spec:
+  selector:
+    matchLabels:
+      olm.components: "global"

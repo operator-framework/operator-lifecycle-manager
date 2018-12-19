@@ -18,8 +18,10 @@ spec:
     singular: subscription
     kind: Subscription
     listKind: SubscriptionList
+    shortNames:
+    - sub
+    - subs
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: Package

@@ -6,11 +6,11 @@ Each of these Operators are responsible for managing the CRDs that are the basis
 
 | Resource                 | Short Name | Owner   | Description                                                                                |
 |--------------------------|------------|---------|--------------------------------------------------------------------------------------------|
-| ClusterServiceVersion | CSV        | OLM     | application metadata: name, version, icon, required resources, installation, etc...        |
-| InstallPlan           | IP         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
-| CatalogSource         | CS         | Catalog | a repository of CSVs, CRDs, and packages that define an application                        |
-| Subscription          | Sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
-| OperatorGroup         | <None>     | OLM     | method to group multiple namespaces and prepare for use by an operator                     |
+| ClusterServiceVersion | csv        | OLM     | application metadata: name, version, icon, required resources, installation, etc...        |
+| InstallPlan           | ip         | Catalog | calculated list of resources to be created in order to automatically install/upgrade a CSV |
+| CatalogSource         | catsrc         | Catalog | a repository of CSVs, CRDs, and packages that define an application                        |
+| Subscription          | sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
+| OperatorGroup         | og     | OLM     | method to group multiple namespaces and prepare for use by an operator                     |
 
 Each of these Operators are also responsible for creating resources:
 

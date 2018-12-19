@@ -14,6 +14,10 @@ spec:
     singular: operatorgroup
     kind: OperatorGroup
     listKind: OperatorGroupList
+    shortNames:
+      - og
+    categories:
+      - olm
   scope: Namespaced
   subresources:
     # status enables the status subresource.
