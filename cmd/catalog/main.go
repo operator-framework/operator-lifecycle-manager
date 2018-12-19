@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
 )
 
@@ -44,6 +46,10 @@ var (
 
 	version = flag.Bool("version", false, "displays olm version")
 )
+
+func init() {
+	metrics.RegisterCatalog()
+}
 
 func main() {
 	stopCh := signals.SetupSignalHandler()
@@ -87,6 +93,10 @@ func main() {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
 
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(":8081", nil)
+
 	_, done := catalogOperator.Run(stopCh)
 	<-done
 }
+

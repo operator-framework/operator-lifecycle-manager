@@ -129,15 +129,18 @@ var (
 	CSVUpgradeCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: "csv_upgrade_count",
-			Help: "Monotonic count of catalog sources",
+			Help: "Monotonic count of CSV upgrades",
 		},
 	)
 )
 
-func Register() {
+func RegisterOLM() {
 	prometheus.MustRegister(csvCount)
+	prometheus.MustRegister(CSVUpgradeCount)
+}
+
+func RegisterCatalog() {
 	prometheus.MustRegister(installPlanCount)
 	prometheus.MustRegister(subscriptionCount)
 	prometheus.MustRegister(catalogSourceCount)
-	prometheus.MustRegister(CSVUpgradeCount)
 }
