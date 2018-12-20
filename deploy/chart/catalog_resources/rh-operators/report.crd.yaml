@@ -1,0 +1,36 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: reports.metering.openshift.io
+  annotations:
+    catalog.app.coreos.com/displayName: "Metering Report"
+    catalog.app.coreos.com/description: "A metering report summarizes metrics based on the query specified"
+spec:
+  group: metering.openshift.io
+  version: v1alpha1
+  scope: Namespaced
+  names:
+    plural: reports
+    kind: Report
+  additionalPrinterColumns:
+  - name: Query
+    type: string
+    JSONPath: .spec.generationQuery
+  - name: Schedule
+    type: string
+    JSONPath: .spec.schedule.period
+  - name: Running
+    type: string
+    JSONPath: .status.conditions[?(@.type=="Running")].reason
+  - name: Failed
+    type: string
+    JSONPath: .status.conditions[?(@.type=="Failure")].reason
+  - name: Table Name
+    type: string
+    JSONPath: .status.tableName
+  - name: Last Report Time
+    type: string
+    JSONPath: .status.lastReportTime
+  - name: Age
+    type: date
+    JSONPath: .metadata.creationTimestamp

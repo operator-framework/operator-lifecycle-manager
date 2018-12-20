@@ -1,0 +1,324 @@
+#! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+#! parse-kind: ClusterServiceVersion
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: metering-operator.v0.12.0
+  namespace: placeholder
+  labels:
+    operator-metering: "true"
+spec:
+  displayName: Metering
+  description: Metering can generate reports based on historical usage data from a cluster, providing accountability for how resources have been used.
+  keywords: [metering metrics reporting]
+  version: 0.12.0
+  maturity: alpha
+  maintainers:
+    - email: sd-operator-metering@redhat.com
+      name: Red Hat
+  provider:
+    name: Red Hat
+  labels:
+    alm-owner-metering: metering-operator
+    alm-status-descriptors: metering-operator.v0.12.0
+  selector:
+    matchLabels:
+      alm-owner-metering: metering-operator
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: false
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: false
+  install:
+    strategy: deployment
+    spec:
+      permissions:
+        - rules:
+          - apiGroups:
+            - metering.openshift.io
+            resources:
+            - '*'
+            verbs:
+            - '*'
+          - apiGroups:
+            - ""
+            resources:
+            - pods
+            - pods/attach
+            - pods/exec
+            - pods/portforward
+            - pods/proxy
+            verbs:
+            - create
+            - delete
+            - deletecollection
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - ""
+            resources:
+            - configmaps
+            - endpoints
+            - persistentvolumeclaims
+            - replicationcontrollers
+            - replicationcontrollers/scale
+            - secrets
+            - serviceaccounts
+            - services
+            - services/proxy
+            verbs:
+            - create
+            - delete
+            - deletecollection
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - ""
+            resources:
+            - bindings
+            - events
+            - limitranges
+            - namespaces/status
+            - pods/log
+            - pods/status
+            - replicationcontrollers/status
+            - resourcequotas
+            - resourcequotas/status
+            verbs:
+            - get
+            - list
+            - watch
+          - apiGroups:
+            - ""
+            resources:
+            - events
+            verbs:
+            - create
+            - update
+            - patch
+          - apiGroups:
+            - ""
+            resources:
+            - namespaces
+            verbs:
+            - get
+            - list
+            - watch
+          - apiGroups:
+            - apps
+            resources:
+            - deployments
+            - deployments/rollback
+            - deployments/scale
+            - statefulsets
+            verbs:
+            - create
+            - delete
+            - deletecollection
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - batch
+            resources:
+            - cronjobs
+            - jobs
+            verbs:
+            - create
+            - delete
+            - deletecollection
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - extensions
+            resources:
+            - daemonsets
+            - deployments
+            - deployments/rollback
+            - deployments/scale
+            - replicasets
+            - replicasets/scale
+            - replicationcontrollers/scale
+            verbs:
+            - create
+            - delete
+            - deletecollection
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - rbac.authorization.k8s.io
+            resources:
+            - rolebindings
+            - roles
+            verbs:
+            - create
+            - delete
+            - deletecollection
+            - get
+            - list
+            - patch
+            - update
+            - watch
+          - apiGroups:
+            - route.openshift.io
+            resources:
+            - routes
+            verbs:
+            - create
+            - get
+            - list
+            - watch
+            - update
+            - delete
+          serviceAccountName: metering-operator
+      deployments:
+        - name: metering-operator
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: metering-operator
+            strategy:
+              type: Recreate
+            template:
+              metadata:
+                labels:
+                  app: metering-operator
+              spec:
+                containers:
+                - args:
+                  - run-operator.sh
+                  env:
+                  - name: HELM_RELEASE_CRD_NAME
+                    value: Metering
+                  - name: HELM_RELEASE_CRD_API_GROUP
+                    value: metering.openshift.io
+                  - name: HELM_CHART_PATH
+                    value: /openshift-metering-0.1.0.tgz
+                  - name: MY_POD_NAME
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.name
+                  - name: MY_POD_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                  - name: HELM_HOST
+                    value: 127.0.0.1:44134
+                  - name: HELM_WAIT
+                    value: "false"
+                  - name: HELM_RECONCILE_INTERVAL_SECONDS
+                    value: "30"
+                  - name: RELEASE_HISTORY_LIMIT
+                    value: "3"
+                  image: quay.io/coreos/metering-helm-operator:0.12.0
+                  imagePullPolicy: Always
+                  name: metering-operator
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 25Mi
+                    requests:
+                      cpu: 50m
+                      memory: 25Mi
+                - args:
+                  - tiller
+                  env:
+                  - name: TILLER_NAMESPACE
+                    valueFrom:
+                      fieldRef:
+                        fieldPath: metadata.namespace
+                  - name: TILLER_HISTORY_MAX
+                    value: "3"
+                  image: quay.io/coreos/metering-helm-operator:0.12.0
+                  imagePullPolicy: Always
+                  livenessProbe:
+                    failureThreshold: 3
+                    httpGet:
+                      path: /liveness
+                      port: 44135
+                      scheme: HTTP
+                    initialDelaySeconds: 1
+                    periodSeconds: 10
+                    successThreshold: 1
+                    timeoutSeconds: 1
+                  name: tiller
+                  readinessProbe:
+                    failureThreshold: 3
+                    httpGet:
+                      path: /readiness
+                      port: 44135
+                      scheme: HTTP
+                    initialDelaySeconds: 1
+                    periodSeconds: 10
+                    successThreshold: 1
+                    timeoutSeconds: 1
+                  resources:
+                    limits:
+                      cpu: 50m
+                      memory: 100Mi
+                    requests:
+                      cpu: 50m
+                      memory: 50Mi
+                restartPolicy: Always
+                securityContext:
+                  runAsNonRoot: true
+                serviceAccount: metering-operator
+                terminationGracePeriodSeconds: 30
+  customresourcedefinitions:
+    owned:
+    - description: An instance of Metering
+      displayName: Metering
+      kind: Metering
+      name: meterings.metering.openshift.io
+      version: v1alpha1
+    - description: A table within PrestoDB
+      displayName: Metering Presto Table
+      kind: PrestoTable
+      name: prestotables.metering.openshift.io
+      version: v1alpha1
+    - description: A resource describing a source of data for usage by Report Generation
+        Queries
+      displayName: Metering data source
+      kind: ReportDataSource
+      name: reportdatasources.metering.openshift.io
+      version: v1alpha1
+    - description: A SQL query used by Metering to generate reports
+      displayName: Metering generation query
+      kind: ReportGenerationQuery
+      name: reportgenerationqueries.metering.openshift.io
+      version: v1alpha1
+    - description: A Prometheus query by Metering to do metering
+      displayName: Metering prometheus query
+      kind: ReportPrometheusQuery
+      name: reportprometheusqueries.metering.openshift.io
+      version: v1alpha1
+    - description: A metering report for a specific time interval
+      displayName: Metering Report
+      kind: Report
+      name: reports.metering.openshift.io
+      version: v1alpha1
+    - description: Represents a configurable storage location for Metering to store metering
+        and report data
+      displayName: Metering storage location
+      kind: StorageLocation
+      name: storagelocations.metering.openshift.io
+      version: v1alpha1
