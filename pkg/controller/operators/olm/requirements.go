@@ -9,6 +9,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,36 +30,61 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
 		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
 		if err != nil {
-			a.Log.Debugf("Setting 'met' to false, %v with err: %v", r.Name, err)
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			status.Message = "CRD is not present"
+			a.Log.Debugf("Setting 'met' to false, %v with status %v, with err: %v", r.Name, status, err)
 			met = false
 			statuses = append(statuses, status)
 			continue
 		}
 
-		if crd.Spec.Version == r.Version {
-			status.Status = v1alpha1.RequirementStatusReasonPresent
-			status.UUID = string(crd.GetUID())
-			statuses = append(statuses, status)
-			continue
-		}
-
-		served := false
-		for _, version := range crd.Spec.Versions {
-			if version.Name == r.Version {
-				if version.Served {
-					status.Status = v1alpha1.RequirementStatusReasonPresent
-					status.UUID = string(crd.GetUID())
-					statuses = append(statuses, status)
-					served = true
+		if crd.Spec.Version != r.Version {
+			served := false
+			for _, version := range crd.Spec.Versions {
+				if version.Name == r.Version {
+					if version.Served {
+						served = true
+					}
+					break
 				}
-				break
+			}
+
+			if !served {
+				status.Status = v1alpha1.RequirementStatusReasonNotPresent
+				status.Message = "CRD version not served"
+				a.Log.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
+				met = false
+				statuses = append(statuses, status)
+				continue
 			}
 		}
 
-		if !served {
-			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+		// Check if CRD has successfully registered with k8s API
+		established := false
+		namesAccepted := false
+		for _, cdt := range crd.Status.Conditions {
+			switch cdt.Type {
+			case v1beta1.Established:
+				if cdt.Status == v1beta1.ConditionTrue {
+					established = true
+				}
+			case v1beta1.NamesAccepted:
+				if cdt.Status == v1beta1.ConditionTrue {
+					namesAccepted = true
+				}
+			}
+		}
+
+		if established && namesAccepted {
+			status.Status = v1alpha1.RequirementStatusReasonPresent
+			status.Message = "CRD is present and Established condition is true"
+			status.UUID = string(crd.GetUID())
+			statuses = append(statuses, status)
+		} else {
+			status.Status = v1alpha1.RequirementStatusReasonNotAvailable
+			status.Message = "CRD is present but the Established condition is False (not available)"
 			met = false
+			a.Log.Debugf("Setting 'met' to false, %v with status %v, established=%v, namesAccepted=%v", r.Name, status, established, namesAccepted)
 			statuses = append(statuses, status)
 		}
 	}
@@ -139,11 +165,13 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 
 		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
+			status.Message = "Native API does not exist"
 			met = false
 			statuses = append(statuses, status)
 			continue
 		} else {
 			status.Status = v1alpha1.RequirementStatusReasonPresent
+			status.Message = "Native API exists"
 			statuses = append(statuses, status)
 			continue
 		}
@@ -181,6 +209,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 			if err != nil {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
+				status.Message = "Service account does not exist"
 				statusesSet[saName] = status
 				continue
 			}
@@ -216,6 +245,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 					met = false
 					dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
 					status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+					status.Message = "Policy rule not satisfied for service account"
 				} else {
 					dependent.Status = v1alpha1.DependentStatusReasonSatisfied
 				}

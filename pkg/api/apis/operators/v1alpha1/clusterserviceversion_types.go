@@ -254,8 +254,10 @@ const (
 	RequirementStatusReasonPresent             StatusReason = "Present"
 	RequirementStatusReasonNotPresent          StatusReason = "NotPresent"
 	RequirementStatusReasonPresentNotSatisfied StatusReason = "PresentNotSatisfied"
-	DependentStatusReasonSatisfied             StatusReason = "Satisfied"
-	DependentStatusReasonNotSatisfied          StatusReason = "NotSatisfied"
+	// The CRD is present but the Established condition is False (not available)
+	RequirementStatusReasonNotAvailable StatusReason = "PresentNotAvailable"
+	DependentStatusReasonSatisfied      StatusReason = "Satisfied"
+	DependentStatusReasonNotSatisfied   StatusReason = "NotSatisfied"
 )
 
 // DependentStatus is the status for a dependent requirement (to prevent infinite nesting)
@@ -274,6 +276,7 @@ type RequirementStatus struct {
 	Kind       string            `json:"kind"`
 	Name       string            `json:"name"`
 	Status     StatusReason      `json:"status"`
+	Message    string            `json:"message"`
 	UUID       string            `json:"uuid,omitempty"`
 	Dependents []DependentStatus `json:"dependents,omitempty"`
 }
@@ -445,3 +448,4 @@ func (csv ClusterServiceVersion) GetOwnedAPIServiceDescriptions() []APIServiceDe
 
 	return descs
 }
+

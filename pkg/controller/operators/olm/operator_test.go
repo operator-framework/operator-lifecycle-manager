@@ -131,7 +131,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	}
 
 	// Create the new operator
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.StandardLogger())
 	op := &Operator{
 		Operator:  queueOperator,
 		client:    clientFake,
@@ -564,6 +564,18 @@ func crd(name string, version string) *v1beta1.CustomResourceDefinition {
 			},
 			Names: v1beta1.CustomResourceDefinitionNames{
 				Kind: name,
+			},
+		},
+		Status: v1beta1.CustomResourceDefinitionStatus{
+			Conditions: []v1beta1.CustomResourceDefinitionCondition{
+				{
+					Type:   v1beta1.Established,
+					Status: v1beta1.ConditionTrue,
+				},
+				{
+					Type:   v1beta1.NamesAccepted,
+					Status: v1beta1.ConditionTrue,
+				},
 			},
 		},
 	}
@@ -2103,6 +2115,7 @@ func TestTransitionCSV(t *testing.T) {
 }
 
 func TestSyncOperatorGroups(t *testing.T) {
+	logrus.SetLevel(logrus.DebugLevel)
 	nowTime := metav1.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600))
 	timeNow = func() metav1.Time { return nowTime }
 
@@ -2171,6 +2184,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			Kind:    "CustomResourceDefinition",
 			Name:    crd.GetName(),
 			Status:  v1alpha1.RequirementStatusReasonPresent,
+			Message: "CRD is present and Established condition is true",
 		},
 		{
 			Group:   "",
