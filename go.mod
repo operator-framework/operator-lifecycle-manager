@@ -48,7 +48,6 @@ require (
 	github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 // indirect
 	golang.org/x/oauth2 v0.0.0-20181105165119-ca4130e427c7 // indirect
 	golang.org/x/tools v0.0.0-20181207222222-4c874b978acb // indirect
-	google.golang.org/grpc v1.16.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0-20170531160350-a96e63847dc3 // indirect
 	k8s.io/api v0.0.0-20181203235848-2dd39edadc55
 	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
@@ -60,5 +59,5 @@ require (
 	k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.6-beta.0.0.20181212102158-c4240ecfddd7
+	k8s.io/kubernetes v1.11.7-beta.0.0.20181219023948-b875d52ea96d
 )

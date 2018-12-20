@@ -613,6 +613,27 @@ spec:
                     required:
                     - deployments
                     properties:
+                      installModes:
+                        type: array
+                        description: List of supported install modes for the operator
+                        items:
+                          type: object
+                          description: A tuple representing a mode of installation and whether the operator supports it
+                          required:
+                            - type
+                            - supported
+                          properties:
+                            type:
+                              type: string
+                              description: A type of install mode
+                              enum:
+                                - OwnNamespace
+                                - SingleNamespace
+                                - MultiNamespace
+                                - AllNamespaces
+                            supported:
+                              type: boolean
+                              description: Represents if the install mode type is supported
                       deployments:
                         type: array
                         description: List of deployments to create

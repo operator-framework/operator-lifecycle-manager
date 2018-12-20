@@ -401,7 +401,10 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 	}
 
 	namespaceList := []string{}
-	if selector.Empty() || selector == nil {
+	if op.Spec.TargetNamespaces != nil && len(op.Spec.TargetNamespaces) > 0 {
+		// TODO: Ensure namespaceList is a set
+		namespaceList = append(namespaceList, op.Spec.TargetNamespaces...)
+	} else if selector.Empty() || selector == nil {
 		namespaceList = append(namespaceList, corev1.NamespaceAll)
 	} else {
 		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)

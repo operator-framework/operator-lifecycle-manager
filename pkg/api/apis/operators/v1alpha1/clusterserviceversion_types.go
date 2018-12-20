@@ -17,6 +17,22 @@ const (
 	ClusterServiceVersionKind       = "ClusterServiceVersion"
 )
 
+// InstallModeType is a supported type of install mode for CSV installation
+type InstallModeType string
+
+const (
+	InstallModeTypeOwnNamespace    InstallModeType = "OwnNamespace"
+	InstallModeTypeSingleNamespace InstallModeType = "SingleNamespace"
+	InstallModeTypeMultiNamespace  InstallModeType = "MultiNamespace"
+	InstallModeTypeAllNamespaces   InstallModeType = "AllNamespaces"
+)
+
+// InstallMode associates an InstallModeType with a flag representing if the CSV supports it
+type InstallMode struct {
+	Type      InstallModeType `json:"type"`
+	Supported bool            `json:"supported"`
+}
+
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
@@ -119,6 +135,9 @@ type ClusterServiceVersionSpec struct {
 	Provider                  AppLink                   `json:"provider,omitempty"`
 	Links                     []AppLink                 `json:"links,omitempty"`
 	Icon                      []Icon                    `json:"icon,omitempty"`
+
+	// InstallModes
+	InstallModes []InstallMode `json:"installModes,omitempty"`
 
 	// The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.
 	// +optional
@@ -448,4 +467,3 @@ func (csv ClusterServiceVersion) GetOwnedAPIServiceDescriptions() []APIServiceDe
 
 	return descs
 }
-
