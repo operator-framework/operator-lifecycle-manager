@@ -136,7 +136,8 @@ type ClusterServiceVersionSpec struct {
 	Links                     []AppLink                 `json:"links,omitempty"`
 	Icon                      []Icon                    `json:"icon,omitempty"`
 
-	// InstallModes
+	// InstallModes specify supported installation types
+	// +optional
 	InstallModes []InstallMode `json:"installModes,omitempty"`
 
 	// The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.

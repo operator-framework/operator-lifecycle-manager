@@ -477,6 +477,8 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) *v1alpha2.OperatorGroup {
 	annotations := csv.GetAnnotations()
 
+	// TODO: Only return OperatorGroup if InstallModes allow the CSV to be part of the group or no installmodes are declared
+
 	// not part of a group yet
 	if annotations == nil {
 		logger.Info("not part of any operatorgroup, no annotations")

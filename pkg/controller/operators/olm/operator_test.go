@@ -2246,7 +2246,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	ownerutil.AddNonBlockingOwner(ownedDeployment, operatorCSV)
 
 	annotatedDeployment := ownedDeployment.DeepCopy()
-	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: targetNamespace + "," + operatorNamespace, v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
+	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: operatorNamespace + "," + targetNamespace, v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedDeployment.SetLabels(map[string]string{
 		"olm.owner":           "csv1",
 		"olm.owner.namespace": "operator-ns",
@@ -2365,7 +2365,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				k8sObjs: namespaces,
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces:  []string{targetNamespace, operatorNamespace},
+				Namespaces:  []string{operatorNamespace, targetNamespace},
 				LastUpdated: timeNow(),
 			},
 		},
@@ -2390,12 +2390,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 				crds:       []runtime.Object{crd},
 			},
 			expectedStatus: v1alpha2.OperatorGroupStatus{
-				Namespaces:  []string{targetNamespace, operatorNamespace},
+				Namespaces:  []string{operatorNamespace, targetNamespace},
 				LastUpdated: timeNow(),
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
-					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: targetNamespace + "," + operatorNamespace, v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: operatorNamespace + "," + targetNamespace, v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 					annotatedDeployment,
 				},
 				targetNamespace: {

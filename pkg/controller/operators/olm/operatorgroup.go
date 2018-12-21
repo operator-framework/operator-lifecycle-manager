@@ -3,6 +3,7 @@ package olm
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -400,45 +401,56 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 		return nil, err
 	}
 
-	namespaceList := []string{}
+	namespaceSet := make(map[string]struct{})
+	namespaceAll := false
 	if op.Spec.TargetNamespaces != nil && len(op.Spec.TargetNamespaces) > 0 {
-		// TODO: Ensure namespaceList is a set
-		namespaceList = append(namespaceList, op.Spec.TargetNamespaces...)
-	} else if selector.Empty() || selector == nil {
-		namespaceList = append(namespaceList, corev1.NamespaceAll)
+		for _, ns := range op.Spec.TargetNamespaces {
+			if ns == corev1.NamespaceAll {
+				return nil, fmt.Errorf("TargetNamespaces cannot contain NamespaceAll: %v", op.Spec.TargetNamespaces)
+			}
+			namespaceSet[ns] = struct{}{}
+		}
+	} else if selector == nil || selector.Empty() {
+		namespaceSet[corev1.NamespaceAll] = struct{}{}
+		namespaceAll = true
 	} else {
 		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)
 		if err != nil {
 			return nil, err
 		}
 
-		operatorGroupNamespaceSelected := false
 		for _, ns := range matchedNamespaces {
-			namespaceList = append(namespaceList, ns.GetName())
-			if ns.GetName() == op.GetNamespace() {
-				operatorGroupNamespaceSelected = true
-			}
-		}
-
-		// always include the operatorgroup namespace as a target namespace
-		if !operatorGroupNamespaceSelected {
-			namespaceList = append(namespaceList, op.GetNamespace())
+			namespaceSet[ns.GetName()] = struct{}{}
 		}
 	}
+
+	if !namespaceAll {
+		// Add operator namespace to the set
+		namespaceSet[op.GetNamespace()] = struct{}{}
+	}
+
+	namespaceList := []string{}
+	for ns := range namespaceSet {
+		namespaceList = append(namespaceList, ns)
+	}
+	sort.StringSlice(namespaceList).Sort()
 
 	if !namespacesChanged(namespaceList, op.Status.Namespaces) {
 		// status is current with correct namespaces, so no further updates required
 		return namespaceList, nil
 	}
+
 	a.Log.Debugf("Namespace change detected, found: %v", namespaceList)
 	op.Status = v1alpha2.OperatorGroupStatus{
 		Namespaces:  namespaceList,
 		LastUpdated: timeNow(),
 	}
+
 	_, err = a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).UpdateStatus(op)
 	if err != nil {
 		return namespaceList, err
 	}
+
 	return namespaceList, nil
 }
 

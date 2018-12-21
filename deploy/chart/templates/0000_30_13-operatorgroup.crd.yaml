@@ -63,6 +63,7 @@ spec:
               type: array
               items:
                 type: string
+                pattern: ^\S+$
             serviceAccountName:
               type: string
           required:
