@@ -18,8 +18,9 @@ spec:
     singular: installplan
     kind: InstallPlan
     listKind: InstallPlanList
+    shortNames:
+    - ip
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: CSV
