@@ -89,6 +89,11 @@ func (in *OperatorGroupList) DeepCopyObject() runtime.Object {
 func (in *OperatorGroupSpec) DeepCopyInto(out *OperatorGroupSpec) {
 	*out = *in
 	in.Selector.DeepCopyInto(&out.Selector)
+	if in.TargetNamespaces != nil {
+		in, out := &in.TargetNamespaces, &out.TargetNamespaces
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	in.ServiceAccount.DeepCopyInto(&out.ServiceAccount)
 	return
 }

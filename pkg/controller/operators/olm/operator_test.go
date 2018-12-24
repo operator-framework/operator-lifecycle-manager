@@ -133,12 +133,12 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.StandardLogger())
 	op := &Operator{
-		Operator:  queueOperator,
-		client:    clientFake,
-		lister:    operatorlister.NewLister(),
-		resolver:  resolver,
-		csvQueues: make(map[string]workqueue.RateLimitingInterface),
-		recorder:  eventRecorder,
+		Operator:    queueOperator,
+		client:      clientFake,
+		lister:      operatorlister.NewLister(),
+		resolver:    resolver,
+		csvQueueSet: make(map[string]workqueue.RateLimitingInterface),
+		recorder:    eventRecorder,
 	}
 
 	wakeupInterval := 5 * time.Minute
@@ -481,6 +481,24 @@ func csv(
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        replaces,
 			InstallStrategy: installStrategy,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned:    ownedCRDDescs,
 				Required: requiredCRDDescs,
@@ -490,6 +508,11 @@ func csv(
 			Phase: phase,
 		},
 	}
+}
+
+func withConditionReason(csv *v1alpha1.ClusterServiceVersion, reason v1alpha1.ConditionReason) *v1alpha1.ClusterServiceVersion {
+	csv.Status.Reason = reason
+	return csv
 }
 
 func withCertInfo(csv *v1alpha1.ClusterServiceVersion, rotateAt metav1.Time, lastUpdated metav1.Time) *v1alpha1.ClusterServiceVersion {
@@ -504,6 +527,12 @@ func withAPIServices(csv *v1alpha1.ClusterServiceVersion, owned, required []v1al
 		Required: required,
 	}
 	return csv
+}
+
+func withInstallModes(csv *v1alpha1.ClusterServiceVersion, installModes []v1alpha1.InstallMode) *v1alpha1.ClusterServiceVersion {
+	csv.Spec.InstallModes = installModes
+	return csv
+
 }
 
 func apis(apis ...string) []v1alpha1.APIServiceDescription {
@@ -1720,6 +1749,69 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
+			name: "SingleCSVFailedToPending/InstallModes/Owned/Supported",
+			initial: initial{
+				csvs: []runtime.Object{
+					withConditionReason(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), v1alpha1.CSVReasonInstallModeNotSupported),
+				},
+				apis: []runtime.Object{},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", templateAnnotations),
+					serviceAccount("sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonRequirementsUnknown},
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToFailed/InstallModes/Owned/Unsupported",
+			initial: initial{
+				csvs: []runtime.Object{
+					withInstallModes(withConditionReason(csv("csv1",
+						namespace,
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), v1alpha1.CSVReasonInstallSuccessful),
+						[]v1alpha1.InstallMode{
+							{
+								Type:      v1alpha1.InstallModeTypeSingleNamespace,
+								Supported: false,
+							},
+						},
+					),
+				},
+				apis: []runtime.Object{},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", templateAnnotations),
+					serviceAccount("sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonInstallModeNotSupported},
+				},
+			},
+		},
+		{
 			name: "SingleCSVInstallReadyToFailed/BadStrategy",
 			initial: initial{
 				csvs: []runtime.Object{
@@ -1937,7 +2029,7 @@ func TestTransitionCSV(t *testing.T) {
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
-					"csv2": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
 				},
 			},
@@ -2317,7 +2409,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		final          final
 	}{
 		{
-			name:          "operator group with no matching namespace, no CSVs",
+			name:          "NoMatchingNamespace/NoCSVs",
 			expectedEqual: true,
 			initial: initial{
 				operatorGroup: &v1alpha2.OperatorGroup{
@@ -2345,7 +2437,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 		},
 		{
-			name:          "operator group with matching namespace, no CSVs",
+			name:          "MatchingNamespace/NoCSVs",
 			expectedEqual: true,
 			initial: initial{
 				operatorGroup: &v1alpha2.OperatorGroup{
@@ -2370,7 +2462,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 		},
 		{
-			name:          "operator group with matching namespace, CSV present, found",
+			name:          "MatchingNamespace/CSVPresent/Found",
 			expectedEqual: true,
 			initial: initial{
 				operatorGroup: &v1alpha2.OperatorGroup{
@@ -2451,7 +2543,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			}},
 		},
 		{
-			name:          "operator group all namespaces, CSV present, found",
+			name:          "AllNamespaces/CSVPresent/Found",
 			expectedEqual: true,
 			initial: initial{
 				operatorGroup: &v1alpha2.OperatorGroup{
@@ -2544,6 +2636,65 @@ func TestSyncOperatorGroups(t *testing.T) {
 				targetNamespace: {
 					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 				},
+			}},
+		},
+		{
+			name:          "AllNamespaces/CSVPresent/InstallModeNotSupported",
+			expectedEqual: true,
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						Labels:    aLabel,
+					},
+					Spec: v1alpha2.OperatorGroupSpec{},
+				},
+				clientObjs: []runtime.Object{
+					withInstallModes(operatorCSV.DeepCopy(), []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Supported: false,
+						},
+					}),
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        operatorNamespace,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        targetNamespace,
+							Labels:      aLabel,
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+					ownedDeployment,
+					serviceAccount,
+					role,
+					roleBinding,
+				},
+				crds: []runtime.Object{crd},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{
+				Namespaces:  []string{corev1.NamespaceAll},
+				LastUpdated: timeNow(),
+			},
+			final: final{objects: map[string][]runtime.Object{
+				operatorNamespace: {
+					withInstallModes(operatorCSV.DeepCopy(), []v1alpha1.InstallMode{
+						{
+							Type:      v1alpha1.InstallModeTypeAllNamespaces,
+							Supported: false,
+						},
+					}),
+				},
+				"":              {},
+				targetNamespace: {},
 			}},
 		},
 	}

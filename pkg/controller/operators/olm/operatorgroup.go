@@ -44,8 +44,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
 
-	targetedNamespaces, err := a.updateNamespaceList(op)
-	a.Log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
+	targetNamespaces, err := a.updateNamespaceList(op)
+	a.Log.Debugf("Got targetNamespaces: '%v'", targetNamespaces)
 	if err != nil {
 		a.Log.Errorf("updateNamespaceList error: %v", err)
 		return err
@@ -58,6 +58,17 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	a.Log.Debug("Cluster roles completed")
 
 	for _, csv := range a.csvSet(op.Namespace, v1alpha1.CSVPhaseSucceeded) {
+		// Check if the CSV's InstallModes support the operator group
+		modeSet, err := v1alpha1.NewInstallModeSet(csv.Spec.InstallModes)
+		if err != nil {
+			a.Log.Errorf("CSV has invalid InstallModes: %v", err)
+			continue
+		}
+		if err := modeSet.Supports(targetNamespaces); err != nil {
+			a.Log.Warnf("CSV InstallModes do not support operator group: %v", err)
+			continue
+		}
+
 		origCSVannotations := csv.GetAnnotations()
 		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op)
 		if reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) == false {
@@ -286,7 +297,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 			if _, err := a.OpClient.CreateRoleBinding(r); err != nil {
 				return err
 			}
-			// TODO check  rules
+			// TODO check rules
 		}
 	}
 	return nil

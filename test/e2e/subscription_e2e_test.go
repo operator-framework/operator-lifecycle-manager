@@ -96,8 +96,26 @@ var (
 			Name: outdated,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces:        "",
-			Version:         *semver.New("0.1.0"),
+			Replaces: "",
+			Version:  *semver.New("0.1.0"),
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: installStrategy,
 		},
 	}
@@ -107,8 +125,26 @@ var (
 			Name: stable,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces:        outdated,
-			Version:         *semver.New("0.2.0"),
+			Replaces: outdated,
+			Version:  *semver.New("0.2.0"),
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: installStrategy,
 		},
 	}
@@ -118,8 +154,26 @@ var (
 			Name: beta,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces:        stable,
-			Version:         *semver.New("0.1.1"),
+			Replaces: stable,
+			Version:  *semver.New("0.1.1"),
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: installStrategy,
 		},
 	}
@@ -129,8 +183,26 @@ var (
 			Name: alpha,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces:        beta,
-			Version:         *semver.New("0.3.0"),
+			Replaces: beta,
+			Version:  *semver.New("0.3.0"),
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: installStrategy,
 		},
 	}

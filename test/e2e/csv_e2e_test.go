@@ -189,12 +189,12 @@ var csvReplacingChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseReplacing, v
 var csvFailedChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseFailed)
 var csvAnyChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting, v1alpha1.CSVPhaseFailed)
 
-func fetchCSV(t *testing.T, c versioned.Interface, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+func fetchCSV(t *testing.T, c versioned.Interface, name, namespace string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(name, metav1.GetOptions{})
+		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
@@ -259,6 +259,24 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -278,7 +296,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
@@ -331,6 +349,24 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -370,7 +406,7 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
@@ -395,6 +431,24 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
@@ -414,7 +468,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
@@ -465,6 +519,24 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 			// Cheating a little; this is an APIservice that will exist for the e2e tests
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
@@ -485,7 +557,7 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
@@ -509,6 +581,24 @@ func TestCreateCSVWithUnmetRequirementsNativeAPI(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
 			NativeAPIs:      []metav1.GroupVersionKind{{Group: "kubenative.io", Version: "v1", Kind: "Native"}},
 		},
@@ -518,7 +608,7 @@ func TestCreateCSVWithUnmetRequirementsNativeAPI(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Shouldn't create deployment
@@ -581,6 +671,24 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -601,7 +709,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	crd := extv1beta1.CustomResourceDefinition{
@@ -748,14 +856,14 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	fetchedCSV, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Delete CRD
 	cleanupCRD()
 
 	// Wait for CSV failure
-	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	fetchedCSV, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
 	require.NoError(t, err)
 
 	// Recreate the CRD
@@ -764,7 +872,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	defer cleanupCRD()
 
 	// Wait for CSV success again
-	fetchedCSV, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	fetchedCSV, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 }
 
@@ -816,6 +924,24 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
 			// Cheating a little; this is an APIservice that will exist for the e2e tests
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
@@ -903,11 +1029,11 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	sameCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
 }
@@ -953,6 +1079,24 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 
 	csv := v1alpha1.ClusterServiceVersion{
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyRaw,
@@ -969,7 +1113,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should create Deployment
@@ -1015,7 +1159,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
 	require.NoError(t, err)
 
-	_, err = fetchCSV(t, crc, csv.Name, func(csv *v1alpha1.ClusterServiceVersion) bool {
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
 		// Should create deployment
 		dep, err = c.GetDeployment(testNamespace, depName)
 		require.NoError(t, err)
@@ -1041,7 +1185,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for CSV success
-	fetchedCSV, err = fetchCSV(t, crc, csv.GetName(), func(csv *v1alpha1.ClusterServiceVersion) bool {
+	fetchedCSV, err = fetchCSV(t, crc, csv.GetName(), testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
 		// Should create an APIService
 		apiService, err := c.GetAPIService(apiServiceName)
 		if err != nil {
@@ -1109,6 +1253,24 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyRaw,
@@ -1132,7 +1294,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
-	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have created deployment
@@ -1164,6 +1326,24 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csv.Name,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyNewRaw,
@@ -1187,7 +1367,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have updated existing deployment
@@ -1201,7 +1381,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
 }
@@ -1255,6 +1435,24 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyRaw,
@@ -1278,7 +1476,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
-	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have created deployment
@@ -1308,6 +1506,24 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csv.Name,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyNewRaw,
@@ -1331,11 +1547,11 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
 
@@ -1406,6 +1622,24 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyRaw,
@@ -1429,7 +1663,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
-	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have created deployment
@@ -1459,6 +1693,24 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csv.Name,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyNewRaw,
@@ -1482,11 +1734,11 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
 
@@ -1563,6 +1815,24 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyRaw,
@@ -1586,7 +1856,7 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for current CSV to succeed
-	_, err = fetchCSV(t, crc, csv.Name, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have created deployment
@@ -1617,6 +1887,24 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csv.Name,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyNewRaw,
@@ -1647,11 +1935,11 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, csvSucceededChecker)
+	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
 
@@ -1685,6 +1973,24 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: csvNew.Name,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
 				StrategyName:    install.InstallStrategyNameDeployment,
 				StrategySpecRaw: strategyNewRaw2,
@@ -1709,11 +2015,11 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err = fetchCSV(t, crc, csvNew2.Name, csvSucceededChecker)
+	fetchedCSV, err = fetchCSV(t, crc, csvNew2.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err = fetchCSV(t, crc, csvNew2.Name, csvSucceededChecker)
+	sameCSV, err = fetchCSV(t, crc, csvNew2.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 	compareResources(t, fetchedCSV, sameCSV)
 

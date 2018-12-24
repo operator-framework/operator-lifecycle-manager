@@ -160,8 +160,26 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ex
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces:        replaces,
-			Version:         version,
+			Replaces: replaces,
+			Version:  version,
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
 			InstallStrategy: namedStrategy,
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned:    []v1alpha1.CRDDescription{},
@@ -685,8 +703,26 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 				Name: "second-owner",
 			},
 			Spec: v1alpha1.ClusterServiceVersionSpec{
-				Replaces:        "",
-				Version:         *semver.New("0.2.0"),
+				Replaces: "",
+				Version:  *semver.New("0.2.0"),
+				InstallModes: []v1alpha1.InstallMode{
+					{
+						Type:      v1alpha1.InstallModeTypeOwnNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeSingleNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeMultiNamespace,
+						Supported: true,
+					},
+					{
+						Type:      v1alpha1.InstallModeTypeAllNamespaces,
+						Supported: true,
+					},
+				},
 				InstallStrategy: installStrategy,
 				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 					Owned: []v1alpha1.CRDDescription{
@@ -910,7 +946,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.True(t, completeOrFailedFunc(fetchedInstallPlan))
 
 		// Ensure correct in-cluster resource(s)
-		fetchedCSV, err := fetchCSV(t, crc, mainBetaCSV.GetName(), csvSucceededChecker)
+		fetchedCSV, err := fetchCSV(t, crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
 		require.NoError(t, err)
 
 		t.Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)

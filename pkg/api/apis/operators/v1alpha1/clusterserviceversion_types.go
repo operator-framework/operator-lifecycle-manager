@@ -33,6 +33,9 @@ type InstallMode struct {
 	Supported bool            `json:"supported"`
 }
 
+// InstallModeSet is a mapping of unique InstallModeTypes to whether they are supported.
+type InstallModeSet map[InstallModeType]bool
+
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
@@ -223,6 +226,7 @@ const (
 	CSVReasonAPIServiceResourcesNeedReinstall ConditionReason = "APIServiceResourcesNeedReinstall"
 	CSVReasonAPIServiceInstallFailed          ConditionReason = "APIServiceInstallFailed"
 	CSVReasonCopied                           ConditionReason = "Copied"
+	CSVReasonInstallModeNotSupported          ConditionReason = "InstallModeNotSupported"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion

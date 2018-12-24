@@ -46,13 +46,32 @@ const (
 	FallbackWakeupInterval = 30 * time.Second
 )
 
+type resourceQueueSet map[string]workqueue.RateLimitingInterface
+
+func (r resourceQueueSet) requeue(name, namespace string) error {
+	// We can build the key directly, will need to change if queue uses different key scheme
+	key := fmt.Sprintf("%s/%s", namespace, name)
+
+	if queue, ok := r[metav1.NamespaceAll]; len(r) == 1 && ok {
+		queue.AddRateLimited(key)
+		return nil
+	}
+
+	if queue, ok := r[namespace]; ok {
+		queue.AddRateLimited(key)
+		return nil
+	}
+
+	return fmt.Errorf("couldn't find queue for resource")
+}
+
 type Operator struct {
 	*queueinformer.Operator
-	csvQueues map[string]workqueue.RateLimitingInterface
-	client    versioned.Interface
-	resolver  install.StrategyResolverInterface
-	lister    operatorlister.OperatorLister
-	recorder  record.EventRecorder
+	csvQueueSet resourceQueueSet
+	client      versioned.Interface
+	resolver    install.StrategyResolverInterface
+	lister      operatorlister.OperatorLister
+	recorder    record.EventRecorder
 }
 
 func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient operatorclient.ClientInterface, resolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -73,12 +92,12 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	}
 
 	op := &Operator{
-		Operator:  queueOperator,
-		csvQueues: make(map[string]workqueue.RateLimitingInterface),
-		client:    crClient,
-		lister:    operatorlister.NewLister(),
-		resolver:  resolver,
-		recorder:  eventRecorder,
+		Operator:    queueOperator,
+		csvQueueSet: make(map[string]workqueue.RateLimitingInterface),
+		client:      crClient,
+		lister:      operatorlister.NewLister(),
+		resolver:    resolver,
+		recorder:    eventRecorder,
 	}
 
 	// Set up RBAC informers
@@ -238,7 +257,7 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
 		csvQueueInformer := queueinformer.NewInformer(csvQueue, csvInformer.Informer(), op.syncClusterServiceVersion, csvHandlers, queueName, metrics.NewMetricsCSV(op.lister.OperatorsV1alpha1().ClusterServiceVersionLister()), logger)
 		op.RegisterQueueInformer(csvQueueInformer)
-		op.csvQueues[namespace] = csvQueue
+		op.csvQueueSet[namespace] = csvQueue
 	}
 
 	// Set up watch on deployments
@@ -272,25 +291,6 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	}
 
 	return op, nil
-}
-
-func (a *Operator) requeueCSV(name, namespace string) {
-	// We can build the key directly, will need to change if queue uses different key scheme
-	key := fmt.Sprintf("%s/%s", namespace, name)
-	logger := a.Log.WithField("key", key)
-	logger.Debug("requeueing CSV")
-
-	if queue, ok := a.csvQueues[metav1.NamespaceAll]; len(a.csvQueues) == 1 && ok {
-		queue.AddRateLimited(key)
-		return
-	}
-
-	if queue, ok := a.csvQueues[namespace]; ok {
-		queue.AddRateLimited(key)
-		return
-	}
-
-	logger.Debug("couldn't find queue for CSV")
 }
 
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
@@ -414,12 +414,24 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 			logger.Warn("csv created in namespace without operator group, will not be processed")
 		}
 		if len(opgroups) == 1 {
-			a.addOperatorGroupAnnotations(&clusterServiceVersion.ObjectMeta, opgroups[0])
-			_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Update(clusterServiceVersion)
+			logger = logger.WithField("opgroup", opgroups[0].GetName())
+
+			// Check if the OperatorGroup is supported
+			modeSet, err := v1alpha1.NewInstallModeSet(clusterServiceVersion.Spec.InstallModes)
 			if err != nil {
-				logger.WithField("opgroup", opgroups[0].GetName()).Error("error adding operatorgroup annotation")
+				syncError = err
+				return
 			}
-			return
+			if supportErr := modeSet.Supports(opgroups[0].Status.Namespaces); supportErr != nil {
+				logger.WithField("err", supportErr).Warn("installmodes not supported")
+				return
+			}
+
+			a.addOperatorGroupAnnotations(&clusterServiceVersion.ObjectMeta, opgroups[0])
+			_, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Update(clusterServiceVersion)
+			if err != nil {
+				logger.Error("error adding operatorgroup annotation")
+			}
 		}
 		if len(opgroups) > 1 {
 			logger.Warn("csv created in namespace with multiple operatorgroups, can't pick one automatically")
@@ -473,19 +485,17 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	return
 }
 
-// operatorGroupForCSV returns the operatorgroup for the CSV only if the CSV is active one in the group
+// operatorGroupForCSV returns the OperatorGroup for the CSV only if the CSV is active one in the group
 func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) *v1alpha2.OperatorGroup {
 	annotations := csv.GetAnnotations()
 
-	// TODO: Only return OperatorGroup if InstallModes allow the CSV to be part of the group or no installmodes are declared
-
-	// not part of a group yet
+	// Not part of a group yet
 	if annotations == nil {
 		logger.Info("not part of any operatorgroup, no annotations")
 		return nil
 	}
 
-	// not in the operatorgroup namespace
+	// Not in the OperatorGroup namespace
 	if annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
 		logger.Info("not in operatorgroup namespace, skipping")
 		return nil
@@ -493,7 +503,7 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 
 	operatorGroupName, ok := annotations[v1alpha2.OperatorGroupAnnotationKey]
 
-	// no operatorgroup annotation
+	// No OperatorGroup annotation
 	if !ok {
 		logger.Info("no operatorgroup annotation")
 		return nil
@@ -502,13 +512,13 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 	logger = logger.WithField("operatorgroup", operatorGroupName)
 
 	operatorGroup, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).Get(operatorGroupName)
-	// operatorgroup not found
+	// OperatorGroup not found
 	if err != nil {
 		logger.Info("operatorgroup not found")
 		return nil
 	}
 
-	// target namespaces don't match
+	// Target namespaces don't match
 	if annotations[v1alpha2.OperatorGroupTargetsAnnotationKey] != strings.Join(operatorGroup.Status.Namespaces, ",") {
 		logger.Info("target namespace annotation doesn't match operatorgroup namespace list")
 		return nil
@@ -528,10 +538,29 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	out = in.DeepCopy()
 	now := timeNow()
 
-	// check if the current CSV is being replaced, return with replacing status if so
+	// Check if the current CSV is being replaced, return with replacing status if so
 	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
 		logger.WithField("err", err).Info("replacement check")
 		return
+	}
+
+	// Check if the CSV supports watching the namespaces its annotations declare
+	modeSet, err := v1alpha1.NewInstallModeSet(out.Spec.InstallModes)
+	if err != nil {
+		logger.Warnf("could not create new InstallModeSet from CSV: %v", err)
+		syncError = err
+		return
+	}
+
+	targets, ok := out.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]
+	if ok {
+		namespaces := strings.Split(targets, ",")
+		err = modeSet.Supports(namespaces)
+		if err != nil {
+			logger.WithField("reason", err.Error()).Infof("InstallModeSet does not support OperatorGroup namespace selection")
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallModeNotSupported, err.Error(), now, a.recorder)
+			return
+		}
 	}
 
 	switch out.Status.Phase {
@@ -590,7 +619,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", now, a.recorder)
-		a.requeueCSV(out.GetName(), out.GetNamespace())
+		err := a.csvQueueSet.requeue(out.GetName(), out.GetNamespace())
+		if err != nil {
+			a.Log.Warn(err.Error())
+		}
 		return
 	case v1alpha1.CSVPhaseInstalling:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
@@ -646,6 +678,14 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
+		// Check if failed due to unsupported InstallModes
+		if out.Status.Reason == v1alpha1.CSVReasonInstallModeNotSupported {
+			logger.Info("InstallModes now support target namespaces. Transitioning to Pending...")
+			// Check occurred before switch, safe to transition to pending
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "InstallModes now support target namespaces. Transitioning to Pending.", now, a.recorder)
+			return
+		}
+
 		// Check install status
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall); installErr != nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("needs reinstall: %s", installErr)
@@ -693,11 +733,17 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
-			a.requeueCSV(csv.GetName(), csv.GetNamespace())
+			err := a.csvQueueSet.requeue(csv.GetName(), csv.GetNamespace())
+			if err != nil {
+				a.Log.Warn(err.Error())
+			}
 		}
 
 		// if there's no newer version, requeue for processing (likely will be GCable before resync)
-		a.requeueCSV(out.GetName(), out.GetNamespace())
+		err := a.csvQueueSet.requeue(out.GetName(), out.GetNamespace())
+		if err != nil {
+			a.Log.Warn(err.Error())
+		}
 	case v1alpha1.CSVPhaseDeleting:
 		var immediate int64 = 0
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{GracePeriodSeconds: &immediate})
@@ -729,12 +775,13 @@ func (a *Operator) findIntermediatesForDeletion(csv *v1alpha1.ClusterServiceVers
 			continue
 		}
 		installed, _ := installer.CheckInstalled(nextStrategy)
-		if installed && !next.IsObsolete() {
+		if installed && !next.IsObsolete() && next.Status.Phase == v1alpha1.CSVPhaseSucceeded {
 			return csvs
 		}
 		current = next
 		next = a.isBeingReplaced(current, csvsInNamespace)
 	}
+
 	return nil
 }
 
@@ -799,7 +846,11 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 
 	if !apiServicesInstalled {
 		csv.SetPhase(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"), now)
-		a.requeueCSV(csv.GetName(), csv.GetNamespace())
+		err := a.csvQueueSet.requeue(csv.GetName(), csv.GetNamespace())
+		if err != nil {
+			a.Log.Warn(err.Error())
+		}
+
 		return fmt.Errorf("APIServices not installed")
 	}
 
@@ -822,7 +873,11 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	previousCSV := a.isReplacing(csv)
 	var previousStrategy install.Strategy
 	if previousCSV != nil {
-		a.requeueCSV(previousCSV.Name, previousCSV.Namespace)
+		err = a.csvQueueSet.requeue(previousCSV.Name, previousCSV.Namespace)
+		if err != nil {
+			a.Log.Warn(err.Error())
+		}
+
 		previousStrategy, err = a.resolver.UnmarshalStrategy(previousCSV.Spec.InstallStrategy)
 		if err != nil {
 			previousStrategy = nil
@@ -938,8 +993,12 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	if ownee.GetNamespace() != metav1.NamespaceAll {
 		for _, ownerCSV := range owners {
 			// Since cross-namespace CSVs can't exist we're guaranteed the owner will be in the same namespace
-			a.requeueCSV(ownerCSV.Name, ownee.GetNamespace())
+			err := a.csvQueueSet.requeue(ownerCSV.Name, ownee.GetNamespace())
+			if err != nil {
+				a.Log.Warn(err.Error())
+			}
 		}
+
 		return
 	}
 
@@ -969,6 +1028,9 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 			continue
 		}
 
-		a.requeueCSV(csv.GetName(), csv.GetNamespace())
+		err = a.csvQueueSet.requeue(csv.GetName(), csv.GetNamespace())
+		if err != nil {
+			a.Log.Warn(err.Error())
+		}
 	}
 }
