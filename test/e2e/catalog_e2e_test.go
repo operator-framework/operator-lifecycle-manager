@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -75,6 +77,26 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	})
 	require.NoError(t, err, "Catalog source never loaded into memory after catalog operator rescale")
 	t.Logf("Catalog source sucessfully loaded after rescale")
+}
+
+func TestDefaultCatalogLoading(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	catalogSource, err := fetchCatalogSource(t, crc, "rh-operators", operatorNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	requirement, err := labels.NewRequirement("olm.catalogSource", selection.Equals, []string{catalogSource.GetName()})
+	require.NoError(t, err)
+	selector := labels.NewSelector().Add(*requirement).String()
+	pods, err := c.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(metav1.ListOptions{LabelSelector: selector})
+	require.NoError(t, err)
+	for _, p := range pods.Items {
+		for _, s := range p.Status.ContainerStatuses {
+			require.True(t, s.Ready)
+			require.Zero(t, s.RestartCount)
+		}
+	}
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
