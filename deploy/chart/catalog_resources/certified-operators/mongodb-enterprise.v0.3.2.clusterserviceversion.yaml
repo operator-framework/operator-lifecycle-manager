@@ -243,7 +243,7 @@ spec:
 
               containers:
               - name: mongodb-enterprise-operator
-                image: quay.io/mongodb/mongodb-enterprise-operator:0.3
+                image: registry.connect.redhat.com/mongodb/enterprise-operator
                 imagePullPolicy: Always
                 resources:
                   limits:
@@ -263,7 +263,7 @@ spec:
                 - name: OPERATOR_ENV
                   value: prod
                 - name: MONGODB_ENTERPRISE_DATABASE_IMAGE
-                  value: quay.io/mongodb/mongodb-enterprise-database:0.3
+                  value: registry.connect.redhat.com/mongodb/enterprise-database
                 - name: IMAGE_PULL_POLICY
                   value: Always
                 - name: IMAGE_PULL_SECRETS
