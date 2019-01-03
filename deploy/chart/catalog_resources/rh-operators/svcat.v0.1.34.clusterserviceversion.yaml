@@ -19,6 +19,17 @@ spec:
     url: https://svc-cat.io/docs
   - name: Service Catalog
     url: https://github.com/kubernetes-incubator/service-catalog
+  
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
+    
   install:
     strategy: deployment
     spec:

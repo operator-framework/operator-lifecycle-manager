@@ -52,6 +52,15 @@ spec:
       name: deschedulers.descheduler.io
       version: v1alpha1
   displayName: Descheduler
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     spec:
       clusterPermissions:
