@@ -150,6 +150,15 @@ spec:
       url: 'https://docs.couchbase.com/operator/1.0/overview.html'
     - name: Downloads
       url: 'https://www.couchbase.com/downloads'
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     spec:
       deployments:

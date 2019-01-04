@@ -17,6 +17,25 @@ const (
 	ClusterServiceVersionKind       = "ClusterServiceVersion"
 )
 
+// InstallModeType is a supported type of install mode for CSV installation
+type InstallModeType string
+
+const (
+	InstallModeTypeOwnNamespace    InstallModeType = "OwnNamespace"
+	InstallModeTypeSingleNamespace InstallModeType = "SingleNamespace"
+	InstallModeTypeMultiNamespace  InstallModeType = "MultiNamespace"
+	InstallModeTypeAllNamespaces   InstallModeType = "AllNamespaces"
+)
+
+// InstallMode associates an InstallModeType with a flag representing if the CSV supports it
+type InstallMode struct {
+	Type      InstallModeType `json:"type"`
+	Supported bool            `json:"supported"`
+}
+
+// InstallModeSet is a mapping of unique InstallModeTypes to whether they are supported.
+type InstallModeSet map[InstallModeType]bool
+
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
@@ -120,6 +139,10 @@ type ClusterServiceVersionSpec struct {
 	Links                     []AppLink                 `json:"links,omitempty"`
 	Icon                      []Icon                    `json:"icon,omitempty"`
 
+	// InstallModes specify supported installation types
+	// +optional
+	InstallModes []InstallMode `json:"installModes,omitempty"`
+
 	// The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.
 	// +optional
 	Replaces string `json:"replaces,omitempty"`
@@ -203,6 +226,7 @@ const (
 	CSVReasonAPIServiceResourcesNeedReinstall ConditionReason = "APIServiceResourcesNeedReinstall"
 	CSVReasonAPIServiceInstallFailed          ConditionReason = "APIServiceInstallFailed"
 	CSVReasonCopied                           ConditionReason = "Copied"
+	CSVReasonInstallModeNotSupported          ConditionReason = "InstallModeNotSupported"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
@@ -448,4 +472,3 @@ func (csv ClusterServiceVersion) GetOwnedAPIServiceDescriptions() []APIServiceDe
 
 	return descs
 }
-

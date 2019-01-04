@@ -1,9 +1,11 @@
 package v1alpha1
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -99,6 +101,113 @@ func TestIsObsolete(t *testing.T) {
 				},
 			}
 			require.Equal(t, csv.IsObsolete(), tt.out)
+		})
+	}
+}
+
+func TestSupports(t *testing.T) {
+	tests := []struct {
+		description    string
+		installModeSet InstallModeSet
+		namespaces     []string
+		expectedErr    error
+	}{
+		{
+			description: "NoNamespaces",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			namespaces:  []string{},
+			expectedErr: nil,
+		},
+		{
+			description: "OneNamespace",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			namespaces:  []string{"ns-0"},
+			expectedErr: nil,
+		},
+		{
+			description: "MultipleNamespaces/MultiNamespaceUnsupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  false,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			namespaces:  []string{"ns-0", "ns-1"},
+			expectedErr: fmt.Errorf("%s InstallModeType not supported, cannot configure to watch 2 namespaces", InstallModeTypeMultiNamespace),
+		},
+		{
+			description: "SingleNamespace/SingleNamespaceUnsupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: false,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			namespaces:  []string{"ns-0"},
+			expectedErr: fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace),
+		},
+		{
+			description: "AllNamespaces/AllNamespacesSupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			namespaces:  []string{corev1.NamespaceAll},
+			expectedErr: nil,
+		},
+		{
+			description: "AllNamespaces/AllNamespacesUnsupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   false,
+			},
+			namespaces:  []string{corev1.NamespaceAll},
+			expectedErr: fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces),
+		},
+		{
+			description:    "NoNamespaces/EmptyInstallModeSet",
+			installModeSet: InstallModeSet{},
+			namespaces:     []string{},
+			expectedErr:    nil,
+		},
+		{
+			description:    "MultipleNamespaces/EmptyInstallModeSet",
+			installModeSet: InstallModeSet{},
+			namespaces:     []string{"ns-0", "ns-1"},
+			expectedErr:    fmt.Errorf("%s InstallModeType not supported, cannot configure to watch 2 namespaces", InstallModeTypeMultiNamespace),
+		},
+		{
+			description:    "SingleNamespace/EmptyInstallModeSet",
+			installModeSet: InstallModeSet{},
+			namespaces:     []string{"ns-0"},
+			expectedErr:    fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace),
+		},
+		{
+			description:    "AllNamespaces/EmptyInstallModeSet",
+			installModeSet: InstallModeSet{},
+			namespaces:     []string{corev1.NamespaceAll},
+			expectedErr:    fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			err := test.installModeSet.Supports(test.namespaces)
+			require.Equal(t, err, test.expectedErr)
 		})
 	}
 }

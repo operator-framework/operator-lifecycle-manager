@@ -36,7 +36,15 @@ spec:
     url: https://github.com/openshift/cluster-logging-operator/blob/master/README.md
   - name: Cluster Logging Operator
     url: https://github.com/openshift/cluster-logging-operator
-
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     strategy: deployment
     spec:

@@ -221,7 +221,15 @@ spec:
         path: service
         x-descriptors:
         - 'urn:alm:descriptor:io.kubernetes:Service'
-
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     strategy: deployment
     spec:

@@ -109,6 +109,10 @@ func TestOperatorGroup(t *testing.T) {
 	// Verify csv in target namespace exists, has copied status, has annotations
 	// Verify deployments have correct namespace annotation
 	// (Verify that the operator can operate in the target namespace)
+	// Update CSV to support no InstallModes
+	// Verify the CSV transitions to FAILED
+	// Delete CSV
+	// Verify copied CVS is deleted
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -117,7 +121,7 @@ func TestOperatorGroup(t *testing.T) {
 	opGroupNamespace := genName(testNamespace + "-")
 	matchingLabel := map[string]string{"inGroup": opGroupNamespace}
 	otherNamespaceName := genName(opGroupNamespace + "-")
-	bothNamespaceNames := otherNamespaceName + "," + opGroupNamespace
+	bothNamespaceNames := opGroupNamespace + "," + otherNamespaceName
 
 	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -173,7 +177,7 @@ func TestOperatorGroup(t *testing.T) {
 	}()
 
 	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
-		Namespaces: []string{createdOtherNamespace.GetName(), opGroupNamespace},
+		Namespaces: []string{opGroupNamespace, createdOtherNamespace.GetName()},
 	}
 
 	t.Log("Waiting on operator group to have correct status")
@@ -398,6 +402,15 @@ func TestOperatorGroup(t *testing.T) {
 		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
 	}
 	require.Equal(t, viewPolicyRules, viewRole.Rules)
+
+	// Unsupport all InstallModes
+	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
+	require.NoError(t, err, "could not fetch csv")
+	fetchedCSV.Spec.InstallModes = []v1alpha1.InstallMode{}
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(fetchedCSV.GetNamespace()).Update(fetchedCSV)
+	require.NoError(t, err, "could not update csv installmodes")
+	_, err = fetchCSV(t, crc, csvName, opGroupNamespace, csvFailedChecker)
+	require.NoError(t, err, "csv did not transition to failed as expected")
 
 	// ensure deletion cleans up copied CSV
 	t.Log("Deleting CSV")

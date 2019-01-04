@@ -25,6 +25,15 @@ spec:
   links:
   - name: Markplace Operator Source Code
     url: https://github.com/operator-framework/operator-marketplace
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     strategy: deployment
     spec:

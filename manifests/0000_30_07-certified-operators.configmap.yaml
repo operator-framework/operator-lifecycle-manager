@@ -1,4 +1,4 @@
-##---
+---
 # Source: olm/templates/0000_30_07-certified-operators.configmap.yaml
 
 kind: ConfigMap
@@ -635,6 +635,15 @@ data:
             url: 'https://docs.couchbase.com/operator/1.0/overview.html'
           - name: Downloads
             url: 'https://www.couchbase.com/downloads'
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           spec:
             deployments:
@@ -885,6 +894,15 @@ data:
             url: https://www.dynatrace.com/support/help/cloud-platforms/openshift/full-stack/deployment/deploy-oneagent-on-openshift-container-platform/
           - name: OpenShift Monitoring Info
             url: https://www.dynatrace.com/technologies/openshift-monitoring/
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           spec:
             deployments:
@@ -1263,7 +1281,15 @@ data:
               path: service
               x-descriptors:
               - 'urn:alm:descriptor:io.kubernetes:Service'
-      
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -1285,7 +1311,7 @@ data:
       
                     containers:
                     - name: mongodb-enterprise-operator
-                      image: quay.io/mongodb/mongodb-enterprise-operator:0.3
+                      image: registry.connect.redhat.com/mongodb/enterprise-operator
                       imagePullPolicy: Always
                       resources:
                         limits:
@@ -1305,7 +1331,7 @@ data:
                       - name: OPERATOR_ENV
                         value: prod
                       - name: MONGODB_ENTERPRISE_DATABASE_IMAGE
-                        value: quay.io/mongodb/mongodb-enterprise-database:0.3
+                        value: registry.connect.redhat.com/mongodb/enterprise-database
                       - name: IMAGE_PULL_POLICY
                         value: Always
                       - name: IMAGE_PULL_SECRETS

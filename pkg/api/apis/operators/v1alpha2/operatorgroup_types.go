@@ -6,7 +6,16 @@ import (
 )
 
 type OperatorGroupSpec struct {
-	Selector       metav1.LabelSelector  `json:"selector,omitempty"`
+	// Selector selects the OperatorGroup's target namespaces.
+	// +optional
+	Selector metav1.LabelSelector `json:"selector,omitempty"`
+
+	// TargetNamespaces is an explicit set of namespaces to target.
+	// If it is set, Selector is ignored.
+	// +optional
+	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
+
+	// ServiceAccount to bind OperatorGroup roles to.
 	ServiceAccount corev1.ServiceAccount `json:"serviceAccount,omitempty"`
 }
 

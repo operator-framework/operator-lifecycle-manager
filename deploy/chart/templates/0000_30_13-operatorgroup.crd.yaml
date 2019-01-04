@@ -59,6 +59,11 @@ spec:
                           values:
                             type: array
                             description: set of values for the expression
+            targetNamespaces:
+              type: array
+              items:
+                type: string
+                pattern: ^\S+$
             serviceAccountName:
               type: string
           required:

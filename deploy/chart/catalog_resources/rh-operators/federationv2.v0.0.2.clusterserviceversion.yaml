@@ -16,7 +16,15 @@ spec:
   labels:
     alm-owner-federationv2: federationv2
     alm-status-descriptors: federationv2.v0.0.2
-
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     strategy: deployment
     spec:

@@ -41,7 +41,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	crdName := crdPlural + ".cluster.com"
 	crd := newCRD(crdName, crdPlural)
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csv := newCSV(packageStable, operatorNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)

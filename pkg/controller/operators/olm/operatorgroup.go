@@ -3,6 +3,7 @@ package olm
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,8 +44,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
 
-	targetedNamespaces, err := a.updateNamespaceList(op)
-	a.Log.Debugf("Got targetedNamespaces: '%v'", targetedNamespaces)
+	targetNamespaces, err := a.updateNamespaceList(op)
+	a.Log.Debugf("Got targetNamespaces: '%v'", targetNamespaces)
 	if err != nil {
 		a.Log.Errorf("updateNamespaceList error: %v", err)
 		return err
@@ -57,6 +58,17 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	a.Log.Debug("Cluster roles completed")
 
 	for _, csv := range a.csvSet(op.Namespace, v1alpha1.CSVPhaseSucceeded) {
+		// Check if the CSV's InstallModes support the operator group
+		modeSet, err := v1alpha1.NewInstallModeSet(csv.Spec.InstallModes)
+		if err != nil {
+			a.Log.Errorf("CSV has invalid InstallModes: %v", err)
+			continue
+		}
+		if err := modeSet.Supports(targetNamespaces); err != nil {
+			a.Log.Warnf("CSV InstallModes do not support operator group: %v", err)
+			continue
+		}
+
 		origCSVannotations := csv.GetAnnotations()
 		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op)
 		if reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) == false {
@@ -285,7 +297,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 			if _, err := a.OpClient.CreateRoleBinding(r); err != nil {
 				return err
 			}
-			// TODO check  rules
+			// TODO check rules
 		}
 	}
 	return nil
@@ -400,42 +412,56 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 		return nil, err
 	}
 
-	namespaceList := []string{}
-	if selector.Empty() || selector == nil {
-		namespaceList = append(namespaceList, corev1.NamespaceAll)
+	namespaceSet := make(map[string]struct{})
+	namespaceAll := false
+	if op.Spec.TargetNamespaces != nil && len(op.Spec.TargetNamespaces) > 0 {
+		for _, ns := range op.Spec.TargetNamespaces {
+			if ns == corev1.NamespaceAll {
+				return nil, fmt.Errorf("TargetNamespaces cannot contain NamespaceAll: %v", op.Spec.TargetNamespaces)
+			}
+			namespaceSet[ns] = struct{}{}
+		}
+	} else if selector == nil || selector.Empty() {
+		namespaceSet[corev1.NamespaceAll] = struct{}{}
+		namespaceAll = true
 	} else {
 		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)
 		if err != nil {
 			return nil, err
 		}
 
-		operatorGroupNamespaceSelected := false
 		for _, ns := range matchedNamespaces {
-			namespaceList = append(namespaceList, ns.GetName())
-			if ns.GetName() == op.GetNamespace() {
-				operatorGroupNamespaceSelected = true
-			}
-		}
-
-		// always include the operatorgroup namespace as a target namespace
-		if !operatorGroupNamespaceSelected {
-			namespaceList = append(namespaceList, op.GetNamespace())
+			namespaceSet[ns.GetName()] = struct{}{}
 		}
 	}
+
+	if !namespaceAll {
+		// Add operator namespace to the set
+		namespaceSet[op.GetNamespace()] = struct{}{}
+	}
+
+	namespaceList := []string{}
+	for ns := range namespaceSet {
+		namespaceList = append(namespaceList, ns)
+	}
+	sort.StringSlice(namespaceList).Sort()
 
 	if !namespacesChanged(namespaceList, op.Status.Namespaces) {
 		// status is current with correct namespaces, so no further updates required
 		return namespaceList, nil
 	}
+
 	a.Log.Debugf("Namespace change detected, found: %v", namespaceList)
 	op.Status = v1alpha2.OperatorGroupStatus{
 		Namespaces:  namespaceList,
 		LastUpdated: timeNow(),
 	}
+
 	_, err = a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).UpdateStatus(op)
 	if err != nil {
 		return namespaceList, err
 	}
+
 	return namespaceList, nil
 }
 

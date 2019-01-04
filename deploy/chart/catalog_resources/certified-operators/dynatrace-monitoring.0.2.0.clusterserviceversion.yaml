@@ -77,6 +77,15 @@ spec:
       url: https://www.dynatrace.com/support/help/cloud-platforms/openshift/full-stack/deployment/deploy-oneagent-on-openshift-container-platform/
     - name: OpenShift Monitoring Info
       url: https://www.dynatrace.com/technologies/openshift-monitoring/
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
   install:
     spec:
       deployments:
