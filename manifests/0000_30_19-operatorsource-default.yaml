@@ -1,4 +1,4 @@
-##---
+---
 # Source: olm/templates/0000_30_19-operatorsource-default.yaml
 apiVersion: "marketplace.redhat.com/v1alpha1"
 kind: "OperatorSource"
