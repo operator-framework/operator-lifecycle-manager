@@ -1,0 +1,5 @@
+#! package-manifest: deploy/chart/catalog_resources/rh-operators/metering-operator.v0.12.0.clusterserviceversion.yaml
+packageName: metering
+channels:
+- name: alpha
+  currentCSV: metering-operator.v0.12.0
