@@ -13156,7 +13156,7 @@ data:
                       resources:
                         limits:
                           cpu: 100m
-                          memory: 60Mi
+                          memory: 140Mi
                         requests:
                           cpu: 100m
                           memory: 40Mi
@@ -13266,10 +13266,10 @@ data:
                       resources:
                         limits:
                           cpu: 100m
-                          memory: 60Mi
+                          memory: 150Mi
                         requests:
                           cpu: 100m
-                          memory: 40Mi
+                          memory: 100Mi
                       env:
                       - name: K8S_NAMESPACE
                         valueFrom:
