@@ -49,13 +49,13 @@ func IsOwnedByKind(object metav1.Object, ownerKind string) bool {
 	return false
 }
 
-func GetOwnerByKind(object metav1.Object, ownerKind string) metav1.OwnerReference {
+func GetOwnerByKind(object metav1.Object, ownerKind string) *metav1.OwnerReference {
 	for _, oref := range object.GetOwnerReferences() {
 		if oref.Kind == ownerKind {
-			return oref
+			return &oref
 		}
 	}
-	return metav1.OwnerReference{}
+	return nil
 }
 
 // GetOwnersByKind returns all OwnerReferences of the given kind listed by the given object

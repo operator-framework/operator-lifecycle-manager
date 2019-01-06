@@ -1,24 +1,29 @@
 package e2e
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/ghodss/yaml"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -35,8 +40,8 @@ const (
 
 	etcdVersion            = "3.2.13"
 	prometheusVersion      = "v2.3.2"
-	expectedEtcdNodes      = 3
-	expectedPrometheusSize = 3
+	expectedEtcdNodes      = 1
+	expectedPrometheusSize = 1
 	ocsConfigMap           = "rh-operators"
 	olmConfigMap           = "olm-operators"
 	packageServerCSV       = "packageserver.v1.0.0"
@@ -206,7 +211,7 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), catalog.Status.RegistryServiceStatus.Address())
 		return true
 	}
-	fmt.Printf("%#v\n", catalog.Status)
+	fmt.Println("waiting for catalog pod to be available")
 	return false
 }
 
@@ -220,7 +225,6 @@ func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace s
 			fmt.Println(err)
 			return false, err
 		}
-		fmt.Printf("%#v\n", fetched)
 		return check(fetched), nil
 	})
 
@@ -281,12 +285,13 @@ func buildServiceAccountCleanupFunc(t *testing.T, c operatorclient.ClientInterfa
 	}
 }
 
-func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []v1beta1.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc, error) {
+func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: configMapName,
+			Name:      configMapName,
+			Namespace: namespace,
 		},
 		Data: map[string]string{},
 	}
@@ -300,11 +305,17 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 	}
 
 	// Add raw CRDs
+	var crdsRaw []byte
 	if crds != nil {
-		crdsRaw, err := yaml.Marshal(crds)
+		crdStrings := []string{}
+		for _, crd := range crds {
+			crdStrings = append(crdStrings, serializeCRD(t, crd))
+		}
+		var err error
+		crdsRaw, err = yaml.Marshal(crdStrings)
 		require.NoError(t, err)
-		catalogConfigMap.Data[registry.ConfigMapCRDName] = string(crdsRaw)
 	}
+	catalogConfigMap.Data[registry.ConfigMapCRDName] = strings.Replace(string(crdsRaw), "- |\n  ", "- ", -1)
 
 	// Add raw CSVs
 	if csvs != nil {
@@ -315,7 +326,7 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 
 	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
 	if err != nil && !errors.IsAlreadyExists(err) {
-		return nil, nil, err
+		require.NoError(t, err)
 	}
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
@@ -325,7 +336,8 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
+			Namespace: namespace,
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			SourceType: "internal",
@@ -337,7 +349,7 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
 	catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(catalogSource)
 	if err != nil && !errors.IsAlreadyExists(err) {
-		return nil, nil, err
+		require.NoError(t, err)
 	}
 	t.Logf("Catalog source %s created", name)
 
@@ -345,5 +357,30 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 		buildConfigMapCleanupFunc(t, c, namespace, catalogConfigMap)()
 		buildCatalogSourceCleanupFunc(t, crc, namespace, catalogSource)()
 	}
-	return catalogSource, cleanupInternalCatalogSource, nil
+	return catalogSource, cleanupInternalCatalogSource
+}
+
+func serializeCRD(t *testing.T, crd apiextensions.CustomResourceDefinition) string {
+	scheme := runtime.NewScheme()
+	extScheme.AddToScheme(scheme)
+	k8sscheme.AddToScheme(scheme)
+	err := v1beta1.AddToScheme(scheme)
+	require.NoError(t, err)
+
+	out := &v1beta1.CustomResourceDefinition{}
+	err = scheme.Convert(&crd, out, nil)
+	require.NoError(t, err)
+	out.TypeMeta = metav1.TypeMeta{
+		Kind:       "CustomResourceDefinition",
+		APIVersion: "apiextensions.k8s.io/v1beta1",
+	}
+
+	// set up object serializer
+	serializer := k8sjson.NewYAMLSerializer(k8sjson.DefaultMetaFactory, scheme, scheme)
+
+	// create an object manifest
+	var manifest bytes.Buffer
+	err = serializer.Encode(out, &manifest)
+	require.NoError(t, err)
+	return manifest.String()
 }

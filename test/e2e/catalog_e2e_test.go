@@ -9,7 +9,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -38,17 +38,15 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	}
 
 	crdPlural := genName("ins")
-	crdName := crdPlural + ".cluster.com"
-	crd := newCRD(crdName, crdPlural)
+	crd := newCRD(crdPlural)
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csv := newCSV(packageStable, operatorNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
 	catalogSourceName := genName("mock-ocs")
-	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-	require.NoError(t, err)
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 	defer cleanupCatalogSource()
 
 	// ensure the mock catalog exists and has been synced by the catalog operator
@@ -75,7 +73,7 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 		}
 		return false
 	})
-	require.NoError(t, err, "Catalog source never loaded into memory after catalog operator rescale")
+	require.NoError(t, err, "Catalog source changed after rescale")
 	t.Logf("Catalog source sucessfully loaded after rescale")
 }
 
@@ -98,6 +96,18 @@ func TestDefaultCatalogLoading(t *testing.T) {
 		}
 	}
 }
+
+// func grpcCatalogReachable() {
+//
+// }
+//
+// func TestCatalogPodUpdatedWhenConfigmapChanged(t *testing.T) {
+// 	t.Fail()
+// }
+//
+// func TestCatalogPodRecreatedWhenComponentDeleted(t *testing.T) {
+// 	t.Fail()
+// }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
 	deployments, err := c.ListDeploymentsWithLabels(namespace, operatorLabels)

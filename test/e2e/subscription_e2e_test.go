@@ -6,15 +6,14 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -22,28 +21,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
-// Test Subscription behavior
-
-//   I. Creating a new subscription
-//      A. If package is not installed, creating a subscription should install latest version
-//      B. If package is already installed, creating a subscription should upgrade it to the latest
-//         version
-//      C. If a subscription for the package already exists, it should be marked as a duplicate and
-//         ignored by the catalog operator (?)
-
-//  II. Updates - existing subscription for package, and a newer version is added to the channel
-//      A. Test bumping up 1 version (for a normal tectonic upgrade)
-//         If the new version directly replaces the existing install, the latest version should be
-//         directly installed.
-//      B. Test bumping up multiple versions (simulate external catalog where we might jump
-//         multiple versions, or an offline install where we might upgrade services all at once)
-//         If existing install is more than one version behind, it should be upgraded stepping
-//         through all intermediate versions.
-
-// III. Channel switched on the subscription
-//      A. If the current csv exists in the new channel, create installplans to update to the
-//         latest in the new channel
-//      B. Current csv does not exist in the new channel, subscription should have an error status
 var doubleInstance = int32(2)
 
 const (
@@ -281,17 +258,13 @@ func init() {
 func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface) error {
 	// Create configmap containing catalog
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
-	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap)
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
+	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap); err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
 
 	// Create catalog source custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
-	csUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&dummyCatalogSource)
-	require.NoError(t, err)
-	err = c.CreateCustomResource(&unstructured.Unstructured{Object: csUnst})
-	if err != nil && !k8serrors.IsAlreadyExists(err) {
+	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(&dummyCatalogSource); err != nil && !k8serrors.IsAlreadyExists(err) {
 		return err
 	}
 
@@ -317,6 +290,10 @@ func subscriptionStateAtLatestChecker(subscription *v1alpha1.Subscription) bool 
 	return subscription.Status.State == v1alpha1.SubscriptionStateAtLatest
 }
 
+func subscriptionHasInstallPlanChecker(subscription *v1alpha1.Subscription) bool {
+	return subscription.Status.Install != nil
+}
+
 func subscriptionStateNoneChecker(subscription *v1alpha1.Subscription) bool {
 	return subscription.Status.State == v1alpha1.SubscriptionStateNone
 }
@@ -337,11 +314,12 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.Reason, fetchedSubscription.Status.Install)
+		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.Install)
 		return checker(fetchedSubscription), nil
 	})
 	if err != nil {
 		t.Logf("never got correct status: %#v", fetchedSubscription.Status)
+		t.Logf("subscription spec: %#v", fetchedSubscription.Spec)
 	}
 	return fetchedSubscription, err
 }
@@ -378,7 +356,7 @@ func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, 
 		Spec: &v1alpha1.SubscriptionSpec{
 			CatalogSource:          catalogSourceName,
 			CatalogSourceNamespace: namespace,
-			Package:                testPackageName,
+			Package:                packageName,
 			Channel:                channel,
 			InstallPlanApproval:    approval,
 		},
@@ -389,17 +367,33 @@ func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, 
 	return buildSubscriptionCleanupFunc(t, crc, subscription)
 }
 
-func checkForCSV(t *testing.T, c operatorclient.ClientInterface, name string) (*v1alpha1.ClusterServiceVersion, error) {
-	var csv *v1alpha1.ClusterServiceVersion
-	unstrCSV, err := waitForAndFetchCustomResource(t, c, v1alpha1.GroupVersion, v1alpha1.ClusterServiceVersionKind, name)
+func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespace, name, catalog, packageName, channel string, approval v1alpha1.Approval) cleanupFunc {
+	subscription := &v1alpha1.Subscription{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.SubscriptionKind,
+			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			CatalogSource:          catalog,
+			CatalogSourceNamespace: testNamespace,
+			Package:                packageName,
+			Channel:                channel,
+			InstallPlanApproval:    approval,
+		},
+	}
+
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
 	require.NoError(t, err)
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(unstrCSV.Object, &csv)
-	return csv, err
+	return buildSubscriptionCleanupFunc(t, crc, subscription)
 }
 
 //   I. Creating a new subscription
 //      A. If package is not installed, creating a subscription should install latest version
-func TestCreateNewSubscription(t *testing.T) {
+func TestCreateNewSubscriptionNotInstalled(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
@@ -409,13 +403,12 @@ func TestCreateNewSubscription(t *testing.T) {
 	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 	defer cleanup()
 
-	csv, err := checkForCSV(t, c, beta)
-	require.NoError(t, err)
-	require.NotNil(t, csv)
-
 	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
+
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
 
 	// Fetch subscription again to check for unnecessary control loops
 	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
@@ -426,7 +419,7 @@ func TestCreateNewSubscription(t *testing.T) {
 //   I. Creating a new subscription
 //      B. If package is already installed, creating a subscription should upgrade it to the latest
 //         version
-func TestCreateNewSubscriptionAgain(t *testing.T) {
+func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
@@ -440,13 +433,11 @@ func TestCreateNewSubscriptionAgain(t *testing.T) {
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
-	csv, err := checkForCSV(t, c, alpha)
-	require.NoError(t, err)
-	require.NotNil(t, csv)
-
 	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
 
 	// check for unnecessary control loops
 	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
@@ -477,7 +468,14 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	require.Equal(t, v1alpha1.ApprovalManual, installPlan.Spec.Approval)
 	require.Equal(t, v1alpha1.InstallPlanPhaseRequiresApproval, installPlan.Status.Phase)
 
-	// Fetch subscription again to check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, crc, testNamespace, "manual-subscription", subscriptionStateUpgradePendingChecker)
-	compareResources(t, subscription, sameSubscription)
+	installPlan.Spec.Approved = true
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(installPlan)
+	require.NoError(t, err)
+
+	subscription, err = fetchSubscription(t, crc, testNamespace, "manual-subscription", subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
 }

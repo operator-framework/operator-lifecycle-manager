@@ -70,20 +70,23 @@ message GetReplacementRequest{
 }
 
 message GetAllProvidersRequest{
-	string groupOrName = 1;
+	string group = 1;
 	string version = 2;
 	string kind = 3;
+	string plural = 4;
 }
 
 message GetLatestProvidersRequest{
-	string groupOrName = 1;
+	string group = 1;
 	string version = 2;
 	string kind = 3;
+	string plural = 4;
 }
 
 message GetDefaultProviderRequest{
-	string groupOrName = 1;
+	string group = 1;
 	string version = 2;
 	string kind = 3;
+	string plural = 4;
 }
 

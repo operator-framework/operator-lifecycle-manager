@@ -183,9 +183,9 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
 func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, csvNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
-	met := true
 
-	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) error {
+	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) (bool, error) {
+		met := true
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
 			a.Log.Debugf("perm.ServiceAccountName: %s", saName)
@@ -240,7 +240,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 				satisfied, err := ruleChecker.RuleSatisfied(sa, namespace, rule)
 				if err != nil {
-					return err
+					return false, err
 				} else if !satisfied {
 					met = false
 					dependent.Status = v1alpha1.DependentStatusReasonNotSatisfied
@@ -256,14 +256,14 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 			statusesSet[saName] = status
 		}
 
-		return nil
+		return met, nil
 	}
 
-	err := checkPermissions(strategyDetailsDeployment.Permissions, csvNamespace)
+	permMet, err := checkPermissions(strategyDetailsDeployment.Permissions, csvNamespace)
 	if err != nil {
 		return false, nil, err
 	}
-	err = checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
+	clusterPermMet, err := checkPermissions(strategyDetailsDeployment.ClusterPermissions, metav1.NamespaceAll)
 	if err != nil {
 		return false, nil, err
 	}
@@ -274,7 +274,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 		statuses = append(statuses, status)
 	}
 
-	return met, statuses, nil
+	return permMet && clusterPermMet, statuses, nil
 }
 
 // requirementAndPermissionStatus returns the aggregate requirement and permissions statuses for the given CSV
@@ -310,7 +310,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	statuses := append(reqStatuses, permStatuses...)
 	met := reqMet && permMet
 	if !met {
-		a.Log.Debugf("reqMet=%#v permMet=%v\n", reqMet, permMet)
+		a.Log.WithField("reqMet", reqMet).WithField("permMet", permMet).Debug("permissions not met")
 	}
 
 	return met, statuses, nil

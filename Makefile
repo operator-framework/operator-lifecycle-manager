@@ -108,6 +108,11 @@ vendor: $(KUBE_DEPS)
 container:
 	docker build -t $(IMAGE_REPO):$(IMAGE_TAG) .
 
+clean-e2e:
+	kubectl delete crds --all
+	kubectl delete apiservices.apiregistration.k8s.io v1alpha1.packages.apps.redhat.com
+	kubectl delete -f test/e2e/resources/0000_30_00-namespace.yaml
+
 clean:
 	@rm -rf cover.out
 	@rm -rf bin
@@ -156,7 +161,6 @@ verify-codegen: codegen
 	git diff --exit-code
 
 verify-catalog: schema-check
-	go test $(MOD_FLAGS) -v ./test/schema/catalog_versions_test.go
 
 generate-mock-client: 
 	$(MOCKGEN)

@@ -1,3 +1,4 @@
+//go:generate counterfeiter -o ../../fakes/fake_reconciler.go . RegistryReconciler
 package registry
 
 import (
@@ -8,6 +9,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -93,6 +95,22 @@ func (s *catalogSourceDecorator) Pod(image string) *v1.Pod {
 							Name:          "grpc",
 							ContainerPort: 50051,
 						},
+					},
+					ReadinessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+							},
+						},
+						InitialDelaySeconds: 5,
+					},
+					LivenessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+							},
+						},
+						InitialDelaySeconds: 10,
 					},
 				},
 			},
@@ -262,19 +280,19 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	if err := c.ensureServiceAccount(source, overwrite); err != nil {
-		return err
+		return errors.Wrapf(err, "error ensuring service account: %s", source.serviceAccountName())
 	}
 	if err := c.ensureRole(source, overwrite); err != nil {
-		return err
+		return errors.Wrapf(err, "error ensuring role: %s", source.roleName())
 	}
 	if err := c.ensureRoleBinding(source, overwrite); err != nil {
-		return err
+		return errors.Wrapf(err, "error ensuring rolebinding: %s", source.RoleBinding().GetName())
 	}
 	if err := c.ensurePod(source, overwritePod); err != nil {
-		return err
+		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(c.Image).GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
-		return err
+		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
 	}
 
 	if overwritePod {
@@ -334,16 +352,22 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source catalogSourceDeco
 
 func (c *ConfigMapRegistryReconciler) ensurePod(source catalogSourceDecorator, overwrite bool) error {
 	pod := source.Pod(c.Image)
-	if len(c.currentPods(source, c.Image)) > 0 {
+	currentPods := c.currentPods(source, c.Image)
+	if len(currentPods) > 0 {
 		if !overwrite {
 			return nil
 		}
-		if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(pod.GetName(), metav1.NewDeleteOptions(0)); err != nil {
-			return err
+		for _, p := range currentPods {
+			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
+			}
 		}
 	}
 	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Create(pod)
-	return err
+	if err == nil {
+		return nil
+	}
+	return errors.Wrapf(err, "error creating new pod: %s", pod.GetGenerateName())
 }
 
 func (c *ConfigMapRegistryReconciler) ensureService(source catalogSourceDecorator, overwrite bool) error {

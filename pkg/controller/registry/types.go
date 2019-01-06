@@ -1,4 +1,4 @@
-//go:generate counterfeiter -o ../../fakes/fake_registry_source.go types.go Source
+//go:generate counterfeiter -o ../../fakes/fake_registry_source.go types.go SourceClient
 
 package registry
 
@@ -6,11 +6,12 @@ import (
 	"fmt"
 
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"github.com/operator-framework/operator-registry/pkg/client"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
-// Catalog Source
+// Catalog SourceClient
 //    - Map name to ClusterServiceVersion
 //    - Map CRD to CRD definition
 //    - Map CRD to ClusterServiceVersion that manages it
@@ -38,10 +39,10 @@ type ResourceKey struct {
 	Namespace string
 }
 
-// SourceRef associates a Source with it's SourceKey
+// SourceRef associates a SourceClient with it's SourceKey
 type SourceRef struct {
-	SourceKey ResourceKey
-	Source    Source
+	SourceKey    ResourceKey
+	SourceClient client.Interface
 }
 
 // CRDKey contains metadata needed to uniquely identify a CRD

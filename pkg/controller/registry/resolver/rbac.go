@@ -62,7 +62,7 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 		return nil, fmt.Errorf("could not assert strategy implementation as deployment for CSV %s", csv.GetName())
 	}
 
-	// Resolve Permissions as StepResources
+	// Resolve Permissions
 	for i, permission := range strategyDetailsDeployment.Permissions {
 		// Create ServiceAccount if necessary
 		if _, ok := permissions[permission.ServiceAccountName]; !ok {

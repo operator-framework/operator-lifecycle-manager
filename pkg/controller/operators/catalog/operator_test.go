@@ -26,6 +26,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -50,16 +51,6 @@ func TestTransitionInstallPlan(t *testing.T) {
 	errMsg := "transition test error"
 	err := errors.New(errMsg)
 
-	resolved := &v1alpha1.InstallPlanCondition{
-		Type:   v1alpha1.InstallPlanResolved,
-		Status: corev1.ConditionTrue,
-	}
-	unresolved := &v1alpha1.InstallPlanCondition{
-		Type:    v1alpha1.InstallPlanResolved,
-		Status:  corev1.ConditionFalse,
-		Reason:  v1alpha1.InstallPlanReasonInstallCheckFailed,
-		Message: errMsg,
-	}
 	installed := &v1alpha1.InstallPlanCondition{
 		Type:   v1alpha1.InstallPlanInstalled,
 		Status: corev1.ConditionTrue,
@@ -79,18 +70,6 @@ func TestTransitionInstallPlan(t *testing.T) {
 		expected   v1alpha1.InstallPlanPhase
 		condition  *v1alpha1.InstallPlanCondition
 	}{
-		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhasePlanning, nil},
-		{v1alpha1.InstallPlanPhaseNone, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhasePlanning, nil},
-		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhasePlanning, nil},
-		{v1alpha1.InstallPlanPhaseNone, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhasePlanning, nil},
-
-		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseInstalling, resolved},
-		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseInstalling, resolved},
-		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalManual, false, v1alpha1.InstallPlanPhaseRequiresApproval, resolved},
-		{v1alpha1.InstallPlanPhasePlanning, nil, v1alpha1.ApprovalManual, true, v1alpha1.InstallPlanPhaseInstalling, resolved},
-		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, unresolved},
-		{v1alpha1.InstallPlanPhasePlanning, err, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseFailed, unresolved},
-
 		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseComplete, installed},
 		{v1alpha1.InstallPlanPhaseInstalling, nil, v1alpha1.ApprovalAutomatic, true, v1alpha1.InstallPlanPhaseComplete, installed},
 		{v1alpha1.InstallPlanPhaseInstalling, err, v1alpha1.ApprovalAutomatic, false, v1alpha1.InstallPlanPhaseFailed, failed},
@@ -135,8 +114,6 @@ func TestTransitionInstallPlan(t *testing.T) {
 }
 
 func TestSyncCatalogSources(t *testing.T) {
-	resolver := &resolver.MultiSourceResolver{}
-
 	tests := []struct {
 		testName          string
 		operatorNamespace string
@@ -201,6 +178,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
 				},
+				RegistryServiceStatus: nil,
 			},
 			expectedError: nil,
 		},
@@ -224,6 +202,7 @@ func TestSyncCatalogSources(t *testing.T) {
 						UID:             types.UID("configmap-uid"),
 						ResourceVersion: "resource-version",
 					},
+					RegistryServiceStatus: nil,
 				},
 			},
 			configMap: &corev1.ConfigMap{
@@ -242,34 +221,9 @@ func TestSyncCatalogSources(t *testing.T) {
 					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
 				},
+				RegistryServiceStatus: nil,
 			},
 			expectedError: nil,
-		},
-		{
-			testName:          "CatalogSourceWithInvalidConfigMap",
-			operatorNamespace: "cool-namespace",
-			catalogSource: &v1alpha1.CatalogSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cool-catalog",
-					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
-				},
-				Spec: v1alpha1.CatalogSourceSpec{
-					ConfigMap:  "cool-configmap",
-					SourceType: v1alpha1.SourceTypeConfigmap,
-				},
-			},
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "cool-configmap",
-					Namespace:       "cool-namespace",
-					UID:             types.UID("configmap-uid"),
-					ResourceVersion: "resource-version",
-				},
-				Data: map[string]string{},
-			},
-			expectedStatus: nil,
-			expectedError:  errors.New("error parsing ConfigMap cool-configmap: no valid resources found"),
 		},
 		{
 			testName:          "CatalogSourceWithMissingConfigMap",
@@ -299,7 +253,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			// Create test operator
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(clientObjs, k8sObjs, nil, nil, resolver, tt.operatorNamespace, stopCh)
+			op, _, err := NewFakeOperator(clientObjs, k8sObjs, nil, nil, tt.operatorNamespace, stopCh)
 			require.NoError(t, err)
 
 			// Run sync
@@ -318,14 +272,12 @@ func TestSyncCatalogSources(t *testing.T) {
 			if tt.expectedStatus != nil {
 				require.NotEmpty(t, updated.Status)
 				require.Equal(t, *tt.expectedStatus.ConfigMapResource, *updated.Status.ConfigMapResource)
-
-				// Ensure that the catalog source has been loaded into memory
-				_, ok := op.sources[registry.ResourceKey{Name: tt.catalogSource.GetName(), Namespace: tt.catalogSource.GetNamespace()}]
-				require.True(t, ok, "Expected catalog was not loaded into memory")
 			}
 		})
 	}
 }
+
+// TODO: CatalogSource tests for RegistryServiceStatus
 
 func TestCompetingCRDOwnersExist(t *testing.T) {
 
@@ -348,7 +300,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			name: "OnlyCompetingWithSelf",
 			csv:  csv("turkey", []string{"feathers"}, nil),
 			existingCRDOwners: map[string][]string{
-				"feathers": []string{"turkey"},
+				"feathers": {"turkey"},
 			},
 			expectedErr:    nil,
 			expectedResult: false,
@@ -357,7 +309,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			name: "CompetingOwnersExist",
 			csv:  csv("turkey", []string{"feathers"}, nil),
 			existingCRDOwners: map[string][]string{
-				"feathers": []string{"seagull"},
+				"feathers": {"seagull"},
 			},
 			expectedErr:    nil,
 			expectedResult: true,
@@ -366,8 +318,8 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			name: "CompetingOwnerExistsOnSecondCRD",
 			csv:  csv("turkey", []string{"feathers", "beak"}, nil),
 			existingCRDOwners: map[string][]string{
-				"milk": []string{"cow"},
-				"beak": []string{"squid"},
+				"milk": {"cow"},
+				"beak": {"squid"},
 			},
 			expectedErr:    nil,
 			expectedResult: true,
@@ -376,7 +328,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 			name: "MoreThanOneCompetingOwnerExists",
 			csv:  csv("turkey", []string{"feathers"}, nil),
 			existingCRDOwners: map[string][]string{
-				"feathers": []string{"seagull", "turkey"},
+				"feathers": {"seagull", "turkey"},
 			},
 			expectedErr:    olmerrors.NewMultipleExistingCRDOwnersError([]string{"seagull", "turkey"}, "feathers", testNamespace),
 			expectedResult: true,
@@ -411,8 +363,8 @@ func fakeConfigMapData() map[string]string {
 	return data
 }
 
-// NewFakeOprator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver resolver.DependencyResolver, namespace string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
+// NewFakeOperator creates a new operator using fake clients
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, namespace string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
 	// Create client fakes
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
@@ -460,12 +412,12 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
 	op := &Operator{
-		Operator:           queueOperator,
-		client:             clientFake,
-		lister:             lister,
-		namespace:          namespace,
-		sources:            make(map[registry.ResourceKey]registry.Source),
-		dependencyResolver: resolver,
+		Operator:  queueOperator,
+		client:    clientFake,
+		lister:    lister,
+		namespace: namespace,
+		sources:   make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver:  &fakes.FakeResolver{},
 	}
 
 	op.configmapRegistryReconciler = &registry.ConfigMapRegistryReconciler{

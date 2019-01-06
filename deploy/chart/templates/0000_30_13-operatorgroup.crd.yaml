@@ -66,8 +66,6 @@ spec:
                 pattern: ^\S+$
             serviceAccountName:
               type: string
-          required:
-          - selector
           type: object
         status:
           properties:

@@ -6,7 +6,7 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/stretchr/testify/require"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -60,11 +60,10 @@ func TestPackageManifestLoading(t *testing.T) {
 	}
 
 	crdPlural := genName("ins")
-	crdName := crdPlural + ".cluster.com"
-	crd := newCRD(crdName, crdPlural)
+	crd := newCRD(crdPlural)
 	catalogSourceName := genName("mock-ocs")
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []extv1beta1.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -98,7 +97,7 @@ func TestPackageManifestLoading(t *testing.T) {
 	watcher, err := pmc.PackagemanifestV1alpha1().PackageManifests(testNamespace).Watch(metav1.ListOptions{})
 	require.NoError(t, err)
 	defer watcher.Stop()
-	
+
 	receivedPackage := make(chan bool)
 	go func() {
 		event := <-watcher.ResultChan()
@@ -112,7 +111,7 @@ func TestPackageManifestLoading(t *testing.T) {
 		return
 	}()
 
-	_, cleanupCatalogSource, err := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []extv1beta1.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
 	require.NoError(t, err)
 	defer cleanupCatalogSource()
 
