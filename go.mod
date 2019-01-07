@@ -5,7 +5,9 @@ require (
 	github.com/BurntSushi/toml v0.3.1 // indirect
 	github.com/NYTimes/gziphandler v1.0.1 // indirect
 	github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973 // indirect
+	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/boltdb/bolt v1.3.1 // indirect
+	github.com/certifi/gocertifi v0.0.0-20190105021004-abcd57078448 // indirect
 	github.com/coreos/bbolt v1.3.0 // indirect
 	github.com/coreos/etcd v3.3.9+incompatible // indirect
 	github.com/coreos/go-semver v0.2.0
@@ -17,6 +19,7 @@ require (
 	github.com/emicklei/go-restful v2.8.0+incompatible // indirect
 	github.com/emicklei/go-restful-swagger12 v0.0.0-20170926063155-7524189396c6 // indirect
 	github.com/evanphx/json-patch v3.0.0+incompatible // indirect
+	github.com/getsentry/raven-go v0.2.0 // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.17.2
 	github.com/go-openapi/strfmt v0.17.2 // indirect
@@ -32,14 +35,21 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/maxbrunsfeld/counterfeiter v0.0.0-20181017030959-1aadac120687
 	github.com/modern-go/reflect2 v1.0.1 // indirect
+	github.com/openshift/api v3.9.1-0.20190104173243-bf3bcbe7672e+incompatible
+	github.com/openshift/client-go v0.0.0-20181114205324-960f72aa32a8
+	github.com/openshift/cluster-version-operator v3.11.1-0.20181217235330-254c7d3dcc90+incompatible
+	github.com/openshift/library-go v0.0.0-20190107091827-a1b52059fb54 // indirect
+	github.com/openshift/origin v3.11.0+incompatible // indirect
 	github.com/operator-framework/operator-registry v1.0.1
 	github.com/pkg/errors v0.8.0
+	github.com/pkg/profile v1.2.1 // indirect
 	github.com/prometheus/client_golang v0.8.0
 	github.com/prometheus/client_model v0.0.0-20180712105110-5c3871d89910 // indirect
 	github.com/prometheus/common v0.0.0-20180801064454-c7de2306084e // indirect
 	github.com/prometheus/procfs v0.0.0-20180725123919-05ee40e3a273 // indirect
 	github.com/sirupsen/logrus v1.1.1
 	github.com/soheilhy/cmux v0.1.4 // indirect
+	github.com/spf13/afero v1.2.0 // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/stevvooe/resumable v0.0.0-20180830230917-22b14a53ba50 // indirect
 	github.com/stretchr/testify v1.2.2
@@ -59,5 +69,6 @@ require (
 	k8s.io/klog v0.0.0-20181102134211-b9b56d5dfc92 // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.7-beta.0.0.20181219023948-b875d52ea96d
+	k8s.io/kubernetes v1.11.7-beta.0.0.20190105100524-8bc0774147c7
+	k8s.io/utils v0.0.0-20181221173059-8a16e7dd8fb6 // indirect
 )
