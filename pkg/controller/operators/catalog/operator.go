@@ -124,7 +124,9 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		catsrcQueue,
 		catsrcSharedIndexInformers,
 		op.syncCatalogSources,
-		nil,
+		&cache.ResourceEventHandlerFuncs{
+			DeleteFunc: op.handleCatSrcDeletion,
+		},
 		"catsrc",
 		metrics.NewMetricsCatalogSource(op.client),
 		logger,
@@ -242,9 +244,16 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 	})
 
 	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.CatalogSourceKind) {
-		logger.Debug("requeueing owner CatalogSource")
 		owner := ownerutil.GetOwnerByKind(metaObj, v1alpha1.CatalogSourceKind)
-		o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", metaObj.GetNamespace(), owner.Name))
+		sourceKey := resolver.CatalogKey{Name: owner.Name, Namespace: metaObj.GetNamespace()}
+		func() {
+			o.sourcesLock.RLock()
+			defer o.sourcesLock.RUnlock()
+			if _, ok := o.sources[sourceKey]; ok {
+				logger.Debug("requeueing owner CatalogSource")
+				o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", metaObj.GetNamespace(), owner.Name))
+			}
+		}()
 	}
 
 	return nil
@@ -268,6 +277,18 @@ func (o *Operator) handleDeletion(obj interface{}) {
 
 	if owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind); owner != nil {
 		o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", ownee.GetNamespace(), owner.Name))
+	}
+}
+
+func (o *Operator) handleCatSrcDeletion(obj interface{}) {
+	if catsrc, ok := obj.(*v1alpha1.CatalogSource); ok {
+		sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
+		func() {
+			o.sourcesLock.Lock()
+			defer o.sourcesLock.Unlock()
+			delete(o.sources, sourceKey)
+		}()
+		o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 	}
 }
 
@@ -353,7 +374,7 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Entry, catsrc *v1alpha1.Ca
 		defer o.sourcesLock.Unlock()
 		address := catsrc.Status.RegistryServiceStatus.Address()
 		currentSource, ok := o.sources[sourceKey]
-		if !ok || currentSource.Address != address || currentSource.LastConnect.Before(&o.sourcesLastUpdate) {
+		if !ok || currentSource.Address != address {
 			client, err := registryclient.NewClient(address)
 			if err != nil {
 				logger.WithError(err).Warn("couldn't connect to registry")
@@ -378,26 +399,34 @@ func (o *Operator) syncConfigMapSource(logger *logrus.Entry, catsrc *v1alpha1.Ca
 	}
 
 	// Sync any dependent Subscriptions
+	// TODO: this should go away, we should resync the namespace instead
+	o.syncDependentSubscriptions(logger, out.GetName(), out.GetNamespace())
+
+	return nil
+}
+
+func (o *Operator) syncDependentSubscriptions(logger *logrus.Entry, catalogSource, catalogSourceNamespace string) {
 	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().List(labels.Everything())
 	if err != nil {
 		logger.Warnf("could not list Subscriptions")
-		return nil
+		return
 	}
 
 	for _, sub := range subs {
-		logger = logger.WithFields(logrus.Fields{"subscriptionCatalogSource": sub.Spec.CatalogSource, "subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace})
+		logger = logger.WithFields(logrus.Fields{
+			"subscriptionCatalogSource":    sub.Spec.CatalogSource,
+			"subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace,
+			"subscription":                 sub.GetName(),
+		})
 		catalogNamespace := sub.Spec.CatalogSourceNamespace
 		if catalogNamespace == "" {
 			catalogNamespace = o.namespace
 		}
-		logger.Debug("checking subscription")
-		if sub.Spec.CatalogSource == out.GetName() && catalogNamespace == out.GetNamespace() {
+		if sub.Spec.CatalogSource == catalogSource && catalogNamespace == catalogSourceNamespace {
 			logger.Debug("requeueing subscription because catalog changed")
 			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
 		}
 	}
-
-	return nil
 }
 
 func (o *Operator) syncSubscriptions(obj interface{}) error {
@@ -427,41 +456,12 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 		return nil
 	}
 
-	// TODO: record connection status onto an object
-	resolverSources := make(map[resolver.CatalogKey]registryclient.Interface, 0)
-	func() {
-		o.sourcesLock.RLock()
-		defer o.sourcesLock.RUnlock()
-		for k, ref := range o.sources {
-			// only resolve in namespace local + global catalogs
-			if k.Namespace == namespace || k.Namespace == o.namespace {
-				resolverSources[k] = ref.Client
-			}
-		}
-	}()
-
-	for k, s := range resolverSources {
-		client, ok := s.(*registryclient.Client)
-		if !ok {
-			logger.Warn("unexpected client")
-			continue
-		}
-		logger = logger.WithField("resolverSource", k)
-		logger.WithField("clientState", client.Conn.GetState()).Debug("source")
-		if client.Conn.GetState() == connectivity.TransientFailure {
-			logger.WithField("clientState", client.Conn.GetState()).Debug("resetting connection")
-			client.Conn.ResetConnectBackoff()
-			ctx, _ := context.WithTimeout(context.TODO(), 5*time.Second)
-			changed := client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure)
-			if !changed {
-				logger.WithField("clientState", client.Conn.GetState()).Debug("source in transient failure and didn't recover")
-			}
-			logger.WithField("clientState", client.Conn.GetState()).Debug("connection successfully reset")
-		}
-	}
+	// get the set of sources that should be used for resolution and best-effort get their connections working
+	logger.Debugf("resolving sources for %s", namespace)
+	resolverSources := o.ensureResolverSources(logger, namespace)
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, subs, err := o.resolver.ResolveSteps(sub.GetNamespace(), resolver.NewNamespaceSourceQuerier(resolverSources))
+	steps, subs, err := o.resolver.ResolveSteps(namespace, resolver.NewNamespaceSourceQuerier(resolverSources))
 	if err != nil {
 		return err
 	}
@@ -485,6 +485,43 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 		return err
 	}
 	return nil
+}
+
+func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string) map[resolver.CatalogKey]registryclient.Interface {
+	// TODO: record connection status onto an object
+	resolverSources := make(map[resolver.CatalogKey]registryclient.Interface, 0)
+	func() {
+		o.sourcesLock.RLock()
+		defer o.sourcesLock.RUnlock()
+		for k, ref := range o.sources {
+			// only resolve in namespace local + global catalogs
+			if k.Namespace == namespace || k.Namespace == o.namespace {
+				resolverSources[k] = ref.Client
+			}
+		}
+	}()
+
+	for k, s := range resolverSources {
+		client, ok := s.(*registryclient.Client)
+		if !ok {
+			logger.Warn("unexpected client")
+			continue
+		}
+		logger = logger.WithField("resolverSource", k)
+		logger.WithField("clientState", client.Conn.GetState()).Debug("source")
+		if client.Conn.GetState() == connectivity.TransientFailure {
+			logger.WithField("clientState", client.Conn.GetState()).Debug("waiting for connection")
+			ctx, _ := context.WithTimeout(context.TODO(), 5*time.Second)
+			changed := client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure)
+			if !changed {
+				logger.WithField("clientState", client.Conn.GetState()).Debug("source in transient failure and didn't recover")
+				delete(resolverSources, k)
+			} else {
+				logger.WithField("clientState", client.Conn.GetState()).Debug("connection re-established")
+			}
+		}
+	}
+	return resolverSources
 }
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {

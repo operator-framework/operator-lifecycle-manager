@@ -29,7 +29,7 @@ func (e *NamespaceGenerationEvolver) Evolve(add map[OperatorSourceInfo]struct{})
 
 	// check for updates to existing operators
 	if err := e.checkForUpdates(); err != nil {
-
+		return err
 	}
 
 	// fetch bundles for new operators (aren't yet tracked)

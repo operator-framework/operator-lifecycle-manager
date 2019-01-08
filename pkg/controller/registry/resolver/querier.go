@@ -59,7 +59,7 @@ func (q *NamespaceSourceQuerier) FindPackage(pkgName, channelName string, initia
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if !ok {
-			return nil, nil, fmt.Errorf("CatalogSource %s not found", initialSource.Name)
+			return nil, nil, fmt.Errorf("CatalogSource %s not found", initialSource)
 		}
 		bundle, err := source.GetBundleInPackageChannel(context.TODO(), pkgName, channelName)
 		if err != nil {

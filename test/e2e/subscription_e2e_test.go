@@ -398,6 +398,9 @@ func TestCreateNewSubscriptionNotInstalled(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
 	require.NoError(t, initCatalog(t, c, crc))
 
 	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
@@ -424,6 +427,9 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
 	require.NoError(t, initCatalog(t, c, crc))
 
 	// Will be cleaned up by the upgrade process
@@ -451,7 +457,9 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
 	require.NoError(t, initCatalog(t, c, crc))
 
 	subscriptionCleanup := createSubscription(t, crc, testNamespace, "manual-subscription", testPackageName, stableChannel, v1alpha1.ApprovalManual)

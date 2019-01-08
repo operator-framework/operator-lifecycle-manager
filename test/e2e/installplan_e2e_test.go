@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
@@ -222,6 +223,9 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
 
 	dependentCatalogName := genName("mock-ocs-dependent-")
 	mainCatalogName := genName("mock-ocs-main-")
@@ -263,10 +267,10 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 
 	// Create expected install plan step sources
 	expectedStepSources := map[registry.ResourceKey]registry.ResourceKey{
-		registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:              {Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {Name: dependentCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:      {Name: mainCatalogName, Namespace: testNamespace},
-		registry.ResourceKey{Name: dependentPackageName, Kind: v1alpha1.SubscriptionKind}:            {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:                                                                       {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                          {Name: dependentCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                               {Name: mainCatalogName, Namespace: testNamespace},
+		registry.ResourceKey{Name: strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), Kind: v1alpha1.SubscriptionKind}: {Name: dependentCatalogName, Namespace: testNamespace},
 	}
 
 	subscriptionName := genName("sub-nginx-")
@@ -356,14 +360,14 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		}
 
 		// Create new CRDs
-		mainCRDPlural := genName("ins")
+		mainCRDPlural := genName("ins-")
 		mainCRD := newCRD(mainCRDPlural)
 
 		// Create a new named install strategy
 		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
-		dependentCRDPlural := genName("ins")
+		dependentCRDPlural := genName("ins-")
 		dependentCRD := newCRD(dependentCRDPlural)
 
 		// Create new CSVs
@@ -374,21 +378,24 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		c := newKubeClient(t)
 		crc := newCRClient(t)
+		defer func() {
+			require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+		}()
 
 		// Create the catalog source
-		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		mainCatalogSourceName := genName("mock-ocs-main-" + strings.ToLower(t.Name()) + "-")
+		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
-			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                   {},
-			registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:              {},
-			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
-			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:      {},
-			registry.ResourceKey{Name: dependentPackageName, Kind: v1alpha1.SubscriptionKind}:            {},
+			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                                                                             {},
+			registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:                                                                        {},
+			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                           {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                                {},
+			registry.ResourceKey{Name: strings.Join([]string{dependentPackageStable, mainCatalogSourceName, testNamespace}, "-"), Kind: v1alpha1.SubscriptionKind}: {},
 		}
 
 		// Create the preexisting CRD and CSV
@@ -401,7 +408,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		t.Log("Dependent CRD and preexisting CSV created")
 
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -427,150 +434,29 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.Equal(t, len(fetchedInstallPlan.Status.Plan), len(expectedSteps))
 		t.Logf("Number of resolved steps matches the number of expected steps")
 
-		// Ensure resolved step resources originate from the correct catalog sources
+		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
+
 		for _, step := range fetchedInstallPlan.Status.Plan {
-			key := registry.ResourceKey{Name: step.Resource.Name, Kind: step.Resource.Kind}
-			_, ok := expectedSteps[key]
-			require.True(t, ok, "%s not found in expected steps: %#v", key, expectedSteps)
-		}
-	EXPECTED:
-		for key := range expectedSteps {
-			for _, step := range fetchedInstallPlan.Status.Plan {
-				if step.Resource.Name == key.Name && step.Resource.Kind == key.Kind {
-					continue EXPECTED
-				}
+			key := registry.ResourceKey{
+				Name: step.Resource.Name,
+				Kind: step.Resource.Kind,
 			}
-			t.Fatalf("expected step %s not found in %#v", key, fetchedInstallPlan.Status.Plan)
-		}
-		t.Logf("All expected resources resolved")
-	})
+			_, ok := expectedSteps[key]
+			require.True(t, ok)
 
-	t.Run("TwoPreExistingCRDOwners", func(t *testing.T) {
-		defer cleaner.NotifyTestComplete(t, true)
-
-		mainPackageName := genName("nginx")
-		dependentPackageName := genName("nginxdep")
-
-		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
-		mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
-		dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
-		dependentPackageBeta := fmt.Sprintf("%s-beta", dependentPackageName)
-
-		stableChannel := "stable"
-		betaChannel := "beta"
-
-		// Create manifests
-		mainManifests := []registry.PackageManifest{
-			{
-				PackageName: mainPackageName,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: mainPackageStable},
-				},
-				DefaultChannelName: stableChannel,
-			},
-			{
-				PackageName: dependentPackageName,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
-				},
-				DefaultChannelName: stableChannel,
-			},
+			// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
+			delete(expectedSteps, key)
 		}
 
-		// Create new CRDs
-		mainCRDPlural := genName("ins")
-		mainCRD := newCRD(mainCRDPlural)
-
-		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		dependentCRDPlural := genName("ins")
-		dependentCRD := newCRD(dependentCRDPlural)
-
-		// Create new CSVs
-		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-
-		c := newKubeClient(t)
-		crc := newCRClient(t)
-
-		// Create the catalog source
-		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
-		defer cleanupCatalogSource()
-		// Attempt to get the catalog source before creating install plan(s)
-		_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(t, err)
-
-		secondOwnerCSV := v1alpha1.ClusterServiceVersion{
-			TypeMeta: csvType,
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "second-owner",
-			},
-			Spec: v1alpha1.ClusterServiceVersionSpec{
-				Replaces:        "",
-				Version:         *semver.New("0.2.0"),
-				InstallStrategy: installStrategy,
-				CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-					Owned: []v1alpha1.CRDDescription{
-						{
-							Name:        dependentCRD.Name,
-							Version:     "v1alpha1",
-							Kind:        dependentCRDPlural,
-							DisplayName: dependentCRD.Name,
-							Description: dependentCRD.Name,
-						},
-					},
-				},
-			},
-		}
-
-		// Create the preexisting CRD and CSV
-		cleanupCRD, err := createCRD(c, dependentCRD)
-		require.NoError(t, err)
-		defer cleanupCRD()
-		cleanupBetaCSV, err := createCSV(t, c, crc, dependentBetaCSV, testNamespace, true, false)
-		require.NoError(t, err)
-		defer cleanupBetaCSV()
-		cleanupSecondOwnerCSV, err := createCSV(t, c, crc, secondOwnerCSV, testNamespace, true, false)
-		require.NoError(t, err)
-		defer cleanupSecondOwnerCSV()
-		t.Log("Dependent CRD and preexisting CSVs created")
-
-		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
-		defer subscriptionCleanup()
-
-		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(t, err)
-		require.NotNil(t, subscription)
-
-		installPlanName := subscription.Status.Install.Name
-
-		// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-		fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed))
-		require.NoError(t, err)
-		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
-
-		require.Equal(t, string(v1alpha1.InstallPlanPhaseFailed), string(fetchedInstallPlan.Status.Phase))
-
-		// Fetch installplan again to check for unnecessary control loops
-		_, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-			compareResources(t, fetchedInstallPlan, fip)
-			return true
-		})
-		require.NoError(t, err)
+		// Should have removed every matching step
+		require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
 	})
 
 	t.Run("PreExistingCRDOwnerIsReplaced", func(t *testing.T) {
 		defer cleaner.NotifyTestComplete(t, true)
 
-		mainPackageName := genName("nginx")
-		dependentPackageName := genName("nginxdep")
+		mainPackageName := genName("nginx-")
+		dependentPackageName := genName("nginx-dep-")
 
 		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 		mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
@@ -586,6 +472,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 				PackageName: mainPackageName,
 				Channels: []registry.PackageChannel{
 					{Name: stableChannel, CurrentCSVName: mainPackageStable},
+					{Name: betaChannel, CurrentCSVName: mainPackageBeta},
 				},
 				DefaultChannelName: stableChannel,
 			},
@@ -600,14 +487,14 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		}
 
 		// Create new CRDs
-		mainCRDPlural := genName("ins")
+		mainCRDPlural := genName("ins-")
 		mainCRD := newCRD(mainCRDPlural)
 
 		// Create a new named install strategy
 		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
-		dependentCRDPlural := genName("ins")
+		dependentCRDPlural := genName("ins-")
 		dependentCRD := newCRD(dependentCRDPlural)
 
 		// Create new CSVs
@@ -618,17 +505,20 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		c := newKubeClient(t)
 		crc := newCRClient(t)
+		defer func() {
+			require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+		}()
 
 		// Create the catalog source
-		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
+		mainCatalogSourceName := genName("mock-ocs-main-" + strings.ToLower(t.Name()) + "-")
+		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
 		defer cleanupCatalogSource()
 		// Attempt to get the catalog source before creating install plan(s)
-		_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+		_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 		require.NoError(t, err)
 
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -646,11 +536,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 
 		// Ensure that the desired resources have been created
 		expectedSteps := map[registry.ResourceKey]struct{}{
-			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                   {},
-			registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:              {},
-			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
-			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:      {},
-			registry.ResourceKey{Name: dependentPackageName, Kind: v1alpha1.SubscriptionKind}:            {},
+			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                                                                             {},
+			registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:                                                                        {},
+			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                           {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                                {},
+			registry.ResourceKey{Name: strings.Join([]string{dependentPackageStable, mainCatalogSourceName, testNamespace}, "-"), Kind: v1alpha1.SubscriptionKind}: {},
 		}
 
 		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
@@ -661,7 +551,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 				Kind: step.Resource.Kind,
 			}
 			_, ok := expectedSteps[key]
-			require.True(t, ok)
+			require.True(t, ok, "couldn't find %v in expected steps: %#v", key, expectedSteps)
 
 			// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
 			delete(expectedSteps, key)
@@ -671,9 +561,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
 
 		// Update the subscription resource to point to the beta CSV
-		subscription.Spec.Channel = betaChannel
-		subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
+		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(subscriptionName, metav1.NewDeleteOptions(0))
 		require.NoError(t, err)
+
+		// existing cleanup should remove this
+		createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 
 		subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(t, err)
@@ -700,116 +592,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		t.Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
-	})
-
-	t.Run("PreExistingCRDOwnerFailsPlanExecution", func(t *testing.T) {
-		defer cleaner.NotifyTestComplete(t, true)
-
-		mainPackageName := genName("nginx")
-		dependentPackageName := genName("nginxdep")
-
-		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
-		mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
-		dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
-		dependentPackageBeta := fmt.Sprintf("%s-beta", dependentPackageName)
-
-		stableChannel := "stable"
-		betaChannel := "beta"
-
-		// Create manifests
-		mainManifests := []registry.PackageManifest{
-			{
-				PackageName: mainPackageName,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: mainPackageStable},
-				},
-				DefaultChannelName: stableChannel,
-			},
-			{
-				PackageName: dependentPackageName,
-				Channels: []registry.PackageChannel{
-					{Name: stableChannel, CurrentCSVName: dependentPackageStable},
-					{Name: betaChannel, CurrentCSVName: dependentPackageBeta},
-				},
-				DefaultChannelName: stableChannel,
-			},
-		}
-
-		// Create new CRDs
-		mainCRDPlural := genName("ins")
-		mainCRD := newCRD(mainCRDPlural)
-
-		// Create a new named install strategy
-		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-		dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-
-		dependentCRDPlural := genName("ins")
-		dependentCRD := newCRD(dependentCRDPlural)
-
-		// Create new CSVs
-		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-
-		c := newKubeClient(t)
-		crc := newCRClient(t)
-
-		// Create the catalog source
-		catalogSourceName := genName("mock-ocs-main")
-		_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{dependentCRD, mainCRD}, []v1alpha1.ClusterServiceVersion{dependentBetaCSV, dependentStableCSV, mainStableCSV, mainBetaCSV})
-		defer cleanupCatalogSource()
-		// Attempt to get the catalog source before creating install plan(s)
-		_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-		require.NoError(t, err)
-
-		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
-		defer subscriptionCleanup()
-
-		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(t, err)
-		require.NotNil(t, subscription)
-
-		installPlanName := subscription.Status.Install.Name
-
-		// Add pre-existing dependencies
-		dependentCRDCleanup, err := createCRD(c, dependentCRD)
-		require.NoError(t, err)
-		defer dependentCRDCleanup()
-
-		dependentBetaCSVCleanup, err := createCSV(t, c, crc, dependentBetaCSV, testNamespace, true, false)
-		require.NoError(t, err)
-		defer dependentBetaCSVCleanup()
-
-		// Fetch the dummy installplan
-		fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed))
-		require.NoError(t, err)
-
-		// Update spec to point at a valid CSV
-		subscription.Spec.Channel = betaChannel
-		subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
-		require.NoError(t, err)
-
-		subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-		require.NoError(t, err)
-		require.NotNil(t, subscription)
-
-		installPlanName = subscription.Status.Install.Name
-
-		// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
-		fetchedInstallPlan, err = fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed))
-		require.NoError(t, err)
-		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
-
-		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
-		// Fetch installplan again to check for unnecessary control loops
-		fetchedInstallPlan, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-			compareResources(t, fetchedInstallPlan, fip)
-			return true
-		})
-		require.NoError(t, err)
 	})
 }
 
@@ -875,18 +657,21 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
 
 	// Create CatalogSource
-	catalogSourceName := genName("nginx-catalog")
-	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{stableCSV})
+	mainCatalogSourceName := genName("nginx-catalog")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{stableCSV})
 	defer cleanupCatalogSource()
 
 	// Attempt to get CatalogSource
-	_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	subscriptionName := genName("sub-nginx-")
-	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, packageName, stableChannel, v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)

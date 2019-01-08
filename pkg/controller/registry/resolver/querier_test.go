@@ -219,7 +219,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 			name:   "inInitial",
 			fields: fields{sources: sources},
 			args:   args{"test", "testChannel", CatalogKey{"absent", "found"}},
-			out:    out{bundle: nil, key: nil, err: fmt.Errorf("CatalogSource absent not found")},
+			out:    out{bundle: nil, key: nil, err: fmt.Errorf("CatalogSource {absent found} not found")},
 		},
 		{
 			name:   "inOther",
