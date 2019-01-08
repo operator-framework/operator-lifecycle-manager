@@ -22,7 +22,6 @@ func TestDirectoryLoader(t *testing.T) {
 	require.Contains(t, catalog.packages, "federationv2")
 	require.Contains(t, catalog.packages, "prometheus")
 	require.Contains(t, catalog.packages, "svcat")
-	require.Contains(t, catalog.packages, "marketplace")
 }
 
 func TestDirectoryLoaderHiddenDirs(t *testing.T) {
