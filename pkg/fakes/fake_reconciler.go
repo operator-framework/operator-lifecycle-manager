@@ -5,7 +5,7 @@ import (
 	sync "sync"
 
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	registry "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	reconciler "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 )
 
 type FakeRegistryReconciler struct {
@@ -108,4 +108,4 @@ func (fake *FakeRegistryReconciler) recordInvocation(key string, args []interfac
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ registry.RegistryReconciler = new(FakeRegistryReconciler)
+var _ reconciler.RegistryReconciler = new(FakeRegistryReconciler)

@@ -56,10 +56,15 @@ spec:
               enum:
               - internal   # deprecated
               - configmap
+              - grpc
 
             configMap:
               type: string
               description: The name of a ConfigMap that holds the entries for an in-memory catalog.
+
+            image:
+              type: string
+              description: An image that serves a grpc registry. Only valid for `grpc` sourceType.
 
             displayName:
               type: string
