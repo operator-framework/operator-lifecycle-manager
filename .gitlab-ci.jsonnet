@@ -23,16 +23,6 @@ local stages = utils.set(stages_list);
 
 // List CI jobs
 local jobs = {
-    // Helpers
-    local onlyMaster = {
-        only: ['master', 'tags'],
-    },
-
-    local onlyBranch = {
-        only: ['branches'],
-        except: ['master', 'tags'],
-    },
-
     'container-base-build': baseJob.dockerBuild {
         stage: stages.docker_base,
         script: docker.build_and_push(images.base.name,
@@ -56,7 +46,8 @@ local jobs = {
             'builder': images.ci.olm.name,
             'olm': images.prerelease.olm.name,
             'e2e': images.e2e.name,
-        })
+        }),
+        only: ['master', 'tags'],
     },
 
     'container-release': baseJob.dockerBuild {
@@ -81,23 +72,6 @@ local jobs = {
         only: ['tags'],
     },
 
-    "deploy-preview": baseJob.Deploy {
-        local _vars = self.localvars,
-        localvars+:: {
-            helm_opts: ["--force"],
-        },
-        stage: stages.deploy_preview,
-        when: "manual",
-        environment+: {
-            on_stop: "stop-preview",
-        },
-    } + onlyBranch,
-
-    "stop-preview": baseJob.DeployStop {
-        when: "manual",
-        stage: stages.deploy_preview,
-    } + onlyBranch,
-
     "deploy-staging": baseJob.Deploy {
         local _vars = self.localvars,
         localvars+:: {
@@ -114,31 +88,6 @@ local jobs = {
             name: "staging",
         },
         only: ['master'],
-    },
-
-    # currently not needed, to re-enable remove the "." prefix
-    ".deploy-teamui": baseJob.Deploy {
-        local _vars = self.localvars,
-        localvars+:: {
-            image: images.release,
-            domain: "teamui.console.team.coreos.systems",
-            namespace: "operator-lifecycle-manager",
-            catalog_namespace: "operator-lifecycle-manager",
-            channel: "staging",
-            helm_opts: ["--force"],
-            kubeconfig: "$TEAMUI_KUBECONFIG",
-            params+:: {
-                watchedNamespaces: "",
-            },
-        },
-        stage: stages.deploy_staging,
-        script+: [
-            "curl -X POST --data-urlencode \"payload={\\\"text\\\": \\\"New OLM Operator quay.io/coreos/olm:${CI_COMMIT_REF_SLUG}-${CI_COMMIT_SHA} deployed to ${TEAMUI_HOST}/k8s/ns/operator-lifecycle-manager/deployments/alm-operator\\\"}\" ${TEAMUI_SLACK_URL}",
-        ],
-        environment+: {
-            name: "teamui",
-        },
-        only: [''],
     },
 
     "deploy-openshift": baseJob.Deploy {

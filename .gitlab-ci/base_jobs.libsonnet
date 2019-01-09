@@ -71,8 +71,7 @@ local appr = utils.appr;
                                  "$DOCKER_USER",
                                  "$DOCKER_PASS") +
             k8s.waitForDeployment("olm-operator", _vars.namespace) +
-            k8s.waitForDeployment("catalog-operator", _vars.namespace) +
-            k8s.waitForDeployment("package-server", _vars.namespace),
+            k8s.waitForDeployment("catalog-operator", _vars.namespace)
     } + job_tags,
 
     DeployStop: self.Deploy {
