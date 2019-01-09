@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_10-olm-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -44,3 +44,6 @@ spec:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
             value: olm-operator
+      nodeSelector:
+        beta.kubernetes.io/os:linux
+        

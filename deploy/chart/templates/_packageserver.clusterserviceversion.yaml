@@ -74,6 +74,9 @@
                   app: packageserver
               spec:
                 serviceAccountName: packageserver
+                {{- if .Values.olm.nodeSelector }}
+                nodeSelector: {{ toYaml .Values.package.nodeSelector }}
+                {{- end }}
                 containers:
                 - name: packageserver
                   command:

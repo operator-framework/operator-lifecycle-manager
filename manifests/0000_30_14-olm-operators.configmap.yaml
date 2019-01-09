@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_14-olm-operators.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
@@ -85,6 +85,8 @@ data:
                       app: packageserver
                   spec:
                     serviceAccountName: packageserver
+                    nodeSelector: beta.kubernetes.io/os:linux
+    
                     containers:
                     - name: packageserver
                       command:
