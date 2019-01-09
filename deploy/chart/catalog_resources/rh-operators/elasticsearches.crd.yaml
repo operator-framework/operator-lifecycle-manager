@@ -17,57 +17,67 @@ spec:
         spec:
           description: Specification of the desired behavior of the Elasticsearch cluster
           properties:
+            managementState:
+              description: Indicator if the resource is 'Managed' or 'Unmanaged' by the operator
+              type: string
+              enum:
+              - "Managed"
+              - "Unmanaged"
+            redundancyPolicy:
+              description: The policy towards data redundancy to specify the number of redundant primary shards
+              type: string
+              enum:
+              - "FullRedundancy"
+              - "MultipleRedundancy"
+              - "SingleRedundancy"
+              - "ZeroRedundancy"
             nodes:
               description: Specification of the different Elasticsearch nodes
-              properties:
-                roles:
-                  description: The specific Elasticsearch cluster roles the node should perform
-                  type: object
-                replicas:
-                  description: Number of nodes to deploy
-                  format: int32
-                  type: integer
-                spec:
-                  description: Specification of the Elasticsearch node
-                  properties:
-                    image:
-                      description: The image to use for the Elasticsearch node
-                      type: string
-                    resources:
-                      description: The resource requirements for the Elasticsearch node
-                      properties:
-                        limits:
-                          description: 'Limits describes the maximum amount of compute
-                            resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
-                          type: object
-                        requests:
-                          description: 'Requests describes the minimum amount of compute
-                            resources required. If Requests is omitted for a container,
-                            it defaults to Limits if that is explicitly specified, otherwise
-                            to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
-                          type: object
-                nodeSelector:
-                  description: Define which Nodes the Pods are scheduled on.
-                  type: object
-                storage:
-                  description: The type of backing storage that should be used for the node
-                  properties:
-                    hostPath:
-                      description: Use host node storage
-                      type: object
-                    emptyDir:
-                      description: Use ephemeral storage
-                      type: object
-                    volumeClaimTemplate:
-                      description: 'Volume claims that act similarly to the VolumeClaimTemplates
-                        field of StatefulSets. A number of PVCs will be generated based on the number of
-                        node replicas'
-                      type: object
-                    persistentVolumeClaim:
-                      description: Use a specifically named Persistent Volume Claim
-                      type: object
+              type: array
+              items:
+                type: object
+                properties:
+                  roles:
+                    description: The specific Elasticsearch cluster roles the node should perform
+                    type: object
+                  nodeCount:
+                    description: Number of nodes to deploy
+                    format: int32
+                    type: integer
+                    minimum: 1
+                  nodeSpec:
+                    description: Specification of a specific Elasticsearch node
+                    properties:
+                      image:
+                        description: The image to use for the Elasticsearch node
+                        type: string
+                      resources:
+                        description: The resource requirements for the Elasticsearch node
+                        properties:
+                          limits:
+                            description: 'Limits describes the maximum amount of compute
+                              resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                            type: object
+                          requests:
+                            description: 'Requests describes the minimum amount of compute
+                              resources required. If Requests is omitted for a container,
+                              it defaults to Limits if that is explicitly specified, otherwise
+                              to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                            type: object
+                  nodeSelector:
+                    description: Define which Nodes the Pods are scheduled on.
+                    type: object
+                  storage:
+                    description: The type of backing storage that should be used for the node
+                    properties:
+                      storageClassName:
+                        description: The name of the storage class to use with creating the node's PVC
+                        type: string
+                      size:
+                        description: The max storage capacity for the node
+                        type: string
             nodeSpec:
-              description: Specification to be applied to all the Elasticsearch nodes
+              description: Default specification applied to all Elasticsearch nodes
               properties:
                 image:
                   description: The image to use for the Elasticsearch nodes
@@ -85,12 +95,3 @@ spec:
                         it defaults to Limits if that is explicitly specified, otherwise
                         to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                       type: object
-            serviceAccountName:
-              description: The service account for the Elasticsearch nodes in this cluster
-              type: string
-            configMapName:
-              description: The configmap for the Elasticsearch nodes in this cluster
-              type: string
-            secretName:
-              description: The secret for the Elasticsearch nodes in this cluster
-              type: string

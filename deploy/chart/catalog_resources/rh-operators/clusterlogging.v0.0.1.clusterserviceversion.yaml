@@ -6,7 +6,7 @@ metadata:
   name: clusterlogging.v0.0.1
   namespace: placeholder
   annotations:
-    olm-examples: '[{"apiVersion": "logging.openshift.io/v1alpha1","kind": "ClusterLogging","metadata":{"name": "example","annotations":{"io.openshift.clusterlogging.alpha/allinone": ""}},"spec": {"logStore":{"type": "elasticsearch","elasticsearch":{"replicas":1,"storage":{"emptyDir": {}}}},"visualization":{"type": "kibana","kibana":{"replicas": 1}},"curation":{"type": "curator","curator": {"schedule": "30 3 * * *"}},"collection": {"logCollection":{"type": "fluentd","fluentd":{"nodeSelector":{"logging-infra-fluentd: "true"}}}}}]'
+    olm-examples: '[{"apiVersion": "logging.openshift.io/v1alpha1","kind": "ClusterLogging","metadata":{"name": "cluster-logging"},"spec": {"logStore":{"type": "elasticsearch","elasticsearch":{"nodeCount":3,"storage":{"size": "200Gi"}}},"visualization":{"type": "kibana","kibana":{"replicas": 1}},"curation":{"type": "curator","curator": {"schedule": "30 3 * * *"}},"collection": {"logs":{"type": "fluentd","fluentd":{}}}}}]'
     test: "yes"
 spec:
   displayName: Cluster Logging
@@ -36,6 +36,8 @@ spec:
     url: https://github.com/openshift/cluster-logging-operator/blob/master/README.md
   - name: Cluster Logging Operator
     url: https://github.com/openshift/cluster-logging-operator
+  - name: Elasticsearch Operator
+    url: https://github.com/openshift/elasticsearch-operator
   installModes:
   - type: OwnNamespace
     supported: true
@@ -264,12 +266,12 @@ spec:
         path: visualization.kibana.nodeSelector
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
-      - description: The desired number of Elasticsearch Pods for the Log Storage component
+      - description: The desired number of Elasticsearch Nodes for the Log Storage component
         displayName: Elasticsearch Size
-        path: logStore.elasticsearch.replicas
+        path: logStore.elasticsearch.nodeCount
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-      - description: Resource requirements for the Elasticsearch pods
+      - description: Resource requirements for each Elasticsearch node
         displayName: Elasticsearch Resource Requirements
         path: logStore.elasticsearch.resources
         x-descriptors:
@@ -281,22 +283,22 @@ spec:
         - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
       - description: Resource requirements for the Fluentd pods
         displayName: Fluentd Resource Requirements
-        path: collection.logCollection.fluentd.resources
+        path: collection.logs.fluentd.resources
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       - description: The node selector to use for the Fluentd log collection component
         displayName: Fluentd node selector
-        path: collection.logCollection.fluentd.nodeSelector
+        path: collection.logs.fluentd.nodeSelector
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
       - description: Resource requirements for the Rsyslog pods
         displayName: Rsyslog Resource Requirements
-        path: collection.logCollection.rsyslog.resources
+        path: collection.logs.rsyslog.resources
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
       - description: The node selector to use for the Rsyslog log collection component
         displayName: Rsyslog node selector
-        path: collection.logCollection.rsyslog.nodeSelector
+        path: collection.logs.rsyslog.nodeSelector
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
       - description: Resource requirements for the Curator pods
@@ -335,15 +337,15 @@ spec:
         - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
       - description: The cluster status for each of the Elasticsearch Clusters for the Log Storage component
         displayName: Elasticsearch Cluster Health
-        path: logstore.elasticsearchStatus.clusterHealth
+        path: logStore.elasticsearchStatus.clusterHealth
       - description: The status for each of the Fluentd pods for the Log Collection component
         displayName: Fluentd status
-        path: collection.logCollection.fluentdStatus.pods
+        path: collection.logs.fluentdStatus.pods
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
       - description: The status for each of the Rsyslog pods for the Log Collection component
         displayName: Rsyslog status
-        path: collection.logCollection.rsyslogStatus.pods
+        path: collection.logs.rsyslogStatus.pods
         x-descriptors:
         - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
     - name: elasticsearches.logging.openshift.io

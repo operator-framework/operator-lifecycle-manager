@@ -4443,6 +4443,12 @@ data:
               spec:
                 description: Specification of the desired behavior of the Logging cluster.
                 properties:
+                  managementState:
+                    description: Indicator if the resource is 'Managed' or 'Unmanaged' by the operator
+                    type: string
+                    enum:
+                    - "Managed"
+                    - "Unmanaged"
                   visualization:
                     description: Specification of the Visualization component for the cluster
                     properties:
@@ -4517,22 +4523,35 @@ data:
                           nodeSelector:
                             description: Define which Nodes the Pods are scheduled on.
                             type: object
-                          replicas:
+                          nodeCount:
                             description: Number of nodes to deploy for Elasticsearch
                             format: int32
                             type: integer
                           storage:
-                            description: 'The storage backing for Elasticsearch. More info: '
-                            type: object
+                            description: 'The storage specification for Elasticsearch data nodes'
+                            properties:
+                              size:
+                                description: 'The capacity of storage to provision.'
+                                type: string
+                              storageClassName:
+                                description: 'The class of storage to provision. More info: https://kubernetes.io/docs/concepts/storage/storage-classes/'
+                                type: string
+                          redundancyPolicy:
+                            description: The policy towards data redundancy to specify the number of redundant primary shards
+                            type: string
+                            enum:
+                            - "FullRedundancy"
+                            - "MultipleRedundancy"
+                            - "SingleRedundancy"
+                            - "ZeroRedundancy"
                         required:
-                        - replicas
-                        - storage
+                        - nodeCount
                     required:
                     - type
                   collection:
                     description: Specification of the Collection component for the cluster
                     properties:
-                      logCollection:
+                      logs:
                         description: Specification of Log Collection for the cluster
                         properties:
                           type:
@@ -4559,8 +4578,6 @@ data:
                                 type: object
                         required:
                         - type
-                      #eventCollection:
-                      #normalizer:
                   curation:
                     description: Specification of the Curation component for the cluster
                     properties:
@@ -4642,57 +4659,67 @@ data:
               spec:
                 description: Specification of the desired behavior of the Elasticsearch cluster
                 properties:
+                  managementState:
+                    description: Indicator if the resource is 'Managed' or 'Unmanaged' by the operator
+                    type: string
+                    enum:
+                    - "Managed"
+                    - "Unmanaged"
+                  redundancyPolicy:
+                    description: The policy towards data redundancy to specify the number of redundant primary shards
+                    type: string
+                    enum:
+                    - "FullRedundancy"
+                    - "MultipleRedundancy"
+                    - "SingleRedundancy"
+                    - "ZeroRedundancy"
                   nodes:
                     description: Specification of the different Elasticsearch nodes
-                    properties:
-                      roles:
-                        description: The specific Elasticsearch cluster roles the node should perform
-                        type: object
-                      replicas:
-                        description: Number of nodes to deploy
-                        format: int32
-                        type: integer
-                      spec:
-                        description: Specification of the Elasticsearch node
-                        properties:
-                          image:
-                            description: The image to use for the Elasticsearch node
-                            type: string
-                          resources:
-                            description: The resource requirements for the Elasticsearch node
-                            properties:
-                              limits:
-                                description: 'Limits describes the maximum amount of compute
-                                  resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
-                                type: object
-                              requests:
-                                description: 'Requests describes the minimum amount of compute
-                                  resources required. If Requests is omitted for a container,
-                                  it defaults to Limits if that is explicitly specified, otherwise
-                                  to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
-                                type: object
-                      nodeSelector:
-                        description: Define which Nodes the Pods are scheduled on.
-                        type: object
-                      storage:
-                        description: The type of backing storage that should be used for the node
-                        properties:
-                          hostPath:
-                            description: Use host node storage
-                            type: object
-                          emptyDir:
-                            description: Use ephemeral storage
-                            type: object
-                          volumeClaimTemplate:
-                            description: 'Volume claims that act similarly to the VolumeClaimTemplates
-                              field of StatefulSets. A number of PVCs will be generated based on the number of
-                              node replicas'
-                            type: object
-                          persistentVolumeClaim:
-                            description: Use a specifically named Persistent Volume Claim
-                            type: object
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        roles:
+                          description: The specific Elasticsearch cluster roles the node should perform
+                          type: object
+                        nodeCount:
+                          description: Number of nodes to deploy
+                          format: int32
+                          type: integer
+                          minimum: 1
+                        nodeSpec:
+                          description: Specification of a specific Elasticsearch node
+                          properties:
+                            image:
+                              description: The image to use for the Elasticsearch node
+                              type: string
+                            resources:
+                              description: The resource requirements for the Elasticsearch node
+                              properties:
+                                limits:
+                                  description: 'Limits describes the maximum amount of compute
+                                    resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                  type: object
+                                requests:
+                                  description: 'Requests describes the minimum amount of compute
+                                    resources required. If Requests is omitted for a container,
+                                    it defaults to Limits if that is explicitly specified, otherwise
+                                    to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                  type: object
+                        nodeSelector:
+                          description: Define which Nodes the Pods are scheduled on.
+                          type: object
+                        storage:
+                          description: The type of backing storage that should be used for the node
+                          properties:
+                            storageClassName:
+                              description: The name of the storage class to use with creating the node's PVC
+                              type: string
+                            size:
+                              description: The max storage capacity for the node
+                              type: string
                   nodeSpec:
-                    description: Specification to be applied to all the Elasticsearch nodes
+                    description: Default specification applied to all Elasticsearch nodes
                     properties:
                       image:
                         description: The image to use for the Elasticsearch nodes
@@ -4710,16 +4737,6 @@ data:
                               it defaults to Limits if that is explicitly specified, otherwise
                               to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
                             type: object
-                  serviceAccountName:
-                    description: The service account for the Elasticsearch nodes in this cluster
-                    type: string
-                  configMapName:
-                    description: The configmap for the Elasticsearch nodes in this cluster
-                    type: string
-                  secretName:
-                    description: The secret for the Elasticsearch nodes in this cluster
-                    type: string
-      
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
@@ -6160,128 +6177,6 @@ data:
           kind: ""
           plural: ""
         conditions: null
-      
-    - apiVersion: apiextensions.k8s.io/v1beta1
-      kind: CustomResourceDefinition
-      metadata:
-        name: catalogsourceconfigs.marketplace.redhat.com
-        annotations:
-          displayName: Catalog Source Config
-          description: Represents a CatalogSourceConfig.
-      spec:
-        group: marketplace.redhat.com
-        names:
-          kind: CatalogSourceConfig
-          listKind: CatalogSourceConfigList
-          plural: catalogsourceconfigs
-          singular: catalogsourceconfig
-          shortNames:
-          - csc
-        scope: Namespaced
-        version: v1alpha1
-        additionalPrinterColumns:
-        - name: TargetNamespace
-          type: string
-          description: The namespace where the operators will be enabled
-          JSONPath: .spec.targetNamespace
-        - name: Packages
-          type: string
-          description: List of operator(s) which will be enabled in the target namespace
-          JSONPath: .spec.packages
-        - name: Status
-          type: string
-          description: Current status of the CatalogSourceConfig
-          JSONPath: .status.currentPhase.phase.name
-        - name: Message
-          type: string
-          description: Message associated with the current status
-          JSONPath: .status.currentPhase.phase.message
-        - name: Age
-          type: date
-          JSONPath: .metadata.creationTimestamp
-        validation:
-          openAPIV3Schema:
-            properties:
-              spec:
-                type: object
-                description: Spec for a CatalogSourceConfig
-                required:
-                - targetNamespace
-                - packages
-                properties:
-                  targetNamespace:
-                    type: string
-                    description: The namespace where the operators will be enabled
-                  packages:
-                    type: string
-                    description: Comma separated list of operator(s) without spaces which will be enabled in the target namespace
-      
-    - apiVersion: apiextensions.k8s.io/v1beta1
-      kind: CustomResourceDefinition
-      metadata:
-        name: operatorsources.marketplace.redhat.com
-        annotations:
-          displayName: Operator Source
-          description: Represents an OperatorSource.
-      spec:
-        group: marketplace.redhat.com
-        names:
-          kind: OperatorSource
-          listKind: OperatorSourceList
-          plural: operatorsources
-          singular: operatorsource
-          shortNames:
-          - opsrc
-        scope: Namespaced
-        version: v1alpha1
-        additionalPrinterColumns:
-        - name: Type
-          type: string
-          description: The type of the OperatorSource
-          JSONPath: .spec.type
-        - name: Endpoint
-          type: string
-          description: The endpoint of the OperatorSource
-          JSONPath: .spec.endpoint
-        - name: Registry
-          type: string
-          description: App registry namespace
-          JSONPath: .spec.registryNamespace
-        - name: Status
-          type: string
-          description: Current status of the OperatorSource
-          JSONPath: .status.currentPhase.phase.name
-        - name: Message
-          type: string
-          description: Message associated with the current status
-          JSONPath: .status.currentPhase.phase.message
-        - name: Age
-          type: date
-          JSONPath: .metadata.creationTimestamp
-        validation:
-          openAPIV3Schema:
-            properties:
-              spec:
-                type: object
-                description: Spec for an OperatorSource.
-                required:
-                - type
-                - endpoint
-                - registryNamespace
-                properties:
-                  type:
-                    type: string
-                    description: The type of the OperatorSource
-                    pattern: 'appregistry'
-                  endpoint:
-                    type: string
-                    description: Points to the remote app registry server from where operator manifests can be fetched.
-                  registryNamespace:
-                    type: string
-                    description: |-
-                      The namespace in app registry.
-                      Only operator manifests under this namespace will be visible.
-                      Please note that this is not a k8s namespace.
       
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
@@ -10154,7 +10049,7 @@ data:
         name: clusterlogging.v0.0.1
         namespace: placeholder
         annotations:
-          olm-examples: '[{"apiVersion": "logging.openshift.io/v1alpha1","kind": "ClusterLogging","metadata":{"name": "example","annotations":{"io.openshift.clusterlogging.alpha/allinone": ""}},"spec": {"logStore":{"type": "elasticsearch","elasticsearch":{"replicas":1,"storage":{"emptyDir": {}}}},"visualization":{"type": "kibana","kibana":{"replicas": 1}},"curation":{"type": "curator","curator": {"schedule": "30 3 * * *"}},"collection": {"logCollection":{"type": "fluentd","fluentd":{"nodeSelector":{"logging-infra-fluentd: "true"}}}}}]'
+          olm-examples: '[{"apiVersion": "logging.openshift.io/v1alpha1","kind": "ClusterLogging","metadata":{"name": "cluster-logging"},"spec": {"logStore":{"type": "elasticsearch","elasticsearch":{"nodeCount":3,"storage":{"size": "200Gi"}}},"visualization":{"type": "kibana","kibana":{"replicas": 1}},"curation":{"type": "curator","curator": {"schedule": "30 3 * * *"}},"collection": {"logs":{"type": "fluentd","fluentd":{}}}}}]'
           test: "yes"
       spec:
         displayName: Cluster Logging
@@ -10184,6 +10079,8 @@ data:
           url: https://github.com/openshift/cluster-logging-operator/blob/master/README.md
         - name: Cluster Logging Operator
           url: https://github.com/openshift/cluster-logging-operator
+        - name: Elasticsearch Operator
+          url: https://github.com/openshift/elasticsearch-operator
         installModes:
         - type: OwnNamespace
           supported: true
@@ -10412,12 +10309,12 @@ data:
               path: visualization.kibana.nodeSelector
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
-            - description: The desired number of Elasticsearch Pods for the Log Storage component
+            - description: The desired number of Elasticsearch Nodes for the Log Storage component
               displayName: Elasticsearch Size
-              path: logStore.elasticsearch.replicas
+              path: logStore.elasticsearch.nodeCount
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:podCount'
-            - description: Resource requirements for the Elasticsearch pods
+            - description: Resource requirements for each Elasticsearch node
               displayName: Elasticsearch Resource Requirements
               path: logStore.elasticsearch.resources
               x-descriptors:
@@ -10429,22 +10326,22 @@ data:
               - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
             - description: Resource requirements for the Fluentd pods
               displayName: Fluentd Resource Requirements
-              path: collection.logCollection.fluentd.resources
+              path: collection.logs.fluentd.resources
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
             - description: The node selector to use for the Fluentd log collection component
               displayName: Fluentd node selector
-              path: collection.logCollection.fluentd.nodeSelector
+              path: collection.logs.fluentd.nodeSelector
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
             - description: Resource requirements for the Rsyslog pods
               displayName: Rsyslog Resource Requirements
-              path: collection.logCollection.rsyslog.resources
+              path: collection.logs.rsyslog.resources
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
             - description: The node selector to use for the Rsyslog log collection component
               displayName: Rsyslog node selector
-              path: collection.logCollection.rsyslog.nodeSelector
+              path: collection.logs.rsyslog.nodeSelector
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
             - description: Resource requirements for the Curator pods
@@ -10483,15 +10380,15 @@ data:
               - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
             - description: The cluster status for each of the Elasticsearch Clusters for the Log Storage component
               displayName: Elasticsearch Cluster Health
-              path: logstore.elasticsearchStatus.clusterHealth
+              path: logStore.elasticsearchStatus.clusterHealth
             - description: The status for each of the Fluentd pods for the Log Collection component
               displayName: Fluentd status
-              path: collection.logCollection.fluentdStatus.pods
+              path: collection.logs.fluentdStatus.pods
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
             - description: The status for each of the Rsyslog pods for the Log Collection component
               displayName: Rsyslog status
-              path: collection.logCollection.rsyslogStatus.pods
+              path: collection.logs.rsyslogStatus.pods
               x-descriptors:
               - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
           - name: elasticsearches.logging.openshift.io
@@ -11749,154 +11646,6 @@ data:
               kind: ReplicaSchedulingPreference
               name: replicaschedulingpreferences.scheduling.federation.k8s.io
               version: v1alpha1
-      
-    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
-      #! parse-kind: ClusterServiceVersion
-      apiVersion: operators.coreos.com/v1alpha1
-      kind: ClusterServiceVersion
-      metadata:
-        name: marketplace-operator.v0.0.1
-        namespace: placeholder
-      spec:
-        displayName: marketplace-operator
-        description: |-
-          Marketplace is a gateway for users to consume off-cluster Operators which will include Red Hat, ISV, optional OpenShift and community content.
-        keywords: ['marketplace', 'catalog', 'olm', 'admin']
-        version: 0.0.1
-        maturity: alpha
-        maintainers:
-        - name: AOS Marketplace Team
-          email: aos-marketplace@redhat.com
-        provider:
-          name: Red Hat
-        labels:
-          name: marketplace-operator
-        selector:
-          matchLabels:
-            name: marketplace-operator
-        links:
-        - name: Markplace Operator Source Code
-          url: https://github.com/operator-framework/operator-marketplace
-        installModes:
-        - type: OwnNamespace
-          supported: true
-        - type: SingleNamespace
-          supported: true
-        - type: MultiNamespace
-          supported: false
-        - type: AllNamespaces
-          supported: true
-        install:
-          strategy: deployment
-          spec:
-            clusterPermissions:
-            - serviceAccountName: marketplace-operator
-              rules:
-              - apiGroups:
-                - marketplace.redhat.com
-                resources:
-                - "*"
-                verbs:
-                - "*"
-              - apiGroups:
-                - ""
-                resources:
-                - services
-                - configmaps
-                verbs:
-                - "*"
-              - apiGroups:
-                - operators.coreos.com
-                resources:
-                - catalogsources
-                verbs:
-                - "*"
-            deployments:
-            - name: marketplace-operator
-              spec:
-                replicas: 1
-                selector:
-                  matchLabels:
-                    name: marketplace-operator
-                template:
-                  metadata:
-                    name: marketplace-operator
-                    labels:
-                      name: marketplace-operator
-                  spec:
-                    serviceAccountName: marketplace-operator
-                    containers:
-                      - name: marketplace-operator
-                        image: quay.io/openshift/origin-operator-marketplace:latest
-                        ports:
-                        - containerPort: 60000
-                          name: metrics
-                        - containerPort: 8080
-                          name: healthz
-                        command:
-                        - marketplace-operator
-                        imagePullPolicy: Always
-                        livenessProbe:
-                          httpGet:
-                            path: /healthz
-                            port: 8080
-                        readinessProbe:
-                          httpGet:
-                            path: /healthz
-                            port: 8080
-                        env:
-                          - name: WATCH_NAMESPACE
-                            valueFrom:
-                              fieldRef:
-                                fieldPath: metadata.namespace
-                          - name: OPERATOR_NAME
-                            value: "marketplace-operator"
-        customresourcedefinitions:
-          owned:
-          - name: operatorsources.marketplace.redhat.com
-            version: v1alpha1
-            kind: OperatorSource
-            displayName: Operator Source
-            description: Represents an OperatorSource.
-            specDescriptors: 
-              - description: The type of the operator source.
-                displayName: Type
-                path: type
-              - description: Points to the remote app registry server from where operator manifests can be fetched.
-                displayName: Endpoint
-                path: endpoint
-              - description: |-
-                  The namespace in app registry.
-                  Only operator manifests under this namespace will be visible.
-                  Please note that this is not a k8s namespace.
-                displayName: Registry Namespace
-                path: registryNamespace
-            statusDescriptors:
-              - description: Current status of the CatalogSourceConfig
-                displayName: Current Phase Name
-                path: currentPhase.phase.name
-              - description: Message associated with the current status
-                displayName: Current Phase Message
-                path: currentPhase.phase.message
-          - name: catalogsourceconfigs.marketplace.redhat.com
-            version: v1alpha1
-            kind: CatalogSourceConfig
-            displayName: Catalog Source Config
-            description: Represents a CatalogSourceConfig object which is used to configure a CatalogSource.
-            specDescriptors:
-              - description: The namespace where the operators will be enabled.
-                displayName: Target Namespace
-                path: targetNamespace
-              - description: List of operator(s) which will be enabled in the target namespace
-                displayName: Packages
-                path: packages
-            statusDescriptors:
-              - description: Current status of the CatalogSourceConfig
-                displayName: Current Phase Name
-                path: currentPhase.phase.name
-              - description: Message associated with the current status
-                displayName: Current Phase Message
-                path: currentPhase.phase.message
       
     - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
       #! parse-kind: ClusterServiceVersion
@@ -13448,12 +13197,6 @@ data:
       channels:
       - name: alpha
         currentCSV: federationv2.v0.0.2
-      
-    - #! package-manifest: deploy/chart/catalog_resources/rh-operators/marketplace.v0.0.1.clusterserviceversion.yaml
-      packageName: marketplace
-      channels:
-      - name: alpha
-        currentCSV: marketplace-operator.v0.0.1
       
     - #! package-manifest: deploy/chart/catalog_resources/rh-operators/metering-operator.v0.12.0.clusterserviceversion.yaml
       packageName: metering

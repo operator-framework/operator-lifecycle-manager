@@ -12,6 +12,5 @@ metadata:
   name: olm-operators
   namespace: openshift-operator-lifecycle-manager
 spec:
-  selector:
-    matchLabels:
-      olm.components: "global"
+  targetNamespaces:
+    - openshift-operator-lifecycle-manager

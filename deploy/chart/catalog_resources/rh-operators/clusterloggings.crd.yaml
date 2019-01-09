@@ -17,6 +17,12 @@ spec:
         spec:
           description: Specification of the desired behavior of the Logging cluster.
           properties:
+            managementState:
+              description: Indicator if the resource is 'Managed' or 'Unmanaged' by the operator
+              type: string
+              enum:
+              - "Managed"
+              - "Unmanaged"
             visualization:
               description: Specification of the Visualization component for the cluster
               properties:
@@ -91,22 +97,35 @@ spec:
                     nodeSelector:
                       description: Define which Nodes the Pods are scheduled on.
                       type: object
-                    replicas:
+                    nodeCount:
                       description: Number of nodes to deploy for Elasticsearch
                       format: int32
                       type: integer
                     storage:
-                      description: 'The storage backing for Elasticsearch. More info: '
-                      type: object
+                      description: 'The storage specification for Elasticsearch data nodes'
+                      properties:
+                        size:
+                          description: 'The capacity of storage to provision.'
+                          type: string
+                        storageClassName:
+                          description: 'The class of storage to provision. More info: https://kubernetes.io/docs/concepts/storage/storage-classes/'
+                          type: string
+                    redundancyPolicy:
+                      description: The policy towards data redundancy to specify the number of redundant primary shards
+                      type: string
+                      enum:
+                      - "FullRedundancy"
+                      - "MultipleRedundancy"
+                      - "SingleRedundancy"
+                      - "ZeroRedundancy"
                   required:
-                  - replicas
-                  - storage
+                  - nodeCount
               required:
               - type
             collection:
               description: Specification of the Collection component for the cluster
               properties:
-                logCollection:
+                logs:
                   description: Specification of Log Collection for the cluster
                   properties:
                     type:
@@ -133,8 +152,6 @@ spec:
                           type: object
                   required:
                   - type
-                #eventCollection:
-                #normalizer:
             curation:
               description: Specification of the Curation component for the cluster
               properties:
