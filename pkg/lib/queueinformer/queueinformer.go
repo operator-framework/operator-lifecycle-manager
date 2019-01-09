@@ -55,30 +55,30 @@ func (q *QueueInformer) keyFunc(obj interface{}) (string, bool) {
 func (q *QueueInformer) defaultAddFunc(obj interface{}) {
 	key, ok := q.keyFunc(obj)
 	if !ok {
+		q.log.Warnf("couldn't add %v, couldn't create key", obj)
 		return
 	}
 
-	q.log.Infof("%s added", key)
 	q.enqueue(key)
 }
 
 func (q *QueueInformer) defaultDeleteFunc(obj interface{}) {
 	key, ok := q.keyFunc(obj)
 	if !ok {
+		q.log.Warnf("couldn't delete %v, couldn't create key", obj)
 		return
 	}
 
-	q.log.Infof("%s deleted", key)
 	q.queue.Forget(key)
 }
 
 func (q *QueueInformer) defaultUpdateFunc(oldObj, newObj interface{}) {
 	key, ok := q.keyFunc(newObj)
 	if !ok {
+		q.log.Warnf("couldn't update %v, couldn't create key", newObj)
 		return
 	}
 
-	q.log.Infof("%s updated", key)
 	q.enqueue(key)
 }
 

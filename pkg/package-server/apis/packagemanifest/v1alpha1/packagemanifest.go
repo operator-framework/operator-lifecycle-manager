@@ -11,7 +11,7 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 			Name: csv.Spec.Provider.Name,
 			URL:  csv.Spec.Provider.URL,
 		},
-		Annotations: csv.GetAnnotations(),
+		Annotations:     csv.GetAnnotations(),
 		LongDescription: csv.Spec.Description,
 	}
 

@@ -12,7 +12,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -149,10 +149,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	t.Log("Creating CRD")
 	mainCRDPlural := genName("opgroup")
-	apiGroup := "opcluster.com"
-	mainCRDName := mainCRDPlural + "." + apiGroup
-	mainCRD := newCRD(mainCRDName, mainCRDPlural)
-	mainCRD.Spec.Group = apiGroup
+	mainCRD := newCRD(mainCRDPlural)
 	cleanupCRD, err := createCRD(c, mainCRD)
 	require.NoError(t, err)
 	defer cleanupCRD()
@@ -203,7 +200,7 @@ func TestOperatorGroup(t *testing.T) {
 			Rules: []rbacv1.PolicyRule{
 				{
 					Verbs:     []string{rbac.VerbAll},
-					APIGroups: []string{apiGroup},
+					APIGroups: []string{mainCRD.Spec.Group},
 					Resources: []string{mainCRDPlural},
 				},
 			},
@@ -251,7 +248,7 @@ func TestOperatorGroup(t *testing.T) {
 	deploymentName := genName("operator-deployment")
 	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-	aCSV := newCSV(csvName, opGroupNamespace, "", *semver.New("0.0.0"), []extv1beta1.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+	aCSV := newCSV(csvName, opGroupNamespace, "", *semver.New("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
@@ -384,22 +381,22 @@ func TestOperatorGroup(t *testing.T) {
 	adminRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-admin", metav1.GetOptions{})
 	require.NoError(t, err)
 	adminPolicyRules := []rbacv1.PolicyRule{
-		{Verbs: []string{"*"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+		{Verbs: []string{"*"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
 	}
 	require.Equal(t, adminPolicyRules, adminRole.Rules)
 
 	editRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-edit", metav1.GetOptions{})
 	require.NoError(t, err)
 	editPolicyRules := []rbacv1.PolicyRule{
-		{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+		{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
 	}
 	require.Equal(t, editPolicyRules, editRole.Rules)
 
 	viewRole, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
 	require.NoError(t, err)
 	viewPolicyRules := []rbacv1.PolicyRule{
-		{Verbs: []string{"get"}, APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, ResourceNames: []string{mainCRDName}},
-		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{apiGroup}, Resources: []string{mainCRDPlural}},
+		{Verbs: []string{"get"}, APIGroups: []string{"apiextensions.k8s.io"}, Resources: []string{"customresourcedefinitions"}, ResourceNames: []string{mainCRD.Name}},
+		{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{mainCRD.Spec.Group}, Resources: []string{mainCRDPlural}},
 	}
 	require.Equal(t, viewPolicyRules, viewRole.Rules)
 

@@ -1,829 +1,525 @@
 package resolver
 
 import (
-	"encoding/json"
-	"errors"
+	"strings"
 	"testing"
+	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	log "github.com/sirupsen/logrus"
-	appsv1 "k8s.io/api/apps/v1"
-	v1 "k8s.io/api/core/v1"
-	rbac "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/stretchr/testify/require"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-const (
-	crdKind = "CustomResourceDefinition"
-	csvKind = v1alpha1.ClusterServiceVersionKind
+var (
+	// conventions for tests: packages are letters (a,b,c) and apis are numbers (1,2,3)
+
+	// APISets used for tests
+	APISet1   = APISet{opregistry.APIKey{"g", "v", "k", "ks"}: struct{}{}}
+	Provides1 = APISet1
+	Requires1 = APISet1
+	APISet2   = APISet{opregistry.APIKey{"g2", "v2", "k2", "k2s"}: struct{}{}}
+	Provides2 = APISet2
+	Requires2 = APISet2
+	APISet3   = APISet{opregistry.APIKey{"g3", "v3", "k3", "k3s"}: struct{}{}}
+	Provides3 = APISet3
+	Requires3 = APISet3
+	APISet4   = APISet{opregistry.APIKey{"g4", "v4", "k4", "k4s"}: struct{}{}}
+	Provides4 = APISet4
+	Requires4 = APISet4
 )
 
-func resolveInstallPlan(t *testing.T, resolver DependencyResolver) {
-	type csvNames struct {
-		name            string
-		owned           []string
-		required        []string
-		installStrategy v1alpha1.NamedInstallStrategy
+func TestNamespaceResolver(t *testing.T) {
+	namespace := "catsrc-namespace"
+	catalog := CatalogKey{"catsrc", namespace}
+	type out struct {
+		steps [][]*v1alpha1.Step
+		subs  []*v1alpha1.Subscription
+		err   error
 	}
-	var table = []struct {
-		description     string
-		planCSVName     string
-		csv             []csvNames
-		crdNames        []string
-		expectedErr     error
-		expectedPlanLen int
-	}{
-		{"MissingCSV", "name", []csvNames{{"", nil, nil, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
-		{"MissingCSVByName", "name", []csvNames{{"missingName", nil, nil, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: ClusterServiceVersion name"), 0},
-		{"FoundCSV", "name", []csvNames{{"name", nil, nil, installStrategy("deployment", nil, nil)}}, nil, nil, 1},
-		{"CSVWithMissingOwnedCRD", "name", []csvNames{{"name", []string{"missingCRD"}, nil, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"CSVWithMissingRequiredCRD", "name", []csvNames{{"name", nil, []string{"missingCRD"}, installStrategy("deployment", nil, nil)}}, nil, errors.New("not found: CRD missingCRD/missingCRD/v1"), 0},
-		{"FoundCSVWithCRD", "name", []csvNames{{"name", []string{"CRD"}, nil, installStrategy("deployment", nil, nil)}}, []string{"CRD"}, nil, 4},
-		{"FoundCSVWithDependency", "name", []csvNames{{"name", nil, []string{"CRD"}, installStrategy("deployment", nil, nil)}, {"crdOwner", []string{"CRD"}, nil, installStrategy("deployment", nil, nil)}}, []string{"CRD"}, nil, 5},
+	nothing := out{
+		steps: [][]*v1alpha1.Step{},
+		subs:  []*v1alpha1.Subscription{},
 	}
-
-	for _, tt := range table {
-		t.Run(tt.description, func(t *testing.T) {
-			namespace := "default"
-
-			log.SetLevel(log.DebugLevel)
-			// Create a plan that is attempting to install the planCSVName.
-			plan := installPlan(namespace, tt.planCSVName)
-
-			// Create a catalog source containing a CSVs and CRDs with the provided
-			// names.
-			src := registry.NewInMem()
-			for _, name := range tt.crdNames {
-				err := src.SetCRDDefinition(crd(name, namespace))
-				require.NoError(t, err)
-			}
-			for _, names := range tt.csv {
-				// We add unsafe so that we can test invalid states
-				src.AddOrReplaceService(csv(names.name, namespace, names.owned, names.required, names.installStrategy))
-			}
-
-			srcKey := registry.ResourceKey{
-				Name:      "ocs",
-				Namespace: plan.Namespace,
-			}
-
-			srcRef := registry.SourceRef{
-				Source:    src,
-				SourceKey: srcKey,
-			}
-			// Generate an ordered list of source refs
-			srcRefs := []registry.SourceRef{srcRef}
-
-			// No existing CSVs in the install plan namespace
-			existingCSVNames := make(map[string][]string)
-
-			// Resolve the plan
-			steps, _, err := resolver.ResolveInstallPlan(srcRefs, existingCSVNames, "alm-catalog", &plan)
-			plan.Status.Plan = steps
-
-			// Assert the error is as expected
-			if tt.expectedErr == nil {
-				require.Nil(t, err)
-			} else {
-				require.Equal(t, tt.expectedErr, err)
-			}
-
-			// Assert the number of items in the plan are equal
-			require.Equal(t, tt.expectedPlanLen, len(plan.Status.Plan))
-
-			// Assert that all StepResources have the have the correct catalog source name and namespace set
-			for _, step := range plan.Status.Plan {
-				require.Equal(t, step.Resource.CatalogSource, "ocs")
-				require.Equal(t, step.Resource.CatalogSourceNamespace, plan.Namespace)
-			}
-		})
-	}
-}
-
-func multiSourceResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
-
-	// Define some source keys representing different catalog sources (all in same namespace for now)
-	sourceA := registry.ResourceKey{Namespace: "default", Name: "ocs-a"}
-	sourceB := registry.ResourceKey{Namespace: "default", Name: "ocs-b"}
-	sourceC := registry.ResourceKey{Namespace: "default", Name: "ocs-c"}
-
-	type resourceKey struct {
-		name string
-		kind string
-	}
-	type csvName struct {
-		name            string
-		owned           []string
-		required        []string
-		srcKey          registry.ResourceKey
-		installStrategy v1alpha1.NamedInstallStrategy
-	}
-	type crdName struct {
-		name   string
-		srcKey registry.ResourceKey
-	}
-	var table = []struct {
-		description       string
-		csvs              []csvName
-		crds              []crdName
-		srcKeys           []registry.ResourceKey
-		expectedErr       error
-		expectedResources map[resourceKey]registry.ResourceKey
+	tests := []struct {
+		name             string
+		clusterState     []runtime.Object
+		bundlesInCatalog []*opregistry.Bundle
+		out              out
 	}{
 		{
-			"SingleCRDSameCatalog",
-			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil, nil)},
-				{"crdOwner", []string{"CRD"}, nil, sourceA, installStrategy("deployment", nil, nil)},
+			name: "SingleNewSubscription/NoDeps",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
 			},
-			[]crdName{{"CRD", sourceA}},
-			[]registry.ResourceKey{sourceA},
-			nil,
-			map[resourceKey]registry.ResourceKey{
-				resourceKey{"main", csvKind}:              sourceA,
-				resourceKey{"crdOwner", csvKind}:          sourceA,
-				resourceKey{"CRD", crdKind}:               sourceA,
-				resourceKey{"edit-CRD-v1", "ClusterRole"}: sourceA,
-				resourceKey{"view-CRD-v1", "ClusterRole"}: sourceA,
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
 			},
-		},
-		{
-			"SingleCRDDifferentCatalog",
-			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil, nil)},
-				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil, nil)},
-			},
-			[]crdName{{"CRD", sourceB}},
-			[]registry.ResourceKey{sourceA, sourceB},
-			nil,
-			map[resourceKey]registry.ResourceKey{
-				resourceKey{"main", csvKind}:              sourceA,
-				resourceKey{"crdOwner", csvKind}:          sourceB,
-				resourceKey{"CRD", crdKind}:               sourceB,
-				resourceKey{"edit-CRD-v1", "ClusterRole"}: sourceB,
-				resourceKey{"view-CRD-v1", "ClusterRole"}: sourceB,
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
+				},
 			},
 		},
 		{
-			"RequiredCRDNotInOwnersCatalog",
-			[]csvName{
-				{"main", nil, []string{"CRD"}, sourceA, installStrategy("deployment", nil, nil)},
-				{"crdOwner", []string{"CRD"}, nil, sourceB, installStrategy("deployment", nil, nil)},
+			name: "SingleNewSubscription/ResolveOne",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
 			},
-			[]crdName{{"CRD", sourceC}},
-			[]registry.ResourceKey{sourceA, sourceB, sourceC},
-			errors.New("not found: CRD CRD/CRD/v1"),
-			nil,
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, catalog),
+					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
+				},
+			},
 		},
 		{
-			"MultipleTransitiveDependenciesInDifferentCatalogs",
-			[]csvName{
-				{"main", nil, []string{"CRD-0"}, sourceA, installStrategy("deployment", nil, nil)},
-				{"crdOwner-0", []string{"CRD-0"}, []string{"CRD-1"}, sourceB, installStrategy("deployment", nil, nil)},
-				{"crdOwner-1", []string{"CRD-1", "CRD-2"}, nil, sourceC, installStrategy("deployment", nil, nil)},
+			name: "SingleNewSubscription/ResolveOne/AdditionalBundleObjects",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
 			},
-			[]crdName{
-				{"CRD-0", sourceB},
-				{"CRD-1", sourceC},
-				{"CRD-2", sourceC},
+			bundlesInCatalog: []*opregistry.Bundle{
+				withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"}, ObjectMeta: metav1.ObjectMeta{Name: "test-rb"}})),
+				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
 			},
-			[]registry.ResourceKey{sourceA, sourceB, sourceC},
-			nil,
-			map[resourceKey]registry.ResourceKey{
-				resourceKey{"main", csvKind}:                sourceA,
-				resourceKey{"crdOwner-0", csvKind}:          sourceB,
-				resourceKey{"crdOwner-1", csvKind}:          sourceC,
-				resourceKey{"CRD-0", crdKind}:               sourceB,
-				resourceKey{"edit-CRD-0-v1", "ClusterRole"}: sourceB,
-				resourceKey{"view-CRD-0-v1", "ClusterRole"}: sourceB,
-				resourceKey{"CRD-1", crdKind}:               sourceC,
-				resourceKey{"edit-CRD-1-v1", "ClusterRole"}: sourceC,
-				resourceKey{"view-CRD-1-v1", "ClusterRole"}: sourceC,
-				resourceKey{"CRD-2", crdKind}:               sourceC,
-				resourceKey{"edit-CRD-2-v1", "ClusterRole"}: sourceC,
-				resourceKey{"view-CRD-2-v1", "ClusterRole"}: sourceC,
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, catalog),
+					bundleSteps(withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"}, ObjectMeta: metav1.ObjectMeta{Name: "test-rb"}})), namespace, catalog),
+					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "SingleNewSubscription/DependencyMissing",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+			},
+			out: nothing,
+		},
+		{
+			name: "InstalledSub/NoUpdates",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			out: nothing,
+		},
+		{
+			name: "InstalledSub/UpdateAvailable",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil),
+				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/NoRunningOperator",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, catalog),
+				},
+				// no updated subs because existingSub already points the right CSV, it just didn't exist for some reason
+				subs: []*v1alpha1.Subscription{},
+			},
+		},
+		{
+			name: "InstalledSub/UpdateFound/UpdateRequires/ResolveOne",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil),
+				bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil), namespace, catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, catalog),
+					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/UpdateFound/UpdateRequires/ResolveOne/APIServer",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", nil, nil, Provides1, nil),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, Requires1),
+				bundle("b.v1", "b", "beta", "", nil, nil, Provides1, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, Requires1), namespace, catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, Provides1, nil), namespace, catalog),
+					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/SingleNewSubscription/UpdateAvailable/ResolveOne",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				newSub(namespace, "b", "beta", catalog),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
+				bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+					updatedSub(namespace, "b.v1", "b", "beta", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/SingleNewSubscription/NoRunningOperator/ResolveOne",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				newSub(namespace, "b", "beta", catalog),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "b.v1", "b", "beta", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/SingleNewSubscription/NoRunningOperator/ResolveOne/APIServer",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				newSub(namespace, "b", "beta", catalog),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v1", "a", "alpha", "", nil, nil, Provides1, nil),
+				bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, nil, Provides1, nil), namespace, catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "b.v1", "b", "beta", catalog),
+				},
+			},
+		},
+		{
+			// This test verifies that version deadlock that could happen with the previous algorithm can't happen here
+			name: "NoMoreVersionDeadlock",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, Requires2, nil, nil),
+				existingSub(namespace, "b.v1", "b", "alpha", catalog),
+				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
+				bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, catalog),
+					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+					updatedSub(namespace, "b.v2", "b", "alpha", catalog),
+				},
 			},
 		},
 	}
-
-	for _, tt := range table {
-		t.Run(tt.description, func(t *testing.T) {
-			log.SetLevel(log.DebugLevel)
-			// Create a plan that is attempting to install the planCSVName.
-			plan := installPlan("default", "main")
-
-			// Create catalog sources for all given srcKeys
-			sources := map[registry.ResourceKey]*registry.InMem{}
-			for _, srcKey := range tt.srcKeys {
-				src := registry.NewInMem()
-				sources[srcKey] = src
-			}
-
-			// Add CRDs and CSVs to the approprate sources
-			for _, name := range tt.crds {
-				source := sources[name.srcKey]
-				err := source.SetCRDDefinition(crd(name.name, name.srcKey.Namespace))
-				require.NoError(t, err)
-			}
-			for _, name := range tt.csvs {
-				// We add unsafe so that we can test invalid states
-				source := sources[name.srcKey]
-				source.AddOrReplaceService(csv(name.name, name.srcKey.Namespace, name.owned, name.required, name.installStrategy))
-			}
-
-			// Generate an ordered list of source refs
-			srcRefs := make([]registry.SourceRef, len(sources))
-			i := 0
-			for srcKey, source := range sources {
-				srcRefs[i] = registry.SourceRef{
-					Source:    source,
-					SourceKey: srcKey,
-				}
-				i++
-			}
-
-			// No existing CSVs in the install plan namespace
-			existingCSVNames := make(map[string][]string)
-
-			// Resolve the plan.
-			steps, _, err := resolver.ResolveInstallPlan(srcRefs, existingCSVNames, "alm-catalog", &plan)
-
-			// Set the plan and used Sources
-			plan.Status.Plan = steps
-
-			// Assert the error is as expected
-			if tt.expectedErr == nil {
-				require.Nil(t, err)
-			} else {
-				require.Equal(t, tt.expectedErr, err)
-			}
-
-			require.Equal(t, len(tt.expectedResources), len(plan.Status.Plan))
-
-			// Assert that all StepResources have the have the correct CatalogSource set
-			for _, step := range plan.Status.Plan {
-				resourceKey := resourceKey{step.Resource.Name, step.Resource.Kind}
-				expectedSource := tt.expectedResources[resourceKey]
-
-				require.Equal(t, expectedSource.Name, step.Resource.CatalogSource, "%v source name different", resourceKey)
-				require.Equal(t, expectedSource.Namespace, step.Resource.CatalogSourceNamespace, "%v source namespace different", resourceKey)
-			}
-		})
-	}
-}
-
-func namespaceAndChannelAwareResolveInstallPlan(t *testing.T, resolver DependencyResolver) {
-
-	type csvName struct {
-		name            string
-		owned           []string
-		required        []string
-		installStrategy v1alpha1.NamedInstallStrategy
-	}
-	var table = []struct {
-		description       string
-		namespace         string
-		mainCSV           string
-		csvs              []csvName
-		crds              []string
-		packageManifests  []registry.PackageManifest
-		existingCRDOwners map[string][]string
-		expectedErr       error
-		expectedResources map[registry.ResourceKey]struct{}
-	}{
-		{
-			"MultipleCRDOwners",
-			"default",
-			"macaroni-stable",
-			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil, nil)},
-				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-			},
-			[]string{"macaroni", "cheese"},
-			[]registry.PackageManifest{
-				{
-					PackageName: "cheese",
-					Channels: []registry.PackageChannel{
-						{
-							Name:           "alpha",
-							CurrentCSVName: "cheese-alpha",
-						},
-						{
-							Name:           "beta",
-							CurrentCSVName: "cheese-beta",
-						},
-						{
-							Name:           "stable",
-							CurrentCSVName: "cheese-stable",
-						},
-					},
-					DefaultChannelName: "stable",
-				},
-				{
-					PackageName: "macaroni",
-					Channels: []registry.PackageChannel{
-						{
-							Name:           "stable",
-							CurrentCSVName: "macaroni-stable",
-						},
-					},
-					DefaultChannelName: "stable",
-				},
-			},
-			nil,
-			nil,
-			map[registry.ResourceKey]struct{}{
-				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}:        {},
-				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:               {},
-				registry.ResourceKey{Name: "edit-macaroni-v1", Kind: "ClusterRole"}: {},
-				registry.ResourceKey{Name: "view-macaroni-v1", Kind: "ClusterRole"}: {},
-				registry.ResourceKey{Name: "cheese-stable", Kind: csvKind}:          {},
-				registry.ResourceKey{Name: "cheese", Kind: crdKind}:                 {},
-				registry.ResourceKey{Name: "edit-cheese-v1", Kind: "ClusterRole"}:   {},
-				registry.ResourceKey{Name: "view-cheese-v1", Kind: "ClusterRole"}:   {},
-			},
-		},
-		{
-			"MultipleCRDOwnersWithOnePreExisting",
-			"default",
-			"macaroni-stable",
-			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil, nil)},
-				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-			},
-			[]string{"macaroni", "cheese"},
-			[]registry.PackageManifest{
-				{
-					PackageName: "cheese",
-					Channels: []registry.PackageChannel{
-						{
-							Name:           "alpha",
-							CurrentCSVName: "cheese-alpha",
-						},
-						{
-							Name:           "beta",
-							CurrentCSVName: "cheese-beta",
-						},
-						{
-							Name:           "stable",
-							CurrentCSVName: "cheese-stable",
-						},
-					},
-					DefaultChannelName: "stable",
-				},
-				{
-					PackageName: "macaroni",
-					Channels: []registry.PackageChannel{
-						{
-							Name:           "stable",
-							CurrentCSVName: "macaroni-stable",
-						},
-					},
-					DefaultChannelName: "stable",
-				},
-			},
-			map[string][]string{
-				"cheese": {"cheese-alpha"},
-			},
-			nil,
-			map[registry.ResourceKey]struct{}{
-				registry.ResourceKey{Name: "macaroni-stable", Kind: csvKind}:        {},
-				registry.ResourceKey{Name: "macaroni", Kind: crdKind}:               {},
-				registry.ResourceKey{Name: "edit-macaroni-v1", Kind: "ClusterRole"}: {},
-				registry.ResourceKey{Name: "view-macaroni-v1", Kind: "ClusterRole"}: {},
-				registry.ResourceKey{Name: "cheese-alpha", Kind: csvKind}:           {},
-				registry.ResourceKey{Name: "cheese", Kind: crdKind}:                 {},
-				registry.ResourceKey{Name: "edit-cheese-v1", Kind: "ClusterRole"}:   {},
-				registry.ResourceKey{Name: "view-cheese-v1", Kind: "ClusterRole"}:   {},
-			},
-		},
-		{
-			"MultipleCRDOwnersWithTwoPreExisting",
-			"default",
-			"macaroni-stable",
-			[]csvName{
-				{"macaroni-stable", []string{"macaroni"}, []string{"cheese"}, installStrategy("deployment", nil, nil)},
-				{"cheese-alpha", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-				{"cheese-beta", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-				{"cheese-stable", []string{"cheese"}, nil, installStrategy("deployment", nil, nil)},
-			},
-			[]string{"macaroni", "cheese"},
-			[]registry.PackageManifest{
-				{
-					PackageName: "cheese",
-					Channels: []registry.PackageChannel{
-						{
-							Name:           "alpha",
-							CurrentCSVName: "cheese-alpha",
-						},
-						{
-							Name:           "beta",
-							CurrentCSVName: "cheese-beta",
-						},
-						{
-							Name:           "stable",
-							CurrentCSVName: "cheese-stable",
-						},
-					},
-					DefaultChannelName: "stable",
-				},
-				{
-					PackageName: "macaroni",
-					Channels: []registry.PackageChannel{
-						{
-							Name:           "stable",
-							CurrentCSVName: "macaroni-stable",
-						},
-					},
-					DefaultChannelName: "stable",
-				},
-			},
-			map[string][]string{
-				"cheese": []string{"cheese-alpha", "cheese-beta"},
-			},
-			olmerrors.NewMultipleExistingCRDOwnersError([]string{"cheese-alpha", "cheese-beta"}, "cheese", "default"),
-			nil,
-		},
-	}
-
-	for _, tt := range table {
-		t.Run(tt.description, func(t *testing.T) {
-			log.SetLevel(log.DebugLevel)
-
-			// Create a plan that is attempting to install the planCSVName.
-			plan := installPlan(tt.namespace, "macaroni-stable")
-
-			// Create catalog source
-			source := registry.NewInMem()
-
-			// Add CRDs and CSVs
-			for _, name := range tt.crds {
-				err := source.SetCRDDefinition(crd(name, tt.namespace))
-				require.NoError(t, err)
-			}
-			for _, name := range tt.csvs {
-				// We add unsafe so that we can test invalid states
-				source.AddOrReplaceService(csv(name.name, tt.namespace, name.owned, name.required, name.installStrategy))
-			}
-
-			// Add all package manifests to the catalog
-			for _, manifest := range tt.packageManifests {
-				require.NoError(t, source.AddPackageManifest(manifest))
-			}
-
-			// Generate an ordered list of source refs
-			srcRefs := []registry.SourceRef{
-				registry.SourceRef{
-					SourceKey: registry.ResourceKey{
-						Name:      "pasta-source",
-						Namespace: tt.namespace,
-					},
-					Source: source,
-				},
-			}
-
-			// Resolve the plan
-			steps, _, err := resolver.ResolveInstallPlan(srcRefs, tt.existingCRDOwners, "alm-catalog", &plan)
-
-			// Set the plan and used Sources
-			plan.Status.Plan = steps
-
-			// Assert the error is as expected
-			if tt.expectedErr == nil {
-				require.Nil(t, err)
-			} else {
-				require.Equal(t, tt.expectedErr, err)
-			}
-
-			require.Equal(t, len(tt.expectedResources), len(plan.Status.Plan))
-
-			// Assert that all steps are expected
-			for _, step := range plan.Status.Plan {
-				resourceKey := registry.ResourceKey{Name: step.Resource.Name, Kind: step.Resource.Kind}
-				_, ok := tt.expectedResources[resourceKey]
-				require.Equal(t, true, ok)
-			}
-		})
-	}
-
-}
-
-func TestMultiSourceResolveInstallPlan(t *testing.T) {
-	resolver := &MultiSourceResolver{}
-
-	// Test single catalog source resolution
-	resolveInstallPlan(t, resolver)
-
-	// Test multiple catalog source resolution
-	multiSourceResolveInstallPlan(t, resolver)
-
-	// Test namespace and channel awareness
-	namespaceAndChannelAwareResolveInstallPlan(t, resolver)
-
-}
-
-func TestResolveRBACStepResources(t *testing.T) {
-
-	type csvDescription struct {
-		name            string
-		installStrategy v1alpha1.NamedInstallStrategy
-	}
-	var tests = []struct {
-		description           string
-		csvDesc               csvDescription
-		expectedStepResources map[registry.ResourceKey]v1alpha1.StepResource
-		expectedErr           string
-	}{
-		{
-			description: "SingleSA",
-			csvDesc: csvDescription{
-				name: "plane",
-				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
-					{
-						ServiceAccountName: "plane-sa",
-						Rules: []rbac.PolicyRule{
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"engine"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"tires"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"wings"},
-							},
-						},
-					},
-				}, nil),
-			},
-			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
-				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:      {},
-				registry.ResourceKey{Name: "plane-0", Kind: "Role"}:                 {},
-				registry.ResourceKey{Name: "plane-0-plane-sa", Kind: "RoleBinding"}: {},
-			},
-		},
-		{
-			description: "RepeatedSA",
-			csvDesc: csvDescription{
-				name: "plane",
-				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
-					{
-						ServiceAccountName: "plane-sa",
-						Rules: []rbac.PolicyRule{
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"engine"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"tires"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"wings"},
-							},
-						},
-					},
-					{
-						ServiceAccountName: "plane-sa",
-						Rules: []rbac.PolicyRule{
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"altimeter"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"fuelgauge"},
-							},
-						},
-					},
-				}, nil),
-			},
-			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
-				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:      {},
-				registry.ResourceKey{Name: "plane-0", Kind: "Role"}:                 {},
-				registry.ResourceKey{Name: "plane-0-plane-sa", Kind: "RoleBinding"}: {},
-				registry.ResourceKey{Name: "plane-1", Kind: "Role"}:                 {},
-				registry.ResourceKey{Name: "plane-1-plane-sa", Kind: "RoleBinding"}: {},
-			},
-		},
-		{
-			description: "TwoSA",
-			csvDesc: csvDescription{
-				name: "plane",
-				installStrategy: installStrategy("plane-deploy", []install.StrategyDeploymentPermissions{
-					{
-						ServiceAccountName: "plane-sa",
-						Rules: []rbac.PolicyRule{
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"engine"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"tires"},
-							},
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"planes.redhat.com"},
-								Resources: []string{"wings"},
-							},
-						},
-					},
-					{
-						ServiceAccountName: "runway-sa",
-						Rules: []rbac.PolicyRule{
-							{
-								Verbs:     []string{rbac.VerbAll},
-								APIGroups: []string{"runways.redhat.com"},
-								Resources: []string{"tarmac"},
-							},
-						},
-					},
-				}, nil),
-			},
-			expectedStepResources: map[registry.ResourceKey]v1alpha1.StepResource{
-				registry.ResourceKey{Name: "plane-sa", Kind: "ServiceAccount"}:       {},
-				registry.ResourceKey{Name: "plane-0", Kind: "Role"}:                  {},
-				registry.ResourceKey{Name: "plane-0-plane-sa", Kind: "RoleBinding"}:  {},
-				registry.ResourceKey{Name: "runway-sa", Kind: "ServiceAccount"}:      {},
-				registry.ResourceKey{Name: "plane-1", Kind: "Role"}:                  {},
-				registry.ResourceKey{Name: "plane-1-runway-sa", Kind: "RoleBinding"}: {},
-			},
-		},
-		{
-			description: "ResolveRBACRepeatedSA",
-			csvDesc: csvDescription{
-				name:            "plane",
-				installStrategy: v1alpha1.NamedInstallStrategy{},
-			},
-			expectedErr: "unrecognized install strategy",
-		},
-	}
-
 	for _, tt := range tests {
-		t.Run(tt.description, func(t *testing.T) {
-			c := csv(tt.csvDesc.name, "", nil, nil, tt.csvDesc.installStrategy)
-
-			stepResources, err := resolveRBACStepResources(&c)
-			if tt.expectedErr == "" {
-				require.NoError(t, err)
-			} else {
-				require.Equal(t, tt.expectedErr, err.Error())
+		t.Run(tt.name, func(t *testing.T) {
+			stopc := make(chan struct{})
+			defer func() {
+				stopc <- struct{}{}
+			}()
+			expectedSteps := []*v1alpha1.Step{}
+			for _, steps := range tt.out.steps {
+				expectedSteps = append(expectedSteps, steps...)
 			}
+			informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
+			lister := operatorlister.NewLister()
+			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
+			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			for _, stepResource := range stepResources {
-				t.Logf("StepResource resolved: %+v", stepResource.Name)
-
-				key := registry.ResourceKey{
-					Name: stepResource.Name,
-					Kind: stepResource.Kind,
-				}
-
-				t.Log(key)
-				_, ok := tt.expectedStepResources[key]
-
-				assert.True(t, ok, "unexpected step resource found: %+v", stepResource.Name)
-
-				// Remove expected resource
-				delete(tt.expectedStepResources, key)
-			}
-
-			require.Zero(t, len(tt.expectedStepResources), "not all expected resources resolved")
-
+			resolver := NewOperatorsV1alpha1Resolver(lister)
+			querier := NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{catalog: tt.bundlesInCatalog})
+			steps, subs, err := resolver.ResolveSteps(namespace, querier)
+			require.Equal(t, tt.out.err, err)
+			RequireStepsEqual(t, expectedSteps, steps)
+			require.ElementsMatch(t, tt.out.subs, subs)
 		})
 	}
 }
 
-func installPlan(namespace string, names ...string) v1alpha1.InstallPlan {
-	return v1alpha1.InstallPlan{
-		ObjectMeta: metav1.ObjectMeta{Namespace: namespace},
-		Spec: v1alpha1.InstallPlanSpec{
-			ClusterServiceVersionNames: names,
-		},
-		Status: v1alpha1.InstallPlanStatus{
-			Plan: []*v1alpha1.Step{},
-		},
-	}
-}
+func TestNamespaceResolverRBAC(t *testing.T) {
+	namespace := "catsrc-namespace"
+	catalog := CatalogKey{"catsrc", namespace}
 
-func csv(name, namespace string, owned, required []string, installStrategy v1alpha1.NamedInstallStrategy) v1alpha1.ClusterServiceVersion {
-	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
-	for _, name := range required {
-		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
-	}
-
-	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
-	for _, name := range owned {
-		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
-	}
-
-	return v1alpha1.ClusterServiceVersion{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: v1alpha1.ClusterServiceVersionKind,
-		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-				Owned:    ownedCRDDescs,
-				Required: requiredCRDDescs,
-			},
-			InstallStrategy: installStrategy,
-		},
-	}
-}
-
-func crd(name, namespace string) v1beta1.CustomResourceDefinition {
-	return v1beta1.CustomResourceDefinition{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: crdKind,
-		},
-		Spec: v1beta1.CustomResourceDefinitionSpec{
-			Group:   name + "group",
-			Version: "v1",
-			Names: v1beta1.CustomResourceDefinitionNames{
-				Kind: name,
-			},
-		},
-	}
-}
-
-func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
-	var singleInstance = int32(1)
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
-			{
-				Name: deploymentName,
-				Spec: appsv1.DeploymentSpec{
-					Selector: &metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": deploymentName,
-						},
-					},
-					Replicas: &singleInstance,
-					Template: v1.PodTemplateSpec{
-						ObjectMeta: metav1.ObjectMeta{
-							Labels: map[string]string{
-								"app": deploymentName,
-							},
-						},
-						Spec: v1.PodSpec{
-							Containers: []v1.Container{
-								{
-									Name:  deploymentName + "-c1",
-									Image: "nginx:1.7.9",
-									Ports: []v1.ContainerPort{
-										{
-											ContainerPort: 80,
-										},
-									},
-								},
-							},
-						},
-					},
+	simplePermissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: "test-sa",
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get", "list"},
+					APIGroups: []string{""},
+					Resources: []string{"configmaps"},
 				},
 			},
 		},
-		Permissions:        permissions,
-		ClusterPermissions: clusterPermissions,
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
+	type out struct {
+		steps [][]*v1alpha1.Step
+		subs  []*v1alpha1.Subscription
+		err   error
+	}
+	tests := []struct {
+		name             string
+		clusterState     []runtime.Object
+		bundlesInCatalog []*opregistry.Bundle
+		out              out
+	}{
+		{
+			name: "NewSubscription/Permissions/ClusterPermissions",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			bundlesInCatalog: []*opregistry.Bundle{
+				bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, simplePermissions, simplePermissions),
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, simplePermissions, simplePermissions), namespace, catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stopc := make(chan struct{})
+			defer func() {
+				stopc <- struct{}{}
+			}()
+			expectedSteps := []*v1alpha1.Step{}
+			for _, steps := range tt.out.steps {
+				expectedSteps = append(expectedSteps, steps...)
+			}
+			informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
+			lister := operatorlister.NewLister()
+			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
+			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
+
+			resolver := NewOperatorsV1alpha1Resolver(lister)
+			querier := NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{catalog: tt.bundlesInCatalog})
+			steps, subs, err := resolver.ResolveSteps(namespace, querier)
+			require.Equal(t, tt.out.err, err)
+			RequireStepsEqual(t, expectedSteps, steps)
+			require.ElementsMatch(t, tt.out.subs, subs)
+		})
+	}
+}
+
+// Helpers for resolver tests
+
+func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...runtime.Object) (externalversions.SharedInformerFactory, []cache.InformerSynced) {
+	// Create client fakes
+	clientFake := fake.NewSimpleClientset(objs...)
+
+	var hasSyncedCheckFns []cache.InformerSynced
+	nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(clientFake, time.Second, externalversions.WithNamespace(namespace))
+	informers := []cache.SharedIndexInformer{
+		nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer(),
+		nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer(),
+	}
+
+	for _, informer := range informers {
+		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
+		go informer.Run(stopCh)
+	}
+	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
+		panic("failed to wait for caches to sync")
+	}
+
+	return nsInformerFactory, hasSyncedCheckFns
+}
+
+func newSub(namespace, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
+	return &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pkg + "-" + channel,
+			Namespace: namespace,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			Package:                pkg,
+			Channel:                channel,
+			CatalogSource:          catalog.Name,
+			CatalogSourceNamespace: catalog.Namespace,
+		},
+	}
+}
+
+func updatedSub(namespace, operatorName, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
+	return &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pkg + "-" + channel,
+			Namespace: namespace,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			Package:                pkg,
+			Channel:                channel,
+			CatalogSource:          catalog.Name,
+			CatalogSourceNamespace: catalog.Namespace,
+		},
+		Status: v1alpha1.SubscriptionStatus{
+			CurrentCSV: operatorName,
+		},
+	}
+}
+
+func existingSub(namespace, operatorName, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
+	return &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pkg + "-" + channel,
+			Namespace: namespace,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			Package:                pkg,
+			Channel:                channel,
+			CatalogSource:          catalog.Name,
+			CatalogSourceNamespace: catalog.Namespace,
+		},
+		Status: v1alpha1.SubscriptionStatus{
+			CurrentCSV: operatorName,
+		},
+	}
+}
+
+func existingOperator(namespace, operatorName, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs APISet) *v1alpha1.ClusterServiceVersion {
+	bundleForOperator := bundle(operatorName, pkg, channel, replaces, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs)
+	csv, err := bundleForOperator.ClusterServiceVersion()
+	if err != nil {
+		panic(err)
+	}
+	csv.SetNamespace(namespace)
+	return csv
+}
+
+func bundleSteps(bundle *opregistry.Bundle, ns string, catalog CatalogKey) []*v1alpha1.Step {
+	stepresources, err := NewStepResourceFromBundle(bundle, ns, catalog.Name, catalog.Namespace)
 	if err != nil {
 		panic(err)
 	}
 
-	return v1alpha1.NamedInstallStrategy{
-		StrategyName:    install.InstallStrategyNameDeployment,
-		StrategySpecRaw: strategyRaw,
+	steps := make([]*v1alpha1.Step, 0)
+	for _, sr := range stepresources {
+		steps = append(steps, &v1alpha1.Step{
+			Resolving: bundle.Name,
+			Resource:  sr,
+			Status:    v1alpha1.StepStatusUnknown,
+		})
 	}
+	return steps
+}
+
+func subSteps(namespace, operatorName, pkgName, channelName string, catalog CatalogKey) []*v1alpha1.Step {
+	sub := &v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      strings.Join([]string{pkgName, channelName, catalog.Name, catalog.Namespace}, "-"),
+			Namespace: namespace,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			Package:                pkgName,
+			Channel:                channelName,
+			CatalogSource:          catalog.Name,
+			CatalogSourceNamespace: catalog.Namespace,
+			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+		},
+	}
+	stepresource, err := NewStepResourceFromObject(sub, catalog.Name, catalog.Namespace)
+	if err != nil {
+		panic(err)
+	}
+	return []*v1alpha1.Step{{
+		Resolving: operatorName,
+		Resource:  stepresource,
+		Status:    v1alpha1.StepStatusUnknown,
+	}}
 }

@@ -10,6 +10,5 @@ metadata:
   name: olm-operators
   namespace: {{ .Values.namespace }}
 spec:
-  selector:
-    matchLabels:
-      olm.components: "global"
+  targetNamespaces:
+    - {{ .Values.namespace }}

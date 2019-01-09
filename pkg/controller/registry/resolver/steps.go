@@ -3,9 +3,9 @@ package resolver
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
-	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -23,67 +23,17 @@ var (
 func init() {
 	k8sscheme.AddToScheme(scheme)
 	extScheme.AddToScheme(scheme)
-	v1alpha1.AddToScheme(scheme)
-}
-
-// NewStepResourceFromCSV creates an unresolved Step for the provided CSV.
-func NewStepResourceFromCSV(csv *v1alpha1.ClusterServiceVersion) (v1alpha1.StepResource, error) {
-	return NewStepResourceFromObject(csv, csv.GetName())
-}
-
-// NewStepResourceFromCRD creates an unresolved Step for the provided CRD.
-func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]v1alpha1.StepResource, error) {
-	steps := []v1alpha1.StepResource{}
-
-	crdStep, err := NewStepResourceFromObject(crd, crd.GetName())
-	if err != nil {
-		return nil, err
+	if err := v1alpha1.AddToScheme(scheme); err != nil {
+		panic(err)
 	}
-	steps = append(steps, crdStep)
-
-	editRole := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("edit-%s-%s", crd.Name, crd.Spec.Version),
-			Labels: map[string]string{
-				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
-				"rbac.authorization.k8s.io/aggregate-to-edit":  "true",
-			},
-		},
-		Rules: []rbacv1.PolicyRule{{Verbs: []string{"create", "update", "patch", "delete"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
-	}
-	editRoleStep, err := NewStepResourceFromObject(editRole, editRole.GetName())
-	if err != nil {
-		return nil, err
-	}
-	steps = append(steps, editRoleStep)
-
-	viewRole := &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: fmt.Sprintf("view-%s-%s", crd.Name, crd.Spec.Version),
-			Labels: map[string]string{
-				"rbac.authorization.k8s.io/aggregate-to-view": "true",
-			},
-		},
-		Rules: []rbacv1.PolicyRule{
-			{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}},
-			{Verbs: []string{"get", "watch"}, APIGroups: []string{v1beta1.GroupName}, Resources: []string{crd.GetName()}},
-		},
-	}
-	viewRoleStep, err := NewStepResourceFromObject(viewRole, viewRole.GetName())
-	if err != nil {
-		return nil, err
-	}
-	steps = append(steps, viewRoleStep)
-
-	return steps, nil
 }
 
 // NewStepResourceForObject returns a new StepResource for the provided object
-func NewStepResourceFromObject(obj runtime.Object, name string) (v1alpha1.StepResource, error) {
+func NewStepResourceFromObject(obj runtime.Object, catalogSourceName, catalogSourceNamespace string) (v1alpha1.StepResource, error) {
 	var resource v1alpha1.StepResource
 
 	// set up object serializer
-	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, true)
+	serializer := k8sjson.NewSerializer(k8sjson.DefaultMetaFactory, scheme, scheme, false)
 
 	// create an object manifest
 	var manifest bytes.Buffer
@@ -98,14 +48,115 @@ func NewStepResourceFromObject(obj runtime.Object, name string) (v1alpha1.StepRe
 
 	gvk := obj.GetObjectKind().GroupVersionKind()
 
+	metaObj, ok := obj.(metav1.Object)
+	if !ok {
+		return resource, fmt.Errorf("couldn't get object metadata")
+	}
+
+	name := metaObj.GetName()
+	if name == "" {
+		name = metaObj.GetGenerateName()
+	}
+
 	// create the resource
 	resource = v1alpha1.StepResource{
-		Name:     name,
-		Kind:     gvk.Kind,
-		Group:    gvk.Group,
-		Version:  gvk.Version,
-		Manifest: manifest.String(),
+		Name:                   name,
+		Kind:                   gvk.Kind,
+		Group:                  gvk.Group,
+		Version:                gvk.Version,
+		Manifest:               manifest.String(),
+		CatalogSource:          catalogSourceName,
+		CatalogSourceNamespace: catalogSourceNamespace,
 	}
 
 	return resource, nil
+}
+
+func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1alpha1.StepResource, error) {
+	return NewStepResourceFromObject(&v1alpha1.Subscription{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      strings.Join([]string{info.Package, info.Channel, info.Catalog.Name, info.Catalog.Namespace}, "-"),
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			CatalogSource:          info.Catalog.Name,
+			CatalogSourceNamespace: info.Catalog.Namespace,
+			Package:                info.Package,
+			Channel:                info.Channel,
+			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+		},
+	}, info.Catalog.Name, info.Catalog.Namespace)
+}
+
+func NewStepResourceFromBundle(bundle *registry.Bundle, namespace, catalogSourceName, catalogSourceNamespace string) ([]v1alpha1.StepResource, error) {
+	steps := []v1alpha1.StepResource{}
+
+	csv, err := bundle.ClusterServiceVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	csv.SetNamespace(namespace)
+
+	for _, object := range bundle.Objects {
+		step, err := NewStepResourceFromObject(object, catalogSourceName, catalogSourceNamespace)
+		if err != nil {
+			return nil, err
+		}
+		steps = append(steps, step)
+	}
+
+	operatorServiceAccountSteps, err := NewServiceAccountStepResources(csv, catalogSourceName, catalogSourceNamespace)
+	if err != nil {
+		return nil, err
+	}
+	steps = append(steps, operatorServiceAccountSteps...)
+	return steps, nil
+}
+
+// NewServiceAccountStepResources returns a list of step resources required to satisfy the RBAC requirements of the given CSV's InstallStrategy
+func NewServiceAccountStepResources(csv *v1alpha1.ClusterServiceVersion, catalogSourceName, catalogSourceNamespace string) ([]v1alpha1.StepResource, error) {
+	var rbacSteps []v1alpha1.StepResource
+
+	operatorPermissions, err := RBACForClusterServiceVersion(csv)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, perms := range operatorPermissions {
+		step, err := NewStepResourceFromObject(perms.ServiceAccount, catalogSourceName, catalogSourceNamespace)
+		if err != nil {
+			return nil, err
+		}
+		rbacSteps = append(rbacSteps, step)
+		for _, role := range perms.Roles {
+			step, err := NewStepResourceFromObject(role, catalogSourceName, catalogSourceNamespace)
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+		}
+		for _, roleBinding := range perms.RoleBindings {
+			step, err := NewStepResourceFromObject(roleBinding, catalogSourceName, catalogSourceNamespace)
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+		}
+		for _, clusterRole := range perms.ClusterRoles {
+			step, err := NewStepResourceFromObject(clusterRole, catalogSourceName, catalogSourceNamespace)
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+		}
+		for _, clusterRoleBinding := range perms.ClusterRoleBindings {
+			step, err := NewStepResourceFromObject(clusterRoleBinding, catalogSourceName, catalogSourceNamespace)
+			if err != nil {
+				return nil, err
+			}
+			rbacSteps = append(rbacSteps, step)
+		}
+	}
+	return rbacSteps, nil
 }

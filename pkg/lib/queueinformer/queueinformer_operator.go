@@ -165,7 +165,6 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 
 func (o *Operator) sync(loop *QueueInformer, key string) error {
 	logger := o.Log.WithField("queue", loop.name).WithField("key", key)
-	logger.Info("getting from queue")
 	obj, exists, err := loop.informer.GetIndexer().GetByKey(key)
 	if err != nil {
 		return err

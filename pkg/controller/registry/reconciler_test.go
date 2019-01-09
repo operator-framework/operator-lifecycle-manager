@@ -110,7 +110,7 @@ func validConfigMap() *corev1.ConfigMap {
 func TestValidConfigMap(t *testing.T) {
 	cm := validConfigMap()
 	require.NotNil(t, cm)
-	require.Contains(t, cm.Data["customResourceDefinitions"], "fake")
+	require.Contains(t, cm.Data[ConfigMapCRDName], "fake")
 }
 
 func validCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {

@@ -10,10 +10,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
-func PackageManifestToApiPackage(manifest *registry.PackageManifest) *Package {
+func PackageManifestToAPIPackage(manifest *registry.PackageManifest) *Package {
 	channels := []*Channel{}
 	for _, c := range manifest.Channels {
-		channels = append(channels, PackageChannelToApiChannel(&c))
+		channels = append(channels, PackageChannelToAPIChannel(&c))
 	}
 	return &Package{
 		Name:               manifest.PackageName,
@@ -22,14 +22,14 @@ func PackageManifestToApiPackage(manifest *registry.PackageManifest) *Package {
 	}
 }
 
-func PackageChannelToApiChannel(channel *registry.PackageChannel) *Channel {
+func PackageChannelToAPIChannel(channel *registry.PackageChannel) *Channel {
 	return &Channel{
 		Name:    channel.Name,
 		CsvName: channel.CurrentCSVName,
 	}
 }
 
-func ChannelEntryToApiChannelEntry(entry *registry.ChannelEntry) *ChannelEntry {
+func ChannelEntryToAPIChannelEntry(entry *registry.ChannelEntry) *ChannelEntry {
 	return &ChannelEntry{
 		PackageName: entry.PackageName,
 		ChannelName: entry.ChannelName,
@@ -55,7 +55,7 @@ func BundleStringToObjectStrings(bundleString string) ([]string, error) {
 	return objs, nil
 }
 
-func BundleStringToApiBundle(bundleString string, entry *registry.ChannelEntry) (*Bundle, error) {
+func BundleStringToAPIBundle(bundleString string, entry *registry.ChannelEntry) (*Bundle, error) {
 	objs, err := BundleStringToObjectStrings(bundleString)
 	if err != nil {
 		return nil, err
