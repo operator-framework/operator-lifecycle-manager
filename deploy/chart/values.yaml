@@ -2,6 +2,7 @@ rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
 catalog_namespace: operator-lifecycle-manager
 operator_namespace: operators
+minKubeVersion: 1.11
 imagestream: false
 debug: false
 olm:

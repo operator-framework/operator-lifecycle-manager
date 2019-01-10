@@ -7,6 +7,7 @@
   spec:
     displayName: Package Server
     description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
+    minKubeVersion: {{ .Values.minKubeVersion }}
     keywords: ['packagemanifests', 'olm', 'packages']
     maintainers:
     - name: Red Hat

@@ -7,18 +7,69 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"github.com/coreos/go-semver/semver"
 )
+
+func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
+	status := v1alpha1.RequirementStatus{
+		Group:   "operators.coreos.com",
+		Version: "v1alpha1",
+		Kind:    "ClusterServiceVersion",
+		Name:    name,
+	}
+
+	if minKubeVersion == "" {
+		status.Status = v1alpha1.RequirementStatusReasonNotPresent
+		status.Message = "CSV missing minimum kube version specification"
+		met = true
+		statuses = append(statuses, status)
+		return
+	}
+
+	// Retrieve server k8s version
+	serverVersionInfo, err := a.OpClient.KubernetesInterface().Discovery().ServerVersion()
+	if err != nil {
+		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+		status.Message = "Server version discovery error"
+		met = false
+		statuses = append(statuses, status)
+	}
+
+	// copy necessary fields into comparable for semver
+	majorInt, err := strconv.ParseInt(serverVersionInfo.Major, 10, 64)
+	minorInt, err := strconv.ParseInt(serverVersionInfo.Minor, 10, 64)
+
+	serverVersionComparable := semver.Version{
+		Major: majorInt,
+		Minor: minorInt,
+	}
+
+	csvVersionInfo, err := semver.NewVersion(minKubeVersion)
+	if err != nil {
+		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+		status.Message = "CSV version parsing error"
+		met = false
+		statuses = append(statuses, status)
+	}
+
+	if csvVersionInfo.Compare(serverVersionComparable) < 0 {
+		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+		status.Message = "CSV version requirement not met"
+		met = false
+		statuses = append(statuses, status)
+	}
+
+	return
+}
 
 func (a *Operator) requirementStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
 	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription,
-	requiredNativeAPIs []metav1.GroupVersionKind,
-	minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
+	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
 
 	// Check for CRDs
@@ -180,49 +231,6 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 	}
 
-	status := v1alpha1.RequirementStatus{
-		Group:   "apiextensions.k8s.io",
-		Version: "v1beta1",
-		Kind:    "CustomResourceDefinition",
-		// TODO: refactor?
-		Name:    "TODO: csv name, needs refactoring to get name",
-	}
-
-	serverVersionInfo, err := a.client.Discovery().ServerVersion()
-	if err != nil {
-		// TODO: this status may be wrong
-		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
-		status.Message = "Server version discovery error"
-		met = false
-		statuses = append(statuses, status)
-	}
-
-	// copy necessary fields into comparable for semver
-	majorInt, err := strconv.ParseInt(serverVersionInfo.Major, 10, 64)
-	minorInt, err := strconv.ParseInt(serverVersionInfo.Minor, 10, 64)
-
-	serverVersionComparable := semver.Version{
-		Major: majorInt,
-		Minor: minorInt,
-	}
-
-	csvVersionInfo, err := semver.NewVersion(minKubeVersion)
-	if err != nil {
-		// TODO: this status may be wrong
-		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
-		status.Message = "CSV version parsing error"
-		met = false
-		statuses = append(statuses, status)
-	}
-
-	if csvVersionInfo.Compare(serverVersionComparable) < 0 {
-		// TODO: this status may be wrong
-		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
-		status.Message = "CSV version requirement not met"
-		met = false
-		statuses = append(statuses, status)
-	}
-
 	return
 }
 
@@ -338,7 +346,10 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 		return false, nil, fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
 	}
 
-	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs, csv.Spec.MinKubeVersion)
+	// Check kubernetes version requirement between CSV and server
+	minKubeMet, minKubeStatus := a.minKubeVersionStatus(csv.Spec.DisplayName, csv.Spec.MinKubeVersion)
+	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
+	allReqStatuses := append(minKubeStatus, reqStatuses...)
 
 	rbacLister := a.lister.RbacV1()
 	roleLister := rbacLister.RoleLister()
@@ -353,10 +364,10 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	// Aggregate requirement and permissions statuses
-	statuses := append(reqStatuses, permStatuses...)
-	met := reqMet && permMet
+	statuses := append(allReqStatuses, permStatuses...)
+	met := minKubeMet && reqMet && permMet
 	if !met {
-		a.Log.WithField("reqMet", reqMet).WithField("permMet", permMet).Debug("permissions not met")
+		a.Log.WithField("minKubeMet", minKubeMet).WithField("reqMet", reqMet).WithField("permMet", permMet).Debug("permissions/requirements not met")
 	}
 
 	return met, statuses, nil

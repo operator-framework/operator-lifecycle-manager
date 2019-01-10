@@ -255,6 +255,68 @@ func waitForCSVToDelete(t *testing.T, c versioned.Interface, name string) error 
 	return err
 }
 
+func TestCreateCSVWithUnmetRequirementsMinKubeVersion(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "999.999",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						DisplayName: "Not In Cluster",
+						Description: "A CRD that is not currently in the cluster",
+						Name:        "not.in.cluster.com",
+						Version:     "v1alpha1",
+						Kind:        "NotInCluster",
+					},
+				},
+			},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Shouldn't create deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.Error(t, err)
+}
+
 // TODO: same test but missing serviceaccount instead
 func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
@@ -272,6 +334,7 @@ func TestCreateCSVWithUnmetRequirementsCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -444,6 +507,7 @@ func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -532,6 +596,7 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -594,6 +659,7 @@ func TestCreateCSVWithUnmetRequirementsNativeAPI(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -684,6 +750,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -939,6 +1006,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -1094,6 +1162,7 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 
 	csv := v1alpha1.ClusterServiceVersion{
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -1268,6 +1337,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -1450,6 +1520,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -1637,6 +1708,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -1830,6 +1902,7 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 			Name: genName("csv"),
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
