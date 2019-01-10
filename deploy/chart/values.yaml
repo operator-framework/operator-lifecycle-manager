@@ -27,7 +27,3 @@ package:
     pullPolicy: Always
   service:
     internalPort: 5443
-
-catalog_sources:
- - rh-operators
- - certified-operators

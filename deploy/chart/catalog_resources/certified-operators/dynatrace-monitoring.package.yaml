@@ -1,5 +1,0 @@
-#! package-manifest: deploy/chart/catalog_resources/certified-operators/dynatrace-monitoring.0.2.0.clusterserviceversion.yaml
-packageName: dynatrace-monitoring
-channels:
-- name: preview
-  currentCSV: dynatrace-monitoring.v0.2.0

@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_03-installplan.crd.yaml
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
@@ -20,8 +20,9 @@ spec:
     singular: installplan
     kind: InstallPlan
     listKind: InstallPlanList
+    shortNames:
+    - ip
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: CSV
