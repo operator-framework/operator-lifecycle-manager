@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -100,18 +101,17 @@ func (p *RegistryProvider) setClient(client registryClient, key sourceKey) {
 	p.clients[key] = client
 }
 
-func (p *RegistryProvider) removeClient(key sourceKey) bool {
+func (p *RegistryProvider) removeClient(key sourceKey) (registryClient, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	client, ok := p.clients[key]
 	if !ok {
-		return false
+		return registryClient{}, false
 	}
 
-	client.conn.Close()
 	delete(p.clients, key)
-	return true
+	return client, true
 }
 
 func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) {
@@ -144,6 +144,7 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 		if !changed {
 			logger.Debugf("grpc connection reset timeout")
 			syncError = fmt.Errorf("grpc connection reset timeout")
+			return
 		}
 
 		logger.Info("grpc connection reset")
@@ -165,10 +166,21 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 }
 
 func (p *RegistryProvider) catalogSourceDeleted(obj interface{}) {
-	catsrc, ok := obj.(*operatorsv1alpha1.CatalogSource)
+	catsrc, ok := obj.(metav1.Object)
 	if !ok {
-		logrus.Errorf("catalogsource type assertion failed: wrong type: %#v", obj)
-		return
+		if !ok {
+			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+			if !ok {
+				utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
+				return
+			}
+
+			catsrc, ok = tombstone.Obj.(metav1.Object)
+			if !ok {
+				utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Namespace %#v", obj))
+				return
+			}
+		}
 	}
 
 	logger := logrus.WithFields(logrus.Fields{
@@ -179,8 +191,14 @@ func (p *RegistryProvider) catalogSourceDeleted(obj interface{}) {
 	logger.Debugf("attempting to remove grpc connection")
 
 	key := sourceKey{catsrc.GetName(), catsrc.GetNamespace()}
-	removed := p.removeClient(key)
+	client, removed := p.removeClient(key)
 	if removed {
+		err := client.conn.Close()
+		if err != nil {
+			logger.WithField("err", err.Error()).Error("error closing connection")
+			utilruntime.HandleError(fmt.Errorf("error closing connection %s", err.Error()))
+			return
+		}
 		logger.Debug("grpc connection removed")
 		return
 	}
