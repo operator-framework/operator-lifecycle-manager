@@ -20,6 +20,10 @@ spec:
         app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - operator: Exists
       containers:
         - name: catalog-operator
           command:
