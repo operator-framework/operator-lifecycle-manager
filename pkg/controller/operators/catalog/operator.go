@@ -75,7 +75,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		watchedNamespaces = []string{metav1.NamespaceAll}
 	}
 
-	// Create a new client for ALM types (CRs)
+	// Create a new client for OLM types (CRs)
 	crClient, err := client.NewClient(kubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -615,7 +615,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	out := sub.DeepCopy()
 	if err != nil {
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
-		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+		out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 	} else {
 		out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
@@ -640,6 +640,11 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 func (o *Operator) ensureSubscriptionInstallPlanState(namespace string, subs []*v1alpha1.Subscription, installPlanRef *v1alpha1.InstallPlanReference) error {
 	// TODO: parallel, sync waitgroup
 	for _, sub := range subs {
+		if sub.GetInstallPlanApproval() == v1alpha1.ApprovalAutomatic {
+			sub.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
+		} else {
+			sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
+		}
 		sub.Status.Install = installPlanRef
 		if _, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(sub); err != nil {
 			return err

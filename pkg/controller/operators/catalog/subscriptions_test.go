@@ -43,6 +43,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			wantErr: fmt.Errorf("casting Subscription failed"),
 		},
 		{
+			// FIXME(alecmerdler): Failing test
 			name: "NoStatus/NoCurrentCSV/FoundInCatalog",
 			fields: fields{
 				existingOLMObjs: []runtime.Object{
@@ -124,7 +125,7 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "csv.v.1",
-						State:      "SubscriptionStateAtLatest",
+						State:      v1alpha1.SubscriptionStateUpgradeAvailable,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
@@ -253,7 +254,7 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "csv.v.2",
-						State:      "SubscriptionStateAtLatest",
+						State:      v1alpha1.SubscriptionStateUpgradeAvailable,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
@@ -406,7 +407,7 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "csv.v.2",
-						State:      "SubscriptionStateAtLatest",
+						State:      v1alpha1.SubscriptionStateUpgradeAvailable,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
