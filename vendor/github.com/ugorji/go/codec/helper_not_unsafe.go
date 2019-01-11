@@ -47,9 +47,9 @@ func rt2id(rt reflect.Type) uintptr {
 	return reflect.ValueOf(rt).Pointer()
 }
 
-// func rv2rtid(rv reflect.Value) uintptr {
-// 	return reflect.ValueOf(rv.Type()).Pointer()
-// }
+func rv2rtid(rv reflect.Value) uintptr {
+	return reflect.ValueOf(rv.Type()).Pointer()
+}
 
 func i2rtid(i interface{}) uintptr {
 	return reflect.ValueOf(reflect.TypeOf(i)).Pointer()
@@ -98,11 +98,12 @@ type atomicClsErr struct {
 	v atomic.Value
 }
 
-func (x *atomicClsErr) load() (e clsErr) {
-	if i := x.v.Load(); i != nil {
-		e = i.(clsErr)
+func (x *atomicClsErr) load() clsErr {
+	i := x.v.Load()
+	if i == nil {
+		return clsErr{}
 	}
-	return
+	return i.(clsErr)
 }
 
 func (x *atomicClsErr) store(p clsErr) {
@@ -114,54 +115,16 @@ type atomicTypeInfoSlice struct { // expected to be 2 words
 	v atomic.Value
 }
 
-func (x *atomicTypeInfoSlice) load() (e []rtid2ti) {
-	if i := x.v.Load(); i != nil {
-		e = i.([]rtid2ti)
+func (x *atomicTypeInfoSlice) load() []rtid2ti {
+	i := x.v.Load()
+	if i == nil {
+		return nil
 	}
-	return
+	return i.([]rtid2ti)
 }
 
 func (x *atomicTypeInfoSlice) store(p []rtid2ti) {
 	x.v.Store(p)
-}
-
-// --------------------------
-type atomicRtidFnSlice struct { // expected to be 2 words
-	v atomic.Value
-}
-
-func (x *atomicRtidFnSlice) load() (e []codecRtidFn) {
-	if i := x.v.Load(); i != nil {
-		e = i.([]codecRtidFn)
-	}
-	return
-}
-
-func (x *atomicRtidFnSlice) store(p []codecRtidFn) {
-	x.v.Store(p)
-}
-
-// --------------------------
-func (n *decNaked) ru() reflect.Value {
-	return reflect.ValueOf(&n.u).Elem()
-}
-func (n *decNaked) ri() reflect.Value {
-	return reflect.ValueOf(&n.i).Elem()
-}
-func (n *decNaked) rf() reflect.Value {
-	return reflect.ValueOf(&n.f).Elem()
-}
-func (n *decNaked) rl() reflect.Value {
-	return reflect.ValueOf(&n.l).Elem()
-}
-func (n *decNaked) rs() reflect.Value {
-	return reflect.ValueOf(&n.s).Elem()
-}
-func (n *decNaked) rt() reflect.Value {
-	return reflect.ValueOf(&n.t).Elem()
-}
-func (n *decNaked) rb() reflect.Value {
-	return reflect.ValueOf(&n.b).Elem()
 }
 
 // --------------------------
@@ -248,7 +211,7 @@ func (e *Encoder) kTime(f *codecFnInfo, rv reflect.Value) {
 }
 
 func (e *Encoder) kString(f *codecFnInfo, rv reflect.Value) {
-	e.e.EncodeStringEnc(cUTF8, rv.String())
+	e.e.EncodeString(cUTF8, rv.String())
 }
 
 func (e *Encoder) kFloat64(f *codecFnInfo, rv reflect.Value) {

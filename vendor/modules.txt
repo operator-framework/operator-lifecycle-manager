@@ -111,6 +111,8 @@ github.com/konsorten/go-windows-terminal-sequences
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
 github.com/mailru/easyjson/buffer
+# github.com/mattn/go-sqlite3 v1.10.0
+github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
 # github.com/maxbrunsfeld/counterfeiter v0.0.0-20181017030959-1aadac120687
@@ -128,6 +130,9 @@ github.com/operator-framework/operator-registry/pkg/client
 github.com/operator-framework/operator-registry/pkg/registry
 github.com/operator-framework/operator-registry/pkg/api
 github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1
+github.com/operator-framework/operator-registry/pkg/server
+github.com/operator-framework/operator-registry/pkg/sqlite
+github.com/operator-framework/operator-registry/pkg/schema
 # github.com/pborman/uuid v1.2.0
 github.com/pborman/uuid
 # github.com/peterbourgon/diskv v2.0.1+incompatible
@@ -159,20 +164,20 @@ github.com/spf13/pflag
 # github.com/stretchr/testify v1.2.2
 github.com/stretchr/testify/require
 github.com/stretchr/testify/assert
-# github.com/ugorji/go/codec v0.0.0-20181209151446-772ced7fd4c2
+# github.com/ugorji/go/codec v0.0.0-20181022190402-e5e69e061d4f
 github.com/ugorji/go/codec
 # golang.org/x/crypto v0.0.0-20181015023909-0c41d7ab0a0e
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20181114220301-adae6a3d119a
 golang.org/x/net/http2
 golang.org/x/net/context
+golang.org/x/net/trace
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
-golang.org/x/net/trace
+golang.org/x/net/internal/timeseries
 golang.org/x/net/websocket
 golang.org/x/net/context/ctxhttp
-golang.org/x/net/internal/timeseries
 # golang.org/x/oauth2 v0.0.0-20181105165119-ca4130e427c7
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
@@ -300,7 +305,6 @@ k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/util/intstr
-k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/runtime/serializer/json
 k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/apis/meta/v1/unstructured
@@ -328,6 +332,7 @@ k8s.io/apimachinery/pkg/runtime/serializer/recognizer
 k8s.io/apimachinery/pkg/runtime/serializer/versioning
 k8s.io/apimachinery/pkg/util/cache
 k8s.io/apimachinery/pkg/util/diff
+k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/util/framer
 k8s.io/apimachinery/pkg/apis/meta/v1beta1
@@ -658,9 +663,8 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.7-beta.0.0.20190105100524-8bc0774147c7
+# k8s.io/kubernetes v1.11.7-beta.0.0.20190108024450-5a0d4e5b8d31
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
-k8s.io/kubernetes/pkg/api/legacyscheme
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
 k8s.io/kubernetes/pkg/apis/rbac

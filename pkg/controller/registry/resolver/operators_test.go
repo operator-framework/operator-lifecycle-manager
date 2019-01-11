@@ -47,12 +47,10 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 	tests := []struct {
 		name string
 		s    APIMultiOwnerSet
-		want *opregistry.APIKey
 	}{
 		{
 			name: "Empty",
 			s:    EmptyAPIMultiOwnerSet(),
-			want: nil,
 		},
 		{
 			name: "OneApi/OneOwner",
@@ -61,7 +59,6 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 					"owner1": &Operator{name: "op1"},
 				},
 			},
-			want: &opregistry.APIKey{"g", "v", "k", "p"},
 		},
 		{
 			name: "OneApi/MultiOwner",
@@ -71,7 +68,6 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 					"owner2": &Operator{name: "op2"},
 				},
 			},
-			want: &opregistry.APIKey{"g", "v", "k", "p"},
 		},
 		{
 			name: "MultipleApi/MultiOwner",
@@ -85,24 +81,20 @@ func TestAPIMultiOwnerSet_PopAPIKey(t *testing.T) {
 					"owner2": &Operator{name: "op2"},
 				},
 			},
-			want: &opregistry.APIKey{"g", "v", "k", "p"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			startLen := len(tt.s)
-			require.Equal(t, tt.s.PopAPIKey(), tt.want)
 
-			// Verify entry removed once popped
-			if tt.want != nil {
-				_, ok := tt.s[*tt.want]
-				require.False(t, ok)
-			}
+			popped := tt.s.PopAPIKey()
 
-			// Verify len has decreased
 			if startLen == 0 {
+				require.Nil(t, popped, "popped key from empty MultiOwnerSet should be nil")
 				require.Equal(t, 0, len(tt.s))
 			} else {
+				_, found := tt.s[*popped]
+				require.False(t, found, "popped key should not still exist in set")
 				require.Equal(t, startLen-1, len(tt.s))
 			}
 		})

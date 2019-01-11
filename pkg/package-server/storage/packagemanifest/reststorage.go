@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/watch"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
@@ -29,9 +28,8 @@ var _ rest.Storage = &PackageManifestStorage{}
 var _ rest.Getter = &PackageManifestStorage{}
 var _ rest.Lister = &PackageManifestStorage{}
 var _ rest.Scoper = &PackageManifestStorage{}
-var _ rest.Watcher = &PackageManifestStorage{}
 
-// NewStorage returns an in-memory implementation of storage.Interface.
+// NewStorage returns a struct that implements methods needed for Kubernetes to satisfy API requests for the `PackageManifest` resource
 func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifestProvider) *PackageManifestStorage {
 	return &PackageManifestStorage{
 		groupResource: groupResource,
@@ -70,7 +68,7 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 
 	res, err := m.prov.List(namespace)
 	if err != nil {
-		return &v1alpha1.PackageManifestList{}, err
+		return nil, k8serrors.NewInternalError(err)
 	}
 
 	filtered := []v1alpha1.PackageManifest{}
@@ -88,33 +86,11 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *metav1.GetOptions) (runtime.Object, error) {
 	namespace := genericapirequest.NamespaceValue(ctx)
 	pm, err := m.prov.Get(namespace, name)
-	if err != nil {
-		return nil, err
-	}
-	if pm == nil {
+	if err != nil || pm == nil {
 		return nil, k8serrors.NewNotFound(m.groupResource, name)
 	}
 
 	return pm, nil
-}
-
-// Watcher interface
-func (m *PackageManifestStorage) Watch(ctx context.Context, options *metainternalversion.ListOptions) (watch.Interface, error) {
-	namespace := genericapirequest.NamespaceValue(ctx)
-	name, err := nameFor(options.FieldSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	labelSelector := labels.Everything()
-	if options != nil && options.LabelSelector != nil {
-		labelSelector = options.LabelSelector
-	}
-
-	watcher := NewWatcher(namespace, name, options.ResourceVersion, labelSelector, m.prov)
-	go watcher.Run(ctx)
-
-	return watcher, nil
 }
 
 // Scoper interface

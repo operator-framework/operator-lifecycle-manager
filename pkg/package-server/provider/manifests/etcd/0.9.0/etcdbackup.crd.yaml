@@ -1,0 +1,13 @@
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  name: etcdbackups.etcd.database.coreos.com
+spec:
+  group: etcd.database.coreos.com
+  version: v1beta2
+  scope: Namespaced
+  names:
+    kind: EtcdBackup
+    listKind: EtcdBackupList
+    plural: etcdbackups
+    singular: etcdbackup
