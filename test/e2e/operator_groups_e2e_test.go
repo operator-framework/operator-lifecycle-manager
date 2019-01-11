@@ -111,6 +111,7 @@ func TestOperatorGroup(t *testing.T) {
 	// (Verify that the operator can operate in the target namespace)
 	// Update CSV to support no InstallModes
 	// Verify the CSV transitions to FAILED
+	// Verify the copied CSV transitions to FAILED
 	// Delete CSV
 	// Verify copied CVS is deleted
 
@@ -401,20 +402,29 @@ func TestOperatorGroup(t *testing.T) {
 	require.Equal(t, viewPolicyRules, viewRole.Rules)
 
 	// Unsupport all InstallModes
+	t.Log("unsupporting all csv installmodes")
 	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
 	require.NoError(t, err, "could not fetch csv")
 	fetchedCSV.Spec.InstallModes = []v1alpha1.InstallMode{}
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(fetchedCSV.GetNamespace()).Update(fetchedCSV)
 	require.NoError(t, err, "could not update csv installmodes")
+
+	// Ensure CSV fails
 	_, err = fetchCSV(t, crc, csvName, opGroupNamespace, csvFailedChecker)
 	require.NoError(t, err, "csv did not transition to failed as expected")
 
+	// Ensure Failed status was propagated to copied CSV
+	_, err = fetchCSV(t, crc, csvName, otherNamespaceName, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		return csvFailedChecker(csv) && csv.Status.Reason == v1alpha1.CSVReasonCopied
+	})
+	require.NoError(t, err, "csv failed status did not propagate to copied csv")
+
 	// ensure deletion cleans up copied CSV
-	t.Log("Deleting CSV")
+	t.Log("deleting parent csv")
 	err = crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Delete(csvName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 
-	t.Log("Waiting for orphaned CSV to be deleted")
+	t.Log("waiting for orphaned csv to be deleted")
 	err = waitForDelete(func() error {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		return err

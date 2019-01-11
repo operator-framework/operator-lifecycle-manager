@@ -348,9 +348,10 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 
 			if !reflect.DeepEqual(fetchedCSV.Status, newCSV.Status) {
 				logger.Debug("updating status")
-				newCSV.SetNamespace(ns)
-				newCSV.Status.LastUpdateTime = timeNow()
-				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(newCSV); err != nil {
+				// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
+				fetchedCSV.Status = newCSV.Status
+				fetchedCSV.Status.LastUpdateTime = timeNow()
+				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(fetchedCSV); err != nil {
 					logger.WithError(err).Error("status update for target CSV failed")
 					return err
 				}
