@@ -3,7 +3,7 @@ package olm
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -38,15 +38,16 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		status.Message = "Server version discovery error"
 		met = false
 		statuses = append(statuses, status)
+		return
 	}
 
-	// copy necessary fields into comparable for semver
-	majorInt, err := strconv.ParseInt(serverVersionInfo.Major, 10, 64)
-	minorInt, err := strconv.ParseInt(serverVersionInfo.Minor, 10, 64)
-
-	serverVersionComparable := semver.Version{
-		Major: majorInt,
-		Minor: minorInt,
+	serverVersion, err := semver.NewVersion(strings.TrimPrefix(serverVersionInfo.String(), "v"))
+	if err != nil {
+		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
+		status.Message = "Server version parsing error"
+		met = false
+		statuses = append(statuses, status)
+		return
 	}
 
 	csvVersionInfo, err := semver.NewVersion(minKubeVersion)
@@ -55,15 +56,21 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		status.Message = "CSV version parsing error"
 		met = false
 		statuses = append(statuses, status)
+		return
 	}
 
-	if csvVersionInfo.Compare(serverVersionComparable) < 0 {
+	if csvVersionInfo.Compare(*serverVersion) < 0 {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = "CSV version requirement not met"
 		met = false
 		statuses = append(statuses, status)
+		return
 	}
 
+	status.Status = v1alpha1.RequirementStatusReasonPresent
+	status.Message = fmt.Sprintf("CSV minKubeVersion (%s) less than server version (%s)", minKubeVersion, serverVersionInfo.String())
+	met = true
+	statuses = append(statuses, status)
 	return
 }
 
@@ -347,7 +354,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	// Check kubernetes version requirement between CSV and server
-	minKubeMet, minKubeStatus := a.minKubeVersionStatus(csv.Spec.DisplayName, csv.Spec.MinKubeVersion)
+	minKubeMet, minKubeStatus := a.minKubeVersionStatus(csv.GetName(), csv.Spec.MinKubeVersion)
 	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
 	allReqStatuses := append(minKubeStatus, reqStatuses...)
 

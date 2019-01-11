@@ -483,7 +483,7 @@ func csv(
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			MinKubeVersion: minKubeVersion,
+			MinKubeVersion:  minKubeVersion,
 			Replaces:        replaces,
 			InstallStrategy: installStrategy,
 			InstallModes: []v1alpha1.InstallMode{
@@ -730,7 +730,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -752,7 +752,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -774,7 +774,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -799,7 +799,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1",
 							nil,
@@ -845,7 +845,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -871,7 +871,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -896,7 +896,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -922,7 +922,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -948,7 +948,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("b1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -976,7 +976,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -985,7 +985,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1017,7 +1017,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -1026,7 +1026,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.NewTime(time.Now().Add(24*time.Hour)), metav1.NewTime(time.Now())),
 					withAPIServices(csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -1094,7 +1094,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1119,7 +1119,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1144,7 +1144,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1169,7 +1169,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1194,7 +1194,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{},
@@ -1217,7 +1217,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1242,7 +1242,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1267,7 +1267,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1336,7 +1336,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1405,7 +1405,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1474,7 +1474,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1543,7 +1543,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1612,7 +1612,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1681,7 +1681,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1750,7 +1750,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withCertInfo(withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1819,7 +1819,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1907,7 +1907,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withInstallModes(withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2023,7 +2023,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2048,7 +2048,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2076,7 +2076,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2098,7 +2098,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2107,7 +2107,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2136,7 +2136,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2145,7 +2145,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2175,7 +2175,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2184,7 +2184,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2215,7 +2215,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv3",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2224,7 +2224,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2233,7 +2233,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2265,7 +2265,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv3",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2274,7 +2274,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv1",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2283,7 +2283,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2315,7 +2315,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2324,7 +2324,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv3",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2355,7 +2355,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv2",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2364,7 +2364,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations),
 					csvWithAnnotations(csv("csv3",
 						namespace,
-						"0.0",
+						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2461,7 +2461,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	crd := crd("c1.fake.api.group", "v1")
 	operatorCSV := csv("csv1",
 		operatorNamespace,
-		"0.0",
+		"0.0.0",
 		"",
 		installStrategy("csv1-dep1", permissions, nil),
 		[]*v1beta1.CustomResourceDefinition{crd},
@@ -3115,7 +3115,7 @@ func TestIsReplacing(t *testing.T) {
 	}{
 		{
 			name: "QueryErr",
-			in:   csv("name", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("name", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{},
 			},
@@ -3123,30 +3123,30 @@ func TestIsReplacing(t *testing.T) {
 		},
 		{
 			name: "CSVInCluster/NotReplacing",
-			in:   csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{
-					csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/Replacing",
-			in:   csv("csv2", namespace, "0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv2", namespace, "0.0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{
-					csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
-			expected: csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			expected: csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 		},
 		{
 			name: "CSVInCluster/ReplacingNotFound",
-			in:   csv("csv2", namespace, "0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv2", namespace, "0.0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: []runtime.Object{
-					csv("csv3", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					csv("csv3", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
@@ -3179,28 +3179,28 @@ func TestIsBeingReplaced(t *testing.T) {
 	}{
 		{
 			name:     "QueryErr",
-			in:       csv("name", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:       csv("name", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/NotReplacing",
-			in:   csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					"csv2": csv("csv2", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/Replacing",
-			in:   csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					"csv2": csv("csv2", namespace, "0.0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
-			expected: csv("csv2", namespace, "0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			expected: csv("csv2", namespace, "0.0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 		},
 	}
 	for _, tt := range tests {
@@ -3227,28 +3227,28 @@ func TestCheckReplacement(t *testing.T) {
 	}{
 		{
 			name:     "QueryErr",
-			in:       csv("name", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:       csv("name", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/NotReplacing",
-			in:   csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					"csv2": csv("csv2", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "CSVInCluster/Replacing",
-			in:   csv("csv1", namespace, "0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			in:   csv("csv1", namespace, "0.0.0", "", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 			initial: initial{
 				csvs: map[string]*v1alpha1.ClusterServiceVersion{
-					"csv2": csv("csv2", namespace, "0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+					"csv2": csv("csv2", namespace, "0.0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 				},
 			},
-			expected: csv("csv2", namespace, "0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
+			expected: csv("csv2", namespace, "0.0.0", "csv1", installStrategy("dep", nil, nil), nil, nil, v1alpha1.CSVPhaseSucceeded),
 		},
 	}
 	for _, tt := range tests {
