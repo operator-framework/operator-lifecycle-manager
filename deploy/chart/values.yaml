@@ -11,6 +11,7 @@ olm:
     pullPolicy: Always
   service:
     internalPort: 8080
+  nodeSelector: beta.kubernetes.io/os:linux
 
 catalog:
   replicaCount: 1
@@ -19,6 +20,7 @@ catalog:
     pullPolicy: Always
   service:
     internalPort: 8080
+  nodeSelector: beta.kubernetes.io/os:linux
 
 package:
   replicaCount: 1
@@ -27,6 +29,7 @@ package:
     pullPolicy: Always
   service:
     internalPort: 5443
+  nodeSelector: beta.kubernetes.io/os:linux
 
 catalog_sources:
  - rh-operators

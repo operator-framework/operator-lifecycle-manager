@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_17-packageserver.subscription.yaml
 #! validate-crd: ./deploy/chart/templates/04-subscription.crd.yaml
 #! parse-kind: Subscription
