@@ -46,8 +46,4 @@ spec:
             value: olm-operator
       nodeSelector:
         beta.kubernetes.io/os: linux
-        node-role.kubernetes.io/master: ""
-        
-      tolerations:
-        - operator: Exists
         

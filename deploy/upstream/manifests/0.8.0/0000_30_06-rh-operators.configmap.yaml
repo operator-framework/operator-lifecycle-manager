@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_06-rh-operators.configmap.yaml
 
 kind: ConfigMap
@@ -4427,6 +4427,176 @@ data:
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
+        name: clusterloggings.logging.openshift.io
+      spec:
+        group: logging.openshift.io
+        names:
+          kind: ClusterLogging
+          listKind: ClusterLoggingList
+          plural: clusterloggings
+          singular: clusterlogging
+        scope: Namespaced
+        version: v1alpha1
+        validation:
+          openAPIV3Schema:
+            properties:
+              spec:
+                description: Specification of the desired behavior of the Logging cluster.
+                properties:
+                  visualization:
+                    description: Specification of the Visualization component for the cluster
+                    properties:
+                      type:
+                        description: The type of Visualization to configure
+                        type: string
+                      kibana:
+                        description: Specification of the Kibana Visualization component
+                        properties:
+                          resources:
+                            description: The resource requirements for Kibana
+                            properties:
+                              limits:
+                                description: 'Limits describes the maximum amount of compute
+                                  resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                              requests:
+                                description: 'Requests describes the minimum amount of compute
+                                  resources required. If Requests is omitted for a container,
+                                  it defaults to Limits if that is explicitly specified, otherwise
+                                  to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                          nodeSelector:
+                            description: Define which Nodes the Pods are scheduled on.
+                            type: object
+                          replicas:
+                            description: Number of instances to deploy for a Kibana deployment
+                            format: int32
+                            type: integer
+                          proxySpec:
+                            description: Specification of the Kibana Proxy component
+                            properties:
+                              resources:
+                                description: The resource requirements for Kibana
+                                properties:
+                                  limits:
+                                    description: 'Limits describes the maximum amount of compute
+                                      resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                    type: object
+                                  requests:
+                                    description: 'Requests describes the minimum amount of compute
+                                      resources required. If Requests is omitted for a container,
+                                      it defaults to Limits if that is explicitly specified, otherwise
+                                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                    type: object
+                        required:
+                        - replicas
+                    required:
+                    - type
+                  logStore:
+                    description: Specification of the Log Storage component for the cluster
+                    properties:
+                      type:
+                        description: The type of Log Storage to configure
+                        type: string
+                      elasticsearch:
+                        description: Specification of the Elasticsearch Log Store component
+                        properties:
+                          resources:
+                            description: The resource requirements for Kibana
+                            properties:
+                              limits:
+                                description: 'Limits describes the maximum amount of compute
+                                  resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                              requests:
+                                description: 'Requests describes the minimum amount of compute
+                                  resources required. If Requests is omitted for a container,
+                                  it defaults to Limits if that is explicitly specified, otherwise
+                                  to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                          nodeSelector:
+                            description: Define which Nodes the Pods are scheduled on.
+                            type: object
+                          replicas:
+                            description: Number of nodes to deploy for Elasticsearch
+                            format: int32
+                            type: integer
+                          storage:
+                            description: 'The storage backing for Elasticsearch. More info: '
+                            type: object
+                        required:
+                        - replicas
+                        - storage
+                    required:
+                    - type
+                  collection:
+                    description: Specification of the Collection component for the cluster
+                    properties:
+                      logCollection:
+                        description: Specification of Log Collection for the cluster
+                        properties:
+                          type:
+                            description: The type of Log Collection to configure
+                            type: string
+                          fluentd:
+                            description: Specification of the Fluentd Log Collection component
+                            properties:
+                              resources:
+                                description: The resource requirements for Fluentd
+                                properties:
+                                  limits:
+                                    description: 'Limits describes the maximum amount of compute
+                                      resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                    type: object
+                                  requests:
+                                    description: 'Requests describes the minimum amount of compute
+                                      resources required. If Requests is omitted for a container,
+                                      it defaults to Limits if that is explicitly specified, otherwise
+                                      to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                    type: object
+                              nodeSelector:
+                                description: Define which Nodes the Pods are scheduled on.
+                                type: object
+                        required:
+                        - type
+                      #eventCollection:
+                      #normalizer:
+                  curation:
+                    description: Specification of the Curation component for the cluster
+                    properties:
+                      type:
+                        description: The kind of curation to configure
+                        type: string
+                      curator:
+                        description: The specification of curation to configure
+                        properties:
+                          resources:
+                            description: The resource requirements for Curator
+                            properties:
+                              limits:
+                                description: 'Limits describes the maximum amount of compute
+                                  resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                              requests:
+                                description: 'Requests describes the minimum amount of compute
+                                  resources required. If Requests is omitted for a container,
+                                  it defaults to Limits if that is explicitly specified, otherwise
+                                  to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                          nodeSelector:
+                            description: Define which Nodes the Pods are scheduled on.
+                            type: object
+                          schedule:
+                            description: 'The cron schedule that the Curator job is run. Defaults to "30 3 * * *"'
+                            type: string
+                        required:
+                        - schedule
+                    required:
+                    - type
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
         name: deschedulers.descheduler.io
       spec:
         group: descheduler.io
@@ -4452,6 +4622,103 @@ data:
                 schedule:
                   type: string
                   pattern: '^(\d+|\*)(/\d+)?(\s+(\d+|\*)(/\d+)?){4}$'
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: elasticsearches.logging.openshift.io
+      spec:
+        group: logging.openshift.io
+        names:
+          kind: Elasticsearch
+          listKind: ElasticsearchList
+          plural: elasticsearches
+          singular: elasticsearch
+        scope: Namespaced
+        version: v1alpha1
+        validation:
+          openAPIV3Schema:
+            properties:
+              spec:
+                description: Specification of the desired behavior of the Elasticsearch cluster
+                properties:
+                  nodes:
+                    description: Specification of the different Elasticsearch nodes
+                    properties:
+                      roles:
+                        description: The specific Elasticsearch cluster roles the node should perform
+                        type: object
+                      replicas:
+                        description: Number of nodes to deploy
+                        format: int32
+                        type: integer
+                      spec:
+                        description: Specification of the Elasticsearch node
+                        properties:
+                          image:
+                            description: The image to use for the Elasticsearch node
+                            type: string
+                          resources:
+                            description: The resource requirements for the Elasticsearch node
+                            properties:
+                              limits:
+                                description: 'Limits describes the maximum amount of compute
+                                  resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                              requests:
+                                description: 'Requests describes the minimum amount of compute
+                                  resources required. If Requests is omitted for a container,
+                                  it defaults to Limits if that is explicitly specified, otherwise
+                                  to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                                type: object
+                      nodeSelector:
+                        description: Define which Nodes the Pods are scheduled on.
+                        type: object
+                      storage:
+                        description: The type of backing storage that should be used for the node
+                        properties:
+                          hostPath:
+                            description: Use host node storage
+                            type: object
+                          emptyDir:
+                            description: Use ephemeral storage
+                            type: object
+                          volumeClaimTemplate:
+                            description: 'Volume claims that act similarly to the VolumeClaimTemplates
+                              field of StatefulSets. A number of PVCs will be generated based on the number of
+                              node replicas'
+                            type: object
+                          persistentVolumeClaim:
+                            description: Use a specifically named Persistent Volume Claim
+                            type: object
+                  nodeSpec:
+                    description: Specification to be applied to all the Elasticsearch nodes
+                    properties:
+                      image:
+                        description: The image to use for the Elasticsearch nodes
+                        type: string
+                      resources:
+                        description: The resource requirements for the Elasticsearch nodes
+                        properties:
+                          limits:
+                            description: 'Limits describes the maximum amount of compute
+                              resources allowed. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                            type: object
+                          requests:
+                            description: 'Requests describes the minimum amount of compute
+                              resources required. If Requests is omitted for a container,
+                              it defaults to Limits if that is explicitly specified, otherwise
+                              to an implementation-defined value. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/'
+                            type: object
+                  serviceAccountName:
+                    description: The service account for the Elasticsearch nodes in this cluster
+                    type: string
+                  configMapName:
+                    description: The configmap for the Elasticsearch nodes in this cluster
+                    type: string
+                  secretName:
+                    description: The secret for the Elasticsearch nodes in this cluster
+                    type: string
       
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
@@ -5893,6 +6160,39 @@ data:
           kind: ""
           plural: ""
         conditions: null
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: meterings.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/description: An instance of Metering
+          catalog.app.coreos.com/displayName: Metering
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: meterings
+          singular: metering
+          kind: Metering
+          listKind: MeteringList
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: prestotables.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/displayName: "Metering Presto Table"
+          catalog.app.coreos.com/description: "A table within PrestoDB"
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: prestotables
+          singular: prestotable
+          kind: PrestoTable
       
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
@@ -8921,6 +9221,124 @@ data:
     - apiVersion: apiextensions.k8s.io/v1beta1
       kind: CustomResourceDefinition
       metadata:
+        name: reports.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/displayName: "Metering Report"
+          catalog.app.coreos.com/description: "A metering report summarizes metrics based on the query specified"
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: reports
+          kind: Report
+        additionalPrinterColumns:
+        - name: Query
+          type: string
+          JSONPath: .spec.generationQuery
+        - name: Schedule
+          type: string
+          JSONPath: .spec.schedule.period
+        - name: Running
+          type: string
+          JSONPath: .status.conditions[?(@.type=="Running")].reason
+        - name: Failed
+          type: string
+          JSONPath: .status.conditions[?(@.type=="Failure")].reason
+        - name: Table Name
+          type: string
+          JSONPath: .status.tableName
+        - name: Last Report Time
+          type: string
+          JSONPath: .status.lastReportTime
+        - name: Age
+          type: date
+          JSONPath: .metadata.creationTimestamp
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: reportdatasources.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/displayName: "Metering data source"
+          catalog.app.coreos.com/description: "A resource describing a source of data for usage by Report Generation Queries"
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: reportdatasources
+          singular: reportdatasource
+          kind: ReportDataSource
+          shortNames:
+          - datasource
+          - datasources
+        additionalPrinterColumns:
+        - name: Table Name
+          type: string
+          JSONPath: .status.tableName
+        - name: Earliest Metric
+          type: string
+          JSONPath: .status.prometheusMetricImportStatus.earliestImportedMetricTime
+        - name: Newest Metric
+          type: string
+          JSONPath: .status.prometheusMetricImportStatus.newestImportedMetricTime
+        - name: Last Import Time
+          type: string
+          JSONPath: .status.prometheusMetricImportStatus.lastImportTime
+        - name: Age
+          type: date
+          JSONPath: .metadata.creationTimestamp
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: reportgenerationqueries.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/displayName: "Metering generation query"
+          catalog.app.coreos.com/description: "A SQL query used by Metering to generate reports"
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: reportgenerationqueries
+          singular: reportgenerationquery
+          kind: ReportGenerationQuery
+          shortNames:
+          - rgq
+        additionalPrinterColumns:
+        - name: View Disabled
+          type: string
+          JSONPath: .spec.view.disabled
+        - name: View Name
+          type: string
+          JSONPath: .status.viewName
+        - name: Age
+          type: date
+          JSONPath: .metadata.creationTimestamp
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: reportprometheusqueries.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/displayName: "Metering prometheus query"
+          catalog.app.coreos.com/description: "A Prometheus query by Metering to do metering"
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: reportprometheusqueries
+          singular: reportprometheusquery
+          kind: ReportPrometheusQuery
+          shortNames:
+          - rpq
+      
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
         name: servicemonitors.monitoring.coreos.com
       spec:
         group: monitoring.coreos.com
@@ -9143,8 +9561,25 @@ data:
                 - selector
         version: v1
       
+    - apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagelocations.metering.openshift.io
+        annotations:
+          catalog.app.coreos.com/displayName: "Metering storage location"
+          catalog.app.coreos.com/description: "Represents a configurable storage location for Metering to store metering and report data"
+      spec:
+        group: metering.openshift.io
+        version: v1alpha1
+        scope: Namespaced
+        names:
+          plural: storagelocations
+          kind: StorageLocation
+      
   clusterServiceVersions: |-
-    - apiVersion: operators.coreos.com/v1alpha1
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
         name: amqstreams.v1.0.0.beta
@@ -9190,6 +9625,15 @@ data:
         icon:
         - base64data: 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
           mediatype: image/png
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -9579,7 +10023,421 @@ data:
                 path: authorization.type
                 x-descriptors:
                   - 'urn:alm:descriptor:com.tectonic.ui:label'
-    - apiVersion: operators.coreos.com/v1alpha1
+      
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
+      metadata:
+        name: clusterlogging.v0.0.1
+        namespace: placeholder
+        annotations:
+          olm-examples: '[{"apiVersion": "logging.openshift.io/v1alpha1","kind": "ClusterLogging","metadata":{"name": "example","annotations":{"io.openshift.clusterlogging.alpha/allinone": ""}},"spec": {"logStore":{"type": "elasticsearch","elasticsearch":{"replicas":1,"storage":{"emptyDir": {}}}},"visualization":{"type": "kibana","kibana":{"replicas": 1}},"curation":{"type": "curator","curator": {"schedule": "30 3 * * *"}},"collection": {"logCollection":{"type": "fluentd","fluentd":{"nodeSelector":{"logging-infra-fluentd: "true"}}}}}]'
+          test: "yes"
+      spec:
+        displayName: Cluster Logging
+      
+        description: |
+          The Cluster Logging Operator for OKD provides a means for configuring and managing your aggregated logging stack.
+      
+          Once installed, the Cluster Logging Operator provides the following features:
+          * **Create/Destroy**: Launch and create an aggregated logging stack in the `openshift-logging` namespace.
+          * **Simplified Configuration**: Configure your aggregated logging cluster's structure like components and end points easily.
+      
+        keywords: ['elasticsearch', 'kibana', 'fluentd', 'logging', 'aggregated', 'efk']
+      
+        maintainers:
+        - name: Red Hat
+          email: aos-logging@redhat.com
+      
+        provider:
+          name: Red Hat
+      
+        links:
+        - name: Elastic
+          url: https://www.elastic.co/
+        - name: Fluentd
+          url: https://www.fluentd.org/
+        - name: Documentation
+          url: https://github.com/openshift/cluster-logging-operator/blob/master/README.md
+        - name: Cluster Logging Operator
+          url: https://github.com/openshift/cluster-logging-operator
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
+        install:
+          strategy: deployment
+          spec:
+            permissions:
+            - serviceAccountName: cluster-logging-operator
+              rules:
+              - apiGroups:
+                - logging.openshift.io
+                resources:
+                - "*"
+                verbs:
+                - "*"
+              - apiGroups:
+                - ""
+                resources:
+                - pods
+                - services
+                - endpoints
+                - persistentvolumeclaims
+                - events
+                - configmaps
+                - secrets
+                - serviceaccounts
+                verbs:
+                - "*"
+              - apiGroups:
+                - apps
+                resources:
+                - deployments
+                - daemonsets
+                - replicasets
+                - statefulsets
+                verbs:
+                - "*"
+              - apiGroups:
+                - route.openshift.io
+                resources:
+                - routes
+                - routes/custom-host
+                verbs:
+                - "*"
+              - apiGroups:
+                - batch
+                resources:
+                - cronjobs
+                verbs:
+                - "*"
+              - apiGroups:
+                - rbac.authorization.k8s.io
+                resources:
+                - roles
+                - rolebindings
+                verbs:
+                - "*"
+            - serviceAccountName: elasticsearch-operator
+              rules:
+              - apiGroups:
+                - logging.openshift.io
+                resources:
+                - "*"
+                verbs:
+                - "*"
+              - apiGroups:
+                - ""
+                resources:
+                - pods
+                - pods/exec
+                - services
+                - endpoints
+                - persistentvolumeclaims
+                - events
+                - configmaps
+                - secrets
+                - serviceaccounts
+                verbs:
+                - "*"
+              - apiGroups:
+                - apps
+                resources:
+                - deployments
+                - daemonsets
+                - replicasets
+                - statefulsets
+                verbs:
+                - "*"
+              - apiGroups:
+                - monitoring.coreos.com
+                resources:
+                - prometheusrules
+                - servicemonitors
+                verbs:
+                - "*"
+            clusterPermissions:
+            - serviceAccountName: cluster-logging-operator
+              rules:
+              - apiGroups:
+                - scheduling.k8s.io
+                resources:
+                - priorityclasses
+                verbs:
+                - "*"
+              - apiGroups:
+                - oauth.openshift.io
+                resources:
+                - oauthclients
+                verbs:
+                - "*"
+            deployments:
+            - name: cluster-logging-operator
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    name: cluster-logging-operator
+                template:
+                  metadata:
+                    labels:
+                      name: cluster-logging-operator
+                  spec:
+                    serviceAccountName: cluster-logging-operator
+                    containers:
+                    - name: cluster-logging-operator
+                      image: quay.io/openshift/cluster-logging-operator:latest
+                      imagePullPolicy: IfNotPresent
+                      command:
+                      - cluster-logging-operator
+                      env:
+                        - name: WATCH_NAMESPACE
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.namespace
+                        - name: OPERATOR_NAME
+                          value: "cluster-logging-operator"
+                        - name: ELASTICSEARCH_IMAGE
+                          value: "docker.io/openshift/origin-logging-elasticsearch5:latest"
+                        - name: FLUENTD_IMAGE
+                          value: "docker.io/openshift/origin-logging-fluentd:latest"
+                        - name: KIBANA_IMAGE
+                          value: "docker.io/openshift/origin-logging-kibana5:latest"
+                        - name: CURATOR_IMAGE
+                          value: "docker.io/openshift/origin-logging-curator5:latest"
+                        - name: OAUTH_PROXY_IMAGE
+                          value: "docker.io/openshift/oauth-proxy:latest"
+                        - name: RSYSLOG_IMAGE
+                          value: "docker.io/viaq/rsyslog:latest"
+            - name: elasticsearch-operator
+              spec:
+                replicas: 1
+                selector:
+                  matchLabels:
+                    name: elasticsearch-operator
+                template:
+                  metadata:
+                    labels:
+                      name: elasticsearch-operator
+                  spec:
+                    serviceAccountName: elasticsearch-operator
+                    containers:
+                      - name: elasticsearch-operator
+                        image: quay.io/openshift/elasticsearch-operator:latest
+                        imagePullPolicy: IfNotPresent
+                        command:
+                        - elasticsearch-operator
+                        ports:
+                        - containerPort: 60000
+                          name: metrics
+                        env:
+                          - name: WATCH_NAMESPACE
+                            valueFrom:
+                              fieldRef:
+                                fieldPath: metadata.namespace
+                          - name: OPERATOR_NAME
+                            value: "elasticsearch-operator"
+        maturity: alpha
+        version: 0.0.1
+        customresourcedefinitions:
+          owned:
+          - name: clusterloggings.logging.openshift.io
+            version: v1alpha1
+            kind: ClusterLogging
+            displayName: Cluster Logging
+            description: A Cluster Logging instance
+            resources:
+            - kind: Deployment
+              version: v1
+            - kind: DaemonSet
+              version: v1
+            - kind: CronJob
+              version: v1beta1
+            - kind: ReplicaSet
+              version: v1
+            - kind: Pod
+              version: v1
+            - kind: ConfigMap
+              version: v1
+            - kind: Secret
+              version: v1
+            - kind: Service
+              version: v1
+            - kind: Route
+              version: v1
+            - kind: Elasticsearch
+              version: v1alpha1
+            specDescriptors:
+            - description: The desired number of Kibana Pods for the Visualization component
+              displayName: Kibana Size
+              path: visualization.kibana.replicas
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+            - description: Resource requirements for the Kibana pods
+              displayName: Kibana Resource Requirements
+              path: visualization.kibana.resources
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+            - description: The node selector to use for the Kibana Visualization component
+              displayName: Kibana Node Selector
+              path: visualization.kibana.nodeSelector
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+            - description: The desired number of Elasticsearch Pods for the Log Storage component
+              displayName: Elasticsearch Size
+              path: logStore.elasticsearch.replicas
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podCount'
+            - description: Resource requirements for the Elasticsearch pods
+              displayName: Elasticsearch Resource Requirements
+              path: logStore.elasticsearch.resources
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+            - description: The node selector to use for the Elasticsearch Log Storage component
+              displayName: Elasticsearch Node Selector
+              path: logStore.elasticsearch.nodeSelector
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+            - description: Resource requirements for the Fluentd pods
+              displayName: Fluentd Resource Requirements
+              path: collection.logCollection.fluentd.resources
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+            - description: The node selector to use for the Fluentd log collection component
+              displayName: Fluentd node selector
+              path: collection.logCollection.fluentd.nodeSelector
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+            - description: Resource requirements for the Rsyslog pods
+              displayName: Rsyslog Resource Requirements
+              path: collection.logCollection.rsyslog.resources
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+            - description: The node selector to use for the Rsyslog log collection component
+              displayName: Rsyslog node selector
+              path: collection.logCollection.rsyslog.nodeSelector
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+            - description: Resource requirements for the Curator pods
+              displayName: Curator Resource Requirements
+              path: curation.curator.resources
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+            - description: The node selector to use for the Curator component
+              displayName: Curator Node Selector
+              path: curation.curator.nodeSelector
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:nodeSelector'
+            - description: The cron schedule for the Curator component
+              displayName: Curation Schedule
+              path: curation.curator.schedule
+            statusDescriptors:
+            - description: The status for each of the Kibana pods for the Visualization component
+              displayName: Kibana Status
+              path: visualization.kibanaStatus.pods
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The status for each of the Elasticsearch Client pods for the Log Storage component
+              displayName: Elasticsearch Client Pod Status
+              path: logStore.elasticsearchStatus.pods.client
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The status for each of the Elasticsearch Data pods for the Log Storage component
+              displayName: Elasticsearch Data Pod Status
+              path: logStore.elasticsearchStatus.pods.data
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The status for each of the Elasticsearch Master pods for the Log Storage component
+              displayName: Elasticsearch Master Pod Status
+              path: logStore.elasticsearchStatus.pods.master
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The cluster status for each of the Elasticsearch Clusters for the Log Storage component
+              displayName: Elasticsearch Cluster Health
+              path: logstore.elasticsearchStatus.clusterHealth
+            - description: The status for each of the Fluentd pods for the Log Collection component
+              displayName: Fluentd status
+              path: collection.logCollection.fluentdStatus.pods
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The status for each of the Rsyslog pods for the Log Collection component
+              displayName: Rsyslog status
+              path: collection.logCollection.rsyslogStatus.pods
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+          - name: elasticsearches.logging.openshift.io
+            version: v1alpha1
+            kind: Elasticsearch
+            displayName: Elasticsearch
+            description: An Elasticsearch cluster instance
+            resources:
+            - kind: Deployment
+              version: v1
+            - kind: StatefulSet
+              version: v1
+            - kind: ReplicaSet
+              version: v1
+            - kind: Pod
+              version: v1
+            - kind: ConfigMap
+              version: v1
+            - kind: Service
+              version: v1
+            - kind: Route
+              version: v1
+            specDescriptors:
+            - description: The name of the serviceaccount used by the Elasticsearch pods
+              displayName: Service Account
+              path: serviceAccountName
+              x-descriptors:
+                - 'urn:alm:descriptor:io.kubernetes:ServiceAccount'
+            - description: The name of the configmap used by the Elasticsearch pods
+              displayName: Config Map
+              path: configMapName
+              x-descriptors:
+                - 'urn:alm:descriptor:io.kubernetes:ConfigMap'
+            - description: The name of the secret used by the Elasticsearch pods
+              displayName: Secret
+              path: secretName
+              x-descriptors:
+                - 'urn:alm:descriptor:io.kubernetes:Secret'
+            - description: Limits describes the minimum/maximum amount of compute resources required/allowed
+              displayName: Resource Requirements
+              path: nodeSpec.resources
+              x-descriptors:
+                - 'urn:alm:descriptor:com.tectonic.ui:resourceRequirements'
+            statusDescriptors:
+            - description: The current health of Elasticsearch Cluster
+              displayName: Elasticsearch Cluster Health
+              path: clusterHealth
+              x-descriptors:
+                - 'urn:alm:descriptor:io.kubernetes.phase'
+            - description: The status for each of the Elasticsearch pods with the Client role
+              displayName: Elasticsearch Client Status
+              path: pods.client
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The status for each of the Elasticsearch pods with the Data role
+              displayName: Elasticsearch Data Status
+              path: pods.data
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+            - description: The status for each of the Elasticsearch pods with the Master role
+              displayName: Elasticsearch Master Status
+              path: pods.master
+              x-descriptors:
+              - 'urn:alm:descriptor:com.tectonic.ui:podStatuses'
+      
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
         annotations:
@@ -9631,6 +10489,15 @@ data:
             name: deschedulers.descheduler.io
             version: v1alpha1
         displayName: Descheduler
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           spec:
             clusterPermissions:
@@ -9773,6 +10640,15 @@ data:
         icon:
         - base64data: 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
           mediatype: image/png
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -9962,6 +10838,15 @@ data:
         icon:
         - base64data: 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
           mediatype: image/png
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -10245,6 +11130,15 @@ data:
         icon:
         - base64data: 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
           mediatype: image/png
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -10457,10 +11351,13 @@ data:
                 x-descriptors: 
                   - 'urn:alm:descriptor:io.kubernetes.phase:reason'
       
-    - apiVersion: operators.coreos.com/v1alpha1
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
         name: federationv2.v0.0.2
+        namespace: placeholder
       spec:
         displayName: FederationV2
         description: |
@@ -10472,7 +11369,15 @@ data:
         labels:
           alm-owner-federationv2: federationv2
           alm-status-descriptors: federationv2.v0.0.2
-      
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -10728,6 +11633,331 @@ data:
       apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
+        name: metering-operator.v0.12.0
+        namespace: placeholder
+        labels:
+          operator-metering: "true"
+      spec:
+        displayName: Metering
+        description: Metering can generate reports based on historical usage data from a cluster, providing accountability for how resources have been used.
+        keywords: [metering metrics reporting]
+        version: 0.12.0
+        maturity: alpha
+        maintainers:
+          - email: sd-operator-metering@redhat.com
+            name: Red Hat
+        provider:
+          name: Red Hat
+        labels:
+          alm-owner-metering: metering-operator
+          alm-status-descriptors: metering-operator.v0.12.0
+        selector:
+          matchLabels:
+            alm-owner-metering: metering-operator
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: false
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: false
+        install:
+          strategy: deployment
+          spec:
+            permissions:
+              - rules:
+                - apiGroups:
+                  - metering.openshift.io
+                  resources:
+                  - '*'
+                  verbs:
+                  - '*'
+                - apiGroups:
+                  - ""
+                  resources:
+                  - pods
+                  - pods/attach
+                  - pods/exec
+                  - pods/portforward
+                  - pods/proxy
+                  verbs:
+                  - create
+                  - delete
+                  - deletecollection
+                  - get
+                  - list
+                  - patch
+                  - update
+                  - watch
+                - apiGroups:
+                  - ""
+                  resources:
+                  - configmaps
+                  - endpoints
+                  - persistentvolumeclaims
+                  - replicationcontrollers
+                  - replicationcontrollers/scale
+                  - secrets
+                  - serviceaccounts
+                  - services
+                  - services/proxy
+                  verbs:
+                  - create
+                  - delete
+                  - deletecollection
+                  - get
+                  - list
+                  - patch
+                  - update
+                  - watch
+                - apiGroups:
+                  - ""
+                  resources:
+                  - bindings
+                  - events
+                  - limitranges
+                  - namespaces/status
+                  - pods/log
+                  - pods/status
+                  - replicationcontrollers/status
+                  - resourcequotas
+                  - resourcequotas/status
+                  verbs:
+                  - get
+                  - list
+                  - watch
+                - apiGroups:
+                  - ""
+                  resources:
+                  - events
+                  verbs:
+                  - create
+                  - update
+                  - patch
+                - apiGroups:
+                  - ""
+                  resources:
+                  - namespaces
+                  verbs:
+                  - get
+                  - list
+                  - watch
+                - apiGroups:
+                  - apps
+                  resources:
+                  - deployments
+                  - deployments/rollback
+                  - deployments/scale
+                  - statefulsets
+                  verbs:
+                  - create
+                  - delete
+                  - deletecollection
+                  - get
+                  - list
+                  - patch
+                  - update
+                  - watch
+                - apiGroups:
+                  - batch
+                  resources:
+                  - cronjobs
+                  - jobs
+                  verbs:
+                  - create
+                  - delete
+                  - deletecollection
+                  - get
+                  - list
+                  - patch
+                  - update
+                  - watch
+                - apiGroups:
+                  - extensions
+                  resources:
+                  - daemonsets
+                  - deployments
+                  - deployments/rollback
+                  - deployments/scale
+                  - replicasets
+                  - replicasets/scale
+                  - replicationcontrollers/scale
+                  verbs:
+                  - create
+                  - delete
+                  - deletecollection
+                  - get
+                  - list
+                  - patch
+                  - update
+                  - watch
+                - apiGroups:
+                  - rbac.authorization.k8s.io
+                  resources:
+                  - rolebindings
+                  - roles
+                  verbs:
+                  - create
+                  - delete
+                  - deletecollection
+                  - get
+                  - list
+                  - patch
+                  - update
+                  - watch
+                - apiGroups:
+                  - route.openshift.io
+                  resources:
+                  - routes
+                  verbs:
+                  - create
+                  - get
+                  - list
+                  - watch
+                  - update
+                  - delete
+                serviceAccountName: metering-operator
+            deployments:
+              - name: metering-operator
+                spec:
+                  replicas: 1
+                  selector:
+                    matchLabels:
+                      app: metering-operator
+                  strategy:
+                    type: Recreate
+                  template:
+                    metadata:
+                      labels:
+                        app: metering-operator
+                    spec:
+                      containers:
+                      - args:
+                        - run-operator.sh
+                        env:
+                        - name: HELM_RELEASE_CRD_NAME
+                          value: Metering
+                        - name: HELM_RELEASE_CRD_API_GROUP
+                          value: metering.openshift.io
+                        - name: HELM_CHART_PATH
+                          value: /openshift-metering-0.1.0.tgz
+                        - name: MY_POD_NAME
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.name
+                        - name: MY_POD_NAMESPACE
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.namespace
+                        - name: HELM_HOST
+                          value: 127.0.0.1:44134
+                        - name: HELM_WAIT
+                          value: "false"
+                        - name: HELM_RECONCILE_INTERVAL_SECONDS
+                          value: "30"
+                        - name: RELEASE_HISTORY_LIMIT
+                          value: "3"
+                        image: quay.io/coreos/metering-helm-operator:0.12.0
+                        imagePullPolicy: Always
+                        name: metering-operator
+                        resources:
+                          limits:
+                            cpu: 50m
+                            memory: 25Mi
+                          requests:
+                            cpu: 50m
+                            memory: 25Mi
+                      - args:
+                        - tiller
+                        env:
+                        - name: TILLER_NAMESPACE
+                          valueFrom:
+                            fieldRef:
+                              fieldPath: metadata.namespace
+                        - name: TILLER_HISTORY_MAX
+                          value: "3"
+                        image: quay.io/coreos/metering-helm-operator:0.12.0
+                        imagePullPolicy: Always
+                        livenessProbe:
+                          failureThreshold: 3
+                          httpGet:
+                            path: /liveness
+                            port: 44135
+                            scheme: HTTP
+                          initialDelaySeconds: 1
+                          periodSeconds: 10
+                          successThreshold: 1
+                          timeoutSeconds: 1
+                        name: tiller
+                        readinessProbe:
+                          failureThreshold: 3
+                          httpGet:
+                            path: /readiness
+                            port: 44135
+                            scheme: HTTP
+                          initialDelaySeconds: 1
+                          periodSeconds: 10
+                          successThreshold: 1
+                          timeoutSeconds: 1
+                        resources:
+                          limits:
+                            cpu: 50m
+                            memory: 100Mi
+                          requests:
+                            cpu: 50m
+                            memory: 50Mi
+                      restartPolicy: Always
+                      securityContext:
+                        runAsNonRoot: true
+                      serviceAccount: metering-operator
+                      terminationGracePeriodSeconds: 30
+        customresourcedefinitions:
+          owned:
+          - description: An instance of Metering
+            displayName: Metering
+            kind: Metering
+            name: meterings.metering.openshift.io
+            version: v1alpha1
+          - description: A table within PrestoDB
+            displayName: Metering Presto Table
+            kind: PrestoTable
+            name: prestotables.metering.openshift.io
+            version: v1alpha1
+          - description: A resource describing a source of data for usage by Report Generation
+              Queries
+            displayName: Metering data source
+            kind: ReportDataSource
+            name: reportdatasources.metering.openshift.io
+            version: v1alpha1
+          - description: A SQL query used by Metering to generate reports
+            displayName: Metering generation query
+            kind: ReportGenerationQuery
+            name: reportgenerationqueries.metering.openshift.io
+            version: v1alpha1
+          - description: A Prometheus query by Metering to do metering
+            displayName: Metering prometheus query
+            kind: ReportPrometheusQuery
+            name: reportprometheusqueries.metering.openshift.io
+            version: v1alpha1
+          - description: A metering report for a specific time interval
+            displayName: Metering Report
+            kind: Report
+            name: reports.metering.openshift.io
+            version: v1alpha1
+          - description: Represents a configurable storage location for Metering to store metering
+              and report data
+            displayName: Metering storage location
+            kind: StorageLocation
+            name: storagelocations.metering.openshift.io
+            version: v1alpha1
+      
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: ClusterServiceVersion
+      metadata:
         name: prometheusoperator.0.14.0
         namespace: placeholder
       spec:
@@ -10781,6 +12011,16 @@ data:
         - base64data: PHN2ZyB3aWR0aD0iMjQ5MCIgaGVpZ2h0PSIyNTAwIiB2aWV3Qm94PSIwIDAgMjU2IDI1NyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEyOC4wMDEuNjY3QzU3LjMxMS42NjcgMCA1Ny45NzEgMCAxMjguNjY0YzAgNzAuNjkgNTcuMzExIDEyNy45OTggMTI4LjAwMSAxMjcuOTk4UzI1NiAxOTkuMzU0IDI1NiAxMjguNjY0QzI1NiA1Ny45NyAxOTguNjg5LjY2NyAxMjguMDAxLjY2N3ptMCAyMzkuNTZjLTIwLjExMiAwLTM2LjQxOS0xMy40MzUtMzYuNDE5LTMwLjAwNGg3Mi44MzhjMCAxNi41NjYtMTYuMzA2IDMwLjAwNC0zNi40MTkgMzAuMDA0em02MC4xNTMtMzkuOTRINjcuODQyVjE3OC40N2gxMjAuMzE0djIxLjgxNmgtLjAwMnptLS40MzItMzMuMDQ1SDY4LjE4NWMtLjM5OC0uNDU4LS44MDQtLjkxLTEuMTg4LTEuMzc1LTEyLjMxNS0xNC45NTQtMTUuMjE2LTIyLjc2LTE4LjAzMi0zMC43MTYtLjA0OC0uMjYyIDE0LjkzMyAzLjA2IDI1LjU1NiA1LjQ1IDAgMCA1LjQ2NiAxLjI2NSAxMy40NTggMi43MjItNy42NzMtOC45OTQtMTIuMjMtMjAuNDI4LTEyLjIzLTMyLjExNiAwLTI1LjY1OCAxOS42OC00OC4wNzkgMTIuNTgtNjYuMjAxIDYuOTEuNTYyIDE0LjMgMTQuNTgzIDE0LjggMzYuNTA1IDcuMzQ2LTEwLjE1MiAxMC40Mi0yOC42OSAxMC40Mi00MC4wNTYgMC0xMS43NjkgNy43NTUtMjUuNDQgMTUuNTEyLTI1LjkwNy02LjkxNSAxMS4zOTYgMS43OSAyMS4xNjUgOS41MyA0NS40IDIuOTAyIDkuMTAzIDIuNTMyIDI0LjQyMyA0Ljc3MiAzNC4xMzguNzQ0LTIwLjE3OCA0LjIxMy00OS42MiAxNy4wMTQtNTkuNzg0LTUuNjQ3IDEyLjguODM2IDI4LjgxOCA1LjI3IDM2LjUxOCA3LjE1NCAxMi40MjQgMTEuNDkgMjEuODM2IDExLjQ5IDM5LjYzOCAwIDExLjkzNi00LjQwNyAyMy4xNzMtMTEuODQgMzEuOTU4IDguNDUyLTEuNTg2IDE0LjI4OS0zLjAxNiAxNC4yODktMy4wMTZsMjcuNDUtNS4zNTVjLjAwMi0uMDAyLTMuOTg3IDE2LjQwMS0xOS4zMTQgMzIuMTk3eiIgZmlsbD0iI0RBNEUzMSIvPjwvc3ZnPg==
           mediatype: image/svg+xml
       
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
+          
         install:
           strategy: deployment
           spec:
@@ -11038,6 +12278,16 @@ data:
         - base64data: PHN2ZyB3aWR0aD0iMjQ5MCIgaGVpZ2h0PSIyNTAwIiB2aWV3Qm94PSIwIDAgMjU2IDI1NyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEyOC4wMDEuNjY3QzU3LjMxMS42NjcgMCA1Ny45NzEgMCAxMjguNjY0YzAgNzAuNjkgNTcuMzExIDEyNy45OTggMTI4LjAwMSAxMjcuOTk4UzI1NiAxOTkuMzU0IDI1NiAxMjguNjY0QzI1NiA1Ny45NyAxOTguNjg5LjY2NyAxMjguMDAxLjY2N3ptMCAyMzkuNTZjLTIwLjExMiAwLTM2LjQxOS0xMy40MzUtMzYuNDE5LTMwLjAwNGg3Mi44MzhjMCAxNi41NjYtMTYuMzA2IDMwLjAwNC0zNi40MTkgMzAuMDA0em02MC4xNTMtMzkuOTRINjcuODQyVjE3OC40N2gxMjAuMzE0djIxLjgxNmgtLjAwMnptLS40MzItMzMuMDQ1SDY4LjE4NWMtLjM5OC0uNDU4LS44MDQtLjkxLTEuMTg4LTEuMzc1LTEyLjMxNS0xNC45NTQtMTUuMjE2LTIyLjc2LTE4LjAzMi0zMC43MTYtLjA0OC0uMjYyIDE0LjkzMyAzLjA2IDI1LjU1NiA1LjQ1IDAgMCA1LjQ2NiAxLjI2NSAxMy40NTggMi43MjItNy42NzMtOC45OTQtMTIuMjMtMjAuNDI4LTEyLjIzLTMyLjExNiAwLTI1LjY1OCAxOS42OC00OC4wNzkgMTIuNTgtNjYuMjAxIDYuOTEuNTYyIDE0LjMgMTQuNTgzIDE0LjggMzYuNTA1IDcuMzQ2LTEwLjE1MiAxMC40Mi0yOC42OSAxMC40Mi00MC4wNTYgMC0xMS43NjkgNy43NTUtMjUuNDQgMTUuNTEyLTI1LjkwNy02LjkxNSAxMS4zOTYgMS43OSAyMS4xNjUgOS41MyA0NS40IDIuOTAyIDkuMTAzIDIuNTMyIDI0LjQyMyA0Ljc3MiAzNC4xMzguNzQ0LTIwLjE3OCA0LjIxMy00OS42MiAxNy4wMTQtNTkuNzg0LTUuNjQ3IDEyLjguODM2IDI4LjgxOCA1LjI3IDM2LjUxOCA3LjE1NCAxMi40MjQgMTEuNDkgMjEuODM2IDExLjQ5IDM5LjYzOCAwIDExLjkzNi00LjQwNyAyMy4xNzMtMTEuODQgMzEuOTU4IDguNDUyLTEuNTg2IDE0LjI4OS0zLjAxNiAxNC4yODktMy4wMTZsMjcuNDUtNS4zNTVjLjAwMi0uMDAyLTMuOTg3IDE2LjQwMS0xOS4zMTQgMzIuMTk3eiIgZmlsbD0iI0RBNEUzMSIvPjwvc3ZnPg==
           mediatype: image/svg+xml
       
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
+          
         install:
           strategy: deployment
           spec:
@@ -11297,6 +12547,16 @@ data:
         - base64data: PHN2ZyB3aWR0aD0iMjQ5MCIgaGVpZ2h0PSIyNTAwIiB2aWV3Qm94PSIwIDAgMjU2IDI1NyIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIiBwcmVzZXJ2ZUFzcGVjdFJhdGlvPSJ4TWlkWU1pZCI+PHBhdGggZD0iTTEyOC4wMDEuNjY3QzU3LjMxMS42NjcgMCA1Ny45NzEgMCAxMjguNjY0YzAgNzAuNjkgNTcuMzExIDEyNy45OTggMTI4LjAwMSAxMjcuOTk4UzI1NiAxOTkuMzU0IDI1NiAxMjguNjY0QzI1NiA1Ny45NyAxOTguNjg5LjY2NyAxMjguMDAxLjY2N3ptMCAyMzkuNTZjLTIwLjExMiAwLTM2LjQxOS0xMy40MzUtMzYuNDE5LTMwLjAwNGg3Mi44MzhjMCAxNi41NjYtMTYuMzA2IDMwLjAwNC0zNi40MTkgMzAuMDA0em02MC4xNTMtMzkuOTRINjcuODQyVjE3OC40N2gxMjAuMzE0djIxLjgxNmgtLjAwMnptLS40MzItMzMuMDQ1SDY4LjE4NWMtLjM5OC0uNDU4LS44MDQtLjkxLTEuMTg4LTEuMzc1LTEyLjMxNS0xNC45NTQtMTUuMjE2LTIyLjc2LTE4LjAzMi0zMC43MTYtLjA0OC0uMjYyIDE0LjkzMyAzLjA2IDI1LjU1NiA1LjQ1IDAgMCA1LjQ2NiAxLjI2NSAxMy40NTggMi43MjItNy42NzMtOC45OTQtMTIuMjMtMjAuNDI4LTEyLjIzLTMyLjExNiAwLTI1LjY1OCAxOS42OC00OC4wNzkgMTIuNTgtNjYuMjAxIDYuOTEuNTYyIDE0LjMgMTQuNTgzIDE0LjggMzYuNTA1IDcuMzQ2LTEwLjE1MiAxMC40Mi0yOC42OSAxMC40Mi00MC4wNTYgMC0xMS43NjkgNy43NTUtMjUuNDQgMTUuNTEyLTI1LjkwNy02LjkxNSAxMS4zOTYgMS43OSAyMS4xNjUgOS41MyA0NS40IDIuOTAyIDkuMTAzIDIuNTMyIDI0LjQyMyA0Ljc3MiAzNC4xMzguNzQ0LTIwLjE3OCA0LjIxMy00OS42MiAxNy4wMTQtNTkuNzg0LTUuNjQ3IDEyLjguODM2IDI4LjgxOCA1LjI3IDM2LjUxOCA3LjE1NCAxMi40MjQgMTEuNDkgMjEuODM2IDExLjQ5IDM5LjYzOCAwIDExLjkzNi00LjQwNyAyMy4xNzMtMTEuODQgMzEuOTU4IDguNDUyLTEuNTg2IDE0LjI4OS0zLjAxNiAxNC4yODktMy4wMTZsMjcuNDUtNS4zNTVjLjAwMi0uMDAyLTMuOTg3IDE2LjQwMS0xOS4zMTQgMzIuMTk3eiIgZmlsbD0iI0RBNEUzMSIvPjwvc3ZnPg==
           mediatype: image/svg+xml
       
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
+          
         install:
           strategy: deployment
           spec:
@@ -11531,6 +12791,17 @@ data:
           url: https://svc-cat.io/docs
         - name: Service Catalog
           url: https://github.com/kubernetes-incubator/service-catalog
+        
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
+          
         install:
           strategy: deployment
           spec:
@@ -11576,7 +12847,7 @@ data:
                 resources: ["serviceinstances","servicebindings"]
                 verbs:     ["get","list","watch", "update"]
               - apiGroups: ["servicecatalog.k8s.io"]
-                resources: ["clusterservicebrokers/status","clusterserviceclasses/status","clusterserviceplans/status","serviceinstances/status","serviceinstances/reference","servicebindings/status"]
+                resources: ["clusterservicebrokers/status","clusterserviceclasses/status","clusterserviceplans/status","serviceinstances/status","serviceinstances/reference","servicebindings/status","servicebindings/finalizers"]
                 verbs:     ["update"]
               - apiGroups: ["servicecatalog.k8s.io"]
                 resources: ["serviceclasses"]
@@ -11634,10 +12905,10 @@ data:
                       resources:
                         limits:
                           cpu: 100m
-                          memory: 30Mi
+                          memory: 140Mi
                         requests:
                           cpu: 100m
-                          memory: 20Mi
+                          memory: 40Mi
                       args:
                       - apiserver
                       - --enable-admission-plugins
@@ -11683,10 +12954,10 @@ data:
                       resources:
                         limits:
                           cpu: 100m
-                          memory: 40Mi
+                          memory: 150Mi
                         requests:
                           cpu: 100m
-                          memory: 30Mi
+                          memory: 50Mi
                       env:
                       - name: ETCD_DATA_DIR
                         value: /etcd-data-dir
@@ -11744,10 +13015,10 @@ data:
                       resources:
                         limits:
                           cpu: 100m
-                          memory: 30Mi
+                          memory: 150Mi
                         requests:
                           cpu: 100m
-                          memory: 20Mi
+                          memory: 100Mi
                       env:
                       - name: K8S_NAMESPACE
                         valueFrom:
@@ -11817,6 +13088,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ClusterServiceClass
+            name: clusterserviceclasses
             displayName: ClusterServiceClass
             description: A service catalog resource
             deploymentName: apiserver
@@ -11824,6 +13096,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ClusterServicePlan
+            name: clusterserviceplans
             displayName: ClusterServicePlan
             description: A service catalog resource
             deploymentName: apiserver
@@ -11831,6 +13104,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ClusterServiceBroker
+            name: clusterservicebrokers
             displayName: ClusterServiceBroker
             description: A service catalog resource
             deploymentName: apiserver
@@ -11838,6 +13112,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ServiceInstance
+            name: serviceinstances
             displayName: ServiceInstance
             description: A service catalog resource
             deploymentName: apiserver
@@ -11845,6 +13120,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ServiceBinding
+            name: servicebindings
             displayName: ServiceBinding
             description: A service catalog resource
             deploymentName: apiserver
@@ -11852,6 +13128,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ServiceClass
+            name: serviceclasses
             displayName: ServiceClass
             description: A service catalog resource
             deploymentName: apiserver
@@ -11859,6 +13136,7 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ServicePlan
+            name: serviceplans
             displayName: ServicePlan
             description: A service catalog resource
             deploymentName: apiserver
@@ -11866,24 +13144,31 @@ data:
           - group: servicecatalog.k8s.io
             version: v1beta1
             kind: ServiceBroker
+            name: servicebrokers
             displayName: ServiceBroker
             description: A service catalog resource
             deploymentName: apiserver
             containerPort: 5443
       
   packages: |-
-    - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/amq-streams.v1.0.0-clusterserviceversion
+    - #! package-manifest: deploy/chart/catalog_resources/rh-operators/amq-streams.v1.0.0.clusterserviceversion.yaml
       packageName: amq-streams
       channels:
       - name: preview
         currentCSV: amqstreams.v1.0.0.beta
+      
+    - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/clusterlogging.v0.0.1.clusterserviceversion.yaml
+      packageName: cluster-logging
+      channels:
+      - name: preview
+        currentCSV: clusterlogging.v0.0.1
       
     - packageName: descheduler
       channels:
       - name: alpha
         currentCSV: descheduler.v0.0.1
       
-    - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/etcdoperator.v0.9.2.clusterserviceversion.yaml
+    - #! package-manifest: deploy/chart/catalog_resources/rh-operators/etcdoperator.v0.9.2.clusterserviceversion.yaml
       packageName: etcd
       channels:
       - name: alpha
@@ -11894,13 +13179,19 @@ data:
       - name: alpha
         currentCSV: federationv2.v0.0.2
       
-    - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/prometheusoperator.0.22.2.clusterserviceversion.yaml
+    - #! package-manifest: deploy/chart/catalog_resources/rh-operators/metering-operator.v0.12.0.clusterserviceversion.yaml
+      packageName: metering
+      channels:
+      - name: alpha
+        currentCSV: metering-operator.v0.12.0
+      
+    - #! package-manifest: deploy/chart/catalog_resources/rh-operators/prometheusoperator.0.22.2.clusterserviceversion.yaml
       packageName: prometheus
       channels:
       - name: preview
         currentCSV: prometheusoperator.0.22.2
       
-    - #! package-manifest: ./deploy/chart/catalog_resources/rh-operators/svcat.v0.1.34.clusterserviceversion.yaml
+    - #! package-manifest: deploy/chart/catalog_resources/rh-operators/svcat.v0.1.34.clusterserviceversion.yaml
       packageName: svcat
       channels:
       - name: alpha

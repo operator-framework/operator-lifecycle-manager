@@ -1,5 +1,0 @@
-#! package-manifest: deploy/chart/catalog_resources/rh-operators/amq-streams.v1.0.0.clusterserviceversion.yaml
-packageName: amq-streams
-channels:
-- name: preview
-  currentCSV: amqstreams.v1.0.0.beta

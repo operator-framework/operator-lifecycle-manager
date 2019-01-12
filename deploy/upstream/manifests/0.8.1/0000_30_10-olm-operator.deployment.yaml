@@ -4,7 +4,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: olm-operator
-  namespace: openshift-operator-lifecycle-manager
+  namespace: olm
   labels:
     app: olm-operator
 spec:
@@ -46,8 +46,4 @@ spec:
             value: olm-operator
       nodeSelector:
         beta.kubernetes.io/os: linux
-        node-role.kubernetes.io/master: ""
-        
-      tolerations:
-        - operator: Exists
         

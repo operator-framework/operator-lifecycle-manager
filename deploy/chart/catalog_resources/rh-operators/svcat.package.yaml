@@ -1,5 +1,0 @@
-#! package-manifest: deploy/chart/catalog_resources/rh-operators/svcat.v0.1.34.clusterserviceversion.yaml
-packageName: svcat
-channels:
-- name: alpha
-  currentCSV: svcat.v0.1.34

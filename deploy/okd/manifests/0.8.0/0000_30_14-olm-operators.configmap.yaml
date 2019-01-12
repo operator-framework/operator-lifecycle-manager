@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_14-olm-operators.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
@@ -27,6 +27,15 @@ data:
         links:
         - name: Package Server
           url: https://github.com/operator-framework/operator-lifecycle-manager/tree/master/pkg/packageserver
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: true
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:

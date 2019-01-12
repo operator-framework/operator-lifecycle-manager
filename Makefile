@@ -26,7 +26,6 @@ unit:
 	go test $(MOD_FLAGS) -v -race -tags=json1 -count=1 ./pkg/...
 
 schema-check:
-	go run $(MOD_FLAGS) ./cmd/validator/main.go ./deploy/chart/catalog_resources
 
 cover.out: schema-check
 	go test $(MOD_FLAGS) -v -race -tags=json1 -coverprofile=cover.out -covermode=atomic \
@@ -160,7 +159,7 @@ container-mockgen:
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog: schema-check
+verify-catalog:
 
 generate-mock-client: 
 	$(MOCKGEN)
