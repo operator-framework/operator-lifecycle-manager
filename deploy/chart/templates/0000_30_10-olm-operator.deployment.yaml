@@ -60,3 +60,7 @@ spec:
       nodeSelector:
 {{ toYaml .Values.olm.nodeSelector | indent 8 }}
     {{- end }}
+    {{- if .Values.olm.tolerations }}
+      tolerations:
+{{ toYaml .Values.olm.tolerations | indent 8 }}
+    {{- end }}

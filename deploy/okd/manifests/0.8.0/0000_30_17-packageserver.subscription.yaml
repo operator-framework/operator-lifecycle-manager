@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_17-packageserver.subscription.yaml
 #! validate-crd: ./deploy/chart/templates/04-subscription.crd.yaml
 #! parse-kind: Subscription
@@ -9,5 +9,6 @@ metadata:
   namespace: openshift-operator-lifecycle-manager
 spec:
   source: olm-operators
+  sourceNamespace: openshift-operator-lifecycle-manager
   name: packageserver
   channel: alpha

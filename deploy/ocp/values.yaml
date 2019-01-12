@@ -6,24 +6,36 @@ imagestream: true
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
+    ref: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - operator: Exists
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
+    ref: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - operator: Exists
 package:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
+    ref: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
     pullPolicy: Always
   service:
     internalPort: 5443
-catalog_sources:
-- rh-operators
-- certified-operators
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - operator: Exists

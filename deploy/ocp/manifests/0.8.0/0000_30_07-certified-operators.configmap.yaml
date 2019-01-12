@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_07-certified-operators.configmap.yaml
 
 kind: ConfigMap
@@ -483,7 +483,9 @@ data:
                       version:
                         type: string
   clusterServiceVersions: |-
-    - apiVersion: operators.coreos.com/v1alpha1
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
         annotations:
@@ -633,6 +635,15 @@ data:
             url: 'https://docs.couchbase.com/operator/1.0/overview.html'
           - name: Downloads
             url: 'https://www.couchbase.com/downloads'
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           spec:
             deployments:
@@ -804,7 +815,9 @@ data:
           alm-owner-etcd: couchbaseoperator
           operated-by: couchbaseoperator
       
-    - apiVersion: operators.coreos.com/v1alpha1
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
         annotations:
@@ -881,6 +894,15 @@ data:
             url: https://www.dynatrace.com/support/help/cloud-platforms/openshift/full-stack/deployment/deploy-oneagent-on-openshift-container-platform/
           - name: OpenShift Monitoring Info
             url: https://www.dynatrace.com/technologies/openshift-monitoring/
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           spec:
             deployments:
@@ -1036,7 +1058,9 @@ data:
           Deploy
           Guide](https://www.dynatrace.com/support/help/shortlink/openshift-deploy#parameters).
       
-    - apiVersion: operators.coreos.com/v1alpha1
+    - #! validate-crd: deploy/chart/templates/0000_30_02-clusterserviceversion.crd.yaml
+      #! parse-kind: ClusterServiceVersion
+      apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
         name: mongodboperator.v0.3.2
@@ -1257,7 +1281,15 @@ data:
               path: service
               x-descriptors:
               - 'urn:alm:descriptor:io.kubernetes:Service'
-      
+        installModes:
+        - type: OwnNamespace
+          supported: true
+        - type: SingleNamespace
+          supported: true
+        - type: MultiNamespace
+          supported: false
+        - type: AllNamespaces
+          supported: true
         install:
           strategy: deployment
           spec:
@@ -1279,7 +1311,7 @@ data:
       
                     containers:
                     - name: mongodb-enterprise-operator
-                      image: quay.io/mongodb/mongodb-enterprise-operator:0.3
+                      image: registry.connect.redhat.com/mongodb/enterprise-operator
                       imagePullPolicy: Always
                       resources:
                         limits:
@@ -1299,7 +1331,7 @@ data:
                       - name: OPERATOR_ENV
                         value: prod
                       - name: MONGODB_ENTERPRISE_DATABASE_IMAGE
-                        value: quay.io/mongodb/mongodb-enterprise-database:0.3
+                        value: registry.connect.redhat.com/mongodb/enterprise-database
                       - name: IMAGE_PULL_POLICY
                         value: Always
                       - name: IMAGE_PULL_SECRETS
@@ -1344,19 +1376,19 @@ data:
                 - '*'
       
   packages: |-
-    - #! package-manifest: ./deploy/chart/catalog_resources/certified-operators/couchbase.1.0.0.clusterserviceversion
+    - #! package-manifest: deploy/chart/catalog_resources/certified-operators/couchbase.1.0.0.clusterserviceversion.yaml
       packageName: couchbase-enterprise
       channels:
       - name: preview
         currentCSV: couchbase-operator.v1.0.0
       
-    - #! package-manifest: ./deploy/chart/catalog_resources/certified-operators/dynatrace-monitoring.0.1.0.clusterserviceversion
+    - #! package-manifest: deploy/chart/catalog_resources/certified-operators/dynatrace-monitoring.0.2.0.clusterserviceversion.yaml
       packageName: dynatrace-monitoring
       channels:
       - name: preview
         currentCSV: dynatrace-monitoring.v0.2.0
       
-    - #! package-manifest: ./deploy/chart/catalog_resources/certified-operators/mongodb-enterprise.v0.3.2.clusterserviceversion
+    - #! package-manifest: deploy/chart/catalog_resources/certified-operators/mongodb-enterprise.v0.3.2.clusterserviceversion.yaml
       packageName: mongodb-enterprise
       channels:
       - name: preview

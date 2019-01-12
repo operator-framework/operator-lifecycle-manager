@@ -75,7 +75,12 @@
               spec:
                 serviceAccountName: packageserver
                 {{- if .Values.olm.nodeSelector }}
-                nodeSelector: {{ toYaml .Values.package.nodeSelector }}
+                nodeSelector:
+{{ toYaml .Values.package.nodeSelector | indent 18 }}
+                {{- end }}
+                {{- if .Values.olm.tolerations  }}
+                tolerations:
+{{ toYaml .Values.package.tolerations | indent 18 }}
                 {{- end }}
                 containers:
                 - name: packageserver

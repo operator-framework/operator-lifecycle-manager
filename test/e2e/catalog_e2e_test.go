@@ -82,7 +82,7 @@ func TestDefaultCatalogLoading(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	catalogSource, err := fetchCatalogSource(t, crc, "rh-operators", operatorNamespace, catalogSourceRegistryPodSynced)
+	catalogSource, err := fetchCatalogSource(t, crc, "olm-operators", operatorNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 	requirement, err := labels.NewRequirement("olm.catalogSource", selection.Equals, []string{catalogSource.GetName()})
 	require.NoError(t, err)
@@ -96,18 +96,6 @@ func TestDefaultCatalogLoading(t *testing.T) {
 		}
 	}
 }
-
-// func grpcCatalogReachable() {
-//
-// }
-//
-// func TestCatalogPodUpdatedWhenConfigmapChanged(t *testing.T) {
-// 	t.Fail()
-// }
-//
-// func TestCatalogPodRecreatedWhenComponentDeleted(t *testing.T) {
-// 	t.Fail()
-// }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
 	deployments, err := c.ListDeploymentsWithLabels(namespace, operatorLabels)

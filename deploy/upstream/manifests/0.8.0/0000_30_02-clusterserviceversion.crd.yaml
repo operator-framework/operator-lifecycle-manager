@@ -1,4 +1,4 @@
----
+##---
 # Source: olm/templates/0000_30_02-clusterserviceversion.crd.yaml
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
@@ -15,8 +15,8 @@ spec:
     listKind: ClusterServiceVersionList
     shortNames:
     - csv
+    - csvs
     categories:
-    - all
     - olm
   additionalPrinterColumns:
   - name: Display
@@ -213,6 +213,7 @@ spec:
                     - group
                     - version
                     - kind
+                    - name
                     - deploymentName
                     - displayName
                     - description
@@ -220,6 +221,9 @@ spec:
                       group:
                         type: string
                         description: Group of the APIService (e.g. app.coreos.com)
+                      name:
+                        type: string
+                        description: The plural name for the APIService provided
                       version:
                         type: string
                         description: The version field of the APIService
@@ -343,6 +347,7 @@ spec:
                     - group
                     - version
                     - kind
+                    - name
                     - displayName
                     - description
                     properties:
@@ -355,6 +360,9 @@ spec:
                       kind:
                         type: string
                         description: The kind field of the APIService
+                      name:
+                        type: string
+                        description: The plural name for the APIService provided
                       deploymentName:
                         type: string
                         description: Name of the extension api-server's deployment
@@ -607,6 +615,27 @@ spec:
                     required:
                     - deployments
                     properties:
+                      installModes:
+                        type: array
+                        description: List of supported install modes for the operator
+                        items:
+                          type: object
+                          description: A tuple representing a mode of installation and whether the operator supports it
+                          required:
+                            - type
+                            - supported
+                          properties:
+                            type:
+                              type: string
+                              description: A type of install mode
+                              enum:
+                                - OwnNamespace
+                                - SingleNamespace
+                                - MultiNamespace
+                                - AllNamespaces
+                            supported:
+                              type: boolean
+                              description: Represents if the install mode type is supported
                       deployments:
                         type: array
                         description: List of deployments to create

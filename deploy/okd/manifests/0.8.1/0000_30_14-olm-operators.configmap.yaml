@@ -13,7 +13,7 @@ data:
     - apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
-        name: packageserver.v0.8.0
+        name: packageserver.v0.8.1
         namespace: openshift-operator-lifecycle-manager
       spec:
         displayName: Package Server
@@ -85,6 +85,9 @@ data:
                       app: packageserver
                   spec:
                     serviceAccountName: packageserver
+                    nodeSelector:
+                      beta.kubernetes.io/os: linux
+                      
                     containers:
                     - name: packageserver
                       command:
@@ -94,7 +97,7 @@ data:
                       - "5443"
                       - --global-namespace
                       - openshift-operator-lifecycle-manager
-                      image: quay.io/coreos/olm@sha256:1639d570809c5827810a1870763016e8c046283632d47e0b47183c82f8e515f2
+                      image: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
                       imagePullPolicy: Always
                       ports:
                       - containerPort: 5443
@@ -109,7 +112,7 @@ data:
                             path: /healthz
                             port: 5443
         maturity: alpha
-        version: 0.8.0
+        version: 0.8.1
         apiservicedefinitions:
           owned:
           - group: packages.apps.redhat.com
@@ -124,5 +127,5 @@ data:
     - packageName: packageserver
       channels:
       - name: alpha
-        currentCSV: packageserver.v0.8.0
+        currentCSV: packageserver.v0.8.1
 
