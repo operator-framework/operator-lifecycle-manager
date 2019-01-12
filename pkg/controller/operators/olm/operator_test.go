@@ -1849,6 +1849,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1878,6 +1879,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1944,6 +1946,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -1975,6 +1978,7 @@ func TestTransitionCSV(t *testing.T) {
 				csvs: []runtime.Object{
 					withConditionReason(csvWithAnnotations(csv("csv1",
 						namespace,
+						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
@@ -2477,6 +2481,14 @@ func TestSyncOperatorGroups(t *testing.T) {
 	operatorCSVFinal.Status.LastUpdateTime = timeNow()
 	operatorCSVFinal.Status.LastTransitionTime = timeNow()
 	operatorCSVFinal.Status.RequirementStatus = []v1alpha1.RequirementStatus{
+		{
+			Group:   "operators.coreos.com",
+			Version: "v1alpha1",
+			Kind:    "ClusterServiceVersion",
+			Name:    "csv1",
+			Status:  v1alpha1.RequirementStatusReasonPresent,
+			Message: "CSV minKubeVersion (0.0.0) less than server version (v0.0.0-master+$Format:%h$)",
+		},
 		{
 			Group:   "apiextensions.k8s.io",
 			Version: "v1beta1",

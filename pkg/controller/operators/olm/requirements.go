@@ -41,7 +41,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		return
 	}
 
-	serverVersion, err := semver.NewVersion(strings.TrimPrefix(serverVersionInfo.String(), "v"))
+	serverVersion, err := semver.NewVersion(strings.Split(strings.TrimPrefix(serverVersionInfo.String(), "v"), "-")[0])
 	if err != nil {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = "Server version parsing error"
@@ -59,9 +59,9 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		return
 	}
 
-	if csvVersionInfo.Compare(*serverVersion) < 0 {
+	if csvVersionInfo.Compare(*serverVersion) > 0 {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
-		status.Message = "CSV version requirement not met"
+		status.Message = fmt.Sprintf("CSV version requirement not met: minKubeVersion (%s) > server version (%s)", minKubeVersion, serverVersion.String())
 		met = false
 		statuses = append(statuses, status)
 		return
