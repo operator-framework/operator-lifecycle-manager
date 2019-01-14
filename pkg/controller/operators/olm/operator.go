@@ -398,55 +398,12 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		a.Log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting ClusterServiceVersion failed")
 	}
+
 	logger := a.Log.WithFields(logrus.Fields{
 		"csv":       clusterServiceVersion.GetName(),
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
-
-	operatorGroup := a.operatorGroupForActiveCSV(logger, clusterServiceVersion)
-
-	// don't process CSVs that are not active in an OperatorGroup
-	if operatorGroup == nil {
-		opgroups, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(clusterServiceVersion.GetNamespace()).List(labels.Everything())
-		if err != nil {
-			// TODO: write out error status
-			logger.Warn("csv created in namespace without operator group, will not be processed")
-		}
-		if len(opgroups) == 1 {
-			logger = logger.WithField("opgroup", opgroups[0].GetName())
-
-			// Check if the OperatorGroup is supported
-			modeSet, err := v1alpha1.NewInstallModeSet(clusterServiceVersion.Spec.InstallModes)
-			if err != nil {
-				syncError = err
-				return
-			}
-			if supportErr := modeSet.Supports(opgroups[0].Status.Namespaces); supportErr != nil {
-				logger.WithField("err", supportErr).Warn("installmodes not supported")
-				return
-			}
-
-			a.addOperatorGroupAnnotations(&clusterServiceVersion.ObjectMeta, opgroups[0])
-			_, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).Update(clusterServiceVersion)
-			if err != nil {
-				logger.Error("error adding operatorgroup annotation")
-			}
-		}
-		if len(opgroups) > 1 {
-			logger.Warn("csv created in namespace with multiple operatorgroups, can't pick one automatically")
-		}
-		return
-	}
-
-	operatorNamespace, ok := clusterServiceVersion.GetAnnotations()[v1alpha2.OperatorGroupNamespaceAnnotationKey]
-
-	if clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonCopied ||
-		ok && clusterServiceVersion.GetNamespace() != operatorNamespace {
-		logger.Info("skip sync of dummy CSV")
-		return a.removeDanglingChildCSVs(clusterServiceVersion)
-	}
-
 	logger.Info("syncing CSV")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
@@ -468,6 +425,11 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 			return updateErr
 		}
 		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
+	}
+
+	operatorGroup := a.operatorGroupForActiveCSV(logger, updatedCSV)
+	if operatorGroup == nil {
+		return
 	}
 
 	// Check if we need to do any copying / annotation for the operatorgroup
@@ -500,7 +462,7 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 
 	// Not in the OperatorGroup namespace
 	if annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
-		logger.Info("not in operatorgroup namespace, skipping")
+		logger.Info("not in operatorgroup namespace")
 		return nil
 	}
 
@@ -541,33 +503,74 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	out = in.DeepCopy()
 	now := timeNow()
 
+	if out.IsCopied() {
+		logger.Info("skipping copied csv transition")
+		syncError = a.removeDanglingChildCSVs(out)
+		return
+	}
+
 	// Check if the current CSV is being replaced, return with replacing status if so
 	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
 		logger.WithField("err", err).Info("replacement check")
 		return
 	}
 
-	// Check if the CSV supports watching the namespaces its annotations declare
-	modeSet, err := v1alpha1.NewInstallModeSet(out.Spec.InstallModes)
+	// Attempt to associate an OperatorGroup with the CSV.
+	operatorGroups, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(out.GetNamespace()).List(labels.Everything())
 	if err != nil {
-		logger.Warnf("could not create new InstallModeSet from CSV: %v", err)
+		logger.Errorf("error occurred while attempting to associate csv with operatorgroup")
 		syncError = err
-		return
-	}
-	if len(modeSet) == 0 {
-		logger.WithField("specInstallModes", out.Spec.InstallModes).Warn("couldn't parse into set, using defaults")
-		modeSet = v1alpha1.InstallModeSet{v1alpha1.InstallModeTypeOwnNamespace: true}
 	}
 
+	switch len(operatorGroups) {
+	case 0:
+		syncError = fmt.Errorf("csv in namespace with no operatorgroups")
+		logger.Warn(syncError.Error())
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoOperatorGroup, syncError.Error(), now, a.recorder)
+		return
+	case 1:
+		if operatorGroup := a.operatorGroupForActiveCSV(logger, out); operatorGroup == nil {
+			operatorGroup = operatorGroups[0]
+			logger = logger.WithField("opgroup", operatorGroup.GetName())
+
+			a.addOperatorGroupAnnotations(&out.ObjectMeta, operatorGroup, true)
+			_, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(out)
+			if err != nil {
+				logger.Error("error adding operatorgroup annotation")
+				syncError = err
+			}
+			return
+		}
+		logger.Info("csv in operatorgroup")
+	default:
+		syncError = fmt.Errorf("csv created in namespace with multiple operatorgroups, can't pick one automatically")
+		logger.Warn(syncError.Error())
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonTooManyOperatorGroups, syncError.Error(), now, a.recorder)
+		return
+	}
+
+	modeSet, err := v1alpha1.NewInstallModeSet(out.Spec.InstallModes)
+	if err != nil {
+		syncError = err
+		logger.Warn(err.Error())
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidInstallModes, syncError.Error(), now, a.recorder)
+		return
+	}
+
+	// Check if the CSV supports its operatorgroup's selected namespaces
 	targets, ok := out.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]
 	if ok {
 		namespaces := strings.Split(targets, ",")
-		err = modeSet.Supports(namespaces)
+		err = modeSet.Supports(out.GetNamespace(), namespaces)
 		if err != nil {
 			logger.WithField("reason", err.Error()).Infof("InstallModeSet does not support OperatorGroup namespace selection")
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallModeNotSupported, err.Error(), now, a.recorder)
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedOperatorGroup, err.Error(), now, a.recorder)
 			return
 		}
+	} else {
+		// TODO: This should never be the case.
+		logger.Info("no targets annotation defined for CSV")
+		out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoTargetNamespaces, err.Error(), now, a.recorder)
 	}
 
 	switch out.Status.Phase {
@@ -686,8 +689,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if failed due to unsupported InstallModes
-		if out.Status.Reason == v1alpha1.CSVReasonInstallModeNotSupported {
-			logger.Info("InstallModes now support target namespaces. Transitioning to Pending...")
+		if out.Status.Reason == v1alpha1.CSVReasonNoTargetNamespaces ||
+			out.Status.Reason == v1alpha1.CSVReasonNoOperatorGroup ||
+			out.Status.Reason == v1alpha1.CSVReasonTooManyOperatorGroups ||
+			out.Status.Reason == v1alpha1.CSVReasonUnsupportedOperatorGroup {
+			logger.Info("target namespaces supported. Transitioning to Pending...")
 			// Check occurred before switch, safe to transition to pending
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsUnknown, "InstallModes now support target namespaces. Transitioning to Pending.", now, a.recorder)
 			return

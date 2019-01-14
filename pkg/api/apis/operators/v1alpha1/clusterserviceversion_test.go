@@ -107,10 +107,11 @@ func TestIsObsolete(t *testing.T) {
 
 func TestSupports(t *testing.T) {
 	tests := []struct {
-		description    string
-		installModeSet InstallModeSet
-		namespaces     []string
-		expectedErr    error
+		description       string
+		installModeSet    InstallModeSet
+		operatorNamespace string
+		namespaces        []string
+		expectedErr       error
 	}{
 		{
 			description: "NoNamespaces",
@@ -120,8 +121,9 @@ func TestSupports(t *testing.T) {
 				InstallModeTypeMultiNamespace:  true,
 				InstallModeTypeAllNamespaces:   true,
 			},
-			namespaces:  []string{},
-			expectedErr: nil,
+			operatorNamespace: "operators",
+			namespaces:        []string{},
+			expectedErr:       nil,
 		},
 		{
 			description: "OneNamespace",
@@ -131,8 +133,9 @@ func TestSupports(t *testing.T) {
 				InstallModeTypeMultiNamespace:  true,
 				InstallModeTypeAllNamespaces:   true,
 			},
-			namespaces:  []string{"ns-0"},
-			expectedErr: nil,
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0"},
+			expectedErr:       nil,
 		},
 		{
 			description: "MultipleNamespaces/MultiNamespaceUnsupported",
@@ -142,19 +145,57 @@ func TestSupports(t *testing.T) {
 				InstallModeTypeMultiNamespace:  false,
 				InstallModeTypeAllNamespaces:   true,
 			},
-			namespaces:  []string{"ns-0", "ns-1"},
-			expectedErr: fmt.Errorf("%s InstallModeType not supported, cannot configure to watch 2 namespaces", InstallModeTypeMultiNamespace),
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0", "ns-1"},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch 2 namespaces", InstallModeTypeMultiNamespace),
 		},
 		{
-			description: "SingleNamespace/SingleNamespaceUnsupported",
+			description: "MultipleNamespaces/OwnNamespaceUnsupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    false,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0", "ns-1", "operators"},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch own namespace", InstallModeTypeOwnNamespace),
+		},
+		{
+			description: "SingleNamespace/SingleAndMultiNamespaceUnsupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    true,
+				InstallModeTypeSingleNamespace: false,
+				InstallModeTypeMultiNamespace:  false,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0"},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace),
+		},
+		{
+			description: "SingleNamespace/MultiNamespaceDecomposes",
 			installModeSet: InstallModeSet{
 				InstallModeTypeOwnNamespace:    true,
 				InstallModeTypeSingleNamespace: false,
 				InstallModeTypeMultiNamespace:  true,
 				InstallModeTypeAllNamespaces:   true,
 			},
-			namespaces:  []string{"ns-0"},
-			expectedErr: fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace),
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0"},
+			expectedErr:       nil,
+		},
+		{
+			description: "SingleNamespace/OwnNamespaceUnsupported",
+			installModeSet: InstallModeSet{
+				InstallModeTypeOwnNamespace:    false,
+				InstallModeTypeSingleNamespace: true,
+				InstallModeTypeMultiNamespace:  true,
+				InstallModeTypeAllNamespaces:   true,
+			},
+			operatorNamespace: "operators",
+			namespaces:        []string{"operators"},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch own namespace", InstallModeTypeOwnNamespace),
 		},
 		{
 			description: "AllNamespaces/AllNamespacesSupported",
@@ -164,8 +205,9 @@ func TestSupports(t *testing.T) {
 				InstallModeTypeMultiNamespace:  true,
 				InstallModeTypeAllNamespaces:   true,
 			},
-			namespaces:  []string{corev1.NamespaceAll},
-			expectedErr: nil,
+			operatorNamespace: "operators",
+			namespaces:        []string{corev1.NamespaceAll},
+			expectedErr:       nil,
 		},
 		{
 			description: "AllNamespaces/AllNamespacesUnsupported",
@@ -175,39 +217,44 @@ func TestSupports(t *testing.T) {
 				InstallModeTypeMultiNamespace:  true,
 				InstallModeTypeAllNamespaces:   false,
 			},
-			namespaces:  []string{corev1.NamespaceAll},
-			expectedErr: fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces),
+			operatorNamespace: "operators",
+			namespaces:        []string{corev1.NamespaceAll},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces),
 		},
 		{
-			description:    "NoNamespaces/EmptyInstallModeSet",
-			installModeSet: InstallModeSet{},
-			namespaces:     []string{},
-			expectedErr:    nil,
+			description:       "NoNamespaces/EmptyInstallModeSet",
+			installModeSet:    InstallModeSet{},
+			operatorNamespace: "",
+			namespaces:        []string{},
+			expectedErr:       nil,
 		},
 		{
-			description:    "MultipleNamespaces/EmptyInstallModeSet",
-			installModeSet: InstallModeSet{},
-			namespaces:     []string{"ns-0", "ns-1"},
-			expectedErr:    fmt.Errorf("%s InstallModeType not supported, cannot configure to watch 2 namespaces", InstallModeTypeMultiNamespace),
+			description:       "MultipleNamespaces/EmptyInstallModeSet",
+			installModeSet:    InstallModeSet{},
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0", "ns-1"},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch 2 namespaces", InstallModeTypeMultiNamespace),
 		},
 		{
-			description:    "SingleNamespace/EmptyInstallModeSet",
-			installModeSet: InstallModeSet{},
-			namespaces:     []string{"ns-0"},
-			expectedErr:    fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace),
+			description:       "SingleNamespace/EmptyInstallModeSet",
+			installModeSet:    InstallModeSet{},
+			operatorNamespace: "operators",
+			namespaces:        []string{"ns-0"},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace),
 		},
 		{
-			description:    "AllNamespaces/EmptyInstallModeSet",
-			installModeSet: InstallModeSet{},
-			namespaces:     []string{corev1.NamespaceAll},
-			expectedErr:    fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces),
+			description:       "AllNamespaces/EmptyInstallModeSet",
+			installModeSet:    InstallModeSet{},
+			operatorNamespace: "operators",
+			namespaces:        []string{corev1.NamespaceAll},
+			expectedErr:       fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces),
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.description, func(t *testing.T) {
-			err := test.installModeSet.Supports(test.namespaces)
-			require.Equal(t, err, test.expectedErr)
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			err := tt.installModeSet.Supports(tt.operatorNamespace, tt.namespaces)
+			require.Equal(t, tt.expectedErr, err)
 		})
 	}
 }

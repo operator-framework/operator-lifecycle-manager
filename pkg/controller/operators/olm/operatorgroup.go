@@ -57,20 +57,9 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	a.Log.Debug("Cluster roles completed")
 
-	for _, csv := range a.csvSet(op.Namespace, v1alpha1.CSVPhaseSucceeded) {
-		// Check if the CSV's InstallModes support the operator group
-		modeSet, err := v1alpha1.NewInstallModeSet(csv.Spec.InstallModes)
-		if err != nil {
-			a.Log.Errorf("CSV has invalid InstallModes: %v", err)
-			continue
-		}
-		if err := modeSet.Supports(targetNamespaces); err != nil {
-			a.Log.Warnf("CSV InstallModes do not support operator group: %v", err)
-			continue
-		}
-
+	for _, csv := range a.csvSet(op.Namespace, v1alpha1.CSVPhaseAny) {
 		origCSVannotations := csv.GetAnnotations()
-		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op)
+		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
 		if reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) == false {
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
@@ -78,7 +67,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			}
 		}
 	}
-
 	a.Log.Debug("CSV annotation completed")
 
 	return nil
@@ -384,10 +372,12 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 	return nil
 }
 
-func (a *Operator) addOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup) {
-	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
+func (a *Operator) addOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, addTargets bool) {
 	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupNamespaceAnnotationKey, op.GetNamespace())
 	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupAnnotationKey, op.GetName())
+	if addTargets {
+		metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
+	}
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
@@ -414,7 +404,6 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 	}
 
 	namespaceSet := make(map[string]struct{})
-	namespaceAll := false
 	if op.Spec.TargetNamespaces != nil && len(op.Spec.TargetNamespaces) > 0 {
 		for _, ns := range op.Spec.TargetNamespaces {
 			if ns == corev1.NamespaceAll {
@@ -424,7 +413,6 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 		}
 	} else if selector == nil || selector.Empty() {
 		namespaceSet[corev1.NamespaceAll] = struct{}{}
-		namespaceAll = true
 	} else {
 		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)
 		if err != nil {
@@ -434,11 +422,6 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 		for _, ns := range matchedNamespaces {
 			namespaceSet[ns.GetName()] = struct{}{}
 		}
-	}
-
-	if !namespaceAll {
-		// Add operator namespace to the set
-		namespaceSet[op.GetNamespace()] = struct{}{}
 	}
 
 	namespaceList := []string{}
