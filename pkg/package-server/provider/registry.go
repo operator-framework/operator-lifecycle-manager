@@ -240,13 +240,13 @@ func (p *RegistryProvider) List(namespace string) (*v1alpha1.PackageManifestList
 
 	pkgs := []v1alpha1.PackageManifest{}
 	for _, client := range p.clients {
-		if client.source.GetNamespace() == namespace || client.source.GetNamespace() == p.globalNamespace || namespace == "" {
+		if client.source.GetNamespace() == namespace || client.source.GetNamespace() == p.globalNamespace || namespace == metav1.NamespaceAll {
 			logger.Debugf("found CatalogSource %s", client.source.GetName())
 
 			stream, err := client.ListPackages(context.Background(), &api.ListPackageRequest{})
 			if err != nil {
 				logger.WithField("err", err.Error()).Warnf("error getting stream")
-				return nil, err
+				continue
 			}
 			for {
 				pkgName, err := stream.Recv()
@@ -256,17 +256,17 @@ func (p *RegistryProvider) List(namespace string) (*v1alpha1.PackageManifestList
 
 				if err != nil {
 					logger.WithField("err", err.Error()).Warnf("error getting data")
-					return nil, err
+					break
 				}
 				pkg, err := client.GetPackage(context.Background(), &api.GetPackageRequest{Name: pkgName.GetName()})
 				if err != nil {
 					logger.WithField("err", err.Error()).Warnf("error getting package")
-					return nil, err
+					break
 				}
 				newPkg, err := toPackageManifest(pkg, client)
 				if err != nil {
 					logger.WithField("err", err.Error()).Warnf("error converting to packagemanifest")
-					return nil, err
+					break
 				}
 
 				// Set request namespace to stop kube clients from complaining about global namespace mismatch.
