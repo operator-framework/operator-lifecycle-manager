@@ -14,11 +14,6 @@ kubectl create -f deploy/upstream/manifests/latest/
 oc create -f deploy/okd/manifests/latest/
 ```
 
-## Install with Ansible for openshift
-
-OLM should be installed via [openshift-ansible](https://github.com/openshift/openshift-ansible). The manifests in this
-repo is periodically synced with openshift-ansible and should only be used for testing releases.
-
 ## Run locally with minikube
 
 This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
@@ -29,17 +24,6 @@ make run-local
 
 You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
 
-## Run locally with minishift
-
-This command starts minishift, builds the OLM containers locally with the minishift-provided docker, and uses the local configuration in [local-values-shift.yaml](local-values-shift.yaml) to build localized deployment resources for OLM.
-
-Note that this step requires the `helm` binary, which doesn't come with minishift by default, to be present in your PATH. It can be downloaded from the [helm releases page](https://github.com/helm/helm/releases)
-
-```
-make run-local-shift
-```
-
-You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
 
 ## Building deployment resources for any cluster
 
@@ -48,8 +32,6 @@ Deployments of OLM can be stamped out with different configurations by writing a
 Here's an example `values.yaml`
 
 ```yaml
-# sets the apiversion to use for rbac-resources. Change to `authorization.openshift.io` for openshift
-rbacApiVersion: rbac.authorization.k8s.io
 # namespace is the namespace the operators will _run_
 namespace: local
 # watchedNamespaces is a comma-separated list of namespaces the operators will _watch_ for OLM resources.

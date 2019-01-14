@@ -1,4 +1,3 @@
-rbacApiVersion: rbac.authorization.k8s.io
 namespace: openshift-operator-lifecycle-manager
 catalog_namespace: openshift-operator-lifecycle-manager
 operator_namespace: openshift-operators
