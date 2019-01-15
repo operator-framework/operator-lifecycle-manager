@@ -33,10 +33,10 @@ func (s *catalogSourceDecorator) roleName() string {
 	return s.GetName() + "-configmap-reader"
 }
 
-func (s *catalogSourceDecorator) Selector() labels.Selector {
-	return labels.SelectorFromValidatedSet(map[string]string{
+func (s *catalogSourceDecorator) Selector() map[string]string {
+	return map[string]string{
 		"olm.catalogSource": s.GetName(),
-	})
+	}
 }
 
 func (s *catalogSourceDecorator) Labels() map[string]string {
@@ -70,7 +70,7 @@ func (s *catalogSourceDecorator) Service() *v1.Service {
 					TargetPort: intstr.FromInt(50051),
 				},
 			},
-			Selector: s.Labels(),
+			Selector: s.Selector(),
 		},
 	}
 	ownerutil.AddOwner(svc, s.CatalogSource, false, false)
@@ -228,7 +228,7 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source catalogSourceDec
 
 func (c *ConfigMapRegistryReconciler) currentPods(source catalogSourceDecorator, image string) []*v1.Pod {
 	podName := source.Pod(image).GetName()
-	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.Selector())
+	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Labels()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Warn("couldn't find pod in cache")
 		return nil

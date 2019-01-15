@@ -119,8 +119,14 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	for _, namespace := range watchedNamespaces {
 		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		catsrcInformer := nsInformerFactory.Operators().V1alpha1().CatalogSources()
+
 		// Register queue and QueueInformer
-		queueName := fmt.Sprintf("%s/catsrc", namespace)
+		var queueName string
+		if namespace == corev1.NamespaceAll {
+			queueName = "catsrc"
+		} else {
+			queueName = fmt.Sprintf("%s/catsrc", namespace)
+		}
 		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
 		op.RegisterQueueInformer(queueinformer.NewInformer(catsrcQueue, catsrcInformer.Informer(), op.syncCatalogSources, deleteCatSrc, queueName, metrics.NewMetricsCatalogSource(op.client), logger))
 		op.catSrcQueueSet[namespace] = catsrcQueue
@@ -239,7 +245,7 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 			defer o.sourcesLock.RUnlock()
 			if _, ok := o.sources[sourceKey]; ok {
 				logger.Debug("requeueing owner CatalogSource")
-				if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err!=nil {
+				if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err != nil {
 					logger.Warn(err.Error())
 				}
 			}
@@ -266,22 +272,36 @@ func (o *Operator) handleDeletion(obj interface{}) {
 	}
 
 	if owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind); owner != nil {
-						if err := o.catSrcQueueSet.Requeue(owner.Name, ownee.GetNamespace()); err!=nil {
-					o.Log.Warn(err.Error())
-				}
+		if err := o.catSrcQueueSet.Requeue(owner.Name, ownee.GetNamespace()); err != nil {
+			o.Log.Warn(err.Error())
+		}
 	}
 }
 
 func (o *Operator) handleCatSrcDeletion(obj interface{}) {
-	if catsrc, ok := obj.(*v1alpha1.CatalogSource); ok {
-		sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
-		func() {
-			o.sourcesLock.Lock()
-			defer o.sourcesLock.Unlock()
-			delete(o.sources, sourceKey)
-		}()
-		o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
+	catsrc, ok := obj.(metav1.Object)
+	if !ok {
+		if !ok {
+			tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+			if !ok {
+				utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+				return
+			}
+
+			catsrc, ok = tombstone.Obj.(metav1.Object)
+			if !ok {
+				utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Namespace %#v", obj))
+				return
+			}
+		}
 	}
+	sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
+	func() {
+		o.sourcesLock.Lock()
+		defer o.sourcesLock.Unlock()
+		delete(o.sources, sourceKey)
+	}()
+	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
