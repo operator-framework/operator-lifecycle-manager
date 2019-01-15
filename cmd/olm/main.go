@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
@@ -45,7 +45,7 @@ var (
 )
 
 func init() {
-	metrics.Register()
+	metrics.RegisterOLM()
 }
 
 // main function - entrypoint to OLM operator
@@ -100,11 +100,10 @@ func main() {
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	// TODO: both of the following require vendor updates (add k8s.io/apiserver and update prometheus)
-	//healthz.InstallHandler(mux) //(less code)
-	//mux.Handle("/metrics", promhttp.Handler()) //other form is deprecated
-	http.Handle("/metrics", prometheus.Handler())
 	go http.ListenAndServe(":8080", nil)
+
+	http.Handle("/metrics", promhttp.Handler())
+	go http.ListenAndServe(":8081", nil)
 
 	_, done := operator.Run(stopCh)
 	<-done
