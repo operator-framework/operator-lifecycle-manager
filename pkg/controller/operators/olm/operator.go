@@ -46,28 +46,9 @@ const (
 	FallbackWakeupInterval = 30 * time.Second
 )
 
-type resourceQueueSet map[string]workqueue.RateLimitingInterface
-
-func (r resourceQueueSet) requeue(name, namespace string) error {
-	// We can build the key directly, will need to change if queue uses different key scheme
-	key := fmt.Sprintf("%s/%s", namespace, name)
-
-	if queue, ok := r[metav1.NamespaceAll]; len(r) == 1 && ok {
-		queue.AddRateLimited(key)
-		return nil
-	}
-
-	if queue, ok := r[namespace]; ok {
-		queue.AddRateLimited(key)
-		return nil
-	}
-
-	return fmt.Errorf("couldn't find queue for resource")
-}
-
 type Operator struct {
 	*queueinformer.Operator
-	csvQueueSet resourceQueueSet
+	csvQueueSet queueinformer.ResourceQueueSet
 	client      versioned.Interface
 	resolver    install.StrategyResolverInterface
 	lister      operatorlister.OperatorLister
@@ -629,7 +610,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		out.SetPhaseWithEvent(v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonInstallSuccessful, "waiting for install components to report healthy", now, a.recorder)
-		err := a.csvQueueSet.requeue(out.GetName(), out.GetNamespace())
+		err := a.csvQueueSet.Requeue(out.GetName(), out.GetNamespace())
 		if err != nil {
 			a.Log.Warn(err.Error())
 		}
@@ -746,14 +727,14 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 			// ignore errors and success here; this step is just an optimization to speed up GC
 			_, _ = a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
-			err := a.csvQueueSet.requeue(csv.GetName(), csv.GetNamespace())
+			err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
 			if err != nil {
 				a.Log.Warn(err.Error())
 			}
 		}
 
 		// if there's no newer version, requeue for processing (likely will be GCable before resync)
-		err := a.csvQueueSet.requeue(out.GetName(), out.GetNamespace())
+		err := a.csvQueueSet.Requeue(out.GetName(), out.GetNamespace())
 		if err != nil {
 			a.Log.Warn(err.Error())
 		}
@@ -859,7 +840,7 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 
 	if !apiServicesInstalled {
 		csv.SetPhase(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"), now)
-		err := a.csvQueueSet.requeue(csv.GetName(), csv.GetNamespace())
+		err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
 		if err != nil {
 			a.Log.Warn(err.Error())
 		}
@@ -886,7 +867,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	previousCSV := a.isReplacing(csv)
 	var previousStrategy install.Strategy
 	if previousCSV != nil {
-		err = a.csvQueueSet.requeue(previousCSV.Name, previousCSV.Namespace)
+		err = a.csvQueueSet.Requeue(previousCSV.Name, previousCSV.Namespace)
 		if err != nil {
 			a.Log.Warn(err.Error())
 		}
@@ -1006,7 +987,7 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	if ownee.GetNamespace() != metav1.NamespaceAll {
 		for _, ownerCSV := range owners {
 			// Since cross-namespace CSVs can't exist we're guaranteed the owner will be in the same namespace
-			err := a.csvQueueSet.requeue(ownerCSV.Name, ownee.GetNamespace())
+			err := a.csvQueueSet.Requeue(ownerCSV.Name, ownee.GetNamespace())
 			if err != nil {
 				a.Log.Warn(err.Error())
 			}
@@ -1041,7 +1022,7 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 			continue
 		}
 
-		err = a.csvQueueSet.requeue(csv.GetName(), csv.GetNamespace())
+		err = a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
 		if err != nil {
 			a.Log.Warn(err.Error())
 		}

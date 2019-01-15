@@ -62,7 +62,7 @@ type Operator struct {
 	sourcesLastUpdate           metav1.Time
 	resolver                    resolver.Resolver
 	subQueue                    workqueue.RateLimitingInterface
-	catSrcQueue                 workqueue.RateLimitingInterface
+	catSrcQueueSet              queueinformer.ResourceQueueSet
 	configmapRegistryReconciler registry.RegistryReconciler
 }
 
@@ -95,13 +95,6 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 	}
 
-	// Create an informer for each catalog namespace
-	catsrcSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		catsrcSharedIndexInformers = append(catsrcSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().CatalogSources().Informer())
-	}
-
 	// Create a new queueinformer-based operator.
 	queueOperator, err := queueinformer.NewOperator(kubeconfigPath, logger)
 	if err != nil {
@@ -110,31 +103,28 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		Operator:  queueOperator,
-		client:    crClient,
-		lister:    lister,
-		namespace: operatorNamespace,
-		sources:   make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:  resolver.NewOperatorsV1alpha1Resolver(lister),
+		Operator:       queueOperator,
+		catSrcQueueSet: make(map[string]workqueue.RateLimitingInterface),
+		client:         crClient,
+		lister:         lister,
+		namespace:      operatorNamespace,
+		sources:        make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
 	}
 
-	// Register CatalogSource informers.
-	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catalogsources")
-	catsrcQueueInformer := queueinformer.New(
-		catsrcQueue,
-		catsrcSharedIndexInformers,
-		op.syncCatalogSources,
-		&cache.ResourceEventHandlerFuncs{
-			DeleteFunc: op.handleCatSrcDeletion,
-		},
-		"catsrc",
-		metrics.NewMetricsCatalogSource(op.client),
-		logger,
-	)
-	for _, informer := range catsrcQueueInformer {
-		op.RegisterQueueInformer(informer)
+	// Create an informer for each catalog namespace
+	deleteCatSrc := &cache.ResourceEventHandlerFuncs{
+		DeleteFunc: op.handleCatSrcDeletion,
 	}
-	op.catSrcQueue = catsrcQueue
+	for _, namespace := range watchedNamespaces {
+		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		catsrcInformer := nsInformerFactory.Operators().V1alpha1().CatalogSources()
+		// Register queue and QueueInformer
+		queueName := fmt.Sprintf("%s/catsrc", namespace)
+		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
+		op.RegisterQueueInformer(queueinformer.NewInformer(catsrcQueue, catsrcInformer.Informer(), op.syncCatalogSources, deleteCatSrc, queueName, metrics.NewMetricsCatalogSource(op.client), logger))
+		op.catSrcQueueSet[namespace] = catsrcQueue
+	}
 
 	// Register InstallPlan informers.
 	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installplans")
@@ -249,7 +239,9 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 			defer o.sourcesLock.RUnlock()
 			if _, ok := o.sources[sourceKey]; ok {
 				logger.Debug("requeueing owner CatalogSource")
-				o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", metaObj.GetNamespace(), owner.Name))
+				if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err!=nil {
+					logger.Warn(err.Error())
+				}
 			}
 		}()
 	}
@@ -274,7 +266,9 @@ func (o *Operator) handleDeletion(obj interface{}) {
 	}
 
 	if owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind); owner != nil {
-		o.catSrcQueue.AddRateLimited(fmt.Sprintf("%s/%s", ownee.GetNamespace(), owner.Name))
+						if err := o.catSrcQueueSet.Requeue(owner.Name, ownee.GetNamespace()); err!=nil {
+					o.Log.Warn(err.Error())
+				}
 	}
 }
 
