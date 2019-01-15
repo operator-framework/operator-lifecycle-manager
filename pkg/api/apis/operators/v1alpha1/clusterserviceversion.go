@@ -71,6 +71,15 @@ func (c *ClusterServiceVersion) IsObsolete() bool {
 	return false
 }
 
+// IsCopied returns true if the CSV has been copied and false otherwise.
+func (c *ClusterServiceVersion) IsCopied() bool {
+	operatorNamespace, ok := c.GetAnnotations()[OperatorGroupNamespaceAnnotationKey]
+	if c.Status.Reason == CSVReasonCopied || ok && c.GetNamespace() != operatorNamespace {
+		return true
+	}
+	return false
+}
+
 // NewInstallModeSet returns an InstallModeSet instantiated from the given list of InstallModes.
 // If the given list is not a set, an error is returned.
 func NewInstallModeSet(modes []InstallMode) (InstallModeSet, error) {
@@ -86,21 +95,28 @@ func NewInstallModeSet(modes []InstallMode) (InstallModeSet, error) {
 }
 
 // Supports returns an error if the InstallModeSet does not support configuration for
-// the given list of namespaces.
-func (set InstallModeSet) Supports(namespaces []string) error {
-	// Return an error if set contains incompatible supported modes
-	// for the number of namespaces given.
+// the given operatorNamespace and list of target namespaces.
+func (set InstallModeSet) Supports(operatorNamespace string, namespaces []string) error {
 	numNamespaces := len(namespaces)
 	if !set[InstallModeTypeAllNamespaces] && numNamespaces == 1 && namespaces[0] == v1.NamespaceAll {
 		return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces)
 	}
 
-	if !set[InstallModeTypeSingleNamespace] && numNamespaces == 1 && namespaces[0] != v1.NamespaceAll {
+	if !set[InstallModeTypeSingleNamespace] && !set[InstallModeTypeMultiNamespace] && numNamespaces == 1 && namespaces[0] != v1.NamespaceAll {
 		return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace)
 	}
 
 	if !set[InstallModeTypeMultiNamespace] && numNamespaces > 1 {
 		return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch %d namespaces", InstallModeTypeMultiNamespace, numNamespaces)
+	}
+
+	for i, namespace := range namespaces {
+		if !set[InstallModeTypeOwnNamespace] && namespace == operatorNamespace {
+			return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch own namespace", InstallModeTypeOwnNamespace)
+		}
+		if i > 0 && namespace == v1.NamespaceAll {
+			return fmt.Errorf("Invalid selected namespaces, NamespaceAll found when |selected namespaces| > 1")
+		}
 	}
 
 	return nil

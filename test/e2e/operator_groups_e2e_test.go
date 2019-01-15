@@ -126,7 +126,8 @@ func TestOperatorGroup(t *testing.T) {
 
 	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: opGroupNamespace,
+			Name:   opGroupNamespace,
+			Labels: matchingLabel,
 		},
 	})
 	require.NoError(t, err)
@@ -185,7 +186,7 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.Equal(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
+			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
 			return true, nil
 		}
 		return false, nil

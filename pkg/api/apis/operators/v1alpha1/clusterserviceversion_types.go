@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	ClusterServiceVersionAPIVersion = operators.GroupName + "/" + GroupVersion
-	ClusterServiceVersionKind       = "ClusterServiceVersion"
+	ClusterServiceVersionAPIVersion     = operators.GroupName + "/" + GroupVersion
+	ClusterServiceVersionKind           = "ClusterServiceVersion"
+	OperatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
 )
 
 // InstallModeType is a supported type of install mode for CSV installation
@@ -227,7 +228,11 @@ const (
 	CSVReasonAPIServiceResourcesNeedReinstall ConditionReason = "APIServiceResourcesNeedReinstall"
 	CSVReasonAPIServiceInstallFailed          ConditionReason = "APIServiceInstallFailed"
 	CSVReasonCopied                           ConditionReason = "Copied"
-	CSVReasonInstallModeNotSupported          ConditionReason = "InstallModeNotSupported"
+	CSVReasonInvalidInstallModes              ConditionReason = "InvalidInstallModes"
+	CSVReasonNoTargetNamespaces               ConditionReason = "NoTargetNamespaces"
+	CSVReasonUnsupportedOperatorGroup         ConditionReason = "UnsupportedOperatorGroup"
+	CSVReasonNoOperatorGroup                  ConditionReason = "NoOperatorGroup"
+	CSVReasonTooManyOperatorGroups            ConditionReason = "TooManyOperatorGroups"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion
