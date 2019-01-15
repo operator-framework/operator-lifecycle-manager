@@ -38,13 +38,9 @@ const (
 	pollInterval = 1 * time.Second
 	pollDuration = 2 * time.Minute
 
-	etcdVersion            = "3.2.13"
-	prometheusVersion      = "v2.3.2"
-	expectedEtcdNodes      = 1
-	expectedPrometheusSize = 1
-	ocsConfigMap           = "rh-operators"
-	olmConfigMap           = "olm-operators"
-	packageServerCSV       = "packageserver.v1.0.0"
+	ocsConfigMap     = "rh-operators"
+	olmConfigMap     = "olm-operators"
+	packageServerCSV = "packageserver.v1.0.0"
 )
 
 var (

@@ -4,9 +4,11 @@ package e2e
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -95,6 +97,113 @@ func TestDefaultCatalogLoading(t *testing.T) {
 			require.Zero(t, s.RestartCount)
 		}
 	}
+}
+
+func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	mainPackageName := genName("nginx-")
+	dependentPackageName := genName("nginxdep-")
+
+	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
+
+	stableChannel := "stable"
+
+	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+	crdPlural := genName("ins-")
+
+	dependentCRD := newCRD(crdPlural)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	mainCatalogName := genName("mock-ocs-main-")
+
+	// Create separate manifests for each CatalogSource
+	mainManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	dependentManifests := []registry.PackageManifest{
+		{
+			PackageName: dependentPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the initial catalogsource
+	_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+	defer cleanupMainCatalogSource()
+
+	// Attempt to get the catalog source before creating install plan
+	fetchedInitialCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Get initial configmap
+	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Check pod created
+	initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(initialPods.Items))
+
+	// Update raw manifests
+	manifestsRaw, err := yaml.Marshal(append(mainManifests, dependentManifests...))
+	require.NoError(t, err)
+	configMap.Data[registry.ConfigMapPackageName] = string(manifestsRaw)
+
+	// Update raw CRDs
+	var crdsRaw []byte
+	crdStrings := []string{}
+	for _, crd := range []apiextensions.CustomResourceDefinition{dependentCRD} {
+		crdStrings = append(crdStrings, serializeCRD(t, crd))
+	}
+	crdsRaw, err = yaml.Marshal(crdStrings)
+	require.NoError(t, err)
+	configMap.Data[registry.ConfigMapCRDName] = strings.Replace(string(crdsRaw), "- |\n  ", "- ", -1)
+
+	// Update raw CSVs
+	csvsRaw, err := yaml.Marshal([]v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+	require.NoError(t, err)
+	configMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
+
+	// Update configmap
+	updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Update(configMap)
+	require.NoError(t, err)
+
+	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
+		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync {
+			fmt.Println("catalog updated")
+			return true
+		}
+		fmt.Println("waiting for catalog pod to be available")
+		return false
+	})
+	require.NoError(t, err)
+
+	require.NotEqual(t, updatedConfigMap.ResourceVersion, configMap.ResourceVersion)
+	require.NotEqual(t, fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion, fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion)
+	require.Equal(t, updatedConfigMap.GetResourceVersion(), fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion)
+
+	// Check pod updated
+	updatedPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + updatedConfigMap.ResourceVersion})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(updatedPods.Items))
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {

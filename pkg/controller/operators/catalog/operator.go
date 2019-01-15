@@ -179,8 +179,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		podQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
 		configmapQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configmap")
 
-		informers.NewSharedInformerFactoryWithOptions(op.OpClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
-		informerFactory := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval)
+		informerFactory := informers.NewSharedInformerFactoryWithOptions(op.OpClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
 		roleInformer := informerFactory.Rbac().V1().Roles()
 		roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
 		serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
@@ -243,8 +242,7 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 		"namespace": metaObj.GetNamespace(),
 	})
 
-	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.CatalogSourceKind) {
-		owner := ownerutil.GetOwnerByKind(metaObj, v1alpha1.CatalogSourceKind)
+	if owner := ownerutil.GetOwnerByKind(metaObj, v1alpha1.CatalogSourceKind); owner != nil {
 		sourceKey := resolver.CatalogKey{Name: owner.Name, Namespace: metaObj.GetNamespace()}
 		func() {
 			o.sourcesLock.RLock()
