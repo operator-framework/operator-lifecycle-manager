@@ -1,5 +1,3 @@
-rbacApiVersion: rbac.authorization.k8s.io
-
 olm:
   replicaCount: 1
   image:

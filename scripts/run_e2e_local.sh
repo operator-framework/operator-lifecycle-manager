@@ -55,4 +55,4 @@ else
 fi
 
 echo "${test_flags}"
-go test -mod=vendor -tags=local -covermode=count -coverpkg ./pkg/controller/...  -test.v -test.timeout 20m ${test_flags} ./test/e2e/... -kubeconfig=${KUBECONFIG:-~/.kube/config} -namespace=${namespace}-operator -olmNamespace=${namespace}
+go test -mod=vendor -failfast -tags=local -covermode=count -coverpkg ./pkg/controller/...  -test.v -test.timeout 20m ${test_flags} ./test/e2e/... -kubeconfig=${KUBECONFIG:-~/.kube/config} -namespace=${namespace}-operator -olmNamespace=${namespace}

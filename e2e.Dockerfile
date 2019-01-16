@@ -14,7 +14,6 @@ COPY vendor vendor
 COPY cmd cmd
 COPY test test
 RUN make build-coverage
-RUN go test -c -o /bin/e2e ./test/e2e/...
 
 FROM alpine:latest as olm
 LABEL stage=olm
@@ -25,13 +24,3 @@ COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-man
 EXPOSE 8080
 EXPOSE 5443
 CMD ["/bin/olm"]
-
-FROM alpine:latest
-LABEL stage=e2e
-RUN mkdir -p /var/e2e
-WORKDIR /var/e2e
-COPY --from=builder /bin/e2e /bin/e2e
-COPY --from=builder /bin/jq /bin/jq
-COPY ./test/e2e/e2e.sh /var/e2e/e2e.sh
-COPY ./test/e2e/tap.jq /var/e2e/tap.jq
-CMD ["/bin/e2e"]
