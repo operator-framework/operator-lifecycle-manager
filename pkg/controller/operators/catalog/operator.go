@@ -666,6 +666,12 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	})
 
 	logger.Info("syncing")
+
+	if len(plan.Status.Plan) == 0 {
+		logger.Info("skip processing installplan without status - subscription sync responsible for initial status")
+		return
+	}
+
 	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan)
 
 	if syncError != nil {
