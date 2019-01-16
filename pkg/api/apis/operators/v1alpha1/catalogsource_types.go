@@ -20,11 +20,13 @@ type SourceType string
 const (
 	SourceTypeInternal  SourceType = "internal"
 	SourceTypeConfigmap SourceType = "configmap"
+	SourceTypeGrpc      SourceType = "grpc"
 )
 
 type CatalogSourceSpec struct {
 	SourceType SourceType `json:"sourceType"`
 	ConfigMap  string     `json:"configMap,omitempty"`
+	Image      string     `json:"image,omitempty"`
 	Secrets    []string   `json:"secrets,omitempty"`
 
 	// Metadata

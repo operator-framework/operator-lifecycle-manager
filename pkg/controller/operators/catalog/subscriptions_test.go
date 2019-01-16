@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 )
@@ -66,11 +67,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:                  v1alpha1.GroupName,
-							Version:                v1alpha1.GroupVersion,
-							Kind:                   v1alpha1.ClusterServiceVersionKind,
-							Name:                   "csv.v.1",
-							Manifest:               "{}",
+							Group:    v1alpha1.GroupName,
+							Version:  v1alpha1.GroupVersion,
+							Kind:     v1alpha1.ClusterServiceVersionKind,
+							Name:     "csv.v.1",
+							Manifest: "{}",
 						},
 					},
 				},
@@ -150,11 +151,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.1",
-								Manifest:               "{}",
+								Group:    v1alpha1.GroupName,
+								Version:  v1alpha1.GroupVersion,
+								Kind:     v1alpha1.ClusterServiceVersionKind,
+								Name:     "csv.v.1",
+								Manifest: "{}",
 							},
 						},
 					},
@@ -195,11 +196,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:                  v1alpha1.GroupName,
-							Version:                v1alpha1.GroupVersion,
-							Kind:                   v1alpha1.ClusterServiceVersionKind,
-							Name:                   "csv.v.2",
-							Manifest:               "{}",
+							Group:    v1alpha1.GroupName,
+							Version:  v1alpha1.GroupVersion,
+							Kind:     v1alpha1.ClusterServiceVersionKind,
+							Name:     "csv.v.2",
+							Manifest: "{}",
 						},
 					},
 				},
@@ -279,11 +280,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.2",
-								Manifest:               "{}",
+								Group:    v1alpha1.GroupName,
+								Version:  v1alpha1.GroupVersion,
+								Kind:     v1alpha1.ClusterServiceVersionKind,
+								Name:     "csv.v.2",
+								Manifest: "{}",
 							},
 						},
 					},
@@ -324,11 +325,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:                  v1alpha1.GroupName,
-							Version:                v1alpha1.GroupVersion,
-							Kind:                   v1alpha1.ClusterServiceVersionKind,
-							Name:                   "csv.v.2",
-							Manifest:               "{}",
+							Group:    v1alpha1.GroupName,
+							Version:  v1alpha1.GroupVersion,
+							Kind:     v1alpha1.ClusterServiceVersionKind,
+							Name:     "csv.v.2",
+							Manifest: "{}",
 						},
 					},
 					{
@@ -336,11 +337,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:                  v1alpha1.GroupName,
-							Version:                v1alpha1.GroupVersion,
-							Kind:                   v1alpha1.ClusterServiceVersionKind,
-							Name:                   "dep.v.1",
-							Manifest:               "{}",
+							Group:    v1alpha1.GroupName,
+							Version:  v1alpha1.GroupVersion,
+							Kind:     v1alpha1.ClusterServiceVersionKind,
+							Name:     "dep.v.1",
+							Manifest: "{}",
 						},
 					},
 					{
@@ -348,11 +349,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:                  v1alpha1.GroupName,
-							Version:                v1alpha1.GroupVersion,
-							Kind:                   v1alpha1.SubscriptionKind,
-							Name:                   "sub-dep",
-							Manifest:               "{}",
+							Group:    v1alpha1.GroupName,
+							Version:  v1alpha1.GroupVersion,
+							Kind:     v1alpha1.SubscriptionKind,
+							Name:     "sub-dep",
+							Manifest: "{}",
 						},
 					},
 				},
@@ -433,11 +434,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "csv.v.2",
-								Manifest:               "{}",
+								Group:    v1alpha1.GroupName,
+								Version:  v1alpha1.GroupVersion,
+								Kind:     v1alpha1.ClusterServiceVersionKind,
+								Name:     "csv.v.2",
+								Manifest: "{}",
 							},
 						},
 						{
@@ -445,11 +446,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.ClusterServiceVersionKind,
-								Name:                   "dep.v.1",
-								Manifest:               "{}",
+								Group:    v1alpha1.GroupName,
+								Version:  v1alpha1.GroupVersion,
+								Kind:     v1alpha1.ClusterServiceVersionKind,
+								Name:     "dep.v.1",
+								Manifest: "{}",
 							},
 						},
 						{
@@ -457,11 +458,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:                  v1alpha1.GroupName,
-								Version:                v1alpha1.GroupVersion,
-								Kind:                   v1alpha1.SubscriptionKind,
-								Name:                   "sub-dep",
-								Manifest:               "{}",
+								Group:    v1alpha1.GroupName,
+								Version:  v1alpha1.GroupVersion,
+								Kind:     v1alpha1.SubscriptionKind,
+								Name:     "sub-dep",
+								Manifest: "{}",
 							},
 						},
 					},
@@ -477,11 +478,16 @@ func TestSyncSubscriptions(t *testing.T) {
 			o, _, err := NewFakeOperator(tt.fields.existingOLMObjs, tt.fields.existingObjects, nil, nil, testNamespace, stopCh)
 			require.NoError(t, err)
 
-			o.configmapRegistryReconciler = &fakes.FakeRegistryReconciler{
-				EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
-					return nil
+			o.reconciler = &fakes.FakeReconcilerFactory{
+				ReconcilerForSourceTypeStub: func(sourceType v1alpha1.SourceType) reconciler.RegistryReconciler {
+					return &fakes.FakeRegistryReconciler{
+						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
+							return nil
+						},
+					}
 				},
 			}
+
 			o.sourcesLastUpdate = tt.fields.sourcesLastUpdate
 			o.resolver = &fakes.FakeResolver{
 				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error) {
