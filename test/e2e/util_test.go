@@ -2,14 +2,17 @@ package e2e
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -17,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -36,7 +38,7 @@ import (
 
 const (
 	pollInterval = 1 * time.Second
-	pollDuration = 2 * time.Minute
+	pollDuration = 3 * time.Minute
 
 	ocsConfigMap     = "rh-operators"
 	olmConfigMap     = "olm-operators"
@@ -138,42 +140,6 @@ func awaitPods(t *testing.T, c operatorclient.ClientInterface, selector string, 
 	return fetchedPodList, err
 }
 
-// pollForCustomResource waits for a CR to exist in the cluster, returning an error if we fail to retrieve the CR after its been created
-func pollForCustomResource(t *testing.T, c operatorclient.ClientInterface, group string, version string, kind string, name string) error {
-	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
-
-	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := c.GetCustomResource(group, version, testNamespace, kind, name)
-		if err != nil {
-			if sErr := err.(*errors.StatusError); sErr.Status().Reason == metav1.StatusReasonNotFound {
-				return false, nil
-			}
-			return false, err
-		}
-
-		return true, nil
-	})
-
-	return err
-}
-
-/// waitForAndFetchCustomResource is same as pollForCustomResource but returns the fetched unstructured resource
-func waitForAndFetchCustomResource(t *testing.T, c operatorclient.ClientInterface, version string, kind string, name string) (*unstructured.Unstructured, error) {
-	t.Logf("Looking for %s %s in %s\n", kind, name, testNamespace)
-	var res *unstructured.Unstructured
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		res, err = c.GetCustomResource(v1alpha1.GroupName, version, testNamespace, kind, name)
-		if err != nil {
-			return false, nil
-		}
-		return true, nil
-	})
-
-	return res, err
-}
-
 // compareResources compares resource equality then prints a diff for easier debugging
 func compareResources(t *testing.T, expected, actual interface{}) {
 	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
@@ -202,10 +168,37 @@ func waitForDelete(checkResource checkResourceFunc) error {
 
 type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool
 
+// This check is disabled for most test runs, but can be enabled for verifying pod health if the e2e tests are running
+// in the same kubernetes cluster as the registry pods (currently this only happens with e2e-local-docker)
+var checkPodHealth = false
+
+func registryPodHealthy(address string) bool {
+	if !checkPodHealth {
+		return true
+	}
+
+	conn, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		fmt.Printf("error connecting: %s\n", err.Error())
+		return false
+	}
+	health := grpc_health_v1.NewHealthClient(conn)
+	res, err := health.Check(context.TODO(), &grpc_health_v1.HealthCheckRequest{Service: "Registry"})
+	if err != nil {
+		fmt.Printf("error connecting: %s\n", err.Error())
+		return false
+	}
+	if res.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+		fmt.Printf("not healthy: %s\n", res.Status.String())
+		return false
+	}
+	return true
+}
+
 func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	if !catalog.Status.LastSync.IsZero() && catalog.Status.RegistryServiceStatus != nil {
 		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), catalog.Status.RegistryServiceStatus.Address())
-		return true
+		return registryPodHealthy(catalog.Status.RegistryServiceStatus.Address())
 	}
 	fmt.Println("waiting for catalog pod to be available")
 	return false

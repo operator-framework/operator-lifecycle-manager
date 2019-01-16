@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	registryclient "github.com/operator-framework/operator-registry/pkg/client"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -302,6 +303,10 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 		delete(o.sources, sourceKey)
 	}()
 	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
+
+	if err := o.catSrcQueueSet.Remove(sourceKey.Name, sourceKey.Namespace); err != nil {
+		o.Log.WithError(err)
+	}
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
@@ -314,11 +319,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	logger := o.Log.WithFields(logrus.Fields{
 		"source": catsrc.GetName(),
 	})
-
+	logger.Debug("syncing catsrc")
 	out := catsrc.DeepCopy()
 	sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
 
 	if catsrc.Spec.SourceType == v1alpha1.SourceTypeInternal || catsrc.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
+		logger.Debug("checking catsrc configmap state")
+
 		// Get the catalog source's config map
 		configMap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(catsrc.GetNamespace()).Get(catsrc.Spec.ConfigMap)
 		if err != nil {
@@ -326,6 +333,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		}
 
 		if catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
+			logger.Debug("updating catsrc configmap state")
 			// configmap ref nonexistent or updated, write out the new configmap ref to status and exit
 			out.Status.ConfigMapResource = &v1alpha1.ConfigMapResourceReference{
 				Name:            configMap.GetName(),
@@ -351,26 +359,33 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
 
+	logger.Debug("catsrc configmap state good, checking registry pod")
+
 	// if registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
 	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
+		logger.Debug("registry pod scheduled for recheck")
+
 		if err := reconciler.EnsureRegistryServer(out); err != nil {
 			logger.WithError(err).Warn("couldn't ensure registry server")
 			return err
 		}
+		logger.Debug("ensured registry pod")
 
-		if !catsrc.Status.LastSync.Before(&out.Status.LastSync) {
-			return nil
-		}
+		out.Status.RegistryServiceStatus.CreatedAt = timeNow()
+		out.Status.LastSync = timeNow()
 
+		logger.Debug("updating catsrc status")
 		// update status
 		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 			return err
 		}
 
 		o.sourcesLastUpdate = timeNow()
+		logger.Debug("registry pod recreated")
 
 		return nil
 	}
+	logger.Debug("registry pod state good")
 
 	// update operator's view of sources
 	sourcesUpdated := false
@@ -379,7 +394,9 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		defer o.sourcesLock.Unlock()
 		address := catsrc.Status.RegistryServiceStatus.Address()
 		currentSource, ok := o.sources[sourceKey]
-		if !ok || currentSource.Address != address {
+		logger = logger.WithField("currentSource", sourceKey)
+		if !ok || currentSource.Address != address || catsrc.Status.LastSync.After(currentSource.LastConnect.Time) {
+			logger.Info("building connection to registry")
 			client, err := registryclient.NewClient(address)
 			if err != nil {
 				logger.WithError(err).Warn("couldn't connect to registry")
@@ -388,8 +405,42 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 				Address:     address,
 				Client:      client,
 				LastConnect: timeNow(),
+				LastHealthy: metav1.Time{}, // haven't detected healthy yet
 			}
 			o.sources[sourceKey] = sourceRef
+			currentSource = sourceRef
+			sourcesUpdated = true
+		}
+		if currentSource.LastHealthy.IsZero() {
+			logger.Info("client hasn't yet become healthy, attempt a health check")
+			client, ok := currentSource.Client.(*registryclient.Client)
+			if !ok {
+				logger.WithField("client", currentSource.Client).Warn("unexpected client")
+				return
+			}
+			res, err := client.Health.Check(context.TODO(), &grpc_health_v1.HealthCheckRequest{Service: "Registry"})
+			if err != nil {
+				logger.WithError(err).Debug("error checking health")
+				if client.Conn.GetState() == connectivity.TransientFailure {
+					logger.Debug("wait for state to change")
+					ctx, _ := context.WithTimeout(context.TODO(), 1*time.Second)
+					if !client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure) {
+						logger.Debug("state didn't change, trigger reconnect. this may happen when cached dns is wrong.")
+						delete(o.sources, sourceKey)
+						if err := o.catSrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
+							logger.WithError(err).Debug("error requeueing")
+						}
+						return
+					}
+				}
+				return
+			}
+			if res.Status != grpc_health_v1.HealthCheckResponse_SERVING {
+				logger.WithField("status", res.Status.String()).Debug("source not healthy")
+				return
+			}
+			currentSource.LastHealthy = timeNow()
+			o.sources[sourceKey] = currentSource
 			sourcesUpdated = true
 		}
 	}()
@@ -484,10 +535,12 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 
 	installplanReference, err := o.createInstallPlan(namespace, subs, installPlanApproval, steps)
 	if err != nil {
+		logger.WithError(err).Debug("error creating installplan")
 		return err
 	}
 
 	if err := o.ensureSubscriptionInstallPlanState(namespace, subs, installplanReference); err != nil {
+		logger.WithError(err).Debug("error ensuring subscription installplan state")
 		return err
 	}
 	return nil
@@ -500,6 +553,14 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 		o.sourcesLock.RLock()
 		defer o.sourcesLock.RUnlock()
 		for k, ref := range o.sources {
+			if ref.LastHealthy.IsZero() {
+				logger = logger.WithField("source", k)
+				logger.Debug("omitting source, hasn't yet become healthy")
+				if err := o.catSrcQueueSet.Requeue(k.Name, k.Namespace); err != nil {
+					logger.Warn("error requeueing")
+				}
+				continue
+			}
 			// only resolve in namespace local + global catalogs
 			if k.Namespace == namespace || k.Namespace == o.namespace {
 				resolverSources[k] = ref.Client
@@ -513,6 +574,7 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 			logger.Warn("unexpected client")
 			continue
 		}
+
 		logger = logger.WithField("resolverSource", k)
 		logger.WithField("clientState", client.Conn.GetState()).Debug("source")
 		if client.Conn.GetState() == connectivity.TransientFailure {
@@ -837,7 +899,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the Subscription
 				sub.SetNamespace(namespace)
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Create(&sub)
+				created, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Create(&sub)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
@@ -846,6 +908,15 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				} else {
 					// If no error occurred, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+					created.Status.Install = &v1alpha1.InstallPlanReference{
+						UID:        plan.GetUID(),
+						Name:       plan.GetName(),
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						Kind:       v1alpha1.InstallPlanKind,
+					}
+					if _, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(created); err != nil {
+						o.Log.WithError(err).Warn("couldn't set installplan reference on created subscription")
+					}
 				}
 			case secretKind:
 				// TODO: this will confuse bundle users that include secrets in their bundles - this only handles pull secrets

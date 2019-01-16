@@ -189,7 +189,7 @@ func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSour
 	serviceName := source.Service().GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
-		logrus.WithField("service", serviceName).Warn("couldn't find service in cache")
+		logrus.WithField("service", serviceName).Debug("couldn't find service in cache")
 		return nil
 	}
 	return service
@@ -199,7 +199,7 @@ func (c *ConfigMapRegistryReconciler) currentServiceAccount(source configMapCata
 	serviceAccountName := source.ServiceAccount().GetName()
 	serviceAccount, err := c.Lister.CoreV1().ServiceAccountLister().ServiceAccounts(source.GetNamespace()).Get(serviceAccountName)
 	if err != nil {
-		logrus.WithField("serviceAccouint", serviceAccountName).WithError(err).Warn("couldn't find service account in cache")
+		logrus.WithField("serviceAccouint", serviceAccountName).WithError(err).Debug("couldn't find service account in cache")
 		return nil
 	}
 	return serviceAccount
@@ -209,7 +209,7 @@ func (c *ConfigMapRegistryReconciler) currentRole(source configMapCatalogSourceD
 	roleName := source.Role().GetName()
 	role, err := c.Lister.RbacV1().RoleLister().Roles(source.GetNamespace()).Get(roleName)
 	if err != nil {
-		logrus.WithField("role", roleName).WithError(err).Warn("couldn't find role in cache")
+		logrus.WithField("role", roleName).WithError(err).Debug("couldn't find role in cache")
 		return nil
 	}
 	return role
@@ -219,7 +219,7 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 	roleBindingName := source.RoleBinding().GetName()
 	roleBinding, err := c.Lister.RbacV1().RoleBindingLister().RoleBindings(source.GetNamespace()).Get(roleBindingName)
 	if err != nil {
-		logrus.WithField("roleBinding", roleBindingName).WithError(err).Warn("couldn't find role binding in cache")
+		logrus.WithField("roleBinding", roleBindingName).WithError(err).Debug("couldn't find role binding in cache")
 		return nil
 	}
 	return roleBinding
@@ -229,11 +229,11 @@ func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceD
 	podName := source.Pod(image).GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Labels()))
 	if err != nil {
-		logrus.WithField("pod", podName).WithError(err).Warn("couldn't find pod in cache")
+		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
 		return nil
 	}
 	if len(pods) > 1 {
-		logrus.WithField("selector", source.Selector()).Warn("multiple pods found for selector")
+		logrus.WithField("selector", source.Selector()).Debug("multiple pods found for selector")
 	}
 	return pods
 }
@@ -242,11 +242,11 @@ func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(sour
 	podName := source.Pod(image).GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
-		logrus.WithField("pod", podName).WithError(err).Warn("couldn't find pod in cache")
+		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
 		return nil
 	}
 	if len(pods) > 1 {
-		logrus.WithField("selector", source.Selector()).Warn("multiple pods found for selector")
+		logrus.WithField("selector", source.Selector()).Debug("multiple pods found for selector")
 	}
 	return pods
 }

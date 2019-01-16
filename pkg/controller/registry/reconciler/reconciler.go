@@ -22,14 +22,14 @@ type RegistryReconcilerFactory struct {
 }
 
 func (r *RegistryReconcilerFactory) ReconcilerForSourceType(sourceType v1alpha1.SourceType) RegistryReconciler {
-	if sourceType == v1alpha1.SourceTypeInternal || sourceType == v1alpha1.SourceTypeConfigmap {
+	switch sourceType {
+	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
 		return &ConfigMapRegistryReconciler{
 			Lister:   r.Lister,
 			OpClient: r.OpClient,
 			Image:    r.ConfigMapServerImage,
 		}
-	}
-	if sourceType == v1alpha1.SourceTypeGrpc {
+	case v1alpha1.SourceTypeGrpc:
 		return &GrpcRegistryReconciler{
 			Lister:   r.Lister,
 			OpClient: r.OpClient,

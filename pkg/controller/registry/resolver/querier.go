@@ -15,6 +15,7 @@ type SourceRef struct {
 	Address     string
 	Client      client.Interface
 	LastConnect metav1.Time
+	LastHealthy metav1.Time
 }
 
 type SourceQuerier interface {
