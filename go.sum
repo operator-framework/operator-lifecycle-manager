@@ -156,10 +156,10 @@ github.com/onsi/gomega v1.4.2-0.20180831124310-ae19f1b56d53/go.mod h1:C1qb7wdrVG
 github.com/opencontainers/go-digest v1.0.0-rc1 h1:WzifXhOVOEOuFYOJAW6aQqW0TooG2iki3E3Ii+WN7gQ=
 github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=
 github.com/operator-framework/operator-lifecycle-manager v0.0.0-20181023032605-e838f7fb2186/go.mod h1:Ma5ZXd4S1vmMyewWlF7aO8CZiokR7Sd8dhSfkGkNU4U=
-github.com/operator-framework/operator-lifecycle-manager v0.0.0-20181218235825-c53c51a3572b/go.mod h1:c2QozxMttlmAql7kIIqCji72a1EMxmf6MmHEU2ppW/A=
+github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190105193533-81104ffdc4fb/go.mod h1:XMyE4n2opUK4N6L45YGQkXXi8F9fD7XDYFv/CsS6V5I=
 github.com/operator-framework/operator-registry v1.0.1/go.mod h1:1xEdZjjUg2hPEd52LG3YQ0jtwiwEGdm98S1TH5P4RAA=
-github.com/operator-framework/operator-registry v1.0.3 h1:wy5LnO1NAS4Lg+mRmZKddiZr3xPU3Rp1w7Fu66pf8Uc=
-github.com/operator-framework/operator-registry v1.0.3/go.mod h1:GfGMdsMQkwS1DlXtYPVTdh2NV8aPUU22+1UXjm9SlW4=
+github.com/operator-framework/operator-registry v1.0.4 h1:/xOuw0AFrnV/zjZQeEGtX/xH/ZoLOrNZqWaYU5bRQwM=
+github.com/operator-framework/operator-registry v1.0.4/go.mod h1:hve6YwcjM2nGVlscLtNsp9sIIBkNZo6jlJgzWw7vP9s=
 github.com/pborman/uuid v1.2.0 h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
 github.com/petar/GoLLRB v0.0.0-20130427215148-53be0d36a84c/go.mod h1:HUpKUBZnpzkdx0kD/+Yfuft+uD3zHGtXF/XJB14TUr4=
@@ -204,6 +204,8 @@ github.com/ugorji/go/codec v0.0.0-20181022190402-e5e69e061d4f h1:y3Vj7GoDdcBkxFa
 github.com/ugorji/go/codec v0.0.0-20181022190402-e5e69e061d4f/go.mod h1:VFNgLljTbGfSG7qAOspJ7OScBnGdDN/yBr0sguwnwf0=
 github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18 h1:MPPkRncZLN9Kh4MEFmbnK4h3BD7AUmskWv2+EeZJCCs=
 github.com/xiang90/probing v0.0.0-20160813154853-07dd2e8dfe18/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
+github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 h1:eY9dn8+vbi4tKz5Qo6v2eYzo7kUS51QINcR5jNpbZS8=
+github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 go.uber.org/atomic v1.3.2 h1:2Oa65PReHzfn29GpvgsYwloV9AVFHPDk8tYxt2c2tr4=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/multierr v1.1.0 h1:HoEmRHQPVSqub6w2z2d2EOVs2fjyFRGyofhKuyDq0QI=
@@ -289,6 +291,6 @@ k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429 h1:wIDPKpRuwEfyt+ImBaP
 k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429/go.mod h1:8sbzT4QQKDEmSCIbfqjV0sd97GpUT7A4W626sBiYJmU=
 k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd h1:ggv/Vfza0i5xuhUZyYyxcc25AmQvHY8Zi1C2m8WgBvA=
 k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd/go.mod h1:BXM9ceUBTj2QnfH2MK1odQs778ajze1RxcmP6S8RVVc=
-k8s.io/kubernetes v1.11.6-beta.0.0.20181212102158-c4240ecfddd7/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
+k8s.io/kubernetes v1.11.7-beta.0.0.20181219023948-b875d52ea96d/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
 k8s.io/kubernetes v1.11.7-beta.0.0.20190112090204-23cf8fe78f62 h1:BCNTASEARMUY8An3j4C7XN+wGAT257QTWW7zVf3LsVI=
 k8s.io/kubernetes v1.11.7-beta.0.0.20190112090204-23cf8fe78f62/go.mod h1:ocZa8+6APFNC2tX1DZASIbocyYT5jHzqFVsY5aoB7Jk=
