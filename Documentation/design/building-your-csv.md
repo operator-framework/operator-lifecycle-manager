@@ -44,7 +44,7 @@ It’s common for your Operator to use multiple CRDs to link together concepts, 
 
 **Name**: The full name of your CRD
 
-The next two sections require more explanation. 
+The next two sections require more explanation.
 
 **Resources**:
 Your CRDs will own one or more types of Kubernetes objects. These are listed in the resources section to inform your end-users of the objects they might need to troubleshoot or how to connect to the application, such as the Service or Ingress rule that exposes a database.
@@ -178,7 +178,7 @@ An APIService is uniquely identified by the group-version it provides and can be
 
 **Kind**: A kind that the APIService is expected to provide.
 
-**DeploymentName**: 
+**DeploymentName**:
 Name of the deployment defined by your CSV that corresponds to your APIService (required for owned APIServices). During the CSV pending phase, the OLM Operator will search your CSV's InstallStrategy for a deployment spec with a matching name, and if not found, will not transition the CSV to the install ready phase.  
 
 **Resources**:
@@ -190,8 +190,8 @@ It’s recommended to only list out the objects that are important to a human, n
 Essentially the same as for owned CRDs.
 
 ### APIService Resource Creation
-The Lifecycle Manage is responsible for creating or replacing the Service and APIService resources for each unique owned APIService. 
-* Service pod selectors are copied from the CSV deployment matching the APIServiceDescription's DeploymentName. 
+The Lifecycle Manage is responsible for creating or replacing the Service and APIService resources for each unique owned APIService.
+* Service pod selectors are copied from the CSV deployment matching the APIServiceDescription's DeploymentName.
 * A new CA key/cert pair is generated for for each installation and the base64 encoded CA bundle is embedded in the respective APIService resource.
 
 ### APIService Serving Certs
@@ -231,6 +231,8 @@ The metadata section contains general metadata around the name, version and othe
 **Maintainers**: A list of names and email addresses of the maintainers of the Operator code. This can be a list of individuals or a shared email alias, eg. support@example.com.
 
 **Description**: A markdown blob that describes the Operator. Important information to include: features, limitations and common use-cases for the Operator. If your Operator manages different types of installs, eg. standalone vs clustered, it is useful to give an overview of how each differs from each other, or which ones are supported for production use.
+
+**MinKubeVersion**: A minimum version of Kubernetes that server is supposed to have so operator(s) can be deployed.
 
 **Labels** (optional): Any key/value pairs used to organize and categorize this CSV object.
 

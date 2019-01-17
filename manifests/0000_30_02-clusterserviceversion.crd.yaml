@@ -62,6 +62,10 @@ spec:
               type: string
               description: Human readable description of what the application does
 
+            minKubeVersion:
+              type: string
+              description: Minimum kubernetes version requirement on the server to deploy operator
+
             keywords:
               type: array
               description: List of keywords which will be used to discover and categorize app types
@@ -200,7 +204,7 @@ spec:
                     description: Version of the API resource
                   kind:
                     type: string
-                    description: Kind of the API resource        
+                    description: Kind of the API resource
             apiservicedefinitions:
               type: object
               properties:

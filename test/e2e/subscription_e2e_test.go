@@ -75,6 +75,7 @@ var (
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: "",
 			Version:  *semver.New("0.1.0"),
+			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -104,6 +105,7 @@ var (
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: outdated,
 			Version:  *semver.New("0.2.0"),
+			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
