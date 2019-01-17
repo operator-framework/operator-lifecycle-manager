@@ -714,3 +714,97 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
 
 }
+
+func TestInstallPlanCRDValidation(t *testing.T) {
+	// Tests if CRD validation works with the "minimum" property after being
+	// pulled from a CatalogSource's operator-registry.
+	defer cleaner.NotifyTestComplete(t, true)
+
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	var min float64 = 2
+	var max float64 = 256
+
+	// Create CRD with offending property
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+			Validation: &apiextensions.CustomResourceValidation{
+				OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+					Properties: map[string]apiextensions.JSONSchemaProps{
+						"spec": {
+							Type:        "object",
+							Description: "Spec of a test object.",
+							Properties: map[string]apiextensions.JSONSchemaProps{
+								"scalar": {
+									Type:        "number",
+									Description: "Scalar value that should have a min and max.",
+									Minimum:     &min,
+									Maximum:     &max,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create CSV
+	packageName := genName("nginx-")
+	stableChannel := "stable"
+	packageNameStable := packageName + "-" + stableChannel
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	csv := newCSV(packageNameStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+
+	// Create PackageManifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: packageNameStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the CatalogSource
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	catalogSourceName := genName("mock-nginx-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	defer cleanupCatalogSource()
+
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("sub-nginx-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	installPlanName := subscription.Status.Install.Name
+
+	// Wait for InstallPlan to be status: Complete before checking resource presence
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed))
+	require.NoError(t, err)
+	t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+
+}

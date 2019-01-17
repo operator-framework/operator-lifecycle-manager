@@ -3,6 +3,7 @@ package registry
 import (
 	"fmt"
 	"k8s.io/apimachinery/pkg/util/yaml"
+	"encoding/json"
 	"strings"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -205,7 +206,13 @@ func (b *Bundle) cache() error {
 	for _, o := range b.Objects {
 		if o.GetObjectKind().GroupVersionKind().Kind == "CustomResourceDefinition" {
 			crd := &apiextensions.CustomResourceDefinition{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(o.UnstructuredContent(), crd); err != nil {
+			// Marshal Unstructured and Unmarshal as CustomResourceDefinition. FromUnstructured has issues
+			// converting JSON numbers to float64 for CRD minimum/maximum validation.
+			bytes, err := o.MarshalJSON()
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(bytes, &crd); err != nil {
 				return err
 			}
 			b.crds = append(b.crds, crd)
