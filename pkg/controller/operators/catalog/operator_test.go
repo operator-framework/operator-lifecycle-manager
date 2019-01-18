@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 	"time"
+	"encoding/json"
 
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
@@ -19,6 +20,8 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
+	appsv1 "k8s.io/api/apps/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -110,6 +113,98 @@ func TestTransitionInstallPlan(t *testing.T) {
 			require.Equal(t, tt.condition.Reason, out.Status.Conditions[0].Reason)
 			require.Equal(t, tt.condition.Message, out.Status.Conditions[0].Message)
 		}
+	}
+}
+
+func TestExecutePlan(t *testing.T) {
+	namespace := "ns"
+
+	tests := []struct{
+		testName string
+		in *v1alpha1.InstallPlan
+		want []runtime.Object
+		err error
+	}{
+		{
+			testName: "NoSteps",
+			in: installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling),
+			want: []runtime.Object{},
+			err: nil,
+		},
+		{
+			testName: "MultipleSteps",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					&v1alpha1.Step{
+						Resource: v1alpha1.StepResource{
+							CatalogSource: "catalog",
+							CatalogSourceNamespace: namespace,
+							Group: "",
+							Version: "v1",
+							Kind: "Service",
+							Name: "service",
+							Manifest: toManifest(service("service", namespace)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					&v1alpha1.Step{
+						Resource: v1alpha1.StepResource{
+							CatalogSource: "catalog",
+							CatalogSourceNamespace: namespace,
+							Group: "operators.coreos.com",
+							Version: "v1alpha1",
+							Kind: "ClusterServiceVersion",
+							Name: "csv",
+							Manifest: toManifest(csv("csv", namespace, nil, nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{service("service", namespace), csv("csv", namespace, nil, nil)},
+			err: nil,
+		},		
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			stopCh := make(chan struct{})
+			defer func() { stopCh <- struct{}{} }()
+			op, _, err := NewFakeOperator([]runtime.Object{tt.in}, nil, nil, nil, namespace, stopCh)
+			require.NoError(t, err)
+
+			err = op.ExecutePlan(tt.in)
+			require.Equal(t, tt.err, err)
+
+			for _, obj := range tt.want {
+				var err error
+				var fetched runtime.Object
+				switch o := obj.(type) {
+				case *appsv1.Deployment:
+					fetched, err = op.OpClient.GetDeployment(namespace, o.GetName())
+				case *rbacv1.ClusterRole:
+					fetched, err = op.OpClient.GetClusterRole(o.GetName())
+				case *rbacv1.Role:
+					fetched, err = op.OpClient.GetRole(namespace, o.GetName())
+				case *rbacv1.ClusterRoleBinding:
+					fetched, err = op.OpClient.GetClusterRoleBinding(o.GetName())
+				case *rbacv1.RoleBinding:
+					fetched, err = op.OpClient.GetRoleBinding(namespace, o.GetName())
+				case *corev1.ServiceAccount:
+					fetched, err = op.OpClient.GetServiceAccount(namespace, o.GetName())
+				case *corev1.Service:
+					fetched, err = op.OpClient.GetService(namespace, o.GetName())
+				case *v1alpha1.ClusterServiceVersion:
+					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+				default:
+					require.Failf(t, "couldn't find expected object", "%#v", obj)
+				}
+
+				require.NoError(t, err, "couldn't fetch %s %v", namespace, obj)
+				fmt.Printf("fetched: %v", fetched)
+				require.EqualValues(t, obj, fetched)
+			}
+		})
 	}
 }
 
@@ -284,21 +379,21 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 	testNamespace := "default"
 	tests := []struct {
 		name              string
-		csv               v1alpha1.ClusterServiceVersion
+		csv               *v1alpha1.ClusterServiceVersion
 		existingCRDOwners map[string][]string
 		expectedErr       error
 		expectedResult    bool
 	}{
 		{
 			name:              "NoCompetingOwnersExist",
-			csv:               csv("turkey", []string{"feathers"}, nil),
+			csv:               csv("turkey", testNamespace, []string{"feathers"}, nil),
 			existingCRDOwners: nil,
 			expectedErr:       nil,
 			expectedResult:    false,
 		},
 		{
 			name: "OnlyCompetingWithSelf",
-			csv:  csv("turkey", []string{"feathers"}, nil),
+			csv:  csv("turkey", testNamespace, []string{"feathers"}, nil),
 			existingCRDOwners: map[string][]string{
 				"feathers": {"turkey"},
 			},
@@ -307,7 +402,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 		},
 		{
 			name: "CompetingOwnersExist",
-			csv:  csv("turkey", []string{"feathers"}, nil),
+			csv:  csv("turkey", testNamespace, []string{"feathers"}, nil),
 			existingCRDOwners: map[string][]string{
 				"feathers": {"seagull"},
 			},
@@ -316,7 +411,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 		},
 		{
 			name: "CompetingOwnerExistsOnSecondCRD",
-			csv:  csv("turkey", []string{"feathers", "beak"}, nil),
+			csv:  csv("turkey", testNamespace, []string{"feathers", "beak"}, nil),
 			existingCRDOwners: map[string][]string{
 				"milk": {"cow"},
 				"beak": {"squid"},
@@ -326,7 +421,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 		},
 		{
 			name: "MoreThanOneCompetingOwnerExists",
-			csv:  csv("turkey", []string{"feathers"}, nil),
+			csv:  csv("turkey", testNamespace, []string{"feathers"}, nil),
 			existingCRDOwners: map[string][]string{
 				"feathers": {"seagull", "turkey"},
 			},
@@ -338,7 +433,7 @@ func TestCompetingCRDOwnersExist(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			competing, err := competingCRDOwnersExist(testNamespace, &tt.csv, tt.existingCRDOwners)
+			competing, err := competingCRDOwnersExist(testNamespace, tt.csv, tt.existingCRDOwners)
 
 			// Assert the error is as expected
 			if tt.expectedErr == nil {
@@ -440,31 +535,48 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	return op, hasSyncedCheckFns, nil
 }
 
-func installPlan(names ...string) v1alpha1.InstallPlan {
-	return v1alpha1.InstallPlan{
+func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names ...string) *v1alpha1.InstallPlan {
+	return &v1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+			Namespace: namespace,
+		},
 		Spec: v1alpha1.InstallPlanSpec{
 			ClusterServiceVersionNames: names,
 		},
 		Status: v1alpha1.InstallPlanStatus{
+			Phase: phase,
 			Plan: []*v1alpha1.Step{},
 		},
 	}
 }
 
-func csv(name string, owned, required []string) v1alpha1.ClusterServiceVersion {
+func withSteps(plan *v1alpha1.InstallPlan, steps []*v1alpha1.Step) *v1alpha1.InstallPlan {
+	plan.Status.Plan = steps
+	return plan
+}
+
+func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServiceVersion {
 	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range required {
 		requiredCRDDescs = append(requiredCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
+	}
+	if len(requiredCRDDescs) == 0 {
+		requiredCRDDescs = nil
 	}
 
 	ownedCRDDescs := make([]v1alpha1.CRDDescription, 0)
 	for _, name := range owned {
 		ownedCRDDescs = append(ownedCRDDescs, v1alpha1.CRDDescription{Name: name, Version: "v1", Kind: name})
 	}
+	if len(ownedCRDDescs) == 0 {
+		ownedCRDDescs = nil
+	}
 
-	return v1alpha1.ClusterServiceVersion{
+	return &v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
+			Namespace: namespace,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
@@ -488,4 +600,18 @@ func crd(name string) v1beta1.CustomResourceDefinition {
 			},
 		},
 	}
+}
+
+func service(name, namespace string) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name, 
+			Namespace: namespace,
+		},
+	}
+}
+
+func toManifest(obj runtime.Object) string {
+	raw, _ := json.Marshal(obj)
+	return string(raw)
 }

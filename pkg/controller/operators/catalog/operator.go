@@ -43,6 +43,7 @@ const (
 	clusterRoleKind        = "ClusterRole"
 	clusterRoleBindingKind = "ClusterRoleBinding"
 	serviceAccountKind     = "ServiceAccount"
+	serviceKind 		   = "Service"
 	roleKind               = "Role"
 	roleBindingKind        = "RoleBinding"
 )
@@ -1029,6 +1030,41 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error creating service account: %s", sa.GetName())
 				} else {
 					// If no error occurred, mark the step as Created.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+			
+			case serviceKind:
+				// Marshal the manifest into a Service instance
+				var s corev1.Service
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error generating ownerrefs for service: %s", s.GetName())
+				}
+				s.SetOwnerReferences(updated)
+				s.SetNamespace(namespace)
+
+				// Attempt to create the Service
+				_, err = o.OpClient.KubernetesInterface().CoreV1().Services(plan.Namespace).Create(&s)
+				if k8serrors.IsAlreadyExists(err) {
+					// If it already exists we need to patch the existing SA with the new OwnerReferences
+					s.SetNamespace(plan.Namespace)
+					_, err = o.OpClient.UpdateService(&s)
+					if err != nil {
+						return errorwrap.Wrapf(err, "error updating service: %s", s.GetName())
+					}
+
+					// Mark as present
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
+				} else if err != nil {
+					return errorwrap.Wrapf(err, "error creating service: %s", s.GetName())
+				} else {
+					// If no error occurred, mark the step as Created
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
 

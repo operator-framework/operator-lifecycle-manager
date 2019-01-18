@@ -201,6 +201,12 @@ func InferGroupVersionKind(obj runtime.Object) error {
 	}
 
 	switch obj.(type) {
+	case *corev1.Service:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   "",
+			Version: "v1",
+			Kind:    "Service",
+		})
 	case *corev1.ServiceAccount:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
 			Group:   "",
