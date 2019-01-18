@@ -24,7 +24,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -146,7 +146,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				Data: fakeConfigMapData(),
 			},
 			expectedStatus: nil,
-			expectedError:  nil,
+			expectedError:  fmt.Errorf("no reconciler for source type nope"),
 		},
 		{
 			testName:          "CatalogSourceWithBackingConfigMap",
@@ -420,10 +420,10 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		resolver:  &fakes.FakeResolver{},
 	}
 
-	op.configmapRegistryReconciler = &registry.ConfigMapRegistryReconciler{
-		Image:    "test:pod",
-		OpClient: op.OpClient,
-		Lister:   lister,
+	op.reconciler = &reconciler.RegistryReconcilerFactory{
+		ConfigMapServerImage: "test:pod",
+		OpClient:             op.OpClient,
+		Lister:               lister,
 	}
 
 	var hasSyncedCheckFns []cache.InformerSynced

@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/pkg/version"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
@@ -2473,6 +2474,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		v1alpha1.CSVPhaseNone,
 	)
 
+	serverVersion := version.Get().String()
 	// after state transitions from operatorgroups, this is the operator csv we expect
 	operatorCSVFinal := operatorCSV.DeepCopy()
 	operatorCSVFinal.Status.Phase = v1alpha1.CSVPhaseSucceeded
@@ -2487,7 +2489,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			Kind:    "ClusterServiceVersion",
 			Name:    "csv1",
 			Status:  v1alpha1.RequirementStatusReasonPresent,
-			Message: "CSV minKubeVersion (0.0.0) less than server version (v0.0.0-master+$Format:%h$)",
+			Message: "CSV minKubeVersion (0.0.0) less than server version (" + serverVersion + ")",
 		},
 		{
 			Group:   "apiextensions.k8s.io",

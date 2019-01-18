@@ -1,4 +1,4 @@
-package registry
+package reconciler
 
 import (
 	"fmt"
@@ -7,6 +7,7 @@ import (
 
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ const (
 	testNamespace     = "testns"
 )
 
-func reconciler(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (*ConfigMapRegistryReconciler, operatorclient.ClientInterface) {
+func cmReconciler(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (*ConfigMapRegistryReconciler, operatorclient.ClientInterface) {
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), nil, nil)
 
 	// Creates registry pods in response to configmaps
@@ -110,10 +111,10 @@ func validConfigMap() *corev1.ConfigMap {
 func TestValidConfigMap(t *testing.T) {
 	cm := validConfigMap()
 	require.NotNil(t, cm)
-	require.Contains(t, cm.Data[ConfigMapCRDName], "fake")
+	require.Contains(t, cm.Data[registry.ConfigMapCRDName], "fake")
 }
 
-func validCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {
+func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {
 	return &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "cool-catalog",
@@ -122,7 +123,7 @@ func validCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			ConfigMap:  "cool-configmap",
-			SourceType: "nope",
+			SourceType: v1alpha1.SourceTypeConfigmap,
 		},
 		Status: v1alpha1.CatalogSourceStatus{
 			ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
@@ -136,7 +137,7 @@ func validCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogSource {
 }
 
 func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
-	decorated := catalogSourceDecorator{catsrc}
+	decorated := configMapCatalogSourceDecorator{catsrc}
 	objs := []runtime.Object{
 		decorated.Pod(registryImageName),
 		decorated.Service(),
@@ -179,7 +180,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 	timeNow = func() metav1.Time { return nowTime }
 
 	validConfigMap := validConfigMap()
-	validCatalogSource := validCatalogSource(validConfigMap)
+	validCatalogSource := validConfigMapCatalogSource(validConfigMap)
 	outdatedCatalogSource := validCatalogSource.DeepCopy()
 	outdatedCatalogSource.Status.ConfigMapResource.ResourceVersion = "old"
 	type cluster struct {
@@ -202,7 +203,11 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "NoConfigMap",
 			in: in{
 				cluster: cluster{},
-				catsrc:  &v1alpha1.CatalogSource{},
+				catsrc: &v1alpha1.CatalogSource{
+					Spec: v1alpha1.CatalogSourceSpec{
+						SourceType: v1alpha1.SourceTypeConfigmap,
+					},
+				},
 			},
 			out: out{
 				err: fmt.Errorf("unable to get configmap / from cache"),
@@ -340,7 +345,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			rec, client := reconciler(t, tt.in.cluster.k8sObjs, stopc)
+			rec, client := cmReconciler(t, tt.in.cluster.k8sObjs, stopc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
 
@@ -352,7 +357,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			}
 
 			// if no error, the reconciler should create the same set of kube objects every time
-			decorated := catalogSourceDecorator{tt.in.catsrc}
+			decorated := configMapCatalogSourceDecorator{tt.in.catsrc}
 
 			pod := decorated.Pod(registryImageName)
 			outPod, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Get(pod.GetName(), metav1.GetOptions{})

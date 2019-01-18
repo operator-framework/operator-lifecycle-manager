@@ -49,7 +49,7 @@ mkdir -p test/e2e/test-resources
 helm template --set namespace="${namespace}"  -f test/e2e/e2e-values.yaml test/e2e/chart  --output-dir test/e2e/test-resources
 
 eval "$(minikube docker-env)" || { echo 'Cannot switch to minikube docker'; exit 1; }
-kubectl apply -f test/e2e/test-resources/alm-e2e/templates
+kubectl apply -f test/e2e/test-resources/olm-e2e/templates
 until kubectl -n "${namespace}" logs job/e2e | grep -v "ContainerCreating"; do echo "waiting for job to run" && sleep 1; done
 kubectl -n "${namespace}" logs job/e2e -f
 
