@@ -5,6 +5,7 @@ require (
 	github.com/coreos/go-semver v0.2.0
 	github.com/coreos/go-systemd v0.0.0-20181031085051-9002847aa142 // indirect
 	github.com/docker/distribution v2.7.0+incompatible // indirect
+	github.com/emicklei/go-restful v2.8.1+incompatible // indirect
 	github.com/evanphx/json-patch v4.1.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.17.2
@@ -44,9 +45,9 @@ require (
 	google.golang.org/grpc v1.16.0
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
-	k8s.io/api v0.0.0-20181203235848-2dd39edadc55
+	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
 	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
-	k8s.io/apimachinery v0.0.0-20181203235515-3d8ee2261517
+	k8s.io/apimachinery v0.0.0-20190118094746-1525e4dadd2d
 	k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
@@ -54,5 +55,5 @@ require (
 	k8s.io/klog v0.1.0 // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.7-beta.0.0.20190112090204-23cf8fe78f62
+	k8s.io/kubernetes v1.11.7-beta.0.0.20190118094746-65ecaf067134
 )
