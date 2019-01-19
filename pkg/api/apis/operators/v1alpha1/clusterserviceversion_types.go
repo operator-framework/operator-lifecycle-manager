@@ -479,4 +479,3 @@ func (csv ClusterServiceVersion) GetOwnedAPIServiceDescriptions() []APIServiceDe
 
 	return descs
 }
-

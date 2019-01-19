@@ -43,7 +43,7 @@ const (
 	clusterRoleKind        = "ClusterRole"
 	clusterRoleBindingKind = "ClusterRoleBinding"
 	serviceAccountKind     = "ServiceAccount"
-	serviceKind 		   = "Service"
+	serviceKind            = "Service"
 	roleKind               = "Role"
 	roleBindingKind        = "RoleBinding"
 )
@@ -1032,7 +1032,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					// If no error occurred, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
-			
+
 			case serviceKind:
 				// Marshal the manifest into a Service instance
 				var s corev1.Service

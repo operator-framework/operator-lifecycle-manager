@@ -1,16 +1,18 @@
 package catalog
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
-	"encoding/json"
 
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,8 +22,6 @@ import (
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
-	appsv1 "k8s.io/api/apps/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -119,17 +119,17 @@ func TestTransitionInstallPlan(t *testing.T) {
 func TestExecutePlan(t *testing.T) {
 	namespace := "ns"
 
-	tests := []struct{
+	tests := []struct {
 		testName string
-		in *v1alpha1.InstallPlan
-		want []runtime.Object
-		err error
+		in       *v1alpha1.InstallPlan
+		want     []runtime.Object
+		err      error
 	}{
 		{
 			testName: "NoSteps",
-			in: installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling),
-			want: []runtime.Object{},
-			err: nil,
+			in:       installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling),
+			want:     []runtime.Object{},
+			err:      nil,
 		},
 		{
 			testName: "MultipleSteps",
@@ -137,33 +137,33 @@ func TestExecutePlan(t *testing.T) {
 				[]*v1alpha1.Step{
 					&v1alpha1.Step{
 						Resource: v1alpha1.StepResource{
-							CatalogSource: "catalog",
+							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group: "",
-							Version: "v1",
-							Kind: "Service",
-							Name: "service",
-							Manifest: toManifest(service("service", namespace)),
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Service",
+							Name:                   "service",
+							Manifest:               toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
 					&v1alpha1.Step{
 						Resource: v1alpha1.StepResource{
-							CatalogSource: "catalog",
+							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group: "operators.coreos.com",
-							Version: "v1alpha1",
-							Kind: "ClusterServiceVersion",
-							Name: "csv",
-							Manifest: toManifest(csv("csv", namespace, nil, nil)),
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
 				},
 			),
 			want: []runtime.Object{service("service", namespace), csv("csv", namespace, nil, nil)},
-			err: nil,
-		},		
+			err:  nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -538,7 +538,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names ...string) *v1alpha1.InstallPlan {
 	return &v1alpha1.InstallPlan{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.InstallPlanSpec{
@@ -546,7 +546,7 @@ func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names 
 		},
 		Status: v1alpha1.InstallPlanStatus{
 			Phase: phase,
-			Plan: []*v1alpha1.Step{},
+			Plan:  []*v1alpha1.Step{},
 		},
 	}
 }
@@ -575,7 +575,7 @@ func csv(name, namespace string, owned, required []string) *v1alpha1.ClusterServ
 
 	return &v1alpha1.ClusterServiceVersion{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
@@ -605,7 +605,7 @@ func crd(name string) v1beta1.CustomResourceDefinition {
 func service(name, namespace string) *corev1.Service {
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name, 
+			Name:      name,
 			Namespace: namespace,
 		},
 	}
