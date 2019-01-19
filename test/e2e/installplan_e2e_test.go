@@ -274,7 +274,7 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	}
 
 	subscriptionName := genName("sub-nginx-")
-	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -408,7 +408,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		t.Log("Dependent CRD and preexisting CSV created")
 
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -518,7 +518,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		subscriptionName := genName("sub-nginx-")
-		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 		defer subscriptionCleanup()
 
 		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -565,7 +565,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		// existing cleanup should remove this
-		createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
+		createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
 
 		subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(t, err)
@@ -671,7 +671,7 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	subscriptionName := genName("sub-nginx-")
-	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, packageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 	defer subscriptionCleanup()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -795,7 +795,7 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 	require.NoError(t, err)
 
 	subscriptionName := genName("sub-nginx-")
-	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 	defer cleanupSubscription()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
@@ -810,5 +810,4 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 	t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
 }

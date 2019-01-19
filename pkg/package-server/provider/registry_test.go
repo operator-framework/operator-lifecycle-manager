@@ -1,3 +1,4 @@
+//go:generate counterfeiter -o ../client/fakes/fake_registry_client.go ../../../vendor/github.com/operator-framework/operator-registry/pkg/api/registry.pb.go RegistryClient
 package provider
 
 import (

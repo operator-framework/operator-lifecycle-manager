@@ -5,10 +5,9 @@ import (
 	"context"
 	"fmt"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type SourceRef struct {
@@ -20,7 +19,8 @@ type SourceRef struct {
 
 type SourceQuerier interface {
 	FindProvider(api opregistry.APIKey) (*opregistry.Bundle, *CatalogKey, error)
-	FindPackage(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
+	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
+	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
 	FindReplacement(bundleName, pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
 	Queryable() error
 }
@@ -56,12 +56,72 @@ func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey) (*opregistr
 	return nil, nil, fmt.Errorf("%s not provided by a package in any CatalogSource", api)
 }
 
-func (q *NamespaceSourceQuerier) FindPackage(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindPackage(pkgName, channelName, csvName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if !ok {
 			return nil, nil, fmt.Errorf("CatalogSource %s not found", initialSource)
 		}
+
+		var bundle *opregistry.Bundle
+		var err error
+		if csvName != "" {
+			bundle, err = source.GetBundle(context.TODO(), pkgName, channelName, csvName)
+		} else {
+			bundle, err = source.GetBundleInPackageChannel(context.TODO(), pkgName, channelName)
+		}
+
+		if err != nil {
+			return nil, nil, err
+		}
+		return bundle, &initialSource, nil
+	}
+
+	for key, source := range q.sources {
+		var bundle *opregistry.Bundle
+		var err error
+		if csvName != "" {
+			bundle, err = source.GetBundle(context.TODO(), pkgName, channelName, csvName)
+		} else {
+			bundle, err = source.GetBundleInPackageChannel(context.TODO(), pkgName, channelName)
+		}
+		if err == nil {
+			return bundle, &key, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("%s/%s not found in any available CatalogSource", pkgName, channelName)
+}
+
+func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+	if initialSource.Name != "" && initialSource.Namespace != "" {
+		source, ok := q.sources[initialSource]
+		if !ok {
+			return nil, nil, fmt.Errorf("CatalogSource %s not found", initialSource)
+		}
+
+		bundle, err := source.GetBundle(context.TODO(), pkgName, channelName, bundleName)
+		if err != nil {
+			return nil, nil, err
+		}
+		return bundle, &initialSource, nil
+	}
+
+	for key, source := range q.sources {
+		bundle, err := source.GetBundle(context.TODO(), pkgName, channelName, bundleName)
+		if err == nil {
+			return bundle, &key, nil
+		}
+	}
+	return nil, nil, fmt.Errorf("%s/%s/%s not found in any available CatalogSource", pkgName, channelName, bundleName)
+}
+
+func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+	if initialSource.Name != "" && initialSource.Namespace != "" {
+		source, ok := q.sources[initialSource]
+		if !ok {
+			return nil, nil, fmt.Errorf("CatalogSource %s not found", initialSource)
+		}
+
 		bundle, err := source.GetBundleInPackageChannel(context.TODO(), pkgName, channelName)
 		if err != nil {
 			return nil, nil, err

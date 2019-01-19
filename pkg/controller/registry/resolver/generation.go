@@ -44,7 +44,7 @@ func NewGenerationFromCluster(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1
 	subMap := map[string]*v1alpha1.Subscription{}
 	for _, s := range subs {
 		if s.Status.CurrentCSV != "" {
-			subMap[s.Status.CurrentCSV] = s
+			subMap[s.Status.CurrentCSV] = s.DeepCopy()
 		}
 	}
 	for _, csv := range csvs {
@@ -52,8 +52,9 @@ func NewGenerationFromCluster(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1
 		if err != nil {
 			return nil, err
 		}
-		// if there's a subscription for this CSV, we add the sourceinfo for the subscription
+		// If there's a subscription for this CSV, we add the sourceinfo for the subscription
 		if sub, ok := subMap[op.Identifier()]; ok {
+			// No need to enable starting csv search since a csv already exists.
 			op.sourceInfo = &OperatorSourceInfo{
 				Package: sub.Spec.Package,
 				Channel: sub.Spec.Channel,

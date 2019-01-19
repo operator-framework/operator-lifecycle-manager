@@ -44,7 +44,7 @@ func NewGenerationFromOperators(ops ...OperatorSurface) *NamespaceGeneration {
 	return g
 }
 
-func NewFakeOperatorSurface(name, pkg, channel, replaces, src string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey) *Operator {
+func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey) *Operator {
 	providedAPISet := EmptyAPISet()
 	requiredAPISet := EmptyAPISet()
 	providedCRDAPISet := EmptyAPISet()
@@ -80,6 +80,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src string, providedCR
 		sourceInfo: &OperatorSourceInfo{
 			Package: pkg,
 			Channel: channel,
+			StartingCSV: startingCSV,
 			Catalog: CatalogKey{src, src + "-namespace"},
 		},
 		bundle: b,
@@ -311,6 +312,15 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 		source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*opregistry.Bundle, error) {
 			for _, b := range bundles {
 				if b.Channel == channelName && b.Package == packageName {
+					return b, nil
+				}
+			}
+			return nil, fmt.Errorf("no bundle found")
+		}
+
+		source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*opregistry.Bundle, error) {
+			for _, b := range bundles {
+				if b.Channel == channelName && b.Package == packageName && b.Name == csvName {
 					return b, nil
 				}
 			}

@@ -38,6 +38,18 @@ func (s *RegistryServer) GetPackage(ctx context.Context, req *api.GetPackageRequ
 	return api.PackageManifestToAPIPackage(packageManifest), nil
 }
 
+func (s *RegistryServer) GetBundle(ctx context.Context, req *api.GetBundleRequest) (*api.Bundle, error) {
+	bundleString, err := s.store.GetBundle(ctx, req.GetPkgName(), req.GetChannelName(), req.GetCsvName())
+	if err != nil {
+		return nil, err
+	}
+	entry := &registry.ChannelEntry{
+		PackageName: req.GetPkgName(),
+		ChannelName: req.GetChannelName(),
+	}
+	return api.BundleStringToAPIBundle(bundleString, entry)
+}
+
 func (s *RegistryServer) GetBundleForChannel(ctx context.Context, req *api.GetBundleInChannelRequest) (*api.Bundle, error) {
 	bundleString, err := s.store.GetBundleForChannel(ctx, req.GetPkgName(), req.GetChannelName())
 	if err != nil {

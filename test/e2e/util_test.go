@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"encoding/json"
 
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
@@ -372,4 +373,12 @@ func serializeCRD(t *testing.T, crd apiextensions.CustomResourceDefinition) stri
 	err = serializer.Encode(out, &manifest)
 	require.NoError(t, err)
 	return manifest.String()
+}
+
+func serializeObject(obj interface{}) string {
+	bytes, err := json.Marshal(obj)
+	if err != nil {
+		return ""
+	}
+	return string(bytes)
 }

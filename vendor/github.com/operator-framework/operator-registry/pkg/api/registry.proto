@@ -4,7 +4,8 @@ package api;
 
 service Registry {
     rpc ListPackages(ListPackageRequest) returns (stream PackageName) {}
-    rpc GetPackage(GetPackageRequest) returns (Package) {}
+	rpc GetPackage(GetPackageRequest) returns (Package) {}
+	rpc GetBundle(GetBundleRequest) returns (Bundle) {}
 	rpc GetBundleForChannel(GetBundleInChannelRequest) returns (Bundle) {}
 	rpc GetChannelEntriesThatReplace(GetAllReplacementsRequest) returns (stream ChannelEntry) {}
 	rpc GetBundleThatReplaces(GetReplacementRequest) returns (Bundle) {}
@@ -51,7 +52,9 @@ message GetPackageRequest{
 }
 
 message GetBundleRequest{
-	string csvName = 1;
+	string pkgName = 1;
+	string channelName = 2;
+	string csvName = 3;
 }
 
 message GetBundleInChannelRequest{
