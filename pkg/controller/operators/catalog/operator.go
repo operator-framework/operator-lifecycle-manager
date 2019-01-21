@@ -511,12 +511,33 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return fmt.Errorf("casting Namespace failed")
 	}
 	namespace := ns.GetName()
+
 	logger := o.Log.WithFields(logrus.Fields{
 		"namespace": namespace,
 	})
+
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
 	resolverSources := o.ensureResolverSources(logger, namespace)
+
+	logger.Debug("checking if subscriptions need update")
+
+	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace).List(labels.Everything())
+	if err != nil {
+		logger.WithError(err).Debug("couldn't list subscriptions")
+		return err
+	}
+
+	shouldUpdate := false
+	for _, sub := range subs {
+		if !o.nothingToUpdate(logger, sub) {
+			shouldUpdate = true
+			break
+		}
+	}
+	if !shouldUpdate {
+		logger.Debug("all subscriptions up to date")
+	}
 
 	logger.Debug("resolving subscriptions in namespace")
 
