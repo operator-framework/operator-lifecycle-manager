@@ -56,16 +56,17 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	client            versioned.Interface
-	lister            operatorlister.OperatorLister
-	namespace         string
-	sources           map[resolver.CatalogKey]resolver.SourceRef
-	sourcesLock       sync.RWMutex
-	sourcesLastUpdate metav1.Time
-	resolver          resolver.Resolver
-	subQueue          workqueue.RateLimitingInterface
-	catSrcQueueSet    queueinformer.ResourceQueueSet
-	reconciler        reconciler.ReconcilerFactory
+	client                versioned.Interface
+	lister                operatorlister.OperatorLister
+	namespace             string
+	sources               map[resolver.CatalogKey]resolver.SourceRef
+	sourcesLock           sync.RWMutex
+	sourcesLastUpdate     metav1.Time
+	resolver              resolver.Resolver
+	subQueue              workqueue.RateLimitingInterface
+	catSrcQueueSet        queueinformer.ResourceQueueSet
+	namespaceResolveQueue workqueue.RateLimitingInterface
+	reconciler            reconciler.ReconcilerFactory
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -209,6 +210,23 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		OpClient:             op.OpClient,
 		Lister:               op.lister,
 	}
+
+	namespaceInformer := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
+	resolvingNamespaceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
+	namespaceQueueInformer := queueinformer.NewInformer(
+		resolvingNamespaceQueue,
+		namespaceInformer.Informer(),
+		op.syncResolvingNamespace,
+		nil,
+		"resolver",
+		metrics.NewMetricsNil(),
+		logger,
+	)
+
+	op.RegisterQueueInformer(namespaceQueueInformer)
+	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
+	op.namespaceResolveQueue = resolvingNamespaceQueue
+
 	return op, nil
 }
 
@@ -456,9 +474,8 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return err
 	}
 
-	// Sync any dependent Subscriptions
-	// TODO: this should go away, we should resync the namespace instead
-	o.syncDependentSubscriptions(logger, out.GetName(), out.GetNamespace())
+	// Trigger a resolve, will pick up any subscriptions that depend on the catalog
+	o.namespaceResolveQueue.AddRateLimited(out.GetNamespace())
 
 	return nil
 }
@@ -487,13 +504,56 @@ func (o *Operator) syncDependentSubscriptions(logger *logrus.Entry, catalogSourc
 	}
 }
 
+func (o *Operator) syncResolvingNamespace(obj interface{}) error {
+	ns, ok := obj.(*corev1.Namespace)
+	if !ok {
+		o.Log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting Namespace failed")
+	}
+	namespace := ns.GetName()
+	logger := o.Log.WithFields(logrus.Fields{
+		"namespace": namespace,
+	})
+	// get the set of sources that should be used for resolution and best-effort get their connections working
+	logger.Debug("resolving sources")
+	resolverSources := o.ensureResolverSources(logger, namespace)
+
+	logger.Debug("resolving subscriptions in namespace")
+
+	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
+	steps, subs, err := o.resolver.ResolveSteps(namespace, resolver.NewNamespaceSourceQuerier(resolverSources))
+	if err != nil {
+		return err
+	}
+
+	// any subscription in the namespace with manual approval will force generated installplans to be manual
+	// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
+	installPlanApproval := v1alpha1.ApprovalAutomatic
+	for _, sub := range subs {
+		if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
+			installPlanApproval = v1alpha1.ApprovalManual
+			break
+		}
+	}
+	installplanReference, err := o.createInstallPlan(namespace, subs, installPlanApproval, steps)
+	if err != nil {
+		logger.WithError(err).Debug("error creating installplan")
+		return err
+	}
+
+	if err := o.ensureSubscriptionInstallPlanState(namespace, subs, installplanReference); err != nil {
+		logger.WithError(err).Debug("error ensuring subscription installplan state")
+		return err
+	}
+	return nil
+}
+
 func (o *Operator) syncSubscriptions(obj interface{}) error {
 	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
 		o.Log.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Subscription failed")
 	}
-	namespace := sub.GetNamespace()
 
 	logger := o.Log.WithFields(logrus.Fields{
 		"sub":       sub.GetName(),
@@ -514,36 +574,8 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 		return nil
 	}
 
-	// get the set of sources that should be used for resolution and best-effort get their connections working
-	logger.Debugf("resolving sources for %s", namespace)
-	resolverSources := o.ensureResolverSources(logger, namespace)
+	o.namespaceResolveQueue.AddRateLimited(sub.GetNamespace())
 
-	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, subs, err := o.resolver.ResolveSteps(namespace, resolver.NewNamespaceSourceQuerier(resolverSources))
-	if err != nil {
-		return err
-	}
-
-	// any subscription in the namespace with manual approval will force generated installplans to be manual
-	// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
-	installPlanApproval := v1alpha1.ApprovalAutomatic
-	for _, sub := range subs {
-		if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
-			installPlanApproval = v1alpha1.ApprovalManual
-			break
-		}
-	}
-
-	installplanReference, err := o.createInstallPlan(namespace, subs, installPlanApproval, steps)
-	if err != nil {
-		logger.WithError(err).Debug("error creating installplan")
-		return err
-	}
-
-	if err := o.ensureSubscriptionInstallPlanState(namespace, subs, installplanReference); err != nil {
-		logger.WithError(err).Debug("error ensuring subscription installplan state")
-		return err
-	}
 	return nil
 }
 

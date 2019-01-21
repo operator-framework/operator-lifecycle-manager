@@ -220,6 +220,10 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.NotNil(t, subscription)
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
+
+	ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(ipList.Items))
 }
 
 func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
