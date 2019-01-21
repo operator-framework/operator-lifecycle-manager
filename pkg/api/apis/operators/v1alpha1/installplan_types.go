@@ -4,9 +4,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
 
 const (
