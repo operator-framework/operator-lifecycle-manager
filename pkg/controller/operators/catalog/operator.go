@@ -211,6 +211,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		Lister:               op.lister,
 	}
 
+	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
 	resolvingNamespaceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
 	namespaceQueueInformer := queueinformer.NewInformer(
@@ -227,7 +228,23 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.namespaceResolveQueue = resolvingNamespaceQueue
 
+	// Create an informer/lister for operatorgroups
+	for _, namespace := range watchedNamespaces {
+		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		operatorGroupInformer := sharedInformerFactory.Operators().V1alpha2().OperatorGroups()
+		op.lister.OperatorsV1alpha2().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
+
+		// Register queue and QueueInformer
+		queueName := fmt.Sprintf("%s/operatorgroups", namespace)
+		operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
+		operatorGroupQueueInformer := queueinformer.NewInformer(operatorGroupQueue, operatorGroupInformer.Informer(), NoopHandler, nil, queueName, metrics.NewMetricsNil(), logger)
+		op.RegisterQueueInformer(operatorGroupQueueInformer)
+	}
 	return op, nil
+}
+
+func NoopHandler(obj interface{}) error {
+	return nil
 }
 
 func (o *Operator) syncObject(obj interface{}) (syncError error) {
@@ -475,7 +492,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	// Trigger a resolve, will pick up any subscriptions that depend on the catalog
-	o.namespaceResolveQueue.AddRateLimited(out.GetNamespace())
+	o.resolveNamespace(out.GetNamespace())
 
 	return nil
 }
@@ -516,6 +533,12 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		"namespace": namespace,
 	})
 
+	// ignore error, we just want to fail early if we know there's no operatorgroup
+	ogs, _ := o.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
+	if len(ogs) == 0 {
+		return fmt.Errorf("no operatorgroups in namespace")
+	}
+
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
 	resolverSources := o.ensureResolverSources(logger, namespace)
@@ -530,13 +553,29 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	shouldUpdate := false
 	for _, sub := range subs {
-		if !o.nothingToUpdate(logger, sub) {
-			shouldUpdate = true
-			break
+		logger := logger.WithFields(logrus.Fields{
+			"sub":     sub.GetName(),
+			"source":  sub.Spec.CatalogSource,
+			"pkg":     sub.Spec.Package,
+			"channel": sub.Spec.Channel,
+		})
+
+		// ensure the installplan reference is correct
+		sub, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		if err != nil {
+			return err
 		}
+
+		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
+		sub, err = o.ensureSubscriptionCSVState(logger, sub)
+		if err != nil {
+			return err
+		}
+		shouldUpdate = shouldUpdate || !o.nothingToUpdate(logger, sub)
 	}
 	if !shouldUpdate {
 		logger.Debug("all subscriptions up to date")
+		return nil
 	}
 
 	logger.Debug("resolving subscriptions in namespace")
@@ -562,7 +601,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
-	if err := o.ensureSubscriptionInstallPlanState(namespace, subs, installplanReference); err != nil {
+	if err := o.updateSubscriptionSetInstallPlanState(namespace, subs, installplanReference); err != nil {
 		logger.WithError(err).Debug("error ensuring subscription installplan state")
 		return err
 	}
@@ -576,28 +615,13 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 		return fmt.Errorf("casting Subscription failed")
 	}
 
-	logger := o.Log.WithFields(logrus.Fields{
-		"sub":       sub.GetName(),
-		"namespace": sub.GetNamespace(),
-		"source":    sub.Spec.CatalogSource,
-		"pkg":       sub.Spec.Package,
-		"channel":   sub.Spec.Channel,
-	})
-
-	// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
-	sub, err := o.ensureSubscriptionCSVState(logger, sub)
-	if err != nil {
-		return err
-	}
-
-	// return early if the subscription is up to date
-	if o.nothingToUpdate(logger, sub) {
-		return nil
-	}
-
-	o.namespaceResolveQueue.AddRateLimited(sub.GetNamespace())
+	o.resolveNamespace(sub.GetNamespace())
 
 	return nil
+}
+
+func (o *Operator) resolveNamespace(namespace string) {
+	o.namespaceResolveQueue.AddRateLimited(namespace)
 }
 
 func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string) map[resolver.CatalogKey]registryclient.Interface {
@@ -659,6 +683,44 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 	return false
 }
 
+func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
+	if sub.Status.Install != nil {
+		return sub, nil
+	}
+
+	logger.Debug("checking for existing installplan")
+
+	// check if there's an installplan that created this subscription (only if it doesn't have a reference yet)
+	// this indicates it was newly resolved by another operator, and we should reference that installplan in the status
+	ips, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).List(metav1.ListOptions{})
+	if err != nil {
+		logger.WithError(err).Debug("couldn't get installplans")
+		// if we can't list, just continue processing
+		return sub, nil
+	}
+
+	out := sub.DeepCopy()
+
+	for _, ip := range ips.Items {
+		for _, step := range ip.Status.Plan {
+			// TODO: is this enough? should we check equality of pkg/channel?
+			if step != nil && step.Resource.Kind == v1alpha1.SubscriptionKind && step.Resource.Name == sub.GetName() {
+				logger.WithField("installplan", ip.GetName()).Debug("found subscription in steps of existing installplan")
+				out.Status.Install = o.referenceForInstallPlan(&ip)
+				out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+				if updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out); err != nil {
+					return nil, err
+				} else {
+					return updated, nil
+				}
+			}
+		}
+	}
+	logger.Debug("did not find subscription in steps of existing installplan")
+
+	return sub, nil
+}
+
 func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
 	if sub.Status.CurrentCSV == "" {
 		return sub, nil
@@ -690,7 +752,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	return sub, nil
 }
 
-func (o *Operator) ensureSubscriptionInstallPlanState(namespace string, subs []*v1alpha1.Subscription, installPlanRef *v1alpha1.InstallPlanReference) error {
+func (o *Operator) updateSubscriptionSetInstallPlanState(namespace string, subs []*v1alpha1.Subscription, installPlanRef *v1alpha1.InstallPlanReference) error {
 	// TODO: parallel, sync waitgroup
 	for _, sub := range subs {
 		sub.Status.Install = installPlanRef
@@ -752,13 +814,17 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 	if err != nil {
 		return nil, err
 	}
+	return o.referenceForInstallPlan(res), nil
+
+}
+
+func (o *Operator) referenceForInstallPlan(ip *v1alpha1.InstallPlan) *v1alpha1.InstallPlanReference {
 	return &v1alpha1.InstallPlanReference{
-		UID:        res.GetUID(),
-		Name:       res.GetName(),
+		UID:        ip.GetUID(),
+		Name:       ip.GetName(),
 		APIVersion: v1alpha1.SchemeGroupVersion.String(),
 		Kind:       v1alpha1.InstallPlanKind,
-	}, nil
-
+	}
 }
 
 func (o *Operator) requeueSubscription(name, namespace string) {
@@ -802,7 +868,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	// notify subscription loop of installplan changes
 	if ownerutil.IsOwnedByKind(outInstallPlan, v1alpha1.SubscriptionKind) {
 		oref := ownerutil.GetOwnerByKind(outInstallPlan, v1alpha1.SubscriptionKind)
-		logger.Info("requeuing installplan owning subscription")
+		logger.WithField("owner", oref).Debug("requeueing installplan owner")
 		o.requeueSubscription(oref.Name, outInstallPlan.GetNamespace())
 	}
 
@@ -953,7 +1019,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the Subscription
 				sub.SetNamespace(namespace)
-				created, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Create(&sub)
+				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Create(&sub)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
@@ -962,15 +1028,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				} else {
 					// If no error occurred, mark the step as Created.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
-					created.Status.Install = &v1alpha1.InstallPlanReference{
-						UID:        plan.GetUID(),
-						Name:       plan.GetName(),
-						APIVersion: v1alpha1.SchemeGroupVersion.String(),
-						Kind:       v1alpha1.InstallPlanKind,
-					}
-					if _, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(created); err != nil {
-						o.Log.WithError(err).Warn("couldn't set installplan reference on created subscription")
-					}
 				}
 			case secretKind:
 				// TODO: this will confuse bundle users that include secrets in their bundles - this only handles pull secrets
