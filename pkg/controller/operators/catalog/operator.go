@@ -338,6 +338,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	logger := o.Log.WithFields(logrus.Fields{
 		"source": catsrc.GetName(),
+		"id":     queueinformer.NewLoopID(),
 	})
 	logger.Debug("syncing catsrc")
 	out := catsrc.DeepCopy()
@@ -515,6 +516,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	logger := o.Log.WithFields(logrus.Fields{
 		"namespace": namespace,
+		"id":        queueinformer.NewLoopID(),
 	})
 
 	// get the set of sources that should be used for resolution and best-effort get their connections working
@@ -820,6 +822,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	}
 
 	logger := o.Log.WithFields(logrus.Fields{
+		"id":        queueinformer.NewLoopID(),
 		"ip":        plan.GetName(),
 		"namespace": plan.GetNamespace(),
 		"phase":     plan.Status.Phase,
