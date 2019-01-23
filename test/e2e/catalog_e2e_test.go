@@ -199,6 +199,18 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.NotEqual(t, fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion, fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion)
 	require.Equal(t, updatedConfigMap.GetResourceVersion(), fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion)
 
+	// Await 1 CatalogSource registry pod matching the updated labels
+	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
+	podList, err := awaitPods(t, c, selector.String(), 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(podList.Items), "expected pod list not of length 1")
+
+	// Await 1 CatalogSource registry pod matching the updated labels
+	selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
+	podList, err = awaitPods(t, c, selector.String(), 1)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(podList.Items), "expected pod list not of length 1")
+
 	// Create Subscription
 	subscriptionName := genName("sub-")
 	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
