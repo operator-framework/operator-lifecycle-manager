@@ -190,6 +190,16 @@ func AddOwner(object metav1.Object, owner Owner, blockOwnerDeletion, isControlle
 	object.SetOwnerReferences(ownerRefs)
 }
 
+// EnsureOwner adds a new owner if needed and returns whether the object already had the owner.
+func EnsureOwner(object metav1.Object, owner Owner) bool {
+	if IsOwnedBy(object, owner) {
+		return true
+	} else {
+		AddNonBlockingOwner(object, owner)
+		return false
+	}
+}
+
 // InferGroupVersionKind adds TypeMeta to an owner so that it can be written to an ownerref.
 // TypeMeta is generally only known at serialization time, so we often won't know what GVK an owner has.
 // For the types we know about, we can add the GVK of the apis that we're using the interact with the object.

@@ -34,6 +34,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 type mockTransitioner struct {
@@ -368,6 +369,10 @@ func TestSyncCatalogSources(t *testing.T) {
 			if tt.expectedStatus != nil {
 				require.NotEmpty(t, updated.Status)
 				require.Equal(t, *tt.expectedStatus.ConfigMapResource, *updated.Status.ConfigMapResource)
+
+				configMap, err := op.OpClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
+				require.NoError(t, err)
+				require.True(t, ownerutil.EnsureOwner(configMap, updated))
 			}
 		})
 	}

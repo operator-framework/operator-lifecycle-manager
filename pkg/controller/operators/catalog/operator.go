@@ -354,6 +354,10 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 			return fmt.Errorf("failed to get catalog config map %s: %s", catsrc.Spec.ConfigMap, err)
 		}
 
+		if wasOwned := ownerutil.EnsureOwner(configMap, catsrc); !wasOwned {
+			o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(configMap)
+		}
+
 		if catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
 			logger.Debug("updating catsrc configmap state")
 			// configmap ref nonexistent or updated, write out the new configmap ref to status and exit
@@ -364,8 +368,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 				ResourceVersion: configMap.GetResourceVersion(),
 			}
 			out.Status.LastSync = timeNow()
-
-			// update status
 			if _, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 				return err
 			}
