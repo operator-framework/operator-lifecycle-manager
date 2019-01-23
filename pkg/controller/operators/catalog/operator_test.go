@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -139,11 +140,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:                  "",
-							Version:                "v1",
-							Kind:                   "Service",
-							Name:                   "service",
-							Manifest:               toManifest(service("service", namespace)),
+							Group:    "",
+							Version:  "v1",
+							Kind:     "Service",
+							Name:     "service",
+							Manifest: toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -151,11 +152,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:                  "operators.coreos.com",
-							Version:                "v1alpha1",
-							Kind:                   "ClusterServiceVersion",
-							Name:                   "csv",
-							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
+							Group:    "operators.coreos.com",
+							Version:  "v1alpha1",
+							Kind:     "ClusterServiceVersion",
+							Name:     "csv",
+							Manifest: toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -507,12 +508,13 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
 	op := &Operator{
-		Operator:  queueOperator,
-		client:    clientFake,
-		lister:    lister,
-		namespace: namespace,
-		sources:   make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:  &fakes.FakeResolver{},
+		Operator:              queueOperator,
+		client:                clientFake,
+		lister:                lister,
+		namespace:             namespace,
+		namespaceResolveQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver"),
+		sources:               make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver:              &fakes.FakeResolver{},
 	}
 
 	op.reconciler = &reconciler.RegistryReconcilerFactory{

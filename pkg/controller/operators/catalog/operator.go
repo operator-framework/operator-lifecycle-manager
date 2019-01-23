@@ -534,10 +534,10 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	})
 
 	// ignore error, we just want to fail early if we know there's no operatorgroup
-	ogs, _ := o.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
-	if len(ogs) == 0 {
-		return fmt.Errorf("no operatorgroups in namespace")
-	}
+	// ogs, _ := o.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
+	// if len(ogs) == 0 {
+	// 	return fmt.Errorf("no operatorgroups in namespace")
+	// }
 
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
