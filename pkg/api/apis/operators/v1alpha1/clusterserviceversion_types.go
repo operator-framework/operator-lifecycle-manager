@@ -23,10 +23,21 @@ const (
 type InstallModeType string
 
 const (
-	InstallModeTypeOwnNamespace    InstallModeType = "OwnNamespace"
+	// InstallModeTypeOwnNamespace indicates that the operator can be configured
+	// to watch the namespace it is installed into.
+	InstallModeTypeOwnNamespace InstallModeType = "OwnNamespace"
+	// InstallModeTypeSingleNamespace indicates that the operator can be
+	// configured to watch a single namespace, which is configurable via
+	// OperatorGroups' spec.targetNamespaces field.
 	InstallModeTypeSingleNamespace InstallModeType = "SingleNamespace"
-	InstallModeTypeMultiNamespace  InstallModeType = "MultiNamespace"
-	InstallModeTypeAllNamespaces   InstallModeType = "AllNamespaces"
+	// InstallModeTypeMultiNamespace indicates that the operator can be
+	// configured to watch multiple namespaces via the OperatorGroup's
+	// spec.targetNamespaces field.
+	InstallModeTypeMultiNamespace InstallModeType = "MultiNamespace"
+	// InstallModeTypeAllNamespaces indicates that the operator can configured
+	// to wwatch all namespaces by setting the OperatorGroup's
+	// spec.targetNamespaces field to "NamespaceAll".
+	InstallModeTypeAllNamespaces InstallModeType = "AllNamespaces"
 )
 
 // InstallMode associates an InstallModeType with a flag representing if the CSV supports it
