@@ -228,23 +228,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.namespaceResolveQueue = resolvingNamespaceQueue
 
-	// Create an informer/lister for operatorgroups
-	for _, namespace := range watchedNamespaces {
-		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		operatorGroupInformer := sharedInformerFactory.Operators().V1alpha2().OperatorGroups()
-		op.lister.OperatorsV1alpha2().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
-
-		// Register queue and QueueInformer
-		queueName := fmt.Sprintf("%s/operatorgroups", namespace)
-		operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		operatorGroupQueueInformer := queueinformer.NewInformer(operatorGroupQueue, operatorGroupInformer.Informer(), NoopHandler, nil, queueName, metrics.NewMetricsNil(), logger)
-		op.RegisterQueueInformer(operatorGroupQueueInformer)
-	}
 	return op, nil
-}
-
-func NoopHandler(obj interface{}) error {
-	return nil
 }
 
 func (o *Operator) syncObject(obj interface{}) (syncError error) {
@@ -532,12 +516,6 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger := o.Log.WithFields(logrus.Fields{
 		"namespace": namespace,
 	})
-
-	// ignore error, we just want to fail early if we know there's no operatorgroup
-	// ogs, _ := o.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(namespace).List(labels.Everything())
-	// if len(ogs) == 0 {
-	// 	return fmt.Errorf("no operatorgroups in namespace")
-	// }
 
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
