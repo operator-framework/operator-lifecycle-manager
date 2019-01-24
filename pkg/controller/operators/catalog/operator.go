@@ -96,6 +96,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		// resolver needs subscription and csv listers
 		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
 		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
+		lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, nsInformerFactory.Operators().V1alpha1().InstallPlans().Lister())
 	}
 
 	// Create a new queueinformer-based operator.
@@ -672,7 +673,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 
 	// check if there's an installplan that created this subscription (only if it doesn't have a reference yet)
 	// this indicates it was newly resolved by another operator, and we should reference that installplan in the status
-	ips, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).List(metav1.ListOptions{})
+	ips, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(sub.GetNamespace()).List(labels.Everything())
 	if err != nil {
 		logger.WithError(err).Debug("couldn't get installplans")
 		// if we can't list, just continue processing
@@ -681,12 +682,12 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 
 	out := sub.DeepCopy()
 
-	for _, ip := range ips.Items {
+	for _, ip := range ips {
 		for _, step := range ip.Status.Plan {
 			// TODO: is this enough? should we check equality of pkg/channel?
 			if step != nil && step.Resource.Kind == v1alpha1.SubscriptionKind && step.Resource.Name == sub.GetName() {
 				logger.WithField("installplan", ip.GetName()).Debug("found subscription in steps of existing installplan")
-				out.Status.Install = o.referenceForInstallPlan(&ip)
+				out.Status.Install = o.referenceForInstallPlan(ip)
 				out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 				if updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out); err != nil {
 					return nil, err
