@@ -685,7 +685,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	for _, ip := range ips {
 		for _, step := range ip.Status.Plan {
 			// TODO: is this enough? should we check equality of pkg/channel?
-			if step != nil && step.Resource.Kind == v1alpha1.SubscriptionKind && step.Resource.Name == sub.GetName() {
+			if step != nil && step.Resource.Kind == v1alpha1.SubscriptionKind && step.Resource.Name == sub.GetName() && sub.Status.Install == nil {
 				logger.WithField("installplan", ip.GetName()).Debug("found subscription in steps of existing installplan")
 				out.Status.Install = o.referenceForInstallPlan(ip)
 				out.Status.State = v1alpha1.SubscriptionStateUpgradePending
