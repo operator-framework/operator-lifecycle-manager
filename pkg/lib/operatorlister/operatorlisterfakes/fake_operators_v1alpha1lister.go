@@ -19,11 +19,27 @@ type FakeOperatorsV1alpha1Lister struct {
 	clusterServiceVersionListerReturnsOnCall map[int]struct {
 		result1 v1alpha1.ClusterServiceVersionLister
 	}
+	InstallPlanListerStub        func() v1alpha1.InstallPlanLister
+	installPlanListerMutex       sync.RWMutex
+	installPlanListerArgsForCall []struct {
+	}
+	installPlanListerReturns struct {
+		result1 v1alpha1.InstallPlanLister
+	}
+	installPlanListerReturnsOnCall map[int]struct {
+		result1 v1alpha1.InstallPlanLister
+	}
 	RegisterClusterServiceVersionListerStub        func(string, v1alpha1.ClusterServiceVersionLister)
 	registerClusterServiceVersionListerMutex       sync.RWMutex
 	registerClusterServiceVersionListerArgsForCall []struct {
 		arg1 string
 		arg2 v1alpha1.ClusterServiceVersionLister
+	}
+	RegisterInstallPlanListerStub        func(string, v1alpha1.InstallPlanLister)
+	registerInstallPlanListerMutex       sync.RWMutex
+	registerInstallPlanListerArgsForCall []struct {
+		arg1 string
+		arg2 v1alpha1.InstallPlanLister
 	}
 	RegisterSubscriptionListerStub        func(string, v1alpha1.SubscriptionLister)
 	registerSubscriptionListerMutex       sync.RWMutex
@@ -97,6 +113,58 @@ func (fake *FakeOperatorsV1alpha1Lister) ClusterServiceVersionListerReturnsOnCal
 	}{result1}
 }
 
+func (fake *FakeOperatorsV1alpha1Lister) InstallPlanLister() v1alpha1.InstallPlanLister {
+	fake.installPlanListerMutex.Lock()
+	ret, specificReturn := fake.installPlanListerReturnsOnCall[len(fake.installPlanListerArgsForCall)]
+	fake.installPlanListerArgsForCall = append(fake.installPlanListerArgsForCall, struct {
+	}{})
+	fake.recordInvocation("InstallPlanLister", []interface{}{})
+	fake.installPlanListerMutex.Unlock()
+	if fake.InstallPlanListerStub != nil {
+		return fake.InstallPlanListerStub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.installPlanListerReturns
+	return fakeReturns.result1
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) InstallPlanListerCallCount() int {
+	fake.installPlanListerMutex.RLock()
+	defer fake.installPlanListerMutex.RUnlock()
+	return len(fake.installPlanListerArgsForCall)
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) InstallPlanListerCalls(stub func() v1alpha1.InstallPlanLister) {
+	fake.installPlanListerMutex.Lock()
+	defer fake.installPlanListerMutex.Unlock()
+	fake.InstallPlanListerStub = stub
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) InstallPlanListerReturns(result1 v1alpha1.InstallPlanLister) {
+	fake.installPlanListerMutex.Lock()
+	defer fake.installPlanListerMutex.Unlock()
+	fake.InstallPlanListerStub = nil
+	fake.installPlanListerReturns = struct {
+		result1 v1alpha1.InstallPlanLister
+	}{result1}
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) InstallPlanListerReturnsOnCall(i int, result1 v1alpha1.InstallPlanLister) {
+	fake.installPlanListerMutex.Lock()
+	defer fake.installPlanListerMutex.Unlock()
+	fake.InstallPlanListerStub = nil
+	if fake.installPlanListerReturnsOnCall == nil {
+		fake.installPlanListerReturnsOnCall = make(map[int]struct {
+			result1 v1alpha1.InstallPlanLister
+		})
+	}
+	fake.installPlanListerReturnsOnCall[i] = struct {
+		result1 v1alpha1.InstallPlanLister
+	}{result1}
+}
+
 func (fake *FakeOperatorsV1alpha1Lister) RegisterClusterServiceVersionLister(arg1 string, arg2 v1alpha1.ClusterServiceVersionLister) {
 	fake.registerClusterServiceVersionListerMutex.Lock()
 	fake.registerClusterServiceVersionListerArgsForCall = append(fake.registerClusterServiceVersionListerArgsForCall, struct {
@@ -126,6 +194,38 @@ func (fake *FakeOperatorsV1alpha1Lister) RegisterClusterServiceVersionListerArgs
 	fake.registerClusterServiceVersionListerMutex.RLock()
 	defer fake.registerClusterServiceVersionListerMutex.RUnlock()
 	argsForCall := fake.registerClusterServiceVersionListerArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterInstallPlanLister(arg1 string, arg2 v1alpha1.InstallPlanLister) {
+	fake.registerInstallPlanListerMutex.Lock()
+	fake.registerInstallPlanListerArgsForCall = append(fake.registerInstallPlanListerArgsForCall, struct {
+		arg1 string
+		arg2 v1alpha1.InstallPlanLister
+	}{arg1, arg2})
+	fake.recordInvocation("RegisterInstallPlanLister", []interface{}{arg1, arg2})
+	fake.registerInstallPlanListerMutex.Unlock()
+	if fake.RegisterInstallPlanListerStub != nil {
+		fake.RegisterInstallPlanListerStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterInstallPlanListerCallCount() int {
+	fake.registerInstallPlanListerMutex.RLock()
+	defer fake.registerInstallPlanListerMutex.RUnlock()
+	return len(fake.registerInstallPlanListerArgsForCall)
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterInstallPlanListerCalls(stub func(string, v1alpha1.InstallPlanLister)) {
+	fake.registerInstallPlanListerMutex.Lock()
+	defer fake.registerInstallPlanListerMutex.Unlock()
+	fake.RegisterInstallPlanListerStub = stub
+}
+
+func (fake *FakeOperatorsV1alpha1Lister) RegisterInstallPlanListerArgsForCall(i int) (string, v1alpha1.InstallPlanLister) {
+	fake.registerInstallPlanListerMutex.RLock()
+	defer fake.registerInstallPlanListerMutex.RUnlock()
+	argsForCall := fake.registerInstallPlanListerArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
@@ -218,8 +318,12 @@ func (fake *FakeOperatorsV1alpha1Lister) Invocations() map[string][][]interface{
 	defer fake.invocationsMutex.RUnlock()
 	fake.clusterServiceVersionListerMutex.RLock()
 	defer fake.clusterServiceVersionListerMutex.RUnlock()
+	fake.installPlanListerMutex.RLock()
+	defer fake.installPlanListerMutex.RUnlock()
 	fake.registerClusterServiceVersionListerMutex.RLock()
 	defer fake.registerClusterServiceVersionListerMutex.RUnlock()
+	fake.registerInstallPlanListerMutex.RLock()
+	defer fake.registerInstallPlanListerMutex.RUnlock()
 	fake.registerSubscriptionListerMutex.RLock()
 	defer fake.registerSubscriptionListerMutex.RUnlock()
 	fake.subscriptionListerMutex.RLock()
