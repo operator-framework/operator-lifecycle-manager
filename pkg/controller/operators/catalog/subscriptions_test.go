@@ -499,7 +499,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeReconcilerFactory{
-				ReconcilerForSourceTypeStub: func(sourceType v1alpha1.SourceType) reconciler.RegistryReconciler {
+				ReconcilerForSourceStub: func(source *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
 					return &fakes.FakeRegistryReconciler{
 						EnsureRegistryServerStub: func(source *v1alpha1.CatalogSource) error {
 							return nil

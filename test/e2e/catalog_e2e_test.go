@@ -13,11 +13,13 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -187,7 +189,7 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.NoError(t, err)
 
 	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
-		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync {
+		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync && catalog.Status.ConfigMapResource.ResourceVersion != fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion {
 			fmt.Println("catalog updated")
 			return true
 		}
@@ -240,6 +242,7 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 	dependentPackageName := genName("nginxdep-")
 
 	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	
 	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
 
 	stableChannel := "stable"
@@ -312,6 +315,145 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 
 }
 
+func TestGrpcAddressCatalogSource(t *testing.T) {
+	// Create an internal (configmap) CatalogSource with stable and dependency csv
+	// Create an internal (configmap) replacement CatalogSource with a stable, stable-replacement, and dependency csv
+	// Copy both configmap-server pods to the test namespace
+	// Delete both CatalogSources
+	// Create an "address" CatalogSource with a Spec.Address field set to the stable copied pod's PodIP
+	// Create a Subscription to the stable package
+	// Wait for the stable Subscription to be Successful
+	// Wait for the stable CSV to be Successful
+	// Update the "address" CatalogSources's Spec.Address field with the PodIP of the replacement copied pod's PodIP
+	// Wait for the replacement CSV to be Successful
+
+	defer cleaner.NotifyTestComplete(t, true)
+
+	mainPackageName := genName("nginx-")
+	dependentPackageName := genName("nginxdep-")
+	
+	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	mainPackageReplacement := fmt.Sprintf("%s-replacement", mainPackageStable)
+	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
+
+	stableChannel := "stable"
+
+	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+	crdPlural := genName("ins-")
+
+	dependentCRD := newCRD(crdPlural)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+	replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, *semver.New("0.2.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	mainSourceName := genName("mock-ocs-main-")
+	replacementSourceName := genName("mock-ocs-main-with-replacement-")
+
+	// Create separate manifests for each CatalogSource
+	mainManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	replacementManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageReplacement},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	dependentManifests := []registry.PackageManifest{
+		{
+			PackageName: dependentPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create ConfigMap CatalogSources
+	createInternalCatalogSource(t, c, crc, mainSourceName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+	createInternalCatalogSource(t, c, crc, replacementSourceName, testNamespace, append(replacementManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{replacementCSV, mainCSV, dependentCSV})
+
+	// Wait for ConfigMap CatalogSources to be ready
+	mainSource, err := fetchCatalogSource(t, crc, mainSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	replacementSource, err := fetchCatalogSource(t, crc, replacementSourceName, testNamespace, catalogSourceRegistryPodSynced)	
+	require.NoError(t, err)
+	
+	// Replicate catalog pods with no OwnerReferences
+	mainCopy := replicateCatalogPod(t, c, crc, mainSource)
+	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), HasPodIP)
+	replacementCopy := replicateCatalogPod(t, c, crc, replacementSource)
+	replacementCopy = awaitPod(t, c, replacementCopy.GetNamespace(), replacementCopy.GetName(), HasPodIP)
+
+	addressSourceName := genName("address-catalog-")
+
+	// Create a CatalogSource pointing to the grpc pod
+	addressSource := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      addressSourceName,
+			Namespace: testNamespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Address:    fmt.Sprintf("%s:%s", mainCopy.Status.PodIP, "50051"),
+		},
+	}
+
+	addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(addressSource)
+	require.NoError(t, err)
+	defer func(){
+		err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(addressSourceName, &metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
+
+	// Delete CatalogSources
+	err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(mainSourceName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+	err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(replacementSourceName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	// Create Subscription
+	subscriptionName := genName("sub-")
+	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Update the catalog's address to point at the other registry pod's cluster ip
+	addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(addressSourceName, metav1.GetOptions{})
+	require.NoError(t, err)
+	addressSource.Spec.Address = fmt.Sprintf("%s:%s", replacementCopy.Status.PodIP, "50051")
+	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(addressSource)
+	require.NoError(t, err)
+
+	// Wait for the replacement CSV to be installed
+	_, err = awaitCSV(t, crc, testNamespace,  replacementCSV.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+}
+
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
 	deployments, err := c.ListDeploymentsWithLabels(namespace, operatorLabels)
 	if err != nil || deployments == nil || len(deployments.Items) != 1 {
@@ -359,4 +501,24 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	err = wait.Poll(pollInterval, pollDuration, waitForScaleup)
 
 	return err
+}
+
+func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
+	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(initialPods.Items))
+
+	pod := initialPods.Items[0]
+	copied := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: catalog.GetNamespace(),
+			Name: catalog.GetName() + "-copy",
+		},
+		Spec: pod.Spec,
+	}
+
+	copied, err = c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).Create(copied)
+	require.NoError(t, err)
+
+	return copied
 }

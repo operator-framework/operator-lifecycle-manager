@@ -99,4 +99,3 @@ func main() {
 	_, done := catalogOperator.Run(stopCh)
 	<-done
 }
-

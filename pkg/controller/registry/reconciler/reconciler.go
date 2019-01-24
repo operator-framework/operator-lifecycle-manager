@@ -12,7 +12,7 @@ type RegistryReconciler interface {
 }
 
 type ReconcilerFactory interface {
-	ReconcilerForSourceType(sourceType v1alpha1.SourceType) RegistryReconciler
+	ReconcilerForSource(source *v1alpha1.CatalogSource) RegistryReconciler
 }
 
 type RegistryReconcilerFactory struct {
@@ -21,8 +21,8 @@ type RegistryReconcilerFactory struct {
 	ConfigMapServerImage string
 }
 
-func (r *RegistryReconcilerFactory) ReconcilerForSourceType(sourceType v1alpha1.SourceType) RegistryReconciler {
-	switch sourceType {
+func (r *RegistryReconcilerFactory) ReconcilerForSource(source *v1alpha1.CatalogSource) RegistryReconciler {
+	switch source.Spec.SourceType {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
 		return &ConfigMapRegistryReconciler{
 			Lister:   r.Lister,
@@ -30,9 +30,13 @@ func (r *RegistryReconcilerFactory) ReconcilerForSourceType(sourceType v1alpha1.
 			Image:    r.ConfigMapServerImage,
 		}
 	case v1alpha1.SourceTypeGrpc:
-		return &GrpcRegistryReconciler{
-			Lister:   r.Lister,
-			OpClient: r.OpClient,
+		if source.Spec.Image != "" {
+			return &GrpcRegistryReconciler{
+				Lister:   r.Lister,
+				OpClient: r.OpClient,
+			}
+		} else if source.Spec.Address != "" {
+			return &GrpcAddressRegistryReconciler{}
 		}
 	}
 	return nil

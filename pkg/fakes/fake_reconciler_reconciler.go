@@ -9,77 +9,77 @@ import (
 )
 
 type FakeReconcilerFactory struct {
-	ReconcilerForSourceTypeStub        func(v1alpha1.SourceType) reconciler.RegistryReconciler
-	reconcilerForSourceTypeMutex       sync.RWMutex
-	reconcilerForSourceTypeArgsForCall []struct {
-		arg1 v1alpha1.SourceType
+	ReconcilerForSourceStub        func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler
+	reconcilerForSourceMutex       sync.RWMutex
+	reconcilerForSourceArgsForCall []struct {
+		arg1 *v1alpha1.CatalogSource
 	}
-	reconcilerForSourceTypeReturns struct {
+	reconcilerForSourceReturns struct {
 		result1 reconciler.RegistryReconciler
 	}
-	reconcilerForSourceTypeReturnsOnCall map[int]struct {
+	reconcilerForSourceReturnsOnCall map[int]struct {
 		result1 reconciler.RegistryReconciler
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceType(arg1 v1alpha1.SourceType) reconciler.RegistryReconciler {
-	fake.reconcilerForSourceTypeMutex.Lock()
-	ret, specificReturn := fake.reconcilerForSourceTypeReturnsOnCall[len(fake.reconcilerForSourceTypeArgsForCall)]
-	fake.reconcilerForSourceTypeArgsForCall = append(fake.reconcilerForSourceTypeArgsForCall, struct {
-		arg1 v1alpha1.SourceType
+func (fake *FakeReconcilerFactory) ReconcilerForSource(arg1 *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+	fake.reconcilerForSourceMutex.Lock()
+	ret, specificReturn := fake.reconcilerForSourceReturnsOnCall[len(fake.reconcilerForSourceArgsForCall)]
+	fake.reconcilerForSourceArgsForCall = append(fake.reconcilerForSourceArgsForCall, struct {
+		arg1 *v1alpha1.CatalogSource
 	}{arg1})
-	fake.recordInvocation("ReconcilerForSourceType", []interface{}{arg1})
-	fake.reconcilerForSourceTypeMutex.Unlock()
-	if fake.ReconcilerForSourceTypeStub != nil {
-		return fake.ReconcilerForSourceTypeStub(arg1)
+	fake.recordInvocation("ReconcilerForSource", []interface{}{arg1})
+	fake.reconcilerForSourceMutex.Unlock()
+	if fake.ReconcilerForSourceStub != nil {
+		return fake.ReconcilerForSourceStub(arg1)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	fakeReturns := fake.reconcilerForSourceTypeReturns
+	fakeReturns := fake.reconcilerForSourceReturns
 	return fakeReturns.result1
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceTypeCallCount() int {
-	fake.reconcilerForSourceTypeMutex.RLock()
-	defer fake.reconcilerForSourceTypeMutex.RUnlock()
-	return len(fake.reconcilerForSourceTypeArgsForCall)
+func (fake *FakeReconcilerFactory) ReconcilerForSourceCallCount() int {
+	fake.reconcilerForSourceMutex.RLock()
+	defer fake.reconcilerForSourceMutex.RUnlock()
+	return len(fake.reconcilerForSourceArgsForCall)
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceTypeCalls(stub func(v1alpha1.SourceType) reconciler.RegistryReconciler) {
-	fake.reconcilerForSourceTypeMutex.Lock()
-	defer fake.reconcilerForSourceTypeMutex.Unlock()
-	fake.ReconcilerForSourceTypeStub = stub
+func (fake *FakeReconcilerFactory) ReconcilerForSourceCalls(stub func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler) {
+	fake.reconcilerForSourceMutex.Lock()
+	defer fake.reconcilerForSourceMutex.Unlock()
+	fake.ReconcilerForSourceStub = stub
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceTypeArgsForCall(i int) v1alpha1.SourceType {
-	fake.reconcilerForSourceTypeMutex.RLock()
-	defer fake.reconcilerForSourceTypeMutex.RUnlock()
-	argsForCall := fake.reconcilerForSourceTypeArgsForCall[i]
+func (fake *FakeReconcilerFactory) ReconcilerForSourceArgsForCall(i int) *v1alpha1.CatalogSource {
+	fake.reconcilerForSourceMutex.RLock()
+	defer fake.reconcilerForSourceMutex.RUnlock()
+	argsForCall := fake.reconcilerForSourceArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceTypeReturns(result1 reconciler.RegistryReconciler) {
-	fake.reconcilerForSourceTypeMutex.Lock()
-	defer fake.reconcilerForSourceTypeMutex.Unlock()
-	fake.ReconcilerForSourceTypeStub = nil
-	fake.reconcilerForSourceTypeReturns = struct {
+func (fake *FakeReconcilerFactory) ReconcilerForSourceReturns(result1 reconciler.RegistryReconciler) {
+	fake.reconcilerForSourceMutex.Lock()
+	defer fake.reconcilerForSourceMutex.Unlock()
+	fake.ReconcilerForSourceStub = nil
+	fake.reconcilerForSourceReturns = struct {
 		result1 reconciler.RegistryReconciler
 	}{result1}
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceTypeReturnsOnCall(i int, result1 reconciler.RegistryReconciler) {
-	fake.reconcilerForSourceTypeMutex.Lock()
-	defer fake.reconcilerForSourceTypeMutex.Unlock()
-	fake.ReconcilerForSourceTypeStub = nil
-	if fake.reconcilerForSourceTypeReturnsOnCall == nil {
-		fake.reconcilerForSourceTypeReturnsOnCall = make(map[int]struct {
+func (fake *FakeReconcilerFactory) ReconcilerForSourceReturnsOnCall(i int, result1 reconciler.RegistryReconciler) {
+	fake.reconcilerForSourceMutex.Lock()
+	defer fake.reconcilerForSourceMutex.Unlock()
+	fake.ReconcilerForSourceStub = nil
+	if fake.reconcilerForSourceReturnsOnCall == nil {
+		fake.reconcilerForSourceReturnsOnCall = make(map[int]struct {
 			result1 reconciler.RegistryReconciler
 		})
 	}
-	fake.reconcilerForSourceTypeReturnsOnCall[i] = struct {
+	fake.reconcilerForSourceReturnsOnCall[i] = struct {
 		result1 reconciler.RegistryReconciler
 	}{result1}
 }
@@ -87,8 +87,8 @@ func (fake *FakeReconcilerFactory) ReconcilerForSourceTypeReturnsOnCall(i int, r
 func (fake *FakeReconcilerFactory) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.reconcilerForSourceTypeMutex.RLock()
-	defer fake.reconcilerForSourceTypeMutex.RUnlock()
+	fake.reconcilerForSourceMutex.RLock()
+	defer fake.reconcilerForSourceMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

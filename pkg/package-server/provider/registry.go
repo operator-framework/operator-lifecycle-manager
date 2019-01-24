@@ -133,7 +133,7 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 
 	key := sourceKey{source.GetName(), source.GetNamespace()}
 	client, ok := p.getClient(key)
-	if ok {
+	if ok && source.Status.RegistryServiceStatus.ServiceName != "" {
 		logger.Info("update detected, attempting to reset grpc connection")
 		client.conn.ResetConnectBackoff()
 
@@ -149,10 +149,13 @@ func (p *RegistryProvider) syncCatalogSource(obj interface{}) (syncError error) 
 
 		logger.Info("grpc connection reset")
 		return
+	} else if ok {
+		// Address type grpc CatalogSource, drop the connection dial in to the new address
+		client.conn.Close()
 	}
 
 	logger.Info("attempting to add a new grpc connection")
-	conn, err := grpc.Dial(source.Status.RegistryServiceStatus.Address(), grpc.WithInsecure())
+	conn, err := grpc.Dial(source.Address(), grpc.WithInsecure())
 	if err != nil {
 		logger.WithField("err", err.Error()).Errorf("could not connect to registry service")
 		syncError = err

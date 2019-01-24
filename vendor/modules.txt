@@ -674,7 +674,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.8-beta.0.0.20190208223919-e6f6fa1f2dd1
+# k8s.io/kubernetes v1.11.8-beta.0.0.20190214232326-4e0b35876724
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
