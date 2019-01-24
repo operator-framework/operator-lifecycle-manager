@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
@@ -310,6 +311,139 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
 
+}
+
+func TestGrpcAddressCatalogType(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	mainPackageName := genName("nginx-")
+	dependentPackageName := genName("nginxdep-")
+
+	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
+
+	stableChannel := "stable"
+
+	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+	crdPlural := genName("ins-")
+
+	dependentCRD := newCRD(crdPlural)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	mainCatalogName := genName("mock-ocs-main-")
+
+	// Create separate manifests for each CatalogSource
+	mainManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	dependentManifests := []registry.PackageManifest{
+		{
+			PackageName: dependentPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create configmap catalogsource
+	createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
+
+	// Attempt to get the catalog source before creating install plan
+	fetchedInitialCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	// Get initial configmap
+	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Check pod created
+	initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(initialPods.Items))
+
+	// remove ownerreferences from created resources
+	pod := initialPods.Items[0]
+	pod.SetOwnerReferences(nil)
+	_, err = c.KubernetesInterface().CoreV1().Pods(testNamespace).Update(&pod)
+	require.NoError(t, err)
+
+	configMap.SetOwnerReferences(nil)
+	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Update(configMap)
+	require.NoError(t, err)
+
+	service, err := c.KubernetesInterface().CoreV1().Services(testNamespace).Get(mainCatalogName, metav1.GetOptions{})
+	require.NoError(t, err)
+	service.SetOwnerReferences(nil)
+	_, err = c.KubernetesInterface().CoreV1().Services(testNamespace).Update(service)
+	require.NoError(t, err)
+
+	serviceAccount, err := c.KubernetesInterface().CoreV1().ServiceAccounts(testNamespace).Get(mainCatalogName+"-configmap-server", metav1.GetOptions{})
+	require.NoError(t, err)
+	serviceAccount.SetOwnerReferences(nil)
+	_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(testNamespace).Update(serviceAccount)
+	require.NoError(t, err)
+
+	r, err := c.KubernetesInterface().RbacV1().Roles(testNamespace).Get(mainCatalogName+"-configmap-reader", metav1.GetOptions{})
+	require.NoError(t, err)
+	r.SetOwnerReferences(nil)
+	_, err = c.KubernetesInterface().RbacV1().Roles(testNamespace).Update(r)
+	require.NoError(t, err)
+
+	rb, err := c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Get(mainCatalogName+"-server-configmap-reader", metav1.GetOptions{})
+	require.NoError(t, err)
+	rb.SetOwnerReferences(nil)
+	_, err = c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Update(rb)
+	require.NoError(t, err)
+
+	// Delete catalog source - will leave a running grpc pod behind
+	err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(fetchedInitialCatalog.GetName(), metav1.NewDeleteOptions(0))
+	require.NoError(t, err)
+
+	address := fmt.Sprintf("%s.%s.svc.cluster.local:%d", service.GetName(), testNamespace, 50051)
+
+	// Create a CatalogSource pointing to the grpc pod
+	catalogSource := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      catalogSourceName + "grpc",
+			Namespace: testNamespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Address:    address,
+		},
+	}
+
+	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(catalogSource)
+	if err != nil && !errors.IsAlreadyExists(err) {
+		require.NoError(t, err)
+	}
+
+	// Create Subscription
+	subscriptionName := genName("sub-")
+	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {

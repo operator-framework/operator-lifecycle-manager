@@ -383,7 +383,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		}
 	}
 
-	reconciler := o.reconciler.ReconcilerForSourceType(catsrc.Spec.SourceType)
+	reconciler := o.reconciler.ReconcilerForSource(catsrc)
 	if reconciler == nil {
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
@@ -421,7 +421,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	func() {
 		o.sourcesLock.Lock()
 		defer o.sourcesLock.Unlock()
-		address := catsrc.Status.RegistryServiceStatus.Address()
+		address := catsrc.Address()
 		currentSource, ok := o.sources[sourceKey]
 		logger = logger.WithField("currentSource", sourceKey)
 		if !ok || currentSource.Address != address || catsrc.Status.LastSync.After(currentSource.LastConnect.Time) {

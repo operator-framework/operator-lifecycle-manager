@@ -27,6 +27,7 @@ type CatalogSourceSpec struct {
 	SourceType SourceType `json:"sourceType"`
 	ConfigMap  string     `json:"configMap,omitempty"`
 	Image      string     `json:"image,omitempty"`
+	Address    string     `json:"address,omitempty"`
 	Secrets    []string   `json:"secrets,omitempty"`
 
 	// Metadata
@@ -53,6 +54,7 @@ type CatalogSourceStatus struct {
 	RegistryServiceStatus *RegistryServiceStatus      `json:"registryService,omitempty"`
 	LastSync              metav1.Time                 `json:"lastSync,omitempty"`
 }
+
 type ConfigMapResourceReference struct {
 	Name      string `json:"name"`
 	Namespace string `json:"namespace"`
@@ -69,6 +71,13 @@ type CatalogSource struct {
 
 	Spec   CatalogSourceSpec   `json:"spec"`
 	Status CatalogSourceStatus `json:"status"`
+}
+
+func (c *CatalogSource) Address() string {
+	if c.Spec.Address != "" {
+		return c.Spec.Address
+	}
+	return c.Status.RegistryServiceStatus.Address()
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

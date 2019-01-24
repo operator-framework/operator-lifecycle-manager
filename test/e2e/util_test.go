@@ -276,6 +276,40 @@ func buildServiceAccountCleanupFunc(t *testing.T, c operatorclient.ClientInterfa
 }
 
 func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
+	configMap, configMapCleanup := createConfigMapForCatalogData(t, c, name, namespace, manifests, crds, csvs)
+
+	// Create an internal CatalogSource custom resource pointing to the ConfigMap
+	catalogSource := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: "internal",
+			ConfigMap:  configMap.GetName(),
+		},
+	}
+	catalogSource.SetNamespace(namespace)
+
+	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
+	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(catalogSource)
+	if err != nil && !errors.IsAlreadyExists(err) {
+		require.NoError(t, err)
+	}
+	t.Logf("Catalog source %s created", name)
+
+	cleanupInternalCatalogSource := func() {
+		configMapCleanup()
+		buildCatalogSourceCleanupFunc(t, crc, namespace, catalogSource)()
+	}
+	return catalogSource, cleanupInternalCatalogSource
+}
+
+func createConfigMapForCatalogData(t *testing.T, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -314,40 +348,11 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 		catalogConfigMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 	}
 
-	_, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
+	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
 	if err != nil && !errors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
-
-	// Create an internal CatalogSource custom resource pointing to the ConfigMap
-	catalogSource := &v1alpha1.CatalogSource{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.CatalogSourceKind,
-			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		Spec: v1alpha1.CatalogSourceSpec{
-			SourceType: "internal",
-			ConfigMap:  configMapName,
-		},
-	}
-	catalogSource.SetNamespace(namespace)
-
-	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
-	catalogSource, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Create(catalogSource)
-	if err != nil && !errors.IsAlreadyExists(err) {
-		require.NoError(t, err)
-	}
-	t.Logf("Catalog source %s created", name)
-
-	cleanupInternalCatalogSource := func() {
-		buildConfigMapCleanupFunc(t, c, namespace, catalogConfigMap)()
-		buildCatalogSourceCleanupFunc(t, crc, namespace, catalogSource)()
-	}
-	return catalogSource, cleanupInternalCatalogSource
+	return createdConfigMap, buildConfigMapCleanupFunc(t, c, namespace, createdConfigMap)
 }
 
 func serializeCRD(t *testing.T, crd apiextensions.CustomResourceDefinition) string {
