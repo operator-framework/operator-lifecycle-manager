@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -495,7 +496,16 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 			}
 
-			require.Equal(t, tt.wantErr, o.syncSubscriptions(tt.args.obj))
+			namespace := &v1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: testNamespace,
+				},
+			}
+			if err := o.syncSubscriptions(tt.args.obj); err != nil {
+				require.Equal(t, tt.wantErr, err)
+			} else {
+				require.Equal(t, tt.wantErr, o.syncResolvingNamespace(namespace))
+			}
 
 			for _, s := range tt.wantSubscriptions {
 				fetched, err := o.client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(s.GetName(), metav1.GetOptions{})

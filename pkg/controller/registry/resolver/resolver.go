@@ -142,7 +142,7 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.S
 			Package: s.Spec.Package,
 			Channel: s.Spec.Channel,
 			Catalog: CatalogKey{Name: s.Spec.CatalogSource, Namespace: s.Spec.CatalogSourceNamespace},
-		}] = s
+		}] = s.DeepCopy()
 	}
 	return
 }

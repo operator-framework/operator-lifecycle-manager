@@ -321,6 +321,7 @@ func (a *Operator) deleteClusterServiceVersion(obj interface{}) {
 	}
 
 	logger := a.Log.WithFields(logrus.Fields{
+		"id":        queueinformer.NewLoopID(),
 		"csv":       clusterServiceVersion.GetName(),
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
@@ -351,6 +352,7 @@ func (a *Operator) deleteClusterServiceVersion(obj interface{}) {
 
 func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
 	logger := a.Log.WithFields(logrus.Fields{
+		"id":        queueinformer.NewLoopID(),
 		"csv":       csv.GetName(),
 		"namespace": csv.GetNamespace(),
 		"phase":     csv.Status.Phase,
@@ -381,6 +383,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	}
 
 	logger := a.Log.WithFields(logrus.Fields{
+		"id":        queueinformer.NewLoopID(),
 		"csv":       clusterServiceVersion.GetName(),
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
@@ -476,6 +479,7 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster state.
 func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v1alpha1.ClusterServiceVersion, syncError error) {
 	logger := a.Log.WithFields(logrus.Fields{
+		"id":        queueinformer.NewLoopID(),
 		"csv":       in.GetName(),
 		"namespace": in.GetNamespace(),
 		"phase":     in.Status.Phase,

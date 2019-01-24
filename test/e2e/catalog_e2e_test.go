@@ -20,6 +20,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func TestCatalogLoadingBetweenRestarts(t *testing.T) {
@@ -220,6 +221,16 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.NotNil(t, subscription)
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
+
+	ipList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	ipCount := 0
+	for _, ip := range ipList.Items {
+		if ownerutil.IsOwnedBy(&ip, subscription) {
+			ipCount += 1
+		}
+	}
+	require.NoError(t, err)
+	require.Equal(t, 1, ipCount)
 }
 
 func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
