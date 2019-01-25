@@ -6,12 +6,12 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -47,10 +47,11 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 
 	logger := a.Log.WithFields(logrus.Fields{
 		"operatorGroup": op.GetName(),
-		"namespace": op.GetNamespace(),
+		"namespace":     op.GetNamespace(),
 	})
 
 	targetNamespaces, err := a.updateNamespaceList(op)
+	a.Log.Debugf("Got targetNamespaces for %v: '%v'", op.GetName(), targetNamespaces)
 	if err != nil {
 		logger.WithError(err).Warn("updateNamespaceList error")
 		return err
@@ -67,7 +68,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	providedAPIs := make(resolver.APISet)
 	for _, csv := range set {
 		logger := logger.WithField("csv", csv.GetName())
-		origCSVannotations := csv.GetAnnotations()
+		origCSVannotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
 		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
 		if !reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) {
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
@@ -75,6 +76,24 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
 				logger.WithError(err).Warnf("update to existing csv failed")
 				continue
+			} else {
+				if _, ok := origCSVannotations[v1alpha2.OperatorGroupAnnotationKey]; ok {
+					if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
+						a.Log.Warn(err.Error())
+						return err
+					}
+					a.Log.Debugf("Successfully changed annotation on CSV: %v -> %v", origCSVannotations, csv.GetAnnotations())
+				} else {
+					a.Log.Debugf("Successfully added annotation on CSV: %v", csv.GetAnnotations())
+				}
+			}
+		} else if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+			for _, ns := range targetNamespaces {
+				_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
+				if k8serrors.IsNotFound(err) {
+					a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
+					break
+				}
 			}
 		}
 
@@ -108,10 +127,10 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	if intersection := groupProvidedAPIs.Intersection(providedAPIs); len(intersection) < len(groupProvidedAPIs) {
 		difference := groupProvidedAPIs.Difference(intersection)
 		logger := logger.WithFields(logrus.Fields{
-			"providedAPIsOnCluster": providedAPIs,
+			"providedAPIsOnCluster":  providedAPIs,
 			"providedAPIsAnnotation": groupProvidedAPIs,
-			"providedAPIDifference": difference,
-			"intersection": intersection,
+			"providedAPIDifference":  difference,
+			"intersection":           intersection,
 		})
 
 		// Don't need to check for nil annotations since we already know |annotations| > 0
@@ -125,8 +144,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		}
 	}
 
-	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in 
-	// intersecting groups that their conflict has possibly been resolved, either through resizing or through 
+	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in
+	// intersecting groups that their conflict has possibly been resolved, either through resizing or through
 	// deletion of the conflicting CSV.
 	csvs, err := a.findCSVsThatProvideAnyOf(providedAPIs.Union(groupProvidedAPIs))
 	if err != nil {
@@ -134,13 +153,14 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	for _, csv := range csvs {
 		logger.WithFields(logrus.Fields{
-			"csv": csv.GetName(),
+			"csv":       csv.GetName(),
 			"namespace": csv.GetNamespace(),
 		}).Debug("requeueing provider")
 		if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
 			logger.WithError(err).Warn("could not requeue provider")
 		}
 	}
+	a.Log.Debug("Operator group CSVs annotation completed")
 
 	return nil
 }
@@ -456,6 +476,21 @@ func (a *Operator) addOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alp
 	}
 }
 
+func (a *Operator) copyOperatorGroupAnnotations(obj *metav1.ObjectMeta) map[string]string {
+	copiedAnnotations := make(map[string]string)
+	for k, v := range obj.GetAnnotations() {
+		switch k {
+		case v1alpha2.OperatorGroupNamespaceAnnotationKey:
+			fallthrough
+		case v1alpha2.OperatorGroupAnnotationKey:
+			fallthrough
+		case v1alpha2.OperatorGroupTargetsAnnotationKey:
+			copiedAnnotations[k] = v
+		}
+	}
+	return copiedAnnotations
+}
+
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
 	if len(clusterNamespaces) != len(statusNamespaces) {
 		return true
@@ -473,7 +508,7 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 	return false
 }
 
-func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, error) {
+func (a *Operator) getMatchingNamespaces(op *v1alpha2.OperatorGroup) (map[string]struct{}, error) {
 	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
 	if err != nil {
 		return nil, err
@@ -499,7 +534,14 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 			namespaceSet[ns.GetName()] = struct{}{}
 		}
 	}
+	return namespaceSet, nil
+}
 
+func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, error) {
+	namespaceSet, err := a.getMatchingNamespaces(op)
+	if err != nil {
+		return nil, err
+	}
 	namespaceList := []string{}
 	for ns := range namespaceSet {
 		namespaceList = append(namespaceList, ns)
@@ -588,4 +630,5 @@ func (a *Operator) findCSVsThatProvideAnyOf(provide resolver.APISet) ([]*v1alpha
 	}
 
 	return providers, nil
-} 
+}
+

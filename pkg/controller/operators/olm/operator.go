@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,14 +20,14 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
-	
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -49,13 +50,13 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueueSet queueinformer.ResourceQueueSet
-	ogQueueSet queueinformer.ResourceQueueSet
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
+	csvQueueSet   queueinformer.ResourceQueueSet
+	ogQueueSet    queueinformer.ResourceQueueSet
+	client        versioned.Interface
+	resolver      install.StrategyResolverInterface
 	apiReconciler resolver.APIIntersectionReconciler
-	lister      operatorlister.OperatorLister
-	recorder    record.EventRecorder
+	lister        operatorlister.OperatorLister
+	recorder      record.EventRecorder
 }
 
 func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient operatorclient.ClientInterface, strategyResolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -76,14 +77,14 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	}
 
 	op := &Operator{
-		Operator:    queueOperator,
-		csvQueueSet: make(queueinformer.ResourceQueueSet),
-		ogQueueSet:  make(queueinformer.ResourceQueueSet),
-		client:      crClient,
-		resolver:    strategyResolver,
+		Operator:      queueOperator,
+		csvQueueSet:   make(queueinformer.ResourceQueueSet),
+		ogQueueSet:    make(queueinformer.ResourceQueueSet),
+		client:        crClient,
+		resolver:      strategyResolver,
 		apiReconciler: resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
-		lister:      operatorlister.NewLister(),
-		recorder:    eventRecorder,
+		lister:        operatorlister.NewLister(),
+		recorder:      eventRecorder,
 	}
 
 	// Set up RBAC informers
@@ -317,6 +318,36 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		a.requeueOwnerCSVs(metaObj)
 	}
 
+	namespace, ok := obj.(*corev1.Namespace)
+	if !ok {
+		return nil
+	}
+
+	// Check to see if any operator groups are associated with this namespace
+	operatorGroupList, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(metav1.NamespaceAll).List(labels.Everything())
+	if err != nil {
+		syncError = fmt.Errorf("lister failed: %v", err)
+		logger.Warn(syncError.Error())
+		return
+	}
+	for _, opGroup := range operatorGroupList {
+		namespaceMap, err := a.getMatchingNamespaces(opGroup)
+		if err != nil {
+			syncError = fmt.Errorf("operator namespace lookup failed: %v", err)
+			logger.Warn(syncError.Error())
+			return
+		}
+		_, directMatch := namespaceMap[namespace.GetName()]
+		_, indirectMatch := namespaceMap[corev1.NamespaceAll]
+		if directMatch || indirectMatch {
+			logger.Debugf("Namespace %v matches operator group %v", namespace.GetName(), opGroup.GetName())
+			if err := a.ogQueueSet.Requeue(opGroup.GetName(), opGroup.GetNamespace()); err != nil {
+				syncError = fmt.Errorf("operator group %v requeue failed: %v", opGroup.GetName(), err)
+				logger.Warn(syncError.Error())
+				return
+			}
+		}
+	}
 	return nil
 }
 
@@ -427,14 +458,14 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	} else if parent != nil && parent.Status.Phase == v1alpha1.CSVPhaseFailed && parent.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 		logger.Debug("deleting copied CSV since parent has intersecting operatorgroup conflict")
 		delete = true
-	} 
+	}
 
 	if delete {
 		if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{}); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -454,6 +485,32 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	})
 	logger.Info("syncing CSV")
 
+	operatorGroup := a.operatorGroupForActiveCSV(logger, clusterServiceVersion)
+	if operatorGroup == nil {
+		logger.WithField("reason", "no operatorgroup found for active CSV").Info("skipping CSV resource copy to target namespaces")
+		return
+	}
+
+	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseFailed && clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
+		logger.WithField("reason", clusterServiceVersion.Status.Message).Info("skipping CSV resource copy to target namespaces")
+		return
+	}
+
+	// Check if we need to do any copying / annotation for the operatorgroup
+	if err := a.copyCsvToTargetNamespace(clusterServiceVersion, operatorGroup); err != nil {
+		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
+	}
+
+	// Ensure operator has access to targetnamespaces
+	if err := a.ensureRBACInTargetNamespace(clusterServiceVersion, operatorGroup); err != nil {
+		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
+	}
+
+	// Ensure cluster roles exist for using provided apis
+	if err := a.ensureClusterRolesForCSV(clusterServiceVersion, operatorGroup); err != nil {
+		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
+	}
+
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
 	// no changes in status, don't update
@@ -465,7 +522,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	}
 
 	// Update CSV with status of transition. Log errors if we can't write them to the status.
-	updatedCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).UpdateStatus(outCSV)
+	_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).UpdateStatus(outCSV)
 	if err != nil {
 		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
 		if syncError == nil {
@@ -473,32 +530,6 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 			return updateErr
 		}
 		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
-	}
-
-	operatorGroup := a.operatorGroupForActiveCSV(logger, updatedCSV)
-	if operatorGroup == nil {
-		logger.WithField("reason", "no operatorgroup found for active CSV").Info("skipping CSV resource copy to target namespaces")
-		return
-	}
-
-	if updatedCSV.Status.Phase == v1alpha1.CSVPhaseFailed && updatedCSV.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
-		logger.WithField("reason", updatedCSV.Status.Message).Info("skipping CSV resource copy to target namespaces")
-		return
-	}
-
-	// Check if we need to do any copying / annotation for the operatorgroup
-	if err := a.copyCsvToTargetNamespace(updatedCSV, operatorGroup); err != nil {
-		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
-	}
-
-	// Ensure operator has access to targetnamespaces
-	if err := a.ensureRBACInTargetNamespace(updatedCSV, operatorGroup); err != nil {
-		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
-	}
-
-	// Ensure cluster roles exist for using provided apis
-	if err := a.ensureClusterRolesForCSV(updatedCSV, operatorGroup); err != nil {
-		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
 	}
 
 	return
