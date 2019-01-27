@@ -237,7 +237,7 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 func cleanupOLM(t *testing.T, namespace string) {
 	var immediate int64 = 0
 	crc := newCRClient(t)
-	//c := newKubeClient(t)
+	c := newKubeClient(t)
 
 	// Cleanup non persistent OLM CRs
 	t.Log("cleaning up any remaining non persistent resources...")
@@ -250,7 +250,7 @@ func cleanupOLM(t *testing.T, namespace string) {
 
 	// error: the server does not allow this method on the requested resource
 	// Cleanup non persistent configmaps
-	//require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{FieldSelector: nonPersistentConfigMapsFieldSelector}))
+	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{}))
 }
 
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {

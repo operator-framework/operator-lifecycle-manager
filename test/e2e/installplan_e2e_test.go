@@ -567,6 +567,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		// existing cleanup should remove this
 		createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
 
+		// time.Sleep(5 * time.Minute)
 		subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 		require.NoError(t, err)
 		require.NotNil(t, subscription)
