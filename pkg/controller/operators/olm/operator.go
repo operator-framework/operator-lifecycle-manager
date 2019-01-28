@@ -19,14 +19,14 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
-	
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -49,13 +49,13 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueueSet queueinformer.ResourceQueueSet
-	ogQueueSet queueinformer.ResourceQueueSet
-	client      versioned.Interface
-	resolver    install.StrategyResolverInterface
+	csvQueueSet   queueinformer.ResourceQueueSet
+	ogQueueSet    queueinformer.ResourceQueueSet
+	client        versioned.Interface
+	resolver      install.StrategyResolverInterface
 	apiReconciler resolver.APIIntersectionReconciler
-	lister      operatorlister.OperatorLister
-	recorder    record.EventRecorder
+	lister        operatorlister.OperatorLister
+	recorder      record.EventRecorder
 }
 
 func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient operatorclient.ClientInterface, strategyResolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -76,14 +76,14 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	}
 
 	op := &Operator{
-		Operator:    queueOperator,
-		csvQueueSet: make(queueinformer.ResourceQueueSet),
-		ogQueueSet:  make(queueinformer.ResourceQueueSet),
-		client:      crClient,
-		resolver:    strategyResolver,
+		Operator:      queueOperator,
+		csvQueueSet:   make(queueinformer.ResourceQueueSet),
+		ogQueueSet:    make(queueinformer.ResourceQueueSet),
+		client:        crClient,
+		resolver:      strategyResolver,
 		apiReconciler: resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
-		lister:      operatorlister.NewLister(),
-		recorder:    eventRecorder,
+		lister:        operatorlister.NewLister(),
+		recorder:      eventRecorder,
 	}
 
 	// Set up RBAC informers
@@ -431,14 +431,14 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	} else if parent != nil && parent.Status.Phase == v1alpha1.CSVPhaseFailed && parent.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 		logger.Debug("deleting copied CSV since parent has intersecting operatorgroup conflict")
 		delete = true
-	} 
+	}
 
 	if delete {
 		if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{}); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -815,8 +815,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if any generated resources are missing
-		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); resErr != nil {
-			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, resErr.Error(), now)
+		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); len(resErr) > 0 {
+			out.SetPhase(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, resErr[0].Error(), now)
 			return
 		}
 
@@ -879,9 +879,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check if any generated resources are missing
-		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); resErr != nil {
-			out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, resErr.Error(), now)
-			return
+		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); len(resErr) > 0 {
+			// Check if API services are adoptable. If not, keep CSV as Failed state
+			if a.apiServiceResourceErrorsActionable(resErr) {
+				out.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, resErr[0].Error(), now)
+				return
+			}
 		}
 
 		// Check if it's time to refresh owned APIService certs

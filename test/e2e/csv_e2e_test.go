@@ -8,8 +8,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
@@ -243,7 +244,7 @@ func awaitCSV(t *testing.T, c versioned.Interface, namespace, name string, check
 				return false, nil
 			}
 			return false, err
-		} 
+		}
 		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
 	})
@@ -1317,6 +1318,415 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 
 		return false
 	})
+	require.NoError(t, err)
+}
+
+func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	depName := genName("hat-server")
+	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	version := "v1alpha1"
+	mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
+	mockKinds := []string{"fedora"}
+	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
+	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
+
+	// Create CSVs for the hat-server
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: depName,
+				Spec: depSpec,
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+
+	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+	for i, kind := range mockKinds {
+		owned[i] = v1alpha1.APIServiceDescription{
+			Name:           apiServiceName,
+			Group:          mockGroup,
+			Version:        version,
+			Kind:           kind,
+			DeploymentName: depName,
+			ContainerPort:  int32(5443),
+			DisplayName:    kind,
+			Description:    fmt.Sprintf("A %s", kind),
+		}
+	}
+
+	csv := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: owned,
+			},
+		},
+	}
+	csv.SetName("csv-hat-1")
+
+	// Create the APIService CSV
+	_, err = createCSV(t, c, crc, csv, testNamespace, false, false)
+	require.NoError(t, err)
+
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should create Deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err, "error getting expected Deployment")
+
+	// Should create APIService
+	_, err = c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "error getting expected APIService")
+
+	// Should create Service
+	_, err = c.GetService(testNamespace, olm.APIServiceNameToServiceName(apiServiceName))
+	require.NoError(t, err, "error getting expected Service")
+
+	// Should create certificate Secret
+	secretName := fmt.Sprintf("%s-cert", apiServiceName)
+	_, err = c.GetSecret(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret")
+
+	// Should create a Role for the Secret
+	_, err = c.GetRole(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret Role")
+
+	// Should create a RoleBinding for the Secret
+	_, err = c.GetRoleBinding(testNamespace, secretName)
+	require.NoError(t, err, "error getting exptected Secret RoleBinding")
+
+	// Should create a system:auth-delegator Cluster RoleBinding
+	_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", apiServiceName))
+	require.NoError(t, err, "error getting expected system:auth-delegator ClusterRoleBinding")
+
+	// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+	_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", apiServiceName))
+	require.NoError(t, err, "error getting expected extension-apiserver-authentication-reader RoleBinding")
+
+	// Create a new CSV that owns the same API Service and replace the old CSV
+	csv2 := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			Replaces:       csv.Name,
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: owned,
+			},
+		},
+	}
+	csv2.SetName("csv-hat-2")
+
+	// Create CSV2 to replace CSV
+	cleanupCSV2, err := createCSV(t, c, crc, csv2, testNamespace, false, true)
+	require.NoError(t, err)
+	defer cleanupCSV2()
+
+	_, err = fetchCSV(t, crc, csv2.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should create Deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err, "error getting expected Deployment")
+
+	// Should create APIService
+	_, err = c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "error getting expected APIService")
+
+	// Should create Service
+	_, err = c.GetService(testNamespace, olm.APIServiceNameToServiceName(apiServiceName))
+	require.NoError(t, err, "error getting expected Service")
+
+	// Should create certificate Secret
+	secretName = fmt.Sprintf("%s-cert", apiServiceName)
+	_, err = c.GetSecret(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret")
+
+	// Should create a Role for the Secret
+	_, err = c.GetRole(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret Role")
+
+	// Should create a RoleBinding for the Secret
+	_, err = c.GetRoleBinding(testNamespace, secretName)
+	require.NoError(t, err, "error getting exptected Secret RoleBinding")
+
+	// Should create a system:auth-delegator Cluster RoleBinding
+	_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", apiServiceName))
+	require.NoError(t, err, "error getting expected system:auth-delegator ClusterRoleBinding")
+
+	// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+	_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", apiServiceName))
+	require.NoError(t, err, "error getting expected extension-apiserver-authentication-reader RoleBinding")
+
+	// Should eventually GC the CSV
+	err = waitForCSVToDelete(t, crc, csv.Name)
+	require.NoError(t, err)
+
+	// Rename the initial CSV
+	csv.SetName("csv-hat-3")
+
+	// Recreate the old CSV
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	fetched, err := fetchCSV(t, crc, csv.Name, testNamespace, csvFailedChecker)
+	require.NoError(t, err)
+	require.Equal(t, fetched.Status.Reason, v1alpha1.CSVReasonOwnerConflict)
+}
+
+func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create new namespace in a new operator group
+	secondNamespaceName := genName(testNamespace + "-")
+	matchingLabel := map[string]string{"inGroup": secondNamespaceName}
+
+	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   secondNamespaceName,
+			Labels: matchingLabel,
+		},
+	})
+	require.NoError(t, err)
+	defer func() {
+		err = c.KubernetesInterface().CoreV1().Namespaces().Delete(secondNamespaceName, &metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
+
+	// Create a new operator group for the new namespace
+	operatorGroup := v1alpha2.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("e2e-operator-group-"),
+			Namespace: secondNamespaceName,
+		},
+		Spec: v1alpha2.OperatorGroupSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: matchingLabel,
+			},
+		},
+	}
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(secondNamespaceName).Create(&operatorGroup)
+	require.NoError(t, err)
+	defer func() {
+		err = crc.OperatorsV1alpha2().OperatorGroups(secondNamespaceName).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
+
+	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
+		Namespaces: []string{secondNamespaceName},
+	}
+
+	t.Log("Waiting on new operator group to have correct status")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(secondNamespaceName).Get(operatorGroup.Name, metav1.GetOptions{})
+		if fetchErr != nil {
+			return false, fetchErr
+		}
+		if len(fetched.Status.Namespaces) > 0 {
+			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
+			return true, nil
+		}
+		return false, nil
+	})
+	require.NoError(t, err)
+
+	depName := genName("hat-server")
+	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	version := "v1alpha1"
+	mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
+	mockKinds := []string{"fedora"}
+	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
+	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
+
+	// Create CSVs for the hat-server
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: depName,
+				Spec: depSpec,
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+
+	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+	for i, kind := range mockKinds {
+		owned[i] = v1alpha1.APIServiceDescription{
+			Name:           apiServiceName,
+			Group:          mockGroup,
+			Version:        version,
+			Kind:           kind,
+			DeploymentName: depName,
+			ContainerPort:  int32(5443),
+			DisplayName:    kind,
+			Description:    fmt.Sprintf("A %s", kind),
+		}
+	}
+
+	csv := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: owned,
+			},
+		},
+	}
+	csv.SetName("csv-hat-1")
+
+	// Create the initial CSV
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should create Deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err, "error getting expected Deployment")
+
+	// Should create APIService
+	_, err = c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "error getting expected APIService")
+
+	// Should create Service
+	_, err = c.GetService(testNamespace, olm.APIServiceNameToServiceName(apiServiceName))
+	require.NoError(t, err, "error getting expected Service")
+
+	// Should create certificate Secret
+	secretName := fmt.Sprintf("%s-cert", apiServiceName)
+	_, err = c.GetSecret(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret")
+
+	// Should create a Role for the Secret
+	_, err = c.GetRole(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret Role")
+
+	// Should create a RoleBinding for the Secret
+	_, err = c.GetRoleBinding(testNamespace, secretName)
+	require.NoError(t, err, "error getting exptected Secret RoleBinding")
+
+	// Should create a system:auth-delegator Cluster RoleBinding
+	_, err = c.GetClusterRoleBinding(fmt.Sprintf("%s-system:auth-delegator", apiServiceName))
+	require.NoError(t, err, "error getting expected system:auth-delegator ClusterRoleBinding")
+
+	// Should create an extension-apiserver-authentication-reader RoleBinding in kube-system
+	_, err = c.GetRoleBinding("kube-system", fmt.Sprintf("%s-auth-reader", apiServiceName))
+	require.NoError(t, err, "error getting expected extension-apiserver-authentication-reader RoleBinding")
+
+	// Create a new CSV that owns the same API Service but in a different namespace
+	csv2 := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: owned,
+			},
+		},
+	}
+	csv2.SetName("csv-hat-2")
+
+	// Create CSV2 to replace CSV
+	_, err = createCSV(t, c, crc, csv2, secondNamespaceName, false, true)
+	require.NoError(t, err)
+
+	_, err = fetchCSV(t, crc, csv2.Name, secondNamespaceName, csvFailedChecker)
 	require.NoError(t, err)
 }
 

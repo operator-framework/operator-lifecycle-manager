@@ -33,8 +33,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
 type mockTransitioner struct {
@@ -141,11 +141,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "",
-							Version:  "v1",
-							Kind:     "Service",
-							Name:     "service",
-							Manifest: toManifest(service("service", namespace)),
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Service",
+							Name:                   "service",
+							Manifest:               toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -153,11 +153,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "operators.coreos.com",
-							Version:  "v1alpha1",
-							Kind:     "ClusterServiceVersion",
-							Name:     "csv",
-							Manifest: toManifest(csv("csv", namespace, nil, nil)),
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -488,8 +488,8 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	podInformer := informerFactory.Core().V1().Pods()
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
 	subscriptionInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().Subscriptions()
-	installPlanInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake,  wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().InstallPlans()
-	
+	installPlanInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().InstallPlans()
+
 	// register informers
 	registryInformers := []cache.SharedIndexInformer{
 		roleInformer.Informer(),

@@ -16,6 +16,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -40,8 +41,31 @@ func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	return false
 }
 
+// apiServiceResourceErrorsActionable returns true if OLM can do something about any one
+// of the apiService errors in errs; otherwise returns false
+//
+// This method can be used to determine if a CSV in a failed state due to APIService
+// issues can resolve them by reinstalling
+func (a *Operator) apiServiceResourceErrorsActionable(errs []error) bool {
+	for _, err := range errs {
+		switch err.(type) {
+		case olmerrors.UnadoptableError:
+			return false
+		}
+	}
+
+	return true
+}
+
 // checkAPIServiceResources checks if all expected generated resources for the given APIService exist
-func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) error {
+func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) []error {
+	errs := []error{}
+	owners := []ownerutil.Owner{csv}
+	// Get replacing CSV if exists
+	replacement, _ := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+	if replacement != nil {
+		owners = append(owners, replacement)
+	}
 	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
 		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
@@ -51,23 +75,34 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			"apiservice": apiServiceName,
 		})
 
+		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+		if err != nil {
+			logger.Warnf("could not retrieve generated APIService")
+			errs = append(errs, err)
+			continue
+		}
+
+		// Check if the APIService is adoptable
+		if !ownerutil.OwnersIntersect(owners, apiService.GetLabels()) {
+			err := olmerrors.NewUnadoptableError("", apiServiceName)
+			logger.WithError(err).Warn("found unadoptable apiservice")
+			errs = append(errs, err)
+			return errs
+		}
+
 		serviceName := APIServiceNameToServiceName(apiServiceName)
 		service, err := a.lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(serviceName)
 		if err != nil {
 			logger.WithField("service", serviceName).Warnf("could not retrieve generated Service")
-			return err
-		}
-
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
-		if err != nil {
-			logger.Warnf("could not retrieve generated APIService")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 
 		// Check if the APIService points to the correct service
 		if apiService.Spec.Service.Name != serviceName || apiService.Spec.Service.Namespace != csv.GetNamespace() {
 			logger.WithFields(log.Fields{"service": apiService.Spec.Service.Name, "serviceNamespace": apiService.Spec.Service.Namespace}).Warnf("APIService service reference mismatch")
-			return fmt.Errorf("APIService service reference mismatch")
+			errs = append(errs, fmt.Errorf("APIService service reference mismatch"))
+			continue
 		}
 
 		// Check if CA is Active
@@ -75,11 +110,13 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		ca, err := certs.PEMToCert(caBundle)
 		if err != nil {
 			logger.Warnf("could not convert APIService CA bundle to x509 cert")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		if !certs.Active(ca) {
 			logger.Warnf("CA cert not active")
-			return fmt.Errorf("CA cert not active")
+			errs = append(errs, fmt.Errorf("CA cert not active"))
+			continue
 		}
 
 		// Check if serving cert is active
@@ -87,23 +124,27 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
 		if err != nil {
 			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		cert, err := certs.PEMToCert(secret.Data["tls.crt"])
 		if err != nil {
 			logger.Warnf("could not convert serving cert to x509 cert")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		if !certs.Active(cert) {
 			logger.Warnf("serving cert not active")
-			return fmt.Errorf("serving cert not active")
+			errs = append(errs, fmt.Errorf("serving cert not active"))
+			continue
 		}
 
 		// Check if CA hash matches expected
 		caHash := hashFunc(caBundle)
 		if hash, ok := secret.GetAnnotations()[OLMCAHashAnnotationKey]; !ok || hash != caHash {
 			logger.WithField("secret", secretName).Warnf("secret CA cert hash does not match expected")
-			return fmt.Errorf("secret %s CA cert hash does not match expected", secretName)
+			errs = append(errs, fmt.Errorf("secret %s CA cert hash does not match expected", secretName))
+			continue
 		}
 
 		// Check if serving cert is trusted by the CA
@@ -113,7 +154,8 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 		for _, host := range hosts {
 			if err := certs.VerifyCert(ca, cert, host); err != nil {
-				return fmt.Errorf("could not verify cert: %s", err.Error())
+				errs = append(errs, fmt.Errorf("could not verify cert: %s", err.Error()))
+				continue
 			}
 		}
 
@@ -121,11 +163,13 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).Get(desc.DeploymentName)
 		if k8serrors.IsNotFound(err) || err != nil {
 			logger.WithField("deployment", desc.DeploymentName).Warnf("expected Deployment could not be retrieved")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		if hash, ok := deployment.Spec.Template.GetAnnotations()[OLMCAHashAnnotationKey]; !ok || hash != caHash {
 			logger.WithField("deployment", desc.DeploymentName).Warnf("Deployment CA cert hash does not match expected")
-			return fmt.Errorf("Deployment %s CA cert hash does not match expected", desc.DeploymentName)
+			errs = append(errs, fmt.Errorf("Deployment %s CA cert hash does not match expected", desc.DeploymentName))
+			continue
 		}
 
 		// Ensure the Deployment's ServiceAccount exists
@@ -136,7 +180,8 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		serviceAccount, err := a.lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
 		if err != nil {
 			logger.WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 
 		// Ensure RBAC permissions for the APIService are correct
@@ -158,7 +203,8 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles("kube-system").Get("extension-apiserver-authentication-reader")
 		if err != nil {
 			logger.Warnf("could not retrieve Role extension-apiserver-authentication-reader")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		rulesMap["kube-system"] = append(rulesMap["kube-system"], authReaderRole.Rules...)
 
@@ -166,7 +212,8 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		authDelegatorClusterRole, err := a.lister.RbacV1().ClusterRoleLister().Get("system:auth-delegator")
 		if err != nil {
 			logger.Warnf("could not retrieve ClusterRole system:auth-delegator")
-			return err
+			errs = append(errs, err)
+			continue
 		}
 		rulesMap[metav1.NamespaceAll] = append(rulesMap[metav1.NamespaceAll], authDelegatorClusterRole.Rules...)
 
@@ -175,17 +222,19 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 				satisfied, err := ruleChecker.RuleSatisfied(serviceAccount, namespace, rule)
 				if err != nil {
 					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("error checking Rule")
-					return err
+					errs = append(errs, err)
+					continue
 				}
 				if !satisfied {
 					logger.WithField("rule", fmt.Sprintf("%+v", rule)).Warnf("Rule not satisfied")
-					return fmt.Errorf("Rule %+v not satisfied", rule)
+					errs = append(errs, fmt.Errorf("Rule %+v not satisfied", rule))
+					continue
 				}
 			}
 		}
 	}
 
-	return nil
+	return errs
 }
 
 func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
@@ -639,8 +688,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 		apiService.SetName(apiServiceName)
 	} else {
+		owners := []ownerutil.Owner{csv}
+		// Get replacing CSV
+		replaces, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+		if err == nil {
+			owners = append(owners, replaces)
+		}
 		// check if the APIService is adoptable
-		if !ownerutil.AdoptableLabels(csv, apiService.GetLabels()) {
+		if !ownerutil.OwnersIntersect(owners, apiService.GetLabels()) {
 			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
 		}
 	}

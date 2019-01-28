@@ -124,11 +124,43 @@ func Adoptable(target Owner, owners []metav1.OwnerReference) bool {
 	return false
 }
 
+// OwnersIntersect checks to see if any member of targets exists in owners
+func OwnersIntersect(targets []Owner, ownerLabels map[string]string) bool {
+	if len(ownerLabels) == 0 {
+		// Resources with no owners are not adoptable
+		return false
+	}
+
+	for _, target := range targets {
+		if ownerLabels[OwnerKind] == target.GetObjectKind().GroupVersionKind().Kind &&
+			ownerLabels[OwnerNamespaceKey] == target.GetNamespace() &&
+			ownerLabels[OwnerKey] == target.GetName() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.
 func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	ownerRefs := object.GetOwnerReferences()
 	if ownerRefs == nil {
 		ownerRefs = []metav1.OwnerReference{}
+	}
+
+	// Infer TypeMeta for the target
+	if err := InferGroupVersionKind(owner); err != nil {
+		log.Warn(err.Error())
+	}
+	gvk := owner.GetObjectKind().GroupVersionKind()
+
+	for _, item := range ownerRefs {
+		if item.Kind == gvk.Kind {
+			if item.Name == owner.GetName() && item.UID == owner.GetUID() {
+				return
+			}
+		}
 	}
 	ownerRefs = append(ownerRefs, NonBlockingOwner(owner))
 	object.SetOwnerReferences(ownerRefs)
