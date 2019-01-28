@@ -687,13 +687,13 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 
 	// Expect correct RBAC resources to be resolved and created
 	expectedSteps := map[registry.ResourceKey]struct{}{
-		registry.ResourceKey{Name: crd.Name, Kind: "CustomResourceDefinition"}:                                            {},
-		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterServiceVersion"}:                                          {},
-		registry.ResourceKey{Name: serviceAccountName, Kind: "ServiceAccount"}:                                            {},
-		registry.ResourceKey{Name: fmt.Sprintf("%s-0", stableCSVName), Kind: "Role"}:                                      {},
-		registry.ResourceKey{Name: fmt.Sprintf("%s-0-%s", stableCSVName, serviceAccountName), Kind: "RoleBinding"}:        {},
-		registry.ResourceKey{Name: fmt.Sprintf("%s-0", stableCSVName), Kind: "ClusterRole"}:                               {},
-		registry.ResourceKey{Name: fmt.Sprintf("%s-0-%s", stableCSVName, serviceAccountName), Kind: "ClusterRoleBinding"}: {},
+		registry.ResourceKey{Name: crd.Name, Kind: "CustomResourceDefinition"}:   {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterServiceVersion"}: {},
+		registry.ResourceKey{Name: serviceAccountName, Kind: "ServiceAccount"}:   {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "Role"}:                  {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "RoleBinding"}:           {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterRole"}:           {},
+		registry.ResourceKey{Name: stableCSVName, Kind: "ClusterRoleBinding"}:    {},
 	}
 
 	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
@@ -703,15 +703,19 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 			Name: step.Resource.Name,
 			Kind: step.Resource.Kind,
 		}
-		_, ok := expectedSteps[key]
-		require.True(t, ok)
-
-		// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
-		delete(expectedSteps, key)
+		for expected := range expectedSteps {
+			if expected == key {
+				delete(expectedSteps, expected)
+			} else if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
+				delete(expectedSteps, expected)
+			} else {
+				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
+			}
+		}
 	}
 
 	// Should have removed every matching step
-	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
+	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 
 }
 

@@ -348,6 +348,10 @@ func TestNamespaceResolver(t *testing.T) {
 }
 
 func TestNamespaceResolverRBAC(t *testing.T) {
+	generateName = func(base string) string {
+		return "a"
+	}
+
 	namespace := "catsrc-namespace"
 	catalog := CatalogKey{"catsrc", namespace}
 
@@ -363,7 +367,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			},
 		},
 	}
-
+	bundle := bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, simplePermissions, simplePermissions)
 	type out struct {
 		steps [][]*v1alpha1.Step
 		subs  []*v1alpha1.Subscription
@@ -380,12 +384,10 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, simplePermissions, simplePermissions),
-			},
+			bundlesInCatalog: []*opregistry.Bundle{bundle},
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundleWithPermissions("a.v1", "a", "alpha", "", nil, nil, nil, nil, simplePermissions, simplePermissions), namespace, catalog),
+					bundleSteps(bundle, namespace, catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
