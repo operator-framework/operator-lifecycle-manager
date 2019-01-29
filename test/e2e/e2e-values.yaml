@@ -1,3 +1,5 @@
+writeStatusName: '""'
+
 olm:
   replicaCount: 1
   image:
