@@ -41,7 +41,7 @@ type simpleEncDriver struct {
 	// c containerState
 	encDriverTrackContainerWriter
 	// encDriverNoopContainerWriter
-	_ [3]uint64 // padding
+	_ [2]uint64 // padding
 }
 
 func (e *simpleEncDriver) EncodeNil() {
@@ -210,7 +210,7 @@ type simpleDecDriver struct {
 	noBuiltInTypes
 	// noStreamingCodec
 	decDriverNoopContainerReader
-	// _ [3]uint64 // padding
+	_ [3]uint64 // padding
 }
 
 func (d *simpleDecDriver) readNextBd() {
@@ -509,11 +509,7 @@ func (d *simpleDecDriver) decodeExtV(verifyTag bool, tag byte) (xtag byte, xbs [
 			d.d.errorf("wrong extension tag. Got %b. Expecting: %v", xtag, tag)
 			return
 		}
-		if d.br {
-			xbs = d.r.readx(l)
-		} else {
-			xbs = decByteSlice(d.r, l, d.d.h.MaxInitLen, d.d.b[:])
-		}
+		xbs = d.r.readx(l)
 	case simpleVdByteArray, simpleVdByteArray + 1,
 		simpleVdByteArray + 2, simpleVdByteArray + 3, simpleVdByteArray + 4:
 		xbs = d.DecodeBytes(nil, true)
@@ -574,11 +570,7 @@ func (d *simpleDecDriver) DecodeNaked() {
 		n.v = valueTypeExt
 		l := d.decLen()
 		n.u = uint64(d.r.readn1())
-		if d.br {
-			n.l = d.r.readx(l)
-		} else {
-			n.l = decByteSlice(d.r, l, d.d.h.MaxInitLen, d.d.b[:])
-		}
+		n.l = d.r.readx(l)
 	case simpleVdArray, simpleVdArray + 1, simpleVdArray + 2,
 		simpleVdArray + 3, simpleVdArray + 4:
 		n.v = valueTypeArray
