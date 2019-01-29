@@ -37,7 +37,6 @@ func init() {
 	flags := cmd.Flags()
 
 	flags.DurationVar(&options.WakeupInterval, "interval", options.WakeupInterval, "Interval at which to re-sync CatalogSources")
-	flags.StringVar(&options.GlobalNamespace, "global-namespace", options.GlobalNamespace, "Name of the namespace where the global CatalogSources are located")
 	flags.StringSliceVar(&options.WatchedNamespaces, "watched-namespaces", options.WatchedNamespaces, "List of namespaces the package-server will watch watch for CatalogSources")
 	flags.StringVar(&options.Kubeconfig, "kubeconfig", options.Kubeconfig, "The path to the kubeconfig used to connect to the Kubernetes API server and the Kubelets (defaults to in-cluster config)")
 	flags.BoolVar(&options.Debug, "debug", options.Debug, "use debug log level")

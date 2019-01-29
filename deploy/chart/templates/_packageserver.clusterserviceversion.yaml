@@ -94,8 +94,6 @@
                   {{- end }}
                   - --secure-port
                   - {{ .Values.package.service.internalPort | quote }}
-                  - --global-namespace
-                  - {{ .Values.namespace }}
                   {{- if .Values.debug }}
                   - --debug
                   {{- end }}

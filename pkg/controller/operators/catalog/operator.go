@@ -646,8 +646,8 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 				}
 				continue
 			}
-			// only resolve in namespace local + global catalogs
-			if k.Namespace == namespace || k.Namespace == o.namespace {
+			// only resolve in namespace local
+			if k.Namespace == namespace {
 				resolverSources[k] = ref.Client
 			}
 		}

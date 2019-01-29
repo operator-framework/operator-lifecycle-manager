@@ -53,19 +53,17 @@ func newRegistryClient(source *operatorsv1alpha1.CatalogSource, conn *grpc.Clien
 type RegistryProvider struct {
 	*queueinformer.Operator
 
-	mu              sync.RWMutex
-	globalNamespace string
-	clients         map[sourceKey]registryClient
+	mu      sync.RWMutex
+	clients map[sourceKey]registryClient
 }
 
 var _ PackageManifestProvider = &RegistryProvider{}
 
-func NewRegistryProvider(crClient versioned.Interface, operator *queueinformer.Operator, wakeupInterval time.Duration, watchedNamespaces []string, globalNamespace string) *RegistryProvider {
+func NewRegistryProvider(crClient versioned.Interface, operator *queueinformer.Operator, wakeupInterval time.Duration, watchedNamespaces []string) *RegistryProvider {
 	p := &RegistryProvider{
 		Operator: operator,
 
-		globalNamespace: globalNamespace,
-		clients:         make(map[sourceKey]registryClient),
+		clients: make(map[sourceKey]registryClient),
 	}
 
 	sourceHandlers := &cache.ResourceEventHandlerFuncs{
@@ -240,7 +238,7 @@ func (p *RegistryProvider) List(namespace string) (*v1alpha1.PackageManifestList
 
 	pkgs := []v1alpha1.PackageManifest{}
 	for _, client := range p.clients {
-		if client.source.GetNamespace() == namespace || client.source.GetNamespace() == p.globalNamespace || namespace == metav1.NamespaceAll {
+		if client.source.GetNamespace() == namespace || namespace == metav1.NamespaceAll {
 			logger.Debugf("found CatalogSource %s", client.source.GetName())
 
 			stream, err := client.ListPackages(context.Background(), &api.ListPackageRequest{})

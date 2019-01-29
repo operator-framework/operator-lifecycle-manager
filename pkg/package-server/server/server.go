@@ -60,7 +60,6 @@ type PackageServerOptions struct {
 	Authorization  *genericoptions.DelegatingAuthorizationOptions
 	Features       *genericoptions.FeatureOptions
 
-	GlobalNamespace   string
 	WatchedNamespaces []string
 	WakeupInterval    time.Duration
 
@@ -169,7 +168,7 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	sourceProvider := provider.NewRegistryProvider(crClient, queueOperator, o.WakeupInterval, o.WatchedNamespaces, o.GlobalNamespace)
+	sourceProvider := provider.NewRegistryProvider(crClient, queueOperator, o.WakeupInterval, o.WatchedNamespaces)
 	config.ProviderConfig.Provider = sourceProvider
 
 	// we should never need to resync, since we're not worried about missing events,
