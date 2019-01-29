@@ -47,7 +47,7 @@ const (
 	serviceKind            = "Service"
 	roleKind               = "Role"
 	roleBindingKind        = "RoleBinding"
-	generatedByKey  	   = "olm.generated-by"
+	generatedByKey         = "olm.generated-by"
 )
 
 // for test stubbing and for ensuring standardization of timezones to UTC
@@ -356,7 +356,11 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		}
 
 		if wasOwned := ownerutil.EnsureOwner(configMap, catsrc); !wasOwned {
-			o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(configMap)
+			configMap, err = o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(configMap)
+			if err != nil {
+				return fmt.Errorf("unable to write owner onto catalog source configmap")
+			}
+			logger.Debug("adopted configmap")
 		}
 
 		if catsrc.Status.ConfigMapResource == nil || catsrc.Status.ConfigMapResource.UID != configMap.GetUID() || catsrc.Status.ConfigMapResource.ResourceVersion != configMap.GetResourceVersion() {
@@ -535,7 +539,8 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		return err
 	}
 
-	shouldUpdate := false
+	// TODO: parallel
+	subscriptionUpdated := false
 	for _, sub := range subs {
 		logger := logger.WithFields(logrus.Fields{
 			"sub":     sub.GetName(),
@@ -545,16 +550,27 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		})
 
 		// ensure the installplan reference is correct
-		sub, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		sub, changedIp, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		if err != nil {
+			return err
+		}
+		subscriptionUpdated = subscriptionUpdated || changedIp
+
+		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
+		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub)
 		if err != nil {
 			return err
 		}
 
-		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
-		sub, err = o.ensureSubscriptionCSVState(logger, sub)
-		if err != nil {
-			return err
-		}
+		subscriptionUpdated = subscriptionUpdated || changedCSV
+	}
+	if subscriptionUpdated {
+		logger.Debug("subscriptions were updated, wait for a new resolution")
+		return nil
+	}
+
+	shouldUpdate := false
+	for _, sub := range subs {
 		shouldUpdate = shouldUpdate || !o.nothingToUpdate(logger, sub)
 	}
 	if !shouldUpdate {
@@ -565,30 +581,36 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, subs, err := o.resolver.ResolveSteps(namespace, resolver.NewNamespaceSourceQuerier(resolverSources))
+	steps, updatedSubs, err := o.resolver.ResolveSteps(namespace, resolver.NewNamespaceSourceQuerier(resolverSources))
 	if err != nil {
 		return err
 	}
 
-	// any subscription in the namespace with manual approval will force generated installplans to be manual
-	// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
-	installPlanApproval := v1alpha1.ApprovalAutomatic
-	for _, sub := range subs {
-		if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
-			installPlanApproval = v1alpha1.ApprovalManual
-			break
+	// create installplan if anything updated
+	if len(updatedSubs) > 0 {
+		logger.Debug("resolution caused subscription changes, creating installplan")
+		// any subscription in the namespace with manual approval will force generated installplans to be manual
+		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
+		installPlanApproval := v1alpha1.ApprovalAutomatic
+		for _, sub := range subs {
+			if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
+				installPlanApproval = v1alpha1.ApprovalManual
+				break
+			}
 		}
-	}
-	installplanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps)
-	if err != nil {
-		logger.WithError(err).Debug("error ensuring installplan")
-		return err
+
+		installPlanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps)
+		if err != nil {
+			logger.WithError(err).Debug("error ensuring installplan")
+			return err
+		}
+		if err := o.updateSubscriptionStatus(namespace, updatedSubs, installPlanReference); err != nil {
+			logger.WithError(err).Debug("error ensuring subscription installplan state")
+			return err
+		}
+		return nil
 	}
 
-	if err := o.updateSubscriptionSetInstallPlanState(namespace, subs, installplanReference); err != nil {
-		logger.WithError(err).Debug("error ensuring subscription installplan state")
-		return err
-	}
 	return nil
 }
 
@@ -656,7 +678,7 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
 	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State == v1alpha1.SubscriptionStateAtLatest {
+	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateNone {
 		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
 		return true
 	}
@@ -667,9 +689,9 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 	return false
 }
 
-func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
+func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.Install != nil {
-		return sub, nil
+		return sub, false, nil
 	}
 
 	logger.Debug("checking for existing installplan")
@@ -678,13 +700,13 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	// this indicates it was newly resolved by another operator, and we should reference that installplan in the status
 	ipName, ok := sub.GetAnnotations()[generatedByKey]
 	if !ok {
-		return sub, nil
+		return sub, false, nil
 	}
 
 	ip, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(sub.GetNamespace()).Get(ipName)
 	if err != nil {
 		logger.WithField("installplan", ipName).Warn("unable to get installplan from cache")
-		return nil, err
+		return nil, false, err
 	}
 	logger.WithField("installplan", ipName).Debug("found installplan that generated subscription")
 
@@ -693,15 +715,15 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return updated, nil
+	return updated, true, nil
 }
 
-func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
+func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.CurrentCSV == "" {
-		return sub, nil
+		return sub, false, nil
 	}
 
 	_, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
@@ -716,29 +738,34 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 
 	if sub.Status.State == out.Status.State && sub.Status.InstalledCSV == out.Status.InstalledCSV {
 		// The subscription status represents the cluster state
-		return sub, nil
+		return sub, false, nil
 	}
 	out.Status.LastUpdated = timeNow()
 
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
 	if sub, err = o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(out); err != nil {
 		logger.WithError(err).Info("error updating subscription status")
-		return nil, fmt.Errorf("error updating Subscription status: " + err.Error())
+		return nil, false, fmt.Errorf("error updating Subscription status: " + err.Error())
 	}
 
 	// subscription status represents cluster state
-	return sub, nil
+	return sub, true, nil
 }
 
-func (o *Operator) updateSubscriptionSetInstallPlanState(namespace string, subs []*v1alpha1.Subscription, installPlanRef *v1alpha1.InstallPlanReference) error {
+func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.Subscription, installPlanRef *v1alpha1.InstallPlanReference) error {
 	// TODO: parallel, sync waitgroup
+	var err error
 	for _, sub := range subs {
-		sub.Status.Install = installPlanRef
-		if _, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(sub); err != nil {
-			return err
+		sub.Status.LastUpdated = timeNow()
+		if installPlanRef != nil {
+			sub.Status.Install = installPlanRef
+			sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
+		}
+		if _, subErr := o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(sub); subErr != nil {
+			err = subErr
 		}
 	}
-	return nil
+	return err
 }
 
 func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {
