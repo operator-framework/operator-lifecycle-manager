@@ -47,8 +47,7 @@ const (
 	serviceKind            = "Service"
 	roleKind               = "Role"
 	roleBindingKind        = "RoleBinding"
-
-	generatedByKey  = "olm/generated-by"
+	generatedByKey  	   = "olm.generated-by"
 )
 
 // for test stubbing and for ensuring standardization of timezones to UTC
@@ -580,9 +579,9 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			break
 		}
 	}
-	installplanReference, err := o.createInstallPlan(namespace, subs, installPlanApproval, steps)
+	installplanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps)
 	if err != nil {
-		logger.WithError(err).Debug("error creating installplan")
+		logger.WithError(err).Debug("error ensuring installplan")
 		return err
 	}
 
@@ -679,8 +678,6 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	// this indicates it was newly resolved by another operator, and we should reference that installplan in the status
 	ipName, ok := sub.GetAnnotations()[generatedByKey]
 	if !ok {
-		// err := fmt.Errorf("no installplan reference or %s annotation found", generatedByKey)
-		// logger.WithField("err", err.Error()).Error("an error occurred while associating a subscription with an installplan")
 		return sub, nil
 	}
 
@@ -742,6 +739,28 @@ func (o *Operator) updateSubscriptionSetInstallPlanState(namespace string, subs 
 		}
 	}
 	return nil
+}
+
+func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {
+	if len(steps) == 0 {
+		return nil, nil
+	}
+
+	// Check if any existing installplans are creating the same resources
+	installPlans, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, installPlan := range installPlans {
+		if installPlan.Status.CSVManifestsMatch(steps) {
+			logger.Infof("found InstallPlan with matching manifests: %s", installPlan.GetName())
+			return o.referenceForInstallPlan(installPlan), nil
+		}
+	}
+	logger.Warn("no installplan found with matching manifests, creating new one")
+
+	return o.createInstallPlan(namespace, subs, installPlanApproval, steps)
 }
 
 func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {

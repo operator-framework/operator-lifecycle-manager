@@ -145,6 +145,43 @@ type Step struct {
 	Status    StepStatus   `json:"status"`
 }
 
+// ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
+// matches those in the InstallPlanStatus.
+func (s *InstallPlanStatus) CSVManifestsMatch(steps []*Step) bool {
+	if s.Plan == nil && steps == nil {
+		return true
+	}
+	if s.Plan == nil || steps == nil {
+		return false
+	}
+
+	manifests := make(map[string]struct{})
+	for _, step := range s.Plan {
+		resource := step.Resource
+		if resource.Kind != ClusterServiceVersionKind {
+			continue
+		}
+		manifests[resource.Manifest] = struct{}{}
+	}
+
+	for _, step := range steps {
+		resource := step.Resource
+		if resource.Kind != ClusterServiceVersionKind {
+			continue
+		}
+		if _, ok := manifests[resource.Manifest]; !ok {
+			return false
+		}
+		delete(manifests, resource.Manifest)
+	}
+
+	if len(manifests) == 0 {
+		return true
+	}
+
+	return false
+}
+
 func (s *Step) String() string {
 	return fmt.Sprintf("%s: %s (%s)", s.Resolving, s.Resource, s.Status)
 }
