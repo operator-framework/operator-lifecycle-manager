@@ -153,6 +153,7 @@ container-mockgen:
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/client-go/listers/. ./pkg/fakes/client-go/listers
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/mock_client.go ./pkg/lib/operatorclient/mock_client.go
+	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes/.
 	docker rm temp-mockgen
 
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566

@@ -488,7 +488,8 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	podInformer := informerFactory.Core().V1().Pods()
 	configMapInformer := informerFactory.Core().V1().ConfigMaps()
 	subscriptionInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().Subscriptions()
-
+	installPlanInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake,  wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().InstallPlans()
+	
 	// register informers
 	registryInformers := []cache.SharedIndexInformer{
 		roleInformer.Informer(),
@@ -498,6 +499,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		podInformer.Informer(),
 		configMapInformer.Informer(),
 		subscriptionInformer.Informer(),
+		installPlanInformer.Informer(),
 	}
 
 	// register listers
@@ -509,6 +511,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
 	lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
 	lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subscriptionInformer.Lister())
+	lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, installPlanInformer.Lister())
 
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())

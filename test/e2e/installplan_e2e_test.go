@@ -532,7 +532,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, completeOrFailedFunc)
 		require.NoError(t, err)
 		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
-		require.True(t, completeOrFailedFunc(fetchedInstallPlan))
+		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
 		// Ensure that the desired resources have been created
 		expectedSteps := map[registry.ResourceKey]struct{}{
@@ -561,7 +561,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
 
 		// Update the subscription resource to point to the beta CSV
-		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Delete(subscriptionName, metav1.NewDeleteOptions(0))
+		err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
 		require.NoError(t, err)
 
 		// existing cleanup should remove this

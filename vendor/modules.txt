@@ -71,7 +71,7 @@ github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 # github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 github.com/golang/glog
-# github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff
+# github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef
 github.com/golang/groupcache/lru
 # github.com/golang/mock v1.1.1
 github.com/golang/mock/mockgen
@@ -336,6 +336,7 @@ k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/validation
 k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/util/framer
+k8s.io/apimachinery/pkg/util/rand
 k8s.io/apimachinery/pkg/apis/meta/v1beta1
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/third_party/forked/golang/json
@@ -343,13 +344,13 @@ k8s.io/apimachinery/pkg/api/validation/path
 k8s.io/apimachinery/pkg/apis/meta/v1/validation
 k8s.io/apimachinery/pkg/util/uuid
 k8s.io/apimachinery/third_party/forked/golang/reflect
-k8s.io/apimachinery/pkg/util/rand
 # k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
 k8s.io/apiserver/pkg/server
 k8s.io/apiserver/pkg/util/logs
 k8s.io/apiserver/pkg/authentication/serviceaccount
 k8s.io/apiserver/pkg/authentication/user
 k8s.io/apiserver/pkg/authorization/authorizer
+k8s.io/apiserver/pkg/storage/names
 k8s.io/apiserver/pkg/endpoints/openapi
 k8s.io/apiserver/pkg/registry/rest
 k8s.io/apiserver/pkg/server/options
@@ -379,7 +380,6 @@ k8s.io/apiserver/pkg/server/mux
 k8s.io/apiserver/pkg/server/routes
 k8s.io/apiserver/pkg/server/storage
 k8s.io/apiserver/pkg/util/feature
-k8s.io/apiserver/pkg/storage/names
 k8s.io/apiserver/pkg/admission/initializer
 k8s.io/apiserver/pkg/admission/metrics
 k8s.io/apiserver/pkg/apis/apiserver

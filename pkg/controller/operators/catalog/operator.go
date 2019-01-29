@@ -47,6 +47,7 @@ const (
 	serviceKind            = "Service"
 	roleKind               = "Role"
 	roleBindingKind        = "RoleBinding"
+	generatedByKey  	   = "olm.generated-by"
 )
 
 // for test stubbing and for ensuring standardization of timezones to UTC
@@ -578,9 +579,9 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			break
 		}
 	}
-	installplanReference, err := o.createInstallPlan(namespace, subs, installPlanApproval, steps)
+	installplanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps)
 	if err != nil {
-		logger.WithError(err).Debug("error creating installplan")
+		logger.WithError(err).Debug("error ensuring installplan")
 		return err
 	}
 
@@ -675,33 +676,27 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 
 	// check if there's an installplan that created this subscription (only if it doesn't have a reference yet)
 	// this indicates it was newly resolved by another operator, and we should reference that installplan in the status
-	ips, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(sub.GetNamespace()).List(labels.Everything())
-	if err != nil {
-		logger.WithError(err).Debug("couldn't get installplans")
-		// if we can't list, just continue processing
+	ipName, ok := sub.GetAnnotations()[generatedByKey]
+	if !ok {
 		return sub, nil
 	}
 
-	out := sub.DeepCopy()
-
-	for _, ip := range ips {
-		for _, step := range ip.Status.Plan {
-			// TODO: is this enough? should we check equality of pkg/channel?
-			if step != nil && step.Resource.Kind == v1alpha1.SubscriptionKind && step.Resource.Name == sub.GetName() {
-				logger.WithField("installplan", ip.GetName()).Debug("found subscription in steps of existing installplan")
-				out.Status.Install = o.referenceForInstallPlan(ip)
-				out.Status.State = v1alpha1.SubscriptionStateUpgradePending
-				if updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out); err != nil {
-					return nil, err
-				} else {
-					return updated, nil
-				}
-			}
-		}
+	ip, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(sub.GetNamespace()).Get(ipName)
+	if err != nil {
+		logger.WithField("installplan", ipName).Warn("unable to get installplan from cache")
+		return nil, err
 	}
-	logger.Debug("did not find subscription in steps of existing installplan")
+	logger.WithField("installplan", ipName).Debug("found installplan that generated subscription")
 
-	return sub, nil
+	out := sub.DeepCopy()
+	out.Status.Install = o.referenceForInstallPlan(ip)
+	out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
 }
 
 func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, error) {
@@ -744,6 +739,28 @@ func (o *Operator) updateSubscriptionSetInstallPlanState(namespace string, subs 
 		}
 	}
 	return nil
+}
+
+func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {
+	if len(steps) == 0 {
+		return nil, nil
+	}
+
+	// Check if any existing installplans are creating the same resources
+	installPlans, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(namespace).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, installPlan := range installPlans {
+		if installPlan.Status.CSVManifestsMatch(steps) {
+			logger.Infof("found InstallPlan with matching manifests: %s", installPlan.GetName())
+			return o.referenceForInstallPlan(installPlan), nil
+		}
+	}
+	logger.Warn("no installplan found with matching manifests, creating new one")
+
+	return o.createInstallPlan(namespace, subs, installPlanApproval, steps)
 }
 
 func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {
@@ -999,6 +1016,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &sub)
 				if err != nil {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+				}
+
+				// Add the InstallPlan's name as an annotation
+				if annotations := sub.GetAnnotations(); annotations != nil {
+					annotations[generatedByKey] = plan.GetName()
+				} else {
+					sub.SetAnnotations(map[string]string{generatedByKey: plan.GetName()})
 				}
 
 				// Attempt to create the Subscription

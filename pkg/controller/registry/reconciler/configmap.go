@@ -106,7 +106,7 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
 							},
 						},
-						InitialDelaySeconds: 5,
+						InitialDelaySeconds: 1,
 					},
 					LivenessProbe: &v1.Probe{
 						Handler: v1.Handler{
@@ -114,7 +114,7 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
 							},
 						},
-						InitialDelaySeconds: 10,
+						InitialDelaySeconds: 2,
 					},
 				},
 			},
