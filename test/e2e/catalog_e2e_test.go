@@ -13,8 +13,10 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -53,8 +55,12 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	defer cleanupSource()
 
 	// ensure the mock catalog exists and has been synced by the catalog operator
-	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
+	catalogSourceObj, err := awaitObject(t, catalogSourceListerWatcher(crc, operatorNamespace), catalogSourceName, operatorNamespace, func(obj runtime.Object) bool {
+		cs := obj.(*v1alpha1.CatalogSource)
+		return catalogSourceRegistryPodSynced(cs)
+	})
 	require.NoError(t, err)
+	catalogSource := catalogSourceObj.(*v1alpha1.CatalogSource)
 
 	// get catalog operator deployment
 	deployment, err := getOperatorDeployment(c, operatorNamespace, labels.Set{"app": "catalog-operator"})
@@ -160,7 +166,7 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	// Check pod created
 	initialPods, err := c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{LabelSelector: "olm.configMapResourceVersion=" + configMap.ResourceVersion})
 	require.NoError(t, err)
-	require.Equal(t, 1, len(initialPods.Items))
+	require.Equal(t, 1, len(initialPods.Items), "Could not find pod with olm.configMapResourceVersion="+configMap.ResourceVersion)
 
 	// Update catalog configmap
 	updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
@@ -174,13 +180,12 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 			fmt.Println("catalog updated")
 			return true
 		}
-		fmt.Println("waiting for catalog pod to be available")
+		fmt.Println("waiting for catalog to be updated")
 		return false
 	})
 	require.NoError(t, err)
 
 	require.NotEqual(t, updatedConfigMap.ResourceVersion, configMap.ResourceVersion)
-	require.NotEqual(t, fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion, fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion)
 	require.Equal(t, updatedConfigMap.GetResourceVersion(), fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion)
 
 	// Await 1 CatalogSource registry pod matching the updated labels
@@ -293,7 +298,6 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 	require.NotNil(t, subscription)
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
-
 }
 
 func TestGrpcAddressCatalogSource(t *testing.T) {
@@ -378,9 +382,29 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 
 	// Replicate catalog pods with no OwnerReferences
 	mainCopy := replicateCatalogPod(t, c, crc, mainSource)
-	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
+	mainCopyObj, err := awaitObject(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return c.KubernetesInterface().CoreV1().Pods(mainCopy.GetNamespace()).List(options)
+		},
+		WatchFunc: c.KubernetesInterface().CoreV1().Pods(mainCopy.GetNamespace()).Watch,
+	}, mainCopy.GetName(), mainCopy.GetNamespace(), func(obj runtime.Object) bool {
+		pod := obj.(*corev1.Pod)
+		return hasPodIP(pod)
+	})
+	require.NoError(t, err)
+	mainCopy = mainCopyObj.(*corev1.Pod)
 	replacementCopy := replicateCatalogPod(t, c, crc, replacementSource)
-	replacementCopy = awaitPod(t, c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
+	replacementCopyObj, err := awaitObject(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return c.KubernetesInterface().CoreV1().Pods(replacementCopy.GetNamespace()).List(options)
+		},
+		WatchFunc: c.KubernetesInterface().CoreV1().Pods(replacementCopy.GetNamespace()).Watch,
+	}, replacementCopy.GetName(), replacementCopy.GetNamespace(), func(obj runtime.Object) bool {
+		pod := obj.(*corev1.Pod)
+		return hasPodIP(pod)
+	})
+	require.NoError(t, err)
+	replacementCopy = replacementCopyObj.(*corev1.Pod)
 
 	addressSourceName := genName("address-catalog-")
 
@@ -421,6 +445,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
+
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
@@ -430,9 +455,8 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	addressSource.Spec.Address = fmt.Sprintf("%s:%s", replacementCopy.Status.PodIP, "50051")
 	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(addressSource)
 	require.NoError(t, err)
-
 	// Wait for the replacement CSV to be installed
-	_, err = awaitCSV(t, crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, replacementCSV.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 }
 
@@ -649,6 +673,7 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	return err
 }
 
+// replicateCatalogPod creates a copy of an operator-registry pod without ownerReferences to the CatalogSource
 func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
 	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
 	require.NoError(t, err)

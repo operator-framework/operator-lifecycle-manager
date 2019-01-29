@@ -56,10 +56,7 @@ func TestOwnerReferenceGCBehavior(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for deletion of ownerA
-	waitForDelete(func() error {
-		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerA.GetName(), metav1.GetOptions{})
-		return err
-	})
+	require.NoError(t, awaitDeleted(t, csvListerWatcher(crc), ownerA.GetName(), testNamespace))
 
 	// check for dependent (should still exist since it still has one owner present)
 	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dependent.GetName(), metav1.GetOptions{})
@@ -71,10 +68,7 @@ func TestOwnerReferenceGCBehavior(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for deletion of ownerB
-	waitForDelete(func() error {
-		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerB.GetName(), metav1.GetOptions{})
-		return err
-	})
+	require.NoError(t, awaitDeleted(t, csvListerWatcher(crc), ownerB.GetName(), testNamespace))
 
 	// check for dependent (should be deleted since last blocking owner was deleted)
 	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dependent.GetName(), metav1.GetOptions{})

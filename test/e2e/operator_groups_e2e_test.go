@@ -8,25 +8,26 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func checkOperatorGroupAnnotations(obj metav1.Object, op *v1.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
@@ -122,7 +123,7 @@ func TestOperatorGroup(t *testing.T) {
 	log("Creating CRD")
 	mainCRDPlural := genName("opgroup")
 	mainCRD := newCRD(mainCRDPlural)
-	cleanupCRD, err := createCRD(c, mainCRD)
+	cleanupCRD, err := createCRD(t, c, mainCRD)
 	require.NoError(t, err)
 	defer cleanupCRD()
 
@@ -140,23 +141,24 @@ func TestOperatorGroup(t *testing.T) {
 	}
 	_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
+
 	expectedOperatorGroupStatus := v1.OperatorGroupStatus{
 		Namespaces: []string{opGroupNamespace, createdOtherNamespace.GetName()},
 	}
 
 	log("Waiting on operator group to have correct status")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
-		if fetchErr != nil {
-			return false, fetchErr
-		}
-		if len(fetched.Status.Namespaces) > 0 {
-			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces, "have %#v", fetched.Status.Namespaces)
-			return true, nil
-		}
-		return false, nil
+	obj, err := awaitObject(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1().OperatorGroups(opGroupNamespace).List(options)
+		},
+		WatchFunc: crc.OperatorsV1().OperatorGroups(opGroupNamespace).Watch,
+	}, operatorGroup.Name, opGroupNamespace, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return len(og.Status.Namespaces) > 0
 	})
 	require.NoError(t, err)
+	fetchedOperatorGroup := obj.(*v1.OperatorGroup)
+	require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetchedOperatorGroup.Status.Namespaces, "have %#v", fetchedOperatorGroup.Status.Namespaces)
 
 	log("Creating CSV")
 
@@ -233,80 +235,35 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	log("wait for CSV to succeed")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(createdCSV.GetName(), metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
-		return csvSucceededChecker(fetched), nil
-	})
+	_, err = fetchCSV(t, crc, csvName, opGroupNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	log("Waiting for operator namespace csv to have annotations")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return false, nil
-			}
-			log(fmt.Sprintf("Error (in %v): %v", testNamespace, fetchErr.Error()))
-			return false, fetchErr
-		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, true, bothNamespaceNames) == nil {
-			return true, nil
-		}
-		return false, nil
+	_, err = fetchCSV(t, crc, csvName, opGroupNamespace, func(fetchedCSV *v1alpha1.ClusterServiceVersion) bool {
+		return checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, true, bothNamespaceNames) == nil
 	})
 	require.NoError(t, err)
 
 	log("Waiting for target namespace csv to have annotations (but not target namespaces)")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return false, nil
-			}
-			log(fmt.Sprintf("Error (in %v): %v", otherNamespaceName, fetchErr.Error()))
-			return false, fetchErr
-		}
-		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, false, "") == nil {
-			return true, nil
-		}
-
-		return false, nil
+	_, err = fetchCSV(t, crc, csvName, otherNamespaceName, func(fetchedCSV *v1alpha1.ClusterServiceVersion) bool {
+		return checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, false, "") == nil
 	})
 
 	log("Checking status on csv in target namespace")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return false, nil
-			}
-			t.Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
-			return false, fetchErr
-		}
-		if fetchedCSV.Status.Reason == v1alpha1.CSVReasonCopied {
-			return true, nil
-		}
-		return false, nil
+	_, err = fetchCSV(t, crc, csvName, otherNamespaceName, func(fetchedCSV *v1alpha1.ClusterServiceVersion) bool {
+		return fetchedCSV.Status.Reason == v1alpha1.CSVReasonCopied
 	})
 	require.NoError(t, err)
 
 	log("Waiting on deployment to have correct annotations")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		createdDeployment, err := c.GetDeployment(opGroupNamespace, deploymentName)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
-		}
-		if checkOperatorGroupAnnotations(&createdDeployment.Spec.Template, &operatorGroup, true, bothNamespaceNames) == nil {
-			return true, nil
-		}
-		return false, nil
+	_, err = awaitObject(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return c.KubernetesInterface().AppsV1().Deployments(opGroupNamespace).List(options)
+		},
+		WatchFunc: c.KubernetesInterface().AppsV1().Deployments(opGroupNamespace).Watch,
+	}, deploymentName, opGroupNamespace, func(obj runtime.Object) bool {
+		dep := obj.(*appsv1.Deployment)
+		return checkOperatorGroupAnnotations(&dep.Spec.Template, &operatorGroup, true, bothNamespaceNames) == nil
 	})
 	require.NoError(t, err)
 
@@ -398,41 +355,15 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	log("waiting for orphaned csv to be deleted")
-	err = waitForDelete(func() error {
-		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		return err
-	})
+	err = awaitDeleted(t, csvListerWatcher(crc), csvName, otherNamespaceName)
 	require.NoError(t, err)
 
 	err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 	t.Log("Waiting for OperatorGroup RBAC to be garbage collected")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-admin", metav1.GetOptions{})
-		if err == nil {
-			return false, nil
-		}
-		return true, err
-	})
-	require.True(t, errors.IsNotFound(err))
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-edit", metav1.GetOptions{})
-		if err == nil {
-			return false, nil
-		}
-		return true, err
-	})
-	require.True(t, errors.IsNotFound(err))
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
-		if err == nil {
-			return false, nil
-		}
-		return true, err
-	})
-	require.True(t, errors.IsNotFound(err))
+	require.NoError(t, awaitDeleted(t, clusterRoleListerWatcher(c), operatorGroup.Name+"-admin", ""))
+	require.NoError(t, awaitDeleted(t, clusterRoleListerWatcher(c), operatorGroup.Name+"-edit", ""))
+	require.NoError(t, awaitDeleted(t, clusterRoleListerWatcher(c), operatorGroup.Name+"-view", ""))
 }
 
 func createProjectAdmin(t *testing.T, c operatorclient.ClientInterface, namespace string) (string, cleanupFunc) {
@@ -515,7 +446,7 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 	}()
 
 	// Create crd so csv succeeds
-	cleanupCRD, err := createCRD(c, crd)
+	cleanupCRD, err := createCRD(t, c, crd)
 	require.NoError(t, err)
 	defer cleanupCRD()
 
@@ -757,7 +688,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create crd so csv succeeds
-	cleanupCRD, err := createCRD(c, crd)
+	cleanupCRD, err := createCRD(t, c, crd)
 	require.NoError(t, err)
 	defer cleanupCRD()
 
@@ -1008,19 +939,19 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NotNil(t, subD)
 
 	// Await csvD's success
-	_, err = awaitCSV(t, crc, nsD, csvD.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvD.GetName(), nsD, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Await csvD's copy in namespaceE
-	_, err = awaitCSV(t, crc, nsE, csvD.GetName(), csvCopiedChecker)
+	_, err = fetchCSV(t, crc, csvD.GetName(), nsE, csvCopiedChecker)
 	require.NoError(t, err)
 
 	// Await annotation on groupD
-	q := func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsD).Get(groupD.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgD}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsD), groupD.GetName(), nsD, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgD})
+	})
+	require.NoError(t, err)
 
 	// Create subscription for csvD2 in namespaceA
 	subD2Name := genName("d2-")
@@ -1031,19 +962,19 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NotNil(t, subD2)
 
 	// Await csvD2's failure
-	csvD2, err := awaitCSV(t, crc, nsA, csvD.GetName(), csvFailedChecker)
+	csvD2, err := fetchCSV(t, crc, csvD.GetName(), nsA, csvFailedChecker)
 	require.NoError(t, err)
 	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, csvD2.Status.Reason)
 
 	// Ensure groupA's annotations are blank
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{})
+	})
+	require.NoError(t, err)
 
 	// Ensure csvD is still successful
-	_, err = awaitCSV(t, crc, nsD, csvD.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvD.GetName(), nsD, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Create subscription for csvA in namespaceA
@@ -1055,7 +986,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NotNil(t, subA)
 
 	// Await csvA's success
-	_, err = awaitCSV(t, crc, nsA, csvA.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Ensure clusterroles created and aggregated for access provided APIs
@@ -1087,14 +1018,14 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Await annotation on groupA
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA})
+	})
+	require.NoError(t, err)
 
 	// Await csvA's copy in namespaceC
-	_, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvCopiedChecker)
+	_, err = fetchCSV(t, crc, csvA.GetName(), nsC, csvCopiedChecker)
 	require.NoError(t, err)
 
 	// Create subscription for csvB in namespaceB
@@ -1106,44 +1037,50 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NotNil(t, subB)
 
 	// Await csvB's failure
-	fetchedB, err := awaitCSV(t, crc, nsB, csvB.GetName(), csvFailedChecker)
+	fetchedB, err := fetchCSV(t, crc, csvB.GetName(), nsB, csvFailedChecker)
 	require.NoError(t, err)
 	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedB.Status.Reason)
 
 	// Ensure no annotation on groupB
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsB), groupB.GetName(), nsB, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{})
+	})
+	require.NoError(t, err)
 
 	// Delete csvA
 	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(csvA.GetName(), &metav1.DeleteOptions{}))
 
 	// Ensure annotations are removed from groupA
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""})
+	})
+	require.NoError(t, err)
 
 	// Ensure csvA's deployment is deleted
-	require.NoError(t, waitForDeploymentToDelete(t, c, pkgAStable))
+	err = awaitDeleted(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return c.KubernetesInterface().AppsV1().Deployments(testNamespace).List(options)
+		},
+		WatchFunc: c.KubernetesInterface().AppsV1().Deployments(testNamespace).Watch,
+	}, pkgAStable, testNamespace)
+	require.NoError(t, err)
 
 	// Await csvB's success
-	_, err = awaitCSV(t, crc, nsB, csvB.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsB, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Await csvB's copy in namespace C
-	_, err = awaitCSV(t, crc, nsC, csvB.GetName(), csvCopiedChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsC, csvCopiedChecker)
 	require.NoError(t, err)
 
 	// Ensure annotations exist on group B
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: strings.Join([]string{kvgA, kvgB}, ",")}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsB), groupB.GetName(), nsB, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: strings.Join([]string{kvgA, kvgB}, ",")})
+	})
+	require.NoError(t, err)
 }
 
 func TestStaticProviderOperatorGroup(t *testing.T) {
@@ -1255,23 +1192,23 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NotNil(t, subA)
 
 	// Await csvA's failure
-	fetchedCSVA, err := awaitCSV(t, crc, nsB, csvA.GetName(), csvFailedChecker)
+	fetchedCSVA, err := fetchCSV(t, crc, csvA.GetName(), nsB, csvFailedChecker)
 	require.NoError(t, err)
 	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedCSVA.Status.Reason)
 
 	// Ensure operatorGroupB doesn't have providedAPI annotation
-	q := func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsB), groupB.GetName(), nsB, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{})
+	})
+	require.NoError(t, err)
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA})
+	})
+	require.NoError(t, err)
 
 	// Create subscription for csvA in namespaceC
 	cleanupSubAC := createSubscriptionForCatalog(t, crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
@@ -1281,22 +1218,22 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NotNil(t, subAC)
 
 	// Await csvA's success
-	_, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvA.GetName(), nsC, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Ensure operatorGroupC has KindA.version.group in its providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsC), groupC.GetName(), nsC, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA})
+	})
+	require.NoError(t, err)
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA})
+	})
+	require.NoError(t, err)
 
 	// Create subscription for csvB in namespaceB
 	subBName := genName("b-")
@@ -1307,30 +1244,30 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NotNil(t, subB)
 
 	// Await csvB's success
-	_, err = awaitCSV(t, crc, nsB, csvB.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsB, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Await copied csvBs
-	_, err = awaitCSV(t, crc, nsA, csvB.GetName(), csvCopiedChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsA, csvCopiedChecker)
 	require.NoError(t, err)
-	_, err = awaitCSV(t, crc, nsC, csvB.GetName(), csvCopiedChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsC, csvCopiedChecker)
 	require.NoError(t, err)
-	_, err = awaitCSV(t, crc, nsD, csvB.GetName(), csvCopiedChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsD, csvCopiedChecker)
 	require.NoError(t, err)
 
 	// Ensure operatorGroupB has KindB.version.group in its providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgB}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsB), groupB.GetName(), nsB, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgB})
+	})
+	require.NoError(t, err)
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA})
+	})
+	require.NoError(t, err)
 
 	// Add namespaceD to operatorGroupC's targetNamespaces
 	groupC, err = crc.OperatorsV1().OperatorGroups(groupC.GetNamespace()).Get(groupC.GetName(), metav1.GetOptions{})
@@ -1340,23 +1277,23 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for csvA in namespaceC to fail with status "InterOperatorGroupOwnerConflict"
-	fetchedCSVA, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvFailedChecker)
+	fetchedCSVA, err = fetchCSV(t, crc, csvA.GetName(), nsC, csvFailedChecker)
 	require.NoError(t, err)
 	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedCSVA.Status.Reason)
 
 	// Wait for crdA's providedAPIs to be removed from operatorGroupC's providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsC), groupC.GetName(), nsC, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""})
+	})
+	require.NoError(t, err)
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
-	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
-		return g.ObjectMeta, err
-	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	_, err = awaitObject(t, operatorGroupListerWatcher(crc, nsA), groupA.GetName(), nsA, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return checkAnnotations(t, og.ObjectMeta, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA})
+	})
+	require.NoError(t, err)
 }
 
 // TODO: Test OperatorGroup resizing collisions
@@ -1375,7 +1312,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	t.Log("Creating CRD")
 	mainCRDPlural := genName("opgroup-")
 	mainCRD := newCRD(mainCRDPlural)
-	cleanupCRD, err := createCRD(c, mainCRD)
+	cleanupCRD, err := createCRD(t, c, mainCRD)
 	require.NoError(t, err)
 	defer cleanupCRD()
 
@@ -1388,17 +1325,14 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	}
 
 	t.Log("Waiting on operator group to have correct status")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
-		if fetchErr != nil {
-			return false, fetchErr
-		}
-		if len(fetched.Status.Namespaces) > 0 {
-			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
-			fmt.Println(fetched.Status.Namespaces)
-			return true, nil
-		}
-		return false, nil
+	_, err = awaitObject(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1().OperatorGroups(opGroupNamespace).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Watch,
+	}, operatorGroup.Name, opGroupNamespace, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return assert.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, og.Status.Namespaces)
 	})
 	require.NoError(t, err)
 
@@ -1487,22 +1421,14 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("wait for roles to be promoted to clusterroles")
-	var fetchedRole *rbacv1.ClusterRole
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedRole, err = c.GetClusterRole(role.GetName())
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
-		}
-		return true, nil
-	})
+	obj, err := awaitObject(t, clusterRoleListerWatcher(c), role.GetName(), "", func(obj runtime.Object) bool { return true })
+	fetchedRole := obj.(*rbacv1.ClusterRole)
 	require.EqualValues(t, append(role.Rules, rbacv1.PolicyRule{
 		Verbs:     []string{"get", "list", "watch"},
 		APIGroups: []string{""},
 		Resources: []string{"namespaces"},
 	}), fetchedRole.Rules)
+
 	var fetchedRoleBinding *rbacv1.ClusterRoleBinding
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
@@ -1535,19 +1461,8 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	require.True(t, res.Status.Allowed, "got %#v", res.Status)
 
 	t.Log("Waiting for operator namespace csv to have annotations")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return false, nil
-			}
-			t.Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
-			return false, fetchErr
-		}
-		if checkOperatorGroupAnnotations(fetchedCSV, operatorGroup, true, corev1.NamespaceAll) == nil {
-			return true, nil
-		}
-		return false, nil
+	_, err = fetchCSV(t, crc, csvName, opGroupNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		return checkOperatorGroupAnnotations(csv, operatorGroup, true, corev1.NamespaceAll) == nil
 	})
 	require.NoError(t, err)
 
@@ -1565,24 +1480,12 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	_, err = c.KubernetesInterface().CoreV1().Namespaces().Create(&otherNamespace)
 	require.NoError(t, err)
 	defer func() {
-		err = c.KubernetesInterface().CoreV1().Namespaces().Delete(otherNamespaceName, &metav1.DeleteOptions{})
-		require.NoError(t, err)
+		require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(otherNamespaceName, &metav1.DeleteOptions{}))
 	}()
 
 	t.Log("Waiting to ensure copied CSV shows up in other namespace")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return false, nil
-			}
-			t.Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
-			return false, fetchErr
-		}
-		if checkOperatorGroupAnnotations(fetchedCSV, operatorGroup, false, "") == nil {
-			return true, nil
-		}
-		return false, nil
+	_, err = fetchCSV(t, crc, csvName, otherNamespaceName, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		return checkOperatorGroupAnnotations(csv, operatorGroup, false, "") == nil
 	})
 	require.NoError(t, err)
 
@@ -1602,16 +1505,11 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
-		_, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-		if fetchErr != nil {
-			if errors.IsNotFound(fetchErr) {
-				return true, nil
-			}
-			t.Logf("Error (in %v): %v", opGroupNamespace, fetchErr.Error())
-			return false, fetchErr
-		}
-		return false, nil
-	})
+	err = awaitDeleted(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Watch,
+	}, csvName, otherNamespaceName)
 	require.NoError(t, err)
 }

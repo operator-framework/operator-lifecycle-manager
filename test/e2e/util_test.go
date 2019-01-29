@@ -14,19 +14,20 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/names"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -89,7 +90,7 @@ func newKubeClient(t *testing.T) operatorclient.ClientInterface {
 	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
-	// TODO: impersonate ALM serviceaccount
+	// TODO: impersonate OLM serviceaccount
 	// TODO: thread logger from test
 	return operatorclient.NewClientFromConfig(*kubeConfigPath, logrus.New())
 }
@@ -98,7 +99,7 @@ func newCRClient(t *testing.T) versioned.Interface {
 	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
-	// TODO: impersonate ALM serviceaccount
+	// TODO: impersonate OLM serviceaccount
 	crclient, err := client.NewClient(*kubeConfigPath)
 	require.NoError(t, err)
 	return crclient
@@ -108,33 +109,10 @@ func newPMClient(t *testing.T) pmversioned.Interface {
 	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
-	// TODO: impersonate ALM serviceaccount
+	// TODO: impersonate OLM serviceaccount
 	pmc, err := pmclient.NewClient(*kubeConfigPath)
 	require.NoError(t, err)
 	return pmc
-}
-
-// awaitPods waits for a set of pods to exist in the cluster
-func awaitPods(t *testing.T, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
-	var fetchedPodList *corev1.PodList
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(metav1.ListOptions{
-			LabelSelector: selector,
-		})
-
-		if err != nil {
-			return false, err
-		}
-
-		t.Logf("Waiting for pods matching selector %s to match given conditions", selector)
-
-		return checkPods(fetchedPodList), nil
-	})
-
-	require.NoError(t, err)
-	return fetchedPodList, err
 }
 
 // podsCheckFunc describes a function that true if the given PodList meets some criteria; false otherwise.
@@ -196,73 +174,74 @@ func podReady(pod *corev1.Pod) bool {
 	return status == corev1.ConditionTrue
 }
 
-func awaitPod(t *testing.T, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
-	var pod *corev1.Pod
-	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		pod = p
-		return checkPod(pod), nil
+// awaitPods waits for a set of pods to exist in the cluster
+// TODO(alecmerdler): Rewrite using generic function from `watch_test.go`
+func awaitPods(t *testing.T, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
+	fetchedPodList, err := c.KubernetesInterface().CoreV1().Pods(namespace).List(metav1.ListOptions{
+		LabelSelector: selector,
+	})
+	require.NoError(t, err)
+	if checkPods(fetchedPodList) {
+		return fetchedPodList, err
+	}
+
+	watcher, err := c.KubernetesInterface().CoreV1().Pods(namespace).Watch(metav1.ListOptions{
+		LabelSelector:   selector,
+		ResourceVersion: fetchedPodList.GetResourceVersion(),
 	})
 	require.NoError(t, err)
 
-	return pod
-}
-
-func awaitAnnotations(t *testing.T, query func() (metav1.ObjectMeta, error), expected map[string]string) error {
-	var err error
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		t.Logf("Waiting for annotations to match %v", expected)
-		obj, err := query()
-		if err != nil && !errors.IsNotFound(err) {
-			return false, err
+	events := watcher.ResultChan()
+	for {
+		podNames := []string{}
+		for _, pod := range fetchedPodList.Items {
+			podNames = append(podNames, pod.GetName())
 		}
-		t.Logf("current annotations: %v", obj.GetAnnotations())
-
-		if len(obj.GetAnnotations()) != len(expected) {
-			return false, nil
+		if checkPods(fetchedPodList) {
+			return fetchedPodList, nil
 		}
 
-		for key, value := range expected {
-			if v, ok := obj.GetAnnotations()[key]; !ok || v != value {
-				return false, nil
+		select {
+		case evt := <-events:
+			pod := evt.Object.(*corev1.Pod)
+			if evt.Type == watch.Added {
+				fetchedPodList.Items = append(fetchedPodList.Items, *pod)
+			} else if evt.Type == watch.Modified {
+				for i, existingPod := range fetchedPodList.Items {
+					if pod.GetUID() == existingPod.GetUID() {
+						fetchedPodList.Items[i] = *pod
+					}
+				}
+			} else if evt.Type == watch.Deleted {
+				for i, existingPod := range fetchedPodList.Items {
+					if pod.GetUID() == existingPod.GetUID() {
+						fetchedPodList.Items = append(fetchedPodList.Items[:i], fetchedPodList.Items[i+1:]...)
+					}
+				}
 			}
+		case <-time.After(pollDuration):
+			return nil, fmt.Errorf("timed out waiting for pods matching selector %s to match given conditions", selector)
 		}
-
-		t.Logf("Annotations match")
-		return true, nil
-	})
-
-	return err
-}
-
-// compareResources compares resource equality then prints a diff for easier debugging
-func compareResources(t *testing.T, expected, actual interface{}) {
-	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
-		t.Fatalf("Resource does not match expected value: %s",
-			diff.ObjectDiff(expected, actual))
 	}
 }
 
-type checkResourceFunc func() error
+func checkAnnotations(t *testing.T, obj metav1.ObjectMeta, expected map[string]string) bool {
+	t.Logf("Checking if annotations match %v", expected)
+	t.Logf("Current annotations: %v", obj.GetAnnotations())
 
-func waitForDelete(checkResource checkResourceFunc) error {
-	var err error
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		err := checkResource()
-		if errors.IsNotFound(err) {
-			return true, nil
+	if len(obj.GetAnnotations()) != len(expected) {
+		return false
+	}
+	for key, value := range expected {
+		if v, ok := obj.GetAnnotations()[key]; !ok || v != value {
+			return false
 		}
-		if err != nil {
-			return false, err
-		}
-		return false, nil
-	})
-
-	return err
+	}
+	t.Logf("Annotations match")
+	return true
 }
+
+type checkResourceFunc func() error
 
 func waitForEmptyList(checkList func() (int, error)) error {
 	var err error
@@ -279,8 +258,6 @@ func waitForEmptyList(checkList func() (int, error)) error {
 
 	return err
 }
-
-type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool
 
 // This check is disabled for most test runs, but can be enabled for verifying pod health if the e2e tests are running
 // in the same kubernetes cluster as the registry pods (currently this only happens with e2e-local-docker)
@@ -318,20 +295,232 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	return false
 }
 
-func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
-	var fetched *v1alpha1.CatalogSource
-	var err error
+func catalogSourceListerWatcher(crc versioned.Interface, ns string) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().CatalogSources(ns).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().CatalogSources(ns).Watch,
+	}
+}
 
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = crc.OperatorsV1alpha1().CatalogSources(namespace).Get(name, metav1.GetOptions{})
-		if err != nil || fetched == nil {
-			fmt.Println(err)
-			return false, err
-		}
-		return check(fetched), nil
+func subscriptionListerWatcher(crc versioned.Interface, ns string) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().Subscriptions(ns).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().Subscriptions(ns).Watch,
+	}
+}
+
+func installPlanListerWatcher(crc versioned.Interface, ns string) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().InstallPlans(ns).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().InstallPlans(ns).Watch,
+	}
+}
+
+func clusterRoleListerWatcher(c operatorclient.ClientInterface) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return c.KubernetesInterface().RbacV1().ClusterRoles().List(options)
+		},
+		WatchFunc: c.KubernetesInterface().RbacV1().ClusterRoles().Watch,
+	}
+}
+
+func operatorGroupListerWatcher(crc versioned.Interface, ns string) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1().OperatorGroups(ns).List(options)
+		},
+		WatchFunc: crc.OperatorsV1().OperatorGroups(ns).Watch,
+	}
+}
+
+func csvListerWatcher(crc versioned.Interface) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Watch,
+	}
+}
+
+func deploymentListerWatcher(c operatorclient.ClientInterface) cache.ListerWatcher {
+	return &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return c.KubernetesInterface().Apps().Deployments(testNamespace).List(options)
+		},
+		WatchFunc: c.KubernetesInterface().Apps().Deployments(testNamespace).Watch,
+	}
+}
+
+// TODO(alecmerdler): Rewrite using generic function from `watch_test.go`
+func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace string, check func(*v1alpha1.CatalogSource) bool) (*v1alpha1.CatalogSource, error) {
+	fetchedList, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{FieldSelector: "metadata.name=" + name})
+	require.NoError(t, err)
+
+	if len(fetchedList.Items) == 1 && check(&fetchedList.Items[0]) {
+		return &fetchedList.Items[0], err
+	}
+
+	watcher, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Watch(metav1.ListOptions{
+		FieldSelector:   "metadata.name=" + name,
+		ResourceVersion: fetchedList.GetResourceVersion(),
 	})
+	require.NoError(t, err)
 
-	return fetched, err
+	events := watcher.ResultChan()
+	for {
+		select {
+		case evt := <-events:
+			if evt.Type == watch.Added || evt.Type == watch.Modified {
+				item := evt.Object.(*v1alpha1.CatalogSource)
+				if check(item) {
+					return item, err
+				}
+			}
+		case <-time.After(pollDuration):
+			return nil, fmt.Errorf("timed out waiting for CatalogSource")
+		}
+	}
+}
+
+// TODO(alecmerdler): Rewrite using generic function from `watch_test.go`
+func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name string, check subscriptionStateChecker) (*v1alpha1.Subscription, error) {
+	fetchedList, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{FieldSelector: "metadata.name=" + name})
+	require.NoError(t, err)
+
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
+	if len(fetchedList.Items) == 1 && check(&fetchedList.Items[0]) {
+		return &fetchedList.Items[0], err
+	}
+
+	watcher, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Watch(metav1.ListOptions{
+		FieldSelector:   "metadata.name=" + name,
+		ResourceVersion: fetchedList.GetResourceVersion(),
+	})
+	require.NoError(t, err)
+
+	events := watcher.ResultChan()
+	for {
+		select {
+		case evt := <-events:
+			if evt.Type == watch.Added || evt.Type == watch.Modified {
+				item := evt.Object.(*v1alpha1.Subscription)
+				log(fmt.Sprintf("%s (%s): %s", item.Status.State, item.Status.CurrentCSV, item.Status.InstallPlanRef))
+				if check(item) {
+					return item, err
+				}
+			}
+		case <-time.After(pollDuration):
+			log(fmt.Sprintf("never got correct status"))
+
+			return nil, fmt.Errorf("timed out waiting for Subscription")
+		}
+	}
+}
+
+// TODO(alecmerdler): Rewrite using generic function from `watch_test.go`
+func fetchInstallPlan(t *testing.T, crc versioned.Interface, name string, checkPhase checkInstallPlanFunc) (*v1alpha1.InstallPlan, error) {
+	fetchedList, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{FieldSelector: "metadata.name=" + name})
+	require.NoError(t, err)
+
+	if len(fetchedList.Items) == 1 && checkPhase(&fetchedList.Items[0]) {
+		return &fetchedList.Items[0], err
+	}
+
+	watcher, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Watch(metav1.ListOptions{
+		FieldSelector:   "metadata.name=" + name,
+		ResourceVersion: fetchedList.GetResourceVersion(),
+	})
+	require.NoError(t, err)
+
+	events := watcher.ResultChan()
+	for {
+		select {
+		case evt := <-events:
+			if evt.Type == watch.Added || evt.Type == watch.Modified {
+				item := evt.Object.(*v1alpha1.InstallPlan)
+				if checkPhase(item) {
+					return item, err
+				}
+			}
+		case <-time.After(pollDuration):
+			return nil, fmt.Errorf("timed out waiting for InstallPlan")
+		}
+	}
+}
+
+// TODO(alecmerdler): Rewrite using generic function from `watch_test.go`
+func fetchCSV(t *testing.T, c versioned.Interface, name, namespace string, check csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+	fetchedList, err := c.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{FieldSelector: "metadata.name=" + name})
+	require.NoError(t, err)
+
+	if len(fetchedList.Items) == 1 && check(&fetchedList.Items[0]) {
+		return &fetchedList.Items[0], nil
+	}
+
+	watcher, err := c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Watch(metav1.ListOptions{
+		FieldSelector:   "metadata.name=" + name,
+		ResourceVersion: fetchedList.GetResourceVersion(),
+	})
+	require.NoError(t, err)
+
+	events := watcher.ResultChan()
+	for {
+		select {
+		case evt := <-events:
+			if evt.Type == watch.Added || evt.Type == watch.Modified {
+				csv := evt.Object.(*v1alpha1.ClusterServiceVersion)
+				t.Logf("%s (%s): %s", csv.Status.Phase, csv.Status.Reason, csv.Status.Message)
+				if check(csv) {
+					return csv, nil
+				}
+			}
+		case <-time.After(pollDuration):
+			return nil, fmt.Errorf("timed out waiting for ClusterServiceVersion")
+		}
+	}
+}
+
+type deploymentChecker func(dep *appsv1.Deployment) bool
+
+// TODO(alecmerdler): Rewrite using generic function from `watch_test.go`
+func fetchDeployment(t *testing.T, c operatorclient.ClientInterface, name, namespace string, checker deploymentChecker) (*appsv1.Deployment, error) {
+	fetchedList, err := c.KubernetesInterface().AppsV1().Deployments(namespace).List(metav1.ListOptions{FieldSelector: "metadata.name=" + name})
+	require.NoError(t, err)
+
+	if len(fetchedList.Items) == 1 && checker(&fetchedList.Items[0]) {
+		return &fetchedList.Items[0], nil
+	}
+
+	watcher, err := c.KubernetesInterface().AppsV1().Deployments(namespace).Watch(metav1.ListOptions{
+		FieldSelector:   "metadata.name=" + name,
+		ResourceVersion: fetchedList.ResourceVersion,
+	})
+	require.NoError(t, err)
+
+	events := watcher.ResultChan()
+	for {
+		select {
+		case evt := <-events:
+			if evt.Type == watch.Added || evt.Type == watch.Modified {
+				dep := evt.Object.(*appsv1.Deployment)
+				if checker(dep) {
+					return dep, nil
+				}
+			}
+		case <-time.After(pollDuration):
+			return nil, fmt.Errorf("timed out waiting for Deployment")
+		}
+	}
 }
 
 func createFieldNotEqualSelector(field string, names ...string) string {
@@ -367,6 +556,7 @@ func cleanupOLM(t *testing.T, namespace string) {
 	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{}))
 
 	var err error
+	// TODO(alecmerdler): Convert to `.Watch()`
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
 		t.Logf("%d %s remaining", len(res.Items), "csvs")

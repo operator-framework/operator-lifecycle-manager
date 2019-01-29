@@ -13,12 +13,11 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
@@ -56,20 +55,22 @@ func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc ver
 		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{}))
 		if deleteCRDs {
 			for _, crd := range csv.Spec.CustomResourceDefinitions.Owned {
-				buildCRDCleanupFunc(c, crd.Name)()
+				buildCRDCleanupFunc(t, c, crd.Name)()
 			}
 		}
 
 		if deleteAPIServices {
 			for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
-				buildAPIServiceCleanupFunc(c, desc.Name)()
+				buildAPIServiceCleanupFunc(t, c, desc.Name)()
 			}
 		}
 
-		require.NoError(t, waitForDelete(func() error {
-			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
-			return err
-		}))
+		require.NoError(t, awaitDeleted(t, &cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(options)
+			},
+			WatchFunc: crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Watch,
+		}, csv.GetName(), namespace))
 	}
 }
 
@@ -82,35 +83,39 @@ func createCSV(t *testing.T, c operatorclient.ClientInterface, crc versioned.Int
 
 }
 
-func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
+func buildCRDCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
 		err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crdName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		waitForDelete(func() error {
-			_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
-			return err
-		})
+		require.NoError(t, awaitDeleted(t, &cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().List(options)
+			},
+			WatchFunc: c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Watch,
+		}, crdName, ""))
 	}
 }
 
-func buildAPIServiceCleanupFunc(c operatorclient.ClientInterface, apiServiceName string) cleanupFunc {
+func buildAPIServiceCleanupFunc(t *testing.T, c operatorclient.ClientInterface, apiServiceName string) cleanupFunc {
 	return func() {
 		err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Delete(apiServiceName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		waitForDelete(func() error {
-			_, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Get(apiServiceName, metav1.GetOptions{})
-			return err
-		})
+		require.NoError(t, awaitDeleted(t, &cache.ListWatch{
+			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+				return c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(options)
+			},
+			WatchFunc: c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch,
+		}, apiServiceName, ""))
 	}
 }
 
-func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourceDefinition) (cleanupFunc, error) {
+func createCRD(t *testing.T, c operatorclient.ClientInterface, crd apiextensions.CustomResourceDefinition) (cleanupFunc, error) {
 	out := &v1beta1.CustomResourceDefinition{}
 	scheme := runtime.NewScheme()
 	if err := apiextensions.AddToScheme(scheme); err != nil {
@@ -127,7 +132,7 @@ func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourc
 		return nil, err
 	}
 
-	return buildCRDCleanupFunc(c, crd.GetName()), nil
+	return buildCRDCleanupFunc(t, c, crd.GetName()), nil
 }
 
 func newNginxDeployment(name string) appsv1.DeploymentSpec {
@@ -233,94 +238,6 @@ var csvReplacingChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseReplacing, v
 var csvFailedChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseFailed)
 var csvAnyChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting, v1alpha1.CSVPhaseFailed)
 var csvCopiedChecker = buildCSVReasonChecker(v1alpha1.CSVReasonCopied)
-
-func fetchCSV(t *testing.T, c versioned.Interface, name, namespace string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
-	var fetched *v1alpha1.ClusterServiceVersion
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
-		return checker(fetched), nil
-	})
-
-	if err != nil {
-		t.Logf("never got correct status: %#v", fetched.Status)
-	}
-	return fetched, err
-}
-
-func awaitCSV(t *testing.T, c versioned.Interface, namespace, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
-	var fetched *v1alpha1.ClusterServiceVersion
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
-		}
-		t.Logf("%s - %s (%s): %s", name, fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
-		return checker(fetched), nil
-	})
-
-	if err != nil {
-		t.Logf("never got correct status: %#v", fetched.Status)
-	}
-	return fetched, err
-}
-
-func waitForDeployment(t *testing.T, c operatorclient.ClientInterface, name string) error {
-	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		_, err := c.GetDeployment(testNamespace, name)
-		if err != nil {
-			if k8serrors.IsNotFound(err) {
-				return false, nil
-			}
-			return false, err
-		}
-		return true, nil
-	})
-}
-
-func waitForDeploymentToDelete(t *testing.T, c operatorclient.ClientInterface, name string) error {
-	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		t.Logf("waiting for deployment %s to delete", name)
-		_, err := c.GetDeployment(testNamespace, name)
-		if errors.IsNotFound(err) {
-			t.Logf("deleted %s", name)
-			return true, nil
-		}
-		if err != nil {
-			t.Logf("err trying to delete %s: %s", name, err)
-			return false, err
-		}
-		return false, nil
-	})
-}
-
-func waitForCSVToDelete(t *testing.T, c versioned.Interface, name string) error {
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err := c.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(name, metav1.GetOptions{})
-		if errors.IsNotFound(err) {
-			return true, nil
-		}
-		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
-		if err != nil {
-			return false, err
-		}
-		return false, nil
-	})
-
-	return err
-}
 
 func TestCreateCSVWithUnmetRequirementsMinKubeVersion(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
@@ -515,7 +432,7 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 	}
 
 	// Create dependency first (CRD)
-	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+	cleanupCRD, err := createCRD(t, c, apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -869,7 +786,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		Kind:       v1alpha1.ClusterServiceVersionKind,
 		UID:        fetchedCSV.GetUID(),
 	}})
-	cleanupCRD, err := createCRD(c, crd)
+	cleanupCRD, err := createCRD(t, c, crd)
 	defer cleanupCRD()
 	require.NoError(t, err)
 
@@ -972,25 +889,13 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err, "could not create ClusterRoleBinding")
 
 	fmt.Println("checking for deployment")
-	// Poll for deployment to be ready
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		dep, err := c.GetDeployment(testNamespace, depName)
-		if k8serrors.IsNotFound(err) {
-			fmt.Printf("deployment %s not found\n", depName)
-			return false, nil
-		} else if err != nil {
-			fmt.Printf("unexpected error fetching deployment %s\n", depName)
-			return false, err
-		}
-		if dep.Status.UpdatedReplicas == *(dep.Spec.Replicas) &&
+	// Wait for deployment to be ready
+	checkDeployment := func(dep *appsv1.Deployment) bool {
+		return dep.Status.UpdatedReplicas == *(dep.Spec.Replicas) &&
 			dep.Status.Replicas == *(dep.Spec.Replicas) &&
-			dep.Status.AvailableReplicas == *(dep.Spec.Replicas) {
-			fmt.Println("deployment ready")
-			return true, nil
-		}
-		fmt.Println("deployment not ready")
-		return false, nil
-	})
+			dep.Status.AvailableReplicas == *(dep.Spec.Replicas)
+	}
+	_, err = fetchDeployment(t, c, depName, testNamespace, checkDeployment)
 	require.NoError(t, err)
 
 	fetchedCSV, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
@@ -1004,7 +909,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Recreate the CRD
-	cleanupCRD, err = createCRD(c, crd)
+	cleanupCRD, err = createCRD(t, c, crd)
 	require.NoError(t, err)
 	defer cleanupCRD()
 
@@ -1167,13 +1072,8 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 }
 
 func TestCreateCSVWithOwnedAPIService(t *testing.T) {
@@ -1551,8 +1451,7 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 	require.NoError(t, err, "error getting expected extension-apiserver-authentication-reader RoleBinding")
 
 	// Should eventually GC the CSV
-	err = waitForCSVToDelete(t, crc, csv.Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, csvListerWatcher(crc), csv.Name, testNamespace))
 
 	// Rename the initial CSV
 	csv.SetName("csv-hat-3")
@@ -1585,8 +1484,7 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 	})
 	require.NoError(t, err)
 	defer func() {
-		err = c.KubernetesInterface().CoreV1().Namespaces().Delete(secondNamespaceName, &metav1.DeleteOptions{})
-		require.NoError(t, err)
+		require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(secondNamespaceName, &metav1.DeleteOptions{}))
 	}()
 
 	// Create a new operator group for the new namespace
@@ -1604,25 +1502,18 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 	_, err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Create(&operatorGroup)
 	require.NoError(t, err)
 	defer func() {
-		err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
-		require.NoError(t, err)
+		require.NoError(t, crc.OperatorsV1().OperatorGroups(secondNamespaceName).Delete(operatorGroup.Name, &metav1.DeleteOptions{}))
 	}()
 
-	expectedOperatorGroupStatus := v1.OperatorGroupStatus{
-		Namespaces: []string{secondNamespaceName},
-	}
-
 	t.Log("Waiting on new operator group to have correct status")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(secondNamespaceName).Get(operatorGroup.Name, metav1.GetOptions{})
-		if fetchErr != nil {
-			return false, fetchErr
-		}
-		if len(fetched.Status.Namespaces) > 0 {
-			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
-			return true, nil
-		}
-		return false, nil
+	_, err = awaitObject(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1().OperatorGroups(secondNamespaceName).List(options)
+		},
+		WatchFunc: crc.OperatorsV1().OperatorGroups(secondNamespaceName).Watch,
+	}, operatorGroup.Name, secondNamespaceName, func(obj runtime.Object) bool {
+		og := obj.(*v1.OperatorGroup)
+		return len(og.Status.Namespaces) == 1 && og.Status.Namespaces[0] == secondNamespaceName
 	})
 	require.NoError(t, err)
 
@@ -1848,7 +1739,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	// Create dependency first (CRD)
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
-	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+	cleanupCRD, err := createCRD(t, c, apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -2004,7 +1895,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should have updated existing deployment
@@ -2014,13 +1905,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
 
 	// Should eventually GC the CSV
-	err = waitForCSVToDelete(t, crc, csv.Name)
-	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
+	require.NoError(t, awaitDeleted(t, csvListerWatcher(crc), csv.Name, testNamespace))
 }
 
 func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
@@ -2032,7 +1917,7 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	// Create dependency first (CRD)
 	crdPlural := genName("ins2")
 	crdName := crdPlural + ".cluster.com"
-	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+	cleanupCRD, err := createCRD(t, c, apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -2185,24 +2070,17 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 
 	// Should have created new deployment and deleted old
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
-	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, deploymentListerWatcher(c), strategy.DeploymentSpecs[0].Name, testNamespace))
 
 	// Should eventually GC the CSV
-	err = waitForCSVToDelete(t, crc, csv.Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, csvListerWatcher(crc), csv.Name, testNamespace))
 }
 
 func TestUpdateCSVMultipleIntermediates(t *testing.T) {
@@ -2214,7 +2092,7 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	// Create dependency first (CRD)
 	crdPlural := genName("ins3")
 	crdName := crdPlural + ".cluster.com"
-	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+	cleanupCRD, err := createCRD(t, c, apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -2373,24 +2251,17 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 
 	// Should have created new deployment and deleted old
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
-	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, deploymentListerWatcher(c), strategy.DeploymentSpecs[0].Name, testNamespace))
 
 	// Should eventually GC the CSV
-	err = waitForCSVToDelete(t, crc, csv.Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, csvListerWatcher(crc), csv.Name, testNamespace))
 }
 
 func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
@@ -2402,7 +2273,7 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	// Create initial CRD which has 2 versions: v1alpha1 & v1alpha2
 	crdPlural := genName("ins4")
 	crdName := crdPlural + ".cluster.com"
-	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+	cleanupCRD, err := createCRD(t, c, apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -2575,20 +2446,14 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err := fetchCSV(t, crc, csvNew.Name, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 
 	// Should have created new deployment and deleted old one
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
-	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, deploymentListerWatcher(c), strategy.DeploymentSpecs[0].Name, testNamespace))
 
 	// Create updated deployment strategy
 	strategyNew2 := install.StrategyDetailsDeployment{
@@ -2655,23 +2520,17 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	defer cleanupNewCSV()
 
 	// Wait for updated CSV to succeed
-	fetchedCSV, err = fetchCSV(t, crc, csvNew2.Name, testNamespace, csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvNew2.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
-
-	// Fetch cluster service version again to check for unnecessary control loops
-	sameCSV, err = fetchCSV(t, crc, csvNew2.Name, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	compareResources(t, fetchedCSV, sameCSV)
 
 	// Should have created new deployment and deleted old one
 	depNew, err = c.GetDeployment(testNamespace, strategyNew2.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
-	err = waitForDeploymentToDelete(t, c, strategyNew.DeploymentSpecs[0].Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, deploymentListerWatcher(c), strategyNew.DeploymentSpecs[0].Name, testNamespace))
 
 	// Should clean up the CSV
-	err = waitForCSVToDelete(t, crc, csvNew.Name)
+	err = awaitDeleted(t, csvListerWatcher(crc), csv.Name, testNamespace)
 	require.NoError(t, err)
 }
 
@@ -2684,7 +2543,7 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	// Create dependency first (CRD)
 	crdPlural := genName("ins2")
 	crdName := crdPlural + ".cluster.com"
-	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+	cleanupCRD, err := createCRD(t, c, apiextensions.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: crdName,
 		},
@@ -2806,9 +2665,17 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	// Update the current csv with the new csv
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
 	require.NoError(t, err)
+	var lastPhase v1alpha1.ClusterServiceVersionPhase
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, func(obj *v1alpha1.ClusterServiceVersion) bool {
+		if obj.Status.Phase == v1alpha1.CSVPhaseSucceeded && lastPhase == v1alpha1.CSVPhaseInstalling {
+			return true
+		}
+		lastPhase = obj.Status.Phase
+		return false
+	})
 
 	// Wait for new deployment to exist
-	err = waitForDeployment(t, c, strategyNew.DeploymentSpecs[0].Name)
+	_, err = fetchDeployment(t, c, strategyNew.DeploymentSpecs[0].Name, testNamespace, func(d *appsv1.Deployment) bool { return true })
 	require.NoError(t, err)
 
 	// Wait for updated CSV to succeed
@@ -2823,12 +2690,10 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	depNew2, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[1].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew2)
-	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
-	require.NoError(t, err)
+	require.NoError(t, awaitDeleted(t, deploymentListerWatcher(c), strategy.DeploymentSpecs[0].Name, testNamespace))
 }
 
 func TestCreateCSVRequirementsEvents(t *testing.T) {
-	t.Skip()
 	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)

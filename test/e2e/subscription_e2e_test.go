@@ -6,7 +6,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
@@ -16,7 +15,8 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -339,29 +339,6 @@ func subscriptionHasCondition(condType v1alpha1.SubscriptionConditionType, statu
 	}
 }
 
-func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
-	var fetchedSubscription *v1alpha1.Subscription
-	var err error
-
-	log := func(s string) {
-		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
-	}
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
-		if err != nil || fetchedSubscription == nil {
-			return false, err
-		}
-		log(fmt.Sprintf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef))
-		return checker(fetchedSubscription), nil
-	})
-	if err != nil {
-		log(fmt.Sprintf("never got correct status: %#v", fetchedSubscription.Status))
-		log(fmt.Sprintf("subscription spec: %#v", fetchedSubscription.Spec))
-	}
-	return fetchedSubscription, err
-}
-
 func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscription *v1alpha1.Subscription) cleanupFunc {
 	return func() {
 		// Check for an installplan
@@ -451,11 +428,6 @@ func TestCreateNewSubscriptionNotInstalled(t *testing.T) {
 
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
-
-	// Fetch subscription again to check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
-	require.NoError(t, err)
-	compareResources(t, subscription, sameSubscription)
 }
 
 //   I. Creating a new subscription
@@ -483,11 +455,6 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 	require.NotNil(t, subscription)
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
-
-	// check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
-	require.NoError(t, err)
-	compareResources(t, subscription, sameSubscription)
 }
 
 func TestSubscriptionSkipRange(t *testing.T) {
@@ -562,14 +529,14 @@ func TestSubscriptionSkipRange(t *testing.T) {
 	defer subscriptionCleanup()
 
 	// Wait for csv to install
-	firstCSV, err := awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+	firstCSV, err := fetchCSV(t, crc, mainCSV.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Update catalog with a new csv in the channel with a skip range
 	updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
 
 	// Wait for csv to update
-	finalCSV, err := awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+	finalCSV, err := fetchCSV(t, crc, updatedCSV.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Ensure we set the replacement field based on the registry data
@@ -727,7 +694,7 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
 	require.NoError(t, err)
 
-	_, err = awaitCSV(t, crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvA.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Wait for the subscription to begin upgrading to csvB
@@ -743,7 +710,7 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(upgradeInstallPlan)
 	require.NoError(t, err)
 
-	_, err = awaitCSV(t, crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvB.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Ensure that 2 installplans were created
@@ -815,7 +782,7 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	require.NotNil(t, subscription)
 
 	// Wait for csvA to be installed
-	_, err = awaitCSV(t, crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvA.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Set up async watches that will fail the test if csvB doesn't get created in between csvA and csvC
@@ -823,7 +790,7 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	go func(t *testing.T) {
 		wg.Add(1)
 		defer wg.Done()
-		_, err := awaitCSV(t, crc, testNamespace, csvB.GetName(), csvReplacingChecker)
+		_, err := fetchCSV(t, crc, csvB.GetName(), testNamespace, csvAnyChecker)
 		require.NoError(t, err)
 	}(t)
 	// Update the catalog to include multiple updates
@@ -843,13 +810,24 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	wg.Wait()
 
 	// Wait for csvC to be installed
-	_, err = awaitCSV(t, crc, testNamespace, csvC.GetName(), csvSucceededChecker)
+	_, err = fetchCSV(t, crc, csvC.GetName(), testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Should eventually GC the CSVs
-	err = waitForCSVToDelete(t, crc, csvA.Name)
+	err = awaitDeleted(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Watch,
+	}, csvA.Name, testNamespace)
 	require.NoError(t, err)
-	err = waitForCSVToDelete(t, crc, csvB.Name)
+
+	err = awaitDeleted(t, &cache.ListWatch{
+		ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
+			return crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).List(options)
+		},
+		WatchFunc: crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Watch,
+	}, csvB.Name, testNamespace)
 	require.NoError(t, err)
 
 	// TODO: check installplans, subscription status, etc

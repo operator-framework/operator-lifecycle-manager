@@ -51,31 +51,7 @@ func buildInstallPlanCleanupFunc(crc versioned.Interface, namespace string, inst
 		if err := crc.OperatorsV1alpha1().InstallPlans(namespace).Delete(installPlan.GetName(), deleteOptions); err != nil {
 			fmt.Println(err)
 		}
-
-		err := waitForDelete(func() error {
-			_, err := crc.OperatorsV1alpha1().InstallPlans(namespace).Get(installPlan.GetName(), metav1.GetOptions{})
-			return err
-		})
-
-		if err != nil {
-			fmt.Println(err)
-		}
 	}
-}
-
-func fetchInstallPlan(t *testing.T, c versioned.Interface, name string, checkPhase checkInstallPlanFunc) (*v1alpha1.InstallPlan, error) {
-	var fetchedInstallPlan *v1alpha1.InstallPlan
-	var err error
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(testNamespace).Get(name, metav1.GetOptions{})
-		if err != nil || fetchedInstallPlan == nil {
-			return false, err
-		}
-
-		return checkPhase(fetchedInstallPlan), nil
-	})
-	return fetchedInstallPlan, err
 }
 
 func newNginxInstallStrategy(name string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
@@ -298,14 +274,6 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
-	// Fetch installplan again to check for unnecessary control loops
-	fetchedInstallPlan, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-		compareResources(t, fetchedInstallPlan, fip)
-		return true
-	})
-	require.NoError(t, err)
-
 	require.Equal(t, len(expectedStepSources), len(fetchedInstallPlan.Status.Plan), "Number of resolved steps matches the number of expected steps")
 
 	// Ensure resolved step resources originate from the correct catalog sources
@@ -340,7 +308,7 @@ EXPECTED:
 	require.Equal(t, dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
 
 	// Verify CSV is created
-	_, err = awaitCSV(t, crc, testNamespace, dependentCSV.GetName(), csvAnyChecker)
+	_, err = fetchCSV(t, crc, dependentCSV.GetName(), testNamespace, csvAnyChecker)
 	require.NoError(t, err)
 
 	// Update dependent subscription in catalog and wait for csv to update
@@ -368,7 +336,7 @@ EXPECTED:
 	require.NotEqual(t, fetchedInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.GetName())
 
 	// Wait for csv to update
-	_, err = awaitCSV(t, crc, testNamespace, updatedDependentCSV.GetName(), csvAnyChecker)
+	_, err = fetchCSV(t, crc, updatedDependentCSV.GetName(), testNamespace, csvAnyChecker)
 	require.NoError(t, err)
 }
 
@@ -444,7 +412,7 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		}
 
 		// Create the preexisting CRD and CSV
-		cleanupCRD, err := createCRD(c, dependentCRD)
+		cleanupCRD, err := createCRD(t, c, dependentCRD)
 		require.NoError(t, err)
 		defer cleanupCRD()
 		cleanupCSV, err := createCSV(t, c, crc, dependentBetaCSV, testNamespace, true, false)
@@ -468,14 +436,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
-		// Fetch installplan again to check for unnecessary control loops
-		fetchedInstallPlan, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-			compareResources(t, fetchedInstallPlan, fip)
-			return true
-		})
-		require.NoError(t, err)
-
 		for _, step := range fetchedInstallPlan.Status.Plan {
 			t.Logf("%#v", step)
 		}
@@ -625,13 +585,6 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
-
-		// Fetch installplan again to check for unnecessary control loops
-		fetchedInstallPlan, err = fetchInstallPlan(t, crc, fetchedInstallPlan.GetName(), func(fip *v1alpha1.InstallPlan) bool {
-			compareResources(t, fetchedInstallPlan, fip)
-			return true
-		})
-		require.NoError(t, err)
 
 		// Ensure correct in-cluster resource(s)
 		fetchedCSV, err := fetchCSV(t, crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
