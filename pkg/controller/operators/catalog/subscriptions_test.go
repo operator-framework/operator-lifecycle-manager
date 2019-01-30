@@ -3,6 +3,7 @@ package catalog
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/api/core/v1"
@@ -16,6 +17,9 @@ import (
 )
 
 func TestSyncSubscriptions(t *testing.T) {
+	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
+	timeNow = func() metav1.Time { return nowTime }
+
 	testNamespace := "testNamespace"
 	type fields struct {
 		sourcesLastUpdate metav1.Time
@@ -78,6 +82,10 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 				resolveSubs: []*v1alpha1.Subscription{
 					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -125,11 +133,12 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "csv.v.1",
-						State:      "SubscriptionStateAtLatest",
+						State:      v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
+						LastUpdated: nowTime,
 					},
 				},
 			},
@@ -207,6 +216,10 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 				resolveSubs: []*v1alpha1.Subscription{
 					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -254,11 +267,12 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "csv.v.2",
-						State:      "SubscriptionStateAtLatest",
+						State:      v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
+						LastUpdated: nowTime,
 					},
 				},
 			},
@@ -360,6 +374,10 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 				resolveSubs: []*v1alpha1.Subscription{
 					{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -407,11 +425,12 @@ func TestSyncSubscriptions(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CurrentCSV: "csv.v.2",
-						State:      "SubscriptionStateAtLatest",
+						State:      v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
+						LastUpdated: nowTime,
 					},
 				},
 			},

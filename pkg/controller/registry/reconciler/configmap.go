@@ -91,9 +91,9 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 		Spec: v1.PodSpec{
 			Containers: []v1.Container{
 				{
-					Name:  "configmap-registry-server",
-					Image: image,
-					Args:  []string{"-c", s.Spec.ConfigMap, "-n", s.GetNamespace()},
+					Name:    "configmap-registry-server",
+					Image:   image,
+					Command: []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()},
 					Ports: []v1.ContainerPort{
 						{
 							Name:          "grpc",

@@ -105,6 +105,8 @@ spec:
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.
 
+Catalogs are served internally over a grpc interface to OLM from [operator-registry](https://github.com/operator-framework/operator-registry) pods.
+
 ### User Interface
 
 Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
