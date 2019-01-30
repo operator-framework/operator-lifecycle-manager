@@ -1,5 +1,3 @@
-##---
-# Source: olm/templates/image-references
 
 kind: ImageStream
 apiVersion: image.openshift.io/v1
@@ -9,3 +7,8 @@ spec:
     from:
       kind: DockerImage
       name:  quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
+  tags:
+  - name: operator-registry
+    from:
+      kind: DockerImage
+      name: quay.io/operatorframework/configmap-operator-registry:latest

@@ -7,4 +7,9 @@ spec:
     from:
       kind: DockerImage
       name:  {{ .Values.olm.image.ref }}
+  tags:
+  - name: operator-registry
+    from:
+      kind: DockerImage
+      name: quay.io/operatorframework/configmap-operator-registry:latest
 {{- end }}

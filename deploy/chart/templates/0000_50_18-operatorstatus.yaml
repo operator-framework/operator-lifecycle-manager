@@ -1,0 +1,6 @@
+{{- if .Values.imagestream }}
+apiVersion: config.openshift.io/v1
+kind: ClusterOperator
+metadata:
+  name: {{ .Values.writeStatusName }}
+{{- end }}

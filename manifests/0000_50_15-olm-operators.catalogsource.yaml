@@ -1,7 +1,3 @@
-##---
-# Source: olm/templates/0000_50_15-olm-operators.catalogsource.yaml
-#! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
-#! parse-kind: CatalogSource
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:

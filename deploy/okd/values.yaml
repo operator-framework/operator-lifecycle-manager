@@ -3,6 +3,7 @@ namespace: openshift-operator-lifecycle-manager
 catalog_namespace: openshift-operator-lifecycle-manager
 operator_namespace: openshift-operators
 imagestream: false
+writeStatusName: operator-lifecycle-manager
 olm:
   replicaCount: 1
   image:
