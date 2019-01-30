@@ -118,6 +118,10 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 					},
 				},
 			},
+			NodeSelector: map[string]string{
+				"beta.kubernetes.io/os":          "linux",
+				"node-role.kubernetes.io/master": "",
+			},
 			ServiceAccountName: s.GetName() + "-configmap-server",
 		},
 	}
