@@ -235,7 +235,7 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion,
 	return nil
 }
 
-func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup) error {
+func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, pruneNamespaces []string) error {
 	opPerms, err := resolver.RBACForClusterServiceVersion(csv)
 	if err != nil {
 		return err
@@ -261,7 +261,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	for _, ns := range targetNamespaces {
 		for _, p := range opPerms {
 			// TODO: See previous TODO
-			if err := a.ensureTenantRBAC(operatorGroup.GetNamespace(), ns, csv, *p); err != nil {
+			if err := a.ensureTenantRBAC(operatorGroup.GetNamespace(), ns, csv, *p, pruneNamespaces); err != nil {
 				return err
 			}
 		}
@@ -342,7 +342,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 }
 
 // TODO: Why is this taking permissions and not using it?
-func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, csv *v1alpha1.ClusterServiceVersion, permissions resolver.OperatorPermissions) error {
+func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, csv *v1alpha1.ClusterServiceVersion, permissions resolver.OperatorPermissions, pruneNamespaces []string) error {
 	ownerSelector := ownerutil.CSVOwnerSelector(csv)
 	ownedRoles, err := a.lister.RbacV1().RoleLister().Roles(operatorNamespace).List(ownerSelector)
 	if err != nil {
@@ -358,6 +358,16 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		if err != nil {
 			r.SetNamespace(targetNamespace)
 			if _, err := a.OpClient.CreateRole(r); err != nil {
+				return err
+			}
+		}
+		for _, ns := range pruneNamespaces {
+			_, err := a.lister.RbacV1().RoleLister().Roles(ns).Get(r.GetName())
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
+			a.Log.Debugf("Found role '%v' in namespace %v to delete", r.GetName(), ns)
+			if err := a.OpClient.DeleteRole(ns, r.GetName(), &metav1.DeleteOptions{}); err != nil {
 				return err
 			}
 		}
@@ -384,22 +394,36 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 			}
 			// TODO check rules
 		}
+		for _, ns := range pruneNamespaces {
+			_, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(ns).Get(r.GetName())
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
+			a.Log.Debugf("Found rolebinding '%v' in namespace %v to delete", r.GetName(), ns)
+			if err := a.OpClient.DeleteRoleBinding(ns, r.GetName(), &metav1.DeleteOptions{}); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
 
-func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup) error {
-	namespaces := make([]string, 0)
-	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
-		namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
+func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, namespaces []string, pruneNamespaces []string) error {
+	// check for stale CSVs from a different previous operator group configuration
+	for _, ns := range pruneNamespaces {
+		fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).List(labels.Everything())
 		if err != nil {
 			return err
 		}
-		for _, ns := range namespaceObjs {
-			namespaces = append(namespaces, ns.GetName())
+		for _, csv := range fetchedCSVs {
+			if csv.IsCopied() && csv.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey] == operatorGroup.GetName() {
+				a.Log.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), ns)
+				err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(csv.GetName(), &metav1.DeleteOptions{})
+				if err != nil {
+					return err
+				}
+			}
 		}
-	} else {
-		namespaces = operatorGroup.Status.Namespaces
 	}
 
 	logger := a.Log.WithField("operator-ns", operatorGroup.GetNamespace())
@@ -489,6 +513,21 @@ func (a *Operator) copyOperatorGroupAnnotations(obj *metav1.ObjectMeta) map[stri
 		}
 	}
 	return copiedAnnotations
+}
+
+// returns items in a that are not in b
+func sliceCompare(a, b []string) []string {
+	mb := make(map[string]struct{})
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	ab := []string{}
+	for _, x := range a {
+		if _, ok := mb[x]; !ok {
+			ab = append(ab, x)
+		}
+	}
+	return ab
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
