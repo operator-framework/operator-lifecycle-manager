@@ -829,11 +829,7 @@ func (d *bincDecDriver) decodeExtV(verifyTag bool, tag byte) (xtag byte, xbs []b
 			d.d.errorf("wrong extension tag - got %b, expecting: %v", xtag, tag)
 			return
 		}
-		if d.br {
-			xbs = d.r.readx(l)
-		} else {
-			xbs = decByteSlice(d.r, l, d.d.h.MaxInitLen, d.d.b[:])
-		}
+		xbs = d.r.readx(l)
 	} else if d.vd == bincVdByteArray {
 		xbs = d.DecodeBytes(nil, true)
 	} else {
@@ -916,11 +912,7 @@ func (d *bincDecDriver) DecodeNaked() {
 		n.v = valueTypeExt
 		l := d.decLen()
 		n.u = uint64(d.r.readn1())
-		if d.br {
-			n.l = d.r.readx(l)
-		} else {
-			n.l = decByteSlice(d.r, l, d.d.h.MaxInitLen, d.d.b[:])
-		}
+		n.l = d.r.readx(l)
 	case bincVdArray:
 		n.v = valueTypeArray
 		decodeFurther = true
