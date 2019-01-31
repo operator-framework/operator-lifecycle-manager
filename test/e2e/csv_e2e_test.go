@@ -221,6 +221,28 @@ func fetchCSV(t *testing.T, c versioned.Interface, name, namespace string, check
 	return fetched, err
 }
 
+func awaitCSV(t *testing.T, c versioned.Interface, namespace, name string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
+	var fetched *v1alpha1.ClusterServiceVersion
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err = c.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		} 
+		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+		return checker(fetched), nil
+	})
+
+	if err != nil {
+		t.Logf("never got correct status: %#v", fetched.Status)
+	}
+	return fetched, err
+}
+
 func waitForDeploymentToDelete(t *testing.T, c operatorclient.ClientInterface, name string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("waiting for deployment %s to delete", name)

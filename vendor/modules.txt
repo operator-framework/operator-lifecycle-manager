@@ -134,7 +134,7 @@ github.com/openshift/client-go/config/clientset/versioned/scheme
 # github.com/openshift/library-go v0.0.0-20190125204812-22b2ba2f485f
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/operator/v1helpers
-# github.com/operator-framework/operator-registry v1.0.4
+# github.com/operator-framework/operator-registry v1.0.5
 github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1
 github.com/operator-framework/operator-registry/pkg/client
 github.com/operator-framework/operator-registry/pkg/registry

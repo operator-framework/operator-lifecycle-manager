@@ -82,16 +82,17 @@ func (s APIMultiOwnerSet) PopAPIRequirers() OperatorSet {
 }
 
 type OperatorSourceInfo struct {
-	Package string
-	Channel string
-	Catalog CatalogKey
+	Package     string
+	Channel     string
+	StartingCSV string
+	Catalog     CatalogKey
 }
 
 func (i *OperatorSourceInfo) String() string {
 	return fmt.Sprintf("%s/%s in %s/%s", i.Package, i.Channel, i.Catalog.Name, i.Catalog.Namespace)
 }
 
-var ExistingOperator = OperatorSourceInfo{"", "", CatalogKey{"", ""}}
+var ExistingOperator = OperatorSourceInfo{"", "", "", CatalogKey{"", ""}}
 
 // OperatorSurface describes the API surfaces provided and required by an Operator.
 type OperatorSurface interface {
@@ -114,7 +115,7 @@ type Operator struct {
 
 var _ OperatorSurface = &Operator{}
 
-func NewOperatorFromBundle(bundle *opregistry.Bundle, sourceKey CatalogKey) (*Operator, error) {
+func NewOperatorFromBundle(bundle *opregistry.Bundle, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
 	csv, err := bundle.ClusterServiceVersion()
 	if err != nil {
 		return nil, err
@@ -134,9 +135,10 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, sourceKey CatalogKey) (*Op
 		requiredAPIs: requiredAPIs,
 		bundle:       bundle,
 		sourceInfo: &OperatorSourceInfo{
-			Package: bundle.Package,
-			Channel: bundle.Channel,
-			Catalog: sourceKey,
+			Package:     bundle.Package,
+			Channel:     bundle.Channel,
+			StartingCSV: startingCSV,
+			Catalog:     sourceKey,
 		},
 	}, nil
 }

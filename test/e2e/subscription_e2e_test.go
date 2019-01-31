@@ -3,7 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"testing"
-
+	
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
@@ -12,9 +12,9 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -369,7 +369,7 @@ func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, 
 	return buildSubscriptionCleanupFunc(t, crc, subscription)
 }
 
-func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespace, name, catalog, packageName, channel string, approval v1alpha1.Approval) cleanupFunc {
+func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.SubscriptionKind,
@@ -384,6 +384,7 @@ func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespa
 			CatalogSourceNamespace: testNamespace,
 			Package:                packageName,
 			Channel:                channel,
+			StartingCSV: 			startingCSV,
 			InstallPlanApproval:    approval,
 		},
 	}
@@ -489,3 +490,118 @@ func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
 }
+
+func TestSusbcriptionWithStartingCSV(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
+	// Create CSV
+	packageName := genName("nginx-")
+	stableChannel := "stable"
+
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	csvA := newCSV("nginx-a", testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvB := newCSV("nginx-b", testNamespace, "nginx-a", *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	
+	// Create PackageManifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvB.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the CatalogSource
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	catalogSourceName := genName("mock-nginx-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	defer cleanupCatalogSource()
+
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("sub-nginx-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalManual)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	installPlanName := subscription.Status.Install.Name
+
+	// Wait for InstallPlan to be status: Complete before checking resource presence
+	requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, requiresApprovalChecker)
+	require.NoError(t, err)
+
+	// Ensure that csvA and its crd are found in the plan
+	csvFound := false
+	crdFound := false
+	for _, s := range fetchedInstallPlan.Status.Plan {
+		require.Equal(t, csvA.GetName(), s.Resolving, "unexpected resolution found")
+		require.Equal(t, v1alpha1.StepStatusUnknown, s.Status, "status should be unknown")
+		require.Equal(t, catalogSourceName, s.Resource.CatalogSource,  "incorrect catalogsource on step resource")
+		switch kind := s.Resource.Kind; kind {
+		case v1alpha1.ClusterServiceVersionKind:
+			require.Equal(t, csvA.GetName(), s.Resource.Name, "unexpected csv found")
+			csvFound = true
+		case "CustomResourceDefinition":
+			require.Equal(t, crdName, s.Resource.Name, "unexpected crd found")
+			crdFound = true
+		default:
+			t.Fatalf("unexpected resource kind found in installplan: %s", kind)
+		}
+	}
+	require.True(t, csvFound, "expected csv not found in installplan")
+	require.True(t, crdFound, "expected crd not found in installplan")
+
+	// Approve the installplan and wait for csvA to be installed
+	fetchedInstallPlan.Spec.Approved = true
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
+	require.NoError(t, err)
+
+	_, err = awaitCSV(t, crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Wait for the subscription to begin upgrading to csvB
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+	require.NoError(t, err)
+	require.NotEqual(t, fetchedInstallPlan.GetName(), subscription.Status.Install.Name, "expected new installplan for upgraded csv")
+
+	upgradeInstallPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, requiresApprovalChecker)
+	require.NoError(t, err)
+
+	// Approve the upgrade installplan and wait for
+	upgradeInstallPlan.Spec.Approved = true
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(upgradeInstallPlan)
+	require.NoError(t, err)
+
+	_, err = awaitCSV(t, crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+}
+

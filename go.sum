@@ -166,8 +166,8 @@ github.com/openshift/library-go v0.0.0-20190125204812-22b2ba2f485f/go.mod h1:NBt
 github.com/operator-framework/operator-lifecycle-manager v0.0.0-20181023032605-e838f7fb2186/go.mod h1:Ma5ZXd4S1vmMyewWlF7aO8CZiokR7Sd8dhSfkGkNU4U=
 github.com/operator-framework/operator-lifecycle-manager v0.0.0-20190105193533-81104ffdc4fb/go.mod h1:XMyE4n2opUK4N6L45YGQkXXi8F9fD7XDYFv/CsS6V5I=
 github.com/operator-framework/operator-registry v1.0.1/go.mod h1:1xEdZjjUg2hPEd52LG3YQ0jtwiwEGdm98S1TH5P4RAA=
-github.com/operator-framework/operator-registry v1.0.4 h1:/xOuw0AFrnV/zjZQeEGtX/xH/ZoLOrNZqWaYU5bRQwM=
-github.com/operator-framework/operator-registry v1.0.4/go.mod h1:hve6YwcjM2nGVlscLtNsp9sIIBkNZo6jlJgzWw7vP9s=
+github.com/operator-framework/operator-registry v1.0.5 h1:LKhQvSeA3/PHSThchV6rquS8jy2ocvYRHqqCikkyumE=
+github.com/operator-framework/operator-registry v1.0.5/go.mod h1:hve6YwcjM2nGVlscLtNsp9sIIBkNZo6jlJgzWw7vP9s=
 github.com/pborman/uuid v1.2.0 h1:J7Q5mO4ysT1dv8hyrUGHb9+ooztCXu1D8MY8DZYsu3g=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
 github.com/petar/GoLLRB v0.0.0-20130427215148-53be0d36a84c/go.mod h1:HUpKUBZnpzkdx0kD/+Yfuft+uD3zHGtXF/XJB14TUr4=
@@ -288,7 +288,7 @@ k8s.io/apimachinery v0.0.0-20190118094746-1525e4dadd2d/go.mod h1:ccL7Eh7zubPUSh9
 k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170 h1:CqI85nZvPaV+7JFono0nAOGOx2brocqefcOhDPVhHKI=
 k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170/go.mod h1:6bqaTSOSJavUIXUtfaR9Os9JtTCm8ZqH2SUl2S60C4w=
 k8s.io/client-go v0.0.0-20180718001006-59698c7d9724/go.mod h1:7vJpHMYJwNQCWgzmNV+VYUl1zCObLyodBc8nIyt8L5s=
-k8s.io/client-go v8.0.0+incompatible h1:2pUaSg2x6iEHr8cia6zmWhoCXG1EDG9TCx9s//Aq7HY=
+k8s.io/client-go v8.0.0+incompatible h1:tTI4hRmb1DRMl4fG6Vclfdi6nTM82oIrTT7HfitmxC4=
 k8s.io/client-go v8.0.0+incompatible/go.mod h1:7vJpHMYJwNQCWgzmNV+VYUl1zCObLyodBc8nIyt8L5s=
 k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3 h1:f/Aa24HPnPEDWia884BCF94E1b29KYjOTVTHcBzvT2Q=
 k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3/go.mod h1:MYiN+ZJZ9HkETbgVZdWw2AsuAi9PZ4V80cwfuf2axe8=

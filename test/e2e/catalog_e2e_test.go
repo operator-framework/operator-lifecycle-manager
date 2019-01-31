@@ -214,7 +214,7 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 
 	// Create Subscription
 	subscriptionName := genName("sub-")
-	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, fetchedUpdatedCatalog.GetName(), mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
@@ -302,7 +302,7 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 
 	// Create Subscription
 	subscriptionName := genName("sub-")
-	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, v1alpha1.ApprovalAutomatic)
+	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)

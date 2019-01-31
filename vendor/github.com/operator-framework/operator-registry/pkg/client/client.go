@@ -11,6 +11,7 @@ import (
 )
 
 type Interface interface {
+	GetBundle(ctx context.Context, packageName, channelName, csvName string) (*registry.Bundle, error)
 	GetBundleInPackageChannel(ctx context.Context, packageName, channelName string) (*registry.Bundle, error)
 	GetReplacementBundleInPackageChannel(ctx context.Context, currentName, packageName, channelName string) (*registry.Bundle, error)
 	GetBundleThatProvides(ctx context.Context, group, version, kind string) (*registry.Bundle, error)
@@ -23,6 +24,14 @@ type Client struct {
 }
 
 var _ Interface = &Client{}
+
+func (c *Client) GetBundle(ctx context.Context, packageName, channelName, csvName string) (*registry.Bundle, error) {
+	bundle, err := c.Registry.GetBundle(ctx, &api.GetBundleRequest{PkgName: packageName, ChannelName: channelName, CsvName: csvName})
+	if err != nil {
+		return nil, err
+	}
+	return registry.NewBundleFromStrings(bundle.CsvName, bundle.PackageName, bundle.ChannelName, bundle.Object)
+}
 
 func (c *Client) GetBundleInPackageChannel(ctx context.Context, packageName, channelName string) (*registry.Bundle, error) {
 	bundle, err := c.Registry.GetBundleForChannel(ctx, &api.GetBundleInChannelRequest{PkgName: packageName, ChannelName: channelName})

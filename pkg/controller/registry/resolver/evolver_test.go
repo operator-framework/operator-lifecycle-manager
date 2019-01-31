@@ -55,7 +55,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -68,9 +68,66 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
-				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", nil, nil, nil, nil),
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", "", nil, nil, nil, nil),
 			),
+		},
+		{
+			name: "NoNewRequiredAPIs/StartingCSV",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundle("csv1", "p", "c", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+						bundle("nothing.v1", "nothing", "channel", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+						bundle("nothing.v2", "nothing", "channel", "nothing.v1", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+					},
+				}),
+				gen: NewGenerationFromOperators(
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				),
+			},
+			args: args{
+				add: map[OperatorSourceInfo]struct{}{
+					OperatorSourceInfo{
+						Package:     "nothing",
+						Channel:     "channel",
+						StartingCSV: "nothing.v1",
+						Catalog:     CatalogKey{"catsrc", "catsrc-namespace"},
+					}: {},
+				},
+			},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", "nothing.v1", nil, nil, nil, nil),
+			),
+		},
+		{
+			name: "NoNewRequiredAPIs/StartingCSV/NotFound",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundle("csv1", "p", "c", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+						bundle("nothing.v2", "nothing", "channel", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
+					},
+				}),
+				gen: NewGenerationFromOperators(
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				),
+			},
+			args: args{
+				add: map[OperatorSourceInfo]struct{}{
+					OperatorSourceInfo{
+						Package:     "nothing",
+						Channel:     "channel",
+						StartingCSV: "nothing.v1",
+						Catalog:     CatalogKey{"catsrc", "catsrc-namespace"},
+					}: {},
+				},
+			},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+			),
+			wantErr: fmt.Errorf("{nothing channel nothing.v1 {catsrc catsrc-namespace}} not found: no bundle found"),
 		},
 		{
 			// the incoming subscription requires apis that can't be found
@@ -106,7 +163,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -119,7 +176,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 			),
 		},
 		{
@@ -145,8 +202,8 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 			),
 		},
 		{
@@ -207,9 +264,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
-				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
+				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil, nil),
 			),
 		},
 		{
@@ -243,9 +300,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}),
-				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}),
+				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil),
 			),
 		},
 		{
@@ -265,8 +322,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("original", "o", "c", "", "s",
-						[]opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
+					NewFakeOperatorSurface("original", "o", "c", "", "s", "", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -279,10 +335,10 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("original", "o", "c", "", "s", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
-				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil),
+				NewFakeOperatorSurface("original", "o", "c", "", "s", "", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
+				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil),
 			),
 		},
 		{
@@ -299,7 +355,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", nil, nil, nil, nil),
+					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -312,9 +368,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("updated", "o", "c", "original", "catsrc", nil, nil, nil, nil),
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("updated", "o", "c", "original", "catsrc", "", nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 			),
 		},
 	}

@@ -150,10 +150,11 @@ container-mockgen:
 	docker build -t olm:mockgen -f mockgen.Dockerfile .
 	docker run --name temp-mockgen olm:mockgen /bin/true
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/client-go/listers/. ./pkg/fakes/client-go/listers
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/mock_client.go ./pkg/lib/operatorclient/mock_client.go
 	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes/.
+	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes/fake_registry_client.go ./pkg/controller/registry/resolver/fakes/fake_registry_client.go
+	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/fakes/fake_registry_client.go ./pkg/package-server/client/fakes/fake_registry_client.go
 	docker rm temp-mockgen
 
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566

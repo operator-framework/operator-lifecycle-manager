@@ -372,7 +372,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromBundle(tt.args.bundle, tt.args.sourceKey)
+			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey)
 			require.Equal(t, tt.wantErr, err)
 			require.Equal(t, tt.want, got)
 		})

@@ -40,7 +40,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		return nil, nil, err
 	}
 
-	// create a generation - an representation of the current set of installed operators and their provided/required apis
+	// create a generation - a representation of the current set of installed operators and their provided/required apis
 	csvs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, nil, err
@@ -68,7 +68,6 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 
 	// if there's no error, we were able to satsify all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
-
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
 	for name, op := range gen.Operators() {
@@ -112,7 +111,6 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		if subExists && existingSubscription.Status.CurrentCSV != op.Identifier() {
 			existingSubscription.Status.CurrentCSV = op.Identifier()
 			updatedSubs = append(updatedSubs, existingSubscription)
-			continue
 		}
 	}
 
@@ -129,7 +127,6 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoForNewSubscriptions(namespace stri
 		csv, err := r.csvLister.ClusterServiceVersions(namespace).Get(sub.Status.CurrentCSV)
 		if csv == nil || errors.IsNotFound(err) {
 			add[key] = struct{}{}
-			continue
 		}
 	}
 	return
@@ -138,9 +135,16 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoForNewSubscriptions(namespace stri
 func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscription) (add map[OperatorSourceInfo]*v1alpha1.Subscription) {
 	add = make(map[OperatorSourceInfo]*v1alpha1.Subscription)
 	for _, s := range subs {
+		startingCSV := s.Spec.StartingCSV
+		if s.Status.CurrentCSV != "" {
+			// If a csv has previously been resolved for the operator, don't enable 
+			// a starting csv search.
+			startingCSV = ""
+		}
 		add[OperatorSourceInfo{
 			Package: s.Spec.Package,
 			Channel: s.Spec.Channel,
+			StartingCSV: startingCSV,
 			Catalog: CatalogKey{Name: s.Spec.CatalogSource, Namespace: s.Spec.CatalogSourceNamespace},
 		}] = s.DeepCopy()
 	}

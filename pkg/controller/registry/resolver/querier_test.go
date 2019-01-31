@@ -170,7 +170,14 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	initialSource := fakes.FakeInterface{}
 	otherSource := fakes.FakeInterface{}
 	initalBundle := opregistry.NewBundle("test", "testPkg", "testChannel")
+	startingBundle := opregistry.NewBundle("starting-test", "testPkg", "testChannel")
 	otherBundle := opregistry.NewBundle("other", "otherPkg", "otherChannel")
+	initialSource.GetBundleStub = func(ctx context.Context, pkgName, channelName, csvName string) (*opregistry.Bundle, error) {
+		if csvName != startingBundle.Name {
+			return nil, fmt.Errorf("not found")
+		}
+		return startingBundle, nil
+	}
 	initialSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
 		if pkgName != initalBundle.Name {
 			return nil, fmt.Errorf("not found")
@@ -196,6 +203,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	type args struct {
 		pkgName       string
 		channelName   string
+		startingCSV   string
 		initialSource CatalogKey
 	}
 	type out struct {
@@ -210,27 +218,39 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 		out    out
 	}{
 		{
-			name:   "inInitial",
+			name:   "Initial/Found",
 			fields: fields{sources: sources},
-			args:   args{"test", "testChannel", CatalogKey{"initial", "ns"}},
+			args:   args{"test", "testChannel", "", CatalogKey{"initial", "ns"}},
 			out:    out{bundle: initalBundle, key: &initialKey, err: nil},
 		},
 		{
-			name:   "inInitial",
+			name:   "Initial/CatalogNotFound",
 			fields: fields{sources: sources},
-			args:   args{"test", "testChannel", CatalogKey{"absent", "found"}},
+			args:   args{"test", "testChannel", "", CatalogKey{"absent", "found"}},
 			out:    out{bundle: nil, key: nil, err: fmt.Errorf("CatalogSource {absent found} not found")},
 		},
 		{
-			name:   "inOther",
+			name:   "Initial/StartingCSVFound",
 			fields: fields{sources: sources},
-			args:   args{"other", "testChannel", CatalogKey{"", ""}},
+			args:   args{"test", "testChannel", "starting-test", CatalogKey{"initial", "ns"}},
+			out:    out{bundle: startingBundle, key: &initialKey, err: nil},
+		},
+		{
+			name:   "Initial/StartingCSVNotFound",
+			fields: fields{sources: sources},
+			args:   args{"test", "testChannel", "non-existent", CatalogKey{"initial", "ns"}},
+			out:    out{bundle: nil, key: nil, err: fmt.Errorf("not found")},
+		},
+		{
+			name:   "Other/Found",
+			fields: fields{sources: sources},
+			args:   args{"other", "testChannel", "", CatalogKey{"", ""}},
 			out:    out{bundle: otherBundle, key: &otherKey, err: nil},
 		},
 		{
-			name:   "inNone",
+			name:   "NotFound",
 			fields: fields{sources: sources},
-			args:   args{"nope", "not", CatalogKey{"", ""}},
+			args:   args{"nope", "not", "", CatalogKey{"", ""}},
 			out:    out{bundle: nil, err: fmt.Errorf("nope/not not found in any available CatalogSource")},
 		},
 	}
@@ -239,9 +259,16 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
 			}
-			got, key, err := q.FindPackage(tt.args.pkgName, tt.args.channelName, tt.args.initialSource)
-			require.Equal(t, tt.out.bundle, got)
+			var got *opregistry.Bundle
+			var key *CatalogKey
+			var err error
+			if tt.args.startingCSV != "" {
+				got, key, err = q.FindBundle(tt.args.pkgName, tt.args.channelName, tt.args.startingCSV, tt.args.initialSource)
+			} else {
+				got, key, err = q.FindLatestBundle(tt.args.pkgName, tt.args.channelName, tt.args.initialSource)
+			}
 			require.Equal(t, tt.out.err, err)
+			require.Equal(t, tt.out.bundle, got)
 			require.Equal(t, tt.out.key, key)
 		})
 	}

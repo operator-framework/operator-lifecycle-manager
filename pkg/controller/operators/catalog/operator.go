@@ -530,12 +530,13 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
 	resolverSources := o.ensureResolverSources(logger, namespace)
+	querier := resolver.NewNamespaceSourceQuerier(resolverSources)
 
 	logger.Debug("checking if subscriptions need update")
 
 	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace).List(labels.Everything())
 	if err != nil {
-		logger.WithError(err).Debug("couldn't list subscriptions")
+		logger.WithError(err).Debug("couldn't list subscriptions")	
 		return err
 	}
 
@@ -557,7 +558,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		subscriptionUpdated = subscriptionUpdated || changedIp
 
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
-		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub)
+		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub, querier)
 		if err != nil {
 			return err
 		}
@@ -581,7 +582,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, updatedSubs, err := o.resolver.ResolveSteps(namespace, resolver.NewNamespaceSourceQuerier(resolverSources))
+	steps, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
 		return err
 	}
@@ -678,7 +679,7 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
 	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateNone {
+	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
 		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
 		return true
 	}
@@ -721,7 +722,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	return updated, true, nil
 }
 
-func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
+func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha1.Subscription, querier resolver.SourceQuerier) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.CurrentCSV == "" {
 		return sub, false, nil
 	}
@@ -732,11 +733,21 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	} else {
-		out.Status.State = v1alpha1.SubscriptionStateAtLatest
+		// Check if an update is available for the current csv
+		if err := querier.Queryable(); err != nil {
+			return nil, false, err
+		}
+		bundle, _, _ := querier.FindReplacement(sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{sub.Spec.CatalogSource, sub.Spec.CatalogSourceNamespace})
+		if bundle != nil {
+			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
+		} else {
+			out.Status.State = v1alpha1.SubscriptionStateAtLatest
+		}
+		
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
 	}
 
-	if sub.Status.State == out.Status.State && sub.Status.InstalledCSV == out.Status.InstalledCSV {
+	if sub.Status.State == out.Status.State {
 		// The subscription status represents the cluster state
 		return sub, false, nil
 	}

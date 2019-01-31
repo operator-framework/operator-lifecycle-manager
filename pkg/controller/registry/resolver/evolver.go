@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/pkg/errors"
 )
 
@@ -60,7 +61,7 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 			continue
 		}
 
-		o, err := NewOperatorFromBundle(bundle, *key)
+		o, err := NewOperatorFromBundle(bundle, op.SourceInfo().StartingCSV, *key)
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
@@ -76,14 +77,20 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 
 func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]struct{}) error {
 	for s := range add {
-		bundle, key, err := e.querier.FindPackage(s.Package, s.Channel, s.Catalog)
-
+		var bundle *opregistry.Bundle
+		var key *CatalogKey
+		var err error
+		if s.StartingCSV != "" {
+			bundle, key, err = e.querier.FindBundle(s.Package, s.Channel, s.StartingCSV, s.Catalog)
+		} else {
+			bundle, key, err = e.querier.FindLatestBundle(s.Package, s.Channel, s.Catalog)
+		}
 		if err != nil {
 			// TODO: log or collect warnings
 			return errors.Wrapf(err, "%s not found", s)
 		}
 
-		o, err := NewOperatorFromBundle(bundle, *key)
+		o, err := NewOperatorFromBundle(bundle, s.StartingCSV, *key)
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
@@ -109,7 +116,7 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 		// attempt to find a bundle that provides that api
 		if bundle, key, err := e.querier.FindProvider(*api); err == nil {
 			// add a bundle that provides the api to the generation
-			o, err := NewOperatorFromBundle(bundle, *key)
+			o, err := NewOperatorFromBundle(bundle, "", *key)
 			if err != nil {
 				return errors.Wrap(err, "error parsing bundle")
 			}
