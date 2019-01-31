@@ -18,6 +18,7 @@ olm:
 
 catalog:
   replicaCount: 1
+  commandArgs: -configmapServerImage=quay.io/operatorframework/configmap-operator-registry:latest
   image:
     ref: quay.io/coreos/olm:master
     pullPolicy: Always
@@ -35,7 +36,3 @@ package:
     internalPort: 5443
   nodeSelector:
     beta.kubernetes.io/os: linux
-
-catalog_sources:
- - rh-operators
- - certified-operators

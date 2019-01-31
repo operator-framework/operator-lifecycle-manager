@@ -1,5 +1,3 @@
-##---
-# Source: olm/templates/0000_50_16-operatorgroup-default.yaml
 apiVersion: operators.coreos.com/v1alpha2
 kind: OperatorGroup
 metadata:

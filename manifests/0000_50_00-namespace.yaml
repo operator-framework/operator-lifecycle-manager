@@ -1,5 +1,3 @@
-##---
-# Source: olm/templates/0000_50_00-namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:

@@ -1,5 +1,3 @@
-##---
-# Source: olm/templates/0000_50_10-olm-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -25,6 +23,8 @@ spec:
           command:
           - /bin/olm
           args:
+          - -writeStatusName
+          - operator-lifecycle-manager
           image: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
           imagePullPolicy: IfNotPresent
           ports:
