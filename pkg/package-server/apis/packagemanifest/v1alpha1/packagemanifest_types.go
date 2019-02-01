@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/coreos/go-semver/semver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -98,6 +99,9 @@ type CSVDescription struct {
 
 	// LongDescription is the CSV's description
 	LongDescription string `json:"description,omitempty"`
+
+	// InstallModes specify supported installation types
+	InstallModes []v1alpha1.InstallMode `json:"installModes,omitempty"`
 }
 
 // AppLink defines a link to an application
