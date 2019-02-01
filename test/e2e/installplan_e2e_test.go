@@ -147,8 +147,9 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 			Namespace: namespace,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces: replaces,
-			Version:  version,
+			Replaces:       replaces,
+			Version:        version,
+			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
