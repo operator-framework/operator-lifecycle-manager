@@ -159,11 +159,24 @@ func schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref comm
 							Format:      "",
 						},
 					},
+					"installModes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallModes specify supported installation types",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode"),
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.Icon"},
 	}
 }
 
