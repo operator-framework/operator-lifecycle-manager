@@ -1,16 +1,16 @@
-##---
-# Source: olm/templates/0000_50_16-operatorgroup-default.yaml
+---
+# Source: olm/templates/0000_50_12-operatorgroup-default.yaml
 apiVersion: operators.coreos.com/v1alpha2
 kind: OperatorGroup
 metadata:
   name: global-operators
-  namespace: openshift-operators
+  namespace: operators
 ---
 apiVersion: operators.coreos.com/v1alpha2
 kind: OperatorGroup
 metadata:
   name: olm-operators
-  namespace: openshift-operator-lifecycle-manager
+  namespace: olm
 spec:
   targetNamespaces:
-    - openshift-operator-lifecycle-manager
+    - olm

@@ -35,6 +35,7 @@ import (
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -47,6 +48,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
+
 )
 
 // Fakes
@@ -119,7 +122,7 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 }
 
 // NewFakeOperator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, resolver install.StrategyResolverInterface, namespaces []string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, strategyResolver install.StrategyResolverInterface, reconciler resolver.APIIntersectionReconciler, namespaces []string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
 	// Create client fakes
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
@@ -131,13 +134,19 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		return nil, nil, err
 	}
 
+	if reconciler == nil {
+		// Use the default reconciler if one isn't given
+		reconciler = resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection)
+	}
+
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.StandardLogger())
 	op := &Operator{
 		Operator:    queueOperator,
 		client:      clientFake,
+		resolver:    strategyResolver,
+		apiReconciler: reconciler,
 		lister:      operatorlister.NewLister(),
-		resolver:    resolver,
 		csvQueueSet: make(map[string]workqueue.RateLimitingInterface),
 		recorder:    eventRecorder,
 	}
@@ -208,6 +217,12 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 
 func (o *Operator) GetClient() versioned.Interface {
 	return o.client
+}
+
+func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconciliationResult) *fakes.FakeAPIIntersectionReconciler {
+	reconciler := &fakes.FakeAPIIntersectionReconciler{}
+	reconciler.ReconcileReturns(result)
+	return reconciler
 }
 
 // Tests
@@ -407,6 +422,21 @@ func addAnnotations(annotations map[string]string, add map[string]string) map[st
 	return out
 }
 
+func addAnnotation(obj runtime.Object, key string, value string) runtime.Object {
+	meta, ok := obj.(metav1.Object)
+	if !ok {
+		panic("could not find metadata on object")
+	}
+	return withAnnotations(obj, addAnnotations(meta.GetAnnotations(), map[string]string{key: value}))
+}
+
+func csvWithStatusReason(csv *v1alpha1.ClusterServiceVersion, reason v1alpha1.ConditionReason) *v1alpha1.ClusterServiceVersion {
+	out := csv.DeepCopy()
+	out.Status.Reason = reason
+	return csv
+}
+
+
 func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
 	strategy := install.StrategyDetailsDeployment{
@@ -588,13 +618,13 @@ func apiService(group, version, serviceName, serviceNamespace, deploymentName st
 	return apiService
 }
 
-func crd(name string, version string) *v1beta1.CustomResourceDefinition {
+func crd(name, version, group string) *v1beta1.CustomResourceDefinition {
 	return &v1beta1.CustomResourceDefinition{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name + "group",
+			Name: name + "." + group,
 		},
 		Spec: v1beta1.CustomResourceDefinitionSpec{
-			Group: name + "group",
+			Group: group,
 			Versions: []v1beta1.CustomResourceDefinitionVersion{
 				{
 					Name:    version,
@@ -709,6 +739,9 @@ func TestTransitionCSV(t *testing.T) {
 		phase  v1alpha1.ClusterServiceVersionPhase
 		reason v1alpha1.ConditionReason
 	}
+	type operatorConfig struct{
+		reconciler resolver.APIIntersectionReconciler
+	}
 	type initial struct {
 		csvs       []runtime.Object
 		clientObjs []runtime.Object
@@ -722,6 +755,7 @@ func TestTransitionCSV(t *testing.T) {
 	}
 	tests := []struct {
 		name     string
+		config operatorConfig
 		initial  initial
 		expected expected
 	}{
@@ -734,12 +768,12 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseNone,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -761,7 +795,7 @@ func TestTransitionCSV(t *testing.T) {
 						v1alpha1.CSVPhaseNone,
 					), defaultTemplateAnnotations), nil, apis("a1.corev1.a1Kind")),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "a1Kind.corev1.a1")},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -778,14 +812,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -816,14 +850,14 @@ func TestTransitionCSV(t *testing.T) {
 									},
 								},
 							}),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					&corev1.ServiceAccount{
@@ -849,12 +883,12 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds:       []runtime.Object{},
 			},
 			expected: expected{
@@ -944,7 +978,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToFailed/APIService/Owned/DeploymentNotFound",
+			name: "SingleCSVPendingToPending/APIService/Owned/DeploymentNotFound",
 			initial: initial{
 				csvs: []runtime.Object{
 					withAPIServices(csvWithAnnotations(csv("csv1",
@@ -952,14 +986,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("b1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
 					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1,a1Kind.v1.a1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -980,7 +1014,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
@@ -989,14 +1023,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -1024,8 +1058,9 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.NewTime(time.Now().Add(24*time.Hour)), metav1.NewTime(time.Now())),
-					withAPIServices(csvWithAnnotations(csv("csv2",
+					), defaultTemplateAnnotations), 
+						apis("a1.v1.a1Kind"), nil), metav1.NewTime(time.Now().Add(24*time.Hour)), metav1.NewTime(time.Now())),
+						withAPIServices(csvWithAnnotations(csv("csv2",
 						namespace,
 						"0.0.0",
 						"",
@@ -1033,9 +1068,10 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
+					), defaultTemplateAnnotations),
+						apis("a1.v1.a1Kind"), nil),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "a1Kind.v1.a1")},
 				apis:       []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue)},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1098,14 +1134,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1123,12 +1159,12 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", defaultTemplateAnnotations),
 				},
@@ -1148,12 +1184,12 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", defaultTemplateAnnotations),
 				},
@@ -1173,14 +1209,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhasePending,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1221,14 +1257,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
 					), defaultTemplateAnnotations),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1246,14 +1282,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
 				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
+				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1,a1Kind.v1.a1")},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1271,10 +1307,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1322,7 +1358,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1340,10 +1376,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1391,7 +1427,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1409,10 +1445,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1460,7 +1496,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1478,10 +1514,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1529,7 +1565,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1547,10 +1583,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1598,7 +1634,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1616,10 +1652,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1667,7 +1703,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1685,10 +1721,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1736,7 +1772,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1754,10 +1790,10 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
-					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
+					),defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil), metav1.Now(), metav1.Now()),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
@@ -1805,7 +1841,7 @@ func TestTransitionCSV(t *testing.T) {
 					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1823,7 +1859,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
 					), defaultTemplateAnnotations), v1alpha1.CSVReasonUnsupportedOperatorGroup),
@@ -1835,7 +1871,7 @@ func TestTransitionCSV(t *testing.T) {
 					serviceAccount("sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1853,7 +1889,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
 					), defaultTemplateAnnotations), v1alpha1.CSVReasonNoOperatorGroup),
@@ -1865,7 +1901,7 @@ func TestTransitionCSV(t *testing.T) {
 					serviceAccount("sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1883,7 +1919,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseFailed,
 					), defaultTemplateAnnotations), v1alpha1.CSVReasonTooManyOperatorGroups),
@@ -1895,7 +1931,7 @@ func TestTransitionCSV(t *testing.T) {
 					serviceAccount("sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1913,7 +1949,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations), v1alpha1.CSVReasonInstallSuccessful),
@@ -1932,7 +1968,7 @@ func TestTransitionCSV(t *testing.T) {
 					serviceAccount("sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1950,7 +1986,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations), v1alpha1.CSVReasonInstallSuccessful),
@@ -1961,7 +1997,7 @@ func TestTransitionCSV(t *testing.T) {
 					serviceAccount("sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -1982,7 +2018,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations), v1alpha1.CSVReasonInstallSuccessful),
@@ -2010,7 +2046,7 @@ func TestTransitionCSV(t *testing.T) {
 					serviceAccount("sa", namespace),
 				},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -2031,14 +2067,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstallReady,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 			},
 			expected: expected{
@@ -2056,14 +2092,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseInstalling,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2084,7 +2120,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("a1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations), apis("a1.v1.a1Kind"), nil),
@@ -2106,7 +2142,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
@@ -2115,14 +2151,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseNone,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2144,7 +2180,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations),
@@ -2153,14 +2189,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2183,7 +2219,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseDeleting,
 					), defaultTemplateAnnotations),
@@ -2192,14 +2228,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2223,7 +2259,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
@@ -2232,7 +2268,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations),
@@ -2241,14 +2277,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2273,7 +2309,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
@@ -2282,7 +2318,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"",
 						installStrategy("csv1-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseDeleting,
 					), defaultTemplateAnnotations),
@@ -2291,14 +2327,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2323,7 +2359,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations),
@@ -2332,14 +2368,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2363,7 +2399,7 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv1",
 						installStrategy("csv2-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseDeleting,
 					), defaultTemplateAnnotations),
@@ -2372,14 +2408,14 @@ func TestTransitionCSV(t *testing.T) {
 						"0.0.0",
 						"csv2",
 						installStrategy("csv3-dep1", nil, nil),
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
-					crd("c1", "v1"),
+					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
 					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
@@ -2393,6 +2429,301 @@ func TestTransitionCSV(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "SingleCSVNoneToFailed/InterOperatorGroupOwnerConflict",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.APIConflict)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonInterOperatorGroupOwnerConflict},
+				},
+			},
+		},
+		{
+			name: "SingleCSVNoneToNone/AddAPIs",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseNone},
+				},
+			},
+		},
+		{
+			name: "SingleCSVNoneToNone/RemoveAPIs",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseNone},
+				},
+			},
+		},
+		{
+			name: "SingleCSVNoneToFailed/StaticOperatorGroup/AddAPIs",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{
+					func() *v1alpha2.OperatorGroup{
+						// Make the default OperatorGroup static
+						static := defaultOperatorGroup.DeepCopy()
+						static.Spec.StaticProvidedAPIs = true
+						return static
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs},
+				},
+			},
+		},
+		{
+			name: "SingleCSVNoneToFailed/StaticOperatorGroup/RemoveAPIs",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{
+					func() *v1alpha2.OperatorGroup{
+						// Make the default OperatorGroup static
+						static := defaultOperatorGroup.DeepCopy()
+						static.Spec.StaticProvidedAPIs = true
+						return static
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs},
+				},
+			},
+		},
+		{
+			name: "SingleCSVNoneToPending/StaticOperatorGroup/NoAPIConflict",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseNone,
+					), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{
+					func() *v1alpha2.OperatorGroup{
+						// Make the default OperatorGroup static
+						static := defaultOperatorGroup.DeepCopy()
+						static.Spec.StaticProvidedAPIs = true
+						return static
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToPending/InterOperatorGroupOwnerConflict/NoAPIConflict",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csvWithStatusReason(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), v1alpha1.CSVReasonInterOperatorGroupOwnerConflict), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToPending/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/NoAPIConflict",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csvWithStatusReason(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{
+					func() *v1alpha2.OperatorGroup{
+						// Make the default OperatorGroup static
+						static := defaultOperatorGroup.DeepCopy()
+						static.Spec.StaticProvidedAPIs = true
+						return static
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToFailed/InterOperatorGroupOwnerConflict/APIConflict",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.APIConflict)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csvWithStatusReason(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), v1alpha1.CSVReasonInterOperatorGroupOwnerConflict), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonInterOperatorGroupOwnerConflict},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToFailed/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/AddAPIs",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csvWithStatusReason(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{
+					func() *v1alpha2.OperatorGroup{
+						// Make the default OperatorGroup static
+						static := defaultOperatorGroup.DeepCopy()
+						static.Spec.StaticProvidedAPIs = true
+						return static
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs},
+				},
+			},
+		},
+		{
+			name: "SingleCSVFailedToFailed/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/RemoveAPIs",
+			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
+			initial: initial{
+				csvs: []runtime.Object{
+					csvWithAnnotations(csvWithStatusReason(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseFailed,
+					), v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs), defaultTemplateAnnotations),
+				},
+				clientObjs: []runtime.Object{
+					func() *v1alpha2.OperatorGroup{
+						// Make the default OperatorGroup static
+						static := defaultOperatorGroup.DeepCopy()
+						static.Spec.StaticProvidedAPIs = true
+						return static
+					}(),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2403,7 +2734,7 @@ func TestTransitionCSV(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, hasSyncedFns, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			op, hasSyncedFns, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, tt.config.reconciler, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
@@ -2463,7 +2794,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	}
 
-	crd := crd("c1.fake.api.group", "v1")
+	crd := crd("c1", "v1", "fake.api.group")
 	operatorCSV := csv("csv1",
 		operatorNamespace,
 		"0.0.0",
@@ -2980,6 +3311,177 @@ func TestSyncOperatorGroups(t *testing.T) {
 			}},
 		},
 		{
+			name:          "AllNamespaces/CSVPresent/Found/PruneMissingProvidedAPI",
+			expectedEqual: true,
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						Labels:    map[string]string{"app": "app-a"},
+						Annotations: map[string]string{
+							v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: "c1.v1.fake.api.group,missing.v1.fake.api.group",
+						},
+					},
+					Spec: v1alpha2.OperatorGroupSpec{},
+				},
+				clientObjs: []runtime.Object{operatorCSV},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        operatorNamespace,
+							Labels:      map[string]string{"app": "app-a"},
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        targetNamespace,
+							Labels:      map[string]string{"app": "app-a"},
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+					ownedDeployment,
+					serviceAccount,
+					role,
+					roleBinding,
+				},
+				crds: []runtime.Object{crd},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{
+				Namespaces:  []string{corev1.NamespaceAll},
+				LastUpdated: timeNow(),
+			},
+			final: final{objects: map[string][]runtime.Object{
+				operatorNamespace: {
+					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1alpha2.OperatorGroupTargetsAnnotationKey: "", v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+					annotatedGlobalDeployment,
+					&v1alpha2.OperatorGroup{
+						TypeMeta: metav1.TypeMeta{
+							Kind: "OperatorGroup",
+							APIVersion: v1alpha2.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "operator-group-1",
+							Namespace: operatorNamespace,
+							Labels:    map[string]string{"app": "app-a"},
+							Annotations: map[string]string{
+								v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: "c1.v1.fake.api.group",
+							},
+						},
+						Spec: v1alpha2.OperatorGroupSpec{},
+						Status: v1alpha2.OperatorGroupStatus{
+							Namespaces:  []string{corev1.NamespaceAll},
+							LastUpdated: timeNow(),
+						},
+					},
+				},
+				"": {
+					&rbacv1.ClusterRole{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterRole",
+							APIVersion: rbacv1.GroupName,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "csv-role",
+							Labels: map[string]string{
+								"olm.owner":           "csv1",
+								"olm.owner.namespace": "operator-ns",
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								ownerutil.NonBlockingOwner(targetCSV),
+							},
+						},
+						Rules: permissions[0].Rules,
+					},
+					&rbacv1.ClusterRoleBinding{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "ClusterRoleBinding",
+							APIVersion: rbacv1.GroupName,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "csv-rolebinding",
+							Labels: map[string]string{
+								"olm.owner":           "csv1",
+								"olm.owner.namespace": "operator-ns",
+							},
+							OwnerReferences: []metav1.OwnerReference{
+								ownerutil.NonBlockingOwner(targetCSV),
+							},
+						},
+						Subjects: []rbacv1.Subject{
+							{
+								Kind:      rbacv1.ServiceAccountKind,
+								Name:      serviceAccount.GetName(),
+								Namespace: operatorNamespace,
+							},
+						},
+						RoleRef: rbacv1.RoleRef{
+							APIGroup: rbacv1.GroupName,
+							Kind:     "ClusterRole",
+							Name:     "csv-role",
+						},
+					},
+				},
+				targetNamespace: {
+					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+				},
+			}},
+		},
+		{
+			name:          "AllNamespaces/CSVPresent/Found/PruneMissingProvidedAPI/StaticProvidedAPIs",
+			expectedEqual: true,
+			initial: initial{
+				operatorGroup: &v1alpha2.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+						Labels:    map[string]string{"app": "app-a"},
+						Annotations: map[string]string{
+							v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: "missing.fake.api.group",
+						},
+					},
+					Spec: v1alpha2.OperatorGroupSpec{
+						StaticProvidedAPIs: true,
+					},
+				},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:        operatorNamespace,
+							Labels:      map[string]string{"app": "app-a"},
+							Annotations: map[string]string{"test": "annotation"},
+						},
+					},
+				},
+			},
+			expectedStatus: v1alpha2.OperatorGroupStatus{
+				Namespaces:  []string{corev1.NamespaceAll},
+				LastUpdated: timeNow(),
+			},
+			final: final{objects: map[string][]runtime.Object{
+				operatorNamespace: {
+					&v1alpha2.OperatorGroup{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "operator-group-1",
+							Namespace: operatorNamespace,
+							Labels:    map[string]string{"app": "app-a"},
+							Annotations: map[string]string{
+								v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: "missing.fake.api.group",
+							},
+						},
+						Spec: v1alpha2.OperatorGroupSpec{
+							StaticProvidedAPIs: true,
+						},
+						Status: v1alpha2.OperatorGroupStatus{
+							Namespaces:  []string{corev1.NamespaceAll},
+							LastUpdated: timeNow(),
+						},
+					},
+				},
+			}},
+		},
+		{
 			name:          "AllNamespaces/CSVPresent/InstallModeNotSupported",
 			expectedEqual: true,
 			initial: initial{
@@ -3062,7 +3564,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, hasSyncedFns, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, namespaces, stopCh)
+			op, hasSyncedFns, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, nil, namespaces, stopCh)
 			require.NoError(t, err)
 
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
@@ -3103,6 +3605,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 						fetched, err = op.OpClient.GetRoleBinding(namespace, o.GetName())
 					case *v1alpha1.ClusterServiceVersion:
 						fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+					case *v1alpha2.OperatorGroup:
+						fetched, err = op.client.OperatorsV1alpha2().OperatorGroups(namespace).Get(o.GetName(), metav1.GetOptions{})
 					default:
 						require.Failf(t, "couldn't find expected object", "%#v", object)
 					}
@@ -3171,7 +3675,7 @@ func TestIsReplacing(t *testing.T) {
 			// configure cluster state
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(tt.initial.csvs, nil, nil, nil, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			op, _, err := NewFakeOperator(tt.initial.csvs, nil, nil, nil, &install.StrategyResolver{}, nil, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expected, op.isReplacing(tt.in))

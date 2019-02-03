@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
-	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
+	
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha2"
 )
 
 type UnionOperatorGroupLister struct {

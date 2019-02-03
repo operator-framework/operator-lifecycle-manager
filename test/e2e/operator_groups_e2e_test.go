@@ -24,6 +24,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 )
 
 func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.DeploymentStatus) bool {
@@ -98,6 +99,21 @@ func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup
 	}
 
 	return nil
+}
+
+func newOperatorGroup(namespace, name string, annotations map[string]string, selector metav1.LabelSelector, targetNamespaces []string, static bool) *v1alpha2.OperatorGroup {
+	return &v1alpha2.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			Annotations: annotations,
+		},
+		Spec: v1alpha2.OperatorGroupSpec{
+			TargetNamespaces: targetNamespaces,
+			Selector: selector,
+			StaticProvidedAPIs: static,
+		},
+	}
 }
 
 func TestOperatorGroup(t *testing.T) {
@@ -431,5 +447,457 @@ func TestOperatorGroup(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-
 }
+
+
+func TestOperatorGroupIntersection(t *testing.T) {
+	// Generate namespaceA
+	// Generate namespaceB
+	// Generate namespaceC
+	// Generate namespaceD
+	// Generate namespaceE
+	// Generate operatorGroupD in namespaceD that selects namespace D and E
+	// Generate csvD in namespaceD
+	// Wait for csvD to be successful
+	// Wait for csvD to have a CSV with copied status in namespace D
+	// Wait for operatorGroupD to have providedAPI annotation with crdD's Kind.version.group
+	// Generate operatorGroupA in namespaceA that selects AllNamespaces
+	// Generate csvD in namespaceA
+	// Wait for csvD to fail with status "InterOperatorGroupOwnerConflict"
+	// Ensure operatorGroupA's providedAPIs are empty
+	// Ensure csvD in namespaceD is still successful
+	// Generate csvA in namespaceA that owns crdA
+	// Wait for csvA to be successful
+	// Wait for operatorGroupA to have providedAPI annotation with crdA's Kind.version.group in its providedAPIs annotation
+	// Wait for csvA to have a CSV with copied status in namespace C
+	// Generate operatorGroupB in namespaceB that selects namespace C
+	// Generate csvB in namespaceB that owns crdA
+	// Wait for csvB to fail with status "InterOperatorGroupOwnerConflict"
+	// Delete csvA
+	// Wait for crdA's Kind.version.group to be removed from operatorGroupA's providedAPIs annotation
+	// Ensure csvA's deployments are deleted
+	// Wait for csvB to be successful
+	// Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group
+	// Wait for csvB to have a CSV with a copied status in namespace C
+
+	// Create a catalog for csvA, csvB, and csvD
+	pkgA := genName("a")
+	pkgB := genName("b")
+	pkgD := genName("d")
+	pkgAStable := pkgA + "-stable"
+	pkgBStable := pkgB + "-stable"
+	pkgDStable := pkgD + "-stable"
+	stableChannel := "stable"
+	strategyA := newNginxInstallStrategy(pkgAStable, nil, nil)
+	strategyB := newNginxInstallStrategy(pkgBStable, nil, nil)
+	strategyD := newNginxInstallStrategy(pkgDStable, nil, nil)
+	crdA := newCRD(genName(pkgA))
+	crdB := newCRD(genName(pkgB))
+	crdD := newCRD(genName(pkgD))
+	kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
+	kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
+	kvgD := fmt.Sprintf("%s.%s.%s", crdD.Spec.Names.Kind, crdD.Spec.Version, crdD.Spec.Group)
+	csvA := newCSV(pkgAStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
+	csvB := newCSV(pkgBStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdA, crdB}, nil, strategyB)
+	csvD := newCSV(pkgDStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, strategyD)
+
+	// Create namespaces
+	nsA, nsB, nsC, nsD, nsE := genName("a"), genName("b"), genName("c"), genName("d"), genName("e")
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		}
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(namespace)
+		require.NoError(t, err)
+		defer func(name string) {
+			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
+		}(ns)
+	 }
+
+	// Create the initial catalogsources
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: pkgA,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: pkgAStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+		{
+			PackageName: pkgB,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: pkgBStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+		{
+			PackageName: pkgD,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: pkgDStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	catalog := genName("catalog-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalog, nsA, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
+	defer cleanupCatalogSource()
+	_, err := fetchCatalogSource(t, crc, catalog, nsA, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	_, cleanupCatalogSource = createInternalCatalogSource(t, c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
+	defer cleanupCatalogSource()
+	_, err = fetchCatalogSource(t, crc, catalog, nsB, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	_, cleanupCatalogSource = createInternalCatalogSource(t, c, crc, catalog, nsD, manifests, []apiextensions.CustomResourceDefinition{crdA, crdD, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvD})
+	defer cleanupCatalogSource()
+	_, err = fetchCatalogSource(t, crc, catalog, nsD, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	 
+	// Create operatorgroups
+	groupA := newOperatorGroup(nsA, genName("a"), nil, metav1.LabelSelector{}, nil, false)
+	groupB := newOperatorGroup(nsB, genName("b"), nil, metav1.LabelSelector{}, []string{nsC}, false)
+	groupD := newOperatorGroup(nsD, genName("d"), nil, metav1.LabelSelector{}, []string{nsD, nsE}, false)
+	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupD} {
+		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
+		require.NoError(t, err)
+		defer func(namespace, name string) {
+		require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
+		}(group.GetNamespace(), group.GetName())
+	}
+
+	// Create subscription for csvD in namespaceD
+	subDName := genName("d")
+	cleanupSubD := createSubscriptionForCatalog(t, crc, nsD, subDName, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubD()
+	subD, err := fetchSubscription(t, crc, nsD, subDName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subD)
+	
+	// Await csvD's success
+	_, err = awaitCSV(t, crc, nsD, csvD.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Await csvD's copy in namespaceE
+	_, err = awaitCSV(t, crc, nsE, csvD.GetName(), csvCopiedChecker)
+	require.NoError(t, err)
+	
+	// Await annotation on groupD
+	q := func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsD).Get(groupD.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgD}))
+
+	// Create subscription for csvD2 in namespaceA
+	subD2Name := genName("d")
+	cleanupSubD2 := createSubscriptionForCatalog(t, crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubD2()
+	subD2, err := fetchSubscription(t, crc, nsA, subD2Name, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subD2)
+
+	// Await csvD2's failure
+	csvD2, err := awaitCSV(t, crc, nsA, csvD.GetName(), csvFailedChecker)
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, csvD2.Status.Reason)
+
+	// Ensure groupA's annotations are blank
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
+
+	// Ensure csvD is still successful
+	_, err = awaitCSV(t, crc, nsD, csvD.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Create subscription for csvA in namespaceA
+	subAName := genName("a")
+	cleanupSubA := createSubscriptionForCatalog(t, crc, nsA, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubA()
+	subA, err := fetchSubscription(t, crc, nsA, subAName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subA)
+
+	// Await csvA's success
+	_, err = awaitCSV(t, crc, nsA, csvA.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Await annotation on groupA
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+
+	// Await csvA's copy in namespaceC
+	_, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvCopiedChecker)
+	require.NoError(t, err)
+
+	// Create subscription for csvB in namespaceB
+	subBName := genName("b")
+	cleanupSubB := createSubscriptionForCatalog(t, crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubB()
+	subB, err := fetchSubscription(t, crc, nsB, subBName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subB)
+
+	// Await csvB's failure
+	fetchedB, err := awaitCSV(t, crc, nsB, csvB.GetName(), csvFailedChecker)
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedB.Status.Reason)
+
+	// Ensure no annotation on groupB
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
+
+	// Delete csvA
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(csvA.GetName(), &metav1.DeleteOptions{}))
+
+	// Ensure annotations are removed from groupA
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: ""}))
+
+	// Ensure csvA's deployment is deleted
+	require.NoError(t, waitForDeploymentToDelete(t, c, pkgAStable))
+
+	// Await csvB's success
+	_, err = awaitCSV(t, crc, nsB, csvB.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Await csvB's copy in namespace C
+	_, err = awaitCSV(t, crc, nsC, csvB.GetName(), csvCopiedChecker)
+	require.NoError(t, err)
+
+	// Ensure annotations exist on group B
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: strings.Join([]string{kvgA, kvgB}, ",")}))
+}
+
+func TestStaticProviderOperatorGroup(t *testing.T) {
+	// Generate namespaceA
+	// Generate namespaceB
+	// Generate namespaceC
+	// Generate namespaceD
+	// Create static operatorGroupA in namespaceA that targets namespaceD with providedAPIs annotation containing KindA.version.group
+	// Create operatorGroupB in namespaceB that targets all namespaces
+	// Create operatorGroupC in namespaceC that targets namespaceC
+	// Create csvA in namespaceB that provides KindA.version.group
+	// Wait for csvA in namespaceB to fail
+	// Ensure no providedAPI annotations on operatorGroupB
+	// Ensure providedAPI annotations are unchanged on operatorGroupA
+	// Create csvA in namespaceC
+	// Wait for csvA in namespaceC to succeed
+	// Ensure KindA.version.group providedAPI annotation on operatorGroupC
+	// Create csvB in namespaceB that provides KindB.version.group
+	// Wait for csvB to succeed
+	// Wait for csvB to be copied to namespaceA, namespaceC, and namespaceD
+	// Wait for KindB.version.group to exist in operatorGroupB's providedAPIs annotation
+	// Add namespaceD to operatorGroupC's targetNamespaces
+	// Wait for csvA in namespaceC to FAIL with status "InterOperatorGroupOwnerConflict"
+	// Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation
+	// Ensure KindA.version.group providedAPI annotation on operatorGroupA
+
+	// Create a catalog for csvA, csvB
+	pkgA := genName("a")
+	pkgB := genName("b")
+	pkgAStable := pkgA + "-stable"
+	pkgBStable := pkgB + "-stable"
+	stableChannel := "stable"
+	strategyA := newNginxInstallStrategy(pkgAStable, nil, nil)
+	strategyB := newNginxInstallStrategy(pkgBStable, nil, nil)
+	crdA := newCRD(genName(pkgA))
+	crdB := newCRD(genName(pkgB))
+	kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
+	kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
+	csvA := newCSV(pkgAStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
+	csvB := newCSV(pkgBStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, strategyB)
+
+	// Create namespaces
+	nsA, nsB, nsC, nsD := genName("a"), genName("b"), genName("c"), genName("d")
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	for _, ns := range []string{nsA, nsB, nsC, nsD} {
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		}
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(namespace)
+		require.NoError(t, err)
+		defer func(name string) {
+			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
+		}(ns)
+	 }
+
+	// Create the initial catalogsources
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: pkgA,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: pkgAStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+		{
+			PackageName: pkgB,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: pkgBStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create catalog in namespaceB and namespaceC
+	catalog := genName("catalog-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalog, nsB, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	defer cleanupCatalogSource()
+	_, err := fetchCatalogSource(t, crc, catalog, nsB, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+	_, cleanupCatalogSource = createInternalCatalogSource(t, c, crc, catalog, nsC, manifests, []apiextensions.CustomResourceDefinition{crdA, crdB}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	defer cleanupCatalogSource()
+	_, err = fetchCatalogSource(t, crc, catalog, nsC, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create OperatorGroups
+	groupA := newOperatorGroup(nsA, genName("a"), map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, metav1.LabelSelector{}, []string{nsD}, true)
+	groupB := newOperatorGroup(nsB, genName("b"), nil, metav1.LabelSelector{}, nil, false)
+	groupC := newOperatorGroup(nsC, genName("d"), nil, metav1.LabelSelector{}, []string{nsC}, false)
+	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupC} {
+		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
+		require.NoError(t, err)
+		defer func(namespace, name string) {
+		require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
+		}(group.GetNamespace(), group.GetName())
+	}
+
+	// Create subscription for csvA in namespaceB
+	subAName := genName("a")
+	cleanupSubA := createSubscriptionForCatalog(t, crc, nsB, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubA()
+	subA, err := fetchSubscription(t, crc, nsB, subAName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subA)
+
+	// Await csvA's failure
+	fetchedCSVA, err := awaitCSV(t, crc, nsB, csvA.GetName(), csvFailedChecker)
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedCSVA.Status.Reason)
+
+	// Ensure operatorGroupB doesn't have providedAPI annotation
+	q := func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
+
+	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+
+	// Create subscription for csvA in namespaceC
+	cleanupSubAC := createSubscriptionForCatalog(t, crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubAC()
+	subAC, err := fetchSubscription(t, crc, nsC, subAName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subAC)
+
+	// Await csvA's success
+	_, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Ensure operatorGroupC has KindA.version.group in its providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+
+	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+
+	// Create subscription for csvB in namespaceB
+	subBName := genName("b")
+	cleanupSubB := createSubscriptionForCatalog(t, crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
+	defer cleanupSubB()
+	subB, err := fetchSubscription(t, crc, nsB, subBName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subB)
+
+	// Await csvB's success
+	_, err = awaitCSV(t, crc, nsB, csvB.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Await copied csvBs
+	_, err = awaitCSV(t, crc, nsA, csvB.GetName(), csvCopiedChecker)
+	require.NoError(t, err)
+	_, err = awaitCSV(t, crc, nsC, csvB.GetName(), csvCopiedChecker)
+	require.NoError(t, err)
+	_, err = awaitCSV(t, crc, nsD, csvB.GetName(), csvCopiedChecker)
+	require.NoError(t, err)
+
+	// Ensure operatorGroupB has KindB.version.group in its providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgB}))
+	
+	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+
+	// Add namespaceD to operatorGroupC's targetNamespaces
+	groupC, err = crc.OperatorsV1alpha2().OperatorGroups(groupC.GetNamespace()).Get(groupC.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	groupC.Spec.TargetNamespaces = []string{nsC, nsD}
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(groupC.GetNamespace()).Update(groupC)
+	require.NoError(t, err)
+
+	// Wait for csvA in namespaceC to fail with status "InterOperatorGroupOwnerConflict"
+	fetchedCSVA, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvFailedChecker)
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.CSVReasonInterOperatorGroupOwnerConflict, fetchedCSVA.Status.Reason)
+
+	// Wait for crdA's providedAPIs to be removed from operatorGroupC's providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: ""}))
+
+	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
+	q = func() (metav1.ObjectMeta, error) {
+		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		return g.ObjectMeta, err
+	}
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+}
+
+// TODO: Test OperatorGroup resizing collisions
+// TODO: Test Subscriptions with depedencies and transitive dependencies in intersecting OperatorGroups
+// TODO: Test Subscription upgrade paths with + and - providedAPIs

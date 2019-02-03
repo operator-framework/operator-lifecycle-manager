@@ -388,7 +388,7 @@ func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespa
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			CatalogSource:          catalog,
-			CatalogSourceNamespace: testNamespace,
+			CatalogSourceNamespace: namespace,
 			Package:                packageName,
 			Channel:                channel,
 			StartingCSV:            startingCSV,

@@ -141,6 +141,33 @@ func awaitPods(t *testing.T, c operatorclient.ClientInterface, selector string, 
 	return fetchedPodList, err
 }
 
+func awaitAnnotations(t *testing.T, query func() (metav1.ObjectMeta, error), expected map[string]string) error {
+	var err error
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		t.Logf("Waiting for annotations to match %v", expected)
+		obj, err := query()
+		if err != nil && !errors.IsNotFound(err) {
+			return false, err
+		}
+		t.Logf("current annotations: %v", obj.GetAnnotations())
+
+		if len(obj.GetAnnotations()) != len(expected) {
+			return false, nil
+		}
+
+		for key, value := range expected {
+			if v, ok := obj.GetAnnotations()[key]; !ok || v != value {
+				return false, nil
+			}
+		}
+
+		t.Logf("Annotations match")
+		return true, nil
+	})
+
+	return err
+}
+
 // compareResources compares resource equality then prints a diff for easier debugging
 func compareResources(t *testing.T, expected, actual interface{}) {
 	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {

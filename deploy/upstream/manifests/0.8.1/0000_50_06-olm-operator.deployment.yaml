@@ -1,5 +1,5 @@
-##---
-# Source: olm/templates/0000_50_10-olm-operator.deployment.yaml
+---
+# Source: olm/templates/0000_50_06-olm-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
