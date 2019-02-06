@@ -3,11 +3,11 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
-	"encoding/json"
 
 	"github.com/ghodss/yaml"
 	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
@@ -167,6 +167,22 @@ func waitForDelete(checkResource checkResourceFunc) error {
 	return err
 }
 
+func waitForEmptyList(checkList func() (int, error)) error {
+	var err error
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		count, err := checkList()
+		if err != nil {
+			return false, err
+		}
+		if count == 0 {
+			return true, nil
+		}
+		return false, nil
+	})
+
+	return err
+}
+
 type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool
 
 // This check is disabled for most test runs, but can be enabled for verifying pod health if the e2e tests are running
@@ -252,6 +268,31 @@ func cleanupOLM(t *testing.T, namespace string) {
 	// error: the server does not allow this method on the requested resource
 	// Cleanup non persistent configmaps
 	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(namespace).DeleteCollection(deleteOptions, metav1.ListOptions{}))
+
+	var err error
+	err = waitForEmptyList(func() (int, error) {
+		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
+		return len(res.Items), err
+	})
+	require.NoError(t, err)
+
+	err = waitForEmptyList(func() (int, error) {
+		res, err := crc.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+		return len(res.Items), err
+	})
+	require.NoError(t, err)
+
+	err = waitForEmptyList(func() (int, error) {
+		res, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+		return len(res.Items), err
+	})
+	require.NoError(t, err)
+
+	err = waitForEmptyList(func() (int, error) {
+		res, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
+		return len(res.Items), err
+	})
+	require.NoError(t, err)
 }
 
 func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {

@@ -2,20 +2,21 @@ package e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
-	
+
 	"github.com/coreos/go-semver/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -73,8 +74,8 @@ var (
 			Name: outdated,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces: "",
-			Version:  *semver.New("0.1.0"),
+			Replaces:       "",
+			Version:        *semver.New("0.1.0"),
 			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
@@ -103,8 +104,8 @@ var (
 			Name: stable,
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
-			Replaces: outdated,
-			Version:  *semver.New("0.2.0"),
+			Replaces:       outdated,
+			Version:        *semver.New("0.2.0"),
 			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
@@ -260,13 +261,19 @@ func init() {
 func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface) error {
 	// Create configmap containing catalog
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
-	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap); err != nil && !k8serrors.IsAlreadyExists(err) {
+	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			return fmt.Errorf("E2E bug detected: %v", err)
+		}
 		return err
 	}
 
 	// Create catalog source custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
-	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(&dummyCatalogSource); err != nil && !k8serrors.IsAlreadyExists(err) {
+	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(&dummyCatalogSource); err != nil {
+		if k8serrors.IsAlreadyExists(err) {
+			return fmt.Errorf("E2E bug detected: %v", err)
+		}
 		return err
 	}
 
@@ -384,7 +391,7 @@ func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespa
 			CatalogSourceNamespace: testNamespace,
 			Package:                packageName,
 			Channel:                channel,
-			StartingCSV: 			startingCSV,
+			StartingCSV:            startingCSV,
 			InstallPlanApproval:    approval,
 		},
 	}
@@ -521,7 +528,7 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csvA := newCSV("nginx-a", testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 	csvB := newCSV("nginx-b", testNamespace, "nginx-a", *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-	
+
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{
 		{
@@ -565,7 +572,7 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	for _, s := range fetchedInstallPlan.Status.Plan {
 		require.Equal(t, csvA.GetName(), s.Resolving, "unexpected resolution found")
 		require.Equal(t, v1alpha1.StepStatusUnknown, s.Status, "status should be unknown")
-		require.Equal(t, catalogSourceName, s.Resource.CatalogSource,  "incorrect catalogsource on step resource")
+		require.Equal(t, catalogSourceName, s.Resource.CatalogSource, "incorrect catalogsource on step resource")
 		switch kind := s.Resource.Kind; kind {
 		case v1alpha1.ClusterServiceVersionKind:
 			require.Equal(t, csvA.GetName(), s.Resource.Name, "unexpected csv found")
