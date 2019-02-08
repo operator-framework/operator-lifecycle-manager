@@ -61,13 +61,6 @@ deploy-local:
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
-run-local-shift:
-	. ./scripts/build_local_shift.sh
-	mkdir -p build/resources
-	. ./scripts/package-release.sh 1.0.0 build/resources Documentation/install/local-values-shift.yaml
-	. ./scripts/install_local.sh local build/resources
-	rm -rf build
-
 e2e.namespace:
 	@printf "e2e-tests-$(shell date +%s)-$$RANDOM" > e2e.namespace
 
@@ -86,10 +79,6 @@ e2e-local:
 
 e2e-bare: setup-bare
 	. ./scripts/run_e2e_bare.sh $(TEST)
-
-e2e-local-shift:
-	. ./scripts/build_local_shift.sh
-	. ./scripts/run_e2e_local.sh $(TEST)
 
 e2e-local-docker:
 	. ./scripts/build_local.sh
@@ -163,7 +152,7 @@ verify-codegen: codegen
 
 verify-catalog:
 
-generate-mock-client: 
+generate-mock-client:
 	$(MOCKGEN)
 
 gen-all: gen-ci container-codegen container-mockgen
