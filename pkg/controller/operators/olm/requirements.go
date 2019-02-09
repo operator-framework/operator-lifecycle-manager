@@ -50,7 +50,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 		return
 	}
 
-	csvVersionInfo, err := semver.NewVersion(minKubeVersion)
+	csvVersionInfo, err := semver.NewVersion(strings.TrimPrefix(minKubeVersion, "v"))
 	if err != nil {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = "CSV version parsing error"
