@@ -30,6 +30,7 @@ const (
 )
 
 // InstallMode associates an InstallModeType with a flag representing if the CSV supports it
+// +k8s:openapi-gen=true
 type InstallMode struct {
 	Type      InstallModeType `json:"type"`
 	Supported bool            `json:"supported"`

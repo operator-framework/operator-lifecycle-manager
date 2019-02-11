@@ -30,6 +30,7 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                            schema_api_apis_operators_v1alpha1_InstallMode(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink":               schema_package_server_apis_packagemanifest_v1alpha1_AppLink(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.CSVDescription":        schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.Icon":                  schema_package_server_apis_packagemanifest_v1alpha1_Icon(ref),
@@ -79,6 +80,32 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                                        schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
 		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                                         schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
 		"k8s.io/apimachinery/pkg/version.Info":                                                                                            schema_k8sio_apimachinery_pkg_version_Info(ref),
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallMode associates an InstallModeType with a flag representing if the CSV supports it",
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"supported": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"type", "supported"},
+			},
+		},
+		Dependencies: []string{},
 	}
 }
 
