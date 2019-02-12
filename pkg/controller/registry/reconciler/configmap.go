@@ -118,6 +118,11 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 					},
 				},
 			},
+			Tolerations: []v1.Toleration{
+				{
+					Operator: v1.TolerationOpExists,
+				},
+			},
 			ServiceAccountName: s.GetName() + "-configmap-server",
 		},
 	}
