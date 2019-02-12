@@ -21,6 +21,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -56,6 +57,11 @@ func (in *CSVDescription) DeepCopyInto(out *CSVDescription) {
 		for key, val := range *in {
 			(*out)[key] = val
 		}
+	}
+	if in.InstallModes != nil {
+		in, out := &in.InstallModes, &out.InstallModes
+		*out = make([]operatorsv1alpha1.InstallMode, len(*in))
+		copy(*out, *in)
 	}
 	return
 }

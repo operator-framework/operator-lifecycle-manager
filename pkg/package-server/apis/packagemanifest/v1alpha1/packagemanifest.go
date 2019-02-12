@@ -13,6 +13,7 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 		},
 		Annotations:     csv.GetAnnotations(),
 		LongDescription: csv.Spec.Description,
+		InstallModes:    csv.Spec.InstallModes,
 	}
 
 	icons := make([]Icon, len(csv.Spec.Icon))
