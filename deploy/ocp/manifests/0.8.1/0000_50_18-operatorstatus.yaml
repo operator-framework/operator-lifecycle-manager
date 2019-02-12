@@ -1,4 +1,4 @@
-##---
+---
 # Source: olm/templates/0000_50_18-operatorstatus.yaml
 
 apiVersion: config.openshift.io/v1
