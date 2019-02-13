@@ -31,7 +31,7 @@ import (
 
 const (
 	defaultWakeupInterval = 5 * time.Minute
-	defaultOperatorName   = "operator-lifecycle-manager"
+	defaultOperatorName   = ""
 )
 
 // config flags defined globally so that they appear on the test binary as well
