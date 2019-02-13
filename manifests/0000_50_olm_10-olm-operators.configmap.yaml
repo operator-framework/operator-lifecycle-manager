@@ -64,15 +64,10 @@ data:
                 verbs:
                 - get
                 - list
-                - watch
-                - create
-                - delete
-                - patch
-                - update
             deployments:
             - name: packageserver
               spec:
-                replicas: 1
+                replicas: 2
                 strategy:
                   type: RollingUpdate
                 selector:

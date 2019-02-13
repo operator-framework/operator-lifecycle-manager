@@ -19,7 +19,7 @@ catalog:
   service:
     internalPort: 8080
 package:
-  replicaCount: 1
+  replicaCount: 2
   image:
     ref: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
     pullPolicy: Always

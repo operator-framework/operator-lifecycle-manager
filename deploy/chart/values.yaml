@@ -28,7 +28,7 @@ catalog:
     beta.kubernetes.io/os: linux
 
 package:
-  replicaCount: 1
+  replicaCount: 2
   image:
     ref: quay.io/coreos/olm:master
     pullPolicy: Always
