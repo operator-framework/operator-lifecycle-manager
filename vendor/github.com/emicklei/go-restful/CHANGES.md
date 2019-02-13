@@ -1,8 +1,8 @@
 Change history of go-restful
 =
 
-v2.8.1
-- Fix Parameter 'AllowableValues' to populate swagger definition
+v2.9.0
+- add per Route content encoding setting (overrides container setting)
 
 v2.8.0
 - add Request.QueryParameters()

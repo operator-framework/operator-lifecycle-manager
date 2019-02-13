@@ -1,32 +1,33 @@
-##---
-# Source: olm/templates/0000_50_10-olm-operator.deployment.yaml
+---
+# Source: olm/templates/0000_50_07-catalog-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: olm-operator
+  name: catalog-operator
   namespace: openshift-operator-lifecycle-manager
   labels:
-    app: olm-operator
+    app: catalog-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: 1
   selector:
     matchLabels:
-      app: olm-operator
+      app: catalog-operator
   template:
     metadata:
       labels:
-        app: olm-operator
+        app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
       containers:
-        - name: olm-operator
+        - name: catalog-operator
           command:
-          - /bin/olm
+          - /bin/catalog
           args:
-          - -writeStatusName
-          - operator-lifecycle-manager
+          - '-namespace'
+          - openshift-operator-lifecycle-manager
+          - -configmapServerImage=quay.io/operatorframework/configmap-operator-registry:latest
           image: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
           imagePullPolicy: IfNotPresent
           ports:
@@ -39,13 +40,6 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
-          env:
-          - name: OPERATOR_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: OPERATOR_NAME
-            value: olm-operator
       nodeSelector:
         beta.kubernetes.io/os: linux
         

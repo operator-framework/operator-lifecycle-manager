@@ -179,7 +179,8 @@ release:
 	rm -rf manifests
 	mkdir manifests
 	cp -R deploy/ocp/manifests/$(ver)/. manifests
-	find ./manifests -type f -exec sed -i '' '/^#/d' {} \;
+	find ./manifests -type f -exec sed -i "/^#/d" {} \; 
+	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
 package:

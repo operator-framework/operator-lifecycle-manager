@@ -349,8 +349,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					},
 					nil,
 				),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v1")},
-				[]*v1beta1.CustomResourceDefinition{crd("c2", "v1")},
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+				[]*v1beta1.CustomResourceDefinition{crd("c2", "v1", "g2")},
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: []runtime.Object{
@@ -395,8 +395,8 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				},
 			},
 			existingExtObjs: []runtime.Object{
-				crd("c1", "v1"),
-				crd("c2", "v1"),
+				crd("c1", "v1", "g1"),
+				crd("c2", "v1", "g2"),
 			},
 			met: true,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
@@ -428,18 +428,18 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 						},
 					},
 				},
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
-					Name:    "c1group",
+					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonPresent,
 				},
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c2group"}: {
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c2.g2"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
-					Name:    "c2group",
+					Name:    "c2.g2",
 					Status:  v1alpha1.RequirementStatusReasonPresent,
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -459,21 +459,21 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
-				crd("c1", "v1"),
+				crd("c1", "v1", "g1"),
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
-					Name:    "c1group",
+					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotPresent,
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -493,21 +493,21 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "version-not-found")},
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "version-not-found", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
-				crd("c1", "v2"),
+				crd("c1", "v2", "g1"),
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
-					Name:    "c1group",
+					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -527,14 +527,14 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
 				func() *v1beta1.CustomResourceDefinition {
-					newCRD := crd("c1", "v2")
+					newCRD := crd("c1", "v2", "g1")
 					// condition order: established, name accepted
 					newCRD.Status.Conditions[0].Status = v1beta1.ConditionTrue
 					newCRD.Status.Conditions[1].Status = v1beta1.ConditionFalse
@@ -543,11 +543,11 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
-					Name:    "c1group",
+					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -567,14 +567,14 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"0.0.0",
 				"",
 				installStrategy("csv1-dep", nil, nil),
-				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2")},
+				[]*v1beta1.CustomResourceDefinition{crd("c1", "v2", "g1")},
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
 			existingObjs: nil,
 			existingExtObjs: []runtime.Object{
 				func() *v1beta1.CustomResourceDefinition {
-					newCRD := crd("c1", "v2")
+					newCRD := crd("c1", "v2", "g1")
 					// condition order: established, name accepted
 					newCRD.Status.Conditions[0].Status = v1beta1.ConditionFalse
 					newCRD.Status.Conditions[1].Status = v1beta1.ConditionTrue
@@ -583,11 +583,11 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			},
 			met: false,
 			expectedRequirementStatuses: map[gvkn]v1alpha1.RequirementStatus{
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
+				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1.g1"}: {
 					Group:   "apiextensions.k8s.io",
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
-					Name:    "c1group",
+					Name:    "c1.g1",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
 				},
 				{"operators.coreos.com", "v1alpha1", "ClusterServiceVersion", "csv1"}: {
@@ -612,7 +612,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			test.existingObjs = append(test.existingObjs, namespaceObj)
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator([]runtime.Object{test.csv}, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, []string{namespace}, stopCh)
+			op, _, err := NewFakeOperator([]runtime.Object{test.csv}, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, nil, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// Get the permission status

@@ -196,11 +196,22 @@ func buildCSVConditionChecker(phases ...v1alpha1.ClusterServiceVersionPhase) csv
 	}
 }
 
+func buildCSVReasonChecker(reasons ...v1alpha1.ConditionReason) csvConditionChecker {
+	return func(csv *v1alpha1.ClusterServiceVersion) bool {
+		conditionMet := false
+		for _, reason := range reasons {
+			conditionMet = conditionMet || csv.Status.Reason == reason
+		}
+		return conditionMet
+	}
+}
+
 var csvPendingChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending)
 var csvSucceededChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded)
 var csvReplacingChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting)
 var csvFailedChecker = buildCSVConditionChecker(v1alpha1.CSVPhaseFailed)
 var csvAnyChecker = buildCSVConditionChecker(v1alpha1.CSVPhasePending, v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVPhaseReplacing, v1alpha1.CSVPhaseDeleting, v1alpha1.CSVPhaseFailed)
+var csvCopiedChecker = buildCSVReasonChecker(v1alpha1.CSVReasonCopied)
 
 func fetchCSV(t *testing.T, c versioned.Interface, name, namespace string, checker csvConditionChecker) (*v1alpha1.ClusterServiceVersion, error) {
 	var fetched *v1alpha1.ClusterServiceVersion

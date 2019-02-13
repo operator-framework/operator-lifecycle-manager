@@ -11,6 +11,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"github.com/sirupsen/logrus"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -44,30 +45,102 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return fmt.Errorf("casting OperatorGroup failed")
 	}
 
+	logger := a.Log.WithFields(logrus.Fields{
+		"operatorGroup": op.GetName(),
+		"namespace": op.GetNamespace(),
+	})
+
 	targetNamespaces, err := a.updateNamespaceList(op)
-	a.Log.Debugf("Got targetNamespaces: '%v'", targetNamespaces)
 	if err != nil {
-		a.Log.Errorf("updateNamespaceList error: %v", err)
+		logger.WithError(err).Warn("updateNamespaceList error")
 		return err
 	}
+	logger.WithField("targetNamespaces", targetNamespaces).Debug("updated target namespaces")
 
 	if err := a.ensureOpGroupClusterRoles(op); err != nil {
 		a.Log.Errorf("ensureOpGroupClusterRoles error: %v", err)
 		return err
 	}
-	a.Log.Debug("Cluster roles completed")
+	a.Log.Debug("cluster roles completed")
 
-	for _, csv := range a.csvSet(op.Namespace, v1alpha1.CSVPhaseAny) {
+	set := a.csvSet(op.Namespace, v1alpha1.CSVPhaseAny)
+	providedAPIs := make(resolver.APISet)
+	for _, csv := range set {
+		logger := logger.WithField("csv", csv.GetName())
 		origCSVannotations := csv.GetAnnotations()
 		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
-		if reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) == false {
+		if !reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) {
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
-				a.Log.Errorf("Update for existing CSV failed: %v", err)
+				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
+				logger.WithError(err).Warnf("update to existing csv failed")
+				continue
 			}
 		}
+
+		// Don't union providedAPIs if the CSV is copied (member of another OperatorGroup)
+		if csv.IsCopied() {
+			logger.Debug("csv is copied. not including in operatorgroup's provided api set")
+			continue
+		}
+
+		// TODO: Throw out CSVs that aren't members of the group due to group related failures?
+
+		// Union the providedAPIs from existing members of the group
+		operatorSurface, err := resolver.NewOperatorFromCSV(csv)
+		if err != nil {
+			logger.WithError(err).Warn("could not create OperatorSurface from csv")
+			continue
+		}
+		providedAPIs = providedAPIs.Union(operatorSurface.ProvidedAPIs().StripPlural())
 	}
-	a.Log.Debug("CSV annotation completed")
+	logger.Debug("csv annotation completed")
+
+	// Don't prune providedAPIs if static
+	if op.Spec.StaticProvidedAPIs {
+		a.Log.Debug("group has static provided apis. skipping provided api pruning")
+		return nil
+	}
+
+	// Prune providedAPIs annotation if the cluster has less providedAPIs (handles CSV deletion)
+	groupSurface := resolver.NewOperatorGroup(*op)
+	groupProvidedAPIs := groupSurface.ProvidedAPIs()
+	if intersection := groupProvidedAPIs.Intersection(providedAPIs); len(intersection) < len(groupProvidedAPIs) {
+		difference := groupProvidedAPIs.Difference(intersection)
+		logger := logger.WithFields(logrus.Fields{
+			"providedAPIsOnCluster": providedAPIs,
+			"providedAPIsAnnotation": groupProvidedAPIs,
+			"providedAPIDifference": difference,
+			"intersection": intersection,
+		})
+
+		// Don't need to check for nil annotations since we already know |annotations| > 0
+		annotations := op.GetAnnotations()
+		annotations[v1alpha2.OperatorGroupProvidedAPIsAnnotationKey] = intersection.String()
+		op.SetAnnotations(annotations)
+		logger.Debug("removing provided apis from annotation to match cluster state")
+		if _, err := a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).Update(op); err != nil && !k8serrors.IsNotFound(err) {
+			logger.WithError(err).Warn("could not update provided api annotations")
+			return nil
+		}
+	}
+
+	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in 
+	// intersecting groups that their conflict has possibly been resolved, either through resizing or through 
+	// deletion of the conflicting CSV.
+	csvs, err := a.findCSVsThatProvideAnyOf(providedAPIs.Union(groupProvidedAPIs))
+	if err != nil {
+		logger.WithError(err).Warn("could not find csvs that provide group apis")
+	}
+	for _, csv := range csvs {
+		logger.WithFields(logrus.Fields{
+			"csv": csv.GetName(),
+			"namespace": csv.GetNamespace(),
+		}).Debug("requeueing provider")
+		if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
+			logger.WithError(err).Warn("could not requeue provider")
+		}
+	}
 
 	return nil
 }
@@ -155,6 +228,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 
 	// if OperatorGroup is global (all namespaces) we generate cluster roles / cluster role bindings instead
 	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+		// TODO: We we arent using perms why are we iterating over these?
 		for _, p := range opPerms {
 			if err := a.ensureSingletonRBAC(operatorGroup.GetNamespace(), csv, *p); err != nil {
 				return err
@@ -166,6 +240,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	// otherwise, create roles/rolebindings for each target namespace
 	for _, ns := range targetNamespaces {
 		for _, p := range opPerms {
+			// TODO: See previous TODO
 			if err := a.ensureTenantRBAC(operatorGroup.GetNamespace(), ns, csv, *p); err != nil {
 				return err
 			}
@@ -174,6 +249,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	return nil
 }
 
+// TODO: Why is this taking permissions and not using it?
 func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.ClusterServiceVersion, permissions resolver.OperatorPermissions) error {
 	ownerSelector := ownerutil.CSVOwnerSelector(csv)
 	ownedRoles, err := a.lister.RbacV1().RoleLister().Roles(operatorNamespace).List(ownerSelector)
@@ -245,6 +321,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 	return nil
 }
 
+// TODO: Why is this taking permissions and not using it?
 func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, csv *v1alpha1.ClusterServiceVersion, permissions resolver.OperatorPermissions) error {
 	ownerSelector := ownerutil.CSVOwnerSelector(csv)
 	ownedRoles, err := a.lister.RbacV1().RoleLister().Roles(operatorNamespace).List(ownerSelector)
@@ -345,7 +422,6 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 				}
 			}
 
-			continue
 		} else if k8serrors.IsNotFound(err) {
 			newCSV.SetNamespace(ns)
 			newCSV.SetResourceVersion("")
@@ -487,3 +563,29 @@ func (a *Operator) ensureOpGroupClusterRoles(op *v1alpha2.OperatorGroup) error {
 	}
 	return nil
 }
+
+func (a *Operator) findCSVsThatProvideAnyOf(provide resolver.APISet) ([]*v1alpha1.ClusterServiceVersion, error) {
+	csvs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(metav1.NamespaceAll).List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	providers := []*v1alpha1.ClusterServiceVersion{}
+	for i := 0; i < len(csvs); i++ {
+		csv := csvs[i]
+		if csv.IsCopied() {
+			continue
+		}
+
+		operatorSurface, err := resolver.NewOperatorFromCSV(csv)
+		if err != nil {
+			continue
+		}
+
+		if len(operatorSurface.ProvidedAPIs().StripPlural().Intersection(provide)) > 0 {
+			providers = append(providers, csv)
+		}
+	}
+
+	return providers, nil
+} 

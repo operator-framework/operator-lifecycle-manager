@@ -1,5 +1,5 @@
-##---
-# Source: olm/templates/0000_50_11-catalog-operator.deployment.yaml
+---
+# Source: olm/templates/0000_50_07-catalog-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:

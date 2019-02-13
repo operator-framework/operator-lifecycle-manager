@@ -56,42 +56,6 @@ func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey) (*opregistr
 	return nil, nil, fmt.Errorf("%s not provided by a package in any CatalogSource", api)
 }
 
-func (q *NamespaceSourceQuerier) FindPackage(pkgName, channelName, csvName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
-	if initialSource.Name != "" && initialSource.Namespace != "" {
-		source, ok := q.sources[initialSource]
-		if !ok {
-			return nil, nil, fmt.Errorf("CatalogSource %s not found", initialSource)
-		}
-
-		var bundle *opregistry.Bundle
-		var err error
-		if csvName != "" {
-			bundle, err = source.GetBundle(context.TODO(), pkgName, channelName, csvName)
-		} else {
-			bundle, err = source.GetBundleInPackageChannel(context.TODO(), pkgName, channelName)
-		}
-
-		if err != nil {
-			return nil, nil, err
-		}
-		return bundle, &initialSource, nil
-	}
-
-	for key, source := range q.sources {
-		var bundle *opregistry.Bundle
-		var err error
-		if csvName != "" {
-			bundle, err = source.GetBundle(context.TODO(), pkgName, channelName, csvName)
-		} else {
-			bundle, err = source.GetBundleInPackageChannel(context.TODO(), pkgName, channelName)
-		}
-		if err == nil {
-			return bundle, &key, nil
-		}
-	}
-	return nil, nil, fmt.Errorf("%s/%s not found in any available CatalogSource", pkgName, channelName)
-}
-
 func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
