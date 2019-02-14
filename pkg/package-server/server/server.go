@@ -182,8 +182,15 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 		return err
 	}
 
-	ready, _ := sourceProvider.Run(stopCh)
+	// Ensure that provider stops after the apiserver gracefully shuts down
+	provCh := make(chan struct{})
+	ready, done := sourceProvider.Run(provCh)
 	<-ready
 
-	return server.GenericAPIServer.PrepareRun().Run(stopCh)
+	err = server.GenericAPIServer.PrepareRun().Run(stopCh)
+	go func() { provCh <- struct{}{} }()
+
+	<-done
+
+	return err
 }
