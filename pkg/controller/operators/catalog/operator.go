@@ -77,7 +77,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		watchedNamespaces = []string{metav1.NamespaceAll}
 	}
 
-	// Create a new client for ALM types (CRs)
+	// Create a new client for OLM types (CRs)
 	crClient, err := client.NewClient(kubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -381,24 +381,26 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 			return nil
 		}
+		
+		logger.Debug("catsrc configmap state good, checking registry pod")
 	}
 
-	reconciler := o.reconciler.ReconcilerForSourceType(catsrc.Spec.SourceType)
+	reconciler := o.reconciler.ReconcilerForSource(catsrc)
 	if reconciler == nil {
+		// TODO: Add failure status on catalogsource and remove from sources
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
 
-	logger.Debug("catsrc configmap state good, checking registry pod")
 
 	// if registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
 	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
-		logger.Debug("registry pod scheduled for recheck")
+		logger.Debug("registry server scheduled recheck")
 
 		if err := reconciler.EnsureRegistryServer(out); err != nil {
 			logger.WithError(err).Warn("couldn't ensure registry server")
 			return err
 		}
-		logger.Debug("ensured registry pod")
+		logger.Debug("ensured registry server")
 
 		out.Status.RegistryServiceStatus.CreatedAt = timeNow()
 		out.Status.LastSync = timeNow()
@@ -410,18 +412,18 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		}
 
 		o.sourcesLastUpdate = timeNow()
-		logger.Debug("registry pod recreated")
+		logger.Debug("registry server recreated")
 
 		return nil
 	}
-	logger.Debug("registry pod state good")
+	logger.Debug("registry state good")
 
 	// update operator's view of sources
 	sourcesUpdated := false
 	func() {
 		o.sourcesLock.Lock()
 		defer o.sourcesLock.Unlock()
-		address := catsrc.Status.RegistryServiceStatus.Address()
+		address := catsrc.Address()
 		currentSource, ok := o.sources[sourceKey]
 		logger = logger.WithField("currentSource", sourceKey)
 		if !ok || currentSource.Address != address || catsrc.Status.LastSync.After(currentSource.LastConnect.Time) {
@@ -664,7 +666,7 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 		logger.WithField("clientState", client.Conn.GetState()).Debug("source")
 		if client.Conn.GetState() == connectivity.TransientFailure {
 			logger.WithField("clientState", client.Conn.GetState()).Debug("waiting for connection")
-			ctx, _ := context.WithTimeout(context.TODO(), 5*time.Second)
+			ctx, _ := context.WithTimeout(context.TODO(), 2*time.Second)
 			changed := client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure)
 			if !changed {
 				logger.WithField("clientState", client.Conn.GetState()).Debug("source in transient failure and didn't recover")
