@@ -36,7 +36,7 @@ OLM requires that applications be managed by an operator, but that doesn't mean 
 - Package up an existing set of resources for OLM with [helm-app-operator-kit](https://github.com/operator-framework/helm-app-operator-kit) without writing a single line of go.
 - Use the [operator-sdk](https://github.com/operator-framework/operator-sdk) to quickly build an operator from scratch.
 
-Once you have an application packaged for OLM, you can deploy it with OLM by writing a `ClusterServiceVersion`.
+The primary vehicle for describing operator requirements with OLM is a [`ClusterServiceVersion`](https://github.com/operator-framework/operator-lifecycle-manager/blob/master/Documentation/design/building-your-csv.md). Once you have an application packaged for OLM, you can deploy it with OLM by creating its `ClusterServiceVersion` in a namespace with a supporting [`OperatorGroup`](https://github.com/operator-framework/operator-lifecycle-manager/blob/master/Documentation/design/operatorgroups.md).
 
 ClusterServiceVersions can be collected into `CatalogSource`s which will allow automated installation and dependency resolution via an `InstallPlan`, and can be kept up-to-date with a `Subscription`.
 
