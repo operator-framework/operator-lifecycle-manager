@@ -1,0 +1,10 @@
+{{ if (.Values.installType) and eq .Values.installType "ocp" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: packageserver
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: packageserver
+{{- include "packageserver.deployment-spec" . }}
+{{ end }}
