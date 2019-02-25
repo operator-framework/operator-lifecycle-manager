@@ -486,47 +486,49 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	logger.Info("syncing CSV")
 
 	operatorGroup := a.operatorGroupForActiveCSV(logger, clusterServiceVersion)
-	if operatorGroup == nil {
-		logger.WithField("reason", "no operatorgroup found for active CSV").Info("skipping CSV resource copy to target namespaces")
-		return
-	}
-
 	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseFailed && clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 		logger.WithField("reason", clusterServiceVersion.Status.Message).Info("skipping CSV resource copy to target namespaces")
-		return
-	}
-	allNamespaces := make([]string, 0)
-	pruneNamespaces := make([]string, 0)
-	targetNamespaces := make([]string, 0)
-	namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
+	} else if operatorGroup != nil {
+		allNamespaces := make([]string, 0)
+		pruneNamespaces := make([]string, 0)
+		targetNamespaces := make([]string, 0)
+		namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
 
-	for _, ns := range namespaceObjs {
-		allNamespaces = append(allNamespaces, ns.GetName())
-	}
-	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
-		targetNamespaces = allNamespaces
-	} else {
-		targetNamespaces = operatorGroup.Status.Namespaces
-		pruneNamespaces = sliceCompare(allNamespaces, targetNamespaces)
-		logger.Debugf("Found namespaces to clean %v", pruneNamespaces)
-	}
+		for _, ns := range namespaceObjs {
+			allNamespaces = append(allNamespaces, ns.GetName())
+		}
+		if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
+			targetNamespaces = allNamespaces
+		} else {
+			targetNamespaces = operatorGroup.Status.Namespaces
+			pruneNamespaces = sliceCompare(allNamespaces, targetNamespaces)
+			logger.Debugf("Found namespaces to clean %v", pruneNamespaces)
+		}
 
-	// Check if we need to do any copying / annotation for the operatorgroup
-	if err := a.copyCsvToTargetNamespace(clusterServiceVersion, operatorGroup, targetNamespaces, pruneNamespaces); err != nil {
-		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
-	}
+		// This skips copying non-final phases so that it is not possible for a new CSV that has not yet
+		// been detected as intersecting to overwrite an identical CSV in a different namespace (which
+		// would ultimately potentially cause a valid CSV to get deleted).
+		if clusterServiceVersion.Status.Phase != v1alpha1.CSVPhaseSucceeded && clusterServiceVersion.Status.Phase != v1alpha1.CSVPhaseFailed {
+			logger.Debug("skipping potential CSV copy due to not yet arriving at final phase")
+		} else {
+			// Check if we need to do any copying / annotation for the operatorgroup
+			if err := a.copyCsvToTargetNamespace(clusterServiceVersion, operatorGroup, targetNamespaces, pruneNamespaces); err != nil {
+				logger.WithError(err).Info("couldn't copy CSV to target namespaces")
+			}
 
-	// Ensure operator has access to targetnamespaces
-	if err := a.ensureRBACInTargetNamespace(clusterServiceVersion, operatorGroup, pruneNamespaces); err != nil {
-		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
-	}
+			// Ensure operator has access to targetnamespaces
+			if err := a.ensureRBACInTargetNamespace(clusterServiceVersion, operatorGroup, pruneNamespaces); err != nil {
+				logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
+			}
 
-	// Ensure cluster roles exist for using provided apis
-	if err := a.ensureClusterRolesForCSV(clusterServiceVersion, operatorGroup); err != nil {
-		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
+			// Ensure cluster roles exist for using provided apis
+			if err := a.ensureClusterRolesForCSV(clusterServiceVersion, operatorGroup); err != nil {
+				logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
+			}
+		}
 	}
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
@@ -540,7 +542,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	}
 
 	// Update CSV with status of transition. Log errors if we can't write them to the status.
-	_, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).UpdateStatus(outCSV)
+	_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).UpdateStatus(outCSV)
 	if err != nil {
 		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
 		if syncError == nil {
