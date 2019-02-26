@@ -32,14 +32,14 @@ require (
 	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
 	google.golang.org/grpc v1.16.0
 	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
-	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
-	k8s.io/apimachinery v0.0.0-20190208202428-1a579f8a7b42
+	k8s.io/apiextensions-apiserver v0.0.0-20190223021643-57c81b676ab1
+	k8s.io/apimachinery v0.0.0-20190223001710-c182ff3b9841
 	k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
 	k8s.io/gengo v0.0.0-20190128074634-0689ccc1d7d6 // indirect
 	k8s.io/klog v0.2.0 // indirect
-	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
+	k8s.io/kube-aggregator v0.0.0-20190223015803-f706565beac0
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.8-beta.0.0.20190214232326-4e0b35876724
+	k8s.io/kubernetes v1.11.8-beta.0.0.20190223014307-4e209c9383fa
 )

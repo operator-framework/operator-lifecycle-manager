@@ -75,11 +75,7 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 		dep.Spec.Template.SetAnnotations(annotations)
 
 		ownerutil.AddNonBlockingOwner(dep, i.owner)
-		if dep.Labels == nil {
-			dep.SetLabels(map[string]string{})
-		}
-		dep.Labels["olm.owner"] = i.owner.GetName()
-		dep.Labels["olm.owner.namespace"] = i.owner.GetNamespace()
+		ownerutil.AddOwnerLabels(dep, i.owner)
 		if _, err := i.strategyClient.CreateOrUpdateDeployment(dep); err != nil {
 			return err
 		}

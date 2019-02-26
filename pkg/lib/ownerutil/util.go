@@ -18,6 +18,7 @@ import (
 const (
 	OwnerKey          = "olm.owner"
 	OwnerNamespaceKey = "olm.owner.namespace"
+	OwnerKind         = "olm.owner.kind"
 )
 
 var (
@@ -154,14 +155,43 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 }
 
 // OwnerLabel returns a label added to generated objects for later querying
-func OwnerLabel(owner metav1.Object) map[string]string {
+func OwnerLabel(owner Owner) map[string]string {
 	return map[string]string{
 		OwnerKey:          owner.GetName(),
 		OwnerNamespaceKey: owner.GetNamespace(),
+		OwnerKind:         owner.GetObjectKind().GroupVersionKind().Kind,
 	}
 }
 
-// OwnerQuery returns a label selector to find generated objects owned by owner
+func AddOwnerLabels(object metav1.Object, owner Owner) {
+	labels := object.GetLabels()
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	for key, val := range OwnerLabel(owner) {
+		labels[key] = val
+	}
+	object.SetLabels(labels)
+	return
+}
+
+// AdoptableLabels determines if an OLM managed resource is adoptable based on its owner labels
+// Generally used for cross-namespace ownership and for Cluster -> Namespace scope
+func AdoptableLabels(target Owner, labels map[string]string) bool {
+	if len(labels) == 0 {
+		// Resources with no owners are not adoptable
+		return false
+	}
+
+	if labels[OwnerKind] == target.GetObjectKind().GroupVersionKind().Kind &&
+		labels[OwnerNamespaceKey] == target.GetNamespace() {
+		return true
+	}
+
+	return false
+}
+
+// CSVOwnerSelector returns a label selector to find generated objects owned by owner
 func CSVOwnerSelector(owner *v1alpha1.ClusterServiceVersion) labels.Selector {
 	return labels.SelectorFromSet(OwnerLabel(owner))
 }

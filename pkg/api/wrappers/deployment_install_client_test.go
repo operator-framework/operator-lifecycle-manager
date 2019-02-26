@@ -131,7 +131,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 				namespace: "test-namespace",
 				existingServiceAccount: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-account",
+						Name:      "test-service-account",
+						Namespace: "test-namespace",
 						Labels: map[string]string{
 							"test": "existing-service-account-found",
 						},
@@ -161,7 +162,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 				},
 				serviceAccountToUpdate: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-account",
+						Name:      "test-service-account",
+						Namespace: "test-namespace",
 						Labels: map[string]string{
 							"test": "existing-service-account-found",
 						},
@@ -193,7 +195,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 				namespace: "test-namespace",
 				existingServiceAccount: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-account",
+						Name:      "test-service-account",
+						Namespace: "test-namespace",
 						Labels: map[string]string{
 							"test": "existing-service-account-found",
 						},
@@ -213,7 +216,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 				},
 				serviceAccountToUpdate: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-account",
+						Name:      "test-service-account",
+						Namespace: "test-namespace",
 						Labels: map[string]string{
 							"test": "existing-service-account-found",
 						},
@@ -235,7 +239,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 				namespace: "test-namespace",
 				existingServiceAccount: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-account",
+						Name:      "test-service-account",
+						Namespace: "test-namespace",
 						Labels: map[string]string{
 							"test": "existing-service-account-create-conflict",
 						},
@@ -259,7 +264,8 @@ func TestEnsureServiceAccount(t *testing.T) {
 			expect: expect{
 				returnedServiceAccount: &corev1.ServiceAccount{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: "test-service-account",
+						Name:      "test-service-account",
+						Namespace: "test-namespace",
 						Labels: map[string]string{
 							"test": "existing-service-account-create-conflict",
 						},
