@@ -17,7 +17,7 @@ import (
 )
 
 func testDeployment(name, namespace string, mockOwner ownerutil.Owner) appsv1.Deployment {
-	testDeploymentLabels := map[string]string{"olm.owner": mockOwner.GetName(), "olm.owner.namespace": mockOwner.GetNamespace()}
+	testDeploymentLabels := map[string]string{"olm.owner": mockOwner.GetName(), "olm.owner.namespace": mockOwner.GetNamespace(), "olm.owner.kind": "ClusterServiceVersion"}
 
 	deployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{

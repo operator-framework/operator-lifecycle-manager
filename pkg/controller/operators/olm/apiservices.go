@@ -496,8 +496,8 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	existingAuthDelegatorClusterRoleBinding, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
-		if ownerutil.Adoptable(csv, existingAuthDelegatorClusterRoleBinding.GetOwnerReferences()) {
-			ownerutil.AddNonBlockingOwner(authDelegatorClusterRoleBinding, csv)
+		if ownerutil.AdoptableLabels(csv, existingAuthDelegatorClusterRoleBinding.GetLabels()) {
+			ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, csv)
 		}
 
 		// Attempt an update.
@@ -507,7 +507,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the role.
-		ownerutil.AddNonBlockingOwner(authDelegatorClusterRoleBinding, csv)
+		ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, csv)
 		_, err = a.OpClient.CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
@@ -539,10 +539,9 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	existingAuthReaderRoleBinding, err := a.lister.RbacV1().RoleBindingLister().RoleBindings("kube-system").Get(authReaderRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
-		if ownerutil.Adoptable(csv, existingAuthReaderRoleBinding.GetOwnerReferences()) {
-			ownerutil.AddNonBlockingOwner(authReaderRoleBinding, csv)
+		if ownerutil.AdoptableLabels(csv, existingAuthReaderRoleBinding.GetLabels()) {
+			ownerutil.AddOwnerLabels(authReaderRoleBinding, csv)
 		}
-
 		// Attempt an update.
 		if _, err := a.OpClient.UpdateRoleBinding(authReaderRoleBinding); err != nil {
 			logger.Warnf("could not update auth reader role binding %s", authReaderRoleBinding.GetName())
@@ -550,7 +549,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the role.
-		ownerutil.AddNonBlockingOwner(authReaderRoleBinding, csv)
+		ownerutil.AddOwnerLabels(authReaderRoleBinding, csv)
 		_, err = a.OpClient.CreateRoleBinding(authReaderRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth reader role binding %s", authReaderRoleBinding.GetName())
@@ -641,13 +640,13 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		apiService.SetName(apiServiceName)
 	} else {
 		// check if the APIService is adoptable
-		if !ownerutil.Adoptable(csv, apiService.GetOwnerReferences()) {
+		if !ownerutil.AdoptableLabels(csv, apiService.GetLabels()) {
 			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
 		}
 	}
 
 	// Add the CSV as an owner
-	ownerutil.AddNonBlockingOwner(apiService, csv)
+	ownerutil.AddOwnerLabels(apiService, csv)
 
 	// update the ServiceReference
 	apiService.Spec.Service = &apiregistrationv1.ServiceReference{

@@ -72,6 +72,7 @@ func RBACForClusterServiceVersion(csv *v1alpha1.ClusterServiceVersion) (map[stri
 		// Create ServiceAccount if necessary
 		if _, ok := permissions[permission.ServiceAccountName]; !ok {
 			serviceAccount := &corev1.ServiceAccount{}
+			serviceAccount.SetNamespace(csv.GetNamespace())
 			serviceAccount.SetName(permission.ServiceAccountName)
 			ownerutil.AddNonBlockingOwner(serviceAccount, csv)
 
