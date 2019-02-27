@@ -114,6 +114,7 @@ data:
           - group: packages.apps.redhat.com
             version: v1alpha1
             kind: PackageManifest
+            name: packagemanifests
             displayName: PackageManifest
             description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
             deploymentName: packageserver
