@@ -235,6 +235,8 @@ func NewStepResourcesFromCRD(crd *v1beta1.CustomResourceDefinition) ([]StepResou
 			Name: fmt.Sprintf("view-%s-%s", crd.Name, crd.Spec.Version),
 			Labels: map[string]string{
 				"rbac.authorization.k8s.io/aggregate-to-view": "true",
+				"rbac.authorization.k8s.io/aggregate-to-admin": "true",
+				"rbac.authorization.k8s.io/aggregate-to-edit": "true",
 			},
 		},
 		Rules: []rbacv1.PolicyRule{{Verbs: []string{"get", "list", "watch"}, APIGroups: []string{crd.Spec.Group}, Resources: []string{crd.Spec.Names.Plural}}},
