@@ -96,34 +96,6 @@ func NewInstallModeSet(modes []InstallMode) (InstallModeSet, error) {
 
 // Supports returns an error if the InstallModeSet does not support configuration for
 // the given operatorNamespace and list of target namespaces.
-func (set InstallModeSet) SupportsOld(operatorNamespace string, namespaces []string) error {
-	numNamespaces := len(namespaces)
-	if !set[InstallModeTypeAllNamespaces] && numNamespaces == 1 && namespaces[0] == v1.NamespaceAll {
-		return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch all namespaces", InstallModeTypeAllNamespaces)
-	}
-
-	if !set[InstallModeTypeSingleNamespace] && !set[InstallModeTypeMultiNamespace] && numNamespaces == 1 && namespaces[0] != v1.NamespaceAll {
-		return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch one namespace", InstallModeTypeSingleNamespace)
-	}
-
-	if !set[InstallModeTypeMultiNamespace] && numNamespaces > 1 {
-		return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch %d namespaces", InstallModeTypeMultiNamespace, numNamespaces)
-	}
-
-	for i, namespace := range namespaces {
-		if !set[InstallModeTypeOwnNamespace] && namespace == operatorNamespace {
-			return fmt.Errorf("%s InstallModeType not supported, cannot configure to watch own namespace", InstallModeTypeOwnNamespace)
-		}
-		if i > 0 && namespace == v1.NamespaceAll {
-			return fmt.Errorf("invalid selected namespaces, NamespaceAll found when |selected namespaces| > 1")
-		}
-	}
-
-	return nil
-}
-
-// Supports returns an error if the InstallModeSet does not support configuration for
-// the given operatorNamespace and list of target namespaces.
 func (set InstallModeSet) Supports(operatorNamespace string, namespaces []string) error {
 	numNamespaces := len(namespaces)
 	switch {
