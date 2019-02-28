@@ -621,7 +621,9 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		err = modeSet.Supports(out.GetNamespace(), namespaces)
 		if err != nil {
 			logger.WithField("reason", err.Error()).Infof("InstallModeSet does not support OperatorGroup namespace selection")
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedOperatorGroup, err.Error(), now, a.recorder)
+			if out.Status.Reason != v1alpha1.CSVReasonUnsupportedOperatorGroup {
+				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedOperatorGroup, err.Error(), now, a.recorder)
+			}
 			return
 		}
 	} else {
