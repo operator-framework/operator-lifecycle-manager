@@ -239,10 +239,10 @@ The metadata section contains general metadata around the name, version and othe
 **Selectors** (optional): A label selector to identify related resources. Set this to select on current labels applied to this CSV object (if applicable).
 
 **InstallModes**: A set of `InstallMode`s that tell OLM which `OperatorGroup`s an Operator can belong to. Belonging to an `OperatorGroup` means that OLM provides the set of targetted namespaces as an annotation on the Operator's CSV and any deployments defined therin. These deployments can then untilize [the Downward API](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api) to inject the list of namespaces into its container(s). An `InstallMode` consists of an `InstallModeType` field and a boolean `Supported` field. There are four `InstallModeTypes`: 
-* `OwnNamespace`: If supported, the set of namespaces targetted by an `OperatorGroup` must contain the namespace the Operator is to be installed in.
-* `SingleNamespace`: If supported, the set of namespaces targetted by an `OperatorGroup` can be of length 1.
-* `MultiNamespace`: If supported, the set of namespaces targetted by an `OperatorGroup` can be of length >= 1. Any Operator supporting `MultiNamespace` implicitly supports `SingleNamespace` as well.
-* `AllNamespaces`: If supported, the Operator can support an `OperatorGroup` that selects all namespaces with a targetted set = [""]. Any Operator supporting `AllNamespaces` implicity supports `OwnNamespace` as well. 
+* `OwnNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects its own namespace
+* `SingleNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects one namespace
+* `MultiNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects more than one namespace
+* `AllNamespaces`: If supported, the operator can be a member of an `OperatorGroup` that selects all namespaces (target namespace set is the empty string "")
 
 Here's an example:
 
