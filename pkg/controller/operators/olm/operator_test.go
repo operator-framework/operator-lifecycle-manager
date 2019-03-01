@@ -3576,6 +3576,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 				}
 			}
 
+			// Sync again to catch provided API changes
+			err = op.syncOperatorGroups(tt.initial.operatorGroup)
+			require.NoError(t, err)
+
 			operatorGroup, err := op.GetClient().OperatorsV1alpha2().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)

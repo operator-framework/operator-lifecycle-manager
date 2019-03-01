@@ -51,38 +51,54 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"namespace":     op.GetNamespace(),
 	})
 
-	targetNamespaces, err := a.updateNamespaceList(op)
+	targetNamespaces, err := a.getOperatorGroupTargets(op)
 	if err != nil {
-		logger.WithError(err).Warn("updateNamespaceList error")
+		logger.WithError(err).Warn("issue getting operatorgroup target namespaces")
 		return err
 	}
-	logger.WithField("targetNamespaces", targetNamespaces).Debug("updated target namespaces")
+
+	if namespacesChanged(targetNamespaces, op.Status.Namespaces) {
+		// Update operatorgroup target namespace selection
+		logger.WithField("targets", targetNamespaces).Debug("namespace change detected")
+		op.Status = v1alpha2.OperatorGroupStatus{
+			Namespaces:  targetNamespaces,
+			LastUpdated: timeNow(),
+		}
+	
+		if _, err = a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).UpdateStatus(op); err != nil && !k8serrors.IsNotFound(err) {
+			logger.WithError(err).Warn("operatorgroup update failed")
+			return err
+		}
+
+		// CSV requeue is handled by the succeeding sync
+		return nil
+	}
 
 	if err := a.ensureOpGroupClusterRoles(op); err != nil {
-		a.Log.Errorf("ensureOpGroupClusterRoles error: %v", err)
+		logger.WithError(err).Warn("failed to ensure operatorgroup clusterroles")
 		return err
 	}
-	a.Log.Debug("cluster roles completed")
+	logger.Debug("operatorgroup clusterroles ensured")
 
 	set := a.csvSet(op.Namespace, v1alpha1.CSVPhaseAny)
 	providedAPIs := make(resolver.APISet)
 	for _, csv := range set {
 		logger := logger.WithField("csv", csv.GetName())
-		origCSVannotations := csv.GetAnnotations()
-		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
-		if !reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) {
-			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
-				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
-				logger.WithError(err).Warnf("update to existing csv failed")
-				continue
-			}
-		}
 
-		// Don't union providedAPIs if the CSV is copied (member of another OperatorGroup)
+		// Don't stomp on copied CSVs
 		if csv.IsCopied() {
-			logger.Debug("csv is copied. not including in operatorgroup's provided api set")
+			logger.Debug("csv is copied. not updating annotations or including in operatorgroup's provided api set")
 			continue
+		}
+		
+		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, op) {
+			a.setOperatorGroupAnnotations(&csv.ObjectMeta, op, true)
+			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil && !k8serrors.IsNotFound(err) {
+				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
+				logger.WithError(err).Warnf("error adding operatorgroup annotations")
+				return err
+			}
 		}
 
 		// TODO: Throw out CSVs that aren't members of the group due to group related failures?
@@ -122,7 +138,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		logger.Debug("removing provided apis from annotation to match cluster state")
 		if _, err := a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).Update(op); err != nil && !k8serrors.IsNotFound(err) {
 			logger.WithError(err).Warn("could not update provided api annotations")
-			return nil
+			return err
 		}
 	}
 
@@ -502,12 +518,28 @@ func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion,
 	return nil
 }
 
-func (a *Operator) addOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, addTargets bool) {
+func (a *Operator) setOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, addTargets bool) {
 	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupNamespaceAnnotationKey, op.GetNamespace())
 	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupAnnotationKey, op.GetName())
-	if addTargets {
+
+	if addTargets && op.Status.Namespaces != nil {
 		metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
 	}
+}
+
+func (a *Operator) operatorGroupAnnotationsDiffer(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup) bool {
+	annotations := obj.GetAnnotations()
+	if operatorGroupNamespace, ok := annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]; !ok || operatorGroupNamespace != op.GetNamespace() {
+		return true
+	}
+	if operatorGroup, ok := annotations[v1alpha2.OperatorGroupAnnotationKey]; !ok || operatorGroup != op.GetName() {
+		return true
+	}
+	if targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]; !ok || targets != strings.Join(op.Status.Namespaces, ",") {
+		return true
+	}
+
+	return false
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
@@ -527,7 +559,7 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 	return false
 }
 
-func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, error) {
+func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) ([]string, error) {
 	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
 	if err != nil {
 		return nil, err
@@ -559,22 +591,6 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 		namespaceList = append(namespaceList, ns)
 	}
 	sort.StringSlice(namespaceList).Sort()
-
-	if !namespacesChanged(namespaceList, op.Status.Namespaces) {
-		// status is current with correct namespaces, so no further updates required
-		return namespaceList, nil
-	}
-
-	a.Log.Debugf("Namespace change detected, found: %v", namespaceList)
-	op.Status = v1alpha2.OperatorGroupStatus{
-		Namespaces:  namespaceList,
-		LastUpdated: timeNow(),
-	}
-
-	_, err = a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).UpdateStatus(op)
-	if err != nil {
-		return namespaceList, err
-	}
 
 	return namespaceList, nil
 }
