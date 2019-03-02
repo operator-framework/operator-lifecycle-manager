@@ -515,51 +515,50 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	})
 	logger.Info("syncing CSV")
 
-	operatorGroup := a.operatorGroupForActiveCSV(logger, clusterServiceVersion)
+	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
+
+	// status changed, update CSV
+	if !(outCSV.Status.LastUpdateTime == clusterServiceVersion.Status.LastUpdateTime &&
+		outCSV.Status.Phase == clusterServiceVersion.Status.Phase &&
+		outCSV.Status.Reason == clusterServiceVersion.Status.Reason &&
+		outCSV.Status.Message == clusterServiceVersion.Status.Message) {
+
+		// Update CSV with status of transition. Log errors if we can't write them to the status.
+		_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(outCSV.GetNamespace()).UpdateStatus(outCSV)
+		if err != nil {
+			updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
+			if syncError == nil {
+				logger.Info(updateErr)
+				return updateErr
+			}
+			syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
+		}
+	}
+
+	operatorGroup := a.operatorGroupForActiveCSV(logger, outCSV)
 	if operatorGroup == nil {
 		logger.WithField("reason", "no operatorgroup found for active CSV").Info("skipping CSV resource copy to target namespaces")
 		return
 	}
 
-	if clusterServiceVersion.Status.Phase == v1alpha1.CSVPhaseFailed && clusterServiceVersion.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
-		logger.WithField("reason", clusterServiceVersion.Status.Message).Info("skipping CSV resource copy to target namespaces")
+	if outCSV.Status.Phase == v1alpha1.CSVPhaseFailed && outCSV.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
+		logger.WithField("reason", outCSV.Status.Message).Info("skipping CSV resource copy to target namespaces")
 		return
 	}
 
 	// Check if we need to do any copying / annotation for the operatorgroup
-	if err := a.copyCsvToTargetNamespace(clusterServiceVersion, operatorGroup); err != nil {
+	if err := a.copyCsvToTargetNamespace(outCSV, operatorGroup); err != nil {
 		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
 	}
 
 	// Ensure operator has access to targetnamespaces
-	if err := a.ensureRBACInTargetNamespace(clusterServiceVersion, operatorGroup); err != nil {
+	if err := a.ensureRBACInTargetNamespace(outCSV, operatorGroup); err != nil {
 		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
 	}
 
 	// Ensure cluster roles exist for using provided apis
-	if err := a.ensureClusterRolesForCSV(clusterServiceVersion, operatorGroup); err != nil {
+	if err := a.ensureClusterRolesForCSV(outCSV, operatorGroup); err != nil {
 		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
-	}
-
-	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
-
-	// no changes in status, don't update
-	if outCSV.Status.LastUpdateTime == clusterServiceVersion.Status.LastUpdateTime &&
-		outCSV.Status.Phase == clusterServiceVersion.Status.Phase &&
-		outCSV.Status.Reason == clusterServiceVersion.Status.Reason &&
-		outCSV.Status.Message == clusterServiceVersion.Status.Message {
-		return
-	}
-
-	// Update CSV with status of transition. Log errors if we can't write them to the status.
-	_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(clusterServiceVersion.GetNamespace()).UpdateStatus(outCSV)
-	if err != nil {
-		updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
-		if syncError == nil {
-			logger.Info(updateErr)
-			return updateErr
-		}
-		syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
 	}
 
 	return

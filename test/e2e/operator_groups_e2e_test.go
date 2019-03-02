@@ -110,7 +110,7 @@ func newOperatorGroup(namespace, name string, annotations map[string]string, sel
 		},
 		Spec: v1alpha2.OperatorGroupSpec{
 			TargetNamespaces:   targetNamespaces,
-			Selector:           &selector,
+			Selector:           selector,
 			StaticProvidedAPIs: static,
 		},
 	}
@@ -1177,6 +1177,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 		}
 		if len(fetched.Status.Namespaces) > 0 {
 			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
+			fmt.Println(fetched.Status.Namespaces)
 			return true, nil
 		}
 		return false, nil

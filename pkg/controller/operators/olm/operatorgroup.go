@@ -3,7 +3,6 @@ package olm
 import (
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -642,7 +641,6 @@ func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, er
 	for ns := range namespaceSet {
 		namespaceList = append(namespaceList, ns)
 	}
-	sort.StringSlice(namespaceList).Sort()
 
 	return namespaceList, nil
 }
