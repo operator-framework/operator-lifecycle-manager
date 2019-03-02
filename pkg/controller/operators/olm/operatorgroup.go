@@ -385,7 +385,6 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 	if err != nil {
 		return err
 	}
-
 	ownerSelector := ownerutil.CSVOwnerSelector(csv)
 	ownedRoles, err := a.lister.RbacV1().RoleLister().Roles(operatorNamespace).List(ownerSelector)
 	if err != nil {
@@ -466,18 +465,22 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 	return nil
 }
 
-func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup) error {
-	namespaces := make([]string, 0)
-	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
-		namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
+func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, namespaces []string, pruneNamespaces []string) error {
+	// check for stale CSVs from a different previous operator group configuration
+	for _, ns := range pruneNamespaces {
+		fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).List(labels.Everything())
 		if err != nil {
 			return err
 		}
-		for _, ns := range namespaceObjs {
-			namespaces = append(namespaces, ns.GetName())
+		for _, csv := range fetchedCSVs {
+			if csv.IsCopied() && csv.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey] == operatorGroup.GetName() {
+				a.Log.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), ns)
+				err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(csv.GetName(), &metav1.DeleteOptions{})
+				if err != nil {
+					return err
+				}
+			}
 		}
-	} else {
-		namespaces = operatorGroup.Status.Namespaces
 	}
 
 	logger := a.Log.WithField("operator-ns", operatorGroup.GetNamespace())
@@ -583,6 +586,21 @@ func (a *Operator) copyOperatorGroupAnnotations(obj *metav1.ObjectMeta) map[stri
 		}
 	}
 	return copiedAnnotations
+}
+
+// returns items in a that are not in b
+func sliceCompare(a, b []string) []string {
+	mb := make(map[string]struct{})
+	for _, x := range b {
+		mb[x] = struct{}{}
+	}
+	ab := []string{}
+	for _, x := range a {
+		if _, ok := mb[x]; !ok {
+			ab = append(ab, x)
+		}
+	}
+	return ab
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {

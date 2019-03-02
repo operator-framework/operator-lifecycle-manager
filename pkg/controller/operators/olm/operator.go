@@ -545,9 +545,27 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		logger.WithField("reason", outCSV.Status.Message).Info("skipping CSV resource copy to target namespaces")
 		return
 	}
+	allNamespaces := make([]string, 0)
+	pruneNamespaces := make([]string, 0)
+	targetNamespaces := make([]string, 0)
+	namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	for _, ns := range namespaceObjs {
+		allNamespaces = append(allNamespaces, ns.GetName())
+	}
+	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
+		targetNamespaces = allNamespaces
+	} else {
+		targetNamespaces = operatorGroup.Status.Namespaces
+		pruneNamespaces = sliceCompare(allNamespaces, targetNamespaces)
+		logger.Debugf("Found namespaces to clean %v", pruneNamespaces)
+	}
 
 	// Check if we need to do any copying / annotation for the operatorgroup
-	if err := a.copyCsvToTargetNamespace(outCSV, operatorGroup); err != nil {
+	if err := a.copyCsvToTargetNamespace(clusterServiceVersion, operatorGroup, targetNamespaces, pruneNamespaces); err != nil {
 		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
 	}
 
