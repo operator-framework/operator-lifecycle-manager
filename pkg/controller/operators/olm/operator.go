@@ -473,14 +473,13 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 		"phase":     csv.Status.Phase,
 	})
 
+	delete := false
 	operatorNamespace, ok := csv.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debug("missing operator namespace annotation on copied CSV")
-		// TODO: Should we clean up the CSV if we don't know where its parent is?
-		return fmt.Errorf("missing operator namespace annotation on copied CSV")
+		delete = true
 	}
 
-	delete := false
 	parent, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
 	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) {
 		logger.Debug("deleting copied CSV since parent is missing")
