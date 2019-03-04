@@ -14,6 +14,18 @@ var obsoleteReasons = map[ConditionReason]struct{}{
 	CSVReasonBeingReplaced: {},
 }
 
+// uncopiableReasons are the set of reasons that should prevent a CSV from being copied to target namespaces
+var uncopiableReasons = map[ConditionReason]struct{}{
+	CSVReasonCopied:                                      {},
+	CSVReasonInvalidInstallModes:                         {},
+	CSVReasonNoTargetNamespaces:                          {},
+	CSVReasonUnsupportedOperatorGroup:                    {},
+	CSVReasonNoOperatorGroup:                             {},
+	CSVReasonTooManyOperatorGroups:                       {},
+	CSVReasonInterOperatorGroupOwnerConflict:             {},
+	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs: {},
+}
+
 func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
 	var eventtype string
 	if phase == CSVPhaseFailed {
@@ -78,6 +90,11 @@ func (c *ClusterServiceVersion) IsCopied() bool {
 		return true
 	}
 	return false
+}
+
+func (c *ClusterServiceVersion) IsUncopiable() bool {
+	_, ok := uncopiableReasons[c.Status.Reason]
+	return ok
 }
 
 // NewInstallModeSet returns an InstallModeSet instantiated from the given list of InstallModes.

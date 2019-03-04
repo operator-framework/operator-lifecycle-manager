@@ -534,6 +534,11 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		}
 	}
 
+	if outCSV.IsUncopiable() {
+		logger.WithField("reason", outCSV.Status.Reason).Debug("skipping CSV resource copy to target namespaces")
+		return
+	}
+
 	operatorGroup := a.operatorGroupForActiveCSV(logger, outCSV)
 	if operatorGroup == nil {
 		logger.WithField("reason", "no operatorgroup found for active CSV").Info("skipping CSV resource copy to target namespaces")
