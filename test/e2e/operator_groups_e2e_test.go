@@ -430,12 +430,6 @@ func TestOperatorGroup(t *testing.T) {
 	_, err = fetchCSV(t, crc, csvName, opGroupNamespace, csvFailedChecker)
 	require.NoError(t, err, "csv did not transition to failed as expected")
 
-	// Ensure Failed status was propagated to copied CSV
-	_, err = fetchCSV(t, crc, csvName, otherNamespaceName, func(csv *v1alpha1.ClusterServiceVersion) bool {
-		return csvFailedChecker(csv) && csv.Status.Reason == v1alpha1.CSVReasonCopied
-	})
-	require.NoError(t, err, "csv failed status did not propagate to copied csv")
-
 	// ensure deletion cleans up copied CSV
 	t.Log("deleting parent csv")
 	err = crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Delete(csvName, &metav1.DeleteOptions{})
@@ -1209,11 +1203,19 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	}
 	_, err = c.CreateServiceAccount(serviceAccount)
 	require.NoError(t, err)
+	defer func() {
+		c.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0))
+	}()
 	_, err = c.CreateRole(role)
 	require.NoError(t, err)
+	defer func() {
+		c.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0))
+	}()
 	_, err = c.CreateRoleBinding(roleBinding)
 	require.NoError(t, err)
-
+	defer func() {
+		c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
+	}()
 	// Create a new NamedInstallStrategy
 	deploymentName := genName("operator-deployment")
 	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
@@ -1224,14 +1226,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Log("wait for CSV to succeed")
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(createdCSV.GetName(), metav1.GetOptions{})
-		if err != nil {
-			return false, err
-		}
-		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
-		return csvSucceededChecker(fetched), nil
-	})
+	_, err = fetchCSV(t, crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
 	t.Log("Waiting for operator namespace csv to have annotations")
@@ -1251,7 +1246,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(metav1.ListOptions{LabelSelector: "label=TestCSVCopyWatchingAllNamespaces"})
+	csvList, err := crc.OperatorsV1alpha1().ClusterServiceVersions(corev1.NamespaceAll).List(metav1.ListOptions{LabelSelector: fmt.Sprintf("label=%s", t.Name())})
 	require.NoError(t, err)
 	t.Logf("Found CSV count of %v", len(csvList.Items))
 
@@ -1293,6 +1288,14 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	currentOperatorGroup.Spec.TargetNamespaces = []string{opGroupNamespace}
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
 	require.NoError(t, err)
+	defer func() {
+		t.Log("Re-modifying operator group to be watching all namespaces")
+		currentOperatorGroup, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
+		require.NoError(t, err)
+		currentOperatorGroup.Spec = v1alpha2.OperatorGroupSpec{}
+		_, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
+		require.NoError(t, err)
+	}()
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		_, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
@@ -1305,12 +1308,5 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 		}
 		return false, nil
 	})
-	require.NoError(t, err)
-
-	t.Log("Re-modifying operator group to be watching all namespaces")
-	currentOperatorGroup, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
-	require.NoError(t, err)
-	currentOperatorGroup.Spec = v1alpha2.OperatorGroupSpec{}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
 	require.NoError(t, err)
 }
