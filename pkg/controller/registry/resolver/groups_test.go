@@ -1,21 +1,21 @@
 package resolver
 
 import (
-	"testing"
 	"strings"
-	
+	"testing"
+
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 )
 
-func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) v1alpha2.OperatorGroup {
-	return v1alpha2.OperatorGroup {
+func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *v1alpha2.OperatorGroup {
+	return &v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name: name,
+			Name:      name,
 			Annotations: map[string]string{
 				v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: strings.Join(gvks, ","),
 			},
@@ -28,27 +28,27 @@ func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []stri
 func TestNewOperatorGroup(t *testing.T) {
 	tests := []struct {
 		name string
-		in  v1alpha2.OperatorGroup
+		in   *v1alpha2.OperatorGroup
 		want *OperatorGroup
 	}{
 		{
 			name: "NoTargetNamespaces/NoProvidedAPIs",
-			in: buildAPIOperatorGroup("ns", "empty-group", nil, nil),
+			in:   buildAPIOperatorGroup("ns", "empty-group", nil, nil),
 			want: &OperatorGroup{
-				namespace: "ns",
-				name: "empty-group",
-				targets: make(NamespaceSet),
+				namespace:    "ns",
+				name:         "empty-group",
+				targets:      make(NamespaceSet),
 				providedAPIs: make(APISet),
 			},
 		},
 		{
 			name: "OneTargetNamespace/NoProvidedAPIs",
-			in: buildAPIOperatorGroup("ns", "empty-group", []string{"ns-1"}, nil),
+			in:   buildAPIOperatorGroup("ns", "empty-group", []string{"ns-1"}, nil),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "empty-group",
+				name:      "empty-group",
 				targets: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 				},
 				providedAPIs: make(APISet),
@@ -56,10 +56,10 @@ func TestNewOperatorGroup(t *testing.T) {
 		},
 		{
 			name: "OwnTargetNamespace/NoProvidedAPIs",
-			in: buildAPIOperatorGroup("ns", "empty-group", []string{"ns"}, nil),
+			in:   buildAPIOperatorGroup("ns", "empty-group", []string{"ns"}, nil),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "empty-group",
+				name:      "empty-group",
 				targets: NamespaceSet{
 					"ns": {},
 				},
@@ -68,24 +68,24 @@ func TestNewOperatorGroup(t *testing.T) {
 		},
 		{
 			name: "MultipleTargetNamespaces/NoProvidedAPIs",
-			in: buildAPIOperatorGroup("ns", "empty-group", []string{"ns-1", "ns-2"}, nil),
+			in:   buildAPIOperatorGroup("ns", "empty-group", []string{"ns-1", "ns-2"}, nil),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "empty-group",
+				name:      "empty-group",
 				targets: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
-					"ns-2" :{},
+					"ns-2": {},
 				},
 				providedAPIs: make(APISet),
 			},
 		},
 		{
 			name: "AllTargetNamespaces/NoProvidedAPIs",
-			in: buildAPIOperatorGroup("ns", "empty-group", []string{metav1.NamespaceAll}, nil),
+			in:   buildAPIOperatorGroup("ns", "empty-group", []string{metav1.NamespaceAll}, nil),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "empty-group",
+				name:      "empty-group",
 				targets: NamespaceSet{
 					metav1.NamespaceAll: {},
 				},
@@ -94,12 +94,12 @@ func TestNewOperatorGroup(t *testing.T) {
 		},
 		{
 			name: "OneTargetNamespace/OneProvidedAPI",
-			in: buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
+			in:   buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com"}),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "group",
+				name:      "group",
 				targets: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 				},
 				providedAPIs: APISet{
@@ -109,12 +109,12 @@ func TestNewOperatorGroup(t *testing.T) {
 		},
 		{
 			name: "OneTargetNamespace/BadProvidedAPI",
-			in: buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1"}),
+			in:   buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1"}),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "group",
+				name:      "group",
 				targets: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 				},
 				providedAPIs: make(APISet),
@@ -122,12 +122,12 @@ func TestNewOperatorGroup(t *testing.T) {
 		},
 		{
 			name: "OneTargetNamespace/MultipleProvidedAPIs/OneBad",
-			in: buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1,Moose.v1alpha1.mammals.com"}),
+			in:   buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1,Moose.v1alpha1.mammals.com"}),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "group",
+				name:      "group",
 				targets: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 				},
 				providedAPIs: APISet{
@@ -137,16 +137,16 @@ func TestNewOperatorGroup(t *testing.T) {
 		},
 		{
 			name: "OneTargetNamespace/MultipleProvidedAPIs",
-			in: buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com,Moose.v1alpha1.mammals.com"}),
+			in:   buildAPIOperatorGroup("ns", "group", []string{"ns-1"}, []string{"Goose.v1alpha1.birds.com,Moose.v1alpha1.mammals.com"}),
 			want: &OperatorGroup{
 				namespace: "ns",
-				name: "group",
+				name:      "group",
 				targets: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 				},
 				providedAPIs: APISet{
-					opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
+					opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
 					opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 				},
 			},
@@ -164,18 +164,18 @@ func TestNewOperatorGroup(t *testing.T) {
 
 func TestNamespaceSetIntersection(t *testing.T) {
 	type input struct {
-		left NamespaceSet
+		left  NamespaceSet
 		right NamespaceSet
 	}
-	tests := []struct{
+	tests := []struct {
 		name string
-		in input
+		in   input
 		want NamespaceSet
 	}{
 		{
 			name: "EmptySets",
 			in: input{
-				left: make(NamespaceSet),
+				left:  make(NamespaceSet),
 				right: make(NamespaceSet),
 			},
 			want: make(NamespaceSet),
@@ -185,7 +185,7 @@ func TestNamespaceSetIntersection(t *testing.T) {
 			in: input{
 				left: make(NamespaceSet),
 				right: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
@@ -196,7 +196,7 @@ func TestNamespaceSetIntersection(t *testing.T) {
 			name: "MultipleLeft/EmptyRight/NoIntersection",
 			in: input{
 				left: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
@@ -222,18 +222,18 @@ func TestNamespaceSetIntersection(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/SomeIntersect",
 			in: input{
 				left: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
 				right: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-3": {},
 				},
 			},
 			want: NamespaceSet{
-				"ns": {},
+				"ns":   {},
 				"ns-1": {},
 			},
 		},
@@ -241,18 +241,18 @@ func TestNamespaceSetIntersection(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/AllIntersect",
 			in: input{
 				left: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
 				right: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
 			},
 			want: NamespaceSet{
-				"ns": {},
+				"ns":   {},
 				"ns-1": {},
 				"ns-2": {},
 			},
@@ -264,13 +264,13 @@ func TestNamespaceSetIntersection(t *testing.T) {
 					"": {},
 				},
 				right: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
 			},
 			want: NamespaceSet{
-				"ns": {},
+				"ns":   {},
 				"ns-1": {},
 				"ns-2": {},
 			},
@@ -279,7 +279,7 @@ func TestNamespaceSetIntersection(t *testing.T) {
 			name: "MultipleLeft/AllRight/LeftIsIntersection",
 			in: input{
 				left: NamespaceSet{
-					"ns": {},
+					"ns":   {},
 					"ns-1": {},
 					"ns-2": {},
 				},
@@ -288,7 +288,7 @@ func TestNamespaceSetIntersection(t *testing.T) {
 				},
 			},
 			want: NamespaceSet{
-				"ns": {},
+				"ns":   {},
 				"ns-1": {},
 				"ns-2": {},
 			},
@@ -342,18 +342,18 @@ func buildOperatorGroup(namespace, name string, targets []string, gvks []string)
 
 func TestGroupIntersection(t *testing.T) {
 	type input struct {
-		left OperatorGroupSurface
+		left  OperatorGroupSurface
 		right []OperatorGroupSurface
 	}
-	tests := []struct{
+	tests := []struct {
 		name string
-		in input
-		want []OperatorGroupSurface	
+		in   input
+		want []OperatorGroupSurface
 	}{
 		{
 			name: "NoTargets/NilGroups/NoIntersection",
 			in: input{
-				left: buildOperatorGroup("ns", "empty-group", nil, nil),
+				left:  buildOperatorGroup("ns", "empty-group", nil, nil),
 				right: nil,
 			},
 			want: []OperatorGroupSurface{},
@@ -488,19 +488,19 @@ func TestGroupIntersection(t *testing.T) {
 }
 
 func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReconciler) {
-	tests := []struct{
-		name string
-		add APISet
-		group OperatorGroupSurface
+	tests := []struct {
+		name        string
+		add         APISet
+		group       OperatorGroupSurface
 		otherGroups []OperatorGroupSurface
-		want APIReconciliationResult
+		want        APIReconciliationResult
 	}{
 		{
-			name: "Empty/NoAPIConflict",
-			add: make(APISet),
-			group: buildOperatorGroup("ns", "g1", []string{"ns"}, nil),
+			name:        "Empty/NoAPIConflict",
+			add:         make(APISet),
+			group:       buildOperatorGroup("ns", "g1", []string{"ns"}, nil),
 			otherGroups: nil,
-			want: NoAPIConflict,
+			want:        NoAPIConflict,
 		},
 		{
 			name: "NoNamespaceIntersection/APIIntersection/NoAPIConflict",
@@ -539,7 +539,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		{
 			name: "SomeNamespaceIntersection/NoAPIIntersection/NoAPIConflict",
 			add: APISet{
-				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
+				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
 				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1", "ns-2", "ns-3"}, []string{"Goose.v1alpha1.birds.com,Moose.v1alpha1.mammals.com"}),
@@ -780,7 +780,7 @@ func apiIntersectionReconcilerSuite(t *testing.T, reconciler APIIntersectionReco
 		{
 			name: "SomeNamespaceIntersection/APIIntersection/RemoveAPIs",
 			add: APISet{
-				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
+				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
 				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 			},
 			group: buildOperatorGroup("ns", "g1", []string{"ns-1", "ns-2", "ns-3"}, []string{"Goose.v1alpha1.birds.com,Moose.v1alpha1.mammals.com"}),
