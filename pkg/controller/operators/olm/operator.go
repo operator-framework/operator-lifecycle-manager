@@ -339,8 +339,7 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	}
 
 	for _, group := range operatorGroupList {
-		_, ok := resolver.NewNamespaceSet(group.Status.Namespaces).Intersection(resolver.NewNamespaceSet([]string{namespace.GetName()}))[namespace.GetName()]
-		if ok {
+		if resolver.NewNamespaceSet(group.Status.Namespaces).Contains(namespace.GetName()) {
 			if err := a.ogQueueSet.Requeue(group.Name, group.Namespace); err != nil {
 				logger.Warn(err)
 			}
@@ -483,7 +482,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	}
 
 	if annotations := parent.GetAnnotations(); annotations != nil {
-		if _, ok := resolver.NewNamespaceSet(strings.Split(annotations[v1alpha2.OperatorGroupTargetsAnnotationKey], ","))[csv.GetNamespace()]; !ok {
+		if resolver.NewNamespaceSet(strings.Split(annotations[v1alpha2.OperatorGroupTargetsAnnotationKey], ",")).Contains(csv.GetNamespace()) {
 			logger.Debug("deleting copied CSV since parent no longer lists this as a target namespace")
 			return a.deleteChild(csv)
 		}
