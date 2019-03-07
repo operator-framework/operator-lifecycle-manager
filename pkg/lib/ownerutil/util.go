@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
@@ -125,16 +126,38 @@ func Adoptable(target Owner, owners []metav1.OwnerReference) bool {
 }
 
 // OwnersIntersect checks to see if any member of targets exists in owners
-func OwnersIntersect(targets []Owner, ownerLabels map[string]string) bool {
+func OwnersIntersect(targets []Owner, apiservice *apiregistrationv1.APIService) bool {
+	ownerLabels := apiservice.GetLabels()
 	if len(ownerLabels) == 0 {
 		// Resources with no owners are not adoptable
+		log.Debugf("Did not contain labels for apiservice %v", apiservice.GetName())
+		return false
+	}
+
+	svcOwnerKind, ok := ownerLabels[OwnerKind]
+	if !ok {
+		log.Warnf("missing owner kind for apiservice %v", apiservice.GetName())
+		return false
+	}
+	svcOwnerNamespace, ok := ownerLabels[OwnerNamespaceKey]
+	if !ok {
+		log.Warnf("missing owner namespace for apiservice %v", apiservice.GetName())
+		return false
+	}
+	svcOwnerName, ok := ownerLabels[OwnerKey]
+	if !ok {
+		log.Warnf("missing owner name for apiservice %v", apiservice.GetName())
 		return false
 	}
 
 	for _, target := range targets {
-		if ownerLabels[OwnerKind] == target.GetObjectKind().GroupVersionKind().Kind &&
-			ownerLabels[OwnerNamespaceKey] == target.GetNamespace() &&
-			ownerLabels[OwnerKey] == target.GetName() {
+		if err := InferGroupVersionKind(target); err != nil {
+			log.Warnf("GVK infer failed for %v: %v", target, err)
+			return false
+		}
+		if svcOwnerKind == target.GetObjectKind().GroupVersionKind().Kind &&
+			svcOwnerNamespace == target.GetNamespace() &&
+			svcOwnerName == target.GetName() {
 			return true
 		}
 	}

@@ -83,7 +83,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		// Check if the APIService is adoptable
-		if !ownerutil.OwnersIntersect(owners, apiService.GetLabels()) {
+		if !ownerutil.OwnersIntersect(owners, apiService) {
 			err := olmerrors.NewUnadoptableError("", apiServiceName)
 			logger.WithError(err).Warn("found unadoptable apiservice")
 			errs = append(errs, err)
@@ -695,7 +695,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			owners = append(owners, replaces)
 		}
 		// check if the APIService is adoptable
-		if !ownerutil.OwnersIntersect(owners, apiService.GetLabels()) {
+		if !ownerutil.OwnersIntersect(owners, apiService) {
 			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
 		}
 	}
