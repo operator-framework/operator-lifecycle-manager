@@ -103,6 +103,9 @@ func (c *ClusterServiceVersion) IsCopied() bool {
 }
 
 func (c *ClusterServiceVersion) IsUncopiable() bool {
+	if c.Status.Phase == CSVPhaseNone {
+		return true
+	}
 	_, ok := uncopiableReasons[c.Status.Reason]
 	return ok
 }

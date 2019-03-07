@@ -460,11 +460,18 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 
 func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
 	logger := a.Log.WithFields(logrus.Fields{
-		"id":        queueinformer.NewLoopID(),
-		"csv":       csv.GetName(),
-		"namespace": csv.GetNamespace(),
-		"phase":     csv.Status.Phase,
+		"id":          queueinformer.NewLoopID(),
+		"csv":         csv.GetName(),
+		"namespace":   csv.GetNamespace(),
+		"phase":       csv.Status.Phase,
+		"labels":      csv.GetLabels(),
+		"annotations": csv.GetAnnotations(),
 	})
+
+	if !csv.IsCopied() {
+		logger.Debug("removeDanglingChild called on a parent. this is a no-op but should be avoided.")
+		return nil
+	}
 
 	operatorNamespace, ok := csv.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
@@ -472,11 +479,13 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 		return a.deleteChild(csv)
 	}
 
+	logger = logger.WithField("parentNamespace", operatorNamespace)
 	parent, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
 	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) || parent == nil {
 		logger.Debug("deleting copied CSV since parent is missing")
 		return a.deleteChild(csv)
 	}
+
 	if parent.Status.Phase == v1alpha1.CSVPhaseFailed && parent.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 		logger.Debug("deleting copied CSV since parent has intersecting operatorgroup conflict")
 		return a.deleteChild(csv)
@@ -537,11 +546,6 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		}
 	}
 
-	if outCSV.IsUncopiable() {
-		logger.WithField("reason", outCSV.Status.Reason).Debug("skipping CSV resource copy to target namespaces")
-		return
-	}
-
 	a.copyQueueIndexer.Enqueue(outCSV)
 
 	return
@@ -563,6 +567,11 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 
 	logger.Debug("copying CSV")
 
+	if clusterServiceVersion.IsUncopiable() {
+		logger.Debug("CSV uncopiable")
+		return
+	}
+
 	operatorGroup := a.operatorGroupForActiveCSV(logger, clusterServiceVersion)
 	if operatorGroup == nil {
 		logger.WithField("reason", "no operatorgroup found for active CSV").Debug("skipping CSV resource copy to target namespaces")
@@ -573,6 +582,10 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		logger.Debug("skipping copy for OwnNamespace operatorgroup")
 		return
 	}
+
+	logger.WithFields(logrus.Fields{
+		"targetNamespaces": strings.Join(operatorGroup.Status.Namespaces, ","),
+	}).Debug("copying csv to targets")
 
 	// Check if we need to do any copying / annotation for the operatorgroup
 	if err := a.ensureCSVsInNamespaces(clusterServiceVersion, operatorGroup, resolver.NewNamespaceSet(operatorGroup.Status.Namespaces)); err != nil {

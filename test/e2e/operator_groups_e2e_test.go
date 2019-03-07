@@ -696,9 +696,9 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Wait for csvB to have a CSV with a copied status in namespace C
 
 	// Create a catalog for csvA, csvB, and csvD
-	pkgA := genName("a")
-	pkgB := genName("b")
-	pkgD := genName("d")
+	pkgA := genName("a-")
+	pkgB := genName("b-")
+	pkgD := genName("d-")
 	pkgAStable := pkgA + "-stable"
 	pkgBStable := pkgB + "-stable"
 	pkgDStable := pkgD + "-stable"
@@ -717,7 +717,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	csvD := newCSV(pkgDStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, strategyD)
 
 	// Create namespaces
-	nsA, nsB, nsC, nsD, nsE := genName("a"), genName("b"), genName("c"), genName("d"), genName("e")
+	nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	for _, ns := range []string{nsA, nsB, nsC, nsD, nsE} {
@@ -773,9 +773,9 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create operatorgroups
-	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, nil, false)
-	groupB := newOperatorGroup(nsB, genName("b"), nil, nil, []string{nsC}, false)
-	groupD := newOperatorGroup(nsD, genName("d"), nil, nil, []string{nsD, nsE}, false)
+	groupA := newOperatorGroup(nsA, genName("a-"), nil, nil, nil, false)
+	groupB := newOperatorGroup(nsB, genName("b-"), nil, nil, []string{nsC}, false)
+	groupD := newOperatorGroup(nsD, genName("d-"), nil, nil, []string{nsD, nsE}, false)
 	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupD} {
 		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
@@ -785,7 +785,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	}
 
 	// Create subscription for csvD in namespaceD
-	subDName := genName("d")
+	subDName := genName("d-")
 	cleanupSubD := createSubscriptionForCatalog(t, crc, nsD, subDName, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 	defer cleanupSubD()
 	subD, err := fetchSubscription(t, crc, nsD, subDName, subscriptionHasInstallPlanChecker)
@@ -808,7 +808,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgD}))
 
 	// Create subscription for csvD2 in namespaceA
-	subD2Name := genName("d")
+	subD2Name := genName("d2-")
 	cleanupSubD2 := createSubscriptionForCatalog(t, crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
 	defer cleanupSubD2()
 	subD2, err := fetchSubscription(t, crc, nsA, subD2Name, subscriptionHasInstallPlanChecker)
@@ -832,7 +832,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subscription for csvA in namespaceA
-	subAName := genName("a")
+	subAName := genName("a-")
 	cleanupSubA := createSubscriptionForCatalog(t, crc, nsA, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 	defer cleanupSubA()
 	subA, err := fetchSubscription(t, crc, nsA, subAName, subscriptionHasInstallPlanChecker)
@@ -855,7 +855,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create subscription for csvB in namespaceB
-	subBName := genName("b")
+	subBName := genName("b-")
 	cleanupSubB := createSubscriptionForCatalog(t, crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 	defer cleanupSubB()
 	subB, err := fetchSubscription(t, crc, nsB, subBName, subscriptionHasInstallPlanChecker)
@@ -928,8 +928,8 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	// Ensure KindA.version.group providedAPI annotation on operatorGroupA
 
 	// Create a catalog for csvA, csvB
-	pkgA := genName("a")
-	pkgB := genName("b")
+	pkgA := genName("a-")
+	pkgB := genName("b-")
 	pkgAStable := pkgA + "-stable"
 	pkgBStable := pkgB + "-stable"
 	stableChannel := "stable"
@@ -943,7 +943,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	csvB := newCSV(pkgBStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, strategyB)
 
 	// Create namespaces
-	nsA, nsB, nsC, nsD := genName("a"), genName("b"), genName("c"), genName("d")
+	nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	for _, ns := range []string{nsA, nsB, nsC, nsD} {
@@ -989,9 +989,9 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create OperatorGroups
-	groupA := newOperatorGroup(nsA, genName("a"), map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, nil, []string{nsD}, true)
-	groupB := newOperatorGroup(nsB, genName("b"), nil, nil, nil, false)
-	groupC := newOperatorGroup(nsC, genName("d"), nil, nil, []string{nsC}, false)
+	groupA := newOperatorGroup(nsA, genName("a-"), map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, nil, []string{nsD}, true)
+	groupB := newOperatorGroup(nsB, genName("b-"), nil, nil, nil, false)
+	groupC := newOperatorGroup(nsC, genName("d-"), nil, nil, []string{nsC}, false)
 	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupC} {
 		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
@@ -1001,7 +1001,8 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	}
 
 	// Create subscription for csvA in namespaceB
-	subAName := genName("a")
+	subAName := genName("a-" +
+		"")
 	cleanupSubA := createSubscriptionForCatalog(t, crc, nsB, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
 	defer cleanupSubA()
 	subA, err := fetchSubscription(t, crc, nsB, subAName, subscriptionHasInstallPlanChecker)
@@ -1053,7 +1054,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 	// Create subscription for csvB in namespaceB
-	subBName := genName("b")
+	subBName := genName("b-")
 	cleanupSubB := createSubscriptionForCatalog(t, crc, nsB, subBName, catalog, pkgB, stableChannel, pkgBStable, v1alpha1.ApprovalAutomatic)
 	defer cleanupSubB()
 	subB, err := fetchSubscription(t, crc, nsB, subBName, subscriptionHasInstallPlanChecker)
@@ -1126,7 +1127,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	otherNamespaceName := genName(opGroupNamespace + "-")
 
 	t.Log("Creating CRD")
-	mainCRDPlural := genName("opgroup")
+	mainCRDPlural := genName("opgroup-")
 	mainCRD := newCRD(mainCRDPlural)
 	cleanupCRD, err := createCRD(c, mainCRD)
 	require.NoError(t, err)

@@ -74,6 +74,7 @@ func TestMain(m *testing.M) {
 	}
 	defer olmLog.Close()
 	olmlogger := logrus.New()
+	olmlogger.SetLevel(logrus.DebugLevel)
 	mw := io.MultiWriter(os.Stderr, olmLog)
 	olmlogger.SetOutput(mw)
 	olmlogger.SetFormatter(&logrus.TextFormatter{
@@ -88,6 +89,7 @@ func TestMain(m *testing.M) {
 	}
 	defer catLog.Close()
 	catlogger := logrus.New()
+	catlogger.SetLevel(logrus.DebugLevel)
 	cmw := io.MultiWriter(os.Stderr, catLog)
 	catlogger.SetOutput(cmw)
 	catlogger.SetFormatter(&logrus.TextFormatter{
