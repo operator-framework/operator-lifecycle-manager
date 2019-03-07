@@ -2970,7 +2970,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						Namespace: operatorNamespace,
 					},
 					Spec: v1alpha2.OperatorGroupSpec{
-						Selector: metav1.LabelSelector{
+						Selector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"a": "app-a"},
 						},
 					},
@@ -3000,7 +3000,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						Namespace: operatorNamespace,
 					},
 					Spec: v1alpha2.OperatorGroupSpec{
-						Selector: metav1.LabelSelector{
+						Selector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "app-a"},
 						},
 					},
@@ -3034,7 +3034,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						Namespace: operatorNamespace,
 					},
 					Spec: v1alpha2.OperatorGroupSpec{
-						Selector: metav1.LabelSelector{
+						Selector: &metav1.LabelSelector{
 							MatchLabels: map[string]string{"app": "app-a"},
 						},
 					},
