@@ -23,20 +23,13 @@ const (
 type InstallModeType string
 
 const (
-	// InstallModeTypeOwnNamespace indicates that the operator can be configured
-	// to watch the namespace it is installed into.
+	// InstallModeTypeOwnNamespace indicates that the operator can be a member of an `OperatorGroup` that selects its own namespace.
 	InstallModeTypeOwnNamespace InstallModeType = "OwnNamespace"
-	// InstallModeTypeSingleNamespace indicates that the operator can be
-	// configured to watch a single namespace, which is configurable via
-	// OperatorGroups' spec.targetNamespaces field.
+	// InstallModeTypeSingleNamespace indicates that the operator can be a member of an `OperatorGroup` that selects one namespace.
 	InstallModeTypeSingleNamespace InstallModeType = "SingleNamespace"
-	// InstallModeTypeMultiNamespace indicates that the operator can be
-	// configured to watch multiple namespaces via the OperatorGroup's
-	// spec.targetNamespaces field.
+	// InstallModeTypeMultiNamespace indicates that the operator can be a member of an `OperatorGroup` that selects more than one namespace.
 	InstallModeTypeMultiNamespace InstallModeType = "MultiNamespace"
-	// InstallModeTypeAllNamespaces indicates that the operator can configured
-	// to wwatch all namespaces by setting the OperatorGroup's
-	// spec.targetNamespaces field to "NamespaceAll".
+	// InstallModeTypeAllNamespaces indicates that the operator can be a member of an `OperatorGroup` that selects all namespaces (target namespace set is the empty string "").
 	InstallModeTypeAllNamespaces InstallModeType = "AllNamespaces"
 )
 

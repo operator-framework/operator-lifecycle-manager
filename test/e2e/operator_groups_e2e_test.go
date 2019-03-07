@@ -449,6 +449,227 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestOperatorGroupInstallModeSupport(t *testing.T) {
+	// Generate namespaceA
+	// Generate namespaceB
+	// Create operatorGroupA in namespaceA that selects namespaceA
+	// Generate csvA with an unfulfilled required CRD and no supported InstallModes in namespaceA
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	// Update csvA to have OwnNamespace supported=true
+	// Ensure csvA transitions to Pending
+	// Update operatorGroupA's target namespaces to select namespaceB
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	// Update csvA to have SingleNamespace supported=true
+	// Ensure csvA transitions to Pending
+	// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	// Update csvA to have MultiNamespace supported=true
+	// Ensure csvA transitions to Pending
+	// Update operatorGroupA to select all namespaces
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	// Update csvA to have AllNamespaces supported=true
+	// Ensure csvA transitions to Pending
+
+	// Generate namespaceA and namespaceB
+	nsA := genName("a")
+	nsB := genName("b")
+
+	c := newKubeClient(t)
+	for _, ns := range []string{nsA, nsB} {
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		}
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(namespace)
+		require.NoError(t, err)
+		defer func(name string) {
+			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
+		}(ns)
+	 }
+
+	// Generate operatorGroupA 
+	crc := newCRClient(t)
+	groupA := newOperatorGroup(nsA, genName("a"), nil, metav1.LabelSelector{}, []string{nsA}, false)
+	_, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Create(groupA)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(nsA).Delete(groupA.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Generate csvA in namespaceA with no supported InstallModes
+	crd := newCRD(genName("b")) 
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	csv := newCSV("nginx-a", nsA, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
+	csvA := &csv
+	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
+		{
+			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Supported: false,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Supported: false,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Supported: false,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Supported: false,
+		},
+	}
+	csvA, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(csvA)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(csvA.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	failedWithUnsupportedOperatorGroup := func(csv *v1alpha1.ClusterServiceVersion) bool {
+		return csvFailedChecker(csv) && csv.Status.Reason == v1alpha1.CSVReasonUnsupportedOperatorGroup
+	}
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+	require.NoError(t, err)
+
+	// Update csvA to have OwnNamespace supported=true
+	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
+		{
+			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Supported: false,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Supported: false,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Supported: false,
+		},
+	}
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Pending
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Update operatorGroupA's target namespaces to select namespaceB
+	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	groupA.Spec.TargetNamespaces = []string{nsB}
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+	require.NoError(t, err)
+
+	// Update csvA to have SingleNamespace supported=true
+	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
+		{
+			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Supported: false,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Supported: false,
+		},
+	}
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Pending
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
+	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	groupA.Spec.TargetNamespaces =  []string{nsA, nsB}
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+	require.NoError(t, err)
+
+	// Update csvA to have MultiNamespace supported=true
+	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
+		{
+			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Supported: false,
+		},
+	}
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Pending
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Update operatorGroupA's target namespaces to select all namespaces
+	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	groupA.Spec.TargetNamespaces =  []string{}
+	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, failedWithUnsupportedOperatorGroup)
+	require.NoError(t, err)
+
+	// Update csvA to have AllNamespaces supported=true
+	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
+		{
+			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Supported: true,
+		},
+		{
+			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Supported: true,
+		},
+	}
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
+	require.NoError(t, err)
+
+	// Ensure csvA transitions to Pending
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	require.NoError(t, err)
+}
 
 func TestOperatorGroupIntersection(t *testing.T) {
 	// Generate namespaceA
