@@ -23,8 +23,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.DeploymentStatus) bool {
@@ -104,13 +104,13 @@ func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup
 func newOperatorGroup(namespace, name string, annotations map[string]string, selector *metav1.LabelSelector, targetNamespaces []string, static bool) *v1alpha2.OperatorGroup {
 	return &v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
+			Namespace:   namespace,
+			Name:        name,
 			Annotations: annotations,
 		},
 		Spec: v1alpha2.OperatorGroupSpec{
-			TargetNamespaces: targetNamespaces,
-			Selector: selector,
+			TargetNamespaces:   targetNamespaces,
+			Selector:           &selector,
 			StaticProvidedAPIs: static,
 		},
 	}
@@ -737,7 +737,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 		defer func(name string) {
 			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
 		}(ns)
-	 }
+	}
 
 	// Create the initial catalogsources
 	manifests := []registry.PackageManifest{
@@ -777,7 +777,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	defer cleanupCatalogSource()
 	_, err = fetchCatalogSource(t, crc, catalog, nsD, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
-	 
+
 	// Create operatorgroups
 	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, nil, false)
 	groupB := newOperatorGroup(nsB, genName("b"), nil, nil, []string{nsC}, false)
@@ -786,7 +786,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
 		defer func(namespace, name string) {
-		require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
+			require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
 		}(group.GetNamespace(), group.GetName())
 	}
 
@@ -797,7 +797,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	subD, err := fetchSubscription(t, crc, nsD, subDName, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subD)
-	
+
 	// Await csvD's success
 	_, err = awaitCSV(t, crc, nsD, csvD.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
@@ -805,7 +805,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Await csvD's copy in namespaceE
 	_, err = awaitCSV(t, crc, nsE, csvD.GetName(), csvCopiedChecker)
 	require.NoError(t, err)
-	
+
 	// Await annotation on groupD
 	q := func() (metav1.ObjectMeta, error) {
 		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsD).Get(groupD.GetName(), metav1.GetOptions{})
@@ -963,7 +963,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 		defer func(name string) {
 			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
 		}(ns)
-	 }
+	}
 
 	// Create the initial catalogsources
 	manifests := []registry.PackageManifest{
@@ -1002,7 +1002,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
 		defer func(namespace, name string) {
-		require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
+			require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
 		}(group.GetNamespace(), group.GetName())
 	}
 
@@ -1084,7 +1084,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 		return g.ObjectMeta, err
 	}
 	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgB}))
-	
+
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
 		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
