@@ -324,36 +324,29 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		a.requeueOwnerCSVs(metaObj)
 	}
 
+	// TODO: only check this on namespace add/delete, not on every namespace sync
+	// Check to see if any operator groups are associated with this namespace
 	namespace, ok := obj.(*corev1.Namespace)
 	if !ok {
 		return nil
 	}
 
-	// Check to see if any operator groups are associated with this namespace
 	operatorGroupList, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		syncError = fmt.Errorf("lister failed: %v", err)
 		logger.Warn(syncError.Error())
 		return
 	}
-	for _, opGroup := range operatorGroupList {
-		namespaceMap, err := a.getOperatorGroupTargets(opGroup)
-		if err != nil {
-			syncError = fmt.Errorf("operator namespace lookup failed: %v", err)
-			logger.Warn(syncError.Error())
-			return
-		}
-		_, directMatch := namespaceMap[namespace.GetName()]
-		_, indirectMatch := namespaceMap[corev1.NamespaceAll]
-		if directMatch || indirectMatch {
-			logger.Debugf("Namespace %v matches operator group %v", namespace.GetName(), opGroup.GetName())
-			if err := a.ogQueueSet.Requeue(opGroup.GetName(), opGroup.GetNamespace()); err != nil {
-				syncError = fmt.Errorf("operator group %v requeue failed: %v", opGroup.GetName(), err)
-				logger.Warn(syncError.Error())
-				return
+
+	for _, group := range operatorGroupList {
+		_, ok := resolver.NewNamespaceSet(group.Status.Namespaces).Intersection(resolver.NewNamespaceSet([]string{namespace.GetName()}))[namespace.GetName()]
+		if ok {
+			if err := a.ogQueueSet.Requeue(group.Name, group.Namespace); err != nil {
+				logger.Warn(err)
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -473,29 +466,34 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 		"phase":     csv.Status.Phase,
 	})
 
-	delete := false
 	operatorNamespace, ok := csv.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debug("missing operator namespace annotation on copied CSV")
-		delete = true
+		return a.deleteChild(csv)
 	}
 
 	parent, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
-	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) {
+	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) || parent == nil {
 		logger.Debug("deleting copied CSV since parent is missing")
-		delete = true
-	} else if parent != nil && parent.Status.Phase == v1alpha1.CSVPhaseFailed && parent.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
+		return a.deleteChild(csv)
+	}
+	if parent.Status.Phase == v1alpha1.CSVPhaseFailed && parent.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 		logger.Debug("deleting copied CSV since parent has intersecting operatorgroup conflict")
-		delete = true
+		return a.deleteChild(csv)
 	}
 
-	if delete {
-		if err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{}); err != nil {
-			return err
+	if annotations := parent.GetAnnotations(); annotations != nil {
+		if _, ok := resolver.NewNamespaceSet(strings.Split(annotations[v1alpha2.OperatorGroupTargetsAnnotationKey], ","))[csv.GetNamespace()]; !ok {
+			logger.Debug("deleting copied CSV since parent no longer lists this as a target namespace")
+			return a.deleteChild(csv)
 		}
 	}
 
 	return nil
+}
+
+func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion) error {
+	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{})
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
@@ -512,7 +510,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		"namespace": clusterServiceVersion.GetNamespace(),
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
-	logger.Info("syncing CSV")
+	logger.Debug("syncing CSV")
 
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
@@ -545,27 +543,8 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		return
 	}
 
-	allNamespaces := make([]string, 0)
-	pruneNamespaces := make([]string, 0)
-	targetNamespaces := make([]string, 0)
-	namespaceObjs, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-
-	for _, ns := range namespaceObjs {
-		allNamespaces = append(allNamespaces, ns.GetName())
-	}
-	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == corev1.NamespaceAll {
-		targetNamespaces = allNamespaces
-	} else {
-		targetNamespaces = operatorGroup.Status.Namespaces
-		pruneNamespaces = sliceCompare(allNamespaces, targetNamespaces)
-		logger.Debugf("Found namespaces to clean %v", pruneNamespaces)
-	}
-
 	// Check if we need to do any copying / annotation for the operatorgroup
-	if err := a.copyCsvToTargetNamespace(clusterServiceVersion, operatorGroup, targetNamespaces, pruneNamespaces); err != nil {
+	if err := a.ensureCSVsInNamespaces(clusterServiceVersion, operatorGroup, resolver.NewNamespaceSet(operatorGroup.Status.Namespaces)); err != nil {
 		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
 	}
 
@@ -645,7 +624,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	now := timeNow()
 
 	if out.IsCopied() {
-		logger.Info("skipping copied csv transition")
+		logger.Debug("skipping copied csv transition")
 		syncError = a.removeDanglingChildCSVs(out)
 		return
 	}
@@ -732,7 +711,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	}
 	otherGroups, err := a.client.OperatorsV1alpha2().OperatorGroups(metav1.NamespaceAll).List(options)
 
-	groupSurface := resolver.NewOperatorGroup(*operatorGroup)
+	groupSurface := resolver.NewOperatorGroup(operatorGroup)
 	otherGroupSurfaces := resolver.NewOperatorGroupSurfaces(otherGroups.Items...)
 
 	operatorSurface, err := resolver.NewOperatorFromCSV(out)

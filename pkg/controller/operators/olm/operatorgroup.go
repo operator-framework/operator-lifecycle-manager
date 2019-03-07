@@ -11,6 +11,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -166,7 +167,7 @@ func (a *Operator) providedAPIsForGroup(group *v1alpha2.OperatorGroup, logger *l
 		providedAPIsFromCSVs = providedAPIsFromCSVs.Union(operatorSurface.ProvidedAPIs().StripPlural())
 	}
 
-	groupSurface := resolver.NewOperatorGroup(*group)
+	groupSurface := resolver.NewOperatorGroup(group)
 	groupProvidedAPIs := groupSurface.ProvidedAPIs()
 
 	// Don't prune providedAPIsFromCSVs if static
@@ -175,7 +176,7 @@ func (a *Operator) providedAPIsForGroup(group *v1alpha2.OperatorGroup, logger *l
 		return providedAPIsFromCSVs.Union(groupProvidedAPIs)
 	}
 
-	// Prune providedAPIsFromCSVs annotation if the cluster has less providedAPIsFromCSVs (handles CSV deletion)
+	// Prune providedAPIs annotation if the cluster has fewer providedAPIs (handles CSV deletion)
 	if intersection := groupProvidedAPIs.Intersection(providedAPIsFromCSVs); len(intersection) < len(groupProvidedAPIs) {
 		difference := groupProvidedAPIs.Difference(intersection)
 		logger := logger.WithFields(logrus.Fields{
@@ -475,88 +476,108 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 	return nil
 }
 
-func (a *Operator) copyCsvToTargetNamespace(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, namespaces []string, pruneNamespaces []string) error {
-	// check for stale CSVs from a different previous operator group configuration
-	for _, ns := range pruneNamespaces {
-		fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		for _, csv := range fetchedCSVs {
-			if csv.IsCopied() && csv.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey] == operatorGroup.GetName() {
-				a.Log.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), ns)
-				err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Delete(csv.GetName(), &metav1.DeleteOptions{})
-				if err != nil {
-					return err
-				}
-			}
-		}
+func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1alpha2.OperatorGroup, targets resolver.NamespaceSet) error {
+	namespaces, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything())
+	if err != nil {
+		return err
 	}
-
-	logger := a.Log.WithField("operator-ns", operatorGroup.GetNamespace())
-	newCSV := csv.DeepCopy()
-	delete(newCSV.Annotations, v1alpha2.OperatorGroupTargetsAnnotationKey)
 	for _, ns := range namespaces {
-		if ns == operatorGroup.GetNamespace() {
+		if ns.GetName() == operatorGroup.Namespace {
 			continue
 		}
-		logger = logger.WithField("target-ns", ns)
-
-		fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(newCSV.GetName())
-
-		logger = logger.WithField("csv", csv.GetName())
-		if fetchedCSV != nil {
-			logger.Debug("checking annotations")
-			if !reflect.DeepEqual(fetchedCSV.Annotations, newCSV.Annotations) {
-				fetchedCSV.Annotations = newCSV.Annotations
-				// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
-				logger.Debug("updating target CSV")
-				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Update(fetchedCSV); err != nil {
-					logger.WithError(err).Error("update target CSV failed")
-					return err
-				}
+		if targets.Contains(ns.GetName()) {
+			if err := a.copyToNamespace(csv, ns.GetName()); err != nil {
+				a.Log.WithError(err).Debug("error copying to target")
 			}
-
-			logger.Debug("checking status")
-			newCSV.Status = csv.Status
-			newCSV.Status.Reason = v1alpha1.CSVReasonCopied
-			newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
-
-			if !reflect.DeepEqual(fetchedCSV.Status, newCSV.Status) {
-				logger.Debug("updating status")
-				// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
-				fetchedCSV.Status = newCSV.Status
-				fetchedCSV.Status.LastUpdateTime = timeNow()
-				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(fetchedCSV); err != nil {
-					logger.WithError(err).Error("status update for target CSV failed")
-					return err
-				}
+		} else {
+			if err := a.pruneFromNamespace(operatorGroup.GetName(), ns.GetName()); err != nil {
+				a.Log.WithError(err).Debug("error pruning from old target")
 			}
-
-		} else if k8serrors.IsNotFound(err) {
-			newCSV.SetNamespace(ns)
-			newCSV.SetResourceVersion("")
-
-			logger.Debug("copying CSV")
-			createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).Create(newCSV)
-			if err != nil {
-				a.Log.Errorf("Create for new CSV failed: %v", err)
-				return err
-			}
-			createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
-			createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
-			createdCSV.Status.LastUpdateTime = timeNow()
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(ns).UpdateStatus(createdCSV); err != nil {
-				a.Log.Errorf("Status update for CSV failed: %v", err)
-				return err
-			}
-
-		} else if err != nil {
-			logger.WithError(err).Error("couldn't get CSV")
-			return err
 		}
 	}
+
 	return nil
+}
+
+func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespace string) error {
+	logger := a.Log.WithField("operator-ns", csv.GetNamespace()).WithField("target-ns", namespace)
+	newCSV := csv.DeepCopy()
+	delete(newCSV.Annotations, v1alpha2.OperatorGroupTargetsAnnotationKey)
+
+	fetchedCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(newCSV.GetName())
+
+	logger = logger.WithField("csv", csv.GetName())
+	if fetchedCSV != nil {
+		logger.Debug("checking annotations")
+		if !reflect.DeepEqual(fetchedCSV.Annotations, newCSV.Annotations) {
+			fetchedCSV.Annotations = newCSV.Annotations
+			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
+			logger.Debug("updating target CSV")
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(fetchedCSV); err != nil {
+				logger.WithError(err).Error("update target CSV failed")
+				return err
+			}
+		}
+
+		logger.Debug("checking status")
+		newCSV.Status = csv.Status
+		newCSV.Status.Reason = v1alpha1.CSVReasonCopied
+		newCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+
+		if !reflect.DeepEqual(fetchedCSV.Status, newCSV.Status) {
+			logger.Debug("updating status")
+			// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
+			fetchedCSV.Status = newCSV.Status
+			fetchedCSV.Status.LastUpdateTime = timeNow()
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(fetchedCSV); err != nil {
+				logger.WithError(err).Error("status update for target CSV failed")
+				return err
+			}
+		}
+
+	} else if k8serrors.IsNotFound(err) {
+		newCSV.SetNamespace(namespace)
+		newCSV.SetResourceVersion("")
+
+		logger.Debug("copying CSV")
+		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(newCSV)
+		if err != nil {
+			a.Log.Errorf("Create for new CSV failed: %v", err)
+			return err
+		}
+		createdCSV.Status.Reason = v1alpha1.CSVReasonCopied
+		createdCSV.Status.Message = fmt.Sprintf("The operator is running in %s but is managing this namespace", csv.GetNamespace())
+		createdCSV.Status.LastUpdateTime = timeNow()
+		if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(createdCSV); err != nil {
+			a.Log.Errorf("Status update for CSV failed: %v", err)
+			return err
+		}
+
+	} else if err != nil {
+		logger.WithError(err).Error("couldn't get CSV")
+		return err
+	}
+	return nil
+}
+
+// TODO: do we want to do this? or just let the dangling CSV clean it up
+func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error {
+	fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	errlist := []error{}
+	for _, csv := range fetchedCSVs {
+		if csv.IsCopied() && csv.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey] == operatorGroupName {
+			a.Log.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
+			err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{})
+			if err != nil {
+				errlist = append(errlist, err)
+			}
+		}
+	}
+	return errors.NewAggregate(errlist)
 }
 
 func (a *Operator) setOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, addTargets bool) {
@@ -599,7 +620,7 @@ func (a *Operator) copyOperatorGroupAnnotations(obj *metav1.ObjectMeta) map[stri
 }
 
 // returns items in a that are not in b
-func sliceCompare(a, b []string) []string {
+func setDifference(a, b []string) []string {
 	mb := make(map[string]struct{})
 	for _, x := range b {
 		mb[x] = struct{}{}
