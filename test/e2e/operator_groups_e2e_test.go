@@ -101,7 +101,7 @@ func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup
 	return nil
 }
 
-func newOperatorGroup(namespace, name string, annotations map[string]string, selector metav1.LabelSelector, targetNamespaces []string, static bool) *v1alpha2.OperatorGroup {
+func newOperatorGroup(namespace, name string, annotations map[string]string, selector *metav1.LabelSelector, targetNamespaces []string, static bool) *v1alpha2.OperatorGroup {
 	return &v1alpha2.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
@@ -179,7 +179,7 @@ func TestOperatorGroup(t *testing.T) {
 			Namespace: opGroupNamespace,
 		},
 		Spec: v1alpha2.OperatorGroupSpec{
-			Selector: metav1.LabelSelector{
+			Selector: &metav1.LabelSelector{
 				MatchLabels: matchingLabel,
 			},
 		},
@@ -779,9 +779,9 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	require.NoError(t, err)
 	 
 	// Create operatorgroups
-	groupA := newOperatorGroup(nsA, genName("a"), nil, metav1.LabelSelector{}, nil, false)
-	groupB := newOperatorGroup(nsB, genName("b"), nil, metav1.LabelSelector{}, []string{nsC}, false)
-	groupD := newOperatorGroup(nsD, genName("d"), nil, metav1.LabelSelector{}, []string{nsD, nsE}, false)
+	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, nil, false)
+	groupB := newOperatorGroup(nsB, genName("b"), nil, nil, []string{nsC}, false)
+	groupD := newOperatorGroup(nsD, genName("d"), nil, nil, []string{nsD, nsE}, false)
 	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupD} {
 		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
@@ -995,9 +995,9 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create OperatorGroups
-	groupA := newOperatorGroup(nsA, genName("a"), map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, metav1.LabelSelector{}, []string{nsD}, true)
-	groupB := newOperatorGroup(nsB, genName("b"), nil, metav1.LabelSelector{}, nil, false)
-	groupC := newOperatorGroup(nsC, genName("d"), nil, metav1.LabelSelector{}, []string{nsC}, false)
+	groupA := newOperatorGroup(nsA, genName("a"), map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, nil, []string{nsD}, true)
+	groupB := newOperatorGroup(nsB, genName("b"), nil, nil, nil, false)
+	groupC := newOperatorGroup(nsC, genName("d"), nil, nil, []string{nsC}, false)
 	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupC} {
 		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)

@@ -8,7 +8,7 @@ import (
 type OperatorGroupSpec struct {
 	// Selector selects the OperatorGroup's target namespaces.
 	// +optional
-	Selector metav1.LabelSelector `json:"selector,omitempty"`
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
 
 	// TargetNamespaces is an explicit set of namespaces to target.
 	// If it is set, Selector is ignored.

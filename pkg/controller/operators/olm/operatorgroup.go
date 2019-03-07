@@ -560,7 +560,7 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 }
 
 func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) ([]string, error) {
-	selector, err := metav1.LabelSelectorAsSelector(&op.Spec.Selector)
+	selector, err := metav1.LabelSelectorAsSelector(op.Spec.Selector)
 	if err != nil {
 		return nil, err
 	}
@@ -573,7 +573,7 @@ func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) ([]string
 			}
 			namespaceSet[ns] = struct{}{}
 		}
-	} else if selector == nil || selector.Empty() {
+	} else if selector == nil || selector.Empty() || selector == labels.Nothing() {
 		namespaceSet[corev1.NamespaceAll] = struct{}{}
 	} else {
 		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)
