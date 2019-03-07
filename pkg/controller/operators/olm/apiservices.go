@@ -62,7 +62,12 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 	errs := []error{}
 	owners := []ownerutil.Owner{csv}
 	// Get replacing CSV if exists
-	replacement, _ := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+	replacement, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+	if err != nil && k8serrors.IsNotFound(err) == false {
+		a.Log.Debugf("Replacement error regarding CSV (%v): %v", csv.GetName(), err)
+		errs = append(errs, err)
+		return errs
+	}
 	if replacement != nil {
 		owners = append(owners, replacement)
 	}
