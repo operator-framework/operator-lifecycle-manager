@@ -490,7 +490,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 
 	// Generate operatorGroupA 
 	crc := newCRClient(t)
-	groupA := newOperatorGroup(nsA, genName("a"), nil, metav1.LabelSelector{}, []string{nsA}, false)
+	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 	_, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Create(groupA)
 	require.NoError(t, err)
 	defer func() {
