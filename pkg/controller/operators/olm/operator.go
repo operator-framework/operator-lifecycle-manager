@@ -346,7 +346,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	defer func(csv v1alpha1.ClusterServiceVersion) {
 		logger.Debug("removing csv from queue set")
 		a.csvQueueSet.Remove(csv.GetName(), csv.GetNamespace())
-		
+
 		// Requeue all OperatorGroups in the namespace
 		logger.Debug("requeueing operatorgroups in namespace")
 		operatorGroups, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).List(labels.Everything())
@@ -404,6 +404,26 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		if namespace != operatorNamespace {
 			logger.WithField("targetNamespace", namespace).Debug("requeueing child csv for deletion")
 			a.csvQueueSet.Requeue(clusterServiceVersion.GetName(), namespace)
+		}
+	}
+
+	for _, desc := range clusterServiceVersion.Spec.APIServiceDefinitions.Owned {
+		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
+		fetched, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+		if k8serrors.IsNotFound(err) {
+			continue
+		}
+		if err != nil {
+			logger.WithError(err).Warn("api service get failure")
+			continue
+		}
+		apiServiceLabels := fetched.GetLabels()
+		if clusterServiceVersion.GetName() == apiServiceLabels[ownerutil.OwnerKey] && clusterServiceVersion.GetNamespace() == apiServiceLabels[ownerutil.OwnerNamespaceKey] {
+			logger.Infof("gcing api service %v", apiServiceName)
+			err := a.OpClient.DeleteAPIService(apiServiceName, &metav1.DeleteOptions{})
+			if err != nil {
+				logger.WithError(err).Warn("cannot delete orphaned api service")
+			}
 		}
 	}
 }
@@ -548,9 +568,9 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 		logger.Info("no olm.targetNamespaces annotation")
 		return nil
 	}
-	
+
 	// Target namespaces don't match
-	if  targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
+	if targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
 		logger.Info("olm.targetNamespaces annotation doesn't match operatorgroup status")
 		return nil
 	}
@@ -636,7 +656,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	targets, ok := out.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]
 	if ok {
 		namespaces := strings.Split(targets, ",")
-		
+
 		if err := modeSet.Supports(out.GetNamespace(), namespaces); err != nil {
 			logger.WithField("reason", err.Error()).Info("installmodeset does not support operatorgroups namespace selection")
 			if out.Status.Reason != v1alpha1.CSVReasonUnsupportedOperatorGroup {
