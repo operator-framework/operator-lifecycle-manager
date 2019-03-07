@@ -541,10 +541,6 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		return
 	}
 
-	if outCSV.Status.Phase == v1alpha1.CSVPhaseFailed && outCSV.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
-		logger.WithField("reason", outCSV.Status.Message).Info("skipping CSV resource copy to target namespaces")
-		return
-	}
 	allNamespaces := make([]string, 0)
 	pruneNamespaces := make([]string, 0)
 	targetNamespaces := make([]string, 0)

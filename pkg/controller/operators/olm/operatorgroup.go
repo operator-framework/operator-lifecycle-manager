@@ -73,46 +73,73 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return nil
 	}
 
+	a.annotateCSVs(op, targetNamespaces, logger)
+	logger.Debug("OperatorGroup CSV annotation completed")
+
 	if err := a.ensureOpGroupClusterRoles(op); err != nil {
 		logger.WithError(err).Warn("failed to ensure operatorgroup clusterroles")
 		return err
 	}
 	logger.Debug("operatorgroup clusterroles ensured")
 
-	set := a.csvSet(op.Namespace, v1alpha1.CSVPhaseAny)
-	providedAPIs := make(resolver.APISet)
-	for _, csv := range set {
+	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in
+	// intersecting groups that their conflict has possibly been resolved, either through resizing or through
+	// deletion of the conflicting CSV.
+	csvs, err := a.findCSVsThatProvideAnyOf(a.providedAPIsForGroup(op, logger))
+	if err != nil {
+		logger.WithError(err).Warn("could not find csvs that provide group apis")
+	}
+	for _, csv := range csvs {
+		logger.WithFields(logrus.Fields{
+			"csv":       csv.GetName(),
+			"namespace": csv.GetNamespace(),
+		}).Debug("requeueing provider")
+		if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
+			logger.WithError(err).Warn("could not requeue provider")
+		}
+	}
+
+	return nil
+}
+
+func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) {
+	for _, csv := range a.csvSet(group.GetNamespace(), v1alpha1.CSVPhaseAny) {
 		logger := logger.WithField("csv", csv.GetName())
 		origCSVannotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
 		a.setOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
-		if !reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) {
+		if !reflect.DeepEqual(origCSVannotations, a.copyOperatorGroupAnnotations(&csv.ObjectMeta)) {
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
 				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
-				logger.WithError(err).Warnf("update to existing csv failed")
+				logger.WithError(err).Warn("update to existing csv failed")
 				continue
 			} else {
 				if _, ok := origCSVannotations[v1alpha2.OperatorGroupAnnotationKey]; ok {
 					if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
-						a.Log.Warn(err.Error())
-						return err
+						logger.WithError(err).Warn("error requeuing")
 					}
-					a.Log.Debugf("Successfully changed annotation on CSV: %v -> %v", origCSVannotations, csv.GetAnnotations())
+					logger.Debugf("Successfully changed annotation on CSV: %v -> %v", origCSVannotations, csv.GetAnnotations())
 				} else {
-					a.Log.Debugf("Successfully added annotation on CSV: %v", csv.GetAnnotations())
-				}
-			}
-		} else if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
-			for _, ns := range targetNamespaces {
-				_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
-				if k8serrors.IsNotFound(err) {
-					a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
-					break
+					logger.Debugf("Successfully added annotation on CSV: %v", csv.GetAnnotations())
 				}
 			}
 		}
+		for _, ns := range targetNamespaces {
+			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
+			if k8serrors.IsNotFound(err) {
+				if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
+					logger.WithError(err).Warn("could not requeue provider")
+				}
+			}
+		}
+	}
+}
 
-		// Don't stomp on copied CSVs
+func (a *Operator) providedAPIsForGroup(group *v1alpha2.OperatorGroup, logger *logrus.Entry) resolver.APISet {
+	set := a.csvSet(group.Namespace, v1alpha1.CSVPhaseAny)
+	providedAPIsFromCSVs := make(resolver.APISet)
+	for _, csv := range set {
+		// Don't union providedAPIsFromCSVs if the CSV is copied (member of another OperatorGroup)
 		if csv.IsCopied() {
 			logger.Debug("csv is copied. not updating annotations or including in operatorgroup's provided api set")
 			continue
@@ -130,64 +157,47 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 
 		// TODO: Throw out CSVs that aren't members of the group due to group related failures?
 
-		// Union the providedAPIs from existing members of the group
+		// Union the providedAPIsFromCSVs from existing members of the group
 		operatorSurface, err := resolver.NewOperatorFromCSV(csv)
 		if err != nil {
 			logger.WithError(err).Warn("could not create OperatorSurface from csv")
 			continue
 		}
-		providedAPIs = providedAPIs.Union(operatorSurface.ProvidedAPIs().StripPlural())
-	}
-	logger.Debug("csv annotation completed")
-
-	// Don't prune providedAPIs if static
-	if op.Spec.StaticProvidedAPIs {
-		a.Log.Debug("group has static provided apis. skipping provided api pruning")
-		return nil
+		providedAPIsFromCSVs = providedAPIsFromCSVs.Union(operatorSurface.ProvidedAPIs().StripPlural())
 	}
 
-	// Prune providedAPIs annotation if the cluster has less providedAPIs (handles CSV deletion)
-	groupSurface := resolver.NewOperatorGroup(*op)
+	groupSurface := resolver.NewOperatorGroup(*group)
 	groupProvidedAPIs := groupSurface.ProvidedAPIs()
-	if intersection := groupProvidedAPIs.Intersection(providedAPIs); len(intersection) < len(groupProvidedAPIs) {
+
+	// Don't prune providedAPIsFromCSVs if static
+	if group.Spec.StaticProvidedAPIs {
+		a.Log.Debug("group has static provided apis. skipping provided api pruning")
+		return providedAPIsFromCSVs.Union(groupProvidedAPIs)
+	}
+
+	// Prune providedAPIsFromCSVs annotation if the cluster has less providedAPIsFromCSVs (handles CSV deletion)
+	if intersection := groupProvidedAPIs.Intersection(providedAPIsFromCSVs); len(intersection) < len(groupProvidedAPIs) {
 		difference := groupProvidedAPIs.Difference(intersection)
 		logger := logger.WithFields(logrus.Fields{
-			"providedAPIsOnCluster":  providedAPIs,
+			"providedAPIsOnCluster":  providedAPIsFromCSVs,
 			"providedAPIsAnnotation": groupProvidedAPIs,
 			"providedAPIDifference":  difference,
 			"intersection":           intersection,
 		})
 
 		// Don't need to check for nil annotations since we already know |annotations| > 0
-		annotations := op.GetAnnotations()
+		annotations := group.GetAnnotations()
 		annotations[v1alpha2.OperatorGroupProvidedAPIsAnnotationKey] = intersection.String()
-		op.SetAnnotations(annotations)
+		group.SetAnnotations(annotations)
 		logger.Debug("removing provided apis from annotation to match cluster state")
-		if _, err := a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).Update(op); err != nil && !k8serrors.IsNotFound(err) {
+		if updated, err := a.client.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Update(group); err != nil && !k8serrors.IsNotFound(err) {
 			logger.WithError(err).Warn("could not update provided api annotations")
-			return err
+		} else {
+			group = updated
 		}
 	}
 
-	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in
-	// intersecting groups that their conflict has possibly been resolved, either through resizing or through
-	// deletion of the conflicting CSV.
-	csvs, err := a.findCSVsThatProvideAnyOf(providedAPIs.Union(groupProvidedAPIs))
-	if err != nil {
-		logger.WithError(err).Warn("could not find csvs that provide group apis")
-	}
-	for _, csv := range csvs {
-		logger.WithFields(logrus.Fields{
-			"csv":       csv.GetName(),
-			"namespace": csv.GetNamespace(),
-		}).Debug("requeueing provider")
-		if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
-			logger.WithError(err).Warn("could not requeue provider")
-		}
-	}
-	a.Log.Debug("Operator group CSVs annotation completed")
-
-	return nil
+	return providedAPIsFromCSVs.Union(groupProvidedAPIs)
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type
