@@ -1553,7 +1553,7 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 			Namespace: secondNamespaceName,
 		},
 		Spec: v1alpha2.OperatorGroupSpec{
-			Selector: metav1.LabelSelector{
+			Selector: &metav1.LabelSelector{
 				MatchLabels: matchingLabel,
 			},
 		},
