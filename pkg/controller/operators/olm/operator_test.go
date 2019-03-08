@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -419,6 +420,15 @@ func withAnnotations(obj runtime.Object, annotations map[string]string) runtime.
 		panic("could not find metadata on object")
 	}
 	meta.SetAnnotations(annotations)
+	return meta.(runtime.Object)
+}
+
+func withLabels(obj runtime.Object, labels map[string]string) runtime.Object {
+	meta, ok := obj.(metav1.Object)
+	if !ok {
+		panic("could not find metadata on object")
+	}
+	meta.SetLabels(labels)
 	return meta.(runtime.Object)
 }
 
@@ -3089,7 +3099,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 					annotatedDeployment,
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+					withLabels(
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+					),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Role",
@@ -3099,8 +3112,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:      "csv-role",
 							Namespace: targetNamespace,
 							Labels: map[string]string{
+								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
-								"olm.owner.namespace": "operator-ns",
+								"olm.owner.namespace": "target-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -3118,8 +3132,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:      "csv-rolebinding",
 							Namespace: targetNamespace,
 							Labels: map[string]string{
+								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
-								"olm.owner.namespace": "operator-ns",
+								"olm.owner.namespace": "target-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -3184,7 +3199,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 					annotatedDeployment,
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+					withLabels(
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+					),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Role",
@@ -3194,8 +3212,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:      "csv-role",
 							Namespace: targetNamespace,
 							Labels: map[string]string{
+								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
-								"olm.owner.namespace": "operator-ns",
+								"olm.owner.namespace": "target-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -3213,8 +3232,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							Name:      "csv-rolebinding",
 							Namespace: targetNamespace,
 							Labels: map[string]string{
+								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
-								"olm.owner.namespace": "operator-ns",
+								"olm.owner.namespace": "target-ns",
 								"olm.owner.kind":      "ClusterServiceVersion",
 							},
 							OwnerReferences: []metav1.OwnerReference{
@@ -3325,7 +3345,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 					},
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+					withLabels(
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+					),
 				},
 			}},
 		},
@@ -3435,7 +3458,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 					},
 				},
 				targetNamespace: {
-					withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+					withLabels(
+						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+					),
 				},
 			}},
 		},
@@ -3604,6 +3630,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			operatorGroup, err := op.GetClient().OperatorsV1alpha2().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
+			sort.Strings(tt.expectedStatus.Namespaces)
+			sort.Strings(operatorGroup.Status.Namespaces)
 			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)
 
 			for namespace, objects := range tt.final.objects {

@@ -397,7 +397,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		return err
 	}
 
-	targetRoles, err := a.lister.RbacV1().RoleLister().List(ownerutil.CSVOwnerSelector(targetCSV))
+	targetRoles, err := a.lister.RbacV1().RoleLister().Roles(targetNamespace).List(ownerutil.CSVOwnerSelector(targetCSV))
 	if err != nil {
 		return err
 	}
@@ -409,6 +409,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 
 	for _, ownedRole := range ownedRoles {
 		// don't trust the owner label
+		// TODO: this can skip objects that have owner labels but different ownerreferences
 		if !ownerutil.IsOwnedBy(ownedRole, csv) {
 			continue
 		}
@@ -425,8 +426,11 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		}
 
 		// role doesn't exist, create it
+		// TODO: we can work around error cases here; if there's an un-owned role with a matching name we should generate instead
 		ownedRole.SetNamespace(targetNamespace)
 		ownedRole.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
+		ownerutil.AddOwnerLabels(ownedRole, targetCSV)
+		ownedRole.SetLabels(utillabels.AddLabel(ownedRole.GetLabels(), v1alpha1.CopiedLabelKey, operatorNamespace))
 		if _, err := a.OpClient.CreateRole(ownedRole); err != nil {
 			return err
 		}
@@ -437,7 +441,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		return err
 	}
 
-	targetRoleBindings, err := a.lister.RbacV1().RoleBindingLister().List(ownerutil.CSVOwnerSelector(targetCSV))
+	targetRoleBindings, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(targetNamespace).List(ownerutil.CSVOwnerSelector(targetCSV))
 	if err != nil {
 		return err
 	}
@@ -457,13 +461,16 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 
 		// role binding exists
 		if ok {
-			// TODO: should we check if SA/role has changed?
+			// TODO: we should check if SA/role has changed
 			continue
 		}
 
 		// role binding doesn't exist
+		// TODO: we can work around error cases here; if there's an un-owned role with a matching name we should generate instead
 		ownedRoleBinding.SetNamespace(targetNamespace)
 		ownedRoleBinding.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
+		ownerutil.AddOwnerLabels(ownedRoleBinding, targetCSV)
+		ownedRoleBinding.SetLabels(utillabels.AddLabel(ownedRoleBinding.GetLabels(), v1alpha1.CopiedLabelKey, operatorNamespace))
 		if _, err := a.OpClient.CreateRoleBinding(ownedRoleBinding); err != nil {
 			return err
 		}
@@ -504,7 +511,9 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 	logger = logger.WithField("csv", csv.GetName())
 	if fetchedCSV != nil {
 		logger.Debug("checking annotations")
-		if !reflect.DeepEqual(fetchedCSV.Annotations, newCSV.Annotations) {
+
+		if !reflect.DeepEqual(a.copyOperatorGroupAnnotations(&fetchedCSV.ObjectMeta), a.copyOperatorGroupAnnotations(&newCSV.ObjectMeta)) {
+			// TODO: only copy over the opgroup annotations, not _all_ annotations
 			fetchedCSV.Annotations = newCSV.Annotations
 			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
@@ -534,7 +543,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 	} else if k8serrors.IsNotFound(err) {
 		newCSV.SetNamespace(namespace)
 		newCSV.SetResourceVersion("")
-		newCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
+		newCSV.SetLabels(utillabels.AddLabel(newCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 
 		logger.Debug("copying CSV to target")
 		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(newCSV)
