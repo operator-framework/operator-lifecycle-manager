@@ -64,7 +64,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			Namespaces:  targetNamespaces,
 			LastUpdated: timeNow(),
 		}
-	
+
 		if _, err = a.client.OperatorsV1alpha2().OperatorGroups(op.GetNamespace()).UpdateStatus(op); err != nil && !k8serrors.IsNotFound(err) {
 			logger.WithError(err).Warn("operatorgroup update failed")
 			return err
@@ -85,7 +85,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	for _, csv := range set {
 		logger := logger.WithField("csv", csv.GetName())
 		origCSVannotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
-		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
+		a.setOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
 		if !reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) {
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
@@ -118,7 +118,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			logger.Debug("csv is copied. not updating annotations or including in operatorgroup's provided api set")
 			continue
 		}
-		
+
 		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, op) {
 			a.setOperatorGroupAnnotations(&csv.ObjectMeta, op, true)
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch

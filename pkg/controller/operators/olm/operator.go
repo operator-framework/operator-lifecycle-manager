@@ -318,6 +318,12 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		a.requeueOwnerCSVs(metaObj)
 	}
 
+	// Requeues objects that can't have ownerrefs (cluster -> namespace, cross-namespace)
+	if ownerutil.IsOwnedByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind) {
+		logger.Debug("requeueing owner CSVs")
+		a.requeueOwnerCSVs(metaObj)
+	}
+
 	namespace, ok := obj.(*corev1.Namespace)
 	if !ok {
 		return nil
@@ -331,7 +337,7 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		return
 	}
 	for _, opGroup := range operatorGroupList {
-		namespaceMap, err := a.getMatchingNamespaces(opGroup)
+		namespaceMap, err := a.getOperatorGroupTargets(opGroup)
 		if err != nil {
 			syncError = fmt.Errorf("operator namespace lookup failed: %v", err)
 			logger.Warn(syncError.Error())
@@ -356,13 +362,13 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
 			return
 		}
 
 		clusterServiceVersion, ok = tombstone.Obj.(*v1alpha1.ClusterServiceVersion)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a ClusterServiceVersion %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a ClusterServiceVersion %#v", obj))
 			return
 		}
 	}

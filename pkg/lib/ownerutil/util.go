@@ -218,6 +218,7 @@ func OwnerLabel(owner Owner) map[string]string {
 	}
 }
 
+// AddOwnerLabels adds ownerref-like labels to an object
 func AddOwnerLabels(object metav1.Object, owner Owner) {
 	labels := object.GetLabels()
 	if labels == nil {
@@ -228,6 +229,14 @@ func AddOwnerLabels(object metav1.Object, owner Owner) {
 	}
 	object.SetLabels(labels)
 	return
+}
+
+// IsOwnedByKindLabel returns whether or not a label exists on the object pointing to an owner of a particular kind
+func IsOwnedByKindLabel(object metav1.Object, ownerKind string) bool {
+	if object.GetLabels() == nil {
+		return false
+	}
+	return object.GetLabels()[OwnerKind] == ownerKind
 }
 
 // AdoptableLabels determines if an OLM managed resource is adoptable based on its owner labels
