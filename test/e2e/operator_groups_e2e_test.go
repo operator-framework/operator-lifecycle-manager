@@ -480,9 +480,9 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 		defer func(name string) {
 			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
 		}(ns)
-	 }
+	}
 
-	// Generate operatorGroupA 
+	// Generate operatorGroupA
 	crc := newCRClient(t)
 	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
 	_, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Create(groupA)
@@ -492,25 +492,25 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	}()
 
 	// Generate csvA in namespaceA with no supported InstallModes
-	crd := newCRD(genName("b")) 
+	crd := newCRD(genName("b"))
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV("nginx-a", nsA, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
 	csvA := &csv
 	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 		{
-			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Type:      v1alpha1.InstallModeTypeOwnNamespace,
 			Supported: false,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Type:      v1alpha1.InstallModeTypeSingleNamespace,
 			Supported: false,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Type:      v1alpha1.InstallModeTypeMultiNamespace,
 			Supported: false,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Type:      v1alpha1.InstallModeTypeAllNamespaces,
 			Supported: false,
 		},
 	}
@@ -530,19 +530,19 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update csvA to have OwnNamespace supported=true
 	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 		{
-			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Type:      v1alpha1.InstallModeTypeOwnNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Type:      v1alpha1.InstallModeTypeSingleNamespace,
 			Supported: false,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Type:      v1alpha1.InstallModeTypeMultiNamespace,
 			Supported: false,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Type:      v1alpha1.InstallModeTypeAllNamespaces,
 			Supported: false,
 		},
 	}
@@ -567,19 +567,19 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update csvA to have SingleNamespace supported=true
 	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 		{
-			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Type:      v1alpha1.InstallModeTypeOwnNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Type:      v1alpha1.InstallModeTypeSingleNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Type:      v1alpha1.InstallModeTypeMultiNamespace,
 			Supported: false,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Type:      v1alpha1.InstallModeTypeAllNamespaces,
 			Supported: false,
 		},
 	}
@@ -593,7 +593,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
 	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 	require.NoError(t, err)
-	groupA.Spec.TargetNamespaces =  []string{nsA, nsB}
+	groupA.Spec.TargetNamespaces = []string{nsA, nsB}
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
 	require.NoError(t, err)
 
@@ -604,19 +604,19 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update csvA to have MultiNamespace supported=true
 	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 		{
-			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Type:      v1alpha1.InstallModeTypeOwnNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Type:      v1alpha1.InstallModeTypeSingleNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Type:      v1alpha1.InstallModeTypeMultiNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Type:      v1alpha1.InstallModeTypeAllNamespaces,
 			Supported: false,
 		},
 	}
@@ -630,7 +630,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update operatorGroupA's target namespaces to select all namespaces
 	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 	require.NoError(t, err)
-	groupA.Spec.TargetNamespaces =  []string{}
+	groupA.Spec.TargetNamespaces = []string{}
 	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
 	require.NoError(t, err)
 
@@ -641,19 +641,19 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update csvA to have AllNamespaces supported=true
 	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 		{
-			Type: v1alpha1.InstallModeTypeOwnNamespace,
+			Type:      v1alpha1.InstallModeTypeOwnNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeSingleNamespace,
+			Type:      v1alpha1.InstallModeTypeSingleNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeMultiNamespace,
+			Type:      v1alpha1.InstallModeTypeMultiNamespace,
 			Supported: true,
 		},
 		{
-			Type: v1alpha1.InstallModeTypeAllNamespaces,
+			Type:      v1alpha1.InstallModeTypeAllNamespaces,
 			Supported: true,
 		},
 	}

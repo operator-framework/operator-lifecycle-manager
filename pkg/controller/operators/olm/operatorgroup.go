@@ -3,6 +3,7 @@ package olm
 import (
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -57,6 +58,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		logger.WithError(err).Warn("issue getting operatorgroup target namespaces")
 		return err
 	}
+	logger.WithField("targetNamespaces", targetNamespaces).Debug("updated target namespaces")
 
 	if namespacesChanged(targetNamespaces, op.Status.Namespaces) {
 		// Update operatorgroup target namespace selection
@@ -113,16 +115,17 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) {
 	for _, csv := range a.csvSet(group.GetNamespace(), v1alpha1.CSVPhaseAny) {
 		logger := logger.WithField("csv", csv.GetName())
-		origCSVannotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
-		a.setOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
-		if !reflect.DeepEqual(origCSVannotations, a.copyOperatorGroupAnnotations(&csv.ObjectMeta)) {
+
+		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, group) {
+			a.setOperatorGroupAnnotations(&csv.ObjectMeta, group, true)
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil && !k8serrors.IsNotFound(err) {
 				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
-				logger.WithError(err).Warn("update to existing csv failed")
+				logger.WithError(err).Warnf("error adding operatorgroup annotations")
 				continue
 			}
 		}
+
 		for _, ns := range targetNamespaces {
 			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
 			if k8serrors.IsNotFound(err) {
@@ -142,16 +145,6 @@ func (a *Operator) providedAPIsFromCSVs(group *v1alpha2.OperatorGroup, logger *l
 		if csv.IsCopied() {
 			logger.Debug("csv is copied. not updating annotations or including in operatorgroup's provided api set")
 			continue
-		}
-
-		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, op) {
-			a.setOperatorGroupAnnotations(&csv.ObjectMeta, op, true)
-			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil && !k8serrors.IsNotFound(err) {
-				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
-				logger.WithError(err).Warnf("error adding operatorgroup annotations")
-				return err
-			}
 		}
 
 		// TODO: Throw out CSVs that aren't members of the group due to group related failures?
@@ -590,6 +583,7 @@ func (a *Operator) setOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alp
 	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupAnnotationKey, op.GetName())
 
 	if addTargets && op.Status.Namespaces != nil {
+		sort.Strings(op.Status.Namespaces)
 		metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
 	}
 }
@@ -641,7 +635,7 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 	return false
 }
 
-func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) (map[string]struct, error) {
+func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) (map[string]struct{}, error) {
 	selector, err := metav1.LabelSelectorAsSelector(op.Spec.Selector)
 
 	if err != nil {
