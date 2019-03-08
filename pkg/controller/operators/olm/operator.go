@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -53,6 +54,7 @@ type Operator struct {
 	*queueinformer.Operator
 	csvQueueSet      *queueinformer.ResourceQueueSet
 	ogQueueSet       *queueinformer.ResourceQueueSet
+	apiSvcQueue      workqueue.RateLimitingInterface
 	client           versioned.Interface
 	resolver         install.StrategyResolverInterface
 	apiReconciler    resolver.APIIntersectionReconciler
@@ -166,17 +168,20 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 
 	// Register APIService QueueInformer
 	apiServiceInformer := kagg.NewSharedInformerFactory(opClient.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
-	op.RegisterQueueInformer(queueinformer.NewInformer(
-		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservices"),
+	apiServiceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservices")
+	apiServiceQueueInformer := queueinformer.NewInformer(
+		apiServiceQueue,
 		apiServiceInformer.Informer(),
-		op.syncObject,
+		op.syncAPIService,
 		&cache.ResourceEventHandlerFuncs{
 			DeleteFunc: op.handleDeletion,
 		},
 		"apiservices",
 		metrics.NewMetricsNil(),
 		logger,
-	))
+	)
+	op.RegisterQueueInformer(apiServiceQueueInformer)
+	op.apiSvcQueue = apiServiceQueue
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
 
 	// Register CustomResourceDefinition QueueInformer
@@ -305,6 +310,46 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	}
 
 	return op, nil
+}
+
+func (a *Operator) syncAPIService(obj interface{}) (syncError error) {
+	apiSvc, ok := obj.(*apiregistrationv1.APIService)
+	if !ok {
+		a.Log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting APIService failed")
+	}
+
+	logger := a.Log.WithFields(logrus.Fields{
+		"id":     queueinformer.NewLoopID(),
+		"apiSvc": apiSvc.GetName(),
+	})
+	logger.Info("syncing APIService")
+
+	if name, ns, ok := ownerutil.GetOwnerByKindLabel(apiSvc, v1alpha1.ClusterServiceVersionKind); ok {
+		_, err := a.lister.CoreV1().NamespaceLister().Get(ns)
+		if k8serrors.IsNotFound(err) {
+			logger.Debug("Deleting api service since owning namespace is not found")
+			syncError = a.OpClient.DeleteAPIService(apiSvc.GetName(), &metav1.DeleteOptions{})
+			return
+		}
+
+		_, err = a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
+		if k8serrors.IsNotFound(err) {
+			logger.Debug("Deleting api service since owning CSV is not found")
+			syncError = a.OpClient.DeleteAPIService(apiSvc.GetName(), &metav1.DeleteOptions{})
+			return
+		} else if err != nil {
+			syncError = err
+			return
+		} else {
+			if ownerutil.IsOwnedByKindLabel(apiSvc, v1alpha1.ClusterServiceVersionKind) {
+				logger.Debug("requeueing owner CSVs")
+				a.requeueOwnerCSVs(apiSvc)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
