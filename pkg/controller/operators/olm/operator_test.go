@@ -3532,9 +3532,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 					withPhase(
 						withInstallModes(
 							withAnnotations(operatorCSV.DeepCopy(), map[string]string{
-								"olm.operatorGroup":     "operator-group-1",
-								"olm.operatorNamespace": "operator-ns",
-								"olm.targetNamespaces":  "",
+								v1alpha2.OperatorGroupTargetsAnnotationKey:   "",
+								v1alpha2.OperatorGroupAnnotationKey:          "operator-group-1",
+								v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace,
 							}).(*v1alpha1.ClusterServiceVersion),
 							[]v1alpha1.InstallMode{
 								{

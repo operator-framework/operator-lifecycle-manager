@@ -6,7 +6,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -51,7 +51,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"namespace":     op.GetNamespace(),
 	})
 
-	targetNamespaces, err := a.getOperatorGroupTargets(op)
+	targetNamespaces, err := a.updateNamespaceList(op)
 	if err != nil {
 		logger.WithError(err).Warn("issue getting operatorgroup target namespaces")
 		return err
@@ -84,6 +84,34 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	providedAPIs := make(resolver.APISet)
 	for _, csv := range set {
 		logger := logger.WithField("csv", csv.GetName())
+		origCSVannotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
+		a.addOperatorGroupAnnotations(&csv.ObjectMeta, op, !csv.IsCopied())
+		if !reflect.DeepEqual(origCSVannotations, csv.GetAnnotations()) {
+			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
+				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
+				logger.WithError(err).Warnf("update to existing csv failed")
+				continue
+			} else {
+				if _, ok := origCSVannotations[v1alpha2.OperatorGroupAnnotationKey]; ok {
+					if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
+						a.Log.Warn(err.Error())
+						return err
+					}
+					a.Log.Debugf("Successfully changed annotation on CSV: %v -> %v", origCSVannotations, csv.GetAnnotations())
+				} else {
+					a.Log.Debugf("Successfully added annotation on CSV: %v", csv.GetAnnotations())
+				}
+			}
+		} else if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+			for _, ns := range targetNamespaces {
+				_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
+				if k8serrors.IsNotFound(err) {
+					a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
+					break
+				}
+			}
+		}
 
 		// Don't stomp on copied CSVs
 		if csv.IsCopied() {
@@ -158,6 +186,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			logger.WithError(err).Warn("could not requeue provider")
 		}
 	}
+	a.Log.Debug("Operator group CSVs annotation completed")
 
 	return nil
 }
@@ -542,6 +571,21 @@ func (a *Operator) operatorGroupAnnotationsDiffer(obj *metav1.ObjectMeta, op *v1
 	return false
 }
 
+func (a *Operator) copyOperatorGroupAnnotations(obj *metav1.ObjectMeta) map[string]string {
+	copiedAnnotations := make(map[string]string)
+	for k, v := range obj.GetAnnotations() {
+		switch k {
+		case v1alpha2.OperatorGroupNamespaceAnnotationKey:
+			fallthrough
+		case v1alpha2.OperatorGroupAnnotationKey:
+			fallthrough
+		case v1alpha2.OperatorGroupTargetsAnnotationKey:
+			copiedAnnotations[k] = v
+		}
+	}
+	return copiedAnnotations
+}
+
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {
 	if len(clusterNamespaces) != len(statusNamespaces) {
 		return true
@@ -559,8 +603,9 @@ func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bo
 	return false
 }
 
-func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) ([]string, error) {
+func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) (map[string]struct, error) {
 	selector, err := metav1.LabelSelectorAsSelector(op.Spec.Selector)
+
 	if err != nil {
 		return nil, err
 	}
@@ -585,7 +630,14 @@ func (a *Operator) getOperatorGroupTargets(op *v1alpha2.OperatorGroup) ([]string
 			namespaceSet[ns.GetName()] = struct{}{}
 		}
 	}
+	return namespaceSet, nil
+}
 
+func (a *Operator) updateNamespaceList(op *v1alpha2.OperatorGroup) ([]string, error) {
+	namespaceSet, err := a.getOperatorGroupTargets(op)
+	if err != nil {
+		return nil, err
+	}
 	namespaceList := []string{}
 	for ns := range namespaceSet {
 		namespaceList = append(namespaceList, ns)
