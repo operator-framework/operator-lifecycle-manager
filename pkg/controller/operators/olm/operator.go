@@ -640,19 +640,19 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 		return nil
 	}
 
-	targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
-
-	// No target annotation
-	if !ok {
-		logger.Info("no olm.targetNamespaces annotation")
-		return nil
-	}
-
-	// Target namespaces don't match
-	if targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
-		logger.Info("olm.targetNamespaces annotation doesn't match operatorgroup status")
-		return nil
-	}
+	// targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
+	//
+	// // No target annotation
+	// if !ok {
+	// 	logger.Info("no olm.targetNamespaces annotation")
+	// 	return nil
+	// }
+	//
+	// // Target namespaces don't match
+	// if targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
+	// 	logger.Info("olm.targetNamespaces annotation doesn't match operatorgroup status")
+	// 	return nil
+	// }
 
 	return operatorGroup
 }

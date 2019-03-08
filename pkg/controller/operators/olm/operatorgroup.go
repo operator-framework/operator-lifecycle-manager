@@ -77,7 +77,10 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		return nil
 	}
 
-	a.annotateCSVs(op, targetNamespaces, logger)
+	err = a.annotateCSVs(op, targetNamespaces, logger)
+	if err != nil {
+		logger.WithError(err).Warn("failed to annotate CSVs in operatorgroup after group change")
+	}
 	logger.Debug("OperatorGroup CSV annotation completed")
 
 	if err := a.ensureOpGroupClusterRoles(op); err != nil {
@@ -112,7 +115,8 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	return nil
 }
 
-func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) {
+func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) error {
+	updateErrs := []error{}
 	for _, csv := range a.csvSet(group.GetNamespace(), v1alpha1.CSVPhaseAny) {
 		logger := logger.WithField("csv", csv.GetName())
 
@@ -120,8 +124,8 @@ func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces 
 			a.setOperatorGroupAnnotations(&csv.ObjectMeta, group, true)
 			// CRDs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil && !k8serrors.IsNotFound(err) {
-				// TODO: return an error and requeue the OperatorGroup here? Can this cause an update to never happen if there's resource contention?
 				logger.WithError(err).Warnf("error adding operatorgroup annotations")
+				updateErrs = append(updateErrs, err)
 				continue
 			}
 		}
@@ -135,6 +139,7 @@ func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces 
 			}
 		}
 	}
+	return errors.NewAggregate(updateErrs)
 }
 
 func (a *Operator) providedAPIsFromCSVs(group *v1alpha2.OperatorGroup, logger *logrus.Entry) resolver.APISet {
