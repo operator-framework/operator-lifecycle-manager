@@ -41,8 +41,9 @@ const (
 	pollInterval = 1 * time.Second
 	pollDuration = 3 * time.Minute
 
-	ocsConfigMap     = "rh-operators"
-	olmConfigMap     = "olm-operators"
+	ocsConfigMap = "rh-operators"
+	olmConfigMap = "olm-operators"
+	// sync name with scripts/install_local.sh
 	packageServerCSV = "packageserver.v1.0.0"
 )
 
