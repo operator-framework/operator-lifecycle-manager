@@ -82,6 +82,14 @@ func (i *TestInstaller) CheckInstalled(s install.Strategy) (bool, error) {
 	return true, nil
 }
 
+func ownerLabelFromCSV(name, namespace string) map[string]string {
+	return map[string]string{
+		ownerutil.OwnerKey:          name,
+		ownerutil.OwnerNamespaceKey: namespace,
+		ownerutil.OwnerKind:         v1alpha1.ClusterServiceVersionKind,
+	}
+}
+
 func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	apis := []*metav1.APIResourceList{}
 	for _, o := range objs {
@@ -588,8 +596,11 @@ func apis(apis ...string) []v1alpha1.APIServiceDescription {
 	return descs
 }
 
-func apiService(group, version, serviceName, serviceNamespace, deploymentName string, caBundle []byte, availableStatus apiregistrationv1.ConditionStatus) *apiregistrationv1.APIService {
+func apiService(group, version, serviceName, serviceNamespace, deploymentName string, caBundle []byte, availableStatus apiregistrationv1.ConditionStatus, ownerLabel map[string]string) *apiregistrationv1.APIService {
 	apiService := &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: ownerLabel,
+		},
 		Spec: apiregistrationv1.APIServiceSpec{
 			Group:                group,
 			Version:              version,
@@ -938,7 +949,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations), nil, apis("a1.v1.a1Kind")),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
-				apis:       []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionFalse)},
+				apis:       []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionFalse, ownerLabelFromCSV("csv1", namespace))},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -964,7 +975,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations), nil, apis("a1.v1.a1Kind")),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
-				apis:       []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionUnknown)},
+				apis:       []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionUnknown, ownerLabelFromCSV("csv1", namespace))},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -1070,7 +1081,7 @@ func TestTransitionCSV(t *testing.T) {
 						apis("a1.v1.a1Kind"), nil),
 				},
 				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, "a1Kind.v1.a1")},
-				apis:       []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue)},
+				apis:       []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace))},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
@@ -1238,7 +1249,7 @@ func TestTransitionCSV(t *testing.T) {
 					), defaultTemplateAnnotations), nil, apis("a1.v1.a1Kind")),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
-				apis:       []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionTrue)},
+				apis:       []runtime.Object{apiService("a1", "v1", "", "", "", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace))},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
@@ -1312,7 +1323,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1381,7 +1392,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1450,7 +1461,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1519,7 +1530,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1588,7 +1599,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", []byte("a-bad-ca"), apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", []byte("a-bad-ca"), apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1657,7 +1668,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1726,7 +1737,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1795,7 +1806,7 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue),
+					apiService("a1", "v1", "v1-a1", namespace, "a1", expiredCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{

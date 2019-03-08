@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
@@ -124,11 +125,65 @@ func Adoptable(target Owner, owners []metav1.OwnerReference) bool {
 	return false
 }
 
+// OwnersIntersect checks to see if any member of targets exists in owners
+func OwnersIntersect(targets []Owner, apiservice *apiregistrationv1.APIService) bool {
+	ownerLabels := apiservice.GetLabels()
+	if len(ownerLabels) == 0 {
+		// Resources with no owners are not adoptable
+		log.Debugf("Did not contain labels for apiservice %v", apiservice.GetName())
+		return false
+	}
+
+	svcOwnerKind, ok := ownerLabels[OwnerKind]
+	if !ok {
+		log.Warnf("missing owner kind for apiservice %v", apiservice.GetName())
+		return false
+	}
+	svcOwnerNamespace, ok := ownerLabels[OwnerNamespaceKey]
+	if !ok {
+		log.Warnf("missing owner namespace for apiservice %v", apiservice.GetName())
+		return false
+	}
+	svcOwnerName, ok := ownerLabels[OwnerKey]
+	if !ok {
+		log.Warnf("missing owner name for apiservice %v", apiservice.GetName())
+		return false
+	}
+
+	for _, target := range targets {
+		if err := InferGroupVersionKind(target); err != nil {
+			log.Warnf("GVK infer failed for %v: %v", target, err)
+			return false
+		}
+		if svcOwnerKind == target.GetObjectKind().GroupVersionKind().Kind &&
+			svcOwnerNamespace == target.GetNamespace() &&
+			svcOwnerName == target.GetName() {
+			return true
+		}
+	}
+
+	return false
+}
+
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.
 func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	ownerRefs := object.GetOwnerReferences()
 	if ownerRefs == nil {
 		ownerRefs = []metav1.OwnerReference{}
+	}
+
+	// Infer TypeMeta for the target
+	if err := InferGroupVersionKind(owner); err != nil {
+		log.Warn(err.Error())
+	}
+	gvk := owner.GetObjectKind().GroupVersionKind()
+
+	for _, item := range ownerRefs {
+		if item.Kind == gvk.Kind {
+			if item.Name == owner.GetName() && item.UID == owner.GetUID() {
+				return
+			}
+		}
 	}
 	ownerRefs = append(ownerRefs, NonBlockingOwner(owner))
 	object.SetOwnerReferences(ownerRefs)
