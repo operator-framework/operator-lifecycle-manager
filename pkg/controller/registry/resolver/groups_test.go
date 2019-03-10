@@ -336,6 +336,97 @@ func TestNamespaceSetIntersection(t *testing.T) {
 	}
 }
 
+func TestNamespaceSetContains(t *testing.T) {
+	type input struct {
+		set      NamespaceSet
+		contains string
+	}
+	tests := []struct {
+		name string
+		in   input
+		want bool
+	}{
+		{
+			name: "AllContainsAnything",
+			in: input{
+				set:      NewNamespaceSet([]string{metav1.NamespaceAll}),
+				contains: "any",
+			},
+			want: true,
+		},
+		{
+			name: "SetContainsChild/a",
+			in: input{
+				set:      NewNamespaceSet([]string{"a", "b"}),
+				contains: "a",
+			},
+			want: true,
+		},
+		{
+			name: "SetContainsChild/a",
+			in: input{
+				set:      NewNamespaceSet([]string{"a", "b"}),
+				contains: "b",
+			},
+			want: true,
+		},
+		{
+			name: "SetOmitsChild",
+			in: input{
+				set:      NewNamespaceSet([]string{"a", "b"}),
+				contains: "c",
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.in.set.Contains(tt.in.contains))
+		})
+	}
+}
+
+func TestNewNamespaceSetFromString(t *testing.T) {
+	type input struct {
+		list string
+	}
+	tests := []struct {
+		name           string
+		in             input
+		wantNamespaces []string
+	}{
+		{
+			name: "SingleEntry",
+			in: input{
+				list: "a",
+			},
+			wantNamespaces: []string{"a"},
+		},
+		{
+			name: "TwoEntry",
+			in: input{
+				list: "a,b",
+			},
+			wantNamespaces: []string{"a", "b"},
+		},
+		{
+			name: "All",
+			in: input{
+				list: "",
+			},
+			wantNamespaces: []string{"a"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, ns := range tt.wantNamespaces {
+				require.True(t, NewNamespaceSetFromString(tt.in.list).Contains(ns))
+			}
+		})
+	}
+}
+
 func buildOperatorGroup(namespace, name string, targets []string, gvks []string) *OperatorGroup {
 	return NewOperatorGroup(buildAPIOperatorGroup(namespace, name, targets, gvks))
 }

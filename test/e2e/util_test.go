@@ -41,7 +41,6 @@ const (
 	pollInterval = 1 * time.Second
 	pollDuration = 3 * time.Minute
 
-	ocsConfigMap = "rh-operators"
 	olmConfigMap = "olm-operators"
 	// sync name with scripts/install_local.sh
 	packageServerCSV = "packageserver.v1.0.0"
@@ -51,9 +50,9 @@ var (
 	cleaner *namespaceCleaner
 	genName = names.SimpleNameGenerator.GenerateName
 
-	persistentCatalogNames               = []string{ocsConfigMap, olmConfigMap}
+	persistentCatalogNames               = []string{olmConfigMap}
 	nonPersistentCatalogsFieldSelector   = createFieldNotEqualSelector("metadata.name", persistentCatalogNames...)
-	persistentConfigMapNames             = []string{ocsConfigMap, olmConfigMap}
+	persistentConfigMapNames             = []string{olmConfigMap}
 	nonPersistentConfigMapsFieldSelector = createFieldNotEqualSelector("metadata.name", persistentConfigMapNames...)
 	persistentCSVNames                   = []string{packageServerCSV}
 	nonPersistentCSVFieldSelector        = createFieldNotEqualSelector("metadata.name", persistentCSVNames...)

@@ -8,6 +8,10 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
+const (
+	CopiedLabelKey = "olm.copiedFrom"
+)
+
 // obsoleteReasons are the set of reasons that mean a CSV should no longer be processed as active
 var obsoleteReasons = map[ConditionReason]struct{}{
 	CSVReasonReplaced:      {},
@@ -88,6 +92,12 @@ func (c *ClusterServiceVersion) IsCopied() bool {
 	operatorNamespace, ok := c.GetAnnotations()[OperatorGroupNamespaceAnnotationKey]
 	if c.Status.Reason == CSVReasonCopied || ok && c.GetNamespace() != operatorNamespace {
 		return true
+	}
+
+	if labels := c.GetLabels(); labels != nil {
+		if _, ok := labels[CopiedLabelKey]; ok {
+			return true
+		}
 	}
 	return false
 }

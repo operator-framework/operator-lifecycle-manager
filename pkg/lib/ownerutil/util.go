@@ -60,6 +60,24 @@ func GetOwnerByKind(object metav1.Object, ownerKind string) *metav1.OwnerReferen
 	return nil
 }
 
+func GetOwnerByKindLabel(object metav1.Object, ownerKind string) (name, namespace string, ok bool) {
+	if !IsOwnedByKindLabel(object, ownerKind) {
+		return
+	}
+	if object.GetLabels() == nil {
+		return
+	}
+
+	namespace, ok = object.GetLabels()[OwnerNamespaceKey]
+	if !ok {
+		return
+	}
+	ok = false
+
+	name, ok = object.GetLabels()[OwnerKey]
+	return
+}
+
 // GetOwnersByKind returns all OwnerReferences of the given kind listed by the given object
 func GetOwnersByKind(object metav1.Object, ownerKind string) []metav1.OwnerReference {
 	var orefs []metav1.OwnerReference

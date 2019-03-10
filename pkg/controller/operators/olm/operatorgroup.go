@@ -12,6 +12,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/errors"
+	utillabels "k8s.io/kubernetes/pkg/util/labels"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -505,6 +506,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 		logger.Debug("checking annotations")
 		if !reflect.DeepEqual(fetchedCSV.Annotations, newCSV.Annotations) {
 			fetchedCSV.Annotations = newCSV.Annotations
+			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			logger.Debug("updating target CSV")
 			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(fetchedCSV); err != nil {
@@ -532,8 +534,9 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 	} else if k8serrors.IsNotFound(err) {
 		newCSV.SetNamespace(namespace)
 		newCSV.SetResourceVersion("")
+		newCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 
-		logger.Debug("copying CSV")
+		logger.Debug("copying CSV to target")
 		createdCSV, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(newCSV)
 		if err != nil {
 			a.Log.Errorf("Create for new CSV failed: %v", err)
@@ -611,21 +614,6 @@ func (a *Operator) copyOperatorGroupAnnotations(obj *metav1.ObjectMeta) map[stri
 		}
 	}
 	return copiedAnnotations
-}
-
-// returns items in a that are not in b
-func setDifference(a, b []string) []string {
-	mb := make(map[string]struct{})
-	for _, x := range b {
-		mb[x] = struct{}{}
-	}
-	ab := []string{}
-	for _, x := range a {
-		if _, ok := mb[x]; !ok {
-			ab = append(ab, x)
-		}
-	}
-	return ab
 }
 
 func namespacesChanged(clusterNamespaces []string, statusNamespaces []string) bool {

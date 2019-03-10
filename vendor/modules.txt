@@ -314,6 +314,7 @@ k8s.io/apimachinery/pkg/runtime/serializer
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/util/runtime
+k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/runtime/serializer/json
 k8s.io/apimachinery/pkg/api/meta
@@ -327,7 +328,6 @@ k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/util/diff
 k8s.io/apimachinery/pkg/util/json
-k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/validation/field
 k8s.io/apimachinery/pkg/conversion
@@ -674,8 +674,9 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.8-beta.0.0.20190223014307-4e209c9383fa
+# k8s.io/kubernetes v1.11.9-beta.0.0.20190305054513-b2539d50ae56
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
+k8s.io/kubernetes/pkg/util/labels
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
 k8s.io/kubernetes/pkg/apis/rbac

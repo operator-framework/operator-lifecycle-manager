@@ -10,6 +10,7 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -516,13 +517,18 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
 	op := &Operator{
-		Operator:              queueOperator,
-		client:                clientFake,
-		lister:                lister,
-		namespace:             namespace,
-		namespaceResolveQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver"),
-		sources:               make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:              &fakes.FakeResolver{},
+		Operator:  queueOperator,
+		client:    clientFake,
+		lister:    lister,
+		namespace: namespace,
+		namespaceResolveQueue: workqueue.NewNamedRateLimitingQueue(
+			workqueue.NewMaxOfRateLimiter(
+				workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 1000*time.Second),
+				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
+				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
+			), "resolver"),
+		sources:  make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver: &fakes.FakeResolver{},
 	}
 
 	op.reconciler = &reconciler.RegistryReconcilerFactory{

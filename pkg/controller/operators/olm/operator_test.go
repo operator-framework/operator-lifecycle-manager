@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -186,6 +187,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		customResourceDefinitionInformer.Informer(),
 	}
 
+	csvIndexes := map[string]cache.Indexer{}
 	for _, ns := range namespaces {
 		csvInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns)).Operators().V1alpha1().ClusterServiceVersions()
 		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(ns, csvInformer.Lister())
@@ -194,7 +196,13 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		deploymentInformer := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(ns)).Apps().V1().Deployments()
 		op.lister.AppsV1().RegisterDeploymentLister(ns, deploymentInformer.Lister())
 		informerList = append(informerList, []cache.SharedIndexInformer{csvInformer.Informer(), operatorGroupInformer.Informer(), deploymentInformer.Informer()}...)
+		csvIndexes[ns] = csvInformer.Informer().GetIndexer()
 	}
+	// Register separate queue for copying csvs
+	csvCopyQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvCopy")
+	csvQueueIndexer := queueinformer.NewQueueIndexer(csvCopyQueue, csvIndexes, op.syncCopyCSV, "csvCopy", logrus.StandardLogger(), metrics.NewMetricsNil())
+	op.RegisterQueueIndexer(csvQueueIndexer)
+	op.copyQueueIndexer = csvQueueIndexer
 
 	// Register listers
 	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
@@ -3583,6 +3591,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 					require.True(t, ok, "wait for cache sync failed")
 
 					err = op.syncClusterServiceVersion(&obj)
+					require.NoError(t, err, "%#v", obj)
+
+					err = op.syncCopyCSV(&obj)
 					require.NoError(t, err, "%#v", obj)
 				}
 			}

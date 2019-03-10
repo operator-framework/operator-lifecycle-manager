@@ -29,7 +29,7 @@ require (
 	github.com/spf13/cobra v0.0.3
 	github.com/stretchr/testify v1.2.2
 	go.etcd.io/bbolt v1.3.2 // indirect
-	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c // indirect
+	golang.org/x/time v0.0.0-20181108054448-85acf8d2951c
 	google.golang.org/grpc v1.16.0
 	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
 	k8s.io/apiextensions-apiserver v0.0.0-20190223021643-57c81b676ab1
@@ -41,5 +41,5 @@ require (
 	k8s.io/klog v0.2.0 // indirect
 	k8s.io/kube-aggregator v0.0.0-20190223015803-f706565beac0
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.8-beta.0.0.20190223014307-4e209c9383fa
+	k8s.io/kubernetes v1.11.9-beta.0.0.20190305054513-b2539d50ae56
 )

@@ -2,6 +2,8 @@
 package resolver
 
 import (
+	"strings"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 )
 
@@ -14,6 +16,11 @@ func NewNamespaceSet(namespaces []string) NamespaceSet {
 	}
 
 	return set
+}
+
+// NewNamespaceSetFromString creates a namespace set from a comma-delimited list of namespaces
+func NewNamespaceSetFromString(namespaces string) NamespaceSet {
+	return NewNamespaceSet(strings.Split(namespaces, ","))
 }
 
 func (n NamespaceSet) Peek() string {
