@@ -1243,7 +1243,7 @@ func (a *Operator) isReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clu
 	}
 	previous, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces)
 	if err != nil {
-		a.Log.Debugf("unable to get previous csv: %s", err.Error())
+		a.Log.WithField("replacing", in.Spec.Replaces).WithError(err).Debugf("unable to get previous csv")
 		return nil
 	}
 	return previous

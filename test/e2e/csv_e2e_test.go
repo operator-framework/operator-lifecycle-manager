@@ -325,17 +325,6 @@ func TestCreateCSVWithUnmetRequirementsMinKubeVersion(t *testing.T) {
 				},
 			},
 			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
-			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-				Owned: []v1alpha1.CRDDescription{
-					{
-						DisplayName: "Not In Cluster",
-						Description: "A CRD that is not currently in the cluster",
-						Name:        "not.in.cluster.com",
-						Version:     "v1alpha1",
-						Kind:        "NotInCluster",
-					},
-				},
-			},
 		},
 	}
 

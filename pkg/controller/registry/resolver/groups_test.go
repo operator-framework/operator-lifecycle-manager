@@ -336,6 +336,229 @@ func TestNamespaceSetIntersection(t *testing.T) {
 	}
 }
 
+func TestNamespaceSetUnion(t *testing.T) {
+	type input struct {
+		left  NamespaceSet
+		right NamespaceSet
+	}
+	tests := []struct {
+		name string
+		in   input
+		want NamespaceSet
+	}{
+		{
+			name: "EmptySets",
+			in: input{
+				left:  make(NamespaceSet),
+				right: make(NamespaceSet),
+			},
+			want: make(NamespaceSet),
+		},
+		{
+			name: "EmptyLeft/MultipleRight",
+			in: input{
+				left: make(NamespaceSet),
+				right: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+			},
+			want: NamespaceSet{
+				"ns":   {},
+				"ns-1": {},
+				"ns-2": {},
+			},
+		},
+		{
+			name: "MultipleLeft/EmptyRight",
+			in: input{
+				left: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+				right: make(NamespaceSet),
+			},
+			want: NamespaceSet{
+				"ns":   {},
+				"ns-1": {},
+				"ns-2": {},
+			},
+		},
+		{
+			name: "OneLeft/SameRight",
+			in: input{
+				left: NamespaceSet{
+					"ns": {},
+				},
+				right: NamespaceSet{
+					"ns": {},
+				},
+			},
+			want: NamespaceSet{
+				"ns": {},
+			},
+		},
+		{
+			name: "MultipleLeft/MultipleRight/Differ",
+			in: input{
+				left: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+				right: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-3": {},
+				},
+			},
+			want: NamespaceSet{
+				"ns":   {},
+				"ns-1": {},
+				"ns-2": {},
+				"ns-3": {},
+			},
+		},
+		{
+			name: "MultipleLeft/MultipleRight/AllSame",
+			in: input{
+				left: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+				right: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+			},
+			want: NamespaceSet{
+				"ns":   {},
+				"ns-1": {},
+				"ns-2": {},
+			},
+		},
+		{
+			name: "AllLeft/MultipleRight",
+			in: input{
+				left: NamespaceSet{
+					"": {},
+				},
+				right: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+			},
+			want: NamespaceSet{
+				"": {},
+			},
+		},
+		{
+			name: "MultipleLeft/AllRight",
+			in: input{
+				left: NamespaceSet{
+					"ns":   {},
+					"ns-1": {},
+					"ns-2": {},
+				},
+				right: NamespaceSet{
+					"": {},
+				},
+			},
+			want: NamespaceSet{
+				"": {},
+			},
+		},
+		{
+			name: "AllLeft/EmptyRight",
+			in: input{
+				left: NamespaceSet{
+					"": {},
+				},
+				right: make(NamespaceSet),
+			},
+			want: NamespaceSet{
+				"": {},
+			},
+		},
+		{
+			name: "EmptyLeft/AllRight",
+			in: input{
+				left: make(NamespaceSet),
+				right: NamespaceSet{
+					"": {},
+				},
+			},
+			want: NamespaceSet{
+				"": {},
+			},
+		},
+		{
+			name: "AllLeft/AllRight",
+			in: input{
+				left: NamespaceSet{
+					"": {},
+				},
+				right: NamespaceSet{
+					"": {},
+				},
+			},
+			want: NamespaceSet{
+				"": {},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.EqualValues(t, tt.want, tt.in.left.Union(tt.in.right))
+		})
+	}
+}
+
+func TestNamespaceSetIsAllNamespaces(t *testing.T) {
+	type input struct {
+		set NamespaceSet
+	}
+	tests := []struct {
+		name string
+		in   input
+		want bool
+	}{
+		{
+			name: "All/Yes",
+			in: input{
+				set: NewNamespaceSet([]string{metav1.NamespaceAll}),
+			},
+			want: true,
+		},
+		{
+			name: "One/NotAll",
+			in: input{
+				set: NewNamespaceSet([]string{"a"}),
+			},
+			want: false,
+		},
+		{
+			name: "Many/NotAll",
+			in: input{
+				set: NewNamespaceSet([]string{"a", "b", "c"}),
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.in.set.IsAllNamespaces())
+		})
+	}
+}
+
 func TestNamespaceSetContains(t *testing.T) {
 	type input struct {
 		set      NamespaceSet

@@ -72,8 +72,7 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			return err
 		}
 		logger.Debug("namespace change detected and operatorgroup status updated")
-		// CSV requeue is handled by the succeeding sync
-
+		// CSV requeue is handled by the succeeding sync in `annotateCSVs`
 		return nil
 	}
 
@@ -119,8 +118,13 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 
 func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) error {
 	updateErrs := []error{}
+	targetNamespaceSet := resolver.NewNamespaceSet(targetNamespaces)
+
 	for _, csv := range a.csvSet(group.GetNamespace(), v1alpha1.CSVPhaseAny) {
 		logger := logger.WithField("csv", csv.GetName())
+
+		originalNamespacesAnnotation, _ := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)[v1alpha2.OperatorGroupTargetsAnnotationKey]
+		originalNamespaceSet := resolver.NewNamespaceSetFromString(originalNamespacesAnnotation)
 
 		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, group) {
 			a.setOperatorGroupAnnotations(&csv.ObjectMeta, group, true)
@@ -131,12 +135,21 @@ func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces 
 				continue
 			}
 		}
-		logger.WithField("targets", targetNamespaces).Debug("requeueing copied csvs in target namespaces")
-		for _, ns := range targetNamespaces {
-			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
-			if k8serrors.IsNotFound(err) {
-				if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
-					logger.WithError(err).Warn("could not requeue provider")
+
+		// requeue csvs in original namespaces or in new target namespaces (to capture removed/added namespaces)
+		requeueNamespaces := originalNamespaceSet.Union(targetNamespaceSet)
+		if !requeueNamespaces.IsAllNamespaces() {
+			for ns := range requeueNamespaces {
+				if err := a.csvQueueSet.Requeue(csv.GetName(), ns); err != nil {
+					logger.WithError(err).Warn("could not requeue csv")
+				}
+			}
+		}
+		// have to requeue in all namespaces, previous or new targets were AllNamespaces
+		if namespaces, err := a.lister.CoreV1().NamespaceLister().List(labels.Everything()); err != nil {
+			for _, ns := range namespaces {
+				if err := a.csvQueueSet.Requeue(csv.GetName(), ns.GetName()); err != nil {
+					logger.WithError(err).Warn("could not requeue csv")
 				}
 			}
 		}

@@ -34,13 +34,13 @@ func (n NamespaceSet) Peek() string {
 func (n NamespaceSet) Intersection(set NamespaceSet) NamespaceSet {
 	intersection := make(NamespaceSet)
 	// Handle special NamespaceAll cases
-	if len(n) == 1 && n.Peek() == "" {
+	if n.IsAllNamespaces() {
 		for namespace := range set {
 			intersection[namespace] = struct{}{}
 		}
 		return intersection
 	}
-	if len(set) == 1 && set.Peek() == "" {
+	if set.IsAllNamespaces() {
 		for namespace := range n {
 			intersection[namespace] = struct{}{}
 		}
@@ -56,12 +56,37 @@ func (n NamespaceSet) Intersection(set NamespaceSet) NamespaceSet {
 	return intersection
 }
 
+func (n NamespaceSet) Union(set NamespaceSet) NamespaceSet {
+	// Handle special NamespaceAll cases
+	if n.IsAllNamespaces() {
+		return n
+	}
+	if set.IsAllNamespaces() {
+		return set
+	}
+	union := make(NamespaceSet)
+	for namespace := range n {
+		union[namespace] = struct{}{}
+	}
+	for namespace := range set {
+		union[namespace] = struct{}{}
+	}
+	return union
+}
+
 func (n NamespaceSet) Contains(namespace string) bool {
-	if len(n) == 1 && n.Peek() == "" {
+	if n.IsAllNamespaces() {
 		return true
 	}
 	_, ok := n[namespace]
 	return ok
+}
+
+func (n NamespaceSet) IsAllNamespaces() bool {
+	if len(n) == 1 && n.Peek() == "" {
+		return true
+	}
+	return false
 }
 
 type OperatorGroupSurface interface {
