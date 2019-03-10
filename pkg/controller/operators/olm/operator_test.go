@@ -2086,6 +2086,51 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
+			name: "SingleCSVSucceededToSucceeded/OperatorGroupChanged",
+			initial: initial{
+				csvs: []runtime.Object{
+					withConditionReason(csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("a1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), defaultTemplateAnnotations), v1alpha1.CSVReasonInstallSuccessful),
+				},
+				clientObjs: []runtime.Object{
+					&v1alpha2.OperatorGroup{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       "OperatorGroup",
+							APIVersion: v1alpha2.SchemeGroupVersion.String(),
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "default",
+							Namespace: namespace,
+						},
+						Spec: v1alpha2.OperatorGroupSpec{},
+						Status: v1alpha2.OperatorGroupStatus{
+							Namespaces: []string{namespace, "new-namespace"},
+						},
+					},
+				},
+				apis: []runtime.Object{},
+				objs: []runtime.Object{
+					deployment("a1", namespace, "sa", defaultTemplateAnnotations),
+					serviceAccount("sa", namespace),
+				},
+				crds: []runtime.Object{
+					crd("c1", "v1", "g1"),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded, reason: v1alpha1.CSVReasonInstallSuccessful},
+				},
+			},
+		},
+		{
 			name: "SingleCSVInstallReadyToFailed/BadStrategy",
 			initial: initial{
 				csvs: []runtime.Object{
@@ -3608,7 +3653,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			require.NoError(t, err)
 
 			// Sync csvs enough to get them back to succeeded state
-			for i := 0; i < 6; i++ {
+			for i := 0; i < 8; i++ {
 				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
 				require.NoError(t, err)
 

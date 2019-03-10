@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -305,7 +307,7 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	logger := a.Log.WithFields(logrus.Fields{
 		"name":      metaObj.GetName(),
 		"namespace": metaObj.GetNamespace(),
-		"sel":       metaObj.GetSelfLink(),
+		"self":      metaObj.GetSelfLink(),
 	})
 
 	// Requeue all owner CSVs
@@ -572,7 +574,7 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return
 	}
 
-	operatorGroup := a.operatorGroupForActiveCSV(logger, clusterServiceVersion)
+	operatorGroup := a.operatorGroupFromAnnotations(logger, clusterServiceVersion)
 	if operatorGroup == nil {
 		logger.WithField("reason", "no operatorgroup found for active CSV").Debug("skipping CSV resource copy to target namespaces")
 		return
@@ -607,8 +609,8 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 	return
 }
 
-// operatorGroupForCSV returns the OperatorGroup for the CSV only if the CSV is active one in the group
-func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) *v1alpha2.OperatorGroup {
+// operatorGroupFromAnnotations returns the OperatorGroup for the CSV only if the CSV is active one in the group
+func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) *v1alpha2.OperatorGroup {
 	annotations := csv.GetAnnotations()
 
 	// Not part of a group yet
@@ -640,21 +642,61 @@ func (a *Operator) operatorGroupForActiveCSV(logger *logrus.Entry, csv *v1alpha1
 		return nil
 	}
 
-	// targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
-	//
-	// // No target annotation
-	// if !ok {
-	// 	logger.Info("no olm.targetNamespaces annotation")
-	// 	return nil
-	// }
-	//
-	// // Target namespaces don't match
-	// if targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
-	// 	logger.Info("olm.targetNamespaces annotation doesn't match operatorgroup status")
-	// 	return nil
-	// }
+	targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
+
+	// No target annotation
+	if !ok {
+		logger.Info("no olm.targetNamespaces annotation")
+		return nil
+	}
+
+	// Target namespaces don't match
+	if targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
+		logger.Info("olm.targetNamespaces annotation doesn't match operatorgroup status")
+		return nil
+	}
 
 	return operatorGroup
+}
+
+func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) (*v1alpha2.OperatorGroup, error) {
+	now := timeNow()
+
+	// Attempt to associate an OperatorGroup with the CSV.
+	operatorGroups, err := a.client.OperatorsV1alpha2().OperatorGroups(csv.GetNamespace()).List(metav1.ListOptions{})
+	if err != nil {
+		logger.Errorf("error occurred while attempting to associate csv with operatorgroup")
+		return nil, err
+	}
+	var operatorGroup *v1alpha2.OperatorGroup
+
+	switch len(operatorGroups.Items) {
+	case 0:
+		err = fmt.Errorf("csv in namespace with no operatorgroups")
+		logger.Warn(err)
+		csv.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoOperatorGroup, err.Error(), now, a.recorder)
+		return nil, err
+	case 1:
+		operatorGroup = &operatorGroups.Items[0]
+		logger = logger.WithField("opgroup", operatorGroup.GetName())
+		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, operatorGroup) {
+			a.setOperatorGroupAnnotations(&csv.ObjectMeta, operatorGroup, true)
+			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Update(csv); err != nil {
+				logger.WithError(err).Warn("error adding operatorgroup annotations")
+				return nil, err
+			}
+			return nil, nil
+		}
+		logger.Info("csv in operatorgroup")
+		return operatorGroup, nil
+	default:
+		err = fmt.Errorf("csv created in namespace with multiple operatorgroups, can't pick one automatically")
+		logger.WithError(err).Warn("csv failed to become an operatorgroup member")
+		if csv.Status.Reason != v1alpha1.CSVReasonTooManyOperatorGroups {
+			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonTooManyOperatorGroups, err.Error(), now, a.recorder)
+		}
+		return nil, err
+	}
 }
 
 // transitionCSVState moves the CSV status state machine along based on the current value and the current cluster state.
@@ -681,44 +723,18 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		return
 	}
 
-	// Attempt to associate an OperatorGroup with the CSV.
-	operatorGroups, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(out.GetNamespace()).List(labels.Everything())
-	if err != nil {
-		logger.Errorf("error occurred while attempting to associate csv with operatorgroup")
+	// Verify CSV operatorgroup (and update annotations if needed)
+	operatorGroup, err := a.operatorGroupForCSV(out, logger)
+	if operatorGroup == nil {
+		// when err is nil, we still want to exit, but we don't want to re-add the csv ratelimited to the queue
 		syncError = err
+		logger.WithField("err", err).Info("operatorgroup incorrect")
+		return
 	}
-	var operatorGroup *v1alpha2.OperatorGroup
 
-	switch len(operatorGroups) {
-	case 0:
-		syncError = fmt.Errorf("csv in namespace with no operatorgroups")
-		logger.Warn(syncError.Error())
-		out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoOperatorGroup, syncError.Error(), now, a.recorder)
-		return
-	case 1:
-		operatorGroup = a.operatorGroupForActiveCSV(logger, out)
-		if operatorGroup == nil {
-			operatorGroup = operatorGroups[0]
-			logger = logger.WithField("opgroup", operatorGroup.GetName())
-
-			if a.operatorGroupAnnotationsDiffer(&out.ObjectMeta, operatorGroup) {
-				a.setOperatorGroupAnnotations(&out.ObjectMeta, operatorGroup, true)
-				if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(out); err != nil {
-					logger.WithError(err).Warn("error adding operatorgroup annotations")
-					syncError = err
-				}
-			}
-
-			return
-		}
-		logger.Info("csv in operatorgroup")
-	default:
-		syncError = fmt.Errorf("csv created in namespace with multiple operatorgroups, can't pick one automatically")
-		logger.WithError(syncError).Warn("csv failed to become an operatorgroup member")
-		if out.Status.Reason != v1alpha1.CSVReasonTooManyOperatorGroups {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonTooManyOperatorGroups, syncError.Error(), now, a.recorder)
-		}
-		return
+	logger.Info("updated annotations to match current operatorgroup")
+	if err := a.ensureDeploymentAnnotations(logger, out); err != nil {
+		return nil, err
 	}
 
 	modeSet, err := v1alpha1.NewInstallModeSet(out.Spec.InstallModes)
@@ -1304,4 +1320,52 @@ func (a *Operator) cleanupCSVDeployments(logger *logrus.Entry, csv *v1alpha1.Clu
 			logger.WithField("err", err).Warn("error cleaning up CSV deployment")
 		}
 	}
+}
+
+func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) error {
+	// Get csv operatorgroup annotations
+	annotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
+
+	// Extract the InstallStrategy for the deployment
+	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	if err != nil {
+		logger.Warn("could not parse install strategy while cleaning up CSV deployment")
+		return nil
+	}
+
+	// Assume the strategy is for a deployment
+	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	if !ok {
+		logger.Warnf("could not cast install strategy as type %T", strategyDetailsDeployment)
+		return nil
+	}
+
+	var depNames []string
+	for _, dep := range strategyDetailsDeployment.DeploymentSpecs {
+		depNames = append(depNames, dep.Name)
+	}
+	existingDeployments, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	// compare deployments to see if any need to be created/updated
+	existingMap := map[string]*appsv1.Deployment{}
+	for _, d := range existingDeployments {
+		existingMap[d.GetName()] = d
+	}
+
+	updateErrs := []error{}
+	for _, dep := range existingMap {
+		if dep.Spec.Template.Annotations == nil {
+			dep.Spec.Template.Annotations = map[string]string{}
+		}
+		for key, value := range annotations {
+			dep.Spec.Template.Annotations[key] = value
+		}
+		if _, _, err := a.OpClient.UpdateDeployment(dep); err != nil {
+			updateErrs = append(updateErrs, err)
+		}
+	}
+	return utilerrors.NewAggregate(updateErrs)
 }

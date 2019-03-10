@@ -3,7 +3,6 @@ package olm
 import (
 	"fmt"
 	"reflect"
-	"sort"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -72,14 +71,17 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 			logger.WithError(err).Warn("operatorgroup update failed")
 			return err
 		}
-
+		logger.Debug("namespace change detected and operatorgroup status updated")
 		// CSV requeue is handled by the succeeding sync
+
 		return nil
 	}
 
+	logger.Debug("check that operatorgroup has updated CSV anotations")
 	err = a.annotateCSVs(op, targetNamespaces, logger)
 	if err != nil {
 		logger.WithError(err).Warn("failed to annotate CSVs in operatorgroup after group change")
+		return err
 	}
 	logger.Debug("OperatorGroup CSV annotation completed")
 
@@ -129,7 +131,7 @@ func (a *Operator) annotateCSVs(group *v1alpha2.OperatorGroup, targetNamespaces 
 				continue
 			}
 		}
-
+		logger.WithField("targets", targetNamespaces).Debug("requeueing copied csvs in target namespaces")
 		for _, ns := range targetNamespaces {
 			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(csv.GetName())
 			if k8serrors.IsNotFound(err) {
@@ -588,23 +590,33 @@ func (a *Operator) setOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alp
 	metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupAnnotationKey, op.GetName())
 
 	if addTargets && op.Status.Namespaces != nil {
-		sort.Strings(op.Status.Namespaces)
-		metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, strings.Join(op.Status.Namespaces, ","))
+		metav1.SetMetaDataAnnotation(obj, v1alpha2.OperatorGroupTargetsAnnotationKey, op.BuildTargetNamespaces())
 	}
 }
 
 func (a *Operator) operatorGroupAnnotationsDiffer(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup) bool {
 	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		return true
+	}
 	if operatorGroupNamespace, ok := annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]; !ok || operatorGroupNamespace != op.GetNamespace() {
 		return true
 	}
 	if operatorGroup, ok := annotations[v1alpha2.OperatorGroupAnnotationKey]; !ok || operatorGroup != op.GetName() {
 		return true
 	}
-	if targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]; !ok || targets != strings.Join(op.Status.Namespaces, ",") {
+	if targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]; !ok || targets != op.BuildTargetNamespaces() {
+		a.Log.WithFields(logrus.Fields{
+			"annotationTargets": annotations[v1alpha2.OperatorGroupTargetsAnnotationKey],
+			"opgroupTargets":    op.BuildTargetNamespaces(),
+		}).Debug("annotations different")
 		return true
 	}
 
+	a.Log.WithFields(logrus.Fields{
+		"annotationTargets": annotations[v1alpha2.OperatorGroupTargetsAnnotationKey],
+		"opgroupTargets":    op.BuildTargetNamespaces(),
+	}).Debug("annotations correct")
 	return false
 }
 
