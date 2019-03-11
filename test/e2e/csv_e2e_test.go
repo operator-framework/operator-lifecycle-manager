@@ -1510,7 +1510,7 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 
 	fetched, err := fetchCSV(t, crc, csv.Name, testNamespace, csvFailedChecker)
 	require.NoError(t, err)
-	require.Equal(t, fetched.Status.Reason, v1alpha1.CSVReasonOwnerConflict)
+	require.Equal(t, string(fetched.Status.Reason), string(v1alpha1.CSVReasonOwnerConflict))
 }
 
 func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
