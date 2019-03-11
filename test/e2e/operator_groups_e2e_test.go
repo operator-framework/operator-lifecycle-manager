@@ -1251,7 +1251,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	t.Logf("Found CSV count of %v", len(csvList.Items))
 
-	t.Log("Create other namespace")
+	t.Logf("Create other namespace %s", otherNamespaceName)
 	otherNamespace := corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   otherNamespaceName,
