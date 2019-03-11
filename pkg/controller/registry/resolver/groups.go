@@ -2,6 +2,8 @@
 package resolver
 
 import (
+	"strings"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 )
 
@@ -16,6 +18,11 @@ func NewNamespaceSet(namespaces []string) NamespaceSet {
 	return set
 }
 
+// NewNamespaceSetFromString creates a namespace set from a comma-delimited list of namespaces
+func NewNamespaceSetFromString(namespaces string) NamespaceSet {
+	return NewNamespaceSet(strings.Split(namespaces, ","))
+}
+
 func (n NamespaceSet) Peek() string {
 	for namespace := range n {
 		return namespace
@@ -27,13 +34,13 @@ func (n NamespaceSet) Peek() string {
 func (n NamespaceSet) Intersection(set NamespaceSet) NamespaceSet {
 	intersection := make(NamespaceSet)
 	// Handle special NamespaceAll cases
-	if len(n) == 1 && n.Peek() == "" {
+	if n.IsAllNamespaces() {
 		for namespace := range set {
 			intersection[namespace] = struct{}{}
 		}
 		return intersection
 	}
-	if len(set) == 1 && set.Peek() == "" {
+	if set.IsAllNamespaces() {
 		for namespace := range n {
 			intersection[namespace] = struct{}{}
 		}
@@ -47,6 +54,39 @@ func (n NamespaceSet) Intersection(set NamespaceSet) NamespaceSet {
 	}
 
 	return intersection
+}
+
+func (n NamespaceSet) Union(set NamespaceSet) NamespaceSet {
+	// Handle special NamespaceAll cases
+	if n.IsAllNamespaces() {
+		return n
+	}
+	if set.IsAllNamespaces() {
+		return set
+	}
+	union := make(NamespaceSet)
+	for namespace := range n {
+		union[namespace] = struct{}{}
+	}
+	for namespace := range set {
+		union[namespace] = struct{}{}
+	}
+	return union
+}
+
+func (n NamespaceSet) Contains(namespace string) bool {
+	if n.IsAllNamespaces() {
+		return true
+	}
+	_, ok := n[namespace]
+	return ok
+}
+
+func (n NamespaceSet) IsAllNamespaces() bool {
+	if len(n) == 1 && n.Peek() == "" {
+		return true
+	}
+	return false
 }
 
 type OperatorGroupSurface interface {
@@ -66,7 +106,7 @@ type OperatorGroup struct {
 	providedAPIs APISet
 }
 
-func NewOperatorGroup(group v1alpha2.OperatorGroup) *OperatorGroup {
+func NewOperatorGroup(group *v1alpha2.OperatorGroup) *OperatorGroup {
 	// Add operatorgroup namespace if not NamespaceAll
 	namespaces := group.Status.Namespaces
 	if len(namespaces) >= 1 && namespaces[0] != "" {
@@ -74,11 +114,11 @@ func NewOperatorGroup(group v1alpha2.OperatorGroup) *OperatorGroup {
 	}
 	// TODO: Sanitize OperatorGroup if len(namespaces) > 1 and contains ""
 	gvksStr := group.GetAnnotations()[v1alpha2.OperatorGroupProvidedAPIsAnnotationKey]
-	
+
 	return &OperatorGroup{
-		namespace: group.GetNamespace(),
-		name: group.GetName(),
-		targets: NewNamespaceSet(namespaces),
+		namespace:    group.GetNamespace(),
+		name:         group.GetName(),
+		targets:      NewNamespaceSet(namespaces),
 		providedAPIs: GVKStringToProvidedAPISet(gvksStr),
 	}
 }
@@ -86,7 +126,7 @@ func NewOperatorGroup(group v1alpha2.OperatorGroup) *OperatorGroup {
 func NewOperatorGroupSurfaces(groups ...v1alpha2.OperatorGroup) []OperatorGroupSurface {
 	operatorGroups := make([]OperatorGroupSurface, len(groups))
 	for i, group := range groups {
-		operatorGroups[i] = NewOperatorGroup(group)
+		operatorGroups[i] = NewOperatorGroup(&group)
 	}
 
 	return operatorGroups
@@ -134,15 +174,16 @@ const (
 )
 
 type APIIntersectionReconciler interface {
-	Reconcile(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) (APIReconciliationResult)
+	Reconcile(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult
 }
 
-type APIIntersectionReconcileFunc func(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) (APIReconciliationResult)
-func (a APIIntersectionReconcileFunc) Reconcile(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) (APIReconciliationResult) {
+type APIIntersectionReconcileFunc func(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult
+
+func (a APIIntersectionReconcileFunc) Reconcile(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult {
 	return a(add, group, otherGroups...)
 }
 
-func ReconcileAPIIntersection(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) (APIReconciliationResult) {
+func ReconcileAPIIntersection(add APISet, group OperatorGroupSurface, otherGroups ...OperatorGroupSurface) APIReconciliationResult {
 	groupIntersection := group.GroupIntersection(otherGroups...)
 	providedAPIIntersection := make(APISet)
 	for _, g := range groupIntersection {

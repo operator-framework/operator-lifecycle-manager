@@ -11,9 +11,9 @@ import (
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -242,7 +242,7 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 	dependentPackageName := genName("nginxdep-")
 
 	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
-	
+
 	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
 
 	stableChannel := "stable"
@@ -331,7 +331,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 
 	mainPackageName := genName("nginx-")
 	dependentPackageName := genName("nginxdep-")
-	
+
 	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 	mainPackageReplacement := fmt.Sprintf("%s-replacement", mainPackageStable)
 	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
@@ -392,9 +392,9 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	// Wait for ConfigMap CatalogSources to be ready
 	mainSource, err := fetchCatalogSource(t, crc, mainSourceName, testNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
-	replacementSource, err := fetchCatalogSource(t, crc, replacementSourceName, testNamespace, catalogSourceRegistryPodSynced)	
+	replacementSource, err := fetchCatalogSource(t, crc, replacementSourceName, testNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
-	
+
 	// Replicate catalog pods with no OwnerReferences
 	mainCopy := replicateCatalogPod(t, c, crc, mainSource)
 	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), HasPodIP)
@@ -421,7 +421,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 
 	addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(addressSource)
 	require.NoError(t, err)
-	defer func(){
+	defer func() {
 		err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(addressSourceName, &metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}()
@@ -434,7 +434,8 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 
 	// Create Subscription
 	subscriptionName := genName("sub-")
-	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, addressSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
 
 	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
@@ -450,7 +451,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait for the replacement CSV to be installed
-	_, err = awaitCSV(t, crc, testNamespace,  replacementCSV.GetName(), csvSucceededChecker)
+	_, err = awaitCSV(t, crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
 }
 
@@ -512,7 +513,7 @@ func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc ver
 	copied := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: catalog.GetNamespace(),
-			Name: catalog.GetName() + "-copy",
+			Name:      catalog.GetName() + "-copy",
 		},
 		Spec: pod.Spec,
 	}

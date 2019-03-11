@@ -1,8 +1,18 @@
 package v1alpha2
 
 import (
+	"sort"
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	OperatorGroupAnnotationKey             = "olm.operatorGroup"
+	OperatorGroupNamespaceAnnotationKey    = "olm.operatorNamespace"
+	OperatorGroupTargetsAnnotationKey      = "olm.targetNamespaces"
+	OperatorGroupProvidedAPIsAnnotationKey = "olm.providedAPIs"
 )
 
 type OperatorGroupSpec struct {
@@ -52,9 +62,7 @@ type OperatorGroupList struct {
 	Items []OperatorGroup `json:"items"`
 }
 
-const (
-	OperatorGroupAnnotationKey             = "olm.operatorGroup"
-	OperatorGroupNamespaceAnnotationKey    = "olm.operatorNamespace"
-	OperatorGroupTargetsAnnotationKey      = "olm.targetNamespaces"
-	OperatorGroupProvidedAPIsAnnotationKey = "olm.providedAPIs"
-)
+func (o *OperatorGroup) BuildTargetNamespaces() string {
+	sort.Strings(o.Status.Namespaces)
+	return strings.Join(o.Status.Namespaces, ",")
+}

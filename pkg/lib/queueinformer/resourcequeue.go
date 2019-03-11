@@ -14,12 +14,12 @@ func (r ResourceQueueSet) Requeue(name, namespace string) error {
 	key := fmt.Sprintf("%s/%s", namespace, name)
 
 	if queue, ok := r[metav1.NamespaceAll]; len(r) == 1 && ok {
-		queue.AddRateLimited(key)
+		queue.Add(key)
 		return nil
 	}
 
 	if queue, ok := r[namespace]; ok {
-		queue.AddRateLimited(key)
+		queue.Add(key)
 		return nil
 	}
 
