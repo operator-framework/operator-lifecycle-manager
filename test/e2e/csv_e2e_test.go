@@ -1508,9 +1508,9 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 	require.NoError(t, err)
 	defer cleanupCSV()
 
-	fetched, err := fetchCSV(t, crc, csv.Name, testNamespace, csvFailedChecker)
+	fetched, err := fetchCSV(t, crc, csv.Name, testNamespace, buildCSVReasonChecker(v1alpha1.CSVReasonOwnerConflict))
 	require.NoError(t, err)
-	require.Equal(t, string(fetched.Status.Reason), string(v1alpha1.CSVReasonOwnerConflict))
+	require.Equal(t, string(v1alpha1.CSVPhaseFailed), string(fetched.Status.Phase))
 }
 
 func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
