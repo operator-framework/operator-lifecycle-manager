@@ -103,7 +103,7 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
-# github.com/json-iterator/go v1.1.5
+# github.com/json-iterator/go v1.1.6
 github.com/json-iterator/go
 # github.com/konsorten/go-windows-terminal-sequences v1.0.1
 github.com/konsorten/go-windows-terminal-sequences
@@ -674,7 +674,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.9-beta.0.0.20190305054513-b2539d50ae56
+# k8s.io/kubernetes v1.11.9-beta.0.0.20190311041124-ede55fd57298
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/util/labels
 k8s.io/kubernetes/pkg/apis/rbac/v1

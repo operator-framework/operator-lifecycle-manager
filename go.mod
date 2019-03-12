@@ -15,6 +15,7 @@ require (
 	github.com/golang/mock v1.1.1
 	github.com/gregjones/httpcache v0.0.0-20181110185634-c63ab54fda8f // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.7.0 // indirect
+	github.com/json-iterator/go v1.1.6 // indirect
 	github.com/maxbrunsfeld/counterfeiter v0.0.0-20181017030959-1aadac120687
 	github.com/openshift/api v3.9.1-0.20190129160438-bbc4289c54e0+incompatible
 	github.com/openshift/client-go v0.0.0-20190128154758-1540772775fa
@@ -41,5 +42,5 @@ require (
 	k8s.io/klog v0.2.0 // indirect
 	k8s.io/kube-aggregator v0.0.0-20190223015803-f706565beac0
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.9-beta.0.0.20190305054513-b2539d50ae56
+	k8s.io/kubernetes v1.11.9-beta.0.0.20190311041124-ede55fd57298
 )
