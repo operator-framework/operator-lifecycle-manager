@@ -4,16 +4,16 @@
 
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
-CMDS  := $(addprefix bin/, $(shell go list ./cmd/... | xargs -I{} basename {}))
+MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12)") && echo -mod=vendor)
+CMDS  := $(addprefix bin/, $(shell go list $(MOD_FLAGS) ./cmd/... | xargs -I{} basename {}))
 CODEGEN := ./vendor/k8s.io/code-generator/generate_groups.sh
 MOCKGEN := ./scripts/generate_mocks.sh
 counterfeiter := $(GOBIN)/counterfeiter
 mockgen := $(GOBIN)/mockgen
-IMAGE_REPO := quay.io/coreos/olm
+IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiextensions-apiserver apimachinery code-generator kube-aggregator kubernetes
 KUBE_RELEASE := release-1.11
-MOD_FLAGS := $(shell (go version | grep -q 1.11) && echo -mod=vendor)
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
@@ -51,13 +51,13 @@ $(CMDS):
 run-local:
 	. ./scripts/build_local.sh
 	mkdir -p build/resources
-	. ./scripts/package-release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
+	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
 deploy-local:
 	mkdir -p build/resources
-	. ./scripts/package-release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
+	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh local build/resources
 	rm -rf build
 
@@ -67,7 +67,7 @@ e2e.namespace:
 # useful if running e2e directly with `go test -tags=bare`
 setup-bare: clean e2e.namespace
 	. ./scripts/build_bare.sh
-	. ./scripts/package-release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
+	. ./scripts/package_release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:
@@ -161,8 +161,8 @@ gen-all: gen-ci container-codegen container-mockgen
 # then tag those builds in quay with the version in OLM_VERSION
 release: ver=$(shell cat OLM_VERSION)
 release:
-	docker pull quay.io/coreos/olm:$(ver)
-	$(MAKE) target=upstream ver=$(ver) package
+	docker pull quay.io/operator-framework/olm:$(ver)
+	$(MAKE) target=upstream ver=$(ver) quickstart=true package
 	$(MAKE) target=okd ver=$(ver) package
 	$(MAKE) target=ocp ver=$(ver) package
 	rm -rf manifests
@@ -171,7 +171,7 @@ release:
 	find ./manifests -type f -exec sed -i "/^#/d" {} \; 
 	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
-package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/coreos/olm:$(ver))
+package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:$(ver))
 package:
 ifndef target
 	$(error target is undefined)
@@ -182,5 +182,8 @@ endif
 	yq w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
 	yq w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
 	yq w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
-	./scripts/package-release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
+	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
+ifeq ($(quickstart), true)
+	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/manifests/quickstart/olm.yaml
+endif

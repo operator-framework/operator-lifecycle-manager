@@ -13,6 +13,7 @@ COPY OLM_VERSION OLM_VERSION
 COPY pkg pkg
 COPY vendor vendor
 COPY go.mod go.mod
+COPY go.sum go.sum
 COPY cmd cmd
 COPY test test
 RUN make build
