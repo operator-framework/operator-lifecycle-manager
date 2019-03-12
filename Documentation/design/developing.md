@@ -6,7 +6,7 @@
  * Make any config customizations by editing `example-values.yaml`
  * Deploy a namespaced copy of OLM
 ```sh
-./scripts/package-release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
+./scripts/package_release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
 kubectl create ns olm-testing
 kubectl get secrets -n tectonic-system -o yaml coreos-pull-secret | sed 's/tectonic-system/olm-testing/g' | kubectl create -f -
 kubectl apply -f ./custom-olm
@@ -58,7 +58,7 @@ kubectl apply -f ./custom-olm
 * either apply the new configmap on it's own and restart catalog or, easier, just run:
 
 ```sh
-./scripts/package-release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
+./scripts/package_release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
 kubectl apply -f ./custom-olm
 ```
 

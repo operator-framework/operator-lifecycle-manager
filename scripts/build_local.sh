@@ -10,6 +10,6 @@ if [ -z "$NO_MINIKUBE" ]; then
   eval $(minikube docker-env) || { echo 'Cannot switch to minikube docker'; exit 1; }
   kubectl config use-context minikube
 fi
-docker build -f e2e.Dockerfile .
-docker tag $(docker images --filter 'label=stage=olm' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/olm:local
-docker tag $(docker images --filter 'label=stage=builder' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/coreos/olm-e2e:local
+docker build -f upstream.Dockerfile .
+docker tag $(docker images --filter 'label=stage=olm' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/operator-framework/olm:local
+docker tag $(docker images --filter 'label=stage=builder' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/operator-framework/olm-e2e:local

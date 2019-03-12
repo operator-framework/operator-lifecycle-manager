@@ -18,7 +18,7 @@ cp test/e2e/e2e-values.yaml "$test_e2e_config"
   echo "catalog_namespace: ${namespace}";
   echo "operator_namespace: ${operator_namespace}"; }  >> "$test_e2e_config"
 
-./scripts/package-release.sh 1.0.0 test/e2e/resources "$test_e2e_config"
+./scripts/package_release.sh 1.0.0 test/e2e/resources "$test_e2e_config"
 
 function cleanup {
 	for resource in test/e2e/resources/*.yaml; do
