@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,6 +18,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -1217,9 +1219,31 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	csv.SetName(depName)
 
 	// Create the APIService CSV
-	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, true)
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
-	defer cleanupCSV()
+	defer func() {
+		watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
+		require.NoError(t, err)
+
+		deleted := make(chan struct{})
+		go func() {
+			events := watcher.ResultChan()
+			for {
+				select {
+				case evt := <-events:
+					if evt.Type == watch.Deleted {
+						deleted <- struct{}{}
+						return
+					}
+				case <-time.After(pollDuration):
+					require.FailNow(t, "apiservice not cleaned up after CSV deleted")
+				}
+			}
+		}()
+
+		cleanupCSV()
+		<-deleted
+	}()
 
 	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
