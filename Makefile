@@ -98,7 +98,6 @@ container:
 
 clean-e2e:
 	kubectl delete crds --all
-	kubectl delete apiservices.apiregistration.k8s.io v1alpha1.packages.apps.redhat.com
 	kubectl delete -f test/e2e/resources/0000_50_olm_00-namespace.yaml
 
 clean:

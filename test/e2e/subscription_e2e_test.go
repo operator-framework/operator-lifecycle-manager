@@ -3,6 +3,8 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
@@ -196,7 +198,7 @@ var (
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "nginx"},
 					},
-					Replicas: &doubleInstance,
+					Replicas: &singleInstance,
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"app": "nginx"},
@@ -612,3 +614,149 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
+	// Create CSV
+	packageName := genName("nginx-")
+	stableChannel := "stable"
+
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	csvA := newCSV("nginx-a", testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvB := newCSV("nginx-b", testNamespace, "nginx-a", *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvC := newCSV("nginx-c", testNamespace, "nginx-b", *semver.New("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+
+	// Create PackageManifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvA.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the CatalogSource with just one version
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	catalogSourceName := genName("mock-nginx-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA})
+	defer cleanupCatalogSource()
+
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("sub-nginx-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for csvA to be installed
+	_, err = awaitCSV(t, crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Set up async watches that will fail the test if csvB doesn't get created in between csvA and csvC
+	var wg sync.WaitGroup
+	go func(t *testing.T) {
+		wg.Add(1)
+		defer wg.Done()
+		_, err := awaitCSV(t, crc, testNamespace, csvB.GetName(), csvAnyChecker)
+		require.NoError(t, err)
+	}(t)
+	// Update the catalog to include multiple updates
+	packages := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvC.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	updateInternalCatalog(t, c, crc, catalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB, csvC}, packages)
+
+	// wait for checks on intermediate csvs to succeed
+	wg.Wait()
+
+	// Wait for csvC to be installed
+	_, err = awaitCSV(t, crc, testNamespace, csvC.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should eventually GC the CSVs
+	err = waitForCSVToDelete(t, crc, csvA.Name)
+	require.NoError(t, err)
+	err = waitForCSVToDelete(t, crc, csvB.Name)
+	require.NoError(t, err)
+
+	// TODO: check installplans, subscription status, etc
+}
+
+func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
+	fetchedInitialCatalog, err := fetchCatalogSource(t, crc, catalogSourceName, namespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Get initial configmap
+	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Update package to point to new csv
+	manifestsRaw, err := yaml.Marshal(packages)
+	require.NoError(t, err)
+	configMap.Data[registry.ConfigMapPackageName] = string(manifestsRaw)
+
+	// Update raw CRDs
+	var crdsRaw []byte
+	crdStrings := []string{}
+	for _, crd := range crds {
+		crdStrings = append(crdStrings, serializeCRD(t, crd))
+	}
+	crdsRaw, err = yaml.Marshal(crdStrings)
+	require.NoError(t, err)
+	configMap.Data[registry.ConfigMapCRDName] = strings.Replace(string(crdsRaw), "- |\n  ", "- ", -1)
+
+	// Update raw CSVs
+	csvsRaw, err := yaml.Marshal(csvs)
+	require.NoError(t, err)
+	configMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
+
+	// Update configmap
+	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Update(configMap)
+	require.NoError(t, err)
+
+	// wait for catalog to update
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
+		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync && catalog.Status.ConfigMapResource.ResourceVersion != fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion {
+			fmt.Println("catalog updated")
+			return true
+		}
+		fmt.Println("waiting for catalog pod to be available")
+		return false
+	})
+	require.NoError(t, err)
+}
