@@ -30,6 +30,16 @@ var uncopiableReasons = map[ConditionReason]struct{}{
 	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs: {},
 }
 
+// SetPhaseWithEventIfChanged emits a Kubernetes event with details of a phase change and sets the current phase if phase, reason, or message would changed
+func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
+	if c.Status.Phase == phase && c.Status.Reason == reason && c.Status.Message == message {
+		return
+	}
+
+	c.SetPhaseWithEvent(phase, reason, message, now, recorder)
+}
+
+// SetPhaseWithEvent generates a Kubernetes event with details about the phase change and sets the current phase
 func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
 	var eventtype string
 	if phase == CSVPhaseFailed {

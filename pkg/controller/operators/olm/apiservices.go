@@ -11,6 +11,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
@@ -41,35 +42,34 @@ func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	return false
 }
 
-// apiServiceResourceErrorsActionable returns true if OLM can do something about any one
+// apiServiceResourceErrorActionable returns true if OLM can do something about any one
 // of the apiService errors in errs; otherwise returns false
 //
 // This method can be used to determine if a CSV in a failed state due to APIService
 // issues can resolve them by reinstalling
-func (a *Operator) apiServiceResourceErrorsActionable(errs []error) bool {
-	for _, err := range errs {
-		switch err.(type) {
-		case olmerrors.UnadoptableError:
-			return false
-		}
-	}
+func (a *Operator) apiServiceResourceErrorActionable(err error) bool {
+	filtered := utilerrors.FilterOut(err, func(e error) bool {
+		_, unadoptable := e.(olmerrors.UnadoptableError)
+		return !unadoptable
+	})
+	actionable := filtered == nil
 
-	return true
+	return actionable
 }
 
 // checkAPIServiceResources checks if all expected generated resources for the given APIService exist
-func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) []error {
+func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) error {
 	errs := []error{}
 	owners := []ownerutil.Owner{csv}
 	// Get replacing CSV if exists
-	replacement, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+	replacing, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
 	if err != nil && k8serrors.IsNotFound(err) == false {
 		a.Log.Debugf("Replacement error regarding CSV (%v): %v", csv.GetName(), err)
 		errs = append(errs, err)
-		return errs
+		return utilerrors.NewAggregate(errs)
 	}
-	if replacement != nil {
-		owners = append(owners, replacement)
+	if replacing != nil {
+		owners = append(owners, replacing)
 	}
 	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
@@ -92,7 +92,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			err := olmerrors.NewUnadoptableError("", apiServiceName)
 			logger.WithError(err).Warn("found unadoptable apiservice")
 			errs = append(errs, err)
-			return errs
+			return utilerrors.NewAggregate(errs)
 		}
 
 		serviceName := APIServiceNameToServiceName(apiServiceName)
@@ -239,7 +239,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 	}
 
-	return errs
+	return utilerrors.NewAggregate(errs)
 }
 
 func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
@@ -251,8 +251,8 @@ func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIServic
 	return false
 }
 
-func (a *Operator) areAPIServicesAvailable(descs []v1alpha1.APIServiceDescription) (bool, error) {
-	for _, desc := range descs {
+func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
+	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
 		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
 		if k8serrors.IsNotFound(err) {

@@ -27,6 +27,7 @@ import (
 	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
@@ -43,6 +44,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
+	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
@@ -3868,4 +3870,47 @@ func TestCheckReplacement(t *testing.T) {
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
 	}
+}
+
+func TestAPIServiceResourceErrorActionable(t *testing.T) {
+	tests := []struct {
+		name       string
+		errs       []error
+		actionable bool
+	}{
+		{
+			name:       "Nil/Actionable",
+			errs:       nil,
+			actionable: true,
+		},
+		{
+			name:       "Empty/Actionable",
+			errs:       nil,
+			actionable: true,
+		},
+		{
+			name:       "Error/Actionable",
+			errs:       []error{fmt.Errorf("err-a")},
+			actionable: true,
+		},
+		{
+			name:       "Errors/Actionable",
+			errs:       []error{fmt.Errorf("err-a"), fmt.Errorf("err-b")},
+			actionable: true,
+		},
+		{
+			name:       "ContainsUnadoptable/NotActionable",
+			errs:       []error{fmt.Errorf("err-a"), olmerrors.UnadoptableError{}},
+			actionable: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			op := &Operator{}
+			aggregate := utilerrors.NewAggregate(tt.errs)
+			require.Equal(t, tt.actionable, op.apiServiceResourceErrorActionable(aggregate))
+		})
+	}
+
 }

@@ -741,9 +741,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	if err != nil {
 		syncError = err
 		logger.WithError(err).Warn("csv has invalid installmodes")
-		if out.Status.Reason != v1alpha1.CSVReasonInvalidInstallModes {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidInstallModes, syncError.Error(), now, a.recorder)
-		}
+		out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidInstallModes, syncError.Error(), now, a.recorder)
 		return
 	}
 
@@ -754,16 +752,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 		if err := modeSet.Supports(out.GetNamespace(), namespaces); err != nil {
 			logger.WithField("reason", err.Error()).Info("installmodeset does not support operatorgroups namespace selection")
-			if out.Status.Reason != v1alpha1.CSVReasonUnsupportedOperatorGroup {
-				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedOperatorGroup, err.Error(), now, a.recorder)
-			}
+			out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonUnsupportedOperatorGroup, err.Error(), now, a.recorder)
 			return
 		}
 	} else {
 		logger.Info("csv missing olm.targetNamespaces annotation")
-		if out.Status.Reason != v1alpha1.CSVReasonNoTargetNamespaces {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoTargetNamespaces, "csv missing olm.targetNamespaces annotation", now, a.recorder)
-		}
+		out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoTargetNamespaces, "csv missing olm.targetNamespaces annotation", now, a.recorder)
 		return
 	}
 
@@ -855,6 +849,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check for CRD ownership conflicts
+		// TODO: find CSVs that provide any of those that out does across all namespaces
 		csvSet := a.csvSet(out.GetNamespace(), v1alpha1.CSVPhaseAny)
 		if syncError = a.crdOwnerConflicts(out, csvSet); syncError != nil {
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, fmt.Sprintf("crd owner conflict: %s", syncError), now, a.recorder)
@@ -893,6 +888,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			a.Log.Warn(err.Error())
 		}
 		return
+
 	case v1alpha1.CSVPhaseInstalling:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
@@ -902,15 +898,22 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr == nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("install strategy successful")
 		}
+
 	case v1alpha1.CSVPhaseSucceeded:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			return
 		}
 
-		// Check install status
-		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
-			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("unhealthy component: %s", installErr)
+		// Check if any generated resources are missing
+		if err := a.checkAPIServiceResources(out, certs.PEMSHA256); err != nil {
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, err.Error(), now, a.recorder)
+			return
+		}
+
+		// Check if it's time to refresh owned APIService certs
+		if a.shouldRotateCerts(out) {
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
 			return
 		}
 
@@ -926,15 +929,9 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Check if any generated resources are missing
-		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); len(resErr) > 0 {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceResourceIssue, resErr[0].Error(), now, a.recorder)
-			return
-		}
-
-		// Check if it's time to refresh owned APIService certs
-		if a.shouldRotateCerts(out) {
-			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
+		// Check install status
+		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
+			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("unhealthy component: %s", installErr)
 			return
 		}
 
@@ -971,15 +968,9 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Check install status
-		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall); installErr != nil {
-			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("needs reinstall: %s", installErr)
-			return
-		}
-
 		// Check if requirements exist
 		met, statuses, err := a.requirementAndPermissionStatus(out)
-		if err != nil {
+		if err != nil && out.Status.Reason != v1alpha1.CSVReasonInvalidStrategy {
 			logger.Warn("invalid install strategy")
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInvalidStrategy, fmt.Sprintf("install strategy invalid: %s", err.Error()), now, a.recorder)
 			return
@@ -989,13 +980,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
-		// Check if any generated resources are missing
-		if resErr := a.checkAPIServiceResources(out, certs.PEMSHA256); len(resErr) > 0 {
+		// Check if any generated resources are missing and that OLM can action on them
+		if err := a.checkAPIServiceResources(out, certs.PEMSHA256); err != nil && a.apiServiceResourceErrorActionable(err) {
 			// Check if API services are adoptable. If not, keep CSV as Failed state
-			if a.apiServiceResourceErrorsActionable(resErr) {
-				out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, resErr[0].Error(), now, a.recorder)
-				return
-			}
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonAPIServiceResourcesNeedReinstall, err.Error(), now, a.recorder)
+			return
 		}
 
 		// Check if it's time to refresh owned APIService certs
@@ -1003,6 +992,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsCertRotation, "owned APIServices need cert refresh", now, a.recorder)
 			return
 		}
+
+		// Check install status
+		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall); installErr != nil {
+			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("needs reinstall: %s", installErr)
+		}
+
 	case v1alpha1.CSVPhaseReplacing:
 		// determine CSVs that are safe to delete by finding a replacement chain to a CSV that's running
 		// since we don't know what order we'll process replacements, we have to guard against breaking that chain
@@ -1109,33 +1104,30 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 }
 
 func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, installer install.StrategyInstaller, strategy install.Strategy, requeuePhase v1alpha1.ClusterServiceVersionPhase, requeueConditionReason v1alpha1.ConditionReason) error {
-	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv.Spec.APIServiceDefinitions.Owned)
+	apiServicesInstalled, apiServiceErr := a.areAPIServicesAvailable(csv)
 	strategyInstalled, strategyErr := installer.CheckInstalled(strategy)
 	now := timeNow()
 
 	if strategyInstalled && apiServicesInstalled {
 		// if there's no error, we're successfully running
-		if csv.Status.Phase != v1alpha1.CSVPhaseSucceeded {
-			csv.SetPhaseWithEvent(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors", now, a.recorder)
-		}
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors", now, a.recorder)
 		return nil
 	}
 
 	// installcheck determined we can't progress (e.g. deployment failed to come up in time)
 	if install.IsErrorUnrecoverable(strategyErr) {
-		csv.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", strategyErr), now, a.recorder)
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install failed: %s", strategyErr), now, a.recorder)
 		return strategyErr
 	}
 
 	if apiServiceErr != nil {
-		csv.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceInstallFailed, fmt.Sprintf("APIService install failed: %s", apiServiceErr), now, a.recorder)
+		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonAPIServiceInstallFailed, fmt.Sprintf("APIService install failed: %s", apiServiceErr), now, a.recorder)
 		return apiServiceErr
 	}
 
 	if !apiServicesInstalled {
-		csv.SetPhaseWithEvent(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"), now, a.recorder)
-		err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace())
-		if err != nil {
+		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("APIServices not installed"), now, a.recorder)
+		if err := a.csvQueueSet.Requeue(csv.GetName(), csv.GetNamespace()); err != nil {
 			a.Log.Warn(err.Error())
 		}
 
@@ -1143,7 +1135,7 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	}
 
 	if strategyErr != nil {
-		csv.SetPhaseWithEvent(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
+		csv.SetPhaseWithEventIfChanged(requeuePhase, requeueConditionReason, fmt.Sprintf("installing: %s", strategyErr), now, a.recorder)
 		return strategyErr
 	}
 
@@ -1178,23 +1170,20 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 }
 
 func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {
-	owned := false
 	for _, crd := range in.Spec.CustomResourceDefinitions.Owned {
 		for csvName, csv := range csvsInNamespace {
 			if csvName == in.GetName() {
 				continue
 			}
 			if csv.OwnsCRD(crd.Name) {
-				owned = true
-			}
-			if owned && in.Spec.Replaces == csvName {
-				return nil
+				if in.Spec.Replaces == csvName {
+					return nil
+				}
+				return ErrCRDOwnerConflict
 			}
 		}
 	}
-	if owned {
-		return ErrCRDOwnerConflict
-	}
+
 	return nil
 }
 
