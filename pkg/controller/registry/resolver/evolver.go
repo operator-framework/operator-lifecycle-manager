@@ -50,7 +50,8 @@ func (e *NamespaceGenerationEvolver) Evolve(add map[OperatorSourceInfo]struct{})
 }
 
 func (e *NamespaceGenerationEvolver) checkForUpdates() error {
-	for _, op := range e.gen.Operators() {
+	// take a snapshot of the current generation so that we don't update the same operator twice in one resolution
+	for _, op := range e.gen.Operators().Snapshot() {
 		// only check for updates if we have sourceinfo
 		if op.SourceInfo() == &ExistingOperator {
 			continue

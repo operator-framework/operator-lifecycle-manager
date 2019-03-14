@@ -373,6 +373,27 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
 			),
 		},
+		{
+			// an existing operator has multiple updates available
+			// a single evolution should update to next, not latest
+			name: "UpdateRequired/MultipleUpdates",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundle("updated", "o", "c", "original", nil, nil, nil, nil),
+						bundle("updated.v2", "o", "c", "updated", nil, nil, nil, nil),
+						bundle("updated.v3", "o", "c", "updated.v2", nil, nil, nil, nil),
+					},
+				}),
+				gen: NewGenerationFromOperators(
+					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", nil, nil, nil, nil),
+				),
+			},
+			args: args{},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("updated", "o", "c", "original", "catsrc", "", nil, nil, nil, nil),
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
