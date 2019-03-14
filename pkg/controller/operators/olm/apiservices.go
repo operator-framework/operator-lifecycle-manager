@@ -59,24 +59,28 @@ func (a *Operator) apiServiceResourceErrorActionable(err error) bool {
 
 // checkAPIServiceResources checks if all expected generated resources for the given APIService exist
 func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) error {
+	logger := log.WithFields(log.Fields{
+		"csv":       csv.GetName(),
+		"namespace": csv.GetNamespace(),
+	})
+
 	errs := []error{}
 	owners := []ownerutil.Owner{csv}
+
 	// Get replacing CSV if exists
 	replacing, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
-	if err != nil && k8serrors.IsNotFound(err) == false {
-		a.Log.Debugf("Replacement error regarding CSV (%v): %v", csv.GetName(), err)
-		errs = append(errs, err)
-		return utilerrors.NewAggregate(errs)
+	if err != nil && !k8serrors.IsNotFound(err) {
+		logger.WithError(err).Warn("could not get replacement csv")
+		return err
 	}
 	if replacing != nil {
 		owners = append(owners, replacing)
 	}
+
 	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
-		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
-		logger := log.WithFields(log.Fields{
-			"csv":        csv.GetName(),
-			"namespace":  csv.GetNamespace(),
+		apiServiceName := desc.GetName()
+		logger := logger.WithFields(log.Fields{
 			"apiservice": apiServiceName,
 		})
 
@@ -88,7 +92,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		// Check if the APIService is adoptable
-		if !ownerutil.OwnersIntersect(owners, apiService) {
+		if !ownerutil.AdoptableLabels(apiService.GetLabels(), true, owners...) {
 			err := olmerrors.NewUnadoptableError("", apiServiceName)
 			logger.WithError(err).Warn("found unadoptable apiservice")
 			errs = append(errs, err)
@@ -253,8 +257,7 @@ func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIServic
 
 func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
-		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
 		if k8serrors.IsNotFound(err) {
 			return false, nil
 		}
@@ -550,7 +553,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	existingAuthDelegatorClusterRoleBinding, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
-		if ownerutil.AdoptableLabels(csv, existingAuthDelegatorClusterRoleBinding.GetLabels()) {
+		if ownerutil.AdoptableLabels(existingAuthDelegatorClusterRoleBinding.GetLabels(), true, csv) {
 			ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, csv)
 		}
 
@@ -593,7 +596,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	existingAuthReaderRoleBinding, err := a.lister.RbacV1().RoleBindingLister().RoleBindings("kube-system").Get(authReaderRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
-		if ownerutil.AdoptableLabels(csv, existingAuthReaderRoleBinding.GetLabels()) {
+		if ownerutil.AdoptableLabels(existingAuthReaderRoleBinding.GetLabels(), true, csv) {
 			ownerutil.AddOwnerLabels(authReaderRoleBinding, csv)
 		}
 		// Attempt an update.
@@ -694,13 +697,15 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		apiService.SetName(apiServiceName)
 	} else {
 		owners := []ownerutil.Owner{csv}
+
 		// Get replacing CSV
 		replaces, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
 		if err == nil {
 			owners = append(owners, replaces)
 		}
+
 		// check if the APIService is adoptable
-		if !ownerutil.OwnersIntersect(owners, apiService) {
+		if !ownerutil.AdoptableLabels(apiService.GetLabels(), true, owners...) {
 			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
 		}
 	}

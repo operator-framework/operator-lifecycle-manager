@@ -113,6 +113,11 @@ type APIResourceReference struct {
 	Version string `json:"version"`
 }
 
+// GetName returns the name of an APIService as derived from its group and version.
+func (d APIServiceDescription) GetName() string {
+	return fmt.Sprintf("%s.%s", d.Version, d.Group)
+}
+
 // CustomResourceDefinitions declares all of the CRDs managed or required by
 // an operator being ran by ClusterServiceVersion.
 //
