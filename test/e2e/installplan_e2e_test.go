@@ -85,7 +85,7 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "nginx"},
 					},
-					Replicas: &doubleInstance,
+					Replicas: &singleInstance,
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"app": "nginx"},
@@ -392,11 +392,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
-			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                                                                             {},
-			registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:                                                                        {},
-			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                           {},
-			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                                {},
-			registry.ResourceKey{Name: strings.Join([]string{dependentPackageStable, mainCatalogSourceName, testNamespace}, "-"), Kind: v1alpha1.SubscriptionKind}: {},
+			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:              {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
 		}
 
 		// Create the preexisting CRD and CSV
@@ -432,10 +429,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, len(fetchedInstallPlan.Status.Plan), len(expectedSteps))
+		for _, step := range fetchedInstallPlan.Status.Plan {
+			t.Logf("%#v", step)
+		}
+		require.Equal(t, len(fetchedInstallPlan.Status.Plan), len(expectedSteps), "number of expected steps does not match installed")
 		t.Logf("Number of resolved steps matches the number of expected steps")
-
-		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
 
 		for _, step := range fetchedInstallPlan.Status.Plan {
 			key := registry.ResourceKey{
