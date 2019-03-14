@@ -89,10 +89,12 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	// Create an informer for each watched namespace.
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
+	csvSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range watchedNamespaces {
 		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
 		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
+		csvSharedIndexInformers = append(csvSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
 
 		// resolver needs subscription and csv listers
 		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
@@ -229,6 +231,11 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	op.RegisterQueueInformer(namespaceQueueInformer)
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.namespaceResolveQueue = resolvingNamespaceQueue
+
+	// Register CSV informers to fill cache
+	for _, informer := range csvSharedIndexInformers {
+		op.RegisterInformer(informer)
+	}
 
 	return op, nil
 }
