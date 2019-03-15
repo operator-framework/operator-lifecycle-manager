@@ -65,7 +65,7 @@ type Operator struct {
 	sourcesLastUpdate     metav1.Time
 	resolver              resolver.Resolver
 	subQueue              workqueue.RateLimitingInterface
-	catSrcQueueSet        queueinformer.ResourceQueueSet
+	catSrcQueueSet        *queueinformer.ResourceQueueSet
 	namespaceResolveQueue workqueue.RateLimitingInterface
 	reconciler            reconciler.ReconcilerFactory
 }
@@ -111,7 +111,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	// Allocate the new instance of an Operator.
 	op := &Operator{
 		Operator:       queueOperator,
-		catSrcQueueSet: make(map[string]workqueue.RateLimitingInterface),
+		catSrcQueueSet: queueinformer.NewEmptyResourceQueueSet(),
 		client:         crClient,
 		lister:         lister,
 		namespace:      operatorNamespace,
@@ -136,7 +136,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		}
 		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
 		op.RegisterQueueInformer(queueinformer.NewInformer(catsrcQueue, catsrcInformer.Informer(), op.syncCatalogSources, deleteCatSrc, queueName, metrics.NewMetricsCatalogSource(op.client), logger))
-		op.catSrcQueueSet[namespace] = catsrcQueue
+		op.catSrcQueueSet.Set(namespace, catsrcQueue)
 	}
 
 	// Register InstallPlan informers.

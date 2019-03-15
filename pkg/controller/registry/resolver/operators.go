@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type CatalogKey struct {
