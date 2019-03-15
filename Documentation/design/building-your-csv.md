@@ -232,7 +232,7 @@ The metadata section contains general metadata around the name, version and othe
 
 **Description**: A markdown blob that describes the Operator. Important information to include: features, limitations and common use-cases for the Operator. If your Operator manages different types of installs, eg. standalone vs clustered, it is useful to give an overview of how each differs from each other, or which ones are supported for production use.
 
-**MinKubeVersion**: A minimum version of Kubernetes that server is supposed to have so operator(s) can be deployed. The Kubernetes version must be in "Major.Major.Patch" format (e.g: 1.11.0).
+**MinKubeVersion**: A minimum version of Kubernetes that server is supposed to have so operator(s) can be deployed. The Kubernetes version must be in "Major.Minor.Patch" format (e.g: 1.11.0).
 
 **Labels** (optional): Any key/value pairs used to organize and categorize this CSV object.
 
