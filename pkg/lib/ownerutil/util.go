@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
@@ -143,46 +142,6 @@ func Adoptable(target Owner, owners []metav1.OwnerReference) bool {
 	return false
 }
 
-// OwnersIntersect checks to see if any member of targets exists in owners
-func OwnersIntersect(targets []Owner, apiservice *apiregistrationv1.APIService) bool {
-	ownerLabels := apiservice.GetLabels()
-	if len(ownerLabels) == 0 {
-		// Resources with no owners are not adoptable
-		log.Debugf("Did not contain labels for apiservice %v", apiservice.GetName())
-		return false
-	}
-
-	svcOwnerKind, ok := ownerLabels[OwnerKind]
-	if !ok {
-		log.Warnf("missing owner kind for apiservice %v", apiservice.GetName())
-		return false
-	}
-	svcOwnerNamespace, ok := ownerLabels[OwnerNamespaceKey]
-	if !ok {
-		log.Warnf("missing owner namespace for apiservice %v", apiservice.GetName())
-		return false
-	}
-	svcOwnerName, ok := ownerLabels[OwnerKey]
-	if !ok {
-		log.Warnf("missing owner name for apiservice %v", apiservice.GetName())
-		return false
-	}
-
-	for _, target := range targets {
-		if err := InferGroupVersionKind(target); err != nil {
-			log.Warnf("GVK infer failed for %v: %v", target, err)
-			return false
-		}
-		if svcOwnerKind == target.GetObjectKind().GroupVersionKind().Kind &&
-			svcOwnerNamespace == target.GetNamespace() &&
-			svcOwnerName == target.GetName() {
-			return true
-		}
-	}
-
-	return false
-}
-
 // AddNonBlockingOwner adds a nonblocking owner to the ownerref list.
 func AddNonBlockingOwner(object metav1.Object, owner Owner) {
 	ownerRefs := object.GetOwnerReferences()
@@ -257,17 +216,24 @@ func IsOwnedByKindLabel(object metav1.Object, ownerKind string) bool {
 	return object.GetLabels()[OwnerKind] == ownerKind
 }
 
-// AdoptableLabels determines if an OLM managed resource is adoptable based on its owner labels
-// Generally used for cross-namespace ownership and for Cluster -> Namespace scope
-func AdoptableLabels(target Owner, labels map[string]string) bool {
+// AdoptableLabels determines if an OLM managed resource is adoptable by any of the given targets based on its owner labels.
+// The checkName perimeter enables an additional check for name equality with the `olm.owner` label.
+// Generally used for cross-namespace ownership and for Cluster -> Namespace scope.
+func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner) bool {
 	if len(labels) == 0 {
 		// Resources with no owners are not adoptable
 		return false
 	}
 
-	if labels[OwnerKind] == target.GetObjectKind().GroupVersionKind().Kind &&
-		labels[OwnerNamespaceKey] == target.GetNamespace() {
-		return true
+	for _, target := range targets {
+		if err := InferGroupVersionKind(target); err != nil {
+			log.Warn(err.Error())
+		}
+		if labels[OwnerKind] == target.GetObjectKind().GroupVersionKind().Kind &&
+			labels[OwnerNamespaceKey] == target.GetNamespace() &&
+			(!checkName || labels[OwnerKey] == target.GetName()) {
+			return true
+		}
 	}
 
 	return false
