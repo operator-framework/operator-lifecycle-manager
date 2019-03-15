@@ -2,7 +2,7 @@ module github.com/operator-framework/operator-lifecycle-manager
 
 require (
 	github.com/coreos/bbolt v1.3.2 // indirect
-	github.com/coreos/etcd v3.3.11+incompatible // indirect
+	github.com/coreos/etcd v3.3.12+incompatible // indirect
 	github.com/coreos/go-semver v0.2.0
 	github.com/coreos/go-systemd v0.0.0-20190204112023-081494f7ee4f // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect

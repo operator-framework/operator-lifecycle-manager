@@ -55,7 +55,7 @@ olm:
   replicaCount: 1
   # The image to run. If not building a local image, use sha256 image references
   image:
-    ref: quay.io/coreos/olm:local
+    ref: quay.io/operator-framework/olm:local
     pullPolicy: IfNotPresent
   service:
     # port for readiness/liveness probes
@@ -67,7 +67,7 @@ catalog:
   replicaCount: 1
   # The image to run. If not building a local image, use sha256 image references
   image:
-    ref: quay.io/coreos/catalog:local
+    ref: quay.io/operator-framework/olm:local
     pullPolicy: IfNotPresent
   service:
     # port for readiness/liveness probes
@@ -77,13 +77,13 @@ catalog:
 To configure a release of OLM for installation in a cluster:
 
 1. Create a `my-values.yaml` like the example above with the desired configuration or choose an existing one from this repository. The latest production values can be found in [deploy/tectonic-alm-operator/values.yaml](../../deploy/tectonic-alm-operator/values.yaml).
-1. Generate deployment files from the templates and the `my-values.yaml` using `package-release.sh`
+1. Generate deployment files from the templates and the `my-values.yaml` using `package_release.sh`
 
    ```bash
    # first arg must be a semver-compatible version string
    # second arg is the output directory
    # third arg is the values.yaml file
-   ./scripts/package-release.sh 1.0.0-myolm ./my-olm-deployment my-values.yaml
+   ./scripts/package_release.sh 1.0.0-myolm ./my-olm-deployment my-values.yaml
    ```
 
 1. Deploy to kubernetes: `kubectl apply -f ./my-olm-deployment/templates/`

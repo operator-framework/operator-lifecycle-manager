@@ -5,7 +5,7 @@ writeStatusName: '""'
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm:local
+    ref: quay.io/operator-framework/olm:local
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -14,7 +14,7 @@ olm:
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm:local
+    ref: quay.io/operator-framework/olm:local
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -23,7 +23,7 @@ catalog:
 package:
   replicaCount: 1
   image:
-    ref: quay.io/coreos/olm:local
+    ref: quay.io/operator-framework/olm:local
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
@@ -31,9 +31,9 @@ package:
 
 e2e:
   image:
-    ref: quay.io/coreos/olm-e2e:local
+    ref: quay.io/operator-framework/olm-e2e:local
 
 job_name: e2e
 
 catalog_sources:
- - rh-operators
+  - rh-operators
