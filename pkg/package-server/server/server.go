@@ -184,7 +184,7 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 
 	// Ensure that provider stops after the apiserver gracefully shuts down
 	provCh := make(chan struct{})
-	ready, done := sourceProvider.Run(provCh)
+	ready, done, _ := sourceProvider.Run(provCh)
 	<-ready
 
 	err = server.GenericAPIServer.PrepareRun().Run(stopCh)

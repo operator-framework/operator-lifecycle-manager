@@ -96,6 +96,6 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(":8081", nil)
 
-	_, done := catalogOperator.Run(stopCh)
+	_, done, _ := catalogOperator.Run(stopCh)
 	<-done
 }

@@ -38,6 +38,8 @@ spec:
               path: /healthz
               port: 8080
           env:
+          - name: RELEASE_VERSION
+            value: "0.0.1-snapshot"
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:

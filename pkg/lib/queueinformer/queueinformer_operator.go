@@ -5,7 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 
@@ -20,6 +20,7 @@ type Operator struct {
 	informers      []cache.SharedIndexInformer
 	OpClient       operatorclient.ClientInterface
 	Log            *logrus.Logger
+	syncCh         chan error
 }
 
 // NewOperator creates a new Operator configured to manage the cluster defined in kubeconfig.
@@ -73,13 +74,17 @@ func (o *Operator) RegisterQueueIndexer(indexer *QueueIndexer) {
 }
 
 // Run starts the operator's control loops
-func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}) {
+func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}, atLevel chan error) {
 	ready = make(chan struct{})
+	atLevel = make(chan error, 25)
 	done = make(chan struct{})
+
+	o.syncCh = atLevel
 
 	go func() {
 		defer func() {
 			close(ready)
+			close(atLevel)
 			close(done)
 		}()
 
@@ -164,13 +169,20 @@ func (o *Operator) processNextWorkItem(loop *QueueInformer) bool {
 	defer queue.Done(key)
 
 	// requeue five times on error
-	if err := o.sync(loop, key.(string)); err != nil && queue.NumRequeues(key.(string)) < 5 {
+	err := o.sync(loop, key.(string))
+	if err != nil && queue.NumRequeues(key.(string)) < 5 {
 		o.Log.Infof("retrying %s", key)
 		utilruntime.HandleError(errors.Wrap(err, fmt.Sprintf("Sync %q failed", key)))
 		queue.AddRateLimited(key)
 		return true
 	}
 	queue.Forget(key)
+
+	select {
+	case o.syncCh <- err:
+	default:
+	}
+
 	if err := loop.HandleMetrics(); err != nil {
 		o.Log.Error(err)
 	}
