@@ -130,6 +130,7 @@ func TestOperatorGroup(t *testing.T) {
 	// Verify the copied CSV transitions to FAILED
 	// Delete CSV
 	// Verify copied CVS is deleted
+	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -464,6 +465,8 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update csvA to have AllNamespaces supported=true
 	// Ensure csvA transitions to Pending
 
+	defer cleaner.NotifyTestComplete(t, true)
+
 	// Generate namespaceA and namespaceB
 	nsA := genName("a")
 	nsB := genName("b")
@@ -694,6 +697,8 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Wait for csvB to be successful
 	// Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group
 	// Wait for csvB to have a CSV with a copied status in namespace C
+
+	defer cleaner.NotifyTestComplete(t, true)
 
 	// Create a catalog for csvA, csvB, and csvD
 	pkgA := genName("a-")
@@ -927,6 +932,8 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	// Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation
 	// Ensure KindA.version.group providedAPI annotation on operatorGroupA
 
+	defer cleaner.NotifyTestComplete(t, true)
+
 	// Create a catalog for csvA, csvB
 	pkgA := genName("a-")
 	pkgB := genName("b-")
@@ -1118,6 +1125,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 // TODO: Test Subscriptions with depedencies and transitive dependencies in intersecting OperatorGroups
 // TODO: Test Subscription upgrade paths with + and - providedAPIs
 func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
@@ -1298,7 +1306,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 		_, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
 			if errors.IsNotFound(fetchErr) {

@@ -33,6 +33,7 @@ var (
 	AdminVerbs     = []string{"*"}
 	EditVerbs      = []string{"create", "update", "patch", "delete"}
 	ViewVerbs      = []string{"get", "list", "watch"}
+	Suffices       = []string{AdminSuffix, EditSuffix, ViewSuffix}
 	VerbsForSuffix = map[string][]string{
 		AdminSuffix: AdminVerbs,
 		EditSuffix:  EditVerbs,
@@ -294,8 +295,11 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	}
 	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 
+	logger := a.Log.WithField("opgroup", operatorGroup.GetName()).WithField("csv", csv.GetName())
+
 	// if OperatorGroup is global (all namespaces) we generate cluster roles / cluster role bindings instead
 	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+		logger.Debug("opgroup is global")
 
 		// synthesize cluster permissions to verify rbac
 		for _, p := range strategyDetailsDeployment.Permissions {
@@ -309,8 +313,10 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 
 		// operator already has access at the cluster scope
 		if permMet {
+			logger.Debug("global operator has correct global permissions")
 			return nil
 		}
+		logger.Debug("lift roles/rolebindings to clusterroles/rolebindings")
 		if err := a.ensureSingletonRBAC(operatorGroup.GetNamespace(), csv); err != nil {
 			return err
 		}
@@ -347,6 +353,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 	}
 
 	for _, r := range ownedRoles {
+		a.Log.Debug("processing role")
 		_, err := a.lister.RbacV1().ClusterRoleLister().Get(r.GetName())
 		if err != nil {
 			clusterRole := &rbacv1.ClusterRole{
@@ -363,6 +370,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 			if _, err := a.OpClient.CreateClusterRole(clusterRole); err != nil {
 				return err
 			}
+			a.Log.Debug("created cluster role")
 		}
 	}
 
@@ -578,24 +586,19 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 	return nil
 }
 
-// TODO: do we want to do this? or just let the dangling CSV clean it up
 func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error {
 	fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).List(labels.Everything())
 	if err != nil {
 		return err
 	}
 
-	errlist := []error{}
 	for _, csv := range fetchedCSVs {
 		if csv.IsCopied() && csv.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey] == operatorGroupName {
 			a.Log.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
-			err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{})
-			if err != nil {
-				errlist = append(errlist, err)
-			}
+			a.gcQueueIndexer.Enqueue(csv)
 		}
 	}
-	return errors.NewAggregate(errlist)
+	return nil
 }
 
 func (a *Operator) setOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, addTargets bool) {

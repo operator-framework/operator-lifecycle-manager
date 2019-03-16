@@ -58,6 +58,7 @@ type Operator struct {
 	lister           operatorlister.OperatorLister
 	recorder         record.EventRecorder
 	copyQueueIndexer *queueinformer.QueueIndexer
+	gcQueueIndexer   *queueinformer.QueueIndexer
 }
 
 func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient operatorclient.ClientInterface, strategyResolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -261,6 +262,12 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	op.RegisterQueueIndexer(csvQueueIndexer)
 	op.copyQueueIndexer = csvQueueIndexer
 
+	// Register separate queue for copying csvs
+	csvGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvGC")
+	csvGCQueueIndexer := queueinformer.NewQueueIndexer(csvGCQueue, csvIndexes, op.syncGcCsv, "csvGC", logger, metrics.NewMetricsNil())
+	op.RegisterQueueIndexer(csvGCQueueIndexer)
+	op.gcQueueIndexer = csvGCQueueIndexer
+
 	// Set up watch on deployments
 	depHandlers := &cache.ResourceEventHandlerFuncs{
 		// TODO: pass closure that forgets queue item after calling custom deletion handler.
@@ -435,7 +442,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 	for _, namespace := range namespaces {
 		if namespace != operatorNamespace {
 			logger.WithField("targetNamespace", namespace).Debug("requeueing child csv for deletion")
-			a.csvQueueSet.Requeue(clusterServiceVersion.GetName(), namespace)
+			a.gcQueueIndexer.Add(fmt.Sprintf("%s/%s", namespace, clusterServiceVersion.GetName()))
 		}
 	}
 
@@ -478,33 +485,34 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	operatorNamespace, ok := csv.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debug("missing operator namespace annotation on copied CSV")
-		return a.deleteChild(csv)
+		return a.deleteChild(csv, logger)
 	}
 
 	logger = logger.WithField("parentNamespace", operatorNamespace)
 	parent, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(operatorNamespace).Get(csv.GetName())
 	if k8serrors.IsNotFound(err) || k8serrors.IsGone(err) || parent == nil {
 		logger.Debug("deleting copied CSV since parent is missing")
-		return a.deleteChild(csv)
+		return a.deleteChild(csv, logger)
 	}
 
 	if parent.Status.Phase == v1alpha1.CSVPhaseFailed && parent.Status.Reason == v1alpha1.CSVReasonInterOperatorGroupOwnerConflict {
 		logger.Debug("deleting copied CSV since parent has intersecting operatorgroup conflict")
-		return a.deleteChild(csv)
+		return a.deleteChild(csv, logger)
 	}
 
 	if annotations := parent.GetAnnotations(); annotations != nil {
 		if !resolver.NewNamespaceSetFromString(annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]).Contains(csv.GetNamespace()) {
 			logger.WithField("parentTargets", annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]).
 				Debug("deleting copied CSV since parent no longer lists this as a target namespace")
-			return a.deleteChild(csv)
+			return a.deleteChild(csv, logger)
 		}
 	}
 
 	return nil
 }
 
-func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion) error {
+func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
+	logger.Debug("gcing csv")
 	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{})
 }
 
@@ -605,6 +613,19 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 	if err := a.ensureClusterRolesForCSV(clusterServiceVersion, operatorGroup); err != nil {
 		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
 		syncError = err
+	}
+	return
+}
+
+func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
+	clusterServiceVersion, ok := obj.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		a.Log.Debugf("wrong type: %#v", obj)
+		return fmt.Errorf("casting ClusterServiceVersion failed")
+	}
+	if clusterServiceVersion.IsCopied() {
+		syncError = a.removeDanglingChildCSVs(clusterServiceVersion)
+		return
 	}
 	return
 }
@@ -712,8 +733,8 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	now := timeNow()
 
 	if out.IsCopied() {
-		logger.Debug("skipping copied csv transition")
-		syncError = a.removeDanglingChildCSVs(out)
+		logger.Debug("skipping copied csv transition, schedule for gc check")
+		a.gcQueueIndexer.Enqueue(out)
 		return
 	}
 
