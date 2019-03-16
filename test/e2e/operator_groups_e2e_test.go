@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -1215,12 +1217,12 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	defer func() {
 		c.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0))
 	}()
-	_, err = c.CreateRole(role)
+	createdRole, err := c.CreateRole(role)
 	require.NoError(t, err)
 	defer func() {
 		c.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0))
 	}()
-	_, err = c.CreateRoleBinding(roleBinding)
+	createdRoleBinding, err := c.CreateRoleBinding(roleBinding)
 	require.NoError(t, err)
 	defer func() {
 		c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
@@ -1234,9 +1236,48 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
+	err = ownerutil.AddOwnerLabels(createdRole, createdCSV)
+	require.NoError(t, err)
+	_, err = c.UpdateRole(createdRole)
+	require.NoError(t, err)
+
+	err = ownerutil.AddOwnerLabels(createdRoleBinding, createdCSV)
+	require.NoError(t, err)
+	_, err = c.UpdateRoleBinding(createdRoleBinding)
+	require.NoError(t, err)
+
 	t.Log("wait for CSV to succeed")
 	_, err = fetchCSV(t, crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
 	require.NoError(t, err)
+
+	t.Log("wait for roles to be promoted to clusterroles")
+	var fetchedRole *rbacv1.ClusterRole
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedRole, err = c.GetClusterRole(role.GetName())
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	require.EqualValues(t, role.Rules, fetchedRole.Rules)
+	var fetchedRoleBinding *rbacv1.ClusterRoleBinding
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	require.EqualValues(t, roleBinding.Subjects, fetchedRoleBinding.Subjects)
+	require.EqualValues(t, roleBinding.RoleRef.Name, fetchedRoleBinding.RoleRef.Name)
+	require.EqualValues(t, "rbac.authorization.k8s.io", fetchedRoleBinding.RoleRef.APIGroup)
+	require.EqualValues(t, "ClusterRole", fetchedRoleBinding.RoleRef.Kind)
 
 	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {

@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/apis/rbac"
@@ -711,11 +712,36 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 			}
 		}
+
+		// This operator was installed into a global operator group, so the roles should have been lifted to clusterroles
+		if step.Resource.Kind == "Role" {
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				_, err = c.GetClusterRole(step.Resource.Name)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			})
+		}
+		if step.Resource.Kind == "RoleBinding" {
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				_, err = c.GetClusterRoleBinding(step.Resource.Name)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			})
+		}
 	}
 
 	// Should have removed every matching step
 	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
-
 }
 
 func TestInstallPlanCRDValidation(t *testing.T) {
