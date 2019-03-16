@@ -205,7 +205,7 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
+			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces, "have %#v", fetched.Status.Namespaces)
 			return true, nil
 		}
 		return false, nil
