@@ -262,7 +262,7 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	op.RegisterQueueIndexer(csvQueueIndexer)
 	op.copyQueueIndexer = csvQueueIndexer
 
-	// Register separate queue for copying csvs
+	// Register separate queue for gcing csvs
 	csvGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvGC")
 	csvGCQueueIndexer := queueinformer.NewQueueIndexer(csvGCQueue, csvIndexes, op.syncGcCsv, "csvGC", logger, metrics.NewMetricsNil())
 	op.RegisterQueueIndexer(csvGCQueueIndexer)
@@ -513,7 +513,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 
 func (a *Operator) deleteChild(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) error {
 	logger.Debug("gcing csv")
-	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), &metav1.DeleteOptions{})
+	return a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Delete(csv.GetName(), metav1.NewDeleteOptions(0))
 }
 
 // syncClusterServiceVersion is the method that gets called when we see a CSV event in the cluster
@@ -753,7 +753,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		return
 	}
 
-	logger.Info("updated annotations to match current operatorgroup")
 	if err := a.ensureDeploymentAnnotations(logger, out); err != nil {
 		return nil, err
 	}
@@ -1345,6 +1344,10 @@ func (a *Operator) cleanupCSVDeployments(logger *logrus.Entry, csv *v1alpha1.Clu
 }
 
 func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) error {
+	if !csv.IsSafeToUpdateOperatorGroupAnnotations() {
+		return nil
+	}
+
 	// Get csv operatorgroup annotations
 	annotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
 
@@ -1376,7 +1379,6 @@ func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alph
 	for _, d := range existingDeployments {
 		existingMap[d.GetName()] = d
 	}
-
 	updateErrs := []error{}
 	for _, dep := range existingMap {
 		if dep.Spec.Template.Annotations == nil {
@@ -1389,5 +1391,7 @@ func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alph
 			updateErrs = append(updateErrs, err)
 		}
 	}
+	logger.Info("updated annotations to match current operatorgroup")
+
 	return utilerrors.NewAggregate(updateErrs)
 }

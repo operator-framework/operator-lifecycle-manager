@@ -71,7 +71,7 @@ setup-bare: clean e2e.namespace
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:
-	go test -v -failfast -timeout 50m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
+	go test -v -failfast -timeout 70m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
 
 e2e-local:
 	. ./scripts/build_local.sh

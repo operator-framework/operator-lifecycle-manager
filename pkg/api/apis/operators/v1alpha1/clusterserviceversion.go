@@ -30,6 +30,20 @@ var uncopiableReasons = map[ConditionReason]struct{}{
 	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs: {},
 }
 
+// safeToAnnotateOperatorGroupReasons are the set of reasons that it's safe to attempt to update the operatorgroup
+// annotations
+var safeToAnnotateOperatorGroupReasons = map[ConditionReason]struct{}{
+	CSVReasonOwnerConflict:                               {},
+	CSVReasonInstallSuccessful:                           {},
+	CSVReasonInvalidInstallModes:                         {},
+	CSVReasonNoTargetNamespaces:                          {},
+	CSVReasonUnsupportedOperatorGroup:                    {},
+	CSVReasonNoOperatorGroup:                             {},
+	CSVReasonTooManyOperatorGroups:                       {},
+	CSVReasonInterOperatorGroupOwnerConflict:             {},
+	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs: {},
+}
+
 // SetPhaseWithEventIfChanged emits a Kubernetes event with details of a phase change and sets the current phase if phase, reason, or message would changed
 func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
 	if c.Status.Phase == phase && c.Status.Reason == reason && c.Status.Message == message {
@@ -117,6 +131,11 @@ func (c *ClusterServiceVersion) IsUncopiable() bool {
 		return true
 	}
 	_, ok := uncopiableReasons[c.Status.Reason]
+	return ok
+}
+
+func (c *ClusterServiceVersion) IsSafeToUpdateOperatorGroupAnnotations() bool {
+	_, ok := safeToAnnotateOperatorGroupReasons[c.Status.Reason]
 	return ok
 }
 
