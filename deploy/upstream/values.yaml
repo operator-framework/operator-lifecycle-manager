@@ -1,3 +1,4 @@
+installType: upstream
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: olm
 catalog_namespace: olm
