@@ -4,11 +4,9 @@ package e2e
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -164,28 +162,11 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, len(initialPods.Items))
 
-	// Update raw manifests
-	manifestsRaw, err := yaml.Marshal(append(mainManifests, dependentManifests...))
-	require.NoError(t, err)
-	configMap.Data[registry.ConfigMapPackageName] = string(manifestsRaw)
+	// Update catalog configmap
+	updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV}, append(mainManifests, dependentManifests...))
 
-	// Update raw CRDs
-	var crdsRaw []byte
-	crdStrings := []string{}
-	for _, crd := range []apiextensions.CustomResourceDefinition{dependentCRD} {
-		crdStrings = append(crdStrings, serializeCRD(t, crd))
-	}
-	crdsRaw, err = yaml.Marshal(crdStrings)
-	require.NoError(t, err)
-	configMap.Data[registry.ConfigMapCRDName] = strings.Replace(string(crdsRaw), "- |\n  ", "- ", -1)
-
-	// Update raw CSVs
-	csvsRaw, err := yaml.Marshal([]v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
-	require.NoError(t, err)
-	configMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
-
-	// Update configmap
-	updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Update(configMap)
+	// Get updated configmap
+	updatedConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {

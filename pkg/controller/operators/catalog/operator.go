@@ -89,10 +89,12 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	// Create an informer for each watched namespace.
 	ipSharedIndexInformers := []cache.SharedIndexInformer{}
 	subSharedIndexInformers := []cache.SharedIndexInformer{}
+	csvSharedIndexInformers := []cache.SharedIndexInformer{}
 	for _, namespace := range watchedNamespaces {
 		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
 		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
 		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
+		csvSharedIndexInformers = append(csvSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
 
 		// resolver needs subscription and csv listers
 		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
@@ -229,6 +231,11 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	op.RegisterQueueInformer(namespaceQueueInformer)
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.namespaceResolveQueue = resolvingNamespaceQueue
+
+	// Register CSV informers to fill cache
+	for _, informer := range csvSharedIndexInformers {
+		op.RegisterInformer(informer)
+	}
 
 	return op, nil
 }
@@ -381,7 +388,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 			return nil
 		}
-		
+
 		logger.Debug("catsrc configmap state good, checking registry pod")
 	}
 
@@ -390,7 +397,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		// TODO: Add failure status on catalogsource and remove from sources
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
-
 
 	// if registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
 	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
@@ -538,7 +544,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace).List(labels.Everything())
 	if err != nil {
-		logger.WithError(err).Debug("couldn't list subscriptions")	
+		logger.WithError(err).Debug("couldn't list subscriptions")
 		return err
 	}
 
@@ -745,7 +751,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		} else {
 			out.Status.State = v1alpha1.SubscriptionStateAtLatest
 		}
-		
+
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
 	}
 

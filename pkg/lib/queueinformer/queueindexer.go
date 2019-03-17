@@ -38,6 +38,10 @@ func (q *QueueIndexer) Enqueue(obj interface{}) {
 	q.queue.Add(key)
 }
 
+func (q *QueueIndexer) Add(key string) {
+	q.queue.Add(key)
+}
+
 // keyFunc turns an object into a key for the queue. In the future will use a (name, namespace) struct as key
 func (q *QueueIndexer) keyFunc(obj interface{}) (string, bool) {
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)

@@ -140,9 +140,11 @@ func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}, atLeve
 		o.Log.Info("starting workers...")
 		for _, queueInformer := range o.queueInformers {
 			go o.worker(queueInformer)
+			go o.worker(queueInformer)
 		}
 
 		for _, queueIndexer := range o.queueIndexers {
+			go o.indexerWorker(queueIndexer)
 			go o.indexerWorker(queueIndexer)
 		}
 		ready <- struct{}{}
@@ -204,7 +206,7 @@ func (o *Operator) sync(loop *QueueInformer, key string) error {
 	return loop.syncHandler(obj)
 }
 
-// This provides the same function as above, but for indexes and queues not fed by informers.
+// This provides the same function as above, but for queues that are not auto-fed by informers.
 // indexerWorker runs a worker thread that just dequeues items, processes them, and marks them done.
 // It enforces that the syncHandler is never invoked concurrently with the same key.
 func (o *Operator) indexerWorker(loop *QueueIndexer) {

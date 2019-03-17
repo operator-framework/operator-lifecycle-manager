@@ -75,7 +75,9 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 		dep.Spec.Template.SetAnnotations(annotations)
 
 		ownerutil.AddNonBlockingOwner(dep, i.owner)
-		ownerutil.AddOwnerLabels(dep, i.owner)
+		if err := ownerutil.AddOwnerLabels(dep, i.owner); err != nil {
+			return err
+		}
 		if _, err := i.strategyClient.CreateOrUpdateDeployment(dep); err != nil {
 			return err
 		}

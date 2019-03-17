@@ -15,59 +15,59 @@ import (
 )
 
 func TestGVKStringToProvidedAPISet(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		in string
+		in   string
 		want APISet
 	}{
 		{
 			name: "EmptyString/EmptySet",
-			in: "",
+			in:   "",
 			want: make(APISet),
 		},
 		{
 			name: "Garbage/EmptySet",
-			in: ",,,,,alkjahsdfjlh!@#$%",
+			in:   ",,,,,alkjahsdfjlh!@#$%",
 			want: make(APISet),
 		},
 		{
 			name: "SingleBadGVK/EmptySet",
-			in: "this-is.not-good",
+			in:   "this-is.not-good",
 			want: make(APISet),
 		},
 		{
 			name: "MultipleBadGVK/EmptySet",
-			in: "this-is.not-good,thisisnoteither",
+			in:   "this-is.not-good,thisisnoteither",
 			want: make(APISet),
 		},
 		{
 			name: "SingleGoodGVK/SingleAPI",
-			in: "Goose.v1alpha1.birds.com",
+			in:   "Goose.v1alpha1.birds.com",
 			want: APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 		},
 		{
 			name: "MutlipleGoodGVK/MultipleAPIs",
-			in: "Goose.v1alpha1.birds.com,Moose.v1alpha1.mammals.com",
+			in:   "Goose.v1alpha1.birds.com,Moose.v1alpha1.mammals.com",
 			want: APISet{
-				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
-				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},				
+				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}:   {},
+				opregistry.APIKey{Group: "mammals.com", Version: "v1alpha1", Kind: "Moose"}: {},
 			},
 		},
 		{
 			name: "SingleGoodGVK/SingleBadGVK/SingleAPI",
-			in: "Goose.v1alpha1.birds.com,Moose.v1alpha1",
+			in:   "Goose.v1alpha1.birds.com,Moose.v1alpha1",
 			want: APISet{
-				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},		
+				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 			},
 		},
 		{
 			name: "MultipleGoodGVK/MultipleBadGVK/MultipleAPIs",
-			in: "Goose.v1alpha1.birds.com,Moose.v1alpha1,Goat,Egret.v1beta1.birds.com",
+			in:   "Goose.v1alpha1.birds.com,Moose.v1alpha1,Goat,Egret.v1beta1.birds.com",
 			want: APISet{
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
-				opregistry.APIKey{Group: "birds.com", Version: "v1beta1", Kind: "Egret"}: {},	
+				opregistry.APIKey{Group: "birds.com", Version: "v1beta1", Kind: "Egret"}:  {},
 			},
 		},
 	}
@@ -79,24 +79,24 @@ func TestGVKStringToProvidedAPISet(t *testing.T) {
 	}
 }
 func TestAPIKeyToGVKString(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		in opregistry.APIKey
+		in   opregistry.APIKey
 		want string
 	}{
 		{
 			name: "EmptyAPIKey",
-			in: opregistry.APIKey{},
+			in:   opregistry.APIKey{},
 			want: "..",
 		},
 		{
 			name: "BadAPIKey",
-			in: opregistry.APIKey{Group: "birds. ", Version: "-"},
+			in:   opregistry.APIKey{Group: "birds. ", Version: "-"},
 			want: ".-.birds. ",
 		},
 		{
 			name: "GoodAPIKey",
-			in: opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"},
+			in:   opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"},
 			want: "Goose.v1alpha1.birds.com",
 		},
 	}
@@ -109,14 +109,14 @@ func TestAPIKeyToGVKString(t *testing.T) {
 }
 
 func TestAPISetString(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		in APISet
+		in   APISet
 		want string
 	}{
 		{
 			name: "EmptySet",
-			in: make(APISet),
+			in:   make(APISet),
 			want: "",
 		},
 		{
@@ -137,7 +137,7 @@ func TestAPISetString(t *testing.T) {
 		{
 			name: "MutipleAPIs/OneBad",
 			in: APISet{
-				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1"}: {},
+				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1"}:                {},
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Goose"}: {},
 				opregistry.APIKey{Group: "birds.com", Version: "v1alpha1", Kind: "Egret"}: {},
 			},
@@ -154,18 +154,18 @@ func TestAPISetString(t *testing.T) {
 
 func TestAPISetUnion(t *testing.T) {
 	type input struct {
-		left APISet
+		left  APISet
 		right []APISet
 	}
-	tests := []struct{
+	tests := []struct {
 		name string
-		in input
+		in   input
 		want APISet
 	}{
 		{
 			name: "EmptyLeft/NilRight/EmptySet",
 			in: input{
-				left: make(APISet),
+				left:  make(APISet),
 				right: nil,
 			},
 			want: make(APISet),
@@ -213,37 +213,37 @@ func TestAPISetUnion(t *testing.T) {
 			in: input{
 				left: APISet{
 					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
-					opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}:  {},
 				},
 				right: []APISet{
 					{
 						opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
-						opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}: {},
-						opregistry.APIKey{Group: "Crow", Version: "v1beta1", Kind: "birds.com"}: {},
+						opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}:  {},
+						opregistry.APIKey{Group: "Crow", Version: "v1beta1", Kind: "birds.com"}:   {},
 					},
 					{
 						// Empty APISet for good measure
 					},
 					{
 						opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-						opregistry.APIKey{Group: "Cow", Version: "v1alpha1", Kind: "mammals.com"}: {},
-						opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}: {},
-						opregistry.APIKey{Group: "Crow", Version: "v1beta1", Kind: "birds.com"}: {},
+						opregistry.APIKey{Group: "Cow", Version: "v1alpha1", Kind: "mammals.com"}:   {},
+						opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}:    {},
+						opregistry.APIKey{Group: "Crow", Version: "v1beta1", Kind: "birds.com"}:     {},
 					},
 					{
 						opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-						opregistry.APIKey{Group: "Cow", Version: "v1alpha1", Kind: "mammals.com"}: {},
-						opregistry.APIKey{Group: "Goat", Version: "v1beta1", Kind: "mammals.com"}: {},
+						opregistry.APIKey{Group: "Cow", Version: "v1alpha1", Kind: "mammals.com"}:   {},
+						opregistry.APIKey{Group: "Goat", Version: "v1beta1", Kind: "mammals.com"}:   {},
 					},
 				},
 			},
 			want: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
-				opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}: {},
-				opregistry.APIKey{Group: "Crow", Version: "v1beta1", Kind: "birds.com"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
+				opregistry.APIKey{Group: "Egret", Version: "v1beta1", Kind: "birds.com"}:    {},
+				opregistry.APIKey{Group: "Crow", Version: "v1beta1", Kind: "birds.com"}:     {},
 				opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-				opregistry.APIKey{Group: "Cow", Version: "v1alpha1", Kind: "mammals.com"}: {},
-				opregistry.APIKey{Group: "Goat", Version: "v1beta1", Kind: "mammals.com"}: {},
+				opregistry.APIKey{Group: "Cow", Version: "v1alpha1", Kind: "mammals.com"}:   {},
+				opregistry.APIKey{Group: "Goat", Version: "v1beta1", Kind: "mammals.com"}:   {},
 			},
 		},
 	}
@@ -257,18 +257,18 @@ func TestAPISetUnion(t *testing.T) {
 
 func TestAPISetIntersection(t *testing.T) {
 	type input struct {
-		left APISet
+		left  APISet
 		right []APISet
 	}
-	tests := []struct{
+	tests := []struct {
 		name string
-		in input
+		in   input
 		want APISet
 	}{
 		{
 			name: "EmptyLeft/NilRight/EmptySet",
 			in: input{
-				left: make(APISet),
+				left:  make(APISet),
 				right: nil,
 			},
 			want: make(APISet),
@@ -315,7 +315,7 @@ func TestAPISetIntersection(t *testing.T) {
 				},
 				right: []APISet{
 					{
-						opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+						opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 						opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 					},
 				},
@@ -332,7 +332,7 @@ func TestAPISetIntersection(t *testing.T) {
 				},
 				right: []APISet{
 					{
-						opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+						opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 						opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 					},
 				},
@@ -345,7 +345,7 @@ func TestAPISetIntersection(t *testing.T) {
 			name: "TwoLeft/OneRight/SingleSet/OneIntersection",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
 				right: []APISet{
@@ -398,7 +398,7 @@ func TestAPISetIntersection(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/SeparateSets/SomeIntersection",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Egret", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Egret", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Hippo", Version: "v1alpha1", Kind: "mammals.com"}: {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
@@ -424,7 +424,6 @@ func TestAPISetIntersection(t *testing.T) {
 		},
 	}
 
-	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			require.EqualValues(t, tt.want, tt.in.left.Intersection(tt.in.right...))
@@ -434,18 +433,18 @@ func TestAPISetIntersection(t *testing.T) {
 
 func TestAPISetDifference(t *testing.T) {
 	type input struct {
-		left APISet
+		left  APISet
 		right APISet
 	}
-	tests := []struct{
+	tests := []struct {
 		name string
-		in input
-		want APISet	
+		in   input
+		want APISet
 	}{
 		{
 			name: "EmptySet",
 			in: input{
-				left: make(APISet),
+				left:  make(APISet),
 				right: make(APISet),
 			},
 			want: make(APISet),
@@ -488,11 +487,11 @@ func TestAPISetDifference(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/NoDifference",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
 				right: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
 			},
@@ -502,12 +501,12 @@ func TestAPISetDifference(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/SingleDifference",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-					opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}: {},
+					opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}:  {},
 				},
 				right: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
 			},
@@ -519,17 +518,17 @@ func TestAPISetDifference(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/SomeDifference",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-					opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}: {},
+					opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}:  {},
 				},
 				right: APISet{
-					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
+					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}:  {},
 					opregistry.APIKey{Group: "Gopher", Version: "v1alpha2", Kind: "mammals.com"}: {},
 				},
 			},
 			want: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:  {},
 				opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}: {},
 			},
 		},
@@ -537,26 +536,26 @@ func TestAPISetDifference(t *testing.T) {
 			name: "MultipleLeft/MultipleRight/AllLeftDifference",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-					opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}: {},
+					opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}:  {},
 				},
 				right: APISet{
 					opregistry.APIKey{Group: "Giraffe", Version: "v1alpha1", Kind: "mammals.com"}: {},
-					opregistry.APIKey{Group: "Gopher", Version: "v1alpha2", Kind: "mammals.com"}: {},
-					opregistry.APIKey{Group: "Bison", Version: "v1beta1", Kind: "mammals.com"}: {},
+					opregistry.APIKey{Group: "Gopher", Version: "v1alpha2", Kind: "mammals.com"}:  {},
+					opregistry.APIKey{Group: "Bison", Version: "v1beta1", Kind: "mammals.com"}:    {},
 				},
 			},
 			want: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 				opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
-				opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}: {},
+				opregistry.APIKey{Group: "Goat", Version: "v1alpha1", Kind: "mammals.com"}:  {},
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T){
+		t.Run(tt.name, func(t *testing.T) {
 			require.EqualValues(t, tt.want, tt.in.left.Difference(tt.in.right))
 		})
 	}
@@ -564,18 +563,18 @@ func TestAPISetDifference(t *testing.T) {
 
 func TestAPISetIsSubset(t *testing.T) {
 	type input struct {
-		left APISet
+		left  APISet
 		right APISet
 	}
-	tests := []struct{
+	tests := []struct {
 		name string
-		in input
+		in   input
 		want bool
 	}{
 		{
 			name: "EmptySet",
 			in: input{
-				left: make(APISet),
+				left:  make(APISet),
 				right: make(APISet),
 			},
 			want: true,
@@ -586,7 +585,7 @@ func TestAPISetIsSubset(t *testing.T) {
 				left: APISet{
 					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
 				},
-				right:APISet{
+				right: APISet{
 					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
 				},
 			},
@@ -598,8 +597,8 @@ func TestAPISetIsSubset(t *testing.T) {
 				left: APISet{
 					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
 				},
-				right:APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+				right: APISet{
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
 			},
@@ -609,10 +608,10 @@ func TestAPISetIsSubset(t *testing.T) {
 			name: "NotSubset",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
-				right:APISet{
+				right: APISet{
 					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
 				},
 			},
@@ -622,7 +621,7 @@ func TestAPISetIsSubset(t *testing.T) {
 			name: "NotSubset/EmptyRight",
 			in: input{
 				left: APISet{
-					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+					opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 					opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 				},
 				right: make(APISet),
@@ -639,19 +638,19 @@ func TestAPISetIsSubset(t *testing.T) {
 }
 
 func TestStripPlural(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		name string
-		in APISet
+		in   APISet
 		want APISet
 	}{
 		{
 			name: "EmptySet",
-			in: make(APISet),
+			in:   make(APISet),
 			want: make(APISet),
 		},
 		{
 			name: "NilSet",
-			in: nil,
+			in:   nil,
 			want: make(APISet),
 		},
 		{
@@ -666,29 +665,29 @@ func TestStripPlural(t *testing.T) {
 		{
 			name: "MultiplePluralsToRemove",
 			in: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com", Plural: "Geese"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com", Plural: "Geese"}:   {},
 				opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com", Plural: "Moose"}: {},
 			},
 			want: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 				opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 			},
 		},
 		{
 			name: "NoPluralsToRemove",
 			in: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 				opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 			},
 			want: APISet{
-				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}: {},
+				opregistry.APIKey{Group: "Goose", Version: "v1alpha1", Kind: "birds.com"}:   {},
 				opregistry.APIKey{Group: "Moose", Version: "v1alpha1", Kind: "mammals.com"}: {},
 			},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T){
+		t.Run(tt.name, func(t *testing.T) {
 			require.EqualValues(t, tt.want, tt.in.StripPlural())
 		})
 	}

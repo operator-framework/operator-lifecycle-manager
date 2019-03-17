@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
@@ -130,6 +132,7 @@ func TestOperatorGroup(t *testing.T) {
 	// Verify the copied CSV transitions to FAILED
 	// Delete CSV
 	// Verify copied CVS is deleted
+	defer cleaner.NotifyTestComplete(t, true)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -202,7 +205,7 @@ func TestOperatorGroup(t *testing.T) {
 			return false, fetchErr
 		}
 		if len(fetched.Status.Namespaces) > 0 {
-			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces)
+			require.ElementsMatch(t, expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces, "have %#v", fetched.Status.Namespaces)
 			return true, nil
 		}
 		return false, nil
@@ -464,6 +467,8 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Update csvA to have AllNamespaces supported=true
 	// Ensure csvA transitions to Pending
 
+	defer cleaner.NotifyTestComplete(t, true)
+
 	// Generate namespaceA and namespaceB
 	nsA := genName("a")
 	nsB := genName("b")
@@ -694,6 +699,8 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Wait for csvB to be successful
 	// Wait for operatorGroupB to have providedAPI annotation with crdB's Kind.version.group
 	// Wait for csvB to have a CSV with a copied status in namespace C
+
+	defer cleaner.NotifyTestComplete(t, true)
 
 	// Create a catalog for csvA, csvB, and csvD
 	pkgA := genName("a-")
@@ -927,6 +934,8 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	// Wait for KindA.version.group providedAPI annotation to be removed from operatorGroupC's providedAPIs annotation
 	// Ensure KindA.version.group providedAPI annotation on operatorGroupA
 
+	defer cleaner.NotifyTestComplete(t, true)
+
 	// Create a catalog for csvA, csvB
 	pkgA := genName("a-")
 	pkgB := genName("b-")
@@ -1118,6 +1127,7 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 // TODO: Test Subscriptions with depedencies and transitive dependencies in intersecting OperatorGroups
 // TODO: Test Subscription upgrade paths with + and - providedAPIs
 func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
@@ -1207,12 +1217,12 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	defer func() {
 		c.DeleteServiceAccount(serviceAccount.GetNamespace(), serviceAccount.GetName(), metav1.NewDeleteOptions(0))
 	}()
-	_, err = c.CreateRole(role)
+	createdRole, err := c.CreateRole(role)
 	require.NoError(t, err)
 	defer func() {
 		c.DeleteRole(role.GetNamespace(), role.GetName(), metav1.NewDeleteOptions(0))
 	}()
-	_, err = c.CreateRoleBinding(roleBinding)
+	createdRoleBinding, err := c.CreateRoleBinding(roleBinding)
 	require.NoError(t, err)
 	defer func() {
 		c.DeleteRoleBinding(roleBinding.GetNamespace(), roleBinding.GetName(), metav1.NewDeleteOptions(0))
@@ -1226,9 +1236,48 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
+	err = ownerutil.AddOwnerLabels(createdRole, createdCSV)
+	require.NoError(t, err)
+	_, err = c.UpdateRole(createdRole)
+	require.NoError(t, err)
+
+	err = ownerutil.AddOwnerLabels(createdRoleBinding, createdCSV)
+	require.NoError(t, err)
+	_, err = c.UpdateRoleBinding(createdRoleBinding)
+	require.NoError(t, err)
+
 	t.Log("wait for CSV to succeed")
 	_, err = fetchCSV(t, crc, createdCSV.GetName(), opGroupNamespace, csvSucceededChecker)
 	require.NoError(t, err)
+
+	t.Log("wait for roles to be promoted to clusterroles")
+	var fetchedRole *rbacv1.ClusterRole
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedRole, err = c.GetClusterRole(role.GetName())
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	require.EqualValues(t, role.Rules, fetchedRole.Rules)
+	var fetchedRoleBinding *rbacv1.ClusterRoleBinding
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+	require.EqualValues(t, roleBinding.Subjects, fetchedRoleBinding.Subjects)
+	require.EqualValues(t, roleBinding.RoleRef.Name, fetchedRoleBinding.RoleRef.Name)
+	require.EqualValues(t, "rbac.authorization.k8s.io", fetchedRoleBinding.RoleRef.APIGroup)
+	require.EqualValues(t, "ClusterRole", fetchedRoleBinding.RoleRef.Kind)
 
 	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
@@ -1298,7 +1347,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+	err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
 		_, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
 			if errors.IsNotFound(fetchErr) {

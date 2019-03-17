@@ -2987,7 +2987,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "csv-role",
 			Namespace:       operatorNamespace,
-			Labels:          ownerutil.OwnerLabel(operatorCSV),
+			Labels:          ownerutil.OwnerLabel(operatorCSV, v1alpha1.ClusterServiceVersionKind),
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
 		},
 		Rules: permissions[0].Rules,
@@ -3001,7 +3001,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            "csv-rolebinding",
 			Namespace:       operatorNamespace,
-			Labels:          ownerutil.OwnerLabel(operatorCSV),
+			Labels:          ownerutil.OwnerLabel(operatorCSV, v1alpha1.ClusterServiceVersionKind),
 			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(operatorCSV)},
 		},
 		Subjects: []rbacv1.Subject{

@@ -147,6 +147,15 @@ func EmptyOperatorSet() OperatorSet {
 	return map[string]OperatorSurface{}
 }
 
+// Snapshot returns a new set, pointing to the same values
+func (o OperatorSet) Snapshot() OperatorSet {
+	out := make(map[string]OperatorSurface)
+	for key, val := range o {
+		out[key] = val
+	}
+	return out
+}
+
 type APIMultiOwnerSet map[opregistry.APIKey]OperatorSet
 
 func EmptyAPIMultiOwnerSet() APIMultiOwnerSet {

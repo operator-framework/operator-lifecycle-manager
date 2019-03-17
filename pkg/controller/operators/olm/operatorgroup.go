@@ -33,6 +33,7 @@ var (
 	AdminVerbs     = []string{"*"}
 	EditVerbs      = []string{"create", "update", "patch", "delete"}
 	ViewVerbs      = []string{"get", "list", "watch"}
+	Suffices       = []string{AdminSuffix, EditSuffix, ViewSuffix}
 	VerbsForSuffix = map[string][]string{
 		AdminSuffix: AdminVerbs,
 		EditSuffix:  EditVerbs,
@@ -248,30 +249,21 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion,
 		group := nameGroupPair[1]
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
 
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, AdminSuffix, VerbsForSuffix[AdminSuffix], group, plural, nil); err != nil {
-			return err
+		for suffix, verbs := range VerbsForSuffix {
+			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, group, plural, nil); err != nil {
+				return err
+			}
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, EditSuffix, VerbsForSuffix[EditSuffix], group, plural, nil); err != nil {
-			return err
-		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, ViewSuffix, VerbsForSuffix[ViewSuffix], group, plural, nil); err != nil {
-			return err
-		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix+"-crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}); err != nil {
 			return err
 		}
 	}
 	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
-
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, AdminSuffix, VerbsForSuffix[AdminSuffix], owned.Group, owned.Name, nil); err != nil {
-			return err
-		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, EditSuffix, VerbsForSuffix[EditSuffix], owned.Group, owned.Name, nil); err != nil {
-			return err
-		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, ViewSuffix, VerbsForSuffix[ViewSuffix], owned.Group, owned.Name, nil); err != nil {
-			return err
+		for suffix, verbs := range VerbsForSuffix {
+			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, owned.Group, owned.Name, nil); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -294,8 +286,11 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	}
 	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 
+	logger := a.Log.WithField("opgroup", operatorGroup.GetName()).WithField("csv", csv.GetName())
+
 	// if OperatorGroup is global (all namespaces) we generate cluster roles / cluster role bindings instead
 	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+		logger.Debug("opgroup is global")
 
 		// synthesize cluster permissions to verify rbac
 		for _, p := range strategyDetailsDeployment.Permissions {
@@ -309,8 +304,10 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 
 		// operator already has access at the cluster scope
 		if permMet {
+			logger.Debug("global operator has correct global permissions")
 			return nil
 		}
+		logger.Debug("lift roles/rolebindings to clusterroles/rolebindings")
 		if err := a.ensureSingletonRBAC(operatorGroup.GetNamespace(), csv); err != nil {
 			return err
 		}
@@ -345,8 +342,12 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 	if err != nil {
 		return err
 	}
+	if len(ownedRoles) == 0 {
+		return fmt.Errorf("no owned roles found")
+	}
 
 	for _, r := range ownedRoles {
+		a.Log.Debug("processing role")
 		_, err := a.lister.RbacV1().ClusterRoleLister().Get(r.GetName())
 		if err != nil {
 			clusterRole := &rbacv1.ClusterRole{
@@ -356,19 +357,23 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   r.GetName(),
-					Labels: ownerutil.OwnerLabel(csv),
+					Labels: r.GetLabels(),
 				},
 				Rules: r.Rules,
 			}
 			if _, err := a.OpClient.CreateClusterRole(clusterRole); err != nil {
 				return err
 			}
+			a.Log.Debug("created cluster role")
 		}
 	}
 
 	ownedRoleBindings, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(operatorNamespace).List(ownerSelector)
 	if err != nil {
 		return err
+	}
+	if len(ownedRoleBindings) == 0 {
+		return fmt.Errorf("no owned rolebindings found")
 	}
 
 	for _, r := range ownedRoleBindings {
@@ -381,7 +386,7 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   r.GetName(),
-					Labels: ownerutil.OwnerLabel(csv),
+					Labels: r.GetLabels(),
 				},
 				Subjects: r.Subjects,
 				RoleRef: rbacv1.RoleRef{
@@ -441,7 +446,9 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		// TODO: we can work around error cases here; if there's an un-owned role with a matching name we should generate instead
 		ownedRole.SetNamespace(targetNamespace)
 		ownedRole.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
-		ownerutil.AddOwnerLabels(ownedRole, targetCSV)
+		if err := ownerutil.AddOwnerLabels(ownedRole, targetCSV); err != nil {
+			return err
+		}
 		ownedRole.SetLabels(utillabels.AddLabel(ownedRole.GetLabels(), v1alpha1.CopiedLabelKey, operatorNamespace))
 		if _, err := a.OpClient.CreateRole(ownedRole); err != nil {
 			return err
@@ -481,7 +488,9 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		// TODO: we can work around error cases here; if there's an un-owned role with a matching name we should generate instead
 		ownedRoleBinding.SetNamespace(targetNamespace)
 		ownedRoleBinding.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
-		ownerutil.AddOwnerLabels(ownedRoleBinding, targetCSV)
+		if err := ownerutil.AddOwnerLabels(ownedRoleBinding, targetCSV); err != nil {
+			return err
+		}
 		ownedRoleBinding.SetLabels(utillabels.AddLabel(ownedRoleBinding.GetLabels(), v1alpha1.CopiedLabelKey, operatorNamespace))
 		if _, err := a.OpClient.CreateRoleBinding(ownedRoleBinding); err != nil {
 			return err
@@ -578,24 +587,19 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 	return nil
 }
 
-// TODO: do we want to do this? or just let the dangling CSV clean it up
 func (a *Operator) pruneFromNamespace(operatorGroupName, namespace string) error {
 	fetchedCSVs, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).List(labels.Everything())
 	if err != nil {
 		return err
 	}
 
-	errlist := []error{}
 	for _, csv := range fetchedCSVs {
 		if csv.IsCopied() && csv.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey] == operatorGroupName {
 			a.Log.Debugf("Found CSV '%v' in namespace %v to delete", csv.GetName(), namespace)
-			err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{})
-			if err != nil {
-				errlist = append(errlist, err)
-			}
+			a.gcQueueIndexer.Enqueue(csv)
 		}
 	}
-	return errors.NewAggregate(errlist)
+	return nil
 }
 
 func (a *Operator) setOperatorGroupAnnotations(obj *metav1.ObjectMeta, op *v1alpha2.OperatorGroup, addTargets bool) {

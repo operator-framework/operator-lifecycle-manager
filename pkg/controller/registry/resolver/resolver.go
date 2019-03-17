@@ -41,10 +41,20 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	}
 
 	// create a generation - a representation of the current set of installed operators and their provided/required apis
-	csvs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.Everything())
+	allCSVs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// TODO: build this index ahead of time
+	// omit copied csvs from generation - they indicate that apis are provided to the namespace, not by the namespace
+	var csvs []*v1alpha1.ClusterServiceVersion
+	for _, c := range allCSVs {
+		if !c.IsCopied() {
+			csvs = append(csvs, c)
+		}
+	}
+
 	subs, err := r.subLister.Subscriptions(namespace).List(labels.Everything())
 	if err != nil {
 		return nil, nil, err

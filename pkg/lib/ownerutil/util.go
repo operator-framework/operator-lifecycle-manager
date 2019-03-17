@@ -187,25 +187,29 @@ func NonBlockingOwner(owner Owner) metav1.OwnerReference {
 }
 
 // OwnerLabel returns a label added to generated objects for later querying
-func OwnerLabel(owner Owner) map[string]string {
+func OwnerLabel(owner Owner, kind string) map[string]string {
 	return map[string]string{
 		OwnerKey:          owner.GetName(),
 		OwnerNamespaceKey: owner.GetNamespace(),
-		OwnerKind:         owner.GetObjectKind().GroupVersionKind().Kind,
+		OwnerKind:         kind,
 	}
 }
 
 // AddOwnerLabels adds ownerref-like labels to an object
-func AddOwnerLabels(object metav1.Object, owner Owner) {
+func AddOwnerLabels(object metav1.Object, owner Owner) error {
+	err := InferGroupVersionKind(owner)
+	if err != nil {
+		return err
+	}
 	labels := object.GetLabels()
 	if labels == nil {
 		labels = map[string]string{}
 	}
-	for key, val := range OwnerLabel(owner) {
+	for key, val := range OwnerLabel(owner, owner.GetObjectKind().GroupVersionKind().Kind) {
 		labels[key] = val
 	}
 	object.SetLabels(labels)
-	return
+	return nil
 }
 
 // IsOwnedByKindLabel returns whether or not a label exists on the object pointing to an owner of a particular kind
@@ -241,7 +245,7 @@ func AdoptableLabels(labels map[string]string, checkName bool, targets ...Owner)
 
 // CSVOwnerSelector returns a label selector to find generated objects owned by owner
 func CSVOwnerSelector(owner *v1alpha1.ClusterServiceVersion) labels.Selector {
-	return labels.SelectorFromSet(OwnerLabel(owner))
+	return labels.SelectorFromSet(OwnerLabel(owner, v1alpha1.ClusterServiceVersionKind))
 }
 
 // AddOwner adds an owner to the ownerref list.

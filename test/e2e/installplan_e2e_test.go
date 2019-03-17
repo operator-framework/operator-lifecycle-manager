@@ -12,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/apis/rbac"
@@ -85,16 +86,17 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 					Selector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{"app": "nginx"},
 					},
-					Replicas: &doubleInstance,
+					Replicas: &singleInstance,
 					Template: corev1.PodTemplateSpec{
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"app": "nginx"},
 						},
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
-								Name:  genName("nginx"),
-								Image: "bitnami/nginx:latest",
-								Ports: []corev1.ContainerPort{{ContainerPort: 80}},
+								Name:            genName("nginx"),
+								Image:           "bitnami/nginx:latest",
+								Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
+								ImagePullPolicy: corev1.PullIfNotPresent,
 							},
 						}},
 					},
@@ -392,11 +394,8 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		require.NoError(t, err)
 
 		expectedSteps := map[registry.ResourceKey]struct{}{
-			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:                                                                             {},
-			registry.ResourceKey{Name: dependentCRD.Name, Kind: "CustomResourceDefinition"}:                                                                        {},
-			registry.ResourceKey{Name: dependentPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                           {},
-			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}:                                                                {},
-			registry.ResourceKey{Name: strings.Join([]string{dependentPackageStable, mainCatalogSourceName, testNamespace}, "-"), Kind: v1alpha1.SubscriptionKind}: {},
+			registry.ResourceKey{Name: mainCRD.Name, Kind: "CustomResourceDefinition"}:              {},
+			registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
 		}
 
 		// Create the preexisting CRD and CSV
@@ -432,10 +431,11 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, len(fetchedInstallPlan.Status.Plan), len(expectedSteps))
+		for _, step := range fetchedInstallPlan.Status.Plan {
+			t.Logf("%#v", step)
+		}
+		require.Equal(t, len(fetchedInstallPlan.Status.Plan), len(expectedSteps), "number of expected steps does not match installed")
 		t.Logf("Number of resolved steps matches the number of expected steps")
-
-		require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
 
 		for _, step := range fetchedInstallPlan.Status.Plan {
 			key := registry.ResourceKey{
@@ -713,11 +713,36 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 			}
 		}
+
+		// This operator was installed into a global operator group, so the roles should have been lifted to clusterroles
+		if step.Resource.Kind == "Role" {
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				_, err = c.GetClusterRole(step.Resource.Name)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			})
+		}
+		if step.Resource.Kind == "RoleBinding" {
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				_, err = c.GetClusterRoleBinding(step.Resource.Name)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			})
+		}
 	}
 
 	// Should have removed every matching step
 	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
-
 }
 
 func TestInstallPlanCRDValidation(t *testing.T) {

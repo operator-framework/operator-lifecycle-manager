@@ -45,6 +45,8 @@ func fetchPackageManifest(t *testing.T, pmc pmversioned.Interface, namespace, na
 }
 
 func TestPackageManifestLoading(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
 	// create a simple catalogsource
 	packageName := genName("nginx")
 	stableChannel := "stable"

@@ -71,7 +71,7 @@ setup-bare: clean e2e.namespace
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:
-	go test -v -failfast -timeout 50m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
+	go test -v -failfast -timeout 70m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
 
 e2e-local:
 	. ./scripts/build_local.sh
@@ -98,7 +98,8 @@ container:
 
 clean-e2e:
 	kubectl delete crds --all
-	kubectl delete apiservices.apiregistration.k8s.io v1alpha1.packages.apps.redhat.com
+	kubectl delete apiservices.apiregistration.k8s.io v1alpha1.packages.apps.redhat.com || true
+	for i in {1..40}; do kubectl delete namespace "ns-$i" || true; done
 	kubectl delete -f test/e2e/resources/0000_50_olm_00-namespace.yaml
 
 clean:
