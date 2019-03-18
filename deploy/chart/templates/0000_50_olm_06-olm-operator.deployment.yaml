@@ -50,6 +50,10 @@ spec:
               path: /healthz
               port: {{ .Values.olm.service.internalPort }}
           env:
+        {{ if (.Values.installType) and eq .Values.installType "ocp" }}
+          - name: RELEASE_VERSION
+            value: "0.0.1-snapshot"
+        {{ end }}
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
