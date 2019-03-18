@@ -11,6 +11,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -1262,7 +1263,11 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 		}
 		return true, nil
 	})
-	require.EqualValues(t, role.Rules, fetchedRole.Rules)
+	require.EqualValues(t, append(role.Rules, rbacv1.PolicyRule{
+		Verbs:     []string{"get", "list", "watch"},
+		APIGroups: []string{""},
+		Resources: []string{"namespaces"},
+	}), fetchedRole.Rules)
 	var fetchedRoleBinding *rbacv1.ClusterRoleBinding
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedRoleBinding, err = c.GetClusterRoleBinding(roleBinding.GetName())
@@ -1278,6 +1283,21 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	require.EqualValues(t, roleBinding.RoleRef.Name, fetchedRoleBinding.RoleRef.Name)
 	require.EqualValues(t, "rbac.authorization.k8s.io", fetchedRoleBinding.RoleRef.APIGroup)
 	require.EqualValues(t, "ClusterRole", fetchedRoleBinding.RoleRef.Kind)
+
+	t.Log("ensure operator was granted namespace list permission")
+	res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&v1.SubjectAccessReview{
+		Spec: v1.SubjectAccessReviewSpec{
+			User: "system:serviceaccount:" + opGroupNamespace + ":" + serviceAccountName,
+			ResourceAttributes: &v1.ResourceAttributes{
+				Group:    corev1.GroupName,
+				Version:  "v1",
+				Resource: "namespaces",
+				Verb:     "list",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, res.Status.Allowed, "got %#v", res.Status)
 
 	t.Log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
