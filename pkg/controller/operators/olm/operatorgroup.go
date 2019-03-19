@@ -359,7 +359,11 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 					Name:   r.GetName(),
 					Labels: r.GetLabels(),
 				},
-				Rules: r.Rules,
+				Rules: append(r.Rules, rbacv1.PolicyRule{
+					Verbs:     ViewVerbs,
+					APIGroups: []string{corev1.GroupName},
+					Resources: []string{"namespaces"},
+				}),
 			}
 			if _, err := a.OpClient.CreateClusterRole(clusterRole); err != nil {
 				return err
