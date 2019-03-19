@@ -144,7 +144,7 @@ container-codegen:
 	docker rm temp-codegen
 
 container-mockgen:
-	docker build -t olm:mockgen -f mockgen.Dockerfile .
+	docker build -t olm:mockgen -f mockgen.Dockerfile . --no-cache
 	docker run --name temp-mockgen olm:mockgen /bin/true
 	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
 	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
@@ -176,7 +176,7 @@ release:
 	rm -rf manifests
 	mkdir manifests
 	cp -R deploy/ocp/manifests/$(ver)/. manifests
-	find ./manifests -type f -exec sed -i "/^#/d" {} \; 
+	find ./manifests -type f -exec sed -i "/^#/d" {} \;
 	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:$(ver))

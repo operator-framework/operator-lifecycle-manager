@@ -947,10 +947,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			}
 		}
 
-		// Clean up deployments in case some become orphaned
-		if cleanupErr := a.cleanupOrphanedDeployments(logger, out); cleanupErr == nil {
-			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("clean up deployments successful")
-		}
 	case v1alpha1.CSVPhaseSucceeded:
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
@@ -1451,7 +1447,6 @@ func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alph
 	return utilerrors.NewAggregate(updateErrs)
 }
 
-<<<<<<< HEAD
 // ensureLabels merges a label set with a CSV's labels and attempts to update the CSV if the merged set differs from the CSV's original labels.
 func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ...labels.Set) (*v1alpha1.ClusterServiceVersion, error) {
 	csvLabelSet := labels.Set(in.GetLabels())
@@ -1469,44 +1464,4 @@ func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ..
 	out.SetLabels(merged)
 	out, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(out)
 	return out, err
-=======
-// Clean up orphaned deployments after reinstalling deployments process
-func (a *Operator) cleanupOrphanedDeployments(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) error {
-	// Extract the InstallStrategy for the deployment
-	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
-	if err != nil {
-		logger.Warn("could not parse install strategy while cleaning up CSV deployment")
-		return nil
-	}
-
-	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
-	if !ok {
-		logger.Warnf("could not cast install strategy as type %T", strategyDetailsDeployment)
-		return nil
-	}
-
-	depNames := map[string]string{}
-	for _, dep := range strategyDetailsDeployment.DeploymentSpecs {
-		depNames[dep.Name] = dep.Name
-	}
-	// Get existing deployments in CSV's namespace and owned by CSV
-	existingDeployments, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).List(ownerutil.CSVOwnerSelector(csv))
-	if err != nil {
-		return err
-	}
-
-	// compare existing deployments to deployments in CSV's spec to see if any need to be deleted
-	for _, d := range existingDeployments {
-		if _, exists := depNames[d.GetName()]; !exists {
-			logger.Infof("found an orphaned deployment %s in namespace %s", d.GetName(), csv.GetNamespace())
-			if err := a.OpClient.DeleteDeployment(csv.GetNamespace(), d.GetName(), &metav1.DeleteOptions{}); err != nil {
-				logger.Warnf("error cleaning up deployment %s", d.GetName())
-				return err
-			}
-		}
-	}
-
-	return nil
->>>>>>> fix(deployment): Clean up orphaned deployments
 }

@@ -332,3 +332,176 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
+	var (
+		mockOwner = v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "clusterserviceversion-owner",
+				Namespace: "olm-test-deployment",
+			},
+		}
+		mockOwnerRefs = []metav1.OwnerReference{{
+			APIVersion:         v1alpha1.ClusterServiceVersionAPIVersion,
+			Kind:               v1alpha1.ClusterServiceVersionKind,
+			Name:               mockOwner.GetName(),
+			UID:                mockOwner.UID,
+			Controller:         &ownerutil.NotController,
+			BlockOwnerDeletion: &ownerutil.DontBlockOwnerDeletion,
+		}}
+	)
+
+	type inputs struct {
+		strategyDeploymentSpecs []StrategyDeploymentSpec
+	}
+	type setup struct {
+		existingDeployments []*appsv1.Deployment
+		returnError         error
+	}
+	type cleanupMock struct {
+		deletedDeploymentName string
+		returnError           error
+	}
+	tests := []struct {
+		description string
+		inputs      inputs
+		setup       setup
+		cleanupMock cleanupMock
+		output      error
+	}{
+		{
+			description: "cleanup successfully",
+			inputs: inputs{
+				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+					{
+						Name: "test-deployment-1",
+						Spec: appsv1.DeploymentSpec{},
+					},
+				},
+			},
+			setup: setup{
+				existingDeployments: []*appsv1.Deployment{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            "test-deployment-2",
+							Namespace:       mockOwner.GetNamespace(),
+							OwnerReferences: mockOwnerRefs,
+							Labels: map[string]string{
+								"olm.owner":           mockOwner.GetName(),
+								"olm.owner.namespace": mockOwner.GetNamespace(),
+							},
+						},
+					},
+				},
+				returnError: nil,
+			},
+			cleanupMock: cleanupMock{
+				deletedDeploymentName: "test-deployment-2",
+				returnError:           nil,
+			},
+			output: nil,
+		},
+		{
+			description: "cleanup unsuccessfully as no orphaned deployments found",
+			inputs: inputs{
+				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+					{
+						Name: "test-deployment-1",
+						Spec: appsv1.DeploymentSpec{},
+					},
+				},
+			},
+			setup: setup{
+				existingDeployments: []*appsv1.Deployment{},
+				returnError:         fmt.Errorf("error getting deployments"),
+			},
+			cleanupMock: cleanupMock{
+				deletedDeploymentName: "",
+				returnError:           nil,
+			},
+			output: fmt.Errorf("error getting deployments"),
+		},
+		{
+			description: "cleanup unsuccessfully as unable to look up orphaned deployments",
+			inputs: inputs{
+				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+					{
+						Name: "test-deployment-1",
+						Spec: appsv1.DeploymentSpec{},
+					},
+				},
+			},
+			setup: setup{
+				existingDeployments: []*appsv1.Deployment{},
+				returnError:         fmt.Errorf("error unable to look up orphaned deployments"),
+			},
+			cleanupMock: cleanupMock{
+				deletedDeploymentName: "",
+				returnError:           nil,
+			},
+			output: fmt.Errorf("error unable to look up orphaned deployments"),
+		},
+		{
+			description: "cleanup unsuccessfully as unable to delete deployments",
+			inputs: inputs{
+				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+					{
+						Name: "test-deployment-1",
+						Spec: appsv1.DeploymentSpec{},
+					},
+				},
+			},
+			setup: setup{
+				existingDeployments: []*appsv1.Deployment{
+					{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:            "test-deployment-2",
+							Namespace:       mockOwner.GetNamespace(),
+							OwnerReferences: mockOwnerRefs,
+							Labels: map[string]string{
+								"olm.owner":           mockOwner.GetName(),
+								"olm.owner.namespace": mockOwner.GetNamespace(),
+							},
+						},
+					},
+				},
+				returnError: nil,
+			},
+			cleanupMock: cleanupMock{
+				deletedDeploymentName: "",
+				returnError:           fmt.Errorf("error unable to delete deployments"),
+			},
+			output: fmt.Errorf("error unable to delete deployments"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			fakeClient := new(clientfakes.FakeInstallStrategyDeploymentInterface)
+			installer := &StrategyDeploymentInstaller{
+				strategyClient: fakeClient,
+				owner:          &mockOwner,
+			}
+
+			fakeClient.FindAnyDeploymentsMatchingLabelsReturns(
+				tt.setup.existingDeployments, tt.setup.returnError,
+			)
+
+			fakeClient.DeleteDeploymentReturns(tt.cleanupMock.returnError)
+
+			if tt.setup.returnError == nil && tt.cleanupMock.returnError == nil {
+				defer func() {
+					deletedDep := fakeClient.DeleteDeploymentArgsForCall(0)
+					require.Equal(t, tt.cleanupMock.deletedDeploymentName, deletedDep)
+				}()
+			}
+
+			result := installer.cleanupOrphanedDeployments(tt.inputs.strategyDeploymentSpecs)
+			assert.Equal(t, tt.output, result)
+		})
+	}
+}
