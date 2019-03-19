@@ -14,7 +14,7 @@ docker build -f upstream.Dockerfile .
 docker tag $(docker images --filter 'label=stage=olm' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/operator-framework/olm:local
 docker tag $(docker images --filter 'label=stage=builder' --format '{{.CreatedAt}}\t{{.ID}}' | sort -nr | head -n 1 | cut -f2) quay.io/operator-framework/olm-e2e:local
 
-for i in {1..40}
-do
-	kubectl create namespace "ns-$i" || true
-done
+if [ -x "$(command -v kind)" ]; then
+  kind load docker-image quay.io/operator-framework/olm:local
+  kind load docker-image quay.io/operator-framework/olm-e2e:local
+fi
