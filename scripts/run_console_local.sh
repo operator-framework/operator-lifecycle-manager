@@ -4,7 +4,7 @@ secretname=$(kubectl get serviceaccount default --namespace=kube-system -o jsonp
 endpoint=$(kubectl config view -o json | jq '{myctx: .["current-context"], ctxs: .contexts[], clusters: .clusters[]}' | jq 'select(.myctx == .ctxs.name)' | jq 'select(.ctxs.context.cluster ==  .clusters.name)' | jq '.clusters.cluster.server' -r)
 
 args="--net=host"
-if [[ $OSTYPE == darwin* ]]; then 
+if [[ $OSTYPE == darwin* ]] || [[ "$(< /proc/version)" == *@(Microsoft|WSL)* ]]; then
   args="-p 9000:9000"
 fi
 
