@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -29,6 +29,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
+	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -50,8 +52,8 @@ const (
 
 type Operator struct {
 	*queueinformer.Operator
-	csvQueueSet      queueinformer.ResourceQueueSet
-	ogQueueSet       queueinformer.ResourceQueueSet
+	csvQueueSet      *queueinformer.ResourceQueueSet
+	ogQueueSet       *queueinformer.ResourceQueueSet
 	client           versioned.Interface
 	resolver         install.StrategyResolverInterface
 	apiReconciler    resolver.APIIntersectionReconciler
@@ -59,6 +61,8 @@ type Operator struct {
 	recorder         record.EventRecorder
 	copyQueueIndexer *queueinformer.QueueIndexer
 	gcQueueIndexer   *queueinformer.QueueIndexer
+	apiLabeler       labeler.Labeler
+	csvIndexers      map[string]cache.Indexer
 }
 
 func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient operatorclient.ClientInterface, strategyResolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -80,13 +84,15 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 
 	op := &Operator{
 		Operator:      queueOperator,
-		csvQueueSet:   make(queueinformer.ResourceQueueSet),
-		ogQueueSet:    make(queueinformer.ResourceQueueSet),
+		csvQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
+		ogQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
 		client:        crClient,
 		resolver:      strategyResolver,
 		apiReconciler: resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
 		lister:        operatorlister.NewLister(),
 		recorder:      eventRecorder,
+		apiLabeler:    labeler.Func(resolver.LabelSetsFor),
+		csvIndexers:   map[string]cache.Indexer{},
 	}
 
 	// Set up RBAC informers
@@ -175,7 +181,7 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
 
 	// Register CustomResourceDefinition QueueInformer
-	customResourceDefinitionInformer := extv1beta1.NewSharedInformerFactory(opClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
+	customResourceDefinitionInformer := extinf.NewSharedInformerFactory(opClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
 	op.RegisterQueueInformer(queueinformer.NewInformer(
 		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "customresourcedefinitions"),
 		customResourceDefinitionInformer.Informer(),
@@ -234,8 +240,6 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	))
 	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
 
-	csvIndexes := map[string]cache.Indexer{}
-
 	// csvInformers for each namespace all use the same backing queue keys are namespaced
 	csvHandlers := &cache.ResourceEventHandlerFuncs{
 		DeleteFunc: op.handleClusterServiceVersionDeletion,
@@ -251,20 +255,21 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
 		csvQueueInformer := queueinformer.NewInformer(csvQueue, csvInformer.Informer(), op.syncClusterServiceVersion, csvHandlers, queueName, metrics.NewMetricsCSV(op.lister.OperatorsV1alpha1().ClusterServiceVersionLister()), logger)
 		op.RegisterQueueInformer(csvQueueInformer)
-		op.csvQueueSet[namespace] = csvQueue
+		op.csvQueueSet.Set(namespace, csvQueue)
 
-		csvIndexes[namespace] = csvInformer.Informer().GetIndexer()
+		csvInformer.Informer().AddIndexers(cache.Indexers{index.MetaLabelIndexFuncKey: index.MetaLabelIndexFunc})
+		op.csvIndexers[namespace] = csvInformer.Informer().GetIndexer()
 	}
 
 	// Register separate queue for copying csvs
 	csvCopyQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvCopy")
-	csvQueueIndexer := queueinformer.NewQueueIndexer(csvCopyQueue, csvIndexes, op.syncCopyCSV, "csvCopy", logger, metrics.NewMetricsNil())
+	csvQueueIndexer := queueinformer.NewQueueIndexer(csvCopyQueue, op.csvIndexers, op.syncCopyCSV, "csvCopy", logger, metrics.NewMetricsNil())
 	op.RegisterQueueIndexer(csvQueueIndexer)
 	op.copyQueueIndexer = csvQueueIndexer
 
 	// Register separate queue for gcing csvs
 	csvGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvGC")
-	csvGCQueueIndexer := queueinformer.NewQueueIndexer(csvGCQueue, csvIndexes, op.syncGcCsv, "csvGC", logger, metrics.NewMetricsNil())
+	csvGCQueueIndexer := queueinformer.NewQueueIndexer(csvGCQueue, op.csvIndexers, op.syncGcCsv, "csvGC", logger, metrics.NewMetricsNil())
 	op.RegisterQueueIndexer(csvGCQueueIndexer)
 	op.gcQueueIndexer = csvGCQueueIndexer
 
@@ -297,7 +302,7 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 		operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
 		operatorGroupQueueInformer := queueinformer.NewInformer(operatorGroupQueue, operatorGroupInformer.Informer(), op.syncOperatorGroups, nil, queueName, metrics.NewMetricsNil(), logger)
 		op.RegisterQueueInformer(operatorGroupQueueInformer)
-		op.ogQueueSet[namespace] = operatorGroupQueue
+		op.ogQueueSet.Set(namespace, operatorGroupQueue)
 	}
 
 	return op, nil
@@ -319,14 +324,20 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 
 	// Requeue all owner CSVs
 	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.ClusterServiceVersionKind) {
-		logger.Debug("requeueing owner CSVs")
+		logger.Debug("requeueing owner csvs")
 		a.requeueOwnerCSVs(metaObj)
 	}
 
 	// Requeues objects that can't have ownerrefs (cluster -> namespace, cross-namespace)
 	if ownerutil.IsOwnedByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind) {
-		logger.Debug("requeueing owner CSVs")
+		logger.Debug("requeueing owner csvs")
 		a.requeueOwnerCSVs(metaObj)
+	}
+
+	// Requeue CSVs with provided and required labels (for CRDs)
+	if labelSets := a.apiLabeler.LabelSetsFor(metaObj); len(labelSets) > 0 {
+		logger.Debug("requeueing providing/requiring csvs")
+		a.requeueCSVsByLabelSet(logger, labelSets...)
 	}
 
 	return nil
@@ -738,9 +749,27 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		return
 	}
 
+	operatorSurface, err := resolver.NewOperatorFromCSV(out)
+	if err != nil {
+		// TODO: Add failure status to CSV
+		syncError = err
+		return
+	}
+
+	// Ensure required and provided API labels
+	updated, err := a.ensureLabels(out, a.apiLabeler.LabelSetsFor(operatorSurface)...)
+	if err != nil {
+		logger.WithError(err).Warn("issue ensuring csv api labels")
+		syncError = err
+		return
+	}
+
+	// Update the underlying value of out to preserve changes
+	*out = *updated
+
 	// Check if the current CSV is being replaced, return with replacing status if so
 	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
-		logger.WithField("err", err).Info("replacement check")
+		logger.WithError(err).Info("replacement check")
 		return
 	}
 
@@ -749,7 +778,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	if operatorGroup == nil {
 		// when err is nil, we still want to exit, but we don't want to re-add the csv ratelimited to the queue
 		syncError = err
-		logger.WithField("err", err).Info("operatorgroup incorrect")
+		logger.WithError(err).Info("operatorgroup incorrect")
 		return
 	}
 
@@ -789,13 +818,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	groupSurface := resolver.NewOperatorGroup(operatorGroup)
 	otherGroupSurfaces := resolver.NewOperatorGroupSurfaces(otherGroups.Items...)
-
-	operatorSurface, err := resolver.NewOperatorFromCSV(out)
-	if err != nil {
-		// TODO: Add failure status to CSV
-		syncError = err
-		return
-	}
 	providedAPIs := operatorSurface.ProvidedAPIs().StripPlural()
 
 	switch result := a.apiReconciler.Reconcile(providedAPIs, groupSurface, otherGroupSurfaces...); {
@@ -1271,7 +1293,7 @@ func (a *Operator) isReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clu
 }
 
 func (a *Operator) handleDeletion(obj interface{}) {
-	ownee, ok := obj.(metav1.Object)
+	metaObj, ok := obj.(metav1.Object)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -1279,14 +1301,43 @@ func (a *Operator) handleDeletion(obj interface{}) {
 			return
 		}
 
-		ownee, ok = tombstone.Obj.(metav1.Object)
+		metaObj, ok = tombstone.Obj.(metav1.Object)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a metav1.Object %#v", obj))
 			return
 		}
 	}
+	logger := a.Log.WithFields(logrus.Fields{
+		"name":      metaObj.GetName(),
+		"namespace": metaObj.GetNamespace(),
+		"self":      metaObj.GetSelfLink(),
+	})
+	logger.Debug("handling resource deletion")
 
-	a.requeueOwnerCSVs(ownee)
+	logger.Debug("requeueing owner csvs")
+	a.requeueOwnerCSVs(metaObj)
+
+	// Requeue CSVs with provided and required labels (for CRDs)
+	if labelSets := a.apiLabeler.LabelSetsFor(metaObj); len(labelSets) > 0 {
+		logger.Debug("requeueing providing/requiring csvs")
+		a.requeueCSVsByLabelSet(logger, labelSets...)
+	}
+}
+
+func (a *Operator) requeueCSVsByLabelSet(logger *logrus.Entry, labelSets ...labels.Set) {
+	keys, err := index.LabelIndexKeys(a.csvIndexers, labelSets...)
+	if err != nil {
+		logger.WithError(err).Debug("issue getting csvs by label index")
+		return
+	}
+
+	for _, key := range keys {
+		if err := a.csvQueueSet.RequeueByKey(key); err != nil {
+			logger.WithError(err).Debug("cannot requeue requiring/providing csv")
+		} else {
+			logger.WithField("key", key).Debug("csv successfully requeued on crd change")
+		}
+	}
 }
 
 func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
@@ -1394,4 +1445,23 @@ func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alph
 	logger.Info("updated annotations to match current operatorgroup")
 
 	return utilerrors.NewAggregate(updateErrs)
+}
+
+// ensureLabels merges a label set with a CSV's labels and attempts to update the CSV if the merged set differs from the CSV's original labels.
+func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ...labels.Set) (*v1alpha1.ClusterServiceVersion, error) {
+	csvLabelSet := labels.Set(in.GetLabels())
+	merged := csvLabelSet
+	for _, labelSet := range labelSets {
+		merged = labels.Merge(merged, labelSet)
+	}
+	if labels.Equals(csvLabelSet, merged) {
+		return in, nil
+	}
+
+	a.Log.WithField("labels", merged).Error("Labels updated!")
+
+	out := in.DeepCopy()
+	out.SetLabels(merged)
+	out, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(out)
+	return out, err
 }

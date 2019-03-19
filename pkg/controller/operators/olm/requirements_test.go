@@ -612,7 +612,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			test.existingObjs = append(test.existingObjs, namespaceObj)
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator([]runtime.Object{test.csv}, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, nil, []string{namespace}, stopCh)
+			op, _, err := NewFakeOperator([]runtime.Object{test.csv}, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, nil, nil, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// Get the permission status

@@ -20,7 +20,7 @@ type QueueIndexer struct {
 	log *logrus.Logger
 }
 
-// enqueue adds a key to the queue. If obj is a key already it gets added directly.
+// Enqueue adds a key to the queue. If obj is a key already it gets added directly.
 // Otherwise, the key is extracted via keyFunc.
 func (q *QueueIndexer) Enqueue(obj interface{}) {
 	if obj == nil {

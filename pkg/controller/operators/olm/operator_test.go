@@ -26,6 +26,7 @@ import (
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -49,6 +50,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -133,7 +135,7 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 }
 
 // NewFakeOperator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, strategyResolver install.StrategyResolverInterface, reconciler resolver.APIIntersectionReconciler, namespaces []string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
+func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, strategyResolver install.StrategyResolverInterface, apiReconciler resolver.APIIntersectionReconciler, apiLabeler labeler.Labeler, namespaces []string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
 	// Create client fakes
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
@@ -145,9 +147,13 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		return nil, nil, err
 	}
 
-	if reconciler == nil {
+	if apiReconciler == nil {
 		// Use the default reconciler if one isn't given
-		reconciler = resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection)
+		apiReconciler = resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection)
+	}
+
+	if apiLabeler == nil {
+		apiLabeler = labeler.Func(resolver.LabelSetsFor)
 	}
 
 	// Create the new operator
@@ -156,10 +162,11 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		Operator:      queueOperator,
 		client:        clientFake,
 		resolver:      strategyResolver,
-		apiReconciler: reconciler,
+		apiReconciler: apiReconciler,
 		lister:        operatorlister.NewLister(),
-		csvQueueSet:   make(map[string]workqueue.RateLimitingInterface),
+		csvQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
 		recorder:      eventRecorder,
+		apiLabeler:    apiLabeler,
 	}
 
 	wakeupInterval := 5 * time.Minute
@@ -425,6 +432,10 @@ func withAnnotations(obj runtime.Object, annotations map[string]string) runtime.
 	return meta.(runtime.Object)
 }
 
+func csvWithAnnotations(csv *v1alpha1.ClusterServiceVersion, annotations map[string]string) *v1alpha1.ClusterServiceVersion {
+	return withAnnotations(csv, annotations).(*v1alpha1.ClusterServiceVersion)
+}
+
 func withLabels(obj runtime.Object, labels map[string]string) runtime.Object {
 	meta, ok := obj.(metav1.Object)
 	if !ok {
@@ -434,8 +445,8 @@ func withLabels(obj runtime.Object, labels map[string]string) runtime.Object {
 	return meta.(runtime.Object)
 }
 
-func csvWithAnnotations(csv *v1alpha1.ClusterServiceVersion, annotations map[string]string) *v1alpha1.ClusterServiceVersion {
-	return withAnnotations(csv, annotations).(*v1alpha1.ClusterServiceVersion)
+func csvWithLabels(csv *v1alpha1.ClusterServiceVersion, labels map[string]string) *v1alpha1.ClusterServiceVersion {
+	return withLabels(csv, labels).(*v1alpha1.ClusterServiceVersion)
 }
 
 func addAnnotations(annotations map[string]string, add map[string]string) map[string]string {
@@ -769,7 +780,8 @@ func TestTransitionCSV(t *testing.T) {
 		reason v1alpha1.ConditionReason
 	}
 	type operatorConfig struct {
-		reconciler resolver.APIIntersectionReconciler
+		apiReconciler resolver.APIIntersectionReconciler
+		apiLabeler    labeler.Labeler
 	}
 	type initial struct {
 		csvs       []runtime.Object
@@ -2328,7 +2340,7 @@ func TestTransitionCSV(t *testing.T) {
 			initial: initial{
 				// order matters in this test case - we want to apply the latest CSV first to test the GC marking
 				csvs: []runtime.Object{
-					csvWithAnnotations(csv("csv3",
+					csvWithLabels(csvWithAnnotations(csv("csv3",
 						namespace,
 						"0.0.0",
 						"csv2",
@@ -2336,8 +2348,10 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
-					), defaultTemplateAnnotations),
-					csvWithAnnotations(csv("csv1",
+					), defaultTemplateAnnotations), labels.Set{
+						resolver.APILabelKeyPrefix + "c1.v1.g1": "provided",
+					}),
+					csvWithLabels(csvWithAnnotations(csv("csv1",
 						namespace,
 						"0.0.0",
 						"",
@@ -2345,8 +2359,10 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-					), defaultTemplateAnnotations),
-					csvWithAnnotations(csv("csv2",
+					), defaultTemplateAnnotations), labels.Set{
+						resolver.APILabelKeyPrefix + "c1.v1.g1": "provided",
+					}),
+					csvWithLabels(csvWithAnnotations(csv("csv2",
 						namespace,
 						"0.0.0",
 						"csv1",
@@ -2354,7 +2370,9 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
-					), defaultTemplateAnnotations),
+					), defaultTemplateAnnotations), labels.Set{
+						resolver.APILabelKeyPrefix + "c1.v1.g1": "provided",
+					}),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				crds: []runtime.Object{
@@ -2505,7 +2523,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVNoneToFailed/InterOperatorGroupOwnerConflict",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.APIConflict)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.APIConflict)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2528,7 +2546,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVNoneToNone/AddAPIs",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2551,7 +2569,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVNoneToNone/RemoveAPIs",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2574,7 +2592,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVNoneToFailed/StaticOperatorGroup/AddAPIs",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2604,7 +2622,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVNoneToFailed/StaticOperatorGroup/RemoveAPIs",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2634,7 +2652,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVNoneToPending/StaticOperatorGroup/NoAPIConflict",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2664,7 +2682,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVFailedToPending/InterOperatorGroupOwnerConflict/NoAPIConflict",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
@@ -2687,7 +2705,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVFailedToPending/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/NoAPIConflict",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.NoAPIConflict)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
@@ -2717,7 +2735,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVFailedToFailed/InterOperatorGroupOwnerConflict/APIConflict",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.APIConflict)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.APIConflict)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
@@ -2740,7 +2758,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVFailedToFailed/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/AddAPIs",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.AddAPIs)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
@@ -2770,7 +2788,7 @@ func TestTransitionCSV(t *testing.T) {
 		},
 		{
 			name:   "SingleCSVFailedToFailed/StaticOperatorGroup/CannotModifyStaticOperatorGroupProvidedAPIs/RemoveAPIs",
-			config: operatorConfig{reconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
+			config: operatorConfig{apiReconciler: buildFakeAPIIntersectionReconcilerThatReturns(resolver.RemoveAPIs)},
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csvWithStatusReason(csv("csv1",
@@ -2808,7 +2826,7 @@ func TestTransitionCSV(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, hasSyncedFns, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, tt.config.reconciler, []string{namespace}, stopCh)
+			op, _, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, tt.config.apiReconciler, tt.config.apiLabeler, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
@@ -2816,10 +2834,6 @@ func TestTransitionCSV(t *testing.T) {
 				err := op.syncClusterServiceVersion(csv)
 				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
 				require.Equal(t, expectedErr, err)
-
-				// wait for informers to sync before continuing
-				ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
-				require.True(t, ok, "wait for cache sync failed")
 			}
 
 			// get csvs in the cluster
@@ -2869,7 +2883,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	}
 
 	crd := crd("c1", "v1", "fake.api.group")
-	operatorCSV := csv("csv1",
+	operatorCSV := csvWithLabels(csv("csv1",
 		operatorNamespace,
 		"0.0.0",
 		"",
@@ -2877,7 +2891,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone,
-	)
+	), labels.Set{resolver.APILabelKeyPrefix + "c1.v1.fake.api.group": "provided"})
 
 	serverVersion := version.Get().String()
 	// after state transitions from operatorgroups, this is the operator csv we expect
@@ -3148,7 +3162,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				targetNamespace: {
 					withLabels(
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
-						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
@@ -3248,7 +3262,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				targetNamespace: {
 					withLabels(
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
-						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 					&rbacv1.Role{
 						TypeMeta: metav1.TypeMeta{
@@ -3394,7 +3408,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				targetNamespace: {
 					withLabels(
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
-						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 				},
 			}},
@@ -3507,7 +3521,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 				targetNamespace: {
 					withLabels(
 						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1alpha2.OperatorGroupAnnotationKey: "operator-group-1", v1alpha2.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
-						map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace},
+						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
 					),
 				},
 			}},
@@ -3648,7 +3662,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, hasSyncedFns, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, nil, namespaces, stopCh)
+			op, _, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, nil, nil, namespaces, stopCh)
 			require.NoError(t, err)
 
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
@@ -3660,8 +3674,6 @@ func TestSyncOperatorGroups(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, obj := range opGroupCSVs.Items {
-					ok := cache.WaitForCacheSync(stopCh, hasSyncedFns...)
-					require.True(t, ok, "wait for cache sync failed")
 
 					err = op.syncClusterServiceVersion(&obj)
 					require.NoError(t, err, "%#v", obj)
@@ -3768,7 +3780,7 @@ func TestIsReplacing(t *testing.T) {
 			// configure cluster state
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(tt.initial.csvs, nil, nil, nil, &install.StrategyResolver{}, nil, []string{namespace}, stopCh)
+			op, _, err := NewFakeOperator(tt.initial.csvs, nil, nil, nil, &install.StrategyResolver{}, nil, nil, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expected, op.isReplacing(tt.in))
