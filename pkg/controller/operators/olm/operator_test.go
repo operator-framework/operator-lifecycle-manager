@@ -3362,7 +3362,11 @@ func TestSyncOperatorGroups(t *testing.T) {
 								"olm.owner.kind":      "ClusterServiceVersion",
 							},
 						},
-						Rules: permissions[0].Rules,
+						Rules: append(permissions[0].Rules, rbacv1.PolicyRule{
+							Verbs:     ViewVerbs,
+							APIGroups: []string{corev1.GroupName},
+							Resources: []string{"namespaces"},
+						}),
 					},
 					&rbacv1.ClusterRoleBinding{
 						TypeMeta: metav1.TypeMeta{
@@ -3475,7 +3479,11 @@ func TestSyncOperatorGroups(t *testing.T) {
 								"olm.owner.kind":      "ClusterServiceVersion",
 							},
 						},
-						Rules: permissions[0].Rules,
+						Rules: append(permissions[0].Rules, rbacv1.PolicyRule{
+							Verbs:     ViewVerbs,
+							APIGroups: []string{corev1.GroupName},
+							Resources: []string{"namespaces"},
+						}),
 					},
 					&rbacv1.ClusterRoleBinding{
 						TypeMeta: metav1.TypeMeta{
