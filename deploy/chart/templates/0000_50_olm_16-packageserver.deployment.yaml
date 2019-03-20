@@ -1,4 +1,4 @@
-{{ if (.Values.installType) and eq .Values.installType "ocp" }}
+{{ if and .Values.installType (eq .Values.installType "ocp") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

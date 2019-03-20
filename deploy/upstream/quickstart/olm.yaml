@@ -107,6 +107,7 @@ spec:
             minKubeVersion:
               type: string
               description: Minimum kubernetes version requirement on the server to deploy operator
+              pattern: ^\bv?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*)?(\+[0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*)?$
 
             keywords:
               type: array
@@ -156,22 +157,23 @@ spec:
             icon:
               type: array
               description: Icon which should be rendered with the application information
-              required:
-              - base64data
-              - mediatype
-              properties:
-                base64data:
-                  type: string
-                  description: Base64 binary representation of the icon image
-                  pattern: ^(?:[A-Za-z0-9+/]{4}){0,16250}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$
-                mediatype:
-                  type: string
-                  description: Mediatype for the binary data specified in the base64data property
-                  enum:
-                  - image/gif
-                  - image/jpeg
-                  - image/png
-                  - image/svg+xml
+              items:
+                type: object
+                required:
+                - base64data
+                - mediatype
+                properties:
+                  base64data:
+                    type: string
+                    description: Base64 binary representation of the icon image
+                  mediatype:
+                    type: string
+                    description: Mediatype for the binary data specified in the base64data property
+                    enum:
+                    - image/gif
+                    - image/jpeg
+                    - image/png
+                    - image/svg+xml
             version:
               type: string
               description: Version string, recommended that users use semantic versioning
@@ -745,6 +747,7 @@ spec:
                                         - delete
                                         - deletecollection
                                         - initialize
+                                        - use
                       clusterPermissions:
                         type: array
                         description: Cluster permissions needed by the deployement to run correctly
@@ -1108,7 +1111,7 @@ spec:
           args:
           - -writeStatusName
           - ""
-          image: quay.io/openshift/origin-operator-lifecycle-manager:latest
+          image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -1121,6 +1124,7 @@ spec:
               path: /healthz
               port: 8080
           env:
+        
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
@@ -1159,7 +1163,7 @@ spec:
           - '-namespace'
           - olm
           - -configmapServerImage=quay.io/operatorframework/configmap-operator-registry:latest
-          image: quay.io/openshift/origin-operator-lifecycle-manager:latest
+          image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -1192,6 +1196,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: aggregate-olm-view
   labels:
+    rbac.authorization.k8s.io/aggregate-to-admin: "true"
+    rbac.authorization.k8s.io/aggregate-to-edit: "true"
     rbac.authorization.k8s.io/aggregate-to-view: "true"
 rules:
 - apiGroups: ["operators.coreos.com"]
@@ -1229,35 +1235,41 @@ spec:
             selector:
               type: object
               description: Optional label selector to find resources associated with or managed by the operator
-              properties:
-                matchLabels:
-                  type: object
-                  description: Label key:value pairs to match directly
-                matchExpressions:
-                  type: array
-                  description: A set of expressions to match against the resource.
-                  items:
-                    allOf:
-                      - type: object
-                        required:
-                        - key
-                        - operator
-                        - values
-                        properties:
-                          key:
-                            type: string
-                            description: the key to match
-                          operator:
-                            type: string
-                            description: the operator for the expression
-                            enum:
-                            - In
-                            - NotIn
-                            - Exists
-                            - DoesNotExist
-                          values:
-                            type: array
-                            description: set of values for the expression
+              anyOf:
+                - properties:
+                    matchLabels:
+                      type: object
+                      description: Label key:value pairs to match directly
+                  required:
+                    - matchLabels
+                - properties:
+                    matchExpressions:
+                      type: array
+                      description: A set of expressions to match against the resource.
+                      items:
+                        allOf:
+                          - type: object
+                            required:
+                            - key
+                            - operator
+                            - values
+                            properties:
+                              key:
+                                type: string
+                                description: the key to match
+                              operator:
+                                type: string
+                                description: the operator for the expression
+                                enum:
+                                - In
+                                - NotIn
+                                - Exists
+                                - DoesNotExist
+                              values:
+                                type: array
+                                description: set of values for the expression
+                  required:
+                    - matchExpressions
             targetNamespaces:
               type: array
               description: Optional list of target namespaces. If set, OLM will ignore selector.
@@ -1299,7 +1311,7 @@ data:
     - apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
-        name: packageserver.v4.0.0-olm
+        name: packageserver.v0.8.1
         namespace: olm
       spec:
         displayName: Package Server
@@ -1379,7 +1391,7 @@ data:
                       - "5443"
                       - --global-namespace
                       - olm
-                      image: quay.io/openshift/origin-operator-lifecycle-manager:latest
+                      image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
                       imagePullPolicy: Always
                       ports:
                       - containerPort: 5443
@@ -1394,12 +1406,13 @@ data:
                             path: /healthz
                             port: 5443
         maturity: alpha
-        version: 4.0.0-olm
+        version: 0.8.1
         apiservicedefinitions:
           owned:
           - group: packages.apps.redhat.com
             version: v1alpha1
             kind: PackageManifest
+            name: packagemanifests
             displayName: PackageManifest
             description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
             deploymentName: packageserver
@@ -1409,7 +1422,7 @@ data:
     - packageName: packageserver
       channels:
       - name: alpha
-        currentCSV: packageserver.v4.0.0-olm
+        currentCSV: packageserver.v0.8.1
 
 ---
 apiVersion: operators.coreos.com/v1alpha1
@@ -1448,3 +1461,16 @@ spec:
   sourceNamespace: olm
   name: packageserver
   channel: alpha
+---
+
+apiVersion: operators.coreos.com/v1alpha1
+kind: CatalogSource
+metadata:
+  name: operatorhubio-catalog
+  namespace: olm
+spec:
+  sourceType: grpc
+  image: quay.io/operator-framework/upstream-community-operators:latest
+  displayName: Community Operators
+  publisher: OperatorHub.io
+

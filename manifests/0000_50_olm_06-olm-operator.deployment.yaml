@@ -25,7 +25,7 @@ spec:
           args:
           - -writeStatusName
           - operator-lifecycle-manager
-          image: quay.io/coreos/olm@sha256:995a181839f301585a0e115c083619b6d73812c58a8444d7b13b8e407010325f
+          image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -38,8 +38,10 @@ spec:
               path: /healthz
               port: 8080
           env:
+        
           - name: RELEASE_VERSION
             value: "0.0.1-snapshot"
+        
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
