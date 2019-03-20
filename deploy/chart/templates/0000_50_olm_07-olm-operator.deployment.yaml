@@ -47,6 +47,9 @@ spec:
           {{- end }}
           image: {{ .Values.olm.image.ref }}
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
+          {{- if and .Values.installType (eq .Values.installType "ocp") }}
+          priorityClassName: "system-cluster-critical"
+          {{- end }}
           ports:
             - containerPort: {{ .Values.olm.service.internalPort }}
             - containerPort: 8081

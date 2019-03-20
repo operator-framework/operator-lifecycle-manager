@@ -94,6 +94,7 @@ spec:
                 - openshift-operator-lifecycle-manager
                 image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
                 imagePullPolicy: IfNotPresent
+                priorityClassName: "system-cluster-critical"
                 ports:
                 - containerPort: 5443
                 livenessProbe:

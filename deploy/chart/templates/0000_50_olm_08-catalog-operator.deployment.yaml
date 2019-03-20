@@ -49,6 +49,9 @@ spec:
           {{- end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
+          {{- if and .Values.installType (eq .Values.installType "ocp") }}
+          priorityClassName: "system-cluster-critical"
+          {{- end }}
           ports:
             - containerPort: {{ .Values.catalog.service.internalPort }}
             - containerPort: 8081
