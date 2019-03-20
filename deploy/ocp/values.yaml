@@ -18,6 +18,8 @@ olm:
     node-role.kubernetes.io/master: ""
   tolerations:
   - operator: Exists
+  tlsCertPath: /var/run/secrets/serving-cert/tls.crt
+  tlsKeyPath: /var/run/secrets/serving-cert/tls.key
 catalog:
   replicaCount: 1
   image:

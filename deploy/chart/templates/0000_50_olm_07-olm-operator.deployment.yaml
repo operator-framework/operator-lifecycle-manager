@@ -37,10 +37,21 @@ spec:
           - -writeStatusName
           - {{ .Values.writeStatusName }}
           {{- end }}
+          {{- if .Values.olm.tlsCertPath }}
+          - -tls-cert
+          - {{ .Values.olm.tlsCertPath }}
+          {{- end }}
+          {{- if .Values.olm.tlsKeyPath }}
+          - -tls-key
+          - {{ .Values.olm.tlsKeyPath }}
+          {{- end }}
           image: {{ .Values.olm.image.ref }}
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.olm.service.internalPort }}
+            - containerPort: 8081
+              name: metrics
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
@@ -64,6 +75,14 @@ spec:
           resources:
 {{ toYaml .Values.olm.resources | indent 12 }}
           {{- end}}
+          volumeMounts:
+          - mountPath: /var/run/secrets/serving-cert
+            name: serving-cert
+      volumes:
+      - name: serving-cert
+        secret:
+          secretName: olm-operator-serving-cert
+          optional: true
     {{- if .Values.olm.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.olm.nodeSelector | indent 8 }}
