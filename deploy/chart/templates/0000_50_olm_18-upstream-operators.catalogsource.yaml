@@ -1,3 +1,5 @@
+#! validate-crd: ./deploy/chart/templates/06-catalogsource.crd.yaml
+#! parse-kind: CatalogSource
 {{ if and .Values.installType (eq .Values.installType "upstream") }}
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource

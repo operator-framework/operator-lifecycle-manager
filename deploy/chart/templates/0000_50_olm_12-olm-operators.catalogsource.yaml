@@ -1,4 +1,4 @@
-#! validate-crd: ./deploy/chart/templates/05-catalogsource.crd.yaml
+#! validate-crd: ./deploy/chart/templates/06-catalogsource.crd.yaml
 #! parse-kind: CatalogSource
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource

@@ -1,4 +1,4 @@
-#! validate-crd: ./deploy/chart/templates/04-subscription.crd.yaml
+#! validate-crd: ./deploy/chart/templates/05-subscription.crd.yaml
 #! parse-kind: Subscription
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
