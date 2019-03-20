@@ -35,6 +35,10 @@ spec:
           {{- if .Values.catalog.commandArgs }}
           - {{ .Values.catalog.commandArgs }}
           {{- end }}
+          {{- if .Values.writeStatusNameCatalog }}
+          - -writeStatusName
+          - {{ .Values.writeStatusNameCatalog }}
+          {{- end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:

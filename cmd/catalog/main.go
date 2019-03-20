@@ -8,9 +8,13 @@ import (
 	"strings"
 	"time"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
@@ -22,6 +26,7 @@ const (
 	defaultWakeupInterval       = 15 * time.Minute
 	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
 	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
+	defaultOperatorName         = ""
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -40,6 +45,9 @@ var (
 
 	configmapServerImage = flag.String(
 		"configmapServerImage", defaultConfigMapServerImage, "the image to use for serving the operator registry api for a configmap")
+
+	writeStatusName = flag.String(
+		"writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
@@ -87,6 +95,17 @@ func main() {
 	}
 	logger.Infof("log level %s", logger.Level)
 
+	// create a config client for operator status
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+	configClient, err := configv1client.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
+
 	// Create a new instance of the operator.
 	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
 	if err != nil {
@@ -96,6 +115,12 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	go http.ListenAndServe(":8081", nil)
 
-	_, done, _ := catalogOperator.Run(stopCh)
+	ready, done, sync := catalogOperator.Run(stopCh)
+	<-ready
+
+	if *writeStatusName != "" {
+		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+	}
+
 	<-done
 }

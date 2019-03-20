@@ -5,6 +5,7 @@ catalog_namespace: openshift-operator-lifecycle-manager
 operator_namespace: openshift-operators
 imagestream: true
 writeStatusName: operator-lifecycle-manager
+writeStatusNameCatalog: operator-lifecycle-manager-catalog
 olm:
   replicaCount: 1
   image:

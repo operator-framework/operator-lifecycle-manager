@@ -7,4 +7,13 @@ status:
   versions:
     - name: operator
       version: "0.0.1-snapshot"
+---
+apiVersion: config.openshift.io/v1
+kind: ClusterOperator
+metadata:
+  name: {{ .Values.writeStatusNameCatalog }}
+status:
+  versions:
+    - name: operator
+      version: "0.0.1-snapshot"
 {{- end }}
