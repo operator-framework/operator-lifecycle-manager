@@ -27,22 +27,6 @@ spec:
     matchLabels:
       app: olm-operator
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: olm-operator
-  namespace: {{ .Values.namespace }}
-  labels:
-    app: olm-operator
-spec:
-  ports:
-  - name: http-metrics
-    port: 8081
-    protocol: TCP
-    targetPort: http
-  selector:
-    app: olm-operator
----
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
@@ -72,22 +56,6 @@ spec:
   selector:
     matchLabels:
       app: catalog-operator
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: catalog-operator
-  namespace: {{ .Values.namespace }}
-  labels:
-    app: catalog-operator
-spec:
-  ports:
-  - name: http-metrics
-    port: 8081
-    protocol: TCP
-    targetPort: http
-  selector:
-    app: catalog-operator
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
