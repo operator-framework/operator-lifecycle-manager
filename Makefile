@@ -185,5 +185,5 @@ endif
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)
-	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/manifests/quickstart/olm.yaml
+	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml
 endif
