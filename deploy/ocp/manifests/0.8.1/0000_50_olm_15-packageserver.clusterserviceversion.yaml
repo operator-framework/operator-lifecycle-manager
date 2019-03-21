@@ -1,14 +1,16 @@
-{{ if and .Values.installType (eq .Values.installType "ocp") }}
+---
+# Source: olm/templates/0000_50_olm_15-packageserver.clusterserviceversion.yaml
+
 # keep in sync with _packageserver.clusterserviceversion.yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: packageserver.v{{ .Chart.Version }}
-  namespace: {{ .Values.namespace }}
+  name: packageserver.v0.8.1
+  namespace: openshift-operator-lifecycle-manager
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
-  minKubeVersion: {{ .Values.minKubeVersion }}
+  minKubeVersion: 1.11.0
   keywords: ['packagemanifests', 'olm', 'packages']
   maintainers:
   - name: Red Hat
@@ -57,10 +59,52 @@ spec:
           - get
           - list
       deployments:
-      - name: packageserver
-{{- include "packageserver.deployment-spec" . | indent 8 }}
+      - name: packageserver        
+        spec:
+          strategy:
+            type: RollingUpdate
+          replicas: 2
+          selector:
+            matchLabels:
+              app: packageserver
+          template:
+            metadata:
+              labels:
+                app: packageserver
+            spec:
+              serviceAccountName: packageserver
+              nodeSelector:
+                          beta.kubernetes.io/os: linux
+                          node-role.kubernetes.io/master: ""
+                          
+              tolerations:
+                          - operator: Exists
+                          
+              containers:
+              - name: packageserver
+                command:
+                - /bin/package-server
+                - -v=4
+                - --secure-port
+                - "5443"
+                - --global-namespace
+                - openshift-operator-lifecycle-manager
+                image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
+                imagePullPolicy: IfNotPresent
+                ports:
+                - containerPort: 5443
+                livenessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    path: /healthz
+                    port: 5443
+                readinessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    path: /healthz
+                    port: 5443
   maturity: alpha
-  version: {{ .Chart.Version }}
+  version: 0.8.1
   apiservicedefinitions:
     owned:
     - group: packages.apps.redhat.com
@@ -70,5 +114,5 @@ spec:
       displayName: PackageManifest
       description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
       deploymentName: packageserver
-      containerPort: {{ .Values.package.service.internalPort }}
-{{ end }}
+      containerPort: 5443
+

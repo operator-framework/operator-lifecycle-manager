@@ -5,5 +5,5 @@ metadata:
   name: operator-lifecycle-manager
 status:
   versions:
-  - name: operator
-    version: "0.0.1-snapshot"
+    - name: operator
+      version: "0.0.1-snapshot"
