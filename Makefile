@@ -44,11 +44,16 @@ build: clean $(CMDS)
 build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
 build-coverage: clean $(CMDS)
 
+build-linux: build_cmd=build
+build-linux: arch_flags=GOOS=linux GOARCH=386
+build-linux: clean $(CMDS)
+
 $(CMDS): version_flags=-ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	CGO_ENABLED=0 go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
+	CGO_ENABLED=0 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
 
-run-local:
+run-local: build-linux
+	rm -rf build
 	. ./scripts/build_local.sh
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
@@ -73,7 +78,7 @@ setup-bare: clean e2e.namespace
 e2e:
 	go test -v -failfast -timeout 70m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
 
-e2e-local:
+e2e-local: build-linux
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh $(TEST)
 
