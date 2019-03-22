@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+	"hash/fnv"
 	"sort"
 	"strings"
 
@@ -56,6 +57,14 @@ func GVKStringToProvidedAPISet(gvksStr string) APISet {
 func APIKeyToGVKString(key opregistry.APIKey) string {
 	// TODO: Add better validation of GVK
 	return strings.Join([]string{key.Kind, key.Version, key.Group}, ".")
+}
+
+func APIKeyToGVKHash(key opregistry.APIKey) (string, error) {
+	hash := fnv.New64a()
+	if _, err := hash.Write([]byte(APIKeyToGVKString(key))); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum64()), nil
 }
 
 func (s APISet) String() string {

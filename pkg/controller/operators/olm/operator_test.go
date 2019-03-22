@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +38,8 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
@@ -739,6 +741,9 @@ func generateCA(notAfter time.Time, organization string) (*certs.KeyPair, error)
 func TestTransitionCSV(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	namespace := "ns"
+
+	apiHash, err := resolver.APIKeyToGVKHash(registry.APIKey{Group: "g1", Version: "v1", Kind: "c1"})
+	require.NoError(t, err)
 
 	defaultOperatorGroup := &v1alpha2.OperatorGroup{
 		TypeMeta: metav1.TypeMeta{
@@ -2349,7 +2354,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseSucceeded,
 					), defaultTemplateAnnotations), labels.Set{
-						resolver.APILabelKeyPrefix + "c1.v1.g1": "provided",
+						resolver.APILabelKeyPrefix + apiHash: "provided",
 					}),
 					csvWithLabels(csvWithAnnotations(csv("csv1",
 						namespace,
@@ -2360,7 +2365,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations), labels.Set{
-						resolver.APILabelKeyPrefix + "c1.v1.g1": "provided",
+						resolver.APILabelKeyPrefix + apiHash: "provided",
 					}),
 					csvWithLabels(csvWithAnnotations(csv("csv2",
 						namespace,
@@ -2371,7 +2376,7 @@ func TestTransitionCSV(t *testing.T) {
 						[]*v1beta1.CustomResourceDefinition{},
 						v1alpha1.CSVPhaseReplacing,
 					), defaultTemplateAnnotations), labels.Set{
-						resolver.APILabelKeyPrefix + "c1.v1.g1": "provided",
+						resolver.APILabelKeyPrefix + apiHash: "provided",
 					}),
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
@@ -2891,7 +2896,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone,
-	), labels.Set{resolver.APILabelKeyPrefix + "c1.v1.fake.api.group": "provided"})
+	), labels.Set{resolver.APILabelKeyPrefix + "9f4c46c37bdff8d0": "provided"})
 
 	serverVersion := version.Get().String()
 	// after state transitions from operatorgroups, this is the operator csv we expect

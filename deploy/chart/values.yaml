@@ -1,3 +1,4 @@
+installType: upstream
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: operator-lifecycle-manager
 catalog_namespace: operator-lifecycle-manager
@@ -18,7 +19,7 @@ olm:
 
 catalog:
   replicaCount: 1
-  commandArgs: -configmapServerImage=quay.io/operatorframework/configmap-operator-registry:latest
+  commandArgs: -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always

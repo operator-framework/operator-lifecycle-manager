@@ -335,7 +335,9 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	}
 
 	// Requeue CSVs with provided and required labels (for CRDs)
-	if labelSets := a.apiLabeler.LabelSetsFor(metaObj); len(labelSets) > 0 {
+	if labelSets, err := a.apiLabeler.LabelSetsFor(metaObj); err != nil {
+		logger.WithError(err).Warn("couldn't create label set")
+	} else if len(labelSets) > 0 {
 		logger.Debug("requeueing providing/requiring csvs")
 		a.requeueCSVsByLabelSet(logger, labelSets...)
 	}
@@ -757,15 +759,18 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	}
 
 	// Ensure required and provided API labels
-	updated, err := a.ensureLabels(out, a.apiLabeler.LabelSetsFor(operatorSurface)...)
-	if err != nil {
-		logger.WithError(err).Warn("issue ensuring csv api labels")
-		syncError = err
-		return
+	if labelSets, err := a.apiLabeler.LabelSetsFor(operatorSurface); err != nil {
+		logger.WithError(err).Warn("couldn't create label set")
+	} else if len(labelSets) > 0 {
+		updated, err := a.ensureLabels(out, labelSets...)
+		if err != nil {
+			logger.WithError(err).Warn("issue ensuring csv api labels")
+			syncError = err
+			return
+		}
+		// Update the underlying value of out to preserve changes
+		*out = *updated
 	}
-
-	// Update the underlying value of out to preserve changes
-	*out = *updated
 
 	// Check if the current CSV is being replaced, return with replacing status if so
 	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
@@ -1318,7 +1323,9 @@ func (a *Operator) handleDeletion(obj interface{}) {
 	a.requeueOwnerCSVs(metaObj)
 
 	// Requeue CSVs with provided and required labels (for CRDs)
-	if labelSets := a.apiLabeler.LabelSetsFor(metaObj); len(labelSets) > 0 {
+	if labelSets, err := a.apiLabeler.LabelSetsFor(metaObj); err != nil {
+		logger.WithError(err).Warn("couldn't create label set")
+	} else if len(labelSets) > 0 {
 		logger.Debug("requeueing providing/requiring csvs")
 		a.requeueCSVsByLabelSet(logger, labelSets...)
 	}
