@@ -66,14 +66,18 @@ spec:
           resources:
 {{ toYaml .Values.catalog.resources | indent 12 }}
           {{- end}}
+          {{ if and .Values.installType (eq .Values.installType "ocp") }}
           volumeMounts:
           - mountPath: /var/run/secrets/serving-cert
             name: serving-cert
+          {{ end }}
+      {{ if and .Values.installType (eq .Values.installType "ocp") }}
       volumes:
       - name: serving-cert
         secret:
           secretName: catalog-operator-serving-cert
           optional: true
+      {{ end }}
     {{- if .Values.catalog.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.catalog.nodeSelector | indent 8 }}
