@@ -447,6 +447,40 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func createProjectAdmin(t *testing.T, c operatorclient.ClientInterface, namespace string) (string, cleanupFunc) {
+	sa, err := c.CreateServiceAccount(&corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      genName("padmin-"),
+		},
+	})
+	require.NoError(t, err)
+
+	rb, err := c.CreateRoleBinding(&rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("padmin-"),
+			Namespace: namespace,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     "admin",
+		},
+	})
+	require.NoError(t, err)
+	return "system:serviceaccount:" + sa.GetNamespace() + ":" + sa.GetName(), func() {
+		_ = c.DeleteServiceAccount(sa.GetNamespace(), sa.GetName(), metav1.NewDeleteOptions(0))
+		_ = c.DeleteRoleBinding(rb.GetNamespace(), rb.GetName(), metav1.NewDeleteOptions(0))
+	}
+}
+
 func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Generate namespaceA
 	// Generate namespaceB
@@ -454,7 +488,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Generate csvA with an unfulfilled required CRD and no supported InstallModes in namespaceA
 	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
 	// Update csvA to have OwnNamespace supported=true
-	// Ensure csvA transitions to Pending
+	// Ensure csvA transitions to Succeeded
 	// Update operatorGroupA's target namespaces to select namespaceB
 	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
 	// Update csvA to have SingleNamespace supported=true
@@ -555,8 +589,13 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
 	require.NoError(t, err)
 
-	// Ensure csvA transitions to Pending
-	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	// Create crd so csv succeeds
+	cleanupCRD, err := createCRD(c, crd)
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	// Ensure csvA transitions to Succeeded
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Update operatorGroupA's target namespaces to select namespaceB
@@ -689,6 +728,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Ensure csvD in namespaceD is still successful
 	// Generate csvA in namespaceA that owns crdA
 	// Wait for csvA to be successful
+	// Ensure clusterroles created and aggregated for accessing provided APIs
 	// Wait for operatorGroupA to have providedAPI annotation with crdA's Kind.version.group in its providedAPIs annotation
 	// Wait for csvA to have a CSV with copied status in namespace C
 	// Generate operatorGroupB in namespaceB that selects namespace C
@@ -850,6 +890,25 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Await csvA's success
 	_, err = awaitCSV(t, crc, nsA, csvA.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
+
+	// Ensure clusterroles created and aggregated for access provided APIs
+	padmin, cleanupPadmin := createProjectAdmin(t, c, nsA)
+	defer cleanupPadmin()
+
+	res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&v1.SubjectAccessReview{
+		Spec: v1.SubjectAccessReviewSpec{
+			User: padmin,
+			ResourceAttributes: &v1.ResourceAttributes{
+				Namespace: nsA,
+				Group:     crdA.Spec.Group,
+				Version:   crdA.Spec.Version,
+				Resource:  crdA.Spec.Names.Plural,
+				Verb:      "create",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, res.Status.Allowed, "got %#v", res.Status)
 
 	// Await annotation on groupA
 	q = func() (metav1.ObjectMeta, error) {
