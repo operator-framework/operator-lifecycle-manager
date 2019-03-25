@@ -4,9 +4,9 @@ metadata:
   name: operatorgroups.operators.coreos.com
 spec:
   group: operators.coreos.com
-  version: v1alpha2
+  version: v1
   versions:
-  - name: v1alpha2
+  - name: v1
     served: true
     storage: true
   names:

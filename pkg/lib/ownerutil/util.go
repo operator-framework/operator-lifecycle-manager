@@ -3,8 +3,8 @@ package ownerutil
 import (
 	"fmt"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -353,10 +353,10 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Version: v1alpha1.GroupVersion,
 			Kind:    v1alpha1.CatalogSourceKind,
 		})
-	case *v1alpha2.OperatorGroup:
+	case *v1.OperatorGroup:
 		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
-			Group:   v1alpha2.GroupName,
-			Version: v1alpha2.GroupVersion,
+			Group:   v1.GroupName,
+			Version: v1.GroupVersion,
 			Kind:    "OperatorGroup",
 		})
 	default:

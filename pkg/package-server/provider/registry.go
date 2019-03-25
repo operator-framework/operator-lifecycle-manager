@@ -23,7 +23,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
 )
 
 const (
@@ -210,7 +210,7 @@ func (p *RegistryProvider) catalogSourceDeleted(obj interface{}) {
 
 }
 
-func (p *RegistryProvider) Get(namespace, name string) (*v1alpha1.PackageManifest, error) {
+func (p *RegistryProvider) Get(namespace, name string) (*v1.PackageManifest, error) {
 	logger := logrus.WithFields(logrus.Fields{
 		"action":    "Get PackageManifest",
 		"name":      name,
@@ -232,7 +232,7 @@ func (p *RegistryProvider) Get(namespace, name string) (*v1alpha1.PackageManifes
 	return nil, nil
 }
 
-func (p *RegistryProvider) List(namespace string) (*v1alpha1.PackageManifestList, error) {
+func (p *RegistryProvider) List(namespace string) (*v1.PackageManifestList, error) {
 	logger := logrus.WithFields(logrus.Fields{
 		"action":    "List PackageManifests",
 		"namespace": namespace,
@@ -241,7 +241,7 @@ func (p *RegistryProvider) List(namespace string) (*v1alpha1.PackageManifestList
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	pkgs := []v1alpha1.PackageManifest{}
+	pkgs := []v1.PackageManifest{}
 	for _, client := range p.clients {
 		if client.source.GetNamespace() == namespace || client.source.GetNamespace() == p.globalNamespace || namespace == metav1.NamespaceAll {
 			logger.Debugf("found CatalogSource %s", client.source.GetName())
@@ -279,26 +279,26 @@ func (p *RegistryProvider) List(namespace string) (*v1alpha1.PackageManifestList
 		}
 	}
 
-	return &v1alpha1.PackageManifestList{Items: pkgs}, nil
+	return &v1.PackageManifestList{Items: pkgs}, nil
 }
 
-func toPackageManifest(pkg *api.Package, client registryClient) (*v1alpha1.PackageManifest, error) {
+func toPackageManifest(pkg *api.Package, client registryClient) (*v1.PackageManifest, error) {
 	pkgChannels := pkg.GetChannels()
 	catsrc := client.source
-	manifest := &v1alpha1.PackageManifest{
+	manifest := &v1.PackageManifest{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              pkg.GetName(),
 			Namespace:         catsrc.GetNamespace(),
 			Labels:            catsrc.GetLabels(),
 			CreationTimestamp: catsrc.GetCreationTimestamp(),
 		},
-		Status: v1alpha1.PackageManifestStatus{
+		Status: v1.PackageManifestStatus{
 			CatalogSource:            catsrc.GetName(),
 			CatalogSourceDisplayName: catsrc.Spec.DisplayName,
 			CatalogSourcePublisher:   catsrc.Spec.Publisher,
 			CatalogSourceNamespace:   catsrc.GetNamespace(),
 			PackageName:              pkg.Name,
-			Channels:                 make([]v1alpha1.PackageChannel, len(pkgChannels)),
+			Channels:                 make([]v1.PackageChannel, len(pkgChannels)),
 			DefaultChannel:           pkg.GetDefaultChannelName(),
 		},
 	}
@@ -319,14 +319,14 @@ func toPackageManifest(pkg *api.Package, client registryClient) (*v1alpha1.Packa
 		if err != nil {
 			return nil, err
 		}
-		manifest.Status.Channels[i] = v1alpha1.PackageChannel{
+		manifest.Status.Channels[i] = v1.PackageChannel{
 			Name:           pkgChannel.GetName(),
 			CurrentCSV:     csv.GetName(),
-			CurrentCSVDesc: v1alpha1.CreateCSVDescription(&csv),
+			CurrentCSVDesc: v1.CreateCSVDescription(&csv),
 		}
 
 		if manifest.Status.DefaultChannel != "" && csv.GetName() == manifest.Status.DefaultChannel || i == 0 {
-			manifest.Status.Provider = v1alpha1.AppLink{
+			manifest.Status.Provider = v1.AppLink{
 				Name: csv.Spec.Provider.Name,
 				URL:  csv.Spec.Provider.URL,
 			}

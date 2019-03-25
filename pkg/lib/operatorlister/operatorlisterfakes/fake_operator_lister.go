@@ -48,6 +48,16 @@ type FakeOperatorLister struct {
 	coreV1ReturnsOnCall map[int]struct {
 		result1 operatorlister.CoreV1Lister
 	}
+	OperatorsV1Stub        func() operatorlister.OperatorsV1Lister
+	operatorsV1Mutex       sync.RWMutex
+	operatorsV1ArgsForCall []struct {
+	}
+	operatorsV1Returns struct {
+		result1 operatorlister.OperatorsV1Lister
+	}
+	operatorsV1ReturnsOnCall map[int]struct {
+		result1 operatorlister.OperatorsV1Lister
+	}
 	OperatorsV1alpha1Stub        func() operatorlister.OperatorsV1alpha1Lister
 	operatorsV1alpha1Mutex       sync.RWMutex
 	operatorsV1alpha1ArgsForCall []struct {
@@ -57,16 +67,6 @@ type FakeOperatorLister struct {
 	}
 	operatorsV1alpha1ReturnsOnCall map[int]struct {
 		result1 operatorlister.OperatorsV1alpha1Lister
-	}
-	OperatorsV1alpha2Stub        func() operatorlister.OperatorsV1alpha2Lister
-	operatorsV1alpha2Mutex       sync.RWMutex
-	operatorsV1alpha2ArgsForCall []struct {
-	}
-	operatorsV1alpha2Returns struct {
-		result1 operatorlister.OperatorsV1alpha2Lister
-	}
-	operatorsV1alpha2ReturnsOnCall map[int]struct {
-		result1 operatorlister.OperatorsV1alpha2Lister
 	}
 	RbacV1Stub        func() operatorlister.RbacV1Lister
 	rbacV1Mutex       sync.RWMutex
@@ -290,6 +290,58 @@ func (fake *FakeOperatorLister) CoreV1ReturnsOnCall(i int, result1 operatorliste
 	}{result1}
 }
 
+func (fake *FakeOperatorLister) OperatorsV1() operatorlister.OperatorsV1Lister {
+	fake.operatorsV1Mutex.Lock()
+	ret, specificReturn := fake.operatorsV1ReturnsOnCall[len(fake.operatorsV1ArgsForCall)]
+	fake.operatorsV1ArgsForCall = append(fake.operatorsV1ArgsForCall, struct {
+	}{})
+	fake.recordInvocation("OperatorsV1", []interface{}{})
+	fake.operatorsV1Mutex.Unlock()
+	if fake.OperatorsV1Stub != nil {
+		return fake.OperatorsV1Stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	fakeReturns := fake.operatorsV1Returns
+	return fakeReturns.result1
+}
+
+func (fake *FakeOperatorLister) OperatorsV1CallCount() int {
+	fake.operatorsV1Mutex.RLock()
+	defer fake.operatorsV1Mutex.RUnlock()
+	return len(fake.operatorsV1ArgsForCall)
+}
+
+func (fake *FakeOperatorLister) OperatorsV1Calls(stub func() operatorlister.OperatorsV1Lister) {
+	fake.operatorsV1Mutex.Lock()
+	defer fake.operatorsV1Mutex.Unlock()
+	fake.OperatorsV1Stub = stub
+}
+
+func (fake *FakeOperatorLister) OperatorsV1Returns(result1 operatorlister.OperatorsV1Lister) {
+	fake.operatorsV1Mutex.Lock()
+	defer fake.operatorsV1Mutex.Unlock()
+	fake.OperatorsV1Stub = nil
+	fake.operatorsV1Returns = struct {
+		result1 operatorlister.OperatorsV1Lister
+	}{result1}
+}
+
+func (fake *FakeOperatorLister) OperatorsV1ReturnsOnCall(i int, result1 operatorlister.OperatorsV1Lister) {
+	fake.operatorsV1Mutex.Lock()
+	defer fake.operatorsV1Mutex.Unlock()
+	fake.OperatorsV1Stub = nil
+	if fake.operatorsV1ReturnsOnCall == nil {
+		fake.operatorsV1ReturnsOnCall = make(map[int]struct {
+			result1 operatorlister.OperatorsV1Lister
+		})
+	}
+	fake.operatorsV1ReturnsOnCall[i] = struct {
+		result1 operatorlister.OperatorsV1Lister
+	}{result1}
+}
+
 func (fake *FakeOperatorLister) OperatorsV1alpha1() operatorlister.OperatorsV1alpha1Lister {
 	fake.operatorsV1alpha1Mutex.Lock()
 	ret, specificReturn := fake.operatorsV1alpha1ReturnsOnCall[len(fake.operatorsV1alpha1ArgsForCall)]
@@ -339,58 +391,6 @@ func (fake *FakeOperatorLister) OperatorsV1alpha1ReturnsOnCall(i int, result1 op
 	}
 	fake.operatorsV1alpha1ReturnsOnCall[i] = struct {
 		result1 operatorlister.OperatorsV1alpha1Lister
-	}{result1}
-}
-
-func (fake *FakeOperatorLister) OperatorsV1alpha2() operatorlister.OperatorsV1alpha2Lister {
-	fake.operatorsV1alpha2Mutex.Lock()
-	ret, specificReturn := fake.operatorsV1alpha2ReturnsOnCall[len(fake.operatorsV1alpha2ArgsForCall)]
-	fake.operatorsV1alpha2ArgsForCall = append(fake.operatorsV1alpha2ArgsForCall, struct {
-	}{})
-	fake.recordInvocation("OperatorsV1alpha2", []interface{}{})
-	fake.operatorsV1alpha2Mutex.Unlock()
-	if fake.OperatorsV1alpha2Stub != nil {
-		return fake.OperatorsV1alpha2Stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	fakeReturns := fake.operatorsV1alpha2Returns
-	return fakeReturns.result1
-}
-
-func (fake *FakeOperatorLister) OperatorsV1alpha2CallCount() int {
-	fake.operatorsV1alpha2Mutex.RLock()
-	defer fake.operatorsV1alpha2Mutex.RUnlock()
-	return len(fake.operatorsV1alpha2ArgsForCall)
-}
-
-func (fake *FakeOperatorLister) OperatorsV1alpha2Calls(stub func() operatorlister.OperatorsV1alpha2Lister) {
-	fake.operatorsV1alpha2Mutex.Lock()
-	defer fake.operatorsV1alpha2Mutex.Unlock()
-	fake.OperatorsV1alpha2Stub = stub
-}
-
-func (fake *FakeOperatorLister) OperatorsV1alpha2Returns(result1 operatorlister.OperatorsV1alpha2Lister) {
-	fake.operatorsV1alpha2Mutex.Lock()
-	defer fake.operatorsV1alpha2Mutex.Unlock()
-	fake.OperatorsV1alpha2Stub = nil
-	fake.operatorsV1alpha2Returns = struct {
-		result1 operatorlister.OperatorsV1alpha2Lister
-	}{result1}
-}
-
-func (fake *FakeOperatorLister) OperatorsV1alpha2ReturnsOnCall(i int, result1 operatorlister.OperatorsV1alpha2Lister) {
-	fake.operatorsV1alpha2Mutex.Lock()
-	defer fake.operatorsV1alpha2Mutex.Unlock()
-	fake.OperatorsV1alpha2Stub = nil
-	if fake.operatorsV1alpha2ReturnsOnCall == nil {
-		fake.operatorsV1alpha2ReturnsOnCall = make(map[int]struct {
-			result1 operatorlister.OperatorsV1alpha2Lister
-		})
-	}
-	fake.operatorsV1alpha2ReturnsOnCall[i] = struct {
-		result1 operatorlister.OperatorsV1alpha2Lister
 	}{result1}
 }
 
@@ -457,10 +457,10 @@ func (fake *FakeOperatorLister) Invocations() map[string][][]interface{} {
 	defer fake.appsV1Mutex.RUnlock()
 	fake.coreV1Mutex.RLock()
 	defer fake.coreV1Mutex.RUnlock()
+	fake.operatorsV1Mutex.RLock()
+	defer fake.operatorsV1Mutex.RUnlock()
 	fake.operatorsV1alpha1Mutex.RLock()
 	defer fake.operatorsV1alpha1Mutex.RUnlock()
-	fake.operatorsV1alpha2Mutex.RLock()
-	defer fake.operatorsV1alpha2Mutex.RUnlock()
 	fake.rbacV1Mutex.RLock()
 	defer fake.rbacV1Mutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

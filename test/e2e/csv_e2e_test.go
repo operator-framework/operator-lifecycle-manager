@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -19,8 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
@@ -120,23 +119,23 @@ func newNginxDeployment(name string) appsv1.DeploymentSpec {
 			},
 		},
 		Replicas: &singleInstance,
-		Template: v1.PodTemplateSpec{
+		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					"app": name,
 				},
 			},
-			Spec: v1.PodSpec{
-				Containers: []v1.Container{
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
 					{
 						Name:  genName("nginx"),
 						Image: "bitnami/nginx:latest",
-						Ports: []v1.ContainerPort{
+						Ports: []corev1.ContainerPort{
 							{
 								ContainerPort: 80,
 							},
 						},
-						ImagePullPolicy: v1.PullIfNotPresent,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 					},
 				},
 			},
@@ -152,14 +151,14 @@ func newMockExtServerDeployment(name, mockGroupVersion string, mockKinds []strin
 			},
 		},
 		Replicas: &singleInstance,
-		Template: v1.PodTemplateSpec{
+		Template: corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{
 				Labels: map[string]string{
 					"app": name,
 				},
 			},
-			Spec: v1.PodSpec{
-				Containers: []v1.Container{
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
 					{
 						Name:    genName(name),
 						Image:   "quay.io/coreos/mock-extension-apiserver:master",
@@ -174,12 +173,12 @@ func newMockExtServerDeployment(name, mockGroupVersion string, mockKinds []strin
 							"5443",
 							"--debug",
 						},
-						Ports: []v1.ContainerPort{
+						Ports: []corev1.ContainerPort{
 							{
 								ContainerPort: 5443,
 							},
 						},
-						ImagePullPolicy: v1.PullIfNotPresent,
+						ImagePullPolicy: corev1.PullIfNotPresent,
 					},
 				},
 			},
@@ -1538,31 +1537,31 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 	}()
 
 	// Create a new operator group for the new namespace
-	operatorGroup := v1alpha2.OperatorGroup{
+	operatorGroup := v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("e2e-operator-group-"),
 			Namespace: secondNamespaceName,
 		},
-		Spec: v1alpha2.OperatorGroupSpec{
+		Spec: v1.OperatorGroupSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchingLabel,
 			},
 		},
 	}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(secondNamespaceName).Create(&operatorGroup)
+	_, err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Create(&operatorGroup)
 	require.NoError(t, err)
 	defer func() {
-		err = crc.OperatorsV1alpha2().OperatorGroups(secondNamespaceName).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+		err = crc.OperatorsV1().OperatorGroups(secondNamespaceName).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}()
 
-	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
+	expectedOperatorGroupStatus := v1.OperatorGroupStatus{
 		Namespaces: []string{secondNamespaceName},
 	}
 
 	t.Log("Waiting on new operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(secondNamespaceName).Get(operatorGroup.Name, metav1.GetOptions{})
+		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(secondNamespaceName).Get(operatorGroup.Name, metav1.GetOptions{})
 		if fetchErr != nil {
 			return false, fetchErr
 		}

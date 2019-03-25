@@ -29,9 +29,9 @@ func TestOwnerReferenceGCBehavior(t *testing.T) {
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
-	fetchedA, err := crc.Operators().ClusterServiceVersions(testNamespace).Create(&ownerA)
+	fetchedA, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&ownerA)
 	require.NoError(t, err)
-	fetchedB, err := crc.Operators().ClusterServiceVersions(testNamespace).Create(&ownerB)
+	fetchedB, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&ownerB)
 	require.NoError(t, err)
 
 	dependent := &corev1.ConfigMap{
@@ -52,12 +52,12 @@ func TestOwnerReferenceGCBehavior(t *testing.T) {
 	// delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)
 	propagation := metav1.DeletionPropagation("Foreground")
 	options := metav1.DeleteOptions{PropagationPolicy: &propagation}
-	err = crc.Operators().ClusterServiceVersions(testNamespace).Delete(fetchedA.GetName(), &options)
+	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedA.GetName(), &options)
 	require.NoError(t, err)
 
 	// wait for deletion of ownerA
 	waitForDelete(func() error {
-		_, err := crc.Operators().ClusterServiceVersions(testNamespace).Get(ownerA.GetName(), metav1.GetOptions{})
+		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerA.GetName(), metav1.GetOptions{})
 		return err
 	})
 
@@ -67,12 +67,12 @@ func TestOwnerReferenceGCBehavior(t *testing.T) {
 	t.Log("dependent still exists after one owner was deleted")
 
 	// delete ownerB in the foreground (to ensure any "blocking" dependents are deleted before ownerB)
-	err = crc.Operators().ClusterServiceVersions(testNamespace).Delete(fetchedB.GetName(), &options)
+	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedB.GetName(), &options)
 	require.NoError(t, err)
 
 	// wait for deletion of ownerB
 	waitForDelete(func() error {
-		_, err := crc.Operators().ClusterServiceVersions(testNamespace).Get(ownerB.GetName(), metav1.GetOptions{})
+		_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerB.GetName(), metav1.GetOptions{})
 		return err
 	})
 

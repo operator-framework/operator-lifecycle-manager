@@ -30,56 +30,56 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                            schema_api_apis_operators_v1alpha1_InstallMode(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink":               schema_package_server_apis_packagemanifest_v1alpha1_AppLink(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.CSVDescription":        schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.Icon":                  schema_package_server_apis_packagemanifest_v1alpha1_Icon(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageChannel":        schema_package_server_apis_packagemanifest_v1alpha1_PackageChannel(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifest":       schema_package_server_apis_packagemanifest_v1alpha1_PackageManifest(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestList":   schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestList(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestSpec":   schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestSpec(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestStatus": schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                                   schema_pkg_apis_meta_v1_APIGroup(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                               schema_pkg_apis_meta_v1_APIGroupList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                                schema_pkg_apis_meta_v1_APIResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                            schema_pkg_apis_meta_v1_APIResourceList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                                schema_pkg_apis_meta_v1_APIVersions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                              schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                                   schema_pkg_apis_meta_v1_Duration(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ExportOptions":                                                                              schema_pkg_apis_meta_v1_ExportOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                                 schema_pkg_apis_meta_v1_GetOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                                  schema_pkg_apis_meta_v1_GroupKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                              schema_pkg_apis_meta_v1_GroupResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                               schema_pkg_apis_meta_v1_GroupVersion(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                                   schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                           schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                                       schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializer":                                                                                schema_pkg_apis_meta_v1_Initializer(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializers":                                                                               schema_pkg_apis_meta_v1_Initializers(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                              schema_pkg_apis_meta_v1_InternalEvent(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                              schema_pkg_apis_meta_v1_LabelSelector(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                                   schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                                       schema_pkg_apis_meta_v1_List(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                                   schema_pkg_apis_meta_v1_ListMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                                schema_pkg_apis_meta_v1_ListOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                                  schema_pkg_apis_meta_v1_MicroTime(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                                 schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                             schema_pkg_apis_meta_v1_OwnerReference(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                                      schema_pkg_apis_meta_v1_Patch(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                              schema_pkg_apis_meta_v1_Preconditions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                                  schema_pkg_apis_meta_v1_RootPaths(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                                  schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                                     schema_pkg_apis_meta_v1_Status(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                                schema_pkg_apis_meta_v1_StatusCause(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                              schema_pkg_apis_meta_v1_StatusDetails(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                                       schema_pkg_apis_meta_v1_Time(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                                  schema_pkg_apis_meta_v1_Timestamp(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                                   schema_pkg_apis_meta_v1_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                                 schema_pkg_apis_meta_v1_WatchEvent(ref),
-		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                                    schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                                        schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                                         schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		"k8s.io/apimachinery/pkg/version.Info":                                                                                            schema_k8sio_apimachinery_pkg_version_Info(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                      schema_api_apis_operators_v1alpha1_InstallMode(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink":               schema_package_server_apis_packagemanifest_v1_AppLink(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.CSVDescription":        schema_package_server_apis_packagemanifest_v1_CSVDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.Icon":                  schema_package_server_apis_packagemanifest_v1_Icon(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageChannel":        schema_package_server_apis_packagemanifest_v1_PackageChannel(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifest":       schema_package_server_apis_packagemanifest_v1_PackageManifest(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestList":   schema_package_server_apis_packagemanifest_v1_PackageManifestList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestSpec":   schema_package_server_apis_packagemanifest_v1_PackageManifestSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestStatus": schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                             schema_pkg_apis_meta_v1_APIGroup(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                         schema_pkg_apis_meta_v1_APIGroupList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                          schema_pkg_apis_meta_v1_APIResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                      schema_pkg_apis_meta_v1_APIResourceList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                          schema_pkg_apis_meta_v1_APIVersions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                        schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                             schema_pkg_apis_meta_v1_Duration(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ExportOptions":                                                                        schema_pkg_apis_meta_v1_ExportOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                           schema_pkg_apis_meta_v1_GetOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                            schema_pkg_apis_meta_v1_GroupKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                        schema_pkg_apis_meta_v1_GroupResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                         schema_pkg_apis_meta_v1_GroupVersion(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                             schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                     schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                                 schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializer":                                                                          schema_pkg_apis_meta_v1_Initializer(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializers":                                                                         schema_pkg_apis_meta_v1_Initializers(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                        schema_pkg_apis_meta_v1_InternalEvent(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                        schema_pkg_apis_meta_v1_LabelSelector(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                             schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                                 schema_pkg_apis_meta_v1_List(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                             schema_pkg_apis_meta_v1_ListMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                          schema_pkg_apis_meta_v1_ListOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                            schema_pkg_apis_meta_v1_MicroTime(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                           schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                       schema_pkg_apis_meta_v1_OwnerReference(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                                schema_pkg_apis_meta_v1_Patch(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                        schema_pkg_apis_meta_v1_Preconditions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                            schema_pkg_apis_meta_v1_RootPaths(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                            schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                               schema_pkg_apis_meta_v1_Status(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                          schema_pkg_apis_meta_v1_StatusCause(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                        schema_pkg_apis_meta_v1_StatusDetails(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                                 schema_pkg_apis_meta_v1_Time(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                            schema_pkg_apis_meta_v1_Timestamp(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                             schema_pkg_apis_meta_v1_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                           schema_pkg_apis_meta_v1_WatchEvent(ref),
+		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                              schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                                  schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                                   schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		"k8s.io/apimachinery/pkg/version.Info":                                                                                      schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
@@ -109,7 +109,7 @@ func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -134,7 +134,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_AppLink(ref common.Refe
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_CSVDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -154,7 +154,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref comm
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.Icon"),
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.Icon"),
 									},
 								},
 							},
@@ -163,7 +163,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref comm
 					"provider": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Provider is the CSV's provider",
-							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink"),
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink"),
 						},
 					},
 					"annotations": {
@@ -203,11 +203,11 @@ func schema_package_server_apis_packagemanifest_v1alpha1_CSVDescription(ref comm
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.Icon"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -232,7 +232,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_Icon(ref common.Referen
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_PackageChannel(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_PackageChannel(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -255,7 +255,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageChannel(ref comm
 					"currentCSVDesc": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CurrentCSVSpec holds the spec of the current CSV",
-							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.CSVDescription"),
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.CSVDescription"),
 						},
 					},
 				},
@@ -263,11 +263,11 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageChannel(ref comm
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.CSVDescription"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.CSVDescription"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_PackageManifest(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -294,23 +294,23 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifest(ref com
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestSpec"),
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestStatus"),
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_PackageManifestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -341,7 +341,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestList(ref
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifest"),
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifest"),
 									},
 								},
 							},
@@ -352,11 +352,11 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestList(ref
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_PackageManifestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -368,7 +368,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestSpec(ref
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -403,7 +403,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 					"provider": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Provider is the provider of the PackageManifest's default CSV",
-							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink"),
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink"),
 						},
 					},
 					"packageName": {
@@ -420,7 +420,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageChannel"),
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageChannel"),
 									},
 								},
 							},
@@ -438,7 +438,7 @@ func schema_package_server_apis_packagemanifest_v1alpha1_PackageManifestStatus(r
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1.PackageChannel"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageChannel"},
 	}
 }
 

@@ -63,8 +63,8 @@ spec:
   version: {{ .Chart.Version }}
   apiservicedefinitions:
     owned:
-    - group: packages.apps.redhat.com
-      version: v1alpha1
+    - group: operators.coreos.com
+      version: v1
       kind: PackageManifest
       name: packagemanifest
       displayName: PackageManifest

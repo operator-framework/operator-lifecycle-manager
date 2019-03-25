@@ -1364,7 +1364,7 @@ func (o *Operator) getUpdatedOwnerReferences(refs []metav1.OwnerReference, names
 
 	for i, owner := range refs {
 		if owner.Kind == v1alpha1.ClusterServiceVersionKind {
-			csv, err := o.client.Operators().ClusterServiceVersions(namespace).Get(owner.Name, metav1.GetOptions{})
+			csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(owner.Name, metav1.GetOptions{})
 			if err != nil {
 				return nil, err
 			}

@@ -14,7 +14,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
@@ -116,7 +116,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	_, err = c.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&v1alpha2.OperatorGroup{
+	_, err = c.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "opgroup",
 			Namespace: testNamespace,
