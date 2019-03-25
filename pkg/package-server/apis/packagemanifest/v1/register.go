@@ -13,7 +13,7 @@ var (
 )
 
 const (
-	Group                   = operators.GroupName
+	Group                   = "packages." + operators.GroupName
 	Version                 = "v1"
 	PackageManifestKind     = "PackageManifest"
 	PackageManifestListKind = "PackageManifestList"

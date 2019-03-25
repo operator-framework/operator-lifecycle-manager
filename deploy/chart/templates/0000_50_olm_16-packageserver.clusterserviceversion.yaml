@@ -34,6 +34,13 @@ spec:
       - serviceAccountName: packageserver
         rules:
         - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+          - get
+        - apiGroups:
           - ""
           resources:
           - configmaps
@@ -50,12 +57,12 @@ spec:
           - list
           - watch
         - apiGroups:
-          - packages.apps.redhat.com
+            - "packages.operators.coreos.com"
           resources:
-          - packagemanifests
+            - packagemanifests
           verbs:
-          - get
-          - list
+            - get
+            - list
       deployments:
       - name: packageserver
 {{- include "packageserver.deployment-spec" . | indent 8 }}
@@ -63,7 +70,7 @@ spec:
   version: {{ .Chart.Version }}
   apiservicedefinitions:
     owned:
-    - group: operators.coreos.com
+    - group: packages.operators.coreos.com
       version: v1
       kind: PackageManifest
       name: packagemanifest

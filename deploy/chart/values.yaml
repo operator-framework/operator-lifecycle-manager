@@ -7,6 +7,7 @@ minKubeVersion: 1.11.0
 writeStatusName: '""'
 imagestream: false
 debug: false
+installType: upstream
 olm:
   replicaCount: 1
   image:

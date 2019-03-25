@@ -644,8 +644,8 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
 					{
-						Group:       "packages.apps.redhat.com",
-						Version:     "v1alpha1",
+						Group:       "packages.operators.coreos.com",
+						Version:     "v1",
 						Kind:        "PackageManifest",
 						DisplayName: "Package Manifest",
 						Description: "An apiservice that exists",
@@ -1054,8 +1054,8 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Required: []v1alpha1.APIServiceDescription{
 					{
-						Group:       "packages.apps.redhat.com",
-						Version:     "v1alpha1",
+						Group:       "packages.operators.coreos.com",
+						Version:     "v1",
 						Kind:        "PackageManifest",
 						DisplayName: "Package Manifest",
 						Description: "An apiservice that exists",
