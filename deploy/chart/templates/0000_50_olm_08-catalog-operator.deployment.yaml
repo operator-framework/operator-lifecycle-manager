@@ -62,6 +62,11 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
+          env:
+          {{ if and .Values.installType (eq .Values.installType "ocp") }}
+          - name: RELEASE_VERSION
+            value: "0.0.1-snapshot"
+          {{ end }}
           {{- if .Values.catalog.resources }}
           resources:
 {{ toYaml .Values.catalog.resources | indent 12 }}

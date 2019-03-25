@@ -25,10 +25,17 @@ spec:
           args:
           - -writeStatusName
           - operator-lifecycle-manager
+          - -tls-cert
+          - /var/run/secrets/serving-cert/tls.crt
+          - -tls-key
+          - /var/run/secrets/serving-cert/tls.key
           image: quay.io/operator-framework/olm@sha256:4b7dec341fc754fdd2c8784ca7d81747ebbb2b87866b9e61ebbebc8c5614cfdc
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
+            - containerPort: 8081
+              name: metrics
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
@@ -48,6 +55,18 @@ spec:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
             value: olm-operator
+          
+          volumeMounts:
+          - mountPath: /var/run/secrets/serving-cert
+            name: serving-cert
+          
+      
+      volumes:
+      - name: serving-cert
+        secret:
+          secretName: olm-operator-serving-cert
+          optional: true
+      
       nodeSelector:
         beta.kubernetes.io/os: linux
         node-role.kubernetes.io/master: ""

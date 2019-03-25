@@ -10,5 +10,5 @@ spec:
   - name: operator-registry
     from:
       kind: DockerImage
-      name: quay.io/operatorframework/configmap-operator-registry:latest
+      name: quay.io/operator-framework/configmap-operator-registry:latest
 {{- end }}

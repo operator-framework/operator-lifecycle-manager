@@ -1,4 +1,3 @@
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,12 +19,12 @@ spec:
     spec:
       serviceAccountName: packageserver
       nodeSelector:
-                  beta.kubernetes.io/os: linux
-                  node-role.kubernetes.io/master: ""
-                  
+        beta.kubernetes.io/os: linux
+        node-role.kubernetes.io/master: ""
+        
       tolerations:
-                  - operator: Exists
-                  
+        - operator: Exists
+        
       containers:
       - name: packageserver
         command:
@@ -49,4 +48,3 @@ spec:
             scheme: HTTPS
             path: /healthz
             port: 5443
-

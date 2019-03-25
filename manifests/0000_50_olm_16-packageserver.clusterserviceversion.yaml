@@ -1,4 +1,3 @@
-
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
@@ -33,6 +32,13 @@ spec:
       - serviceAccountName: packageserver
         rules:
         - apiGroups:
+            - authorization.k8s.io
+          resources:
+            - subjectaccessreviews
+          verbs:
+            - create
+            - get
+        - apiGroups:
           - ""
           resources:
           - configmaps
@@ -41,7 +47,7 @@ spec:
           - list
           - watch
         - apiGroups:
-          - operators.coreos.com
+          - "operators.coreos.com"
           resources:
           - catalogsources
           verbs:
@@ -49,14 +55,14 @@ spec:
           - list
           - watch
         - apiGroups:
-          - packages.apps.redhat.com
+          - "packages.operators.coreos.com"
           resources:
           - packagemanifests
           verbs:
           - get
           - list
       deployments:
-      - name: packageserver        
+      - name: packageserver
         spec:
           strategy:
             type: RollingUpdate
@@ -71,12 +77,12 @@ spec:
             spec:
               serviceAccountName: packageserver
               nodeSelector:
-                          beta.kubernetes.io/os: linux
-                          node-role.kubernetes.io/master: ""
-                          
+                beta.kubernetes.io/os: linux
+                node-role.kubernetes.io/master: ""
+
               tolerations:
-                          - operator: Exists
-                          
+                - operator: Exists
+
               containers:
               - name: packageserver
                 command:
@@ -104,12 +110,11 @@ spec:
   version: 0.8.1
   apiservicedefinitions:
     owned:
-    - group: packages.apps.redhat.com
-      version: v1alpha1
+    - group: packages.operators.coreos.com
+      version: v1
       kind: PackageManifest
-      name: packagemanifest
+      name: packagemanifests
       displayName: PackageManifest
       description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
       deploymentName: packageserver
       containerPort: 5443
-
