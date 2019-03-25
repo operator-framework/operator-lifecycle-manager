@@ -19,8 +19,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -1742,6 +1743,72 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 
 	_, err = fetchCSV(t, crc, csv2.Name, secondNamespaceName, csvFailedChecker)
 	require.NoError(t, err)
+}
+
+func TestOrphanedAPIServiceCleanUp(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+
+	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	version := "v1alpha1"
+	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
+
+	apiService := &apiregistrationv1.APIService{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: apiServiceName,
+		},
+		Spec: apiregistrationv1.APIServiceSpec{
+			Group:                mockGroup,
+			Version:              version,
+			GroupPriorityMinimum: 100,
+			VersionPriority:      100,
+		},
+	}
+
+	watcher, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().Watch(metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
+	require.NoError(t, err)
+
+	deleted := make(chan struct{})
+	quit := make(chan struct{})
+	defer close(quit)
+	go func() {
+		events := watcher.ResultChan()
+		for {
+			select {
+			case <-quit:
+				return
+			case evt := <-events:
+				if evt.Type == watch.Deleted {
+					deleted <- struct{}{}
+				}
+			case <-time.After(pollDuration):
+				require.FailNow(t, "orphaned apiservice not cleaned up as expected")
+			}
+		}
+	}()
+
+	_, err = c.CreateAPIService(apiService)
+	require.NoError(t, err, "error creating expected APIService")
+	orphanedAPISvc, err := c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "error getting expected APIService")
+
+	newLabels := map[string]string{"olm.owner": "hat-serverfd4r5", "olm.owner.kind": "ClusterServiceVersion", "olm.owner.namespace": "nonexistent-namespace"}
+	orphanedAPISvc.SetLabels(newLabels)
+	_, err = c.UpdateAPIService(orphanedAPISvc)
+	require.NoError(t, err, "error updating APIService")
+	<-deleted
+
+	_, err = c.CreateAPIService(apiService)
+	require.NoError(t, err, "error creating expected APIService")
+	orphanedAPISvc, err = c.GetAPIService(apiServiceName)
+	require.NoError(t, err, "error getting expected APIService")
+
+	newLabels = map[string]string{"olm.owner": "hat-serverfd4r5", "olm.owner.kind": "ClusterServiceVersion", "olm.owner.namespace": testNamespace}
+	orphanedAPISvc.SetLabels(newLabels)
+	_, err = c.UpdateAPIService(orphanedAPISvc)
+	require.NoError(t, err, "error updating APIService")
+	<-deleted
 }
 
 func TestUpdateCSVSameDeploymentName(t *testing.T) {
