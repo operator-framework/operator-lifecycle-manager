@@ -1,4 +1,4 @@
-installType: "upstream"
+installType: upstream
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: local
 writeStatusName: '""'

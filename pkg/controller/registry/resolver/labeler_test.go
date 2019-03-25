@@ -34,10 +34,10 @@ func TestLabelSetsFor(t *testing.T) {
 			}),
 			expected: []labels.Set{
 				{
-					APILabelKeyPrefix + "Ghost.v1alpha1.ghouls": "provided",
+					APILabelKeyPrefix + "6435ab0d7c6bda64": "provided",
 				},
 				{
-					APILabelKeyPrefix + "Ghost.v1alpha1.ghouls": "required",
+					APILabelKeyPrefix + "6435ab0d7c6bda64": "required",
 				},
 			},
 		},
@@ -50,7 +50,7 @@ func TestLabelSetsFor(t *testing.T) {
 			},
 			expected: []labels.Set{
 				{
-					APILabelKeyPrefix + "Ghost.v1alpha1.ghouls": "provided",
+					APILabelKeyPrefix + "6435ab0d7c6bda64": "provided",
 				},
 			},
 		},
@@ -66,15 +66,17 @@ func TestLabelSetsFor(t *testing.T) {
 			},
 			expected: []labels.Set{
 				{
-					APILabelKeyPrefix + "Ghost.v1alpha1.ghouls":  "provided",
-					APILabelKeyPrefix + "Goblin.v1alpha1.ghouls": "required",
+					APILabelKeyPrefix + "6435ab0d7c6bda64": "provided",
+					APILabelKeyPrefix + "557c9f42470aa352": "required",
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.ElementsMatch(t, tt.expected, LabelSetsFor(tt.obj))
+			labelSets, err := LabelSetsFor(tt.obj)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.expected, labelSets)
 		})
 	}
 }

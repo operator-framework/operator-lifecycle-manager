@@ -1,8 +1,7 @@
 package resolver
 
 import (
-	"fmt"
-
+	"github.com/operator-framework/operator-registry/pkg/registry"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
 )
@@ -14,39 +13,54 @@ const (
 
 // LabelSetsFor returns API label sets for the given object.
 // Concrete types other than OperatorSurface and CustomResource definition no-op.
-func LabelSetsFor(obj interface{}) []labels.Set {
-	var labelSets []labels.Set
+func LabelSetsFor(obj interface{}) ([]labels.Set, error) {
 	switch v := obj.(type) {
 	case OperatorSurface:
-		labelSets = labelSetsForOperatorSurface(v)
+		return labelSetsForOperatorSurface(v)
 	case *extv1beta1.CustomResourceDefinition:
-		labelSets = labelSetsForCRD(v)
+		return labelSetsForCRD(v)
+	default:
+		return nil, nil
 	}
-
-	return labelSets
 }
 
-func labelSetsForOperatorSurface(surface OperatorSurface) []labels.Set {
+func labelSetsForOperatorSurface(surface OperatorSurface) ([]labels.Set, error) {
 	labelSet := labels.Set{}
 	for key := range surface.ProvidedAPIs().StripPlural() {
-		labelSet[APILabelKeyPrefix+APIKeyToGVKString(key)] = "provided"
+		hash, err := APIKeyToGVKHash(key)
+		if err != nil {
+			return nil, err
+		}
+		labelSet[APILabelKeyPrefix+hash] = "provided"
 	}
 	for key := range surface.RequiredAPIs().StripPlural() {
-		labelSet[APILabelKeyPrefix+APIKeyToGVKString(key)] = "required"
+		hash, err := APIKeyToGVKHash(key)
+		if err != nil {
+			return nil, err
+		}
+		labelSet[APILabelKeyPrefix+hash] = "required"
 	}
 
-	return []labels.Set{labelSet}
+	return []labels.Set{labelSet}, nil
 }
 
-func labelSetsForCRD(crd *extv1beta1.CustomResourceDefinition) []labels.Set {
+func labelSetsForCRD(crd *extv1beta1.CustomResourceDefinition) ([]labels.Set, error) {
 	labelSets := []labels.Set{}
 	if crd == nil {
-		return labelSets
+		return labelSets, nil
 	}
 
 	// Add label sets for each version
 	for _, version := range crd.Spec.Versions {
-		key := fmt.Sprintf("%s%s.%s.%s", APILabelKeyPrefix, crd.Spec.Names.Kind, version.Name, crd.Spec.Group)
+		hash, err := APIKeyToGVKHash(registry.APIKey{
+			Group:   crd.Spec.Group,
+			Version: version.Name,
+			Kind:    crd.Spec.Names.Kind,
+		})
+		if err != nil {
+			return nil, err
+		}
+		key := APILabelKeyPrefix + hash
 		sets := []labels.Set{
 			{
 				key: "provided",
@@ -58,5 +72,5 @@ func labelSetsForCRD(crd *extv1beta1.CustomResourceDefinition) []labels.Set {
 		labelSets = append(labelSets, sets...)
 	}
 
-	return labelSets
+	return labelSets, nil
 }
