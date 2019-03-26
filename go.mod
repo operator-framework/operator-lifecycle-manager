@@ -9,6 +9,8 @@ require (
 	github.com/emicklei/go-restful v2.9.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.17.2
+	github.com/go-openapi/strfmt v0.19.0 // indirect
+	github.com/go-openapi/validate v0.19.0 // indirect
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
@@ -42,5 +44,5 @@ require (
 	k8s.io/klog v0.2.0 // indirect
 	k8s.io/kube-aggregator v0.0.0-20190223015803-f706565beac0
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.9-beta.0.0.20190321231218-16236ce91790
+	k8s.io/kubernetes v1.11.10-beta.0.0.20190325075447-8253d66ee09e
 )

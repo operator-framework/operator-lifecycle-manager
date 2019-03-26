@@ -1,4 +1,4 @@
-{{- define "packageserver.clusterserviceversion" }}
+{{- define "packageserver.clusterserviceversion" -}}
 - apiVersion: operators.coreos.com/v1alpha1
   kind: ClusterServiceVersion
   metadata:
@@ -64,60 +64,7 @@
             - list
         deployments:
         - name: packageserver
-          spec:
-            replicas: {{ .Values.package.replicaCount }}
-            strategy:
-              type: RollingUpdate
-            selector:
-              matchLabels:
-                app: packageserver
-            template:
-              metadata:
-                labels:
-                  app: packageserver
-              spec:
-                serviceAccountName: packageserver
-                {{- if .Values.olm.nodeSelector }}
-                nodeSelector:
-{{ toYaml .Values.package.nodeSelector | indent 18 }}
-                {{- end }}
-                {{- if .Values.olm.tolerations  }}
-                tolerations:
-{{ toYaml .Values.package.tolerations | indent 18 }}
-                {{- end }}
-                containers:
-                - name: packageserver
-                  command:
-                  - /bin/package-server
-                  - -v=4
-                  {{- if .Values.watchedNamespaces }}
-                  - --watched-namespaces
-                  - {{ .Values.watchedNamespaces }}
-                  {{- end }}
-                  - --secure-port
-                  - {{ .Values.package.service.internalPort | quote }}
-                  - --global-namespace
-                  - {{ .Values.namespace }}
-                  {{- if .Values.debug }}
-                  - --debug
-                  {{- end }}
-                  {{- if .Values.package.commandArgs }}
-                  - {{ .Values.package.commandArgs }}
-                  {{- end }}
-                  image: {{ .Values.package.image.ref }}
-                  imagePullPolicy: {{ .Values.package.image.pullPolicy }}
-                  ports:
-                  - containerPort: {{ .Values.package.service.internalPort }}
-                  livenessProbe:
-                      httpGet:
-                        scheme: HTTPS
-                        path: /healthz
-                        port: {{ .Values.package.service.internalPort }}
-                  readinessProbe:
-                      httpGet:
-                        scheme: HTTPS
-                        path: /healthz
-                        port: {{ .Values.package.service.internalPort }}
+          {{- include "packageserver.deployment-spec" . | nindent 10 }}
     maturity: alpha
     version: {{ .Chart.Version }}
     apiservicedefinitions:
@@ -130,4 +77,4 @@
         description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
         deploymentName: packageserver
         containerPort: {{ .Values.package.service.internalPort }}
-{{- end }}
+{{- end -}}

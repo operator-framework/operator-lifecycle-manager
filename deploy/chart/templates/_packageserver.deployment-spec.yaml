@@ -1,4 +1,4 @@
-{{- define "packageserver.deployment-spec" }}
+{{- define "packageserver.deployment-spec" -}}
 spec:
   strategy:
     type: RollingUpdate
@@ -12,13 +12,13 @@ spec:
         app: packageserver
     spec:
       serviceAccountName: packageserver
-      {{- if .Values.olm.nodeSelector }}
+      {{- if .Values.package.nodeSelector }}
       nodeSelector:
-{{ toYaml .Values.package.nodeSelector | indent 18 }}
+        {{- toYaml .Values.package.nodeSelector | nindent 8 }}
       {{- end }}
-      {{- if .Values.olm.tolerations  }}
+      {{- if .Values.package.tolerations }}
       tolerations:
-{{ toYaml .Values.package.tolerations | indent 18 }}
+        {{- toYaml .Values.package.tolerations | nindent 8 }}
       {{- end }}
       containers:
       - name: packageserver
@@ -53,4 +53,4 @@ spec:
             scheme: HTTPS
             path: /healthz
             port: {{ .Values.package.service.internalPort }}
-{{- end }}
+{{- end -}}

@@ -1,6 +1,4 @@
-#! validate-crd: ./deploy/chart/templates/06-catalogsource.crd.yaml
-#! parse-kind: CatalogSource
-{{ if and .Values.installType (eq .Values.installType "upstream") }}
+{{- if and .Values.installType (eq .Values.installType "upstream") -}}
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
@@ -11,4 +9,4 @@ spec:
   image: quay.io/operator-framework/upstream-community-operators:latest
   displayName: Community Operators
   publisher: OperatorHub.io
-{{ end }}
+{{- end }}
