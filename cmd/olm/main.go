@@ -49,6 +49,12 @@ var (
 		"debug", false, "use debug log level")
 
 	version = flag.Bool("version", false, "displays olm version")
+
+	tlsKeyPath = flag.String(
+		"tls-key", "", "Path to use for private key (requires tls-cert)")
+
+	tlsCertPath = flag.String(
+		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 )
 
 func init() {
@@ -113,6 +119,15 @@ func main() {
 		log.Fatalf("error configuring operator: %s", err.Error())
 	}
 
+	var useTLS bool
+	if *tlsCertPath != "" && *tlsKeyPath == "" || *tlsCertPath == "" && *tlsKeyPath != "" {
+		logger.Warn("both --tls-key and --tls-crt must be provided for TLS to be enabled, falling back to non-https")
+	} else if *tlsCertPath == "" && *tlsKeyPath == "" {
+		logger.Info("TLS keys not set, using non-https")
+	} else {
+		useTLS = true
+	}
+
 	// Serve a health check.
 	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -120,7 +135,11 @@ func main() {
 	go http.ListenAndServe(":8080", nil)
 
 	http.Handle("/metrics", promhttp.Handler())
-	go http.ListenAndServe(":8081", nil)
+	if useTLS {
+		go http.ListenAndServeTLS(":8081", *tlsCertPath, *tlsKeyPath, nil)
+	} else {
+		go http.ListenAndServe(":8081", nil)
+	}
 
 	ready, done, sync := operator.Run(stopCh)
 	<-ready
