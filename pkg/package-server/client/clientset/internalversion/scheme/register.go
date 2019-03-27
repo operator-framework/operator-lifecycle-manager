@@ -19,8 +19,8 @@ limitations under the License.
 package scheme
 
 import (
-	appsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1"
-	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
+	apps "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/install"
+	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/install"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -33,24 +33,11 @@ var ParameterCodec = runtime.NewParameterCodec(Scheme)
 
 func init() {
 	v1.AddToGroupVersion(Scheme, schema.GroupVersion{Version: "v1"})
-	AddToScheme(Scheme)
+	Install(Scheme)
 }
 
-// AddToScheme adds all types of this clientset into the given scheme. This allows composition
-// of clientsets, like in:
-//
-//   import (
-//     "k8s.io/client-go/kubernetes"
-//     clientsetscheme "k8s.io/client-go/kubernetes/scheme"
-//     aggregatorclientsetscheme "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/scheme"
-//   )
-//
-//   kclientset, _ := kubernetes.NewForConfig(c)
-//   aggregatorclientsetscheme.AddToScheme(clientsetscheme.Scheme)
-//
-// After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
-// correctly.
-func AddToScheme(scheme *runtime.Scheme) {
-	appsv1alpha1.AddToScheme(scheme)
-	operatorsv1.AddToScheme(scheme)
+// Install registers the API group and adds types to a scheme
+func Install(scheme *runtime.Scheme) {
+	apps.Install(scheme)
+	operators.Install(scheme)
 }
