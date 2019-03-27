@@ -1,4 +1,4 @@
-package packagemanifest
+package storage
 
 import (
 	"context"
@@ -11,50 +11,52 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
+	genericreq "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 )
 
 type PackageManifestStorage struct {
 	groupResource schema.GroupResource
 	prov          provider.PackageManifestProvider
+	scheme        *runtime.Scheme
 }
 
-var _ rest.KindProvider = &PackageManifestStorage{}
 var _ rest.Storage = &PackageManifestStorage{}
-var _ rest.Getter = &PackageManifestStorage{}
+var _ rest.KindProvider = &PackageManifestStorage{}
 var _ rest.Lister = &PackageManifestStorage{}
+var _ rest.Getter = &PackageManifestStorage{}
 var _ rest.Scoper = &PackageManifestStorage{}
 
 // NewStorage returns a struct that implements methods needed for Kubernetes to satisfy API requests for the `PackageManifest` resource
-func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifestProvider) *PackageManifestStorage {
+func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifestProvider, scheme *runtime.Scheme) *PackageManifestStorage {
 	return &PackageManifestStorage{
 		groupResource: groupResource,
 		prov:          prov,
+		scheme:        scheme,
 	}
 }
 
-// Storage interface
+// New satisfies the Storage interface
 func (m *PackageManifestStorage) New() runtime.Object {
-	return &v1.PackageManifest{}
+	return &operators.PackageManifest{}
 }
 
-// KindProvider interface
+// Kind satisfies the KindProvider interface
 func (m *PackageManifestStorage) Kind() string {
 	return "PackageManifest"
 }
 
-// Lister interface
+// NewList satisfies part of the Lister interface
 func (m *PackageManifestStorage) NewList() runtime.Object {
-	return &v1.PackageManifestList{}
+	return &operators.PackageManifestList{}
 }
 
-// Lister interface
+// List satisfies part of the Lister interface
 func (m *PackageManifestStorage) List(ctx context.Context, options *metainternalversion.ListOptions) (runtime.Object, error) {
-	namespace := genericapirequest.NamespaceValue(ctx)
+	namespace := genericreq.NamespaceValue(ctx)
 
 	labelSelector := labels.Everything()
 	if options != nil && options.LabelSelector != nil {
@@ -71,29 +73,30 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 		return nil, k8serrors.NewInternalError(err)
 	}
 
-	filtered := []v1.PackageManifest{}
+	// Filter by label selector
+	filtered := []operators.PackageManifest{}
 	for _, manifest := range res.Items {
 		if matches(manifest, name, labelSelector) {
 			filtered = append(filtered, manifest)
 		}
 	}
-
 	res.Items = filtered
+
 	return res, nil
 }
 
-// Getter interface
+// Get satisfies the Getter interface
 func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *metav1.GetOptions) (runtime.Object, error) {
-	namespace := genericapirequest.NamespaceValue(ctx)
-	pm, err := m.prov.Get(namespace, name)
-	if err != nil || pm == nil {
+	namespace := genericreq.NamespaceValue(ctx)
+	manifest, err := m.prov.Get(namespace, name)
+	if err != nil || manifest == nil {
 		return nil, k8serrors.NewNotFound(m.groupResource, name)
 	}
 
-	return pm, nil
+	return manifest, nil
 }
 
-// Scoper interface
+// NamespaceScoped satisfies the Scoper interface
 func (m *PackageManifestStorage) NamespaceScoped() bool {
 	return true
 }
@@ -111,9 +114,9 @@ func nameFor(fs fields.Selector) (string, error) {
 	return name, nil
 }
 
-func matches(m v1.PackageManifest, name string, ls labels.Selector) bool {
+func matches(pm operators.PackageManifest, name string, ls labels.Selector) bool {
 	if name == "" {
-		name = m.GetName()
+		name = pm.GetName()
 	}
-	return ls.Matches(labels.Set(m.GetLabels())) && m.GetName() == name
+	return ls.Matches(labels.Set(pm.GetLabels())) && pm.GetName() == name
 }

@@ -1,15 +1,11 @@
 package v1
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-)
 
-var (
-	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	AddToScheme   = SchemeBuilder.AddToScheme
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
 
 const (
@@ -21,6 +17,12 @@ const (
 
 // SchemeGroupVersion is the group version used to register these objects.
 var SchemeGroupVersion = schema.GroupVersion{Group: Group, Version: Version}
+
+var (
+	SchemeBuilder      = runtime.NewSchemeBuilder(addKnownTypes)
+	localSchemeBuilder = &SchemeBuilder
+	AddToScheme        = localSchemeBuilder.AddToScheme
+)
 
 // Resource takes an unqualified resource and returns a Group-qualified GroupResource.
 func Resource(resource string) schema.GroupResource {
