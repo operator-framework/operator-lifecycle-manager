@@ -58,11 +58,11 @@ github.com/go-openapi/loads
 github.com/go-openapi/runtime
 # github.com/go-openapi/spec v0.17.2
 github.com/go-openapi/spec
-# github.com/go-openapi/strfmt v0.18.0
+# github.com/go-openapi/strfmt v0.19.0
 github.com/go-openapi/strfmt
 # github.com/go-openapi/swag v0.17.0
 github.com/go-openapi/swag
-# github.com/go-openapi/validate v0.18.0
+# github.com/go-openapi/validate v0.19.0
 github.com/go-openapi/validate
 # github.com/gogo/protobuf v1.2.0
 github.com/gogo/protobuf/proto
@@ -87,7 +87,7 @@ github.com/golang/protobuf/ptypes/timestamp
 github.com/google/btree
 # github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 github.com/google/gofuzz
-# github.com/google/uuid v1.0.0
+# github.com/google/uuid v1.1.1
 github.com/google/uuid
 # github.com/googleapis/gnostic v0.2.0
 github.com/googleapis/gnostic/OpenAPIv2
@@ -441,8 +441,8 @@ k8s.io/apiserver/pkg/storage/etcd3
 k8s.io/apiserver/pkg/storage/etcd/util
 # k8s.io/client-go v8.0.0+incompatible
 k8s.io/client-go/tools/clientcmd
-k8s.io/client-go/tools/record
 k8s.io/client-go/kubernetes/scheme
+k8s.io/client-go/tools/record
 k8s.io/client-go/plugin/pkg/client/auth/oidc
 k8s.io/client-go/rest
 k8s.io/client-go/discovery
@@ -669,7 +669,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.11.9-beta.0.0.20190321231218-16236ce91790
+# k8s.io/kubernetes v1.11.10-beta.0.0.20190325075447-8253d66ee09e
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/util/labels
 k8s.io/kubernetes/pkg/apis/rbac/v1

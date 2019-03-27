@@ -8,19 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 )
 
-func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *v1alpha2.OperatorGroup {
-	return &v1alpha2.OperatorGroup{
+func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []string) *v1.OperatorGroup {
+	return &v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
 			Annotations: map[string]string{
-				v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: strings.Join(gvks, ","),
+				v1.OperatorGroupProvidedAPIsAnnotationKey: strings.Join(gvks, ","),
 			},
 		},
-		Status: v1alpha2.OperatorGroupStatus{
+		Status: v1.OperatorGroupStatus{
 			Namespaces: targets,
 		},
 	}
@@ -28,7 +28,7 @@ func buildAPIOperatorGroup(namespace, name string, targets []string, gvks []stri
 func TestNewOperatorGroup(t *testing.T) {
 	tests := []struct {
 		name string
-		in   *v1alpha2.OperatorGroup
+		in   *v1.OperatorGroup
 		want *OperatorGroup
 	}{
 		{

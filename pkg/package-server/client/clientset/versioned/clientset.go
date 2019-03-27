@@ -19,7 +19,7 @@ limitations under the License.
 package versioned
 
 import (
-	packagemanifestv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1alpha1"
+	packagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -27,27 +27,27 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	PackagemanifestV1alpha1() packagemanifestv1alpha1.PackagemanifestV1alpha1Interface
+	PackagemanifestV1() packagemanifestv1.PackagemanifestV1Interface
 	// Deprecated: please explicitly pick a version if possible.
-	Packagemanifest() packagemanifestv1alpha1.PackagemanifestV1alpha1Interface
+	Packagemanifest() packagemanifestv1.PackagemanifestV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	packagemanifestV1alpha1 *packagemanifestv1alpha1.PackagemanifestV1alpha1Client
+	packagemanifestV1 *packagemanifestv1.PackagemanifestV1Client
 }
 
-// PackagemanifestV1alpha1 retrieves the PackagemanifestV1alpha1Client
-func (c *Clientset) PackagemanifestV1alpha1() packagemanifestv1alpha1.PackagemanifestV1alpha1Interface {
-	return c.packagemanifestV1alpha1
+// PackagemanifestV1 retrieves the PackagemanifestV1Client
+func (c *Clientset) PackagemanifestV1() packagemanifestv1.PackagemanifestV1Interface {
+	return c.packagemanifestV1
 }
 
 // Deprecated: Packagemanifest retrieves the default version of PackagemanifestClient.
 // Please explicitly pick a version.
-func (c *Clientset) Packagemanifest() packagemanifestv1alpha1.PackagemanifestV1alpha1Interface {
-	return c.packagemanifestV1alpha1
+func (c *Clientset) Packagemanifest() packagemanifestv1.PackagemanifestV1Interface {
+	return c.packagemanifestV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -66,7 +66,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.packagemanifestV1alpha1, err = packagemanifestv1alpha1.NewForConfig(&configShallowCopy)
+	cs.packagemanifestV1, err = packagemanifestv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.packagemanifestV1alpha1 = packagemanifestv1alpha1.NewForConfigOrDie(c)
+	cs.packagemanifestV1 = packagemanifestv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -91,7 +91,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.packagemanifestV1alpha1 = packagemanifestv1alpha1.New(c)
+	cs.packagemanifestV1 = packagemanifestv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

@@ -11,7 +11,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/api/authorization/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -23,8 +23,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -83,35 +83,35 @@ func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNames
 	}
 }
 
-func checkOperatorGroupAnnotations(obj metav1.Object, op *v1alpha2.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
+func checkOperatorGroupAnnotations(obj metav1.Object, op *v1.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
 	if checkTargetNamespaces {
-		if annotation, ok := obj.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]; !ok || annotation != targetNamespaces {
+		if annotation, ok := obj.GetAnnotations()[v1.OperatorGroupTargetsAnnotationKey]; !ok || annotation != targetNamespaces {
 			return fmt.Errorf("missing targetNamespaces annotation on %v", obj.GetName())
 		}
 	} else {
-		if _, found := obj.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]; found {
+		if _, found := obj.GetAnnotations()[v1.OperatorGroupTargetsAnnotationKey]; found {
 			return fmt.Errorf("targetNamespaces annotation unexpectedly found on %v", obj.GetName())
 		}
 	}
 
-	if annotation, ok := obj.GetAnnotations()[v1alpha2.OperatorGroupNamespaceAnnotationKey]; !ok || annotation != op.GetNamespace() {
+	if annotation, ok := obj.GetAnnotations()[v1.OperatorGroupNamespaceAnnotationKey]; !ok || annotation != op.GetNamespace() {
 		return fmt.Errorf("missing operatorNamespace on %v", obj.GetName())
 	}
-	if annotation, ok := obj.GetAnnotations()[v1alpha2.OperatorGroupAnnotationKey]; !ok || annotation != op.GetName() {
+	if annotation, ok := obj.GetAnnotations()[v1.OperatorGroupAnnotationKey]; !ok || annotation != op.GetName() {
 		return fmt.Errorf("missing operatorGroup annotation on %v", obj.GetName())
 	}
 
 	return nil
 }
 
-func newOperatorGroup(namespace, name string, annotations map[string]string, selector *metav1.LabelSelector, targetNamespaces []string, static bool) *v1alpha2.OperatorGroup {
-	return &v1alpha2.OperatorGroup{
+func newOperatorGroup(namespace, name string, annotations map[string]string, selector *metav1.LabelSelector, targetNamespaces []string, static bool) *v1.OperatorGroup {
+	return &v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace:   namespace,
 			Name:        name,
 			Annotations: annotations,
 		},
-		Spec: v1alpha2.OperatorGroupSpec{
+		Spec: v1.OperatorGroupSpec{
 			TargetNamespaces:   targetNamespaces,
 			Selector:           selector,
 			StaticProvidedAPIs: static,
@@ -177,31 +177,31 @@ func TestOperatorGroup(t *testing.T) {
 	defer cleanupCRD()
 
 	t.Log("Creating operator group")
-	operatorGroup := v1alpha2.OperatorGroup{
+	operatorGroup := v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("e2e-operator-group-"),
 			Namespace: opGroupNamespace,
 		},
-		Spec: v1alpha2.OperatorGroupSpec{
+		Spec: v1.OperatorGroupSpec{
 			Selector: &metav1.LabelSelector{
 				MatchLabels: matchingLabel,
 			},
 		},
 	}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Create(&operatorGroup)
+	_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
 	defer func() {
-		err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+		err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}()
 
-	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
+	expectedOperatorGroupStatus := v1.OperatorGroupStatus{
 		Namespaces: []string{opGroupNamespace, createdOtherNamespace.GetName()},
 	}
 
 	t.Log("Waiting on operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
+		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 		if fetchErr != nil {
 			return false, fetchErr
 		}
@@ -491,10 +491,10 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Generate operatorGroupA
 	crc := newCRClient(t)
 	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
-	_, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Create(groupA)
+	_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(groupA)
 	require.NoError(t, err)
 	defer func() {
-		require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(nsA).Delete(groupA.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, crc.OperatorsV1().OperatorGroups(nsA).Delete(groupA.GetName(), &metav1.DeleteOptions{}))
 	}()
 
 	// Generate csvA in namespaceA with no supported InstallModes
@@ -560,10 +560,10 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update operatorGroupA's target namespaces to select namespaceB
-	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+	groupA, err = crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 	require.NoError(t, err)
 	groupA.Spec.TargetNamespaces = []string{nsB}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
+	_, err = crc.OperatorsV1().OperatorGroups(nsA).Update(groupA)
 	require.NoError(t, err)
 
 	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
@@ -597,10 +597,10 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
-	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+	groupA, err = crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 	require.NoError(t, err)
 	groupA.Spec.TargetNamespaces = []string{nsA, nsB}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
+	_, err = crc.OperatorsV1().OperatorGroups(nsA).Update(groupA)
 	require.NoError(t, err)
 
 	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
@@ -634,10 +634,10 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update operatorGroupA's target namespaces to select all namespaces
-	groupA, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+	groupA, err = crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 	require.NoError(t, err)
 	groupA.Spec.TargetNamespaces = []string{}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(nsA).Update(groupA)
+	_, err = crc.OperatorsV1().OperatorGroups(nsA).Update(groupA)
 	require.NoError(t, err)
 
 	// Ensure csvA transitions to Failed with reason "UnsupportedOperatorGroup"
@@ -784,11 +784,11 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	groupA := newOperatorGroup(nsA, genName("a-"), nil, nil, nil, false)
 	groupB := newOperatorGroup(nsB, genName("b-"), nil, nil, []string{nsC}, false)
 	groupD := newOperatorGroup(nsD, genName("d-"), nil, nil, []string{nsD, nsE}, false)
-	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupD} {
-		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
+	for _, group := range []*v1.OperatorGroup{groupA, groupB, groupD} {
+		_, err := crc.OperatorsV1().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
 		defer func(namespace, name string) {
-			require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
+			require.NoError(t, crc.OperatorsV1().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
 		}(group.GetNamespace(), group.GetName())
 	}
 
@@ -810,10 +810,10 @@ func TestOperatorGroupIntersection(t *testing.T) {
 
 	// Await annotation on groupD
 	q := func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsD).Get(groupD.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsD).Get(groupD.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgD}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgD}))
 
 	// Create subscription for csvD2 in namespaceA
 	subD2Name := genName("d2-")
@@ -830,7 +830,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 
 	// Ensure groupA's annotations are blank
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
 	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
@@ -853,10 +853,10 @@ func TestOperatorGroupIntersection(t *testing.T) {
 
 	// Await annotation on groupA
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 	// Await csvA's copy in namespaceC
 	_, err = awaitCSV(t, crc, nsC, csvA.GetName(), csvCopiedChecker)
@@ -877,7 +877,7 @@ func TestOperatorGroupIntersection(t *testing.T) {
 
 	// Ensure no annotation on groupB
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
 	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
@@ -887,10 +887,10 @@ func TestOperatorGroupIntersection(t *testing.T) {
 
 	// Ensure annotations are removed from groupA
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: ""}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
 
 	// Ensure csvA's deployment is deleted
 	require.NoError(t, waitForDeploymentToDelete(t, c, pkgAStable))
@@ -905,10 +905,10 @@ func TestOperatorGroupIntersection(t *testing.T) {
 
 	// Ensure annotations exist on group B
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: strings.Join([]string{kvgA, kvgB}, ",")}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: strings.Join([]string{kvgA, kvgB}, ",")}))
 }
 
 func TestStaticProviderOperatorGroup(t *testing.T) {
@@ -999,14 +999,14 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create OperatorGroups
-	groupA := newOperatorGroup(nsA, genName("a-"), map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, nil, []string{nsD}, true)
+	groupA := newOperatorGroup(nsA, genName("a-"), map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}, nil, []string{nsD}, true)
 	groupB := newOperatorGroup(nsB, genName("b-"), nil, nil, nil, false)
 	groupC := newOperatorGroup(nsC, genName("d-"), nil, nil, []string{nsC}, false)
-	for _, group := range []*v1alpha2.OperatorGroup{groupA, groupB, groupC} {
-		_, err := crc.OperatorsV1alpha2().OperatorGroups(group.GetNamespace()).Create(group)
+	for _, group := range []*v1.OperatorGroup{groupA, groupB, groupC} {
+		_, err := crc.OperatorsV1().OperatorGroups(group.GetNamespace()).Create(group)
 		require.NoError(t, err)
 		defer func(namespace, name string) {
-			require.NoError(t, crc.OperatorsV1alpha2().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
+			require.NoError(t, crc.OperatorsV1().OperatorGroups(namespace).Delete(name, &metav1.DeleteOptions{}))
 		}(group.GetNamespace(), group.GetName())
 	}
 
@@ -1026,17 +1026,17 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 
 	// Ensure operatorGroupB doesn't have providedAPI annotation
 	q := func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
 	require.NoError(t, awaitAnnotations(t, q, map[string]string{}))
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 	// Create subscription for csvA in namespaceC
 	cleanupSubAC := createSubscriptionForCatalog(t, crc, nsC, subAName, catalog, pkgA, stableChannel, pkgAStable, v1alpha1.ApprovalAutomatic)
@@ -1051,17 +1051,17 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 
 	// Ensure operatorGroupC has KindA.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 	// Create subscription for csvB in namespaceB
 	subBName := genName("b-")
@@ -1085,23 +1085,23 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 
 	// Ensure operatorGroupB has KindB.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsB).Get(groupB.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgB}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgB}))
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 
 	// Add namespaceD to operatorGroupC's targetNamespaces
-	groupC, err = crc.OperatorsV1alpha2().OperatorGroups(groupC.GetNamespace()).Get(groupC.GetName(), metav1.GetOptions{})
+	groupC, err = crc.OperatorsV1().OperatorGroups(groupC.GetNamespace()).Get(groupC.GetName(), metav1.GetOptions{})
 	require.NoError(t, err)
 	groupC.Spec.TargetNamespaces = []string{nsC, nsD}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(groupC.GetNamespace()).Update(groupC)
+	_, err = crc.OperatorsV1().OperatorGroups(groupC.GetNamespace()).Update(groupC)
 	require.NoError(t, err)
 
 	// Wait for csvA in namespaceC to fail with status "InterOperatorGroupOwnerConflict"
@@ -1111,17 +1111,17 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 
 	// Wait for crdA's providedAPIs to be removed from operatorGroupC's providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsC).Get(groupC.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: ""}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: ""}))
 
 	// Ensure operatorGroupA still has KindA.version.group in its providedAPIs annotation
 	q = func() (metav1.ObjectMeta, error) {
-		g, err := crc.OperatorsV1alpha2().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
+		g, err := crc.OperatorsV1().OperatorGroups(nsA).Get(groupA.GetName(), metav1.GetOptions{})
 		return g.ObjectMeta, err
 	}
-	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1alpha2.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
+	require.NoError(t, awaitAnnotations(t, q, map[string]string{v1.OperatorGroupProvidedAPIsAnnotationKey: kvgA}))
 }
 
 // TODO: Test OperatorGroup resizing collisions
@@ -1145,16 +1145,16 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	defer cleanupCRD()
 
 	t.Logf("Getting default operator group 'global-operators' installed via operatorgroup-default.yaml %v", opGroupNamespace)
-	operatorGroup, err := crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get("global-operators", metav1.GetOptions{})
+	operatorGroup, err := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get("global-operators", metav1.GetOptions{})
 	require.NoError(t, err)
 
-	expectedOperatorGroupStatus := v1alpha2.OperatorGroupStatus{
+	expectedOperatorGroupStatus := v1.OperatorGroupStatus{
 		Namespaces: []string{metav1.NamespaceAll},
 	}
 
 	t.Log("Waiting on operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetched, fetchErr := crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
+		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 		if fetchErr != nil {
 			return false, fetchErr
 		}
@@ -1285,10 +1285,10 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	require.EqualValues(t, "ClusterRole", fetchedRoleBinding.RoleRef.Kind)
 
 	t.Log("ensure operator was granted namespace list permission")
-	res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&v1.SubjectAccessReview{
-		Spec: v1.SubjectAccessReviewSpec{
+	res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
+		Spec: authorizationv1.SubjectAccessReviewSpec{
 			User: "system:serviceaccount:" + opGroupNamespace + ":" + serviceAccountName,
-			ResourceAttributes: &v1.ResourceAttributes{
+			ResourceAttributes: &authorizationv1.ResourceAttributes{
 				Group:    corev1.GroupName,
 				Version:  "v1",
 				Resource: "namespaces",
@@ -1353,17 +1353,17 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 
 	// verify created CSV is cleaned up after operator group is "contracted"
 	t.Log("Modifying operator group to no longer watch all namespaces")
-	currentOperatorGroup, err := crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
+	currentOperatorGroup, err := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 	require.NoError(t, err)
 	currentOperatorGroup.Spec.TargetNamespaces = []string{opGroupNamespace}
-	_, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
+	_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
 	require.NoError(t, err)
 	defer func() {
 		t.Log("Re-modifying operator group to be watching all namespaces")
-		currentOperatorGroup, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
+		currentOperatorGroup, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 		require.NoError(t, err)
-		currentOperatorGroup.Spec = v1alpha2.OperatorGroupSpec{}
-		_, err = crc.OperatorsV1alpha2().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
+		currentOperatorGroup.Spec = v1.OperatorGroupSpec{}
+		_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Update(currentOperatorGroup)
 		require.NoError(t, err)
 	}()
 

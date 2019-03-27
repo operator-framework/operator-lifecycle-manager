@@ -14,7 +14,7 @@ import (
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 )
 
@@ -39,7 +39,7 @@ func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifes
 
 // Storage interface
 func (m *PackageManifestStorage) New() runtime.Object {
-	return &v1alpha1.PackageManifest{}
+	return &v1.PackageManifest{}
 }
 
 // KindProvider interface
@@ -49,7 +49,7 @@ func (m *PackageManifestStorage) Kind() string {
 
 // Lister interface
 func (m *PackageManifestStorage) NewList() runtime.Object {
-	return &v1alpha1.PackageManifestList{}
+	return &v1.PackageManifestList{}
 }
 
 // Lister interface
@@ -71,7 +71,7 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 		return nil, k8serrors.NewInternalError(err)
 	}
 
-	filtered := []v1alpha1.PackageManifest{}
+	filtered := []v1.PackageManifest{}
 	for _, manifest := range res.Items {
 		if matches(manifest, name, labelSelector) {
 			filtered = append(filtered, manifest)
@@ -111,7 +111,7 @@ func nameFor(fs fields.Selector) (string, error) {
 	return name, nil
 }
 
-func matches(m v1alpha1.PackageManifest, name string, ls labels.Selector) bool {
+func matches(m v1.PackageManifest, name string, ls labels.Selector) bool {
 	if name == "" {
 		name = m.GetName()
 	}

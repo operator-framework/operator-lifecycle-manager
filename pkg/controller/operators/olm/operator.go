@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -22,7 +23,6 @@ import (
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha2"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
@@ -294,8 +294,8 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 	for _, namespace := range namespaces {
 		logger.WithField("namespace", namespace).Infof("watching OperatorGroups")
 		sharedInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		operatorGroupInformer := sharedInformerFactory.Operators().V1alpha2().OperatorGroups()
-		op.lister.OperatorsV1alpha2().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
+		operatorGroupInformer := sharedInformerFactory.Operators().V1().OperatorGroups()
+		op.lister.OperatorsV1().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
 
 		// Register queue and QueueInformer
 		queueName := fmt.Sprintf("%s/operatorgroups", namespace)
@@ -356,7 +356,7 @@ func (a *Operator) namespaceAddedOrRemoved(obj interface{}) {
 		"name": namespace.GetName(),
 	})
 
-	operatorGroupList, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(metav1.NamespaceAll).List(labels.Everything())
+	operatorGroupList, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(metav1.NamespaceAll).List(labels.Everything())
 	if err != nil {
 		logger.WithError(err).Warn("lister failed")
 		return
@@ -401,7 +401,7 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 
 		// Requeue all OperatorGroups in the namespace
 		logger.Debug("requeueing operatorgroups in namespace")
-		operatorGroups, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).List(labels.Everything())
+		operatorGroups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).List(labels.Everything())
 		if err != nil {
 			logger.WithError(err).Warnf("an error occurred while listing operatorgroups to requeue after csv deletion")
 			return
@@ -416,19 +416,19 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 		}
 	}(*clusterServiceVersion)
 
-	targetNamespaces, ok := clusterServiceVersion.Annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
+	targetNamespaces, ok := clusterServiceVersion.Annotations[v1.OperatorGroupTargetsAnnotationKey]
 	if !ok {
 		logger.Debug("missing target namespaces annotation on csv")
 		return
 	}
 
-	operatorNamespace, ok := clusterServiceVersion.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
+	operatorNamespace, ok := clusterServiceVersion.Annotations[v1.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debug("missing operator namespace annotation on csv")
 		return
 	}
 
-	if _, ok = clusterServiceVersion.Annotations[v1alpha2.OperatorGroupAnnotationKey]; !ok {
+	if _, ok = clusterServiceVersion.Annotations[v1.OperatorGroupAnnotationKey]; !ok {
 		logger.Debug("missing operatorgroup name annotation on csv")
 		return
 	}
@@ -495,7 +495,7 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 		return nil
 	}
 
-	operatorNamespace, ok := csv.Annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey]
+	operatorNamespace, ok := csv.Annotations[v1.OperatorGroupNamespaceAnnotationKey]
 	if !ok {
 		logger.Debug("missing operator namespace annotation on copied CSV")
 		return a.deleteChild(csv, logger)
@@ -514,8 +514,8 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 	}
 
 	if annotations := parent.GetAnnotations(); annotations != nil {
-		if !resolver.NewNamespaceSetFromString(annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]).Contains(csv.GetNamespace()) {
-			logger.WithField("parentTargets", annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]).
+		if !resolver.NewNamespaceSetFromString(annotations[v1.OperatorGroupTargetsAnnotationKey]).Contains(csv.GetNamespace()) {
+			logger.WithField("parentTargets", annotations[v1.OperatorGroupTargetsAnnotationKey]).
 				Debug("deleting copied CSV since parent no longer lists this as a target namespace")
 			return a.deleteChild(csv, logger)
 		}
@@ -644,7 +644,7 @@ func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
 }
 
 // operatorGroupFromAnnotations returns the OperatorGroup for the CSV only if the CSV is active one in the group
-func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) *v1alpha2.OperatorGroup {
+func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) *v1.OperatorGroup {
 	annotations := csv.GetAnnotations()
 
 	// Not part of a group yet
@@ -654,12 +654,12 @@ func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alp
 	}
 
 	// Not in the OperatorGroup namespace
-	if annotations[v1alpha2.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
+	if annotations[v1.OperatorGroupNamespaceAnnotationKey] != csv.GetNamespace() {
 		logger.Info("not in operatorgroup namespace")
 		return nil
 	}
 
-	operatorGroupName, ok := annotations[v1alpha2.OperatorGroupAnnotationKey]
+	operatorGroupName, ok := annotations[v1.OperatorGroupAnnotationKey]
 
 	// No OperatorGroup annotation
 	if !ok {
@@ -669,14 +669,14 @@ func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alp
 
 	logger = logger.WithField("operatorgroup", operatorGroupName)
 
-	operatorGroup, err := a.lister.OperatorsV1alpha2().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).Get(operatorGroupName)
+	operatorGroup, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).Get(operatorGroupName)
 	// OperatorGroup not found
 	if err != nil {
 		logger.Info("operatorgroup not found")
 		return nil
 	}
 
-	targets, ok := annotations[v1alpha2.OperatorGroupTargetsAnnotationKey]
+	targets, ok := annotations[v1.OperatorGroupTargetsAnnotationKey]
 
 	// No target annotation
 	if !ok {
@@ -693,16 +693,16 @@ func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alp
 	return operatorGroup
 }
 
-func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) (*v1alpha2.OperatorGroup, error) {
+func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logger *logrus.Entry) (*v1.OperatorGroup, error) {
 	now := timeNow()
 
 	// Attempt to associate an OperatorGroup with the CSV.
-	operatorGroups, err := a.client.OperatorsV1alpha2().OperatorGroups(csv.GetNamespace()).List(metav1.ListOptions{})
+	operatorGroups, err := a.client.OperatorsV1().OperatorGroups(csv.GetNamespace()).List(metav1.ListOptions{})
 	if err != nil {
 		logger.Errorf("error occurred while attempting to associate csv with operatorgroup")
 		return nil, err
 	}
-	var operatorGroup *v1alpha2.OperatorGroup
+	var operatorGroup *v1.OperatorGroup
 
 	switch len(operatorGroups.Items) {
 	case 0:
@@ -800,7 +800,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	}
 
 	// Check if the CSV supports its operatorgroup's selected namespaces
-	targets, ok := out.GetAnnotations()[v1alpha2.OperatorGroupTargetsAnnotationKey]
+	targets, ok := out.GetAnnotations()[v1.OperatorGroupTargetsAnnotationKey]
 	if ok {
 		namespaces := strings.Split(targets, ",")
 
@@ -819,7 +819,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	options := metav1.ListOptions{
 		FieldSelector: fmt.Sprintf("metadata.name!=%s,metadata.namespace!=%s", operatorGroup.GetName(), operatorGroup.GetNamespace()),
 	}
-	otherGroups, err := a.client.OperatorsV1alpha2().OperatorGroups(metav1.NamespaceAll).List(options)
+	otherGroups, err := a.client.OperatorsV1().OperatorGroups(metav1.NamespaceAll).List(options)
 
 	groupSurface := resolver.NewOperatorGroup(operatorGroup)
 	otherGroupSurfaces := resolver.NewOperatorGroupSurfaces(otherGroups.Items...)
@@ -850,10 +850,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		if unionedAnnotations == nil {
 			unionedAnnotations = make(map[string]string)
 		}
-		unionedAnnotations[v1alpha2.OperatorGroupProvidedAPIsAnnotationKey] = union.String()
+		unionedAnnotations[v1.OperatorGroupProvidedAPIsAnnotationKey] = union.String()
 		operatorGroup.SetAnnotations(unionedAnnotations)
-		if _, err := a.client.OperatorsV1alpha2().OperatorGroups(operatorGroup.GetNamespace()).Update(operatorGroup); err != nil && !k8serrors.IsNotFound(err) {
-			syncError = fmt.Errorf("could not update operatorgroups %s annotation: %v", v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, err)
+		if _, err := a.client.OperatorsV1().OperatorGroups(operatorGroup.GetNamespace()).Update(operatorGroup); err != nil && !k8serrors.IsNotFound(err) {
+			syncError = fmt.Errorf("could not update operatorgroups %s annotation: %v", v1.OperatorGroupProvidedAPIsAnnotationKey, err)
 		}
 		a.csvQueueSet.Requeue(out.GetName(), out.GetNamespace())
 		return
@@ -862,10 +862,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		logger.WithField("apis", providedAPIs).Debug("removing csv provided apis from operatorgroup")
 		difference := groupSurface.ProvidedAPIs().Difference(providedAPIs)
 		if diffedAnnotations := operatorGroup.GetAnnotations(); diffedAnnotations != nil {
-			diffedAnnotations[v1alpha2.OperatorGroupProvidedAPIsAnnotationKey] = difference.String()
+			diffedAnnotations[v1.OperatorGroupProvidedAPIsAnnotationKey] = difference.String()
 			operatorGroup.SetAnnotations(diffedAnnotations)
-			if _, err := a.client.OperatorsV1alpha2().OperatorGroups(operatorGroup.GetNamespace()).Update(operatorGroup); err != nil && !k8serrors.IsNotFound(err) {
-				syncError = fmt.Errorf("could not update operatorgroups %s annotation: %v", v1alpha2.OperatorGroupProvidedAPIsAnnotationKey, err)
+			if _, err := a.client.OperatorsV1().OperatorGroups(operatorGroup.GetNamespace()).Update(operatorGroup); err != nil && !k8serrors.IsNotFound(err) {
+				syncError = fmt.Errorf("could not update operatorgroups %s annotation: %v", v1.OperatorGroupProvidedAPIsAnnotationKey, err)
 			}
 		}
 		a.csvQueueSet.Requeue(out.GetName(), out.GetNamespace())

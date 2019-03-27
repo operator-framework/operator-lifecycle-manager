@@ -23,7 +23,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/install"
-	packagemanifest "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1alpha1"
+	packagemanifest "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 	packagemanifeststorage "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/storage/packagemanifest"
 )

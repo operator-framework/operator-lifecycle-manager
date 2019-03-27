@@ -3,38 +3,9 @@ apiVersion: v1
 metadata:
   name: olm-operators
   namespace: {{ .Values.catalog_namespace }}
-{{ $root := . }}
 data:
   customResourceDefinitions: |-
-{{- range $path, $bytes := .Files.Glob "catalog_resources/olm-operators/**.crd.yaml" }}
-  {{- range $index, $line  := $root.Files.Lines $path }}
-    {{- if eq $index 0 }}
-{{- $line | printf "%s%s" "- " | nindent 4 }}
-    {{- else }}
-{{- $line | nindent 6 }}
-    {{- end }}
-  {{- end }}
-{{- end }}
-  clusterServiceVersions: |- 
+  clusterServiceVersions: |-
 {{- include "packageserver.clusterserviceversion" . | nindent 4 }}
-{{- range $path, $bytes := .Files.Glob "catalog_resources/olm-operators/**.clusterserviceversion.yaml" }}
-  {{- range $index, $line  := $root.Files.Lines $path }}
-    {{- if eq $index 0 }}
-{{- $line | printf "%s%s" "- " | nindent 4 }}
-    {{- else }}
-{{- $line | nindent 6 }}
-    {{- end }}
-  {{- end }}
-{{- end }}
   packages: |- 
 {{- include "packageserver.package" . | nindent 4 }}
-{{- range $path, $bytes := .Files.Glob "catalog_resources/olm-operators/**.package.yaml" }}
-  {{- range $index, $line  := $root.Files.Lines $path }}
-    {{- if eq $index 0 }}
-{{- $line | printf "%s%s" "- " | nindent 4 }}
-    {{- else }}
-{{- $line | nindent 6 }}
-    {{- end }}
-  {{- end }}
-{{- end }}
-

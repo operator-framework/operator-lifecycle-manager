@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
-	packagemanifestv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1alpha1"
-	fakepackagemanifestv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1alpha1/fake"
+	packagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1"
+	fakepackagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -71,12 +71,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// PackagemanifestV1alpha1 retrieves the PackagemanifestV1alpha1Client
-func (c *Clientset) PackagemanifestV1alpha1() packagemanifestv1alpha1.PackagemanifestV1alpha1Interface {
-	return &fakepackagemanifestv1alpha1.FakePackagemanifestV1alpha1{Fake: &c.Fake}
+// PackagemanifestV1 retrieves the PackagemanifestV1Client
+func (c *Clientset) PackagemanifestV1() packagemanifestv1.PackagemanifestV1Interface {
+	return &fakepackagemanifestv1.FakePackagemanifestV1{Fake: &c.Fake}
 }
 
-// Packagemanifest retrieves the PackagemanifestV1alpha1Client
-func (c *Clientset) Packagemanifest() packagemanifestv1alpha1.PackagemanifestV1alpha1Interface {
-	return &fakepackagemanifestv1alpha1.FakePackagemanifestV1alpha1{Fake: &c.Fake}
+// Packagemanifest retrieves the PackagemanifestV1Client
+func (c *Clientset) Packagemanifest() packagemanifestv1.PackagemanifestV1Interface {
+	return &fakepackagemanifestv1.FakePackagemanifestV1{Fake: &c.Fake}
 }

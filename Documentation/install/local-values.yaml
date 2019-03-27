@@ -29,6 +29,8 @@ package:
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
+  tolerations:
+    - operator: Exists
 
 catalog_sources:
   - rh-operators
