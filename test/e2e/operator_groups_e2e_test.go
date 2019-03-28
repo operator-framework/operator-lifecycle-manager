@@ -2,15 +2,12 @@ package e2e
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -21,7 +18,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/kubernetes/pkg/apis/rbac"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -29,59 +27,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
-
-func DeploymentComplete(deployment *appsv1.Deployment, newStatus *appsv1.DeploymentStatus) bool {
-	return newStatus.UpdatedReplicas == *(deployment.Spec.Replicas) &&
-		newStatus.Replicas == *(deployment.Spec.Replicas) &&
-		newStatus.AvailableReplicas == *(deployment.Spec.Replicas) &&
-		newStatus.ObservedGeneration >= deployment.Generation
-}
-
-// Currently this function only modifies the watchedNamespace in the container command
-func patchOlmDeployment(t *testing.T, c operatorclient.ClientInterface, newNamespace string) (cleanupFunc func() error) {
-	runningDeploy, err := c.GetDeployment(operatorNamespace, "olm-operator")
-	require.NoError(t, err)
-
-	oldCommand := runningDeploy.Spec.Template.Spec.Containers[0].Command
-	re, err := regexp.Compile(`-watchedNamespaces\W(\S+)`)
-	require.NoError(t, err)
-	newCommand := re.ReplaceAllString(strings.Join(oldCommand, " "), "$0"+","+newNamespace)
-	t.Logf("original=%#v newCommand=%#v", oldCommand, newCommand)
-	finalNewCommand := strings.Split(newCommand, " ")
-	runningDeploy.Spec.Template.Spec.Containers[0].Command = make([]string, len(finalNewCommand))
-	copy(runningDeploy.Spec.Template.Spec.Containers[0].Command, finalNewCommand)
-
-	olmDeployment, updated, err := c.UpdateDeployment(runningDeploy)
-	if err != nil || updated == false {
-		t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
-	}
-	require.NoError(t, err)
-
-	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		t.Log("Polling for OLM deployment update...")
-		fetchedDeployment, err := c.GetDeployment(olmDeployment.Namespace, olmDeployment.Name)
-		if err != nil {
-			return false, err
-		}
-		if DeploymentComplete(olmDeployment, &fetchedDeployment.Status) {
-			return true, nil
-		}
-		return false, nil
-	})
-	require.NoError(t, err)
-
-	return func() error {
-		olmDeployment.Spec.Template.Spec.Containers[0].Command = oldCommand
-		_, updated, err := c.UpdateDeployment(olmDeployment)
-		if err != nil || updated == false {
-			t.Fatalf("Deployment update failed: (updated %v) %v\n", updated, err)
-		}
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-}
 
 func checkOperatorGroupAnnotations(obj metav1.Object, op *v1.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
 	if checkTargetNamespaces {
@@ -221,7 +166,7 @@ func TestOperatorGroup(t *testing.T) {
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{
 				{
-					Verbs:     []string{rbac.VerbAll},
+					Verbs:     []string{rbacv1.VerbAll},
 					APIGroups: []string{mainCRD.Spec.Group},
 					Resources: []string{mainCRDPlural},
 				},
@@ -475,10 +420,92 @@ func createProjectAdmin(t *testing.T, c operatorclient.ClientInterface, namespac
 		},
 	})
 	require.NoError(t, err)
-	return "system:serviceaccount:" + sa.GetNamespace() + ":" + sa.GetName(), func() {
+	// kubectl -n a8v4sw  auth can-i create alp999.cluster.com --as system:serviceaccount:a8v4sw:padmin-xqdfz
+	return "system:serviceaccount:" + namespace + ":" + sa.GetName(), func() {
 		_ = c.DeleteServiceAccount(sa.GetNamespace(), sa.GetName(), metav1.NewDeleteOptions(0))
 		_ = c.DeleteRoleBinding(rb.GetNamespace(), rb.GetName(), metav1.NewDeleteOptions(0))
 	}
+}
+
+func TestOperatorGroupRoleAggregation(t *testing.T) {
+	// Generate namespaceA
+	// Generate operatorGroupA - OwnNamespace
+	// Generate csvA in namespaceA with all installmodes supported
+	// Create crd so csv succeeds
+	// Ensure clusterroles created and aggregated for access provided APIs
+
+	defer cleaner.NotifyTestComplete(t, true)
+
+	// Generate namespaceA
+	nsA := genName("a")
+	c := newKubeClient(t)
+	for _, ns := range []string{nsA} {
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ns,
+			},
+		}
+		_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(namespace)
+		require.NoError(t, err)
+		defer func(name string) {
+			require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(name, &metav1.DeleteOptions{}))
+		}(ns)
+	}
+
+	// Generate operatorGroupA - OwnNamespace
+	crc := newCRClient(t)
+	groupA := newOperatorGroup(nsA, genName("a"), nil, nil, []string{nsA}, false)
+	_, err := crc.OperatorsV1().OperatorGroups(nsA).Create(groupA)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1().OperatorGroups(nsA).Delete(groupA.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Generate csvA in namespaceA with all installmodes supported
+	crd := newCRD(genName("a"))
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	csvA := newCSV("nginx-a", nsA, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(&csvA)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Delete(csvA.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Create crd so csv succeeds
+	cleanupCRD, err := createCRD(c, crd)
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	_, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Ensure clusterroles created and aggregated for access provided APIs
+	padmin, cleanupPadmin := createProjectAdmin(t, c, nsA)
+	defer cleanupPadmin()
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User: padmin,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: nsA,
+					Group:     crd.Spec.Group,
+					Version:   crd.Spec.Version,
+					Resource:  crd.Spec.Names.Plural,
+					Verb:      "create",
+				},
+			},
+		})
+		if err != nil {
+			return false, err
+		}
+		if res == nil {
+			return false, nil
+		}
+		t.Log("checking padmin for permission")
+		return res.Status.Allowed, nil
+	})
+	require.NoError(t, err)
 }
 
 func TestOperatorGroupInstallModeSupport(t *testing.T) {
@@ -631,8 +658,8 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
 	require.NoError(t, err)
 
-	// Ensure csvA transitions to Pending
-	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	// Ensure csvA transitions to Succeeded
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Update operatorGroupA's target namespaces to select namespaceA and namespaceB
@@ -668,8 +695,8 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Update(csvA)
 	require.NoError(t, err)
 
-	// Ensure csvA transitions to Pending
-	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	// Ensure csvA transitions to Succeeded
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Update operatorGroupA's target namespaces to select all namespaces
@@ -706,7 +733,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure csvA transitions to Pending
-	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvPendingChecker)
+	csvA, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
 	require.NoError(t, err)
 }
 
@@ -895,20 +922,29 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	padmin, cleanupPadmin := createProjectAdmin(t, c, nsA)
 	defer cleanupPadmin()
 
-	res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&v1.SubjectAccessReview{
-		Spec: v1.SubjectAccessReviewSpec{
-			User: padmin,
-			ResourceAttributes: &v1.ResourceAttributes{
-				Namespace: nsA,
-				Group:     crdA.Spec.Group,
-				Version:   crdA.Spec.Version,
-				Resource:  crdA.Spec.Names.Plural,
-				Verb:      "create",
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User: padmin,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: nsA,
+					Group:     crdA.Spec.Group,
+					Version:   crdA.Spec.Version,
+					Resource:  crdA.Spec.Names.Plural,
+					Verb:      "create",
+				},
 			},
-		},
+		})
+		if err != nil {
+			return false, err
+		}
+		if res == nil {
+			return false, nil
+		}
+		t.Log("checking padmin for permission")
+		return res.Status.Allowed, nil
 	})
 	require.NoError(t, err)
-	require.True(t, res.Status.Allowed, "got %#v", res.Status)
 
 	// Await annotation on groupA
 	q = func() (metav1.ObjectMeta, error) {
@@ -1234,7 +1270,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{
 				{
-					Verbs:     []string{rbac.VerbAll},
+					Verbs:     []string{rbacv1.VerbAll},
 					APIGroups: []string{mainCRD.Spec.Group},
 					Resources: []string{mainCRDPlural},
 				},
