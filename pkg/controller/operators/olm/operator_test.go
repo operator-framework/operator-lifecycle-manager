@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 	"math/big"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -28,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/informers"
@@ -39,8 +41,7 @@ import (
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
@@ -56,6 +57,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 // Fakes
@@ -796,6 +798,7 @@ func TestTransitionCSV(t *testing.T) {
 	}
 	type expected struct {
 		csvStates map[string]csvState
+		objs      []runtime.Object
 		err       map[string]error
 	}
 	tests := []struct {
@@ -2174,7 +2177,7 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVInstallingToSucceeded",
+			name: "SingleCSVInstallingToSucceeded/UnmanagedDeploymentNotAffected",
 			initial: initial{
 				csvs: []runtime.Object{
 					csvWithAnnotations(csv("csv1",
@@ -2193,11 +2196,54 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				objs: []runtime.Object{
 					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+					deployment("extra-dep", namespace, "sa", nil),
 				},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+				objs: []runtime.Object{
+					deployment("extra-dep", namespace, "sa", nil),
+				},
+			},
+		},
+		{
+			name: "SingleCSVSucceededToSucceeded/UnmanagedDeploymentInNamespace",
+			initial: initial{
+				csvs: []runtime.Object{
+					withConditionReason(csvWithAnnotations(csv("csv1",
+						namespace,
+						"0.0.0",
+						"",
+						installStrategy("csv1-dep1", nil, nil),
+						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
+						[]*v1beta1.CustomResourceDefinition{},
+						v1alpha1.CSVPhaseSucceeded,
+					), defaultTemplateAnnotations), v1alpha1.CSVReasonInstallSuccessful),
+				},
+				clientObjs: []runtime.Object{defaultOperatorGroup},
+				crds: []runtime.Object{
+					crd("c1", "v1", "g1"),
+				},
+				objs: []runtime.Object{
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						map[string]string{
+							ownerutil.OwnerKey:          "csv1",
+							ownerutil.OwnerNamespaceKey: namespace,
+							ownerutil.OwnerKind:         "ClusterServiceVersion",
+						},
+					),
+					deployment("extra-dep", namespace, "sa", nil),
+				},
+			},
+			expected: expected{
+				csvStates: map[string]csvState{
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+				objs: []runtime.Object{
+					deployment("extra-dep", namespace, "sa", nil),
 				},
 			},
 		},
@@ -2858,6 +2904,11 @@ func TestTransitionCSV(t *testing.T) {
 						require.EqualValues(t, string(csvState.reason), string(csv.Status.Reason), "%s had incorrect condition reason", csvName)
 					}
 				}
+			}
+
+			// Verify other objects
+			if tt.expected.objs != nil {
+				RequireObjectsInNamespace(t, op.OpClient, op.client, namespace, tt.expected.objs)
 			}
 		})
 	}
@@ -3706,32 +3757,36 @@ func TestSyncOperatorGroups(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)
 
 			for namespace, objects := range tt.final.objects {
-				for _, object := range objects {
-					var err error
-					var fetched runtime.Object
-					switch o := object.(type) {
-					case *appsv1.Deployment:
-						fetched, err = op.OpClient.GetDeployment(namespace, o.GetName())
-					case *rbacv1.ClusterRole:
-						fetched, err = op.OpClient.GetClusterRole(o.GetName())
-					case *rbacv1.Role:
-						fetched, err = op.OpClient.GetRole(namespace, o.GetName())
-					case *rbacv1.ClusterRoleBinding:
-						fetched, err = op.OpClient.GetClusterRoleBinding(o.GetName())
-					case *rbacv1.RoleBinding:
-						fetched, err = op.OpClient.GetRoleBinding(namespace, o.GetName())
-					case *v1alpha1.ClusterServiceVersion:
-						fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
-					case *v1.OperatorGroup:
-						fetched, err = op.client.OperatorsV1().OperatorGroups(namespace).Get(o.GetName(), metav1.GetOptions{})
-					default:
-						require.Failf(t, "couldn't find expected object", "%#v", object)
-					}
-					require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
-					require.Equal(t, object, fetched, "%s in %s not equal", object.GetObjectKind().GroupVersionKind().String(), namespace)
-				}
+				RequireObjectsInNamespace(t, op.OpClient, op.client, namespace, objects)
 			}
 		})
+	}
+}
+
+func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInterface, client versioned.Interface, namespace string, objects []runtime.Object) {
+	for _, object := range objects {
+		var err error
+		var fetched runtime.Object
+		switch o := object.(type) {
+		case *appsv1.Deployment:
+			fetched, err = opClient.GetDeployment(namespace, o.GetName())
+		case *rbacv1.ClusterRole:
+			fetched, err = opClient.GetClusterRole(o.GetName())
+		case *rbacv1.Role:
+			fetched, err = opClient.GetRole(namespace, o.GetName())
+		case *rbacv1.ClusterRoleBinding:
+			fetched, err = opClient.GetClusterRoleBinding(o.GetName())
+		case *rbacv1.RoleBinding:
+			fetched, err = opClient.GetRoleBinding(namespace, o.GetName())
+		case *v1alpha1.ClusterServiceVersion:
+			fetched, err = client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+		case *v1.OperatorGroup:
+			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(o.GetName(), metav1.GetOptions{})
+		default:
+			require.Failf(t, "couldn't find expected object", "%#v", object)
+		}
+		require.NoError(t, err, "couldn't fetch %s %v", namespace, object)
+		require.True(t, reflect.DeepEqual(object, fetched), diff.ObjectDiff(object, fetched))
 	}
 }
 
