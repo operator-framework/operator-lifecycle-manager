@@ -19,16 +19,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apiserver/pkg/registry/rest"
-	generic "k8s.io/apiserver/pkg/server"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 
-	apps "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1"
-	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/install"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/install"
+	packagemanifest "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/storage"
+	packagemanifeststorage "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/storage/packagemanifest"
 )
 
 var (
@@ -39,22 +36,8 @@ var (
 )
 
 func init() {
-	operators.Install(Scheme)
-	apps.Install(Scheme)
-
-	// we need to add the options to empty v1
-	// TODO fix the server code to avoid this
+	install.Install(Scheme)
 	metav1.AddToGroupVersion(Scheme, schema.GroupVersion{Version: "v1"})
-
-	// TODO: keep the generic API server from wanting this
-	unversioned := schema.GroupVersion{Group: "", Version: "v1"}
-	Scheme.AddUnversionedTypes(unversioned,
-		&metav1.Status{},
-		&metav1.APIVersions{},
-		&metav1.APIGroupList{},
-		&metav1.APIGroup{},
-		&metav1.APIResourceList{},
-	)
 }
 
 // ProviderConfig holds the providers for packagemanifests.
@@ -62,40 +45,21 @@ type ProviderConfig struct {
 	Provider provider.PackageManifestProvider
 }
 
-// BuildStorage constructs APIGroupInfo for the packages.apps.redhat.com and packages.operators.coreos.com API groups.
-func BuildStorage(providers *ProviderConfig) []generic.APIGroupInfo {
+// BuildStorage constructs APIGroupInfo the packages.apps.redhat.com API group.
+func BuildStorage(providers *ProviderConfig) genericapiserver.APIGroupInfo {
+	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(packagemanifest.Group, Scheme, metav1.ParameterCodec, Codecs)
 
-	// Build storage for packages.operators.coreos.com
-	operatorInfo := generic.NewDefaultAPIGroupInfo(v1.Group, Scheme, metav1.ParameterCodec, Codecs)
-	operatorStorage := storage.NewStorage(v1.Resource("packagemanifests"), providers.Provider, Scheme)
-	operatorResources := map[string]rest.Storage{
-		"packagemanifests": operatorStorage,
+	packageManifestStorage := packagemanifeststorage.NewStorage(packagemanifest.Resource("packagemanifests"), providers.Provider)
+	packageManifestResources := map[string]rest.Storage{
+		"packagemanifests": packageManifestStorage,
 	}
-	operatorInfo.VersionedResourcesStorageMap[v1.Version] = operatorResources
+	apiGroupInfo.VersionedResourcesStorageMap[packagemanifest.Version] = packageManifestResources
 
-	// Build storage for packages.apps.redhat.com
-	appInfo := generic.NewDefaultAPIGroupInfo(v1alpha1.Group, Scheme, metav1.ParameterCodec, Codecs)
-
-	// Use storage for package.operators.coreos.com since types are identical
-	appResources := map[string]rest.Storage{
-		"packagemanifests": operatorStorage,
-	}
-	appInfo.VersionedResourcesStorageMap[v1alpha1.Version] = appResources
-
-	return []generic.APIGroupInfo{
-		operatorInfo,
-		appInfo,
-	}
+	return apiGroupInfo
 }
 
-// InstallStorage builds the storage for the packages.apps.redhat.com and packages.operators.coreos.com API groups and then installs them into the given API server.
-func InstallStorage(providers *ProviderConfig, server *generic.GenericAPIServer) error {
-	errs := []error{}
-	groups := BuildStorage(providers)
-	for i := 0; i < len(groups); i++ {
-		info := groups[i]
-		errs = append(errs, server.InstallAPIGroup(&info))
-	}
-
-	return utilerrors.NewAggregate(errs)
+// InstallStorage builds the storage for the metrics.k8s.io API, and then installs it into the given API server.
+func InstallStorage(providers *ProviderConfig, server *genericapiserver.GenericAPIServer) error {
+	info := BuildStorage(providers)
+	return server.InstallAPIGroup(&info)
 }

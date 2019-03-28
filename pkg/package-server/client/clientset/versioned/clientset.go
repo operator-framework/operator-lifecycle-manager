@@ -19,8 +19,7 @@ limitations under the License.
 package versioned
 
 import (
-	appsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/apps/v1alpha1"
-	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1"
+	packagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -28,42 +27,27 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	AppsV1alpha1() appsv1alpha1.AppsV1alpha1Interface
+	PackagemanifestV1() packagemanifestv1.PackagemanifestV1Interface
 	// Deprecated: please explicitly pick a version if possible.
-	Apps() appsv1alpha1.AppsV1alpha1Interface
-	OperatorsV1() operatorsv1.OperatorsV1Interface
-	// Deprecated: please explicitly pick a version if possible.
-	Operators() operatorsv1.OperatorsV1Interface
+	Packagemanifest() packagemanifestv1.PackagemanifestV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	appsV1alpha1 *appsv1alpha1.AppsV1alpha1Client
-	operatorsV1  *operatorsv1.OperatorsV1Client
+	packagemanifestV1 *packagemanifestv1.PackagemanifestV1Client
 }
 
-// AppsV1alpha1 retrieves the AppsV1alpha1Client
-func (c *Clientset) AppsV1alpha1() appsv1alpha1.AppsV1alpha1Interface {
-	return c.appsV1alpha1
+// PackagemanifestV1 retrieves the PackagemanifestV1Client
+func (c *Clientset) PackagemanifestV1() packagemanifestv1.PackagemanifestV1Interface {
+	return c.packagemanifestV1
 }
 
-// Deprecated: Apps retrieves the default version of AppsClient.
+// Deprecated: Packagemanifest retrieves the default version of PackagemanifestClient.
 // Please explicitly pick a version.
-func (c *Clientset) Apps() appsv1alpha1.AppsV1alpha1Interface {
-	return c.appsV1alpha1
-}
-
-// OperatorsV1 retrieves the OperatorsV1Client
-func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
-	return c.operatorsV1
-}
-
-// Deprecated: Operators retrieves the default version of OperatorsClient.
-// Please explicitly pick a version.
-func (c *Clientset) Operators() operatorsv1.OperatorsV1Interface {
-	return c.operatorsV1
+func (c *Clientset) Packagemanifest() packagemanifestv1.PackagemanifestV1Interface {
+	return c.packagemanifestV1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -82,11 +66,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.appsV1alpha1, err = appsv1alpha1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
-	cs.operatorsV1, err = operatorsv1.NewForConfig(&configShallowCopy)
+	cs.packagemanifestV1, err = packagemanifestv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +82,7 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.appsV1alpha1 = appsv1alpha1.NewForConfigOrDie(c)
-	cs.operatorsV1 = operatorsv1.NewForConfigOrDie(c)
+	cs.packagemanifestV1 = packagemanifestv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -112,8 +91,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.appsV1alpha1 = appsv1alpha1.New(c)
-	cs.operatorsV1 = operatorsv1.New(c)
+	cs.packagemanifestV1 = packagemanifestv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs

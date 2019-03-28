@@ -24,9 +24,8 @@ import (
 	time "time"
 
 	versioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
-	apps "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/externalversions/apps"
 	internalinterfaces "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/externalversions/internalinterfaces"
-	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/externalversions/operators"
+	packagemanifest "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/informers/externalversions/packagemanifest"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -173,14 +172,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Apps() apps.Interface
-	Operators() operators.Interface
+	Packagemanifest() packagemanifest.Interface
 }
 
-func (f *sharedInformerFactory) Apps() apps.Interface {
-	return apps.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Operators() operators.Interface {
-	return operators.New(f, f.namespace, f.tweakListOptions)
+func (f *sharedInformerFactory) Packagemanifest() packagemanifest.Interface {
+	return packagemanifest.New(f, f.namespace, f.tweakListOptions)
 }

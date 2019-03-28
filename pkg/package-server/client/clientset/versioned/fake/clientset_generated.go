@@ -20,10 +20,8 @@ package fake
 
 import (
 	clientset "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
-	appsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/apps/v1alpha1"
-	fakeappsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/apps/v1alpha1/fake"
-	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1"
-	fakeoperatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1/fake"
+	packagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1"
+	fakepackagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/packagemanifest/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -73,22 +71,12 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// AppsV1alpha1 retrieves the AppsV1alpha1Client
-func (c *Clientset) AppsV1alpha1() appsv1alpha1.AppsV1alpha1Interface {
-	return &fakeappsv1alpha1.FakeAppsV1alpha1{Fake: &c.Fake}
+// PackagemanifestV1 retrieves the PackagemanifestV1Client
+func (c *Clientset) PackagemanifestV1() packagemanifestv1.PackagemanifestV1Interface {
+	return &fakepackagemanifestv1.FakePackagemanifestV1{Fake: &c.Fake}
 }
 
-// Apps retrieves the AppsV1alpha1Client
-func (c *Clientset) Apps() appsv1alpha1.AppsV1alpha1Interface {
-	return &fakeappsv1alpha1.FakeAppsV1alpha1{Fake: &c.Fake}
-}
-
-// OperatorsV1 retrieves the OperatorsV1Client
-func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
-	return &fakeoperatorsv1.FakeOperatorsV1{Fake: &c.Fake}
-}
-
-// Operators retrieves the OperatorsV1Client
-func (c *Clientset) Operators() operatorsv1.OperatorsV1Interface {
-	return &fakeoperatorsv1.FakeOperatorsV1{Fake: &c.Fake}
+// Packagemanifest retrieves the PackagemanifestV1Client
+func (c *Clientset) Packagemanifest() packagemanifestv1.PackagemanifestV1Interface {
+	return &fakepackagemanifestv1.FakePackagemanifestV1{Fake: &c.Fake}
 }
