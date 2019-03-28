@@ -1,11 +1,14 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
+	github.com/Sirupsen/logrus v0.0.0-00010101000000-000000000000 // indirect
 	github.com/coreos/bbolt v1.3.2 // indirect
 	github.com/coreos/etcd v3.3.12+incompatible // indirect
 	github.com/coreos/go-semver v0.2.0
 	github.com/coreos/go-systemd v0.0.0-20190204112023-081494f7ee4f // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/docker v1.13.1 // indirect
 	github.com/emicklei/go-restful v2.9.0+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.17.2

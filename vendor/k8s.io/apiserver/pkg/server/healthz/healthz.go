@@ -22,8 +22,13 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/golang/glog"
+
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/wait"
 )
 
 // HealthzChecker is a named healthz checker.
@@ -56,6 +61,34 @@ func (ping) Check(_ *http.Request) error {
 	return nil
 }
 
+// LogHealthz returns true if logging is not blocked
+var LogHealthz HealthzChecker = &log{}
+
+type log struct {
+	startOnce    sync.Once
+	lastVerified atomic.Value
+}
+
+func (l *log) Name() string {
+	return "log"
+}
+
+func (l *log) Check(_ *http.Request) error {
+	l.startOnce.Do(func() {
+		l.lastVerified.Store(time.Now())
+		go wait.Forever(func() {
+			glog.Flush()
+			l.lastVerified.Store(time.Now())
+		}, time.Minute)
+	})
+
+	lastVerified := l.lastVerified.Load().(time.Time)
+	if time.Since(lastVerified) < (2 * time.Minute) {
+		return nil
+	}
+	return fmt.Errorf("logging blocked")
+}
+
 // NamedCheck returns a healthz checker for the given name and function.
 func NamedCheck(name string, check func(r *http.Request) error) HealthzChecker {
 	return &healthzCheck{name, check}
@@ -80,7 +113,7 @@ func InstallPathHandler(mux mux, path string, checks ...HealthzChecker) {
 		checks = []HealthzChecker{PingHealthz}
 	}
 
-	glog.V(5).Info("Installing healthz checkers:", strings.Join(checkerNames(checks...), ", "))
+	glog.V(5).Info("Installing healthz checkers:", formatQuoted(checkerNames(checks...)...))
 
 	mux.Handle(path, handleRootHealthz(checks...))
 	for _, check := range checks {
@@ -109,12 +142,28 @@ func (c *healthzCheck) Check(r *http.Request) error {
 	return c.check(r)
 }
 
+// getExcludedChecks extracts the health check names to be excluded from the query param
+func getExcludedChecks(r *http.Request) sets.String {
+	checks, found := r.URL.Query()["exclude"]
+	if found {
+		return sets.NewString(checks...)
+	}
+	return sets.NewString()
+}
+
 // handleRootHealthz returns an http.HandlerFunc that serves the provided checks.
 func handleRootHealthz(checks ...HealthzChecker) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		failed := false
+		excluded := getExcludedChecks(r)
 		var verboseOut bytes.Buffer
 		for _, check := range checks {
+			// no-op the check if we've specified we want to exclude the check
+			if excluded.Has(check.Name()) {
+				excluded.Delete(check.Name())
+				fmt.Fprintf(&verboseOut, "[+]%v excluded: ok\n", check.Name())
+				continue
+			}
 			if err := check.Check(r); err != nil {
 				// don't include the error since this endpoint is public.  If someone wants more detail
 				// they should have explicit permission to the detailed checks.
@@ -124,6 +173,11 @@ func handleRootHealthz(checks ...HealthzChecker) http.HandlerFunc {
 			} else {
 				fmt.Fprintf(&verboseOut, "[+]%v ok\n", check.Name())
 			}
+		}
+		if excluded.Len() > 0 {
+			fmt.Fprintf(&verboseOut, "warn: some health checks cannot be excluded: no matches for %v\n", formatQuoted(excluded.List()...))
+			glog.Warningf("cannot exclude some health checks, no health checks are installed matching %v",
+				formatQuoted(excluded.List()...))
 		}
 		// always be verbose on failure
 		if failed {
@@ -155,14 +209,20 @@ func adaptCheckToHandler(c func(r *http.Request) error) http.HandlerFunc {
 
 // checkerNames returns the names of the checks in the same order as passed in.
 func checkerNames(checks ...HealthzChecker) []string {
-	if len(checks) > 0 {
-		// accumulate the names of checks for printing them out.
-		checkerNames := make([]string, 0, len(checks))
-		for _, check := range checks {
-			// quote the Name so we can disambiguate
-			checkerNames = append(checkerNames, fmt.Sprintf("%q", check.Name()))
-		}
-		return checkerNames
+	// accumulate the names of checks for printing them out.
+	checkerNames := make([]string, 0, len(checks))
+	for _, check := range checks {
+		checkerNames = append(checkerNames, check.Name())
 	}
-	return nil
+	return checkerNames
+}
+
+// formatQuoted returns a formatted string of the health check names,
+// preserving the order passed in.
+func formatQuoted(names ...string) string {
+	quoted := make([]string, 0, len(names))
+	for _, name := range names {
+		quoted = append(quoted, fmt.Sprintf("%q", name))
+	}
+	return strings.Join(quoted, ",")
 }
