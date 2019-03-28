@@ -657,17 +657,26 @@ func schema_package_server_apis_operators_v1_PackageManifestList(ref common.Refe
 			SchemaProps: spec.SchemaProps{
 				Description: "PackageManifestList is a list of PackageManifest objects.",
 				Properties: map[string]spec.Schema{
-					"TypeMeta": {
+					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"),
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
 						},
 					},
-					"ListMeta": {
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
 						},
 					},
-					"Items": {
+					"items": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
 							Items: &spec.SchemaOrArray{
@@ -680,11 +689,11 @@ func schema_package_server_apis_operators_v1_PackageManifestList(ref common.Refe
 						},
 					},
 				},
-				Required: []string{"TypeMeta", "ListMeta", "Items"},
+				Required: []string{"items"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 

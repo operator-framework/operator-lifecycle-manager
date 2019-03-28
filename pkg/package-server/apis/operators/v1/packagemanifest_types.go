@@ -10,10 +10,10 @@ import (
 // PackageManifestList is a list of PackageManifest objects.
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PackageManifestList struct {
-	metav1.TypeMeta
-	metav1.ListMeta
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
 
-	Items []PackageManifest
+	Items []PackageManifest `json:"items"`
 }
 
 // PackageManifest holds information about a package, which is a reference to one (or more)
