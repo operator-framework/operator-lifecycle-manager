@@ -44,7 +44,7 @@ github.com/emicklei/go-restful
 github.com/emicklei/go-restful/log
 # github.com/emicklei/go-restful-swagger12 v0.0.0-20170926063155-7524189396c6
 github.com/emicklei/go-restful-swagger12
-# github.com/evanphx/json-patch v4.1.0+incompatible
+# github.com/evanphx/json-patch v4.1.1-0.20190203023257-5858425f7550+incompatible
 github.com/evanphx/json-patch
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml
@@ -318,10 +318,10 @@ k8s.io/apimachinery/pkg/runtime
 k8s.io/apimachinery/pkg/runtime/schema
 k8s.io/apimachinery/pkg/types
 k8s.io/apimachinery/pkg/runtime/serializer
+k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/api/errors
-k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/runtime/serializer/json

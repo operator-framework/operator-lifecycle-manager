@@ -10,6 +10,7 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.13.1 // indirect
 	github.com/emicklei/go-restful v2.9.0+incompatible // indirect
+	github.com/evanphx/json-patch v4.1.1-0.20190203023257-5858425f7550+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.17.2
 	github.com/go-openapi/strfmt v0.19.0 // indirect
