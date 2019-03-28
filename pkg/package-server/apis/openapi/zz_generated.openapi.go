@@ -30,56 +30,64 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                      schema_api_apis_operators_v1alpha1_InstallMode(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink":               schema_package_server_apis_packagemanifest_v1_AppLink(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.CSVDescription":        schema_package_server_apis_packagemanifest_v1_CSVDescription(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.Icon":                  schema_package_server_apis_packagemanifest_v1_Icon(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageChannel":        schema_package_server_apis_packagemanifest_v1_PackageChannel(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifest":       schema_package_server_apis_packagemanifest_v1_PackageManifest(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestList":   schema_package_server_apis_packagemanifest_v1_PackageManifestList(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestSpec":   schema_package_server_apis_packagemanifest_v1_PackageManifestSpec(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestStatus": schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                             schema_pkg_apis_meta_v1_APIGroup(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                         schema_pkg_apis_meta_v1_APIGroupList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                          schema_pkg_apis_meta_v1_APIResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                      schema_pkg_apis_meta_v1_APIResourceList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                          schema_pkg_apis_meta_v1_APIVersions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                        schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                             schema_pkg_apis_meta_v1_Duration(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ExportOptions":                                                                        schema_pkg_apis_meta_v1_ExportOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                           schema_pkg_apis_meta_v1_GetOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                            schema_pkg_apis_meta_v1_GroupKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                        schema_pkg_apis_meta_v1_GroupResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                         schema_pkg_apis_meta_v1_GroupVersion(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                             schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                     schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                                 schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializer":                                                                          schema_pkg_apis_meta_v1_Initializer(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializers":                                                                         schema_pkg_apis_meta_v1_Initializers(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                        schema_pkg_apis_meta_v1_InternalEvent(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                        schema_pkg_apis_meta_v1_LabelSelector(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                             schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                                 schema_pkg_apis_meta_v1_List(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                             schema_pkg_apis_meta_v1_ListMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                          schema_pkg_apis_meta_v1_ListOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                            schema_pkg_apis_meta_v1_MicroTime(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                           schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                       schema_pkg_apis_meta_v1_OwnerReference(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                                schema_pkg_apis_meta_v1_Patch(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                        schema_pkg_apis_meta_v1_Preconditions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                            schema_pkg_apis_meta_v1_RootPaths(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                            schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                               schema_pkg_apis_meta_v1_Status(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                          schema_pkg_apis_meta_v1_StatusCause(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                        schema_pkg_apis_meta_v1_StatusDetails(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                                 schema_pkg_apis_meta_v1_Time(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                            schema_pkg_apis_meta_v1_Timestamp(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                             schema_pkg_apis_meta_v1_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                           schema_pkg_apis_meta_v1_WatchEvent(ref),
-		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                              schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                                  schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                                   schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		"k8s.io/apimachinery/pkg/version.Info":                                                                                      schema_k8sio_apimachinery_pkg_version_Info(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                 schema_api_apis_operators_v1alpha1_InstallMode(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink":               schema_package_server_apis_apps_v1alpha1_AppLink(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription":        schema_package_server_apis_apps_v1alpha1_CSVDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon":                  schema_package_server_apis_apps_v1alpha1_Icon(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageChannel":        schema_package_server_apis_apps_v1alpha1_PackageChannel(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifest":       schema_package_server_apis_apps_v1alpha1_PackageManifest(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestList":   schema_package_server_apis_apps_v1alpha1_PackageManifestList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestSpec":   schema_package_server_apis_apps_v1alpha1_PackageManifestSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestStatus": schema_package_server_apis_apps_v1alpha1_PackageManifestStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink":                schema_package_server_apis_operators_v1_AppLink(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription":         schema_package_server_apis_operators_v1_CSVDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon":                   schema_package_server_apis_operators_v1_Icon(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel":         schema_package_server_apis_operators_v1_PackageChannel(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest":        schema_package_server_apis_operators_v1_PackageManifest(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestList":    schema_package_server_apis_operators_v1_PackageManifestList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestSpec":    schema_package_server_apis_operators_v1_PackageManifestSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestStatus":  schema_package_server_apis_operators_v1_PackageManifestStatus(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                        schema_pkg_apis_meta_v1_APIGroup(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                    schema_pkg_apis_meta_v1_APIGroupList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                     schema_pkg_apis_meta_v1_APIResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                 schema_pkg_apis_meta_v1_APIResourceList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                     schema_pkg_apis_meta_v1_APIVersions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                   schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                        schema_pkg_apis_meta_v1_Duration(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ExportOptions":                                                                   schema_pkg_apis_meta_v1_ExportOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                      schema_pkg_apis_meta_v1_GetOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                       schema_pkg_apis_meta_v1_GroupKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                   schema_pkg_apis_meta_v1_GroupResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                    schema_pkg_apis_meta_v1_GroupVersion(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                        schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                            schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializer":                                                                     schema_pkg_apis_meta_v1_Initializer(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializers":                                                                    schema_pkg_apis_meta_v1_Initializers(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                   schema_pkg_apis_meta_v1_InternalEvent(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                   schema_pkg_apis_meta_v1_LabelSelector(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                        schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                            schema_pkg_apis_meta_v1_List(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                        schema_pkg_apis_meta_v1_ListMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                     schema_pkg_apis_meta_v1_ListOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                       schema_pkg_apis_meta_v1_MicroTime(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                      schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                  schema_pkg_apis_meta_v1_OwnerReference(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                           schema_pkg_apis_meta_v1_Patch(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                   schema_pkg_apis_meta_v1_Preconditions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                       schema_pkg_apis_meta_v1_RootPaths(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                       schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                          schema_pkg_apis_meta_v1_Status(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                     schema_pkg_apis_meta_v1_StatusCause(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                   schema_pkg_apis_meta_v1_StatusDetails(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                            schema_pkg_apis_meta_v1_Time(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                       schema_pkg_apis_meta_v1_Timestamp(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                        schema_pkg_apis_meta_v1_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                      schema_pkg_apis_meta_v1_WatchEvent(ref),
+		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                         schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                             schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                              schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		"k8s.io/apimachinery/pkg/version.Info":                                                                                 schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
@@ -109,7 +117,7 @@ func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -134,7 +142,7 @@ func schema_package_server_apis_packagemanifest_v1_AppLink(ref common.ReferenceC
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_CSVDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_CSVDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -154,7 +162,7 @@ func schema_package_server_apis_packagemanifest_v1_CSVDescription(ref common.Ref
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.Icon"),
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon"),
 									},
 								},
 							},
@@ -163,7 +171,7 @@ func schema_package_server_apis_packagemanifest_v1_CSVDescription(ref common.Ref
 					"provider": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Provider is the CSV's provider",
-							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink"),
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink"),
 						},
 					},
 					"annotations": {
@@ -203,11 +211,11 @@ func schema_package_server_apis_packagemanifest_v1_CSVDescription(ref common.Ref
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -232,7 +240,7 @@ func schema_package_server_apis_packagemanifest_v1_Icon(ref common.ReferenceCall
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_PackageChannel(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_PackageChannel(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -255,7 +263,7 @@ func schema_package_server_apis_packagemanifest_v1_PackageChannel(ref common.Ref
 					"currentCSVDesc": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CurrentCSVSpec holds the spec of the current CSV",
-							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.CSVDescription"),
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription"),
 						},
 					},
 				},
@@ -263,11 +271,11 @@ func schema_package_server_apis_packagemanifest_v1_PackageChannel(ref common.Ref
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.CSVDescription"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_PackageManifest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_PackageManifest(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -294,23 +302,23 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifest(ref common.Re
 					},
 					"spec": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestSpec"),
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestSpec"),
 						},
 					},
 					"status": {
 						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestStatus"),
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_PackageManifestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_PackageManifestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -341,7 +349,7 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifestList(ref commo
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifest"),
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifest"),
 									},
 								},
 							},
@@ -352,11 +360,11 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifestList(ref commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_PackageManifestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_PackageManifestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -368,7 +376,7 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifestSpec(ref commo
 	}
 }
 
-func schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_package_server_apis_apps_v1alpha1_PackageManifestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
@@ -403,7 +411,7 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref com
 					"provider": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Provider is the provider of the PackageManifest's default CSV",
-							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink"),
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink"),
 						},
 					},
 					"packageName": {
@@ -420,7 +428,7 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref com
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageChannel"),
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageChannel"),
 									},
 								},
 							},
@@ -438,7 +446,331 @@ func schema_package_server_apis_packagemanifest_v1_PackageManifestStatus(ref com
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1.PackageChannel"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageChannel"},
+	}
+}
+
+func schema_package_server_apis_operators_v1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AppLink defines a link to an application",
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_package_server_apis_operators_v1_CSVDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CSVDescription defines a description of a CSV",
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName is the CSV's display name",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"icon": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Icon is the CSV's base64 encoded icon",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon"),
+									},
+								},
+							},
+						},
+					},
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Provider is the CSV's provider",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink"),
+						},
+					},
+					"annotations": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LongDescription is the CSV's description",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installModes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallModes specify supported installation types",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon"},
+	}
+}
+
+func schema_package_server_apis_operators_v1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Icon defines a base64 encoded icon and media type",
+				Properties: map[string]spec.Schema{
+					"base64data": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"mediatype": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_package_server_apis_operators_v1_PackageChannel(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PackageChannel defines a single channel under a package, pointing to a version of that package.",
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name is the name of the channel, e.g. `alpha` or `stable`",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"currentCSV": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CurrentCSV defines a reference to the CSV holding the version of this package currently for the channel.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"currentCSVDesc": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CurrentCSVSpec holds the spec of the current CSV",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription"),
+						},
+					},
+				},
+				Required: []string{"name", "currentCSV"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription"},
+	}
+}
+
+func schema_package_server_apis_operators_v1_PackageManifest(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PackageManifest holds information about a package, which is a reference to one (or more) channels under a single package.",
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_package_server_apis_operators_v1_PackageManifestList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PackageManifestList is a list of PackageManifest objects.",
+				Properties: map[string]spec.Schema{
+					"TypeMeta": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"),
+						},
+					},
+					"ListMeta": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"Items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"TypeMeta", "ListMeta", "Items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta", "k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta"},
+	}
+}
+
+func schema_package_server_apis_operators_v1_PackageManifestSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PackageManifestSpec defines the desired state of PackageManifest",
+				Properties:  map[string]spec.Schema{},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_package_server_apis_operators_v1_PackageManifestStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PackageManifestStatus represents the current status of the PackageManifest",
+				Properties: map[string]spec.Schema{
+					"catalogSource": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogSource is the name of the CatalogSource this package belongs to",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"catalogSourceDisplayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"catalogSourcePublisher": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"catalogSourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Description: "\n CatalogSourceNamespace is the namespace of the owning CatalogSource",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Provider is the provider of the PackageManifest's default CSV",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink"),
+						},
+					},
+					"packageName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PackageName is the name of the overall package, ala `etcd`.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"channels": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Channels are the declared channels for the package, ala `stable` or `alpha`.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel"),
+									},
+								},
+							},
+						},
+					},
+					"defaultChannel": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DefaultChannel is, if specified, the name of the default channel for the package. The default channel will be installed if no other channel is explicitly given. If the package has a single channel, then that channel is implicitly the default.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"catalogSource", "catalogSourceDisplayName", "catalogSourcePublisher", "catalogSourceNamespace", "packageName", "channels", "defaultChannel"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel"},
 	}
 }
 

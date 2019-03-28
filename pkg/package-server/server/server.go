@@ -9,7 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	genericapiserver "k8s.io/apiserver/pkg/server"
+	genericserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -19,7 +19,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver"
-	genericpackagemanifests "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
+	genericpackageserver "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 )
 
@@ -108,7 +108,7 @@ func (o *PackageServerOptions) Config() (*apiserver.Config, error) {
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
-	serverConfig := genericapiserver.NewConfig(genericpackagemanifests.Codecs)
+	serverConfig := genericserver.NewConfig(genericpackageserver.Codecs)
 	if err := o.SecureServing.ApplyTo(serverConfig); err != nil {
 		return nil, err
 	}
@@ -124,7 +124,7 @@ func (o *PackageServerOptions) Config() (*apiserver.Config, error) {
 
 	return &apiserver.Config{
 		GenericConfig:  serverConfig,
-		ProviderConfig: genericpackagemanifests.ProviderConfig{},
+		ProviderConfig: genericpackageserver.ProviderConfig{},
 	}, nil
 }
 

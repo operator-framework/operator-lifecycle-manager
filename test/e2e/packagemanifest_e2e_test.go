@@ -13,7 +13,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	packagev1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
+	packagev1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
 )
 
@@ -34,7 +34,7 @@ func fetchPackageManifest(t *testing.T, pmc pmversioned.Interface, namespace, na
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Polling...")
-		fetched, err = pmc.PackagemanifestV1().PackageManifests(namespace).Get(name, metav1.GetOptions{})
+		fetched, err = pmc.OperatorsV1().PackageManifests(namespace).Get(name, metav1.GetOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			return true, err
 		}
@@ -88,7 +88,7 @@ func TestPackageManifestLoading(t *testing.T) {
 	// Wait for package-server to be ready
 	err := wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
 		t.Logf("Polling package-server...")
-		_, err := pmc.PackagemanifestV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+		_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
 		if err == nil {
 			return true, nil
 		}

@@ -19,7 +19,8 @@ limitations under the License.
 package fake
 
 import (
-	packagemanifestv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/packagemanifest/v1"
+	appsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -50,5 +51,6 @@ func init() {
 // After this, RawExtensions in Kubernetes types will serialize kube-aggregator types
 // correctly.
 func AddToScheme(scheme *runtime.Scheme) {
-	packagemanifestv1.AddToScheme(scheme)
+	appsv1alpha1.AddToScheme(scheme)
+	operatorsv1.AddToScheme(scheme)
 }

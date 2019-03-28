@@ -474,7 +474,7 @@ func (csv ClusterServiceVersion) GetRequiredAPIServiceDescriptions() []APIServic
 func (csv ClusterServiceVersion) GetOwnedAPIServiceDescriptions() []APIServiceDescription {
 	set := make(map[string]APIServiceDescription)
 	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
-		name := fmt.Sprintf("%s.%s", owned.Version, owned.Group)
+		name := owned.GetName()
 		set[name] = owned
 	}
 
