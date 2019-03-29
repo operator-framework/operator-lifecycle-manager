@@ -35,25 +35,88 @@ func init() {
 
 // RegisterConversions adds conversion functions to the given scheme.
 // Public to allow building arbitrary schemes.
-func RegisterConversions(scheme *runtime.Scheme) error {
-	return scheme.AddGeneratedConversionFuncs(
-		Convert_v1alpha1_AppLink_To_operators_AppLink,
-		Convert_operators_AppLink_To_v1alpha1_AppLink,
-		Convert_v1alpha1_CSVDescription_To_operators_CSVDescription,
-		Convert_operators_CSVDescription_To_v1alpha1_CSVDescription,
-		Convert_v1alpha1_Icon_To_operators_Icon,
-		Convert_operators_Icon_To_v1alpha1_Icon,
-		Convert_v1alpha1_PackageChannel_To_operators_PackageChannel,
-		Convert_operators_PackageChannel_To_v1alpha1_PackageChannel,
-		Convert_v1alpha1_PackageManifest_To_operators_PackageManifest,
-		Convert_operators_PackageManifest_To_v1alpha1_PackageManifest,
-		Convert_v1alpha1_PackageManifestList_To_operators_PackageManifestList,
-		Convert_operators_PackageManifestList_To_v1alpha1_PackageManifestList,
-		Convert_v1alpha1_PackageManifestSpec_To_operators_PackageManifestSpec,
-		Convert_operators_PackageManifestSpec_To_v1alpha1_PackageManifestSpec,
-		Convert_v1alpha1_PackageManifestStatus_To_operators_PackageManifestStatus,
-		Convert_operators_PackageManifestStatus_To_v1alpha1_PackageManifestStatus,
-	)
+func RegisterConversions(s *runtime.Scheme) error {
+	if err := s.AddGeneratedConversionFunc((*AppLink)(nil), (*operators.AppLink)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_AppLink_To_operators_AppLink(a.(*AppLink), b.(*operators.AppLink), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.AppLink)(nil), (*AppLink)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_AppLink_To_v1alpha1_AppLink(a.(*operators.AppLink), b.(*AppLink), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*CSVDescription)(nil), (*operators.CSVDescription)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_CSVDescription_To_operators_CSVDescription(a.(*CSVDescription), b.(*operators.CSVDescription), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.CSVDescription)(nil), (*CSVDescription)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_CSVDescription_To_v1alpha1_CSVDescription(a.(*operators.CSVDescription), b.(*CSVDescription), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*Icon)(nil), (*operators.Icon)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_Icon_To_operators_Icon(a.(*Icon), b.(*operators.Icon), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.Icon)(nil), (*Icon)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_Icon_To_v1alpha1_Icon(a.(*operators.Icon), b.(*Icon), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*PackageChannel)(nil), (*operators.PackageChannel)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_PackageChannel_To_operators_PackageChannel(a.(*PackageChannel), b.(*operators.PackageChannel), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.PackageChannel)(nil), (*PackageChannel)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_PackageChannel_To_v1alpha1_PackageChannel(a.(*operators.PackageChannel), b.(*PackageChannel), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*PackageManifest)(nil), (*operators.PackageManifest)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_PackageManifest_To_operators_PackageManifest(a.(*PackageManifest), b.(*operators.PackageManifest), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.PackageManifest)(nil), (*PackageManifest)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_PackageManifest_To_v1alpha1_PackageManifest(a.(*operators.PackageManifest), b.(*PackageManifest), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*PackageManifestList)(nil), (*operators.PackageManifestList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_PackageManifestList_To_operators_PackageManifestList(a.(*PackageManifestList), b.(*operators.PackageManifestList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.PackageManifestList)(nil), (*PackageManifestList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_PackageManifestList_To_v1alpha1_PackageManifestList(a.(*operators.PackageManifestList), b.(*PackageManifestList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*PackageManifestSpec)(nil), (*operators.PackageManifestSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_PackageManifestSpec_To_operators_PackageManifestSpec(a.(*PackageManifestSpec), b.(*operators.PackageManifestSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.PackageManifestSpec)(nil), (*PackageManifestSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_PackageManifestSpec_To_v1alpha1_PackageManifestSpec(a.(*operators.PackageManifestSpec), b.(*PackageManifestSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*PackageManifestStatus)(nil), (*operators.PackageManifestStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_PackageManifestStatus_To_operators_PackageManifestStatus(a.(*PackageManifestStatus), b.(*operators.PackageManifestStatus), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.PackageManifestStatus)(nil), (*PackageManifestStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_PackageManifestStatus_To_v1alpha1_PackageManifestStatus(a.(*operators.PackageManifestStatus), b.(*PackageManifestStatus), scope)
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 func autoConvert_v1alpha1_AppLink_To_operators_AppLink(in *AppLink, out *operators.AppLink, s conversion.Scope) error {

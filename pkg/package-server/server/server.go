@@ -81,7 +81,7 @@ type PackageServerOptions struct {
 func NewPackageServerOptions(out, errOut io.Writer) *PackageServerOptions {
 	o := &PackageServerOptions{
 
-		SecureServing:  genericoptions.WithLoopback(genericoptions.NewSecureServingOptions()),
+		SecureServing:  genericoptions.NewSecureServingOptions().WithLoopback(),
 		Authentication: genericoptions.NewDelegatingAuthenticationOptions(),
 		Authorization:  genericoptions.NewDelegatingAuthorizationOptions(),
 		Features:       genericoptions.NewFeatureOptions(),
@@ -109,7 +109,7 @@ func (o *PackageServerOptions) Config() (*apiserver.Config, error) {
 	}
 
 	serverConfig := genericserver.NewConfig(genericpackageserver.Codecs)
-	if err := o.SecureServing.ApplyTo(serverConfig); err != nil {
+	if err := o.SecureServing.ApplyTo(&serverConfig.SecureServing, &serverConfig.LoopbackClientConfig); err != nil {
 		return nil, err
 	}
 

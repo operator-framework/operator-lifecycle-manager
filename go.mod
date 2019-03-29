@@ -1,12 +1,16 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
 require (
+	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78 // indirect
+	github.com/Sirupsen/logrus v0.0.0-00010101000000-000000000000 // indirect
 	github.com/coreos/bbolt v1.3.2 // indirect
 	github.com/coreos/etcd v3.3.12+incompatible // indirect
 	github.com/coreos/go-semver v0.2.0
 	github.com/coreos/go-systemd v0.0.0-20190204112023-081494f7ee4f // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
+	github.com/docker/docker v1.13.1 // indirect
 	github.com/emicklei/go-restful v2.9.0+incompatible // indirect
+	github.com/evanphx/json-patch v4.1.1-0.20190203023257-5858425f7550+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.17.2
 	github.com/go-openapi/strfmt v0.19.0 // indirect
@@ -44,5 +48,23 @@ require (
 	k8s.io/klog v0.2.0 // indirect
 	k8s.io/kube-aggregator v0.0.0-20190223015803-f706565beac0
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
-	k8s.io/kubernetes v1.11.10-beta.0.0.20190325075447-8253d66ee09e
+	k8s.io/kubernetes v1.12.7
+)
+
+replace (
+	// This is necessary due to the combination of logrus casing changing
+	// without bumping the major version and the extremely old version of
+	// docker that's being pulled in.
+	// original breakage - https://github.com/sirupsen/logrus/issues/451
+	// breakage explanation - https://github.com/golang/go/issues/26208#issuecomment-411955266
+	github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.1.0
+	// all of the below are using the kubernetes-1.12.7 tag
+	// remember to bump kubernetes above also when upgrading
+	k8s.io/api => k8s.io/api v0.0.0-20190325144926-266ff08fa05d
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20190325151511-42d4d5ce2c84
+	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
+	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20190325150012-164c02b49fbe
+	k8s.io/client-go => k8s.io/client-go v2.0.0-alpha.0.0.20190325145348-5392b64e5c0b+incompatible
+	k8s.io/code-generator => k8s.io/code-generator v0.0.0-20181128191024-b1289fc74931
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.0.0-20190325150400-0a029fc09217
 )
