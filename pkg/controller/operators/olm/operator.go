@@ -8,7 +8,6 @@ import (
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/sirupsen/logrus"
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1423,22 +1422,14 @@ func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alph
 		return nil
 	}
 
-	var depNames []string
-	for _, dep := range strategyDetailsDeployment.DeploymentSpecs {
-		depNames = append(depNames, dep.Name)
-	}
-	existingDeployments, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).List(labels.Everything())
+	existingDeployments, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).List(ownerutil.CSVOwnerSelector(csv))
 	if err != nil {
 		return err
 	}
 
 	// compare deployments to see if any need to be created/updated
-	existingMap := map[string]*appsv1.Deployment{}
-	for _, d := range existingDeployments {
-		existingMap[d.GetName()] = d
-	}
 	updateErrs := []error{}
-	for _, dep := range existingMap {
+	for _, dep := range existingDeployments {
 		if dep.Spec.Template.Annotations == nil {
 			dep.Spec.Template.Annotations = map[string]string{}
 		}
