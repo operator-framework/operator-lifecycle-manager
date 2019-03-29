@@ -117,6 +117,31 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	return nil
 }
 
+func (a *Operator) operatorGroupDeleted(obj interface{}) {
+	op, ok := obj.(*v1.OperatorGroup)
+	if !ok {
+		a.Log.Debugf("casting OperatorGroup failed, wrong type: %#v\n", obj)
+		return
+	}
+
+	logger := a.Log.WithFields(logrus.Fields{
+		"operatorGroup": op.GetName(),
+		"namespace":     op.GetNamespace(),
+	})
+
+	clusterRoles, err := a.lister.RbacV1().ClusterRoleLister().List(labels.SelectorFromSet(ownerutil.OwnerLabel(op, "OperatorGroup")))
+	if err != nil {
+		logger.WithError(err).Error("failed to list ClusterRoles for garbage collection")
+		return
+	}
+	for _, clusterRole := range clusterRoles {
+		err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Delete(clusterRole.GetName(), &metav1.DeleteOptions{})
+		if err != nil {
+			logger.WithError(err).Error("failed to delete ClusterRole during garbage collection")
+		}
+	}
+}
+
 func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) error {
 	updateErrs := []error{}
 	targetNamespaceSet := resolver.NewNamespaceSet(targetNamespaces)
@@ -221,6 +246,10 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup,
 			},
 		},
 		Rules: []rbacv1.PolicyRule{{Verbs: verbs, APIGroups: []string{group}, Resources: []string{resource}, ResourceNames: resourceNames}},
+	}
+	err := ownerutil.AddOwnerLabels(clusterRole, operatorGroup)
+	if err != nil {
+		return err
 	}
 	existingCR, err := a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
 	if k8serrors.IsAlreadyExists(err) {
@@ -754,7 +783,11 @@ func (a *Operator) ensureOpGroupClusterRole(op *v1.OperatorGroup, suffix string)
 			},
 		},
 	}
-	_, err := a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
+	err := ownerutil.AddOwnerLabels(clusterRole, op)
+	if err != nil {
+		return err
+	}
+	_, err = a.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
 	if k8serrors.IsAlreadyExists(err) {
 		return nil
 	} else if err != nil {

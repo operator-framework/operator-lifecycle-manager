@@ -21,7 +21,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
@@ -139,11 +139,6 @@ func TestOperatorGroup(t *testing.T) {
 	}
 	_, err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Create(&operatorGroup)
 	require.NoError(t, err)
-	defer func() {
-		err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
-		require.NoError(t, err)
-	}()
-
 	expectedOperatorGroupStatus := v1.OperatorGroupStatus{
 		Namespaces: []string{opGroupNamespace, createdOtherNamespace.GetName()},
 	}
@@ -407,6 +402,36 @@ func TestOperatorGroup(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
+
+	err = crc.OperatorsV1().OperatorGroups(opGroupNamespace).Delete(operatorGroup.Name, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+	t.Log("Waiting for OperatorGroup RBAC to be garbage collected")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-admin", metav1.GetOptions{})
+		if err == nil {
+			return false, nil
+		}
+		return true, err
+	})
+	require.True(t, errors.IsNotFound(err))
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-edit", metav1.GetOptions{})
+		if err == nil {
+			return false, nil
+		}
+		return true, err
+	})
+	require.True(t, errors.IsNotFound(err))
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err := c.KubernetesInterface().RbacV1().ClusterRoles().Get(operatorGroup.Name+"-view", metav1.GetOptions{})
+		if err == nil {
+			return false, nil
+		}
+		return true, err
+	})
+	require.True(t, errors.IsNotFound(err))
 }
 
 func createProjectAdmin(t *testing.T, c operatorclient.ClientInterface, namespace string) (string, cleanupFunc) {

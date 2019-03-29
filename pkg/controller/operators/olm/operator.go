@@ -299,7 +299,7 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 		// Register queue and QueueInformer
 		queueName := fmt.Sprintf("%s/operatorgroups", namespace)
 		operatorGroupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		operatorGroupQueueInformer := queueinformer.NewInformer(operatorGroupQueue, operatorGroupInformer.Informer(), op.syncOperatorGroups, nil, queueName, metrics.NewMetricsNil(), logger)
+		operatorGroupQueueInformer := queueinformer.NewInformer(operatorGroupQueue, operatorGroupInformer.Informer(), op.syncOperatorGroups, &cache.ResourceEventHandlerFuncs{DeleteFunc: op.operatorGroupDeleted}, queueName, metrics.NewMetricsNil(), logger)
 		op.RegisterQueueInformer(operatorGroupQueueInformer)
 		op.ogQueueSet.Set(namespace, operatorGroupQueue)
 	}

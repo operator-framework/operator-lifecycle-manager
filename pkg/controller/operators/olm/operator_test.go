@@ -3935,6 +3935,10 @@ func TestSyncOperatorGroups(t *testing.T) {
 					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1.OperatorGroupTargetsAnnotationKey: "", v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 					annotatedGlobalDeployment,
 					&v1.OperatorGroup{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1.OperatorGroupKind,
+							APIVersion: strings.Join([]string{v1.GroupName, v1.GroupVersion}, "/"),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "operator-group-1",
 							Namespace: operatorNamespace,
