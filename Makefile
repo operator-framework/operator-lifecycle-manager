@@ -13,8 +13,6 @@ counterfeiter := $(GOBIN)/counterfeiter
 mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
-KUBE_DEPS := api apiextensions-apiserver apimachinery code-generator kube-aggregator kubernetes
-KUBE_RELEASE := release-1.11
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
@@ -90,12 +88,7 @@ e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
-# kube dependencies all should be at the same release and should match up with client go
-# go.mod currently doesn't support specifying a branch name to track, and kube isn't publishing good version tags
-$(KUBE_DEPS):
-	go get -m k8s.io/$@@$(KUBE_RELEASE)
-
-vendor: $(KUBE_DEPS)
+vendor:
 	go mod tidy
 	go mod vendor
 

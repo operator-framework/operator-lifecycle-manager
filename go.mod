@@ -49,6 +49,7 @@ require (
 	k8s.io/kube-aggregator v0.0.0-20190223015803-f706565beac0
 	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
 	k8s.io/kubernetes v1.12.7
+	k8s.io/utils v0.0.0-20190308190857-21c4ce38f2a7 // indirect
 )
 
 replace (
