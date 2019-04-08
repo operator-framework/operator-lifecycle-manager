@@ -1,8 +1,10 @@
+---
+# Source: olm/templates/0000_50_olm_11-olm-operators.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
 metadata:
   name: olm-operators
-  namespace: openshift-operator-lifecycle-manager
+  namespace: olm
 data:
   customResourceDefinitions: |-
   clusterServiceVersions: |-
@@ -10,7 +12,7 @@ data:
       kind: ClusterServiceVersion
       metadata:
         name: packageserver.v0.9.0
-        namespace: openshift-operator-lifecycle-manager
+        namespace: olm
       spec:
         displayName: Package Server
         description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
@@ -86,10 +88,6 @@ data:
                     serviceAccountName: packageserver
                     nodeSelector:
                       beta.kubernetes.io/os: linux
-                      node-role.kubernetes.io/master: ""
-                      
-                    tolerations:
-                      - operator: Exists
                       
                     containers:
                     - name: packageserver
@@ -99,10 +97,9 @@ data:
                       - --secure-port
                       - "5443"
                       - --global-namespace
-                      - openshift-operator-lifecycle-manager
+                      - olm
                       image: quay.io/operator-framework/olm@sha256:7e4b13b89b3d59876b228697bbd0c9e364fd73f946ab90308c34fd82053a5a76
-                      imagePullPolicy: IfNotPresent
-                      priorityClassName: "system-cluster-critical"
+                      imagePullPolicy: Always
                       ports:
                       - containerPort: 5443
                       livenessProbe:
