@@ -200,6 +200,8 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 				currentID = replacedID
 				channelEntryCSVName = replaced.String
 				depth += 1
+			} else {
+				return fmt.Errorf("%s specifies replacement that couldn't be found", c.CurrentCSVName)
 			}
 		}
 	}

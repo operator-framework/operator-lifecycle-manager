@@ -79,6 +79,9 @@ func main() {
 
 	dst := os.Stdout
 	if len(*destination) > 0 {
+		if err := os.MkdirAll(filepath.Dir(*destination), os.ModePerm); err != nil {
+			log.Fatalf("Unable to create directory: %v", err)
+		}
 		f, err := os.Create(*destination)
 		if err != nil {
 			log.Fatalf("Failed opening destination file: %v", err)
@@ -404,6 +407,7 @@ func (g *generator) GenerateMockMethod(mockType string, m *model.Method, pkgOver
 	g.p("// %v mocks base method", m.Name)
 	g.p("func (%v *%v) %v(%v)%v {", idRecv, mockType, m.Name, argString, retString)
 	g.in()
+	g.p("%s.ctrl.T.Helper()", idRecv)
 
 	var callArgs string
 	if m.Variadic == nil {
@@ -471,6 +475,7 @@ func (g *generator) GenerateMockRecorderMethod(mockType string, m *model.Method)
 	g.p("// %v indicates an expected call of %v", m.Name, m.Name)
 	g.p("func (%s *%vMockRecorder) %v(%v) *gomock.Call {", idRecv, mockType, m.Name, argString)
 	g.in()
+	g.p("%s.mock.ctrl.T.Helper()", idRecv)
 
 	var callArgs string
 	if m.Variadic == nil {
