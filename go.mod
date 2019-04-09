@@ -8,7 +8,7 @@ require (
 	github.com/coreos/go-semver v0.2.0
 	github.com/coreos/go-systemd v0.0.0-20190321100706-95778dfbb74e // indirect
 	github.com/docker/distribution v2.7.1+incompatible // indirect
-	github.com/docker/docker v0.7.3-0.20190408204253-7e03619c1c71 // indirect
+	github.com/docker/docker v0.7.3-0.20190409004836-2e1cfbca03da // indirect
 	github.com/emicklei/go-restful v2.9.3+incompatible // indirect
 	github.com/ghodss/yaml v1.0.0
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect

@@ -42,8 +42,8 @@ github.com/docker/distribution v2.6.2+incompatible/go.mod h1:J2gT2udsDAN96Uj4Kfc
 github.com/docker/distribution v2.7.0+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
 github.com/docker/distribution v2.7.1+incompatible h1:a5mlkVzth6W5A4fOsS3D2EO5BUmsJpcB+cRlLU7cSug=
 github.com/docker/distribution v2.7.1+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
-github.com/docker/docker v0.7.3-0.20190408204253-7e03619c1c71 h1:oToIQ+A+RAmp/Damv5BMoH4xsxQkJNp2f8q1HryE+ew=
-github.com/docker/docker v0.7.3-0.20190408204253-7e03619c1c71/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
+github.com/docker/docker v0.7.3-0.20190409004836-2e1cfbca03da h1:9ouQ6UxUR99krN1mfiQP+ygP5mS9YSioeyXD01WcwLA=
+github.com/docker/docker v0.7.3-0.20190409004836-2e1cfbca03da/go.mod h1:eEKB0N0r5NX/I1kEveEz05bcu8tLC/8azJZsviup8Sk=
 github.com/docker/go-units v0.3.3/go.mod h1:fgPhTUdO+D/Jk86RDLlptpiXQzgHJF7gydDDbaIK4Dk=
 github.com/elazarl/go-bindata-assetfs v1.0.0 h1:G/bYguwHIzWq9ZoyUQqrjTmJbbYn3j3CKKpKinvZLFk=
 github.com/elazarl/go-bindata-assetfs v1.0.0/go.mod h1:v+YaWX3bdea5J/mo8dSETolEo7R71Vk1u8bnjau5yw4=
