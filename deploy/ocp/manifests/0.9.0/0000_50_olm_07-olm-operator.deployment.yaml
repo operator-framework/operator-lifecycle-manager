@@ -1,33 +1,32 @@
+---
+# Source: olm/templates/0000_50_olm_07-olm-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: catalog-operator
+  name: olm-operator
   namespace: openshift-operator-lifecycle-manager
   labels:
-    app: catalog-operator
+    app: olm-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: 1
   selector:
     matchLabels:
-      app: catalog-operator
+      app: olm-operator
   template:
     metadata:
       labels:
-        app: catalog-operator
+        app: olm-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
       containers:
-        - name: catalog-operator
+        - name: olm-operator
           command:
-          - /bin/catalog
+          - /bin/olm
           args:
-          - '-namespace'
-          - openshift-operator-lifecycle-manager
-          - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
           - -writeStatusName
-          - operator-lifecycle-manager-catalog
+          - operator-lifecycle-manager
           - -tls-cert
           - /var/run/secrets/serving-cert/tls.crt
           - -tls-key
@@ -49,10 +48,16 @@ spec:
               path: /healthz
               port: 8080
           env:
-          
+        
           - name: RELEASE_VERSION
             value: "0.0.1-snapshot"
-          
+        
+          - name: OPERATOR_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          - name: OPERATOR_NAME
+            value: olm-operator
           
           volumeMounts:
           - mountPath: /var/run/secrets/serving-cert
@@ -62,7 +67,7 @@ spec:
       volumes:
       - name: serving-cert
         secret:
-          secretName: catalog-operator-serving-cert
+          secretName: olm-operator-serving-cert
           optional: true
       
       nodeSelector:
