@@ -1,9 +1,12 @@
-FROM golang:1.10
-WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
+FROM golang:1.12
+WORKDIR /operator-lifecycle-manager
 COPY Makefile Makefile
+COPY cmd cmd
 COPY pkg pkg
 COPY vendor vendor
+COPY go.mod go.mod
+COPY go.sum go.sum
 COPY scripts/generate_mocks.sh scripts/generate_mocks.sh
-RUN chmod +x scripts/generate_mocks.sh
 COPY boilerplate.go.txt boilerplate.go.txt
-RUN make generate-mock-client
+RUN chmod +x scripts/generate_mocks.sh && \
+    make mockgen

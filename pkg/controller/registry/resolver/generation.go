@@ -1,4 +1,3 @@
-//go:generate counterfeiter -o fakes/fake_generation.go . SourceQuerier
 package resolver
 
 import (

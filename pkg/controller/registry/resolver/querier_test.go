@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/operator-framework/operator-registry/pkg/client"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
-	"github.com/operator-framework/operator-registry/pkg/client"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 func TestNewNamespaceSourceQuerier(t *testing.T) {
