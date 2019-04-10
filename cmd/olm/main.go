@@ -123,22 +123,40 @@ func main() {
 	if *tlsCertPath != "" && *tlsKeyPath == "" || *tlsCertPath == "" && *tlsKeyPath != "" {
 		logger.Warn("both --tls-key and --tls-crt must be provided for TLS to be enabled, falling back to non-https")
 	} else if *tlsCertPath == "" && *tlsKeyPath == "" {
-		logger.Info("TLS keys not set, using non-https")
+		logger.Info("TLS keys not set, using non-https for metrics")
 	} else {
+		logger.Info("TLS keys set, using https for metrics")
 		useTLS = true
 	}
 
 	// Serve a health check.
-	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	healthMux := http.NewServeMux()
+	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	go http.ListenAndServe(":8080", nil)
+	go func() {
+		err := http.ListenAndServe(":8080", healthMux)
+		if err != nil {
+			logger.Errorf("Health serving failed: %v", err)
+		}
+	}()
 
-	http.Handle("/metrics", promhttp.Handler())
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
 	if useTLS {
-		go http.ListenAndServeTLS(":8081", *tlsCertPath, *tlsKeyPath, nil)
+		go func() {
+			err := http.ListenAndServeTLS(":8081", *tlsCertPath, *tlsKeyPath, metricsMux)
+			if err != nil {
+				logger.Errorf("Metrics (https) serving failed: %v", err)
+			}
+		}()
 	} else {
-		go http.ListenAndServe(":8081", nil)
+		go func() {
+			err := http.ListenAndServe(":8081", metricsMux)
+			if err != nil {
+				logger.Errorf("Metrics (http) serving failed: %v", err)
+			}
+		}()
 	}
 
 	ready, done, sync := operator.Run(stopCh)
