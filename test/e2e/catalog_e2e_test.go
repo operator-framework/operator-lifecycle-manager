@@ -184,14 +184,15 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.Equal(t, updatedConfigMap.GetResourceVersion(), fetchedUpdatedCatalog.Status.ConfigMapResource.ResourceVersion)
 
 	// Await 1 CatalogSource registry pod matching the updated labels
+	singlePod := podCount(1)
 	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName, "olm.configMapResourceVersion": updatedConfigMap.GetResourceVersion()})
-	podList, err := awaitPods(t, c, selector.String(), 1)
+	podList, err := awaitPods(t, c, testNamespace, selector.String(), singlePod)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(podList.Items), "expected pod list not of length 1")
 
 	// Await 1 CatalogSource registry pod matching the updated labels
 	selector = labels.SelectorFromSet(map[string]string{"olm.catalogSource": mainCatalogName})
-	podList, err = awaitPods(t, c, selector.String(), 1)
+	podList, err = awaitPods(t, c, testNamespace, selector.String(), singlePod)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(podList.Items), "expected pod list not of length 1")
 
@@ -377,9 +378,9 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 
 	// Replicate catalog pods with no OwnerReferences
 	mainCopy := replicateCatalogPod(t, c, crc, mainSource)
-	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), HasPodIP)
+	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
 	replacementCopy := replicateCatalogPod(t, c, crc, replacementSource)
-	replacementCopy = awaitPod(t, c, replacementCopy.GetNamespace(), replacementCopy.GetName(), HasPodIP)
+	replacementCopy = awaitPod(t, c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
 
 	addressSourceName := genName("address-catalog-")
 
@@ -433,6 +434,86 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	// Wait for the replacement CSV to be installed
 	_, err = awaitCSV(t, crc, testNamespace, replacementCSV.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
+}
+
+func TestDeleteRegistryPodTriggersRecreation(t *testing.T) {
+	// Create internal CatalogSource containing csv in package
+	// Wait for a registry pod to be created
+	// Create a Subscription for package
+	// Wait for the Subscription to succeed
+	// Wait for csv to succeed
+	// Delete the registry pod
+	// Wait for a new registry pod to be created
+
+	defer cleaner.NotifyTestComplete(t, true)
+
+	// Create internal CatalogSource containing csv in package
+	packageName := genName("nginx-")
+	packageStable := fmt.Sprintf("%s-stable", packageName)
+	stableChannel := "stable"
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	catalogName := genName("catsrc-")
+	crd := newCRD(genName("ins-"))
+	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: packageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	_, cleanupCatalog := createInternalCatalogSource(t, c, crc, catalogName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	defer cleanupCatalog()
+
+	// Wait for a new registry pod to be created
+	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": catalogName})
+	singlePod := podCount(1)
+	registryPods, err := awaitPods(t, c, testNamespace, selector.String(), singlePod)
+	require.NoError(t, err, "error awaiting registry pod")
+	require.NotNil(t, registryPods, "nil registry pods")
+	require.Equal(t, 1, len(registryPods.Items), "unexpected number of registry pods found")
+
+	// Store the UID for later comparison
+	uid := registryPods.Items[0].GetUID()
+	name := registryPods.Items[0].GetName()
+
+	// Create a Subscription for package
+	subscriptionName := genName("sub-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	// Wait for the Subscription to succeed
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for csv to succeed
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Delete the registry pod
+	err = c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(name, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	// Wait for a new registry pod to be created
+	notUID := func(pods *corev1.PodList) bool {
+		for _, pod := range pods.Items {
+			if pod.GetUID() == uid {
+				return false
+			}
+		}
+
+		return true
+	}
+	registryPods, err = awaitPods(t, c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
+	require.NoError(t, err, "error waiting for replacement registry pod")
+	require.NotNil(t, registryPods, "nil replacement registry pods")
+	require.Equal(t, 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {
