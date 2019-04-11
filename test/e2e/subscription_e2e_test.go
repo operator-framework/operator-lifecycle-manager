@@ -569,6 +569,11 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, requiresApprovalChecker)
 	require.NoError(t, err)
 
+	// Ensure that only 1 installplan was created
+	ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, ips.Items, 1)
+
 	// Ensure that csvA and its crd are found in the plan
 	csvFound := false
 	crdFound := false
@@ -589,6 +594,21 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	}
 	require.True(t, csvFound, "expected csv not found in installplan")
 	require.True(t, crdFound, "expected crd not found in installplan")
+
+	// Ensure that csvB is not found in the plan
+	csvFound = false
+	for _, s := range fetchedInstallPlan.Status.Plan {
+		require.Equal(t, csvA.GetName(), s.Resolving, "unexpected resolution found")
+		require.Equal(t, v1alpha1.StepStatusUnknown, s.Status, "status should be unknown")
+		require.Equal(t, catalogSourceName, s.Resource.CatalogSource, "incorrect catalogsource on step resource")
+		switch kind := s.Resource.Kind; kind {
+		case v1alpha1.ClusterServiceVersionKind:
+			if s.Resource.Name == csvB.GetName() {
+				csvFound = true
+			}
+		}
+	}
+	require.False(t, csvFound, "expected csv not found in installplan")
 
 	// Approve the installplan and wait for csvA to be installed
 	fetchedInstallPlan.Spec.Approved = true
@@ -613,6 +633,11 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 
 	_, err = awaitCSV(t, crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
+
+	// Ensure that 2 installplans were created
+	ips, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, ips.Items, 2)
 }
 
 func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {

@@ -621,11 +621,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		syncError = err
 	}
 
-	// Ensure cluster roles exist for using provided apis
-	if err := a.ensureClusterRolesForCSV(clusterServiceVersion, operatorGroup); err != nil {
-		logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
-		syncError = err
-	}
 	return
 }
 
@@ -985,6 +980,13 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		// Check install status
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("unhealthy component: %s", installErr)
+			return
+		}
+
+		// Ensure cluster roles exist for using provided apis
+		if err := a.ensureClusterRolesForCSV(out, operatorGroup); err != nil {
+			logger.WithError(err).Info("couldn't ensure clusterroles for provided api types")
+			syncError = err
 			return
 		}
 

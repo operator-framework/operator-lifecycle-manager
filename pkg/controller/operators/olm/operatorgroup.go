@@ -742,14 +742,10 @@ func (a *Operator) ensureOpGroupClusterRole(op *v1.OperatorGroup, suffix string)
 }
 
 func (a *Operator) ensureOpGroupClusterRoles(op *v1.OperatorGroup) error {
-	if err := a.ensureOpGroupClusterRole(op, AdminSuffix); err != nil {
-		return err
-	}
-	if err := a.ensureOpGroupClusterRole(op, EditSuffix); err != nil {
-		return err
-	}
-	if err := a.ensureOpGroupClusterRole(op, ViewSuffix); err != nil {
-		return err
+	for _, suffix := range Suffices {
+		if err := a.ensureOpGroupClusterRole(op, suffix); err != nil {
+			return err
+		}
 	}
 	return nil
 }
