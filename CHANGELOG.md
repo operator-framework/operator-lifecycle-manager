@@ -1,5 +1,41 @@
 # Change Log
 
+## [0.9.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.9.0) (2019-04-11)
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.8.1...0.9.0)
+
+**Implemented enhancements:**
+
+- feat\(packageserver\): support apps.redhat.com and operators.coreos.com [\#788](https://github.com/operator-framework/operator-lifecycle-manager/pull/788) ([njhale](https://github.com/njhale))
+- fix\(metrics\): add service monitor config [\#682](https://github.com/operator-framework/operator-lifecycle-manager/pull/682) ([jpeeler](https://github.com/jpeeler))
+
+**Fixed bugs:**
+
+- fix\(annotation\): don't annotate deployments that aren't owned by a CSV [\#792](https://github.com/operator-framework/operator-lifecycle-manager/pull/792) ([ecordell](https://github.com/ecordell))
+- fix\(packageserver\): add struct tags to PackageManifestList [\#791](https://github.com/operator-framework/operator-lifecycle-manager/pull/791) ([njhale](https://github.com/njhale))
+- fix\(olm\): use hashes for provided api labels [\#778](https://github.com/operator-framework/operator-lifecycle-manager/pull/778) ([ecordell](https://github.com/ecordell))
+
+**Closed issues:**
+
+- git add issue [\#797](https://github.com/operator-framework/operator-lifecycle-manager/issues/797)
+- Unable to install the latest version on minishift [\#780](https://github.com/operator-framework/operator-lifecycle-manager/issues/780)
+- scripts/install\_local.sh: upstream-operators.catalogsource.yaml not written correctly [\#772](https://github.com/operator-framework/operator-lifecycle-manager/issues/772)
+- flag provided but not defined: -writeStatusName [\#770](https://github.com/operator-framework/operator-lifecycle-manager/issues/770)
+- ClusterServiceVersion Status: Failed [\#769](https://github.com/operator-framework/operator-lifecycle-manager/issues/769)
+- Upstream quickstart and latest manifests should deploy same OLM image [\#747](https://github.com/operator-framework/operator-lifecycle-manager/issues/747)
+
+**Other changes:**
+
+- Fix modules [\#805](https://github.com/operator-framework/operator-lifecycle-manager/pull/805) ([njhale](https://github.com/njhale))
+- Cut Release 0.9.0 [\#802](https://github.com/operator-framework/operator-lifecycle-manager/pull/802) ([alecmerdler](https://github.com/alecmerdler))
+- Bump OLM Release Version to 0.9.0 [\#801](https://github.com/operator-framework/operator-lifecycle-manager/pull/801) ([alecmerdler](https://github.com/alecmerdler))
+- Update Kubernetes dependencies to 1.12.7 [\#793](https://github.com/operator-framework/operator-lifecycle-manager/pull/793) ([jpeeler](https://github.com/jpeeler))
+- chore\(build\): build binaries locally and load them into containers [\#777](https://github.com/operator-framework/operator-lifecycle-manager/pull/777) ([ecordell](https://github.com/ecordell))
+- chore\(catalog\): add ClusterOperator status for catalog operator [\#776](https://github.com/operator-framework/operator-lifecycle-manager/pull/776) ([ecordell](https://github.com/ecordell))
+- chore\(deploy\): set priorityclass on olm pods [\#775](https://github.com/operator-framework/operator-lifecycle-manager/pull/775) ([ecordell](https://github.com/ecordell))
+- chore\(api\): bump operatorgroup and packagemanifest to v1  [\#774](https://github.com/operator-framework/operator-lifecycle-manager/pull/774) ([ecordell](https://github.com/ecordell))
+- chore\(manifests\): recut 0.8.1 [\#771](https://github.com/operator-framework/operator-lifecycle-manager/pull/771) ([njhale](https://github.com/njhale))
+- docs\(subscriptions\): add improved sub status proposal [\#741](https://github.com/operator-framework/operator-lifecycle-manager/pull/741) ([njhale](https://github.com/njhale))
+
 ## [0.8.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.8.1) (2019-03-20)
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.7.1...0.8.1)
 
@@ -181,6 +217,7 @@
 
 **Other changes:**
 
+- docs\(git\): add changelog [\#765](https://github.com/operator-framework/operator-lifecycle-manager/pull/765) ([njhale](https://github.com/njhale))
 - chore\(manifests\): regenerate manifests to include new anyOf validation [\#744](https://github.com/operator-framework/operator-lifecycle-manager/pull/744) ([njhale](https://github.com/njhale))
 - docs: update CSV link [\#713](https://github.com/operator-framework/operator-lifecycle-manager/pull/713) ([robszumski](https://github.com/robszumski))
 - chore\(deploy\): use downstream image for openshift builds [\#693](https://github.com/operator-framework/operator-lifecycle-manager/pull/693) ([ecordell](https://github.com/ecordell))
