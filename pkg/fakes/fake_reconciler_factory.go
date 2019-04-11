@@ -8,7 +8,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 )
 
-type FakeReconcilerFactory struct {
+type FakeRegistryReconcilerFactory struct {
 	ReconcilerForSourceStub        func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler
 	reconcilerForSourceMutex       sync.RWMutex
 	reconcilerForSourceArgsForCall []struct {
@@ -24,7 +24,7 @@ type FakeReconcilerFactory struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSource(arg1 *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+func (fake *FakeRegistryReconcilerFactory) ReconcilerForSource(arg1 *v1alpha1.CatalogSource) reconciler.RegistryReconciler {
 	fake.reconcilerForSourceMutex.Lock()
 	ret, specificReturn := fake.reconcilerForSourceReturnsOnCall[len(fake.reconcilerForSourceArgsForCall)]
 	fake.reconcilerForSourceArgsForCall = append(fake.reconcilerForSourceArgsForCall, struct {
@@ -42,26 +42,26 @@ func (fake *FakeReconcilerFactory) ReconcilerForSource(arg1 *v1alpha1.CatalogSou
 	return fakeReturns.result1
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceCallCount() int {
+func (fake *FakeRegistryReconcilerFactory) ReconcilerForSourceCallCount() int {
 	fake.reconcilerForSourceMutex.RLock()
 	defer fake.reconcilerForSourceMutex.RUnlock()
 	return len(fake.reconcilerForSourceArgsForCall)
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceCalls(stub func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler) {
+func (fake *FakeRegistryReconcilerFactory) ReconcilerForSourceCalls(stub func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler) {
 	fake.reconcilerForSourceMutex.Lock()
 	defer fake.reconcilerForSourceMutex.Unlock()
 	fake.ReconcilerForSourceStub = stub
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceArgsForCall(i int) *v1alpha1.CatalogSource {
+func (fake *FakeRegistryReconcilerFactory) ReconcilerForSourceArgsForCall(i int) *v1alpha1.CatalogSource {
 	fake.reconcilerForSourceMutex.RLock()
 	defer fake.reconcilerForSourceMutex.RUnlock()
 	argsForCall := fake.reconcilerForSourceArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceReturns(result1 reconciler.RegistryReconciler) {
+func (fake *FakeRegistryReconcilerFactory) ReconcilerForSourceReturns(result1 reconciler.RegistryReconciler) {
 	fake.reconcilerForSourceMutex.Lock()
 	defer fake.reconcilerForSourceMutex.Unlock()
 	fake.ReconcilerForSourceStub = nil
@@ -70,7 +70,7 @@ func (fake *FakeReconcilerFactory) ReconcilerForSourceReturns(result1 reconciler
 	}{result1}
 }
 
-func (fake *FakeReconcilerFactory) ReconcilerForSourceReturnsOnCall(i int, result1 reconciler.RegistryReconciler) {
+func (fake *FakeRegistryReconcilerFactory) ReconcilerForSourceReturnsOnCall(i int, result1 reconciler.RegistryReconciler) {
 	fake.reconcilerForSourceMutex.Lock()
 	defer fake.reconcilerForSourceMutex.Unlock()
 	fake.ReconcilerForSourceStub = nil
@@ -84,7 +84,7 @@ func (fake *FakeReconcilerFactory) ReconcilerForSourceReturnsOnCall(i int, resul
 	}{result1}
 }
 
-func (fake *FakeReconcilerFactory) Invocations() map[string][][]interface{} {
+func (fake *FakeRegistryReconcilerFactory) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.reconcilerForSourceMutex.RLock()
@@ -96,7 +96,7 @@ func (fake *FakeReconcilerFactory) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeReconcilerFactory) recordInvocation(key string, args []interface{}) {
+func (fake *FakeRegistryReconcilerFactory) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -108,4 +108,4 @@ func (fake *FakeReconcilerFactory) recordInvocation(key string, args []interface
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ reconciler.ReconcilerFactory = new(FakeReconcilerFactory)
+var _ reconciler.RegistryReconcilerFactory = new(FakeRegistryReconcilerFactory)
