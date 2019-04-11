@@ -79,7 +79,7 @@ github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/golang/glog
 # github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff
 github.com/golang/groupcache/lru
-# github.com/golang/mock v1.2.0
+# github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
 github.com/golang/mock/mockgen
 github.com/golang/mock/gomock
 github.com/golang/mock/mockgen/model
@@ -123,6 +123,10 @@ github.com/mailru/easyjson/buffer
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/maxbrunsfeld/counterfeiter/v6 v6.0.2
+github.com/maxbrunsfeld/counterfeiter/v6
+github.com/maxbrunsfeld/counterfeiter/v6/arguments
+github.com/maxbrunsfeld/counterfeiter/v6/generator
 # github.com/mitchellh/mapstructure v1.1.2
 github.com/mitchellh/mapstructure
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
@@ -178,7 +182,7 @@ github.com/stretchr/testify/assert
 github.com/ugorji/go/codec
 # golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20181220203305-927f97764cc3
+# golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
 golang.org/x/net/http2
 golang.org/x/net/context
 golang.org/x/net/trace
@@ -202,17 +206,19 @@ golang.org/x/text/width
 golang.org/x/text/transform
 # golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20190114222345-bf090417da8b
-golang.org/x/tools/imports
-golang.org/x/tools/go/ast/astutil
+# golang.org/x/tools v0.0.0-20190320215829-36c10c0a621f
 golang.org/x/tools/go/packages
-golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/cgo
 golang.org/x/tools/go/internal/packagesdriver
+golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/semver
-golang.org/x/tools/internal/fastwalk
+golang.org/x/tools/go/types/typeutil
+golang.org/x/tools/imports
 golang.org/x/tools/go/internal/gcimporter
+golang.org/x/tools/internal/fastwalk
+golang.org/x/tools/go/ast/astutil
+golang.org/x/tools/internal/module
 # google.golang.org/appengine v1.5.0
 google.golang.org/appengine/urlfetch
 google.golang.org/appengine/internal
