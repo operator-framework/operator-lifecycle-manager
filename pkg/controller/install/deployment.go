@@ -139,9 +139,15 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []Stra
 		depNames = append(depNames, dep.Name)
 	}
 
-	existingDeployments, err := i.strategyClient.FindAnyDeploymentsMatchingNames(depNames)
+	// Check the owner is a CSV
+	csv, ok := i.owner.(*v1alpha1.ClusterServiceVersion)
+	if !ok {
+		return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("owner %s is not a CSV", i.owner.GetName())}
+	}
+
+	existingDeployments, err := i.strategyClient.FindAnyDeploymentsMatchingLabels(ownerutil.CSVOwnerSelector(csv))
 	if err != nil {
-		return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying for %s: %s", depNames, err)}
+		return StrategyError{Reason: StrategyErrReasonComponentMissing, Message: fmt.Sprintf("error querying existing deployments for CSV %s: %s", csv.GetName(), err)}
 	}
 
 	// compare deployments to see if any need to be created/updated

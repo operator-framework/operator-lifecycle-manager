@@ -2590,6 +2590,10 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
+			{
+				Name: "dep2-test",
+				Spec: newNginxDeployment("nginx2"),
+			},
 		},
 	}
 	strategyRaw, err := json.Marshal(strategy)
@@ -2648,17 +2652,24 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
 	require.NoError(t, err)
 
-	// Should have created deployment
+	// Should have created deployments
 	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, dep)
+	dep2, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[1].Name)
+	require.NoError(t, err)
+	require.NotNil(t, dep2)
 
 	// Create "updated" CSV
 	strategyNew := install.StrategyDetailsDeployment{
 		DeploymentSpecs: []install.StrategyDeploymentSpec{
 			{
-				Name: genName("dep2-"),
-				Spec: newNginxDeployment(genName("nginx-")),
+				Name: genName("dep3-"),
+				Spec: newNginxDeployment(genName("nginx3-")),
+			},
+			{
+				Name: "dep2-test",
+				Spec: newNginxDeployment("nginx2"),
 			},
 		},
 	}
@@ -2684,6 +2695,10 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	depNew, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 	require.NotNil(t, depNew)
+	// Make sure the unchanged deployment still exists
+	depNew2, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[1].Name)
+	require.NoError(t, err)
+	require.NotNil(t, depNew2)
 	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 }

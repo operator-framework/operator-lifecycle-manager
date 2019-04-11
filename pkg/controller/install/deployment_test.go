@@ -286,6 +286,8 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 		},
 	}
 
+	mockOwnerLabel := ownerutil.CSVOwnerSelector(&mockOwner)
+
 	tests := []struct {
 		createDeploymentErr error
 		description         string
@@ -304,13 +306,13 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			dep := testDeployment("olm-dep-1", namespace, &mockOwner)
 			dep.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
-			fakeClient.FindAnyDeploymentsMatchingNamesReturns(
+			fakeClient.FindAnyDeploymentsMatchingLabelsReturns(
 				[]*appsv1.Deployment{
 					&dep,
 				}, nil,
 			)
 			defer func() {
-				require.Equal(t, []string{dep.Name}, fakeClient.FindAnyDeploymentsMatchingNamesArgsForCall(0))
+				require.Equal(t, mockOwnerLabel, fakeClient.FindAnyDeploymentsMatchingLabelsArgsForCall(0))
 			}()
 
 			installed, err := installer.CheckInstalled(strategy)

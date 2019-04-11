@@ -1081,7 +1081,10 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv1", namespace),
+					),
 				},
 			},
 			expected: expected{
@@ -1122,9 +1125,12 @@ func TestTransitionCSV(t *testing.T) {
 				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1.OperatorGroupProvidedAPIsAnnotationKey, "a1Kind.v1.a1")},
 				apis:       []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace))},
 				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
-						OLMCAHashAnnotationKey: validCAHash,
-					})),
+					withLabels(
+						deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
+							OLMCAHashAnnotationKey: validCAHash,
+						})),
+						ownerLabelFromCSV("csv1", namespace),
+					),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
@@ -2195,7 +2201,10 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv1", namespace),
+					),
 					deployment("extra-dep", namespace, "sa", nil),
 				},
 			},
@@ -2335,8 +2344,14 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv1", namespace),
+					),
+					withLabels(
+						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv2", namespace),
+					),
 				},
 			},
 			expected: expected{
@@ -2374,8 +2389,14 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv1", namespace),
+					),
+					withLabels(
+						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv2", namespace),
+					),
 				},
 			},
 			expected: expected{
@@ -2429,9 +2450,18 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv1", namespace),
+					),
+					withLabels(
+						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv2", namespace),
+					),
+					withLabels(
+						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv3", namespace),
+					),
 				},
 			},
 			expected: expected{
@@ -2479,9 +2509,18 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv1", namespace),
+					),
+					withLabels(
+						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv2", namespace),
+					),
+					withLabels(
+						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv3", namespace),
+					),
 				},
 			},
 			expected: expected{
@@ -2520,12 +2559,19 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv2", namespace),
+					),
+					withLabels(
+						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv3", namespace),
+					),
 				},
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
+
 					"csv1": {exists: false, phase: v1alpha1.CSVPhaseNone},
 					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
@@ -2560,8 +2606,14 @@ func TestTransitionCSV(t *testing.T) {
 					crd("c1", "v1", "g1"),
 				},
 				objs: []runtime.Object{
-					deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-					deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+					withLabels(
+						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv2", namespace),
+					),
+					withLabels(
+						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
+						ownerLabelFromCSV("csv3", namespace),
+					),
 				},
 			},
 			expected: expected{
