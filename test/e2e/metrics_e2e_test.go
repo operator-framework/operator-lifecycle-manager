@@ -3,12 +3,12 @@
 package e2e
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/net"
 )
 
 // TestMetrics tests the metrics endpoint of the OLM pod.
@@ -26,8 +26,9 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 
 	podName := podList.Items[0].GetName()
+	log.Infof("Looking at pod %v in namespace %v", podName, operatorNamespace)
 
-	rawOutput, err := getMetricsFromPod(t, c, podName, operatorNamespace, 8080)
+	rawOutput, err := getMetricsFromPod(t, c, podName, operatorNamespace, "8081")
 	if err != nil {
 		t.Fatalf("Metrics test failed: %v\n", err)
 	}
@@ -35,12 +36,39 @@ func TestMetricsEndpoint(t *testing.T) {
 	log.Debugf("Metrics:\n%v", rawOutput)
 }
 
-func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podName string, namespace string, port int) (string, error) {
+func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
+	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	if len(olmPod.Spec.Containers) != 1 {
+		t.Fatalf("Expected only 1 container in olm-operator pod, got %v", len(olmPod.Spec.Containers))
+	}
+
+	var foundCert bool
+	var foundKey bool
+	// assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value
+	for _, param := range olmPod.Spec.Containers[0].Args {
+		if param == "-tls-cert" {
+			foundCert = true
+		} else if param == "-tls-key" {
+			foundKey = true
+		}
+	}
+
+	var scheme string
+	if foundCert && foundKey {
+		scheme = "https"
+	} else {
+		scheme = "http"
+	}
+	log.Infof("Retrieving metrics using scheme %v\n", scheme)
+
 	rawOutput, err := client.KubernetesInterface().CoreV1().RESTClient().Get().
 		Namespace(namespace).
 		Resource("pods").
 		SubResource("proxy").
-		Name(fmt.Sprintf("%v:%v", podName, port)).
+		Name(net.JoinSchemeNamePort(scheme, podName, port)).
 		Suffix("metrics").
 		Do().Raw()
 	if err != nil {
