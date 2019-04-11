@@ -88,7 +88,6 @@ spec:
       - name: serving-cert
         secret:
           secretName: olm-operator-serving-cert
-          optional: true
       {{ end }}
     {{- if .Values.olm.nodeSelector }}
       nodeSelector:
