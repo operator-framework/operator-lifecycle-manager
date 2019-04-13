@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	v1b "k8s.io/api/core/v1"
 	v1a "k8s.io/api/rbac/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
 )
 
 type FakeInstallStrategyDeploymentInterface struct {
@@ -87,6 +88,19 @@ type FakeInstallStrategyDeploymentInterface struct {
 	}
 	ensureServiceAccountReturnsOnCall map[int]struct {
 		result1 *v1b.ServiceAccount
+		result2 error
+	}
+	FindAnyDeploymentsMatchingLabelsStub        func(labels.Selector) ([]*v1.Deployment, error)
+	findAnyDeploymentsMatchingLabelsMutex       sync.RWMutex
+	findAnyDeploymentsMatchingLabelsArgsForCall []struct {
+		arg1 labels.Selector
+	}
+	findAnyDeploymentsMatchingLabelsReturns struct {
+		result1 []*v1.Deployment
+		result2 error
+	}
+	findAnyDeploymentsMatchingLabelsReturnsOnCall map[int]struct {
+		result1 []*v1.Deployment
 		result2 error
 	}
 	FindAnyDeploymentsMatchingNamesStub        func([]string) ([]*v1.Deployment, error)
@@ -495,6 +509,69 @@ func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturnsO
 	}{result1, result2}
 }
 
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLabels(arg1 labels.Selector) ([]*v1.Deployment, error) {
+	fake.findAnyDeploymentsMatchingLabelsMutex.Lock()
+	ret, specificReturn := fake.findAnyDeploymentsMatchingLabelsReturnsOnCall[len(fake.findAnyDeploymentsMatchingLabelsArgsForCall)]
+	fake.findAnyDeploymentsMatchingLabelsArgsForCall = append(fake.findAnyDeploymentsMatchingLabelsArgsForCall, struct {
+		arg1 labels.Selector
+	}{arg1})
+	fake.recordInvocation("FindAnyDeploymentsMatchingLabels", []interface{}{arg1})
+	fake.findAnyDeploymentsMatchingLabelsMutex.Unlock()
+	if fake.FindAnyDeploymentsMatchingLabelsStub != nil {
+		return fake.FindAnyDeploymentsMatchingLabelsStub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	fakeReturns := fake.findAnyDeploymentsMatchingLabelsReturns
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLabelsCallCount() int {
+	fake.findAnyDeploymentsMatchingLabelsMutex.RLock()
+	defer fake.findAnyDeploymentsMatchingLabelsMutex.RUnlock()
+	return len(fake.findAnyDeploymentsMatchingLabelsArgsForCall)
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLabelsCalls(stub func(labels.Selector) ([]*v1.Deployment, error)) {
+	fake.findAnyDeploymentsMatchingLabelsMutex.Lock()
+	defer fake.findAnyDeploymentsMatchingLabelsMutex.Unlock()
+	fake.FindAnyDeploymentsMatchingLabelsStub = stub
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLabelsArgsForCall(i int) labels.Selector {
+	fake.findAnyDeploymentsMatchingLabelsMutex.RLock()
+	defer fake.findAnyDeploymentsMatchingLabelsMutex.RUnlock()
+	argsForCall := fake.findAnyDeploymentsMatchingLabelsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLabelsReturns(result1 []*v1.Deployment, result2 error) {
+	fake.findAnyDeploymentsMatchingLabelsMutex.Lock()
+	defer fake.findAnyDeploymentsMatchingLabelsMutex.Unlock()
+	fake.FindAnyDeploymentsMatchingLabelsStub = nil
+	fake.findAnyDeploymentsMatchingLabelsReturns = struct {
+		result1 []*v1.Deployment
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingLabelsReturnsOnCall(i int, result1 []*v1.Deployment, result2 error) {
+	fake.findAnyDeploymentsMatchingLabelsMutex.Lock()
+	defer fake.findAnyDeploymentsMatchingLabelsMutex.Unlock()
+	fake.FindAnyDeploymentsMatchingLabelsStub = nil
+	if fake.findAnyDeploymentsMatchingLabelsReturnsOnCall == nil {
+		fake.findAnyDeploymentsMatchingLabelsReturnsOnCall = make(map[int]struct {
+			result1 []*v1.Deployment
+			result2 error
+		})
+	}
+	fake.findAnyDeploymentsMatchingLabelsReturnsOnCall[i] = struct {
+		result1 []*v1.Deployment
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNames(arg1 []string) ([]*v1.Deployment, error) {
 	var arg1Copy []string
 	if arg1 != nil {
@@ -641,6 +718,8 @@ func (fake *FakeInstallStrategyDeploymentInterface) Invocations() map[string][][
 	defer fake.deleteDeploymentMutex.RUnlock()
 	fake.ensureServiceAccountMutex.RLock()
 	defer fake.ensureServiceAccountMutex.RUnlock()
+	fake.findAnyDeploymentsMatchingLabelsMutex.RLock()
+	defer fake.findAnyDeploymentsMatchingLabelsMutex.RUnlock()
 	fake.findAnyDeploymentsMatchingNamesMutex.RLock()
 	defer fake.findAnyDeploymentsMatchingNamesMutex.RUnlock()
 	fake.getServiceAccountByNameMutex.RLock()
@@ -665,3 +744,4 @@ func (fake *FakeInstallStrategyDeploymentInterface) recordInvocation(key string,
 }
 
 var _ wrappers.InstallStrategyDeploymentInterface = new(FakeInstallStrategyDeploymentInterface)
+

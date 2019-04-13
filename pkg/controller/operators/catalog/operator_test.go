@@ -204,7 +204,6 @@ func TestExecutePlan(t *testing.T) {
 				}
 
 				require.NoError(t, err, "couldn't fetch %s %v", namespace, obj)
-				fmt.Printf("fetched: %v", fetched)
 				require.EqualValues(t, obj, fetched)
 			}
 		})
