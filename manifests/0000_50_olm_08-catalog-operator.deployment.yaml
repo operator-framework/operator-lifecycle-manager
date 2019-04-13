@@ -63,7 +63,6 @@ spec:
       - name: serving-cert
         secret:
           secretName: catalog-operator-serving-cert
-          optional: true
       
       nodeSelector:
         beta.kubernetes.io/os: linux

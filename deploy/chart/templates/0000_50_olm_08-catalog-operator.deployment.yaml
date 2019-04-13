@@ -84,7 +84,6 @@ spec:
       - name: serving-cert
         secret:
           secretName: catalog-operator-serving-cert
-          optional: true
       {{ end }}
     {{- if .Values.catalog.nodeSelector }}
       nodeSelector:
