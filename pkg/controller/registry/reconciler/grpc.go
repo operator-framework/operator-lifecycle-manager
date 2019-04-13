@@ -9,7 +9,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -144,7 +144,7 @@ func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogS
 	return found
 }
 
-// Ensure that all components of registry server are up to date.
+// EnsureRegistryServer ensures that all components of registry server are up to date.
 func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
 	source := grpcCatalogSourceDecorator{catalogSource}
 
@@ -205,4 +205,20 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	}
 	_, err := c.OpClient.CreateService(service)
 	return err
+}
+
+// CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
+func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.CatalogSource) (healthy bool, err error) {
+	source := grpcCatalogSourceDecorator{catalogSource}
+
+	// Check on registry resources
+	// TODO: add gRPC health check
+	if len(c.currentPodsWithCorrectImage(source)) == 1 ||
+		c.currentService(source) == nil {
+		healthy = false
+		return
+	}
+
+	healthy = true
+	return
 }

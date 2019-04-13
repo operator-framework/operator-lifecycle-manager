@@ -530,12 +530,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 		sources:  make(map[resolver.CatalogKey]resolver.SourceRef),
 		resolver: &fakes.FakeResolver{},
 	}
-
-	op.reconciler = &reconciler.RegistryReconcilerFactory{
-		ConfigMapServerImage: "test:pod",
-		OpClient:             op.OpClient,
-		Lister:               lister,
-	}
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.OpClient, "test:pod")
 
 	var hasSyncedCheckFns []cache.InformerSynced
 	for _, informer := range registryInformers {

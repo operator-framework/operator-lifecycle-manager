@@ -78,10 +78,10 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 		name:         name,
 		replaces:     replaces,
 		sourceInfo: &OperatorSourceInfo{
-			Package: pkg,
-			Channel: channel,
+			Package:     pkg,
+			Channel:     channel,
 			StartingCSV: startingCSV,
-			Catalog: CatalogKey{src, src + "-namespace"},
+			Catalog:     CatalogKey{src, src + "-namespace"},
 		},
 		bundle: b,
 	}

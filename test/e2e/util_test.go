@@ -115,12 +115,12 @@ func newPMClient(t *testing.T) pmversioned.Interface {
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
-func awaitPods(t *testing.T, c operatorclient.ClientInterface, selector string, expectedCount int) (*corev1.PodList, error) {
+func awaitPods(t *testing.T, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(testNamespace).List(metav1.ListOptions{
+		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(metav1.ListOptions{
 			LabelSelector: selector,
 		})
 
@@ -128,26 +128,75 @@ func awaitPods(t *testing.T, c operatorclient.ClientInterface, selector string, 
 			return false, err
 		}
 
-		t.Logf("Waiting for %d nodes matching %s selector, %d present", expectedCount, selector, len(fetchedPodList.Items))
+		t.Logf("Waiting for pods matching selector %s to match given conditions", selector)
 
-		if len(fetchedPodList.Items) < expectedCount {
-			return false, nil
-		}
-
-		return true, nil
+		return checkPods(fetchedPodList), nil
 	})
 
 	require.NoError(t, err)
 	return fetchedPodList, err
 }
 
-type PodCheckFunc func(pod *corev1.Pod) bool
+// podsCheckFunc describes a function that true if the given PodList meets some criteria; false otherwise.
+type podsCheckFunc func(pods *corev1.PodList) bool
 
-func HasPodIP(pod *corev1.Pod) bool {
+// unionPodsCheck returns a podsCheckFunc that represents the union of the given podsCheckFuncs.
+func unionPodsCheck(checks ...podsCheckFunc) podsCheckFunc {
+	return func(pods *corev1.PodList) bool {
+		for _, check := range checks {
+			if !check(pods) {
+				return false
+			}
+		}
+
+		return true
+	}
+}
+
+// podCount returns a podsCheckFunc that returns true if a PodList is of length count; false otherwise.
+func podCount(count int) podsCheckFunc {
+	return func(pods *corev1.PodList) bool {
+		return len(pods.Items) == count
+	}
+}
+
+// podsReady returns true if all of the pods in the given PodList have a ready condition with ConditionStatus "True"; false otherwise.
+func podsReady(pods *corev1.PodList) bool {
+	for _, pod := range pods.Items {
+		if !podReady(&pod) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// podCheckFunc describes a function that returns true if the given Pod meets some criteria; false otherwise.
+type podCheckFunc func(pod *corev1.Pod) bool
+
+// hasPodIP returns true if the given Pod has a PodIP.
+func hasPodIP(pod *corev1.Pod) bool {
 	return pod.Status.PodIP != ""
 }
 
-func awaitPod(t *testing.T, c operatorclient.ClientInterface, namespace, name string, check PodCheckFunc) *corev1.Pod {
+// podReady returns true if the given Pod has a ready condition with ConditionStatus "True"; false otherwise.
+func podReady(pod *corev1.Pod) bool {
+	var status corev1.ConditionStatus
+	for _, condition := range pod.Status.Conditions {
+		if condition.Type != corev1.PodReady {
+			// Ignore all condition other than PodReady
+			continue
+		}
+
+		// Found PodReady condition
+		status = condition.Status
+		break
+	}
+
+	return status == corev1.ConditionTrue
+}
+
+func awaitPod(t *testing.T, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
 	var pod *corev1.Pod
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
@@ -155,7 +204,7 @@ func awaitPod(t *testing.T, c operatorclient.ClientInterface, namespace, name st
 			return false, err
 		}
 		pod = p
-		return check(pod), nil
+		return checkPod(pod), nil
 	})
 	require.NoError(t, err)
 

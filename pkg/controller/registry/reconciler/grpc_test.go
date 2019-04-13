@@ -5,20 +5,20 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
-func grpcReconcilerFactory(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (ReconcilerFactory, operatorclient.ClientInterface) {
+func grpcReconcilerFactory(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (RegistryReconcilerFactory, operatorclient.ClientInterface) {
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), nil, nil)
 
 	// Creates registry pods in response to configmaps
@@ -47,7 +47,7 @@ func grpcReconcilerFactory(t *testing.T, k8sObjs []runtime.Object, stopc <-chan 
 	lister.CoreV1().RegisterPodLister(testNamespace, podInformer.Lister())
 	lister.CoreV1().RegisterConfigMapLister(testNamespace, configMapInformer.Lister())
 
-	rec := &RegistryReconcilerFactory{
+	rec := &registryReconcilerFactory{
 		OpClient: opClientFake,
 		Lister:   lister,
 	}
@@ -72,7 +72,7 @@ func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			Image:      image,
-			Address: address,
+			Address:    address,
 			SourceType: v1alpha1.SourceTypeGrpc,
 		},
 	}
@@ -121,12 +121,12 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/Address/CreateSuccessful",
 			in: in{
 				cluster: cluster{},
-				catsrc: validGrpcCatalogSource("", "catalog.svc.cluster.local:50001"),
+				catsrc:  validGrpcCatalogSource("", "catalog.svc.cluster.local:50001"),
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
-					Protocol:         "grpc",
+					CreatedAt: timeNow(),
+					Protocol:  "grpc",
 				},
 			},
 		},
@@ -134,7 +134,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/AddressAndImage/CreateSuccessful",
 			in: in{
 				cluster: cluster{},
-				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
+				catsrc:  validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
@@ -261,7 +261,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			defer close(stopc)
 
 			factory, client := grpcReconcilerFactory(t, tt.in.cluster.k8sObjs, stopc)
-			rec := factory.ReconcilerForSource(tt.in.catsrc) 
+			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
 
@@ -279,7 +279,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			outPod, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Get(pod.GetName(), metav1.GetOptions{})
 			outService, serviceErr := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(service.GetName(), metav1.GetOptions{})
 
-			switch rec.(type){
+			switch rec.(type) {
 			case *GrpcRegistryReconciler:
 				// Should be created by a GrpcRegistryReconciler
 				require.NoError(t, podErr)

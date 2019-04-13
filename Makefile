@@ -9,8 +9,8 @@ CMDS  := $(addprefix bin/, $(shell go list $(MOD_FLAGS) ./cmd/... | xargs -I{} b
 CODEGEN := ./vendor/k8s.io/code-generator/generate_groups.sh
 CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
 MOCKGEN := ./scripts/generate_mocks.sh
-counterfeiter := $(GOBIN)/counterfeiter
-mockgen := $(GOBIN)/mockgen
+# counterfeiter := $(GOBIN)/counterfeiter
+# mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator
@@ -146,12 +146,12 @@ container-codegen:
 container-mockgen:
 	docker build -t olm:mockgen -f mockgen.Dockerfile .
 	docker run --name temp-mockgen olm:mockgen /bin/true
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/mock_client.go ./pkg/lib/operatorclient/mock_client.go
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes/.
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes/fake_registry_client.go ./pkg/controller/registry/resolver/fakes/fake_registry_client.go
-	docker cp temp-mockgen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/fakes/fake_registry_client.go ./pkg/package-server/client/fakes/fake_registry_client.go
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorclient/operatorclientmocks/. ./pkg/lib/operatorclient/operatorclientmocks
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes/. ./pkg/controller/registry/resolver/fakes
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/package-server/client/fakes/. ./pkg/package-server/client/fakes
 	docker rm temp-mockgen
 
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
@@ -160,7 +160,7 @@ verify-codegen: codegen
 
 verify-catalog:
 
-generate-mock-client:
+mockgen:
 	$(MOCKGEN)
 
 gen-all: gen-ci container-codegen container-mockgen

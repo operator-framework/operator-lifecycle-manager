@@ -67,7 +67,7 @@ type Operator struct {
 	subQueue              workqueue.RateLimitingInterface
 	catSrcQueueSet        *queueinformer.ResourceQueueSet
 	namespaceResolveQueue workqueue.RateLimitingInterface
-	reconciler            reconciler.ReconcilerFactory
+	reconciler            reconciler.RegistryReconcilerFactory
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -136,6 +136,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		}
 		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
 		op.RegisterQueueInformer(queueinformer.NewInformer(catsrcQueue, catsrcInformer.Informer(), op.syncCatalogSources, deleteCatSrc, queueName, metrics.NewMetricsCatalogSource(op.client), logger))
+		op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(namespace, catsrcInformer.Lister())
 		op.catSrcQueueSet.Set(namespace, catsrcQueue)
 	}
 
@@ -209,11 +210,7 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
 		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
 	}
-	op.reconciler = &reconciler.RegistryReconcilerFactory{
-		ConfigMapServerImage: configmapRegistryImage,
-		OpClient:             op.OpClient,
-		Lister:               op.lister,
-	}
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(op.lister, op.OpClient, configmapRegistryImage)
 
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
@@ -290,21 +287,60 @@ func (o *Operator) handleDeletion(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
 			return
 		}
 
 		ownee, ok = tombstone.Obj.(metav1.Object)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a metav1 object %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a metav1 object %#v", obj))
 			return
 		}
 	}
 
-	if owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind); owner != nil {
-		if err := o.catSrcQueueSet.Requeue(owner.Name, ownee.GetNamespace()); err != nil {
-			o.Log.Warn(err.Error())
+	logger := o.Log.WithFields(logrus.Fields{
+		"sync":      "resourcedeletion",
+		"name":      ownee.GetName(),
+		"namespace": ownee.GetNamespace(),
+	})
+
+	owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind)
+	if owner == nil {
+		logger.Debug("no owner catalogsource found")
+		return
+	}
+
+	logger = logger.WithFields(logrus.Fields{
+		"owner":     owner.Name,
+		"ownerkind": owner.Kind,
+	})
+
+	// Get the owner CatalogSource
+	catsrc, err := o.lister.OperatorsV1alpha1().CatalogSourceLister().CatalogSources(ownee.GetNamespace()).Get(owner.Name)
+	if err != nil {
+		logger.WithError(err).Warn("could not get owner catalogsource from cache")
+		return
+	}
+
+	// Check the registry server
+	checker := o.reconciler.ReconcilerForSource(catsrc)
+	healthy, err := checker.CheckRegistryServer(catsrc)
+	if err != nil {
+		logger.WithError(err).Warn("error checking registry health")
+	} else if !healthy {
+		logger.Debug("registry server unhealthy, updating catalog source")
+		catsrc.Status.RegistryServiceStatus = nil
+		_, err = o.client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).UpdateStatus(catsrc)
+		if err == nil {
+			logger.Debug("successfully updated catalogsource registry status")
+			return
 		}
+		logger.WithError(err).Warn("error updating catalogsource registry status")
+	}
+
+	// Requeue CatalogSource
+	if err := o.catSrcQueueSet.Requeue(catsrc.GetName(), catsrc.GetNamespace()); err != nil {
+		logger.WithError(err).Warn("error requeuing owner catalogsource")
 	}
 }
 
@@ -398,9 +434,9 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
 
-	// if registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
+	// If registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
 	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
-		logger.Debug("registry server scheduled recheck")
+		logger.Debug("ensuring registry server")
 
 		if err := reconciler.EnsureRegistryServer(out); err != nil {
 			logger.WithError(err).Warn("couldn't ensure registry server")
@@ -409,7 +445,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		logger.Debug("ensured registry server")
 
 		out.Status.RegistryServiceStatus.CreatedAt = timeNow()
-		out.Status.LastSync = timeNow()
+		out.Status.LastSync = out.Status.RegistryServiceStatus.CreatedAt
 
 		logger.Debug("updating catsrc status")
 		// update status

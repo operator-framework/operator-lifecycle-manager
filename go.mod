@@ -19,14 +19,14 @@ require (
 	github.com/go-openapi/spec v0.19.0
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
-	github.com/golang/mock v1.2.0
+	github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.8.5 // indirect
 	github.com/json-iterator/go v1.1.6 // indirect
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.0.2
 	github.com/onsi/ginkgo v1.8.0 // indirect
-	github.com/onsi/gomega v1.5.0 // indirect
 	github.com/openshift/api v3.9.1-0.20190401220125-3a6077f1f910+incompatible
 	github.com/openshift/client-go v0.0.0-20190401163519-84c2b942258a
 	github.com/operator-framework/operator-registry v1.1.0

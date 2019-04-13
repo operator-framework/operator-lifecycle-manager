@@ -16,7 +16,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	listerfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/fakes/client-go/listers"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient/operatorclientmocks"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes"
 )
 
@@ -415,7 +415,7 @@ func TestEnsureServiceAccount(t *testing.T) {
 		testName := fmt.Sprintf("%s: %s", tt.name, tt.subname)
 		t.Run(testName, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			mockOpClient := operatorclient.NewMockClientInterface(ctrl)
+			mockOpClient := operatorclientmocks.NewMockClientInterface(ctrl)
 			fakeLister := &operatorlisterfakes.FakeOperatorLister{}
 			fakeCoreV1Lister := &operatorlisterfakes.FakeCoreV1Lister{}
 			fakeServiceAccountLister := &listerfakes.FakeServiceAccountLister{}
