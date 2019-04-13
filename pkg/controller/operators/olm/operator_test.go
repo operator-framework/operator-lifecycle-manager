@@ -26,6 +26,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -2383,6 +2384,9 @@ func TestTransitionCSV(t *testing.T) {
 					"csv1": {exists: false, phase: v1alpha1.CSVPhaseNone},
 					"csv2": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
 				},
+				err: map[string]error{
+					"csv1": errors.NewNotFound(v1alpha1.Resource("clusterserviceversions"), "csv1"),
+				},
 			},
 		},
 		{
@@ -2490,6 +2494,9 @@ func TestTransitionCSV(t *testing.T) {
 					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
 				},
+				err: map[string]error{
+					"csv1": errors.NewNotFound(v1alpha1.Resource("clusterserviceversions"), "csv1"),
+				},
 			},
 		},
 		{
@@ -2568,6 +2575,9 @@ func TestTransitionCSV(t *testing.T) {
 				csvStates: map[string]csvState{
 					"csv2": {exists: false, phase: v1alpha1.CSVPhaseNone},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
+				},
+				err: map[string]error{
+					"csv2": errors.NewNotFound(v1alpha1.Resource("clusterserviceversions"), "csv2"),
 				},
 			},
 		},
@@ -2879,11 +2889,16 @@ func TestTransitionCSV(t *testing.T) {
 			op, _, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, tt.config.apiReconciler, tt.config.apiLabeler, []string{namespace}, stopCh)
 			require.NoError(t, err)
 
-			// run csv sync for each CSV
-			for _, csv := range tt.initial.csvs {
-				err := op.syncClusterServiceVersion(csv)
-				expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
-				require.Equal(t, expectedErr, err)
+			// sync csvs enough to get to final state
+			for i := 0; i < 8; i++ {
+				// run csv sync for each CSV
+				for _, csv := range tt.initial.csvs {
+					err := op.syncClusterServiceVersion(csv)
+					if err != nil {
+						expectedErr := tt.expected.err[csv.(*v1alpha1.ClusterServiceVersion).Name]
+						require.Equal(t, expectedErr, err)
+					}
+				}
 			}
 
 			// get csvs in the cluster
