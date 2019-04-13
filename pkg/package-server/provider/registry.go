@@ -273,7 +273,9 @@ func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestLis
 				}
 
 				// Set request namespace to stop kube clients from complaining about global namespace mismatch.
-				newPkg.SetNamespace(namespace)
+				if namespace != metav1.NamespaceAll {
+					newPkg.SetNamespace(namespace)
+				}
 				pkgs = append(pkgs, *newPkg)
 			}
 		}
