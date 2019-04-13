@@ -54,9 +54,9 @@ github.com/go-openapi/analysis
 github.com/go-openapi/analysis/internal
 # github.com/go-openapi/errors v0.17.2
 github.com/go-openapi/errors
-# github.com/go-openapi/jsonpointer v0.17.0
+# github.com/go-openapi/jsonpointer v0.19.0
 github.com/go-openapi/jsonpointer
-# github.com/go-openapi/jsonreference v0.17.0
+# github.com/go-openapi/jsonreference v0.19.0
 github.com/go-openapi/jsonreference
 # github.com/go-openapi/loads v0.17.2
 github.com/go-openapi/loads
@@ -66,7 +66,7 @@ github.com/go-openapi/runtime
 github.com/go-openapi/spec
 # github.com/go-openapi/strfmt v0.18.0
 github.com/go-openapi/strfmt
-# github.com/go-openapi/swag v0.17.0
+# github.com/go-openapi/swag v0.17.2
 github.com/go-openapi/swag
 # github.com/go-openapi/validate v0.18.0
 github.com/go-openapi/validate
@@ -198,12 +198,18 @@ golang.org/x/oauth2/internal
 # golang.org/x/sys v0.0.0-20190403152447-81d4e9dc473e
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/text v0.3.0
+# golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db
 golang.org/x/text/secure/bidirule
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
+golang.org/x/text/encoding/unicode
 golang.org/x/text/transform
+golang.org/x/text/encoding
+golang.org/x/text/encoding/internal
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/internal/utf8internal
+golang.org/x/text/runes
 # golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 golang.org/x/time/rate
 # golang.org/x/tools v0.0.0-20190320215829-36c10c0a621f
@@ -301,6 +307,7 @@ k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
 k8s.io/api/admission/v1beta1
+k8s.io/api/imagepolicy/v1alpha1
 # k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78 => k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
@@ -336,7 +343,9 @@ k8s.io/apimachinery/pkg/util/strategicpatch
 k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/conversion
 k8s.io/apimachinery/pkg/apis/meta/internalversion
+k8s.io/apimachinery/pkg/apis/meta/v1beta1
 k8s.io/apimachinery/pkg/fields
+k8s.io/apimachinery/pkg/util/duration
 k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/util/validation
@@ -360,13 +369,13 @@ k8s.io/apimachinery/pkg/api/validation
 k8s.io/apimachinery/pkg/util/yaml
 k8s.io/apimachinery/pkg/util/framer
 k8s.io/apimachinery/pkg/util/rand
-k8s.io/apimachinery/pkg/apis/meta/v1beta1
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
 k8s.io/apimachinery/pkg/api/validation/path
 k8s.io/apimachinery/pkg/apis/meta/v1/validation
 k8s.io/apimachinery/pkg/util/uuid
+k8s.io/apimachinery/pkg/apis/meta/v1/unstructured/unstructuredscheme
 # k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34 => k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34
 k8s.io/apiserver/pkg/server
 k8s.io/apiserver/pkg/util/logs
@@ -461,6 +470,10 @@ k8s.io/apiserver/pkg/util/trace
 k8s.io/apiserver/pkg/storage/etcd/util
 k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission
 k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/v1alpha1
+# k8s.io/cli-runtime v0.0.0-20190221101700-11047e25a94a
+k8s.io/cli-runtime/pkg/genericclioptions
+k8s.io/cli-runtime/pkg/genericclioptions/printers
+k8s.io/cli-runtime/pkg/genericclioptions/resource
 # k8s.io/client-go v11.0.0+incompatible => k8s.io/client-go v0.0.0-20190228133956-77e032213d34
 k8s.io/client-go/tools/clientcmd
 k8s.io/client-go/kubernetes/scheme
@@ -541,6 +554,7 @@ k8s.io/client-go/kubernetes/typed/settings/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1
 k8s.io/client-go/kubernetes/typed/storage/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1beta1
+k8s.io/client-go/util/jsonpath
 k8s.io/client-go/tools/clientcmd/api/v1
 k8s.io/client-go/pkg/apis/clientauthentication
 k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1
@@ -604,6 +618,8 @@ k8s.io/client-go/informers/settings/v1alpha1
 k8s.io/client-go/informers/storage/v1
 k8s.io/client-go/informers/storage/v1alpha1
 k8s.io/client-go/informers/storage/v1beta1
+k8s.io/client-go/restmapper
+k8s.io/client-go/third_party/forked/golang/template
 k8s.io/client-go/listers/admissionregistration/v1beta1
 k8s.io/client-go/listers/admissionregistration/v1alpha1
 k8s.io/client-go/listers/apps/v1beta1
@@ -703,6 +719,9 @@ k8s.io/kube-openapi/pkg/util/sets
 # k8s.io/kubernetes v1.12.7
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/util/labels
+k8s.io/kubernetes/pkg/printers
+k8s.io/kubernetes/pkg/printers/storage
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
+k8s.io/kubernetes/pkg/kubectl/scheme
 k8s.io/kubernetes/pkg/apis/rbac

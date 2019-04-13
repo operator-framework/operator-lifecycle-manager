@@ -14,9 +14,12 @@ require (
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect
 	github.com/go-openapi/analysis v0.17.2 // indirect
 	github.com/go-openapi/errors v0.17.2 // indirect
+	github.com/go-openapi/jsonpointer v0.19.0 // indirect
+	github.com/go-openapi/jsonreference v0.19.0 // indirect
 	github.com/go-openapi/loads v0.17.2 // indirect
 	github.com/go-openapi/runtime v0.17.2 // indirect
 	github.com/go-openapi/spec v0.19.0
+	github.com/go-openapi/swag v0.17.2 // indirect
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
@@ -36,6 +39,7 @@ require (
 	github.com/spf13/cobra v0.0.3
 	github.com/stretchr/testify v1.2.2
 	golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5 // indirect
+	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	google.golang.org/appengine v1.5.0 // indirect
 	google.golang.org/grpc v1.19.1
@@ -44,6 +48,7 @@ require (
 	k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
 	k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
 	k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34
+	k8s.io/cli-runtime v0.0.0-20190221101700-11047e25a94a // indirect
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect

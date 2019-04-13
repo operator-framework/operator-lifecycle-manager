@@ -13,7 +13,7 @@ MOCKGEN := ./scripts/generate_mocks.sh
 # mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
-KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator
+KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
 KUBE_RELEASE := release-1.12
 
 .PHONY: build test run clean vendor schema-check \
