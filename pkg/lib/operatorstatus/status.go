@@ -114,6 +114,15 @@ func MonitorClusterStatus(name string, syncCh chan error, stopCh <-chan struct{}
 
 		// update the status with the appropriate state
 		previousStatus := existing.Status.DeepCopy()
+		previousOperatorVersion := func(vs []configv1.OperandVersion) string {
+			for _, v := range vs {
+				if v.Name == "operator" {
+					return v.Version
+				}
+			}
+			return ""
+		}(previousStatus.Versions)
+		targetOperatorVersion := os.Getenv("RELEASE_VERSION")
 		switch {
 		case successfulSyncs > 0:
 			setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
@@ -131,16 +140,23 @@ func MonitorClusterStatus(name string, syncCh chan error, stopCh <-chan struct{}
 			})
 			// we set the versions array when all the latest code is deployed and running - in this case,
 			// the sync method is responsible for guaranteeing that happens before it returns nil
-			if version := os.Getenv("RELEASE_VERSION"); len(version) > 0 {
+			if len(targetOperatorVersion) > 0 {
 				existing.Status.Versions = []configv1.OperandVersion{
 					{
 						Name:    "operator",
-						Version: version,
+						Version: targetOperatorVersion,
 					},
 					{
 						Name:    "operator-lifecycle-manager",
 						Version: olmversion.OLMVersion,
 					},
+				}
+				if targetOperatorVersion != previousOperatorVersion {
+					setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+						Type:    configv1.OperatorProgressing,
+						Status:  configv1.ConditionTrue,
+						Message: fmt.Sprintf("Deployed %s", olmversion.OLMVersion),
+					})
 				}
 			} else {
 				existing.Status.Versions = nil
