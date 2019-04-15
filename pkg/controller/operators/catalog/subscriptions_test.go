@@ -138,6 +138,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
+						InstallPlanRef: &v1.ObjectReference{
+							Namespace:  testNamespace,
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
 						LastUpdated: nowTime,
 					},
 				},
@@ -269,6 +274,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						CurrentCSV: "csv.v.2",
 						State:      v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						InstallPlanRef: &v1.ObjectReference{
+							Namespace:  testNamespace,
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
@@ -427,6 +437,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						CurrentCSV: "csv.v.2",
 						State:      v1alpha1.SubscriptionStateUpgradePending,
 						Install: &v1alpha1.InstallPlanReference{
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						InstallPlanRef: &v1.ObjectReference{
+							Namespace:  testNamespace,
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
