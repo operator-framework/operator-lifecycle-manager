@@ -9,12 +9,10 @@ import (
 
 	"github.com/coreos/go-semver/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
 
 const (
-	ClusterServiceVersionAPIVersion     = operators.GroupName + "/" + GroupVersion
+	ClusterServiceVersionAPIVersion     = GroupName + "/" + GroupVersion
 	ClusterServiceVersionKind           = "ClusterServiceVersion"
 	OperatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
 )

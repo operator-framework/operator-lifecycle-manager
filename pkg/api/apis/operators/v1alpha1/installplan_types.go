@@ -6,13 +6,11 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
 
 const (
 	InstallPlanKind       = "InstallPlan"
-	InstallPlanAPIVersion = operators.GroupName + "/" + GroupVersion
+	InstallPlanAPIVersion = GroupName + "/" + GroupVersion
 )
 
 // Approval is the user approval policy for an InstallPlan.

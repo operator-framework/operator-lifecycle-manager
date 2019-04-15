@@ -13,6 +13,8 @@ const (
 	OperatorGroupNamespaceAnnotationKey    = "olm.operatorNamespace"
 	OperatorGroupTargetsAnnotationKey      = "olm.targetNamespaces"
 	OperatorGroupProvidedAPIsAnnotationKey = "olm.providedAPIs"
+
+	OperatorGroupKind = "OperatorGroup"
 )
 
 type OperatorGroupSpec struct {

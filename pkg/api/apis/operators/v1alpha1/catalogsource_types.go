@@ -5,12 +5,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 )
 
 const (
-	CatalogSourceCRDAPIVersion = operators.GroupName + "/" + GroupVersion
+	CatalogSourceCRDAPIVersion = GroupName + "/" + GroupVersion
 	CatalogSourceKind          = "CatalogSource"
 )
 
