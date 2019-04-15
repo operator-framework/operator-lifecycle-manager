@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -595,11 +596,11 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		})
 
 		// ensure the installplan reference is correct
-		sub, changedIp, err := o.ensureSubscriptionInstallPlanState(logger, sub)
+		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
 		if err != nil {
 			return err
 		}
-		subscriptionUpdated = subscriptionUpdated || changedIp
+		subscriptionUpdated = subscriptionUpdated || changedIP
 
 		// record the current state of the desired corresponding CSV in the status. no-op if we don't know the csv yet.
 		sub, changedCSV, err := o.ensureSubscriptionCSVState(logger, sub, querier)
@@ -756,8 +757,15 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	logger.WithField("installplan", ipName).Debug("found installplan that generated subscription")
 
 	out := sub.DeepCopy()
-	out.Status.Install = o.referenceForInstallPlan(ip)
+	ref, err := operators.GetReference(ip)
+	if err != nil {
+		logger.WithError(err).Warn("unable to generate installplan reference")
+		return nil, false, err
+	}
+	out.Status.InstallPlanRef = ref
+	out.Status.Install = v1alpha1.NewInstallPlanReference(ref)
 	out.Status.State = v1alpha1.SubscriptionStateUpgradePending
+
 	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out)
 	if err != nil {
 		return nil, false, err
@@ -807,13 +815,14 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	return sub, true, nil
 }
 
-func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.Subscription, installPlanRef *v1alpha1.InstallPlanReference) error {
+func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.Subscription, installPlanRef *corev1.ObjectReference) error {
 	// TODO: parallel, sync waitgroup
 	var err error
 	for _, sub := range subs {
 		sub.Status.LastUpdated = timeNow()
 		if installPlanRef != nil {
-			sub.Status.Install = installPlanRef
+			sub.Status.InstallPlanRef = installPlanRef
+			sub.Status.Install = v1alpha1.NewInstallPlanReference(installPlanRef)
 			sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 		}
 		if _, subErr := o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(sub); subErr != nil {
@@ -823,7 +832,7 @@ func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.S
 	return err
 }
 
-func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {
+func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*corev1.ObjectReference, error) {
 	if len(steps) == 0 {
 		return nil, nil
 	}
@@ -837,7 +846,7 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	for _, installPlan := range installPlans {
 		if installPlan.Status.CSVManifestsMatch(steps) {
 			logger.Infof("found InstallPlan with matching manifests: %s", installPlan.GetName())
-			return o.referenceForInstallPlan(installPlan), nil
+			return operators.GetReference(installPlan)
 		}
 	}
 	logger.Warn("no installplan found with matching manifests, creating new one")
@@ -845,7 +854,7 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	return o.createInstallPlan(namespace, subs, installPlanApproval, steps)
 }
 
-func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*v1alpha1.InstallPlanReference, error) {
+func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*corev1.ObjectReference, error) {
 	if len(steps) == 0 {
 		return nil, nil
 	}
@@ -896,17 +905,8 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 	if err != nil {
 		return nil, err
 	}
-	return o.referenceForInstallPlan(res), nil
 
-}
-
-func (o *Operator) referenceForInstallPlan(ip *v1alpha1.InstallPlan) *v1alpha1.InstallPlanReference {
-	return &v1alpha1.InstallPlanReference{
-		UID:        ip.GetUID(),
-		Name:       ip.GetName(),
-		APIVersion: v1alpha1.SchemeGroupVersion.String(),
-		Kind:       v1alpha1.InstallPlanKind,
-	}
+	return operators.GetReference(res)
 }
 
 func (o *Operator) requeueSubscription(name, namespace string) {

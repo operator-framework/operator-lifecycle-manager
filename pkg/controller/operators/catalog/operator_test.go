@@ -16,11 +16,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	clitesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
@@ -53,7 +55,6 @@ func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 }
 
 func TestTransitionInstallPlan(t *testing.T) {
-
 	errMsg := "transition test error"
 	err := errors.New(errMsg)
 
@@ -173,7 +174,7 @@ func TestExecutePlan(t *testing.T) {
 		t.Run(tt.testName, func(t *testing.T) {
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator([]runtime.Object{tt.in}, nil, nil, nil, namespace, stopCh)
+			op, err := NewFakeOperator(namespace, []string{namespace}, stopCh, withClientObjs(tt.in))
 			require.NoError(t, err)
 
 			err = op.ExecutePlan(tt.in)
@@ -212,16 +213,16 @@ func TestExecutePlan(t *testing.T) {
 
 func TestSyncCatalogSources(t *testing.T) {
 	tests := []struct {
-		testName          string
-		operatorNamespace string
-		catalogSource     *v1alpha1.CatalogSource
-		configMap         *corev1.ConfigMap
-		expectedStatus    *v1alpha1.CatalogSourceStatus
-		expectedError     error
+		testName       string
+		namespace      string
+		catalogSource  *v1alpha1.CatalogSource
+		configMap      *corev1.ConfigMap
+		expectedStatus *v1alpha1.CatalogSourceStatus
+		expectedError  error
 	}{
 		{
-			testName:          "CatalogSourceWithInvalidSourceType",
-			operatorNamespace: "cool-namespace",
+			testName:  "CatalogSourceWithInvalidSourceType",
+			namespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
@@ -246,8 +247,8 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedError:  fmt.Errorf("no reconciler for source type nope"),
 		},
 		{
-			testName:          "CatalogSourceWithBackingConfigMap",
-			operatorNamespace: "cool-namespace",
+			testName:  "CatalogSourceWithBackingConfigMap",
+			namespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
@@ -280,8 +281,8 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			testName:          "CatalogSourceUpdatedByDifferentCatalogOperator",
-			operatorNamespace: "cool-namespace",
+			testName:  "CatalogSourceUpdatedByDifferentCatalogOperator",
+			namespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
@@ -323,8 +324,8 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedError: nil,
 		},
 		{
-			testName:          "CatalogSourceWithMissingConfigMap",
-			operatorNamespace: "cool-namespace",
+			testName:  "CatalogSourceWithMissingConfigMap",
+			namespace: "cool-namespace",
 			catalogSource: &v1alpha1.CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "cool-catalog",
@@ -350,7 +351,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			// Create test operator
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(clientObjs, k8sObjs, nil, nil, tt.operatorNamespace, stopCh)
+			op, err := NewFakeOperator(tt.namespace, []string{tt.namespace}, stopCh, withClientObjs(clientObjs...), withK8sObjs(k8sObjs...))
 			require.NoError(t, err)
 
 			// Run sync
@@ -464,54 +465,135 @@ func fakeConfigMapData() map[string]string {
 	return data
 }
 
-// NewFakeOperator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, namespace string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
-	// Create client fakes
-	clientFake := fake.NewSimpleClientset(clientObjs...)
-	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
+// fakeClientOption configures a fake option
+type fakeClientOption func(fake.ClientsetDecorator)
 
-	// Create test namespace
+// withSelfLinks returns a fakeClientOption that configures a ClientsetDecorator to write selfLinks to all OLM types on create.
+func withSelfLinks(t *testing.T) fakeClientOption {
+	return func(c fake.ClientsetDecorator) {
+		c.PrependReactor("create", "*", func(a clitesting.Action) (bool, runtime.Object, error) {
+			ca, ok := a.(clitesting.CreateAction)
+			if !ok {
+				t.Fatalf("expected CreateAction")
+			}
+
+			obj := ca.GetObject()
+			accessor, err := meta.Accessor(obj)
+			if err != nil {
+				return false, nil, err
+			}
+			if accessor.GetSelfLink() != "" {
+				// SelfLink is already set
+				return false, nil, nil
+			}
+
+			gvr := ca.GetResource()
+			accessor.SetSelfLink(buildSelfLink(gvr.GroupVersion().String(), gvr.Resource, accessor.GetNamespace(), accessor.GetName()))
+
+			return false, obj, nil
+		})
+	}
+}
+
+// fakeOperatorConfig is the configuration for a fake operator.
+type fakeOperatorConfig struct {
+	clientObjs        []runtime.Object
+	k8sObjs           []runtime.Object
+	extObjs           []runtime.Object
+	regObjs           []runtime.Object
+	fakeClientOptions []fakeClientOption
+}
+
+// fakeOperatorOption applies an option to the given fake operator configuration.
+type fakeOperatorOption func(*fakeOperatorConfig)
+
+func withClientObjs(clientObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.clientObjs = clientObjs
+	}
+}
+
+func withK8sObjs(k8sObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.k8sObjs = k8sObjs
+	}
+}
+
+func extObjs(extObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.extObjs = extObjs
+	}
+}
+
+func withFakeClientOptions(options ...fakeClientOption) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.fakeClientOptions = options
+	}
+}
+
+// NewFakeOperator creates a new operator using fake clients.
+func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan struct{}, fakeOptions ...fakeOperatorOption) (*Operator, error) {
+	// Apply options to default config
+	config := &fakeOperatorConfig{}
+	for _, option := range fakeOptions {
+		option(config)
+	}
+
+	// Create client fakes
+	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs...)
+	for _, option := range config.fakeClientOptions {
+		option(clientFake)
+	}
+
+	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(config.k8sObjs...), apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
+
+	// Create operator namespace
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Register informers
-	wakeupInterval := 5 * time.Second
-
-	// Creates registry pods in response to configmaps
-	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), wakeupInterval)
-	roleInformer := informerFactory.Rbac().V1().Roles()
-	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-	serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
-	serviceInformer := informerFactory.Core().V1().Services()
-	podInformer := informerFactory.Core().V1().Pods()
-	configMapInformer := informerFactory.Core().V1().ConfigMaps()
-	subscriptionInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().Subscriptions()
-	installPlanInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(namespace)).Operators().V1alpha1().InstallPlans()
-
-	// register informers
-	registryInformers := []cache.SharedIndexInformer{
-		roleInformer.Informer(),
-		roleBindingInformer.Informer(),
-		serviceAccountInformer.Informer(),
-		serviceInformer.Informer(),
-		podInformer.Informer(),
-		configMapInformer.Informer(),
-		subscriptionInformer.Informer(),
-		installPlanInformer.Informer(),
-	}
-
-	// register listers
+	wakeupInterval := 5 * time.Minute
 	lister := operatorlister.NewLister()
-	lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
-	lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
-	lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
-	lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
-	lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
-	lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
-	lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subscriptionInformer.Lister())
-	lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, installPlanInformer.Lister())
+	var sharedInformers []cache.SharedIndexInformer
+	for _, ns := range watchedNamespaces {
+		if ns != namespace {
+			_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Create informers and register listers
+		operatorsFactory := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns))
+		catsrcInformer := operatorsFactory.Operators().V1alpha1().CatalogSources()
+		subInformer := operatorsFactory.Operators().V1alpha1().Subscriptions()
+		ipInformer := operatorsFactory.Operators().V1alpha1().InstallPlans()
+		csvInformer := operatorsFactory.Operators().V1alpha1().ClusterServiceVersions()
+		sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer())
+
+		lister.OperatorsV1alpha1().RegisterCatalogSourceLister(ns, catsrcInformer.Lister())
+		lister.OperatorsV1alpha1().RegisterSubscriptionLister(ns, subInformer.Lister())
+		lister.OperatorsV1alpha1().RegisterInstallPlanLister(ns, ipInformer.Lister())
+		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(ns, csvInformer.Lister())
+
+		factory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(ns))
+		roleInformer := factory.Rbac().V1().Roles()
+		roleBindingInformer := factory.Rbac().V1().RoleBindings()
+		serviceAccountInformer := factory.Core().V1().ServiceAccounts()
+		serviceInformer := factory.Core().V1().Services()
+		podInformer := factory.Core().V1().Pods()
+		configMapInformer := factory.Core().V1().ConfigMaps()
+		sharedInformers = append(sharedInformers, roleInformer.Informer(), roleBindingInformer.Informer(), serviceAccountInformer.Informer(), serviceInformer.Informer(), podInformer.Informer(), configMapInformer.Informer())
+
+		lister.RbacV1().RegisterRoleLister(ns, roleInformer.Lister())
+		lister.RbacV1().RegisterRoleBindingLister(ns, roleBindingInformer.Lister())
+		lister.CoreV1().RegisterServiceAccountLister(ns, serviceAccountInformer.Lister())
+		lister.CoreV1().RegisterServiceLister(ns, serviceInformer.Lister())
+		lister.CoreV1().RegisterPodLister(ns, podInformer.Lister())
+		lister.CoreV1().RegisterConfigMapLister(ns, configMapInformer.Lister())
+
+	}
 
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
@@ -532,17 +614,17 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.OpClient, "test:pod")
 
 	var hasSyncedCheckFns []cache.InformerSynced
-	for _, informer := range registryInformers {
+	for _, informer := range sharedInformers {
 		op.RegisterInformer(informer)
 		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
 		go informer.Run(stopCh)
 	}
 
 	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
-		return nil, nil, fmt.Errorf("failed to wait for caches to sync")
+		return nil, fmt.Errorf("failed to wait for caches to sync")
 	}
 
-	return op, hasSyncedCheckFns, nil
+	return op, nil
 }
 
 func installPlan(name, namespace string, phase v1alpha1.InstallPlanPhase, names ...string) *v1alpha1.InstallPlan {
@@ -624,4 +706,12 @@ func service(name, namespace string) *corev1.Service {
 func toManifest(obj runtime.Object) string {
 	raw, _ := json.Marshal(obj)
 	return string(raw)
+}
+
+// selfLink returns a selfLink.
+func buildSelfLink(groupVersion, plural, namespace, name string) string {
+	if namespace == metav1.NamespaceAll {
+		return fmt.Sprintf("/apis/%s/%s/%s", groupVersion, plural, name)
+	}
+	return fmt.Sprintf("/apis/%s/namespaces/%s/%s/%s", groupVersion, namespace, plural, name)
 }
