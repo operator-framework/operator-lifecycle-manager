@@ -1,14 +1,13 @@
 package v1alpha1
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
 	SubscriptionKind          = "Subscription"
-	SubscriptionCRDAPIVersion = operators.GroupName + "/" + GroupVersion
+	SubscriptionCRDAPIVersion = GroupName + "/" + GroupVersion
 )
 
 // SubscriptionState tracks when updates are available, installing, or service is up to date
