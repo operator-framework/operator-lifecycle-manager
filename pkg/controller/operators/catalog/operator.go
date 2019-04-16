@@ -435,8 +435,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
 
+	healthy, err := reconciler.CheckRegistryServer(catsrc)
+	if err != nil {
+		return err
+	}
+
 	// If registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
-	if catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
+	if !healthy || catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
 		logger.Debug("ensuring registry server")
 
 		if err := reconciler.EnsureRegistryServer(out); err != nil {
