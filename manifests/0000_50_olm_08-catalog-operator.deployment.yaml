@@ -18,6 +18,7 @@ spec:
         app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
+      priorityClassName: "system-cluster-critical"
       containers:
         - name: catalog-operator
           command:
@@ -34,7 +35,6 @@ spec:
           - /var/run/secrets/serving-cert/tls.key
           image: quay.io/operator-framework/olm@sha256:7e4b13b89b3d59876b228697bbd0c9e364fd73f946ab90308c34fd82053a5a76
           imagePullPolicy: IfNotPresent
-          priorityClassName: "system-cluster-critical"
           ports:
             - containerPort: 8080
             - containerPort: 8081
