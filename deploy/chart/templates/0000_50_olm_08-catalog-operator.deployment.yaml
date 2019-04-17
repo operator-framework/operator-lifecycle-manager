@@ -18,6 +18,9 @@ spec:
         app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
+      {{- if and .Values.installType (eq .Values.installType "ocp") }}
+      priorityClassName: "system-cluster-critical"
+      {{- end }}
       containers:
         - name: catalog-operator
           command:
@@ -49,9 +52,6 @@ spec:
           {{- end }}
           image: {{ .Values.catalog.image.ref }}
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
-          {{- if and .Values.installType (eq .Values.installType "ocp") }}
-          priorityClassName: "system-cluster-critical"
-          {{- end }}
           ports:
             - containerPort: {{ .Values.catalog.service.internalPort }}
             - containerPort: 8081
