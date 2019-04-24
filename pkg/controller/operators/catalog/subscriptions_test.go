@@ -17,11 +17,12 @@ import (
 )
 
 func TestSyncSubscriptions(t *testing.T) {
-	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
-	timeNow = func() metav1.Time { return nowTime }
+	now := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
+	timeNow = func() metav1.Time { return now }
 
 	testNamespace := "testNamespace"
 	type fields struct {
+		fakeClientOptions []fakeClientOption
 		sourcesLastUpdate metav1.Time
 		resolveSteps      []*v1alpha1.Step
 		resolveSubs       []*v1alpha1.Subscription
@@ -50,6 +51,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		{
 			name: "NoStatus/NoCurrentCSV/FoundInCatalog",
 			fields: fields{
+				fakeClientOptions: []fakeClientOption{withSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.Subscription{
 						ObjectMeta: metav1.ObjectMeta{
@@ -138,7 +140,12 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: nowTime,
+						InstallPlanRef: &v1.ObjectReference{
+							Namespace:  testNamespace,
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -175,6 +182,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		{
 			name: "Status/HaveCurrentCSV/UpdateFoundInCatalog",
 			fields: fields{
+				fakeClientOptions: []fakeClientOption{withSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.ClusterServiceVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -272,7 +280,12 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: nowTime,
+						InstallPlanRef: &v1.ObjectReference{
+							Namespace:  testNamespace,
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -309,6 +322,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		{
 			name: "Status/HaveCurrentCSV/UpdateFoundInCatalog/UpdateRequiresDependency",
 			fields: fields{
+				fakeClientOptions: []fakeClientOption{withSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.ClusterServiceVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -430,7 +444,12 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: nowTime,
+						InstallPlanRef: &v1.ObjectReference{
+							Namespace:  testNamespace,
+							Kind:       v1alpha1.InstallPlanKind,
+							APIVersion: v1alpha1.InstallPlanAPIVersion,
+						},
+						LastUpdated: now,
 					},
 				},
 			},
@@ -495,7 +514,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			// Create test operator
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			o, _, err := NewFakeOperator(tt.fields.existingOLMObjs, tt.fields.existingObjects, nil, nil, testNamespace, stopCh)
+			o, err := NewFakeOperator(testNamespace, []string{testNamespace}, stopCh, withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.fakeClientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{

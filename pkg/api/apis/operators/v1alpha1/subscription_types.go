@@ -1,14 +1,14 @@
 package v1alpha1
 
 import (
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
 
 const (
 	SubscriptionKind          = "Subscription"
-	SubscriptionCRDAPIVersion = operators.GroupName + "/" + GroupVersion
+	SubscriptionCRDAPIVersion = GroupName + "/" + GroupVersion
 )
 
 // SubscriptionState tracks when updates are available, installing, or service is up to date
@@ -37,6 +37,43 @@ type SubscriptionSpec struct {
 	InstallPlanApproval    Approval `json:"installPlanApproval,omitempty"`
 }
 
+type SubscriptionStatus struct {
+	// CurrentCSV is the CSV the Subscription is progressing to.
+	// +optional
+	CurrentCSV string `json:"currentCSV,omitempty"`
+
+	// InstalledCSV is the CSV currently installed by the Subscription.
+	// +optional
+	InstalledCSV string `json:"installedCSV,omitempty"`
+
+	// Install is a reference to the latest InstallPlan generated for the Subscription.
+	// DEPRECATED: InstallPlanRef
+	// +optional
+	Install *InstallPlanReference `json:"installplan,omitempty"`
+
+	// State represents the current state of the Subscription
+	// +optional
+	State SubscriptionState `json:"state,omitempty"`
+
+	// Reason is the reason the Subscription was transitioned to its current state.
+	// +optional
+	Reason ConditionReason `json:"reason,omitempty"`
+
+	// InstallPlanRef is a reference to the latest InstallPlan that contains the Subscription's current CSV.
+	// +optional
+	InstallPlanRef *corev1.ObjectReference `json:"installPlanRef,omitempty"`
+
+	// LastUpdated represents the last time that the Subscription status was updated.
+	LastUpdated metav1.Time `json:"lastUpdated"`
+}
+
+type InstallPlanReference struct {
+	APIVersion string    `json:"apiVersion"`
+	Kind       string    `json:"kind"`
+	Name       string    `json:"name"`
+	UID        types.UID `json:"uuid"`
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 type Subscription struct {
@@ -45,23 +82,6 @@ type Subscription struct {
 
 	Spec   *SubscriptionSpec  `json:"spec"`
 	Status SubscriptionStatus `json:"status"`
-}
-
-type SubscriptionStatus struct {
-	CurrentCSV   string                `json:"currentCSV,omitempty"`
-	InstalledCSV string                `json:"installedCSV, omitempty"`
-	Install      *InstallPlanReference `json:"installplan,omitempty"`
-
-	State       SubscriptionState `json:"state,omitempty"`
-	Reason      ConditionReason   `json:"reason,omitempty"`
-	LastUpdated metav1.Time       `json:"lastUpdated"`
-}
-
-type InstallPlanReference struct {
-	APIVersion string    `json:"apiVersion"`
-	Kind       string    `json:"kind"`
-	Name       string    `json:"name"`
-	UID        types.UID `json:"uuid"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -78,4 +98,14 @@ func (s *Subscription) GetInstallPlanApproval() Approval {
 		return ApprovalManual
 	}
 	return ApprovalAutomatic
+}
+
+// NewInstallPlanReference returns an InstallPlanReference for the given ObjectReference.
+func NewInstallPlanReference(ref *corev1.ObjectReference) *InstallPlanReference {
+	return &InstallPlanReference{
+		APIVersion: ref.APIVersion,
+		Kind:       ref.Kind,
+		Name:       ref.Name,
+		UID:        ref.UID,
+	}
 }

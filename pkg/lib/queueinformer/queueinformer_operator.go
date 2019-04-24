@@ -123,12 +123,21 @@ func (o *Operator) Run(stopc <-chan struct{}) (ready, done chan struct{}, atLeve
 		}
 
 		o.Log.Info("starting informers...")
-		for _, queueInformer := range o.queueInformers {
-			go queueInformer.informer.Run(stopc)
-		}
+		{
+			started := make(map[cache.SharedIndexInformer]struct{})
+			for _, queueInformer := range o.queueInformers {
+				if _, ok := started[queueInformer.informer]; !ok {
+					go queueInformer.informer.Run(stopc)
+				}
+				started[queueInformer.informer] = struct{}{}
+			}
 
-		for _, informer := range o.informers {
-			go informer.Run(stopc)
+			for _, informer := range o.informers {
+				if _, ok := started[informer]; !ok {
+					go informer.Run(stopc)
+				}
+				started[informer] = struct{}{}
+			}
 		}
 
 		o.Log.Info("waiting for caches to sync...")
