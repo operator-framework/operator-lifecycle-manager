@@ -88,7 +88,7 @@ func MonitorClusterStatus(name string, syncCh chan error, stopCh <-chan struct{}
 							LastTransitionTime: metav1.Now(),
 						},
 						{
-							Type:               configv1.OperatorFailing,
+							Type:               configv1.OperatorDegraded,
 							Status:             configv1.ConditionFalse,
 							LastTransitionTime: metav1.Now(),
 						},
@@ -126,7 +126,7 @@ func MonitorClusterStatus(name string, syncCh chan error, stopCh <-chan struct{}
 		switch {
 		case successfulSyncs > 0:
 			setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-				Type:   configv1.OperatorFailing,
+				Type:   configv1.OperatorDegraded,
 				Status: configv1.ConditionFalse,
 			})
 			setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
@@ -163,7 +163,7 @@ func MonitorClusterStatus(name string, syncCh chan error, stopCh <-chan struct{}
 			}
 		default:
 			setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
-				Type:    configv1.OperatorFailing,
+				Type:    configv1.OperatorDegraded,
 				Status:  configv1.ConditionTrue,
 				Message: "Waiting for updates to take effect",
 			})
