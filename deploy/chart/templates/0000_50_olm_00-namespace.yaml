@@ -3,6 +3,8 @@ kind: Namespace
 metadata:
   name: {{ .Values.namespace }}
   {{ if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    openshift.io/node-selector: ""
   labels:
     openshift.io/run-level: "1"
     openshift.io/cluster-monitoring: "true"
@@ -13,6 +15,8 @@ kind: Namespace
 metadata:
   name: {{ .Values.operator_namespace }}
   {{ if and .Values.installType (eq .Values.installType "ocp") }}
+  annotations:
+    openshift.io/node-selector: ""
   labels:
     openshift.io/run-level: "1"
   {{ end }}

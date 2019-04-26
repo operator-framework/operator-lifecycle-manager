@@ -6,3 +6,5 @@ metadata:
   name: openshift-operator-lifecycle-manager
   labels:
     openshift.io/run-level: "1"
+  annotations:
+    openshift.io/node-selector: ""
