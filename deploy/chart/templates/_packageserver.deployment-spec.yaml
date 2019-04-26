@@ -12,6 +12,9 @@ spec:
         app: packageserver
     spec:
       serviceAccountName: packageserver
+      {{- if and .Values.installType (eq .Values.installType "ocp") }}
+      priorityClassName: "system-cluster-critical"
+      {{- end }}
       {{- if .Values.package.nodeSelector }}
       nodeSelector:
         {{- toYaml .Values.package.nodeSelector | nindent 8 }}
@@ -41,9 +44,6 @@ spec:
         {{- end }}
         image: {{ .Values.package.image.ref }}
         imagePullPolicy: {{ .Values.package.image.pullPolicy }}
-        {{- if and .Values.installType (eq .Values.installType "ocp") }}
-        priorityClassName: "system-cluster-critical"
-        {{- end }}
         ports:
         - containerPort: {{ .Values.package.service.internalPort }}
         livenessProbe:
