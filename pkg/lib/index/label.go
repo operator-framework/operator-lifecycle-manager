@@ -13,19 +13,19 @@ const (
 	MetaLabelIndexFuncKey string = "metalabelindexfunc"
 )
 
-// MetaLabelIndexFunc returns indicies from the labels of the given object.
+// MetaLabelIndexFunc returns indices from the labels of the given object.
 func MetaLabelIndexFunc(obj interface{}) ([]string, error) {
-	indicies := []string{}
+	indices := []string{}
 	m, err := meta.Accessor(obj)
 	if err != nil {
-		return indicies, fmt.Errorf("object has no meta: %v", err)
+		return indices, fmt.Errorf("object has no meta: %v", err)
 	}
 
 	for k, v := range m.GetLabels() {
-		indicies = append(indicies, fmt.Sprintf("%s=%s", k, v))
+		indices = append(indices, fmt.Sprintf("%s=%s", k, v))
 	}
 
-	return indicies, nil
+	return indices, nil
 }
 
 // LabelIndexKeys returns the union of indexed cache keys in the given indexers matching the same labels as the given selector
