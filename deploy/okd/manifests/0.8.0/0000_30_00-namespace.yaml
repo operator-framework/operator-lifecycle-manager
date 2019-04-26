@@ -6,6 +6,8 @@ metadata:
   name: openshift-operator-lifecycle-manager
   labels:
     openshift.io/run-level: "1"
+  annotations:
+    openshift.io/node-selector: ""
 ---
 apiVersion: v1
 kind: Namespace
@@ -13,3 +15,5 @@ metadata:
   name: openshift-operators
   labels:
     openshift.io/run-level: "1"
+  annotations:
+    openshift.io/node-selector: ""
