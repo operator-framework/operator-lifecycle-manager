@@ -256,6 +256,19 @@ func awaitCSV(t *testing.T, c versioned.Interface, namespace, name string, check
 	return fetched, err
 }
 
+func waitForDeployment(t *testing.T, c operatorclient.ClientInterface, name string) error {
+	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err := c.GetDeployment(testNamespace, name)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
+}
+
 func waitForDeploymentToDelete(t *testing.T, c operatorclient.ClientInterface, name string) error {
 	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("waiting for deployment %s to delete", name)
@@ -2685,6 +2698,10 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 
 	// Update the current csv with the new csv
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
+	require.NoError(t, err)
+
+	// Wait for new deployment to exist
+	err = waitForDeployment(t, c, strategyNew.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
 
 	// Wait for updated CSV to succeed
