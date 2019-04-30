@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/blang/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
 const (
@@ -136,7 +137,7 @@ type APIServiceDefinitions struct {
 // that can manage apps for a given version.
 type ClusterServiceVersionSpec struct {
 	InstallStrategy           NamedInstallStrategy      `json:"install"`
-	Version                   semver.Version            `json:"version,omitempty"`
+	Version                   version.OperatorVersion   `json:"version,omitempty"`
 	Maturity                  string                    `json:"maturity,omitempty"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	APIServiceDefinitions     APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`

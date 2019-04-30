@@ -397,7 +397,7 @@ func (in *ClusterServiceVersionList) DeepCopyObject() runtime.Object {
 func (in *ClusterServiceVersionSpec) DeepCopyInto(out *ClusterServiceVersionSpec) {
 	*out = *in
 	in.InstallStrategy.DeepCopyInto(&out.InstallStrategy)
-	out.Version = in.Version
+	in.Version.DeepCopyInto(&out.Version)
 	in.CustomResourceDefinitions.DeepCopyInto(&out.CustomResourceDefinitions)
 	in.APIServiceDefinitions.DeepCopyInto(&out.APIServiceDefinitions)
 	if in.NativeAPIs != nil {

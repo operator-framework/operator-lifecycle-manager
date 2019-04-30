@@ -57,7 +57,7 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 			continue
 		}
 
-		bundle, key, err := e.querier.FindReplacement(op.Identifier(), op.SourceInfo().Package, op.SourceInfo().Channel, op.SourceInfo().Catalog)
+		bundle, key, err := e.querier.FindReplacement(op.Version(), op.Identifier(), op.SourceInfo().Package, op.SourceInfo().Channel, op.SourceInfo().Catalog)
 		if err != nil || bundle == nil {
 			continue
 		}

@@ -779,7 +779,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		return sub, false, nil
 	}
 
-	_, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
+	csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.CurrentCSV, metav1.GetOptions{})
 	out := sub.DeepCopy()
 	if err != nil {
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
@@ -789,7 +789,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		if err := querier.Queryable(); err != nil {
 			return nil, false, err
 		}
-		bundle, _, _ := querier.FindReplacement(sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{sub.Spec.CatalogSource, sub.Spec.CatalogSourceNamespace})
+		bundle, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{sub.Spec.CatalogSource, sub.Spec.CatalogSourceNamespace})
 		if bundle != nil {
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 		} else {

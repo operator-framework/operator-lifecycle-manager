@@ -130,7 +130,7 @@ codegen:
 	cp scripts/generate_internal_groups.sh vendor/k8s.io/code-generator/generate_internal_groups.sh
 	mkdir -p vendor/k8s.io/code-generator/hack
 	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1 -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
 	$(CODEGEN_INTERNAL) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
 

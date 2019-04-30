@@ -49,7 +49,7 @@ func (in *CSVDescription) DeepCopyInto(out *CSVDescription) {
 		*out = make([]Icon, len(*in))
 		copy(*out, *in)
 	}
-	out.Version = in.Version
+	in.Version.DeepCopyInto(&out.Version)
 	out.Provider = in.Provider
 	if in.Annotations != nil {
 		in, out := &in.Annotations, &out.Annotations

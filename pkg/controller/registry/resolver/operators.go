@@ -6,9 +6,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/blang/semver"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
 type CatalogKey struct {
@@ -215,6 +217,7 @@ type OperatorSurface interface {
 	RequiredAPIs() APISet
 	Identifier() string
 	Replaces() string
+	Version() *semver.Version
 	SourceInfo() *OperatorSourceInfo
 	Bundle() *opregistry.Bundle
 }
@@ -224,6 +227,7 @@ type Operator struct {
 	replaces     string
 	providedAPIs APISet
 	requiredAPIs APISet
+	version      *semver.Version
 	bundle       *opregistry.Bundle
 	sourceInfo   *OperatorSourceInfo
 }
@@ -246,6 +250,7 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, startingCSV string, source
 	return &Operator{
 		name:         csv.GetName(),
 		replaces:     csv.Spec.Replaces,
+		version:      &csv.Spec.Version.Version,
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
 		bundle:       bundle,
@@ -258,7 +263,7 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, startingCSV string, source
 	}, nil
 }
 
-func NewOperatorFromCSV(csv *v1alpha1.ClusterServiceVersion) (*Operator, error) {
+func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator, error) {
 	providedAPIs := EmptyAPISet()
 	for _, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
 		parts := strings.SplitN(crdDef.Name, ".", 2)
@@ -285,6 +290,7 @@ func NewOperatorFromCSV(csv *v1alpha1.ClusterServiceVersion) (*Operator, error) 
 
 	return &Operator{
 		name:         csv.GetName(),
+		version:      &csv.Spec.Version.Version,
 		replaces:     csv.Spec.Replaces,
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
@@ -318,4 +324,8 @@ func (o *Operator) SourceInfo() *OperatorSourceInfo {
 
 func (o *Operator) Bundle() *opregistry.Bundle {
 	return o.bundle
+}
+
+func (o *Operator) Version() *semver.Version {
+	return o.version
 }

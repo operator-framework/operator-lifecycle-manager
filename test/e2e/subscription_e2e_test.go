@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,7 +21,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
 var doubleInstance = int32(2)
@@ -77,7 +79,7 @@ var (
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:       "",
-			Version:        *semver.New("0.1.0"),
+			Version:        version.OperatorVersion{semver.MustParse("0.1.0")},
 			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
@@ -107,7 +109,7 @@ var (
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:       outdated,
-			Version:        *semver.New("0.2.0"),
+			Version:        version.OperatorVersion{semver.MustParse("0.2.0")},
 			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
@@ -137,7 +139,7 @@ var (
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: stable,
-			Version:  *semver.New("0.1.1"),
+			Version:  version.OperatorVersion{semver.MustParse("0.1.1")},
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -166,7 +168,7 @@ var (
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces: beta,
-			Version:  *semver.New("0.3.0"),
+			Version:  version.OperatorVersion{semver.MustParse("0.3.0")},
 			InstallModes: []v1alpha1.InstallMode{
 				{
 					Type:      v1alpha1.InstallModeTypeOwnNamespace,
@@ -464,6 +466,70 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 	compareResources(t, subscription, sameSubscription)
 }
 
+func TestSubscriptionSkipRange(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	mainPackageName := genName("nginx-")
+	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	updatedPackageStable := fmt.Sprintf("%s-updated", mainPackageName)
+	stableChannel := "stable"
+	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661347"), nil, nil, mainNamedStrategy)
+	updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), nil, nil, mainNamedStrategy)
+	updatedCSV.SetAnnotations(map[string]string{resolver.SkipPackageAnnotationKey: ">=0.1.0-1556661347 <0.1.0-1556661832"})
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
+
+	mainCatalogName := genName("mock-ocs-main-")
+
+	// Create separate manifests for each CatalogSource
+	mainManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+	updatedManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: updatedPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create catalog source
+	_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+	defer cleanupMainCatalogSource()
+	// Attempt to get the catalog source before creating subscription
+	_, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create a subscription
+	subscriptionName := genName("sub-nginx-")
+	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer subscriptionCleanup()
+
+	// Wait for csv to install
+	_, err = awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Update catalog with a new csv in the channel with a skip range
+	updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, nil, []v1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
+
+	// Wait for csv to update
+	_, err = awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+}
+
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
 func TestCreateNewSubscriptionManualApproval(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
@@ -529,8 +595,8 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	stableChannel := "stable"
 
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csvA := newCSV("nginx-a", testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-	csvB := newCSV("nginx-b", testNamespace, "nginx-a", *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{
@@ -668,9 +734,9 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	stableChannel := "stable"
 
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csvA := newCSV("nginx-a", testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-	csvB := newCSV("nginx-b", testNamespace, "nginx-a", *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-	csvC := newCSV("nginx-c", testNamespace, "nginx-b", *semver.New("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvC := newCSV("nginx-c", testNamespace, "nginx-b", semver.MustParse("0.3.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{

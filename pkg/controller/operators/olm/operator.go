@@ -752,7 +752,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		return
 	}
 
-	operatorSurface, err := resolver.NewOperatorFromCSV(out)
+	operatorSurface, err := resolver.NewOperatorFromV1Alpha1CSV(out)
 	if err != nil {
 		// TODO: Add failure status to CSV
 		syncError = err
