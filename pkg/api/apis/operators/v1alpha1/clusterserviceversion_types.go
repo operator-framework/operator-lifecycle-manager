@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/blang/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

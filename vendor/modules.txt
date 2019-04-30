@@ -13,6 +13,8 @@ github.com/PuerkitoBio/urlesc
 github.com/asaskevich/govalidator
 # github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973
 github.com/beorn7/perks/quantile
+# github.com/blang/semver v3.5.1+incompatible
+github.com/blang/semver
 # github.com/coreos/etcd v3.3.12+incompatible
 github.com/coreos/etcd/client
 github.com/coreos/etcd/clientv3
