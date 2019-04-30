@@ -3,16 +3,17 @@ package reconciler
 import (
 	"fmt"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
@@ -22,13 +23,13 @@ type grpcCatalogSourceDecorator struct {
 
 func (s *grpcCatalogSourceDecorator) Selector() labels.Selector {
 	return labels.SelectorFromValidatedSet(map[string]string{
-		"olm.catalogSource": s.GetName(),
+		CatalogSourceLabelKey: s.GetName(),
 	})
 }
 
 func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 	return map[string]string{
-		"olm.catalogSource": s.GetName(),
+		CatalogSourceLabelKey: s.GetName(),
 	}
 }
 
