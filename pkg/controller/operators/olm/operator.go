@@ -396,7 +396,14 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 
 	defer func(csv v1alpha1.ClusterServiceVersion) {
 		logger.Debug("removing csv from queue set")
-		a.csvQueueSet.Remove(csv.GetName(), csv.GetNamespace())
+		if err := a.csvQueueSet.Remove(csv.GetName(), csv.GetNamespace()); err != nil {
+			logger.WithError(err).Debug("error removing from queue")
+		}
+
+		if clusterServiceVersion.IsCopied() {
+			logger.Debug("deleted csv is copied. skipping operatorgroup requeue")
+			return
+		}
 
 		// Requeue all OperatorGroups in the namespace
 		logger.Debug("requeueing operatorgroups in namespace")
