@@ -16,13 +16,11 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
-	clitesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
@@ -34,6 +32,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -379,8 +378,6 @@ func TestSyncCatalogSources(t *testing.T) {
 	}
 }
 
-// TODO: CatalogSource tests for RegistryServiceStatus
-
 func TestCompetingCRDOwnersExist(t *testing.T) {
 
 	testNamespace := "default"
@@ -465,43 +462,13 @@ func fakeConfigMapData() map[string]string {
 	return data
 }
 
-// fakeClientOption configures a fake option
-type fakeClientOption func(fake.ClientsetDecorator)
-
-// withSelfLinks returns a fakeClientOption that configures a ClientsetDecorator to write selfLinks to all OLM types on create.
-func withSelfLinks(t *testing.T) fakeClientOption {
-	return func(c fake.ClientsetDecorator) {
-		c.PrependReactor("create", "*", func(a clitesting.Action) (bool, runtime.Object, error) {
-			ca, ok := a.(clitesting.CreateAction)
-			if !ok {
-				t.Fatalf("expected CreateAction")
-			}
-
-			obj := ca.GetObject()
-			accessor, err := meta.Accessor(obj)
-			if err != nil {
-				return false, nil, err
-			}
-			if accessor.GetSelfLink() != "" {
-				// SelfLink is already set
-				return false, nil, nil
-			}
-
-			gvr := ca.GetResource()
-			accessor.SetSelfLink(buildSelfLink(gvr.GroupVersion().String(), gvr.Resource, accessor.GetNamespace(), accessor.GetName()))
-
-			return false, obj, nil
-		})
-	}
-}
-
 // fakeOperatorConfig is the configuration for a fake operator.
 type fakeOperatorConfig struct {
-	clientObjs        []runtime.Object
-	k8sObjs           []runtime.Object
-	extObjs           []runtime.Object
-	regObjs           []runtime.Object
-	fakeClientOptions []fakeClientOption
+	clientObjs    []runtime.Object
+	k8sObjs       []runtime.Object
+	extObjs       []runtime.Object
+	regObjs       []runtime.Object
+	clientOptions []clientfake.Option
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
@@ -525,9 +492,9 @@ func extObjs(extObjs ...runtime.Object) fakeOperatorOption {
 	}
 }
 
-func withFakeClientOptions(options ...fakeClientOption) fakeOperatorOption {
+func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
-		config.fakeClientOptions = options
+		config.clientOptions = options
 	}
 }
 
@@ -540,11 +507,7 @@ func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan
 	}
 
 	// Create client fakes
-	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs...)
-	for _, option := range config.fakeClientOptions {
-		option(clientFake)
-	}
-
+	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.clientOptions...)
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(config.k8sObjs...), apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 
 	// Create operator namespace
@@ -706,12 +669,4 @@ func service(name, namespace string) *corev1.Service {
 func toManifest(obj runtime.Object) string {
 	raw, _ := json.Marshal(obj)
 	return string(raw)
-}
-
-// selfLink returns a selfLink.
-func buildSelfLink(groupVersion, plural, namespace, name string) string {
-	if namespace == metav1.NamespaceAll {
-		return fmt.Sprintf("/apis/%s/%s/%s", groupVersion, plural, name)
-	}
-	return fmt.Sprintf("/apis/%s/namespaces/%s/%s/%s", groupVersion, namespace, plural, name)
 }
