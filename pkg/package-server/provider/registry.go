@@ -327,7 +327,7 @@ func toPackageManifest(pkg *api.Package, client registryClient) (*operators.Pack
 			CurrentCSVDesc: operators.CreateCSVDescription(&csv),
 		}
 
-		if manifest.Status.DefaultChannel != "" && csv.GetName() == manifest.Status.DefaultChannel || i == 0 {
+		if manifest.Status.DefaultChannel != "" && pkgChannel.GetName() == manifest.Status.DefaultChannel || i == 0 {
 			manifest.Status.Provider = operators.AppLink{
 				Name: csv.Spec.Provider.Name,
 				URL:  csv.Spec.Provider.URL,
