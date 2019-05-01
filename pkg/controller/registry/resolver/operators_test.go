@@ -3,6 +3,7 @@ package resolver
 import (
 	"testing"
 
+	"github.com/blang/semver"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -11,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	opver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
 func TestGVKStringToProvidedAPISet(t *testing.T) {
@@ -885,6 +887,7 @@ func TestOperatorSourceInfo_String(t *testing.T) {
 }
 
 func TestNewOperatorFromBundle(t *testing.T) {
+	version := opver.OperatorVersion{semver.MustParse("0.1.0-abc")}
 	csv := v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -903,6 +906,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				Owned:    []v1alpha1.APIServiceDescription{},
 				Required: []v1alpha1.APIServiceDescription{},
 			},
+			Version: version,
 		},
 	}
 	csvUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
@@ -993,6 +997,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			},
 			want: &Operator{
 				name:         "testCSV",
+				version:      &version.Version,
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
@@ -1010,7 +1015,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
 			},
 			want: &Operator{
-				name: "testCSV",
+				name:    "testCSV",
+				version: &version.Version,
 				providedAPIs: APISet{
 					opregistry.APIKey{
 						Group:   "crd.group.com",
@@ -1058,6 +1064,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 }
 
 func TestNewOperatorFromCSV(t *testing.T) {
+	version := opver.OperatorVersion{semver.MustParse("0.1.0-abc")}
 	type args struct {
 		csv *v1alpha1.ClusterServiceVersion
 	}
@@ -1074,6 +1081,9 @@ func TestNewOperatorFromCSV(t *testing.T) {
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "operator.v1",
 					},
+					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
+					},
 				},
 			},
 			want: &Operator{
@@ -1081,6 +1091,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				sourceInfo:   &ExistingOperator,
+				version:      &version.Version,
 			},
 		},
 		{
@@ -1091,6 +1102,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 						Name: "operator.v1",
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
 						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 							Owned: []v1alpha1.CRDDescription{
 								{
@@ -1121,6 +1133,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 				},
 				requiredAPIs: EmptyAPISet(),
 				sourceInfo:   &ExistingOperator,
+				version:      &version.Version,
 			},
 		},
 		{
@@ -1131,6 +1144,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 						Name: "operator.v1",
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
 						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 							Required: []v1alpha1.CRDDescription{
 								{
@@ -1161,6 +1175,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 				},
 				sourceInfo: &ExistingOperator,
+				version:    &version.Version,
 			},
 		},
 		{
@@ -1171,6 +1186,7 @@ func TestNewOperatorFromCSV(t *testing.T) {
 						Name: "operator.v1",
 					},
 					Spec: v1alpha1.ClusterServiceVersionSpec{
+						Version: version,
 						CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 							Owned: []v1alpha1.CRDDescription{
 								{
@@ -1219,12 +1235,13 @@ func TestNewOperatorFromCSV(t *testing.T) {
 					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 				},
 				sourceInfo: &ExistingOperator,
+				version:    &version.Version,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromCSV(tt.args.csv)
+			got, err := NewOperatorFromV1Alpha1CSV(tt.args.csv)
 			require.Equal(t, tt.wantErr, err)
 			require.Equal(t, tt.want, got)
 		})

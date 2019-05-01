@@ -171,7 +171,7 @@ func (a *Operator) providedAPIsFromCSVs(group *v1.OperatorGroup, logger *logrus.
 		// TODO: Throw out CSVs that aren't members of the group due to group related failures?
 
 		// Union the providedAPIsFromCSVs from existing members of the group
-		operatorSurface, err := resolver.NewOperatorFromCSV(csv)
+		operatorSurface, err := resolver.NewOperatorFromV1Alpha1CSV(csv)
 		if err != nil {
 			logger.WithError(err).Warn("could not create OperatorSurface from csv")
 			continue
@@ -763,7 +763,7 @@ func (a *Operator) findCSVsThatProvideAnyOf(provide resolver.APISet) ([]*v1alpha
 			continue
 		}
 
-		operatorSurface, err := resolver.NewOperatorFromCSV(csv)
+		operatorSurface, err := resolver.NewOperatorFromV1Alpha1CSV(csv)
 		if err != nil {
 			continue
 		}

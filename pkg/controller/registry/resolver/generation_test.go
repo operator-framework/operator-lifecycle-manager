@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/blang/semver"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
+
+var NoVersion = semver.MustParse("0.0.0")
 
 func TestNewGenerationFromCSVs(t *testing.T) {
 	type args struct {
@@ -82,6 +85,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						},
 						requiredAPIs: EmptyAPISet(),
 						sourceInfo:   &ExistingOperator,
+						version:      &NoVersion,
 					},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: &Operator{
 						name: "operator.v1",
@@ -91,6 +95,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 						},
 						requiredAPIs: EmptyAPISet(),
 						sourceInfo:   &ExistingOperator,
+						version:      &NoVersion,
 					},
 				},
 				requiredAPIs:  EmptyAPIMultiOwnerSet(),
@@ -142,6 +147,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: map[string]OperatorSurface{
@@ -153,6 +159,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 				},
@@ -170,6 +177,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 					{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: map[string]OperatorSurface{
@@ -181,6 +189,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g", Version: "v1", Kind: "CRDKind", Plural: "crdkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 				},
@@ -246,6 +255,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 							{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 						},
 						sourceInfo: &ExistingOperator,
+						version:    &NoVersion,
 					},
 					{Group: "g", Version: "v1", Kind: "CRDOwnedKind", Plural: "crdownedkinds"}: &Operator{
 						name: "operator.v1",
@@ -258,6 +268,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 							{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 						},
 						sourceInfo: &ExistingOperator,
+						version:    &NoVersion,
 					},
 				},
 				requiredAPIs: map[opregistry.APIKey]OperatorSet{
@@ -273,6 +284,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: map[string]OperatorSurface{
@@ -287,6 +299,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 				},
@@ -307,6 +320,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 					{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: map[string]OperatorSurface{
@@ -321,6 +335,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 								{Group: "g2", Version: "v1", Kind: "CRDReqKind", Plural: "crdreqkinds"}: {},
 							},
 							sourceInfo: &ExistingOperator,
+							version:    &NoVersion,
 						},
 					},
 				},
@@ -334,7 +349,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 			operatorSet := EmptyOperatorSet()
 			for _, csv := range tt.args.csvs {
 				// there's a separate unit test for this constructor
-				op, err := NewOperatorFromCSV(csv)
+				op, err := NewOperatorFromV1Alpha1CSV(csv)
 				require.NoError(t, err)
 				operatorSet[op.Identifier()] = op
 			}

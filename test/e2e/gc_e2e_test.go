@@ -3,7 +3,7 @@ package e2e
 import (
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,8 +22,8 @@ import (
 func TestOwnerReferenceGCBehavior(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
-	ownerA := newCSV("ownera", testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
-	ownerB := newCSV("ownerb", testNamespace, "", *semver.New("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
+	ownerA := newCSV("ownera", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
+	ownerB := newCSV("ownerb", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
 
 	// create all owners
 	c := newKubeClient(t)

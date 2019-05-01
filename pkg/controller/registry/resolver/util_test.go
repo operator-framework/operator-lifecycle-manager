@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blang/semver"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
@@ -51,6 +52,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 	requiredCRDAPISet := EmptyAPISet()
 	providedAPIServiceAPISet := EmptyAPISet()
 	requiredAPIServiceAPISet := EmptyAPISet()
+	version := semver.MustParse("0.0.0")
 
 	for _, p := range providedCRDs {
 		providedCRDAPISet[p] = struct{}{}
@@ -72,11 +74,13 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 	// force bundle cache to fill
 	_, _ = b.ClusterServiceVersion()
 	_, _ = b.CustomResourceDefinitions()
+
 	return &Operator{
 		providedAPIs: providedAPISet,
 		requiredAPIs: requiredAPISet,
 		name:         name,
 		replaces:     replaces,
+		version:      &version,
 		sourceInfo: &OperatorSourceInfo{
 			Package:     pkg,
 			Channel:     channel,
@@ -207,6 +211,7 @@ func crd(key opregistry.APIKey) *v1beta1.CustomResourceDefinition {
 }
 
 func u(object runtime.Object) *unstructured.Unstructured {
+	fmt.Println(object)
 	unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(object)
 	if err != nil {
 		panic(err)

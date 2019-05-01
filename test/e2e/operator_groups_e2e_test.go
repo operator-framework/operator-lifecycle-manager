@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -215,7 +215,7 @@ func TestOperatorGroup(t *testing.T) {
 	deploymentName := genName("operator-deployment")
 	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-	aCSV := newCSV(csvName, opGroupNamespace, "", *semver.New("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+	aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
@@ -464,7 +464,7 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 	// Generate csvA in namespaceA with all installmodes supported
 	crd := newCRD(genName("a"))
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csvA := newCSV("nginx-a", nsA, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csvA := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(nsA).Create(&csvA)
 	require.NoError(t, err)
 	defer func() {
@@ -561,7 +561,7 @@ func TestOperatorGroupInstallModeSupport(t *testing.T) {
 	// Generate csvA in namespaceA with no supported InstallModes
 	crd := newCRD(genName("b"))
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csv := newCSV("nginx-a", nsA, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
+	csv := newCSV("nginx-a", nsA, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
 	csvA := &csv
 	csvA.Spec.InstallModes = []v1alpha1.InstallMode{
 		{
@@ -787,9 +787,9 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
 	kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
 	kvgD := fmt.Sprintf("%s.%s.%s", crdD.Spec.Names.Kind, crdD.Spec.Version, crdD.Spec.Group)
-	csvA := newCSV(pkgAStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
-	csvB := newCSV(pkgBStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdA, crdB}, nil, strategyB)
-	csvD := newCSV(pkgDStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, strategyD)
+	csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
+	csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA, crdB}, nil, strategyB)
+	csvD := newCSV(pkgDStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdD}, nil, strategyD)
 
 	// Create namespaces
 	nsA, nsB, nsC, nsD, nsE := genName("a-"), genName("b-"), genName("c-"), genName("d-"), genName("e-")
@@ -1044,8 +1044,8 @@ func TestStaticProviderOperatorGroup(t *testing.T) {
 	crdB := newCRD(genName(pkgB))
 	kvgA := fmt.Sprintf("%s.%s.%s", crdA.Spec.Names.Kind, crdA.Spec.Version, crdA.Spec.Group)
 	kvgB := fmt.Sprintf("%s.%s.%s", crdB.Spec.Names.Kind, crdB.Spec.Version, crdB.Spec.Group)
-	csvA := newCSV(pkgAStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
-	csvB := newCSV(pkgBStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, strategyB)
+	csvA := newCSV(pkgAStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdA}, nil, strategyA)
+	csvB := newCSV(pkgBStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crdB}, nil, strategyB)
 
 	// Create namespaces
 	nsA, nsB, nsC, nsD := genName("a-"), genName("b-"), genName("c-"), genName("d-")
@@ -1327,7 +1327,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	deploymentName := genName("operator-deployment")
 	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
 
-	aCSV := newCSV(csvName, opGroupNamespace, "", *semver.New("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+	aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
 	aCSV.Labels = map[string]string{"label": t.Name()}
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)

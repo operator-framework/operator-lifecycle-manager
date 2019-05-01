@@ -24,6 +24,7 @@ package openapi
 
 import (
 	spec "github.com/go-openapi/spec"
+	version "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	common "k8s.io/kube-openapi/pkg/common"
 )
@@ -31,6 +32,7 @@ import (
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                 schema_api_apis_operators_v1alpha1_InstallMode(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion":                             schema_operator_lifecycle_manager_pkg_lib_version_OperatorVersion(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink":               schema_package_server_apis_apps_v1alpha1_AppLink(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription":        schema_package_server_apis_apps_v1alpha1_CSVDescription(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon":                  schema_package_server_apis_apps_v1alpha1_Icon(ref),
@@ -119,6 +121,18 @@ func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback
 	}
 }
 
+func schema_operator_lifecycle_manager_pkg_lib_version_OperatorVersion(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "OperatorVersion is a wrapper around semver.Version which supports correct marshaling to YAML and JSON.",
+				Type:        version.OperatorVersion{}.OpenAPISchemaType(),
+				Format:      version.OperatorVersion{}.OpenAPISchemaFormat(),
+			},
+		},
+	}
+}
+
 func schema_package_server_apis_apps_v1alpha1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -170,6 +184,12 @@ func schema_package_server_apis_apps_v1alpha1_CSVDescription(ref common.Referenc
 							},
 						},
 					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Version is the CSV's semantic version",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion"),
+						},
+					},
 					"provider": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Provider is the CSV's provider",
@@ -213,7 +233,7 @@ func schema_package_server_apis_apps_v1alpha1_CSVDescription(ref common.Referenc
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon"},
 	}
 }
 
@@ -503,6 +523,12 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 							},
 						},
 					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Version is the CSV's semantic version",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion"),
+						},
+					},
 					"provider": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Provider is the CSV's provider",
@@ -546,7 +572,7 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon"},
 	}
 }
 

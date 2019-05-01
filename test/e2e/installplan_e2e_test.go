@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -21,6 +21,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	opver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
 type checkInstallPlanFunc func(fip *v1alpha1.InstallPlan) bool
@@ -150,7 +151,7 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:       replaces,
-			Version:        version,
+			Version:        opver.OperatorVersion{version},
 			MinKubeVersion: "0.0.0",
 			InstallModes: []v1alpha1.InstallMode{
 				{
@@ -221,8 +222,8 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	crdPlural := genName("ins-")
 
 	dependentCRD := newCRD(crdPlural)
-	mainCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -374,10 +375,10 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		dependentCRD := newCRD(dependentCRDPlural)
 
 		// Create new CSVs
-		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 
 		c := newKubeClient(t)
 		crc := newCRClient(t)
@@ -499,10 +500,10 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 		dependentCRD := newCRD(dependentCRDPlural)
 
 		// Create new CSVs
-		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
-		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
-		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, *semver.New("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+		dependentStableCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+		dependentBetaCSV := newCSV(dependentPackageBeta, testNamespace, dependentPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 
 		c := newKubeClient(t)
 		crc := newCRClient(t)
@@ -654,7 +655,7 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
 
 	// Create new CSVs
-	stableCSV := newCSV(stableCSVName, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	stableCSV := newCSV(stableCSVName, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
@@ -796,7 +797,7 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 	stableChannel := "stable"
 	packageNameStable := packageName + "-" + stableChannel
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csv := newCSV(packageNameStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	csv := newCSV(packageNameStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
 	// Create PackageManifests
 	manifests := []registry.PackageManifest{
@@ -828,7 +829,7 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	installPlanName := subscription.Status.Install.Name
+	installPlanName := subscription.Status.InstallPlanRef.Name
 
 	// Wait for InstallPlan to be status: Complete before checking resource presence
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed))
