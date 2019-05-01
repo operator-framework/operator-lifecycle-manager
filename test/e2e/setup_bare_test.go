@@ -37,8 +37,15 @@ var (
 	olmNamespace = flag.String(
 		"olmNamespace", "", "namespace where olm is running")
 
+	communityOperators = flag.String(
+		"communityOperators",
+		"quay.io/operator-framework/upstream-community-operators@sha256:098457dc5e0b6ca9599bd0e7a67809f8eca397907ca4d93597380511db478fec",
+		"reference to upstream-community-operators image")
+	
+
 	testNamespace     = ""
 	operatorNamespace = ""
+	communityOperatorsImage = ""
 )
 
 func TestMain(m *testing.M) {
@@ -56,6 +63,8 @@ func TestMain(m *testing.M) {
 		testNamespace = string(testNamespaceBytes)
 	}
 	operatorNamespace = *olmNamespace
+	communityOperatorsImage = *communityOperators
+
 	cleaner = newNamespaceCleaner(testNamespace)
 	namespaces := strings.Split(*watchedNamespaces, ",")
 

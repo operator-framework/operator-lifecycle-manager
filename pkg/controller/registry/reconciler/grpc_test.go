@@ -5,63 +5,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/informers"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
-	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 )
-
-func grpcReconcilerFactory(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (RegistryReconcilerFactory, operatorclient.ClientInterface) {
-	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), nil, nil)
-
-	// Creates registry pods in response to configmaps
-	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), 5*time.Second)
-	roleInformer := informerFactory.Rbac().V1().Roles()
-	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-	serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
-	serviceInformer := informerFactory.Core().V1().Services()
-	podInformer := informerFactory.Core().V1().Pods()
-	configMapInformer := informerFactory.Core().V1().ConfigMaps()
-
-	registryInformers := []cache.SharedIndexInformer{
-		roleInformer.Informer(),
-		roleBindingInformer.Informer(),
-		serviceAccountInformer.Informer(),
-		serviceInformer.Informer(),
-		podInformer.Informer(),
-		configMapInformer.Informer(),
-	}
-
-	lister := operatorlister.NewLister()
-	lister.RbacV1().RegisterRoleLister(testNamespace, roleInformer.Lister())
-	lister.RbacV1().RegisterRoleBindingLister(testNamespace, roleBindingInformer.Lister())
-	lister.CoreV1().RegisterServiceAccountLister(testNamespace, serviceAccountInformer.Lister())
-	lister.CoreV1().RegisterServiceLister(testNamespace, serviceInformer.Lister())
-	lister.CoreV1().RegisterPodLister(testNamespace, podInformer.Lister())
-	lister.CoreV1().RegisterConfigMapLister(testNamespace, configMapInformer.Lister())
-
-	rec := &registryReconcilerFactory{
-		OpClient: opClientFake,
-		Lister:   lister,
-	}
-
-	var hasSyncedCheckFns []cache.InformerSynced
-	for _, informer := range registryInformers {
-		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
-		go informer.Run(stopc)
-	}
-
-	require.True(t, cache.WaitForCacheSync(stopc, hasSyncedCheckFns...), "caches failed to sync")
-
-	return rec, opClientFake
-}
 
 func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 	return &v1alpha1.CatalogSource{
@@ -82,10 +35,6 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
 	timeNow = func() metav1.Time { return nowTime }
 
-	validConfigMap := validConfigMap()
-	validCatalogSource := validConfigMapCatalogSource(validConfigMap)
-	outdatedCatalogSource := validCatalogSource.DeepCopy()
-	outdatedCatalogSource.Status.ConfigMapResource.ResourceVersion = "old"
 	type cluster struct {
 		k8sObjs []runtime.Object
 	}
@@ -105,6 +54,24 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 		{
 			testName: "Grpc/NoExistingRegistry/CreateSuccessful",
 			in: in{
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				status: &v1alpha1.RegistryServiceStatus{
+					CreatedAt:        timeNow(),
+					Protocol:         "grpc",
+					ServiceName:      "img-catalog",
+					ServiceNamespace: testNamespace,
+					Port:             "50051",
+				},
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/CreateSuccessful",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", "")),
+				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
 			out: out{
@@ -147,28 +114,10 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 		},
 		{
-			testName: "Grpc/ExistingRegistry/BadServiceAccount",
-			in: in{
-				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), "ServiceAccount", "badName"),
-				},
-				catsrc: validGrpcCatalogSource("test-img", ""),
-			},
-			out: out{
-				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
-					Protocol:         "grpc",
-					ServiceName:      "img-catalog",
-					ServiceNamespace: testNamespace,
-					Port:             "50051",
-				},
-			},
-		},
-		{
 			testName: "Grpc/ExistingRegistry/BadService",
 			in: in{
 				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), "Service", "badName"),
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, "badName"),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -186,43 +135,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			testName: "Grpc/ExistingRegistry/BadPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), "Pod", "badName"),
-				},
-				catsrc: validGrpcCatalogSource("test-img", ""),
-			},
-			out: out{
-				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
-					Protocol:         "grpc",
-					ServiceName:      "img-catalog",
-					ServiceNamespace: testNamespace,
-					Port:             "50051",
-				},
-			},
-		},
-		{
-			testName: "Grpc/ExistingRegistry/BadRole",
-			in: in{
-				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), "Role", "badName"),
-				},
-				catsrc: validGrpcCatalogSource("test-img", ""),
-			},
-			out: out{
-				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
-					Protocol:         "grpc",
-					ServiceName:      "img-catalog",
-					ServiceNamespace: testNamespace,
-					Port:             "50051",
-				},
-			},
-		},
-		{
-			testName: "Grpc/ExistingRegistry/BadRoleBinding",
-			in: in{
-				cluster: cluster{
-					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), "RoleBinding", "badName"),
+					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Pod{}, CatalogSourceLabelKey, ""),
 				},
 				catsrc: validGrpcCatalogSource("test-img", ""),
 			},
@@ -260,7 +173,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			factory, client := grpcReconcilerFactory(t, tt.in.cluster.k8sObjs, stopc)
+			factory, client := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
@@ -276,23 +189,182 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
 			pod := decorated.Pod()
 			service := decorated.Service()
-			outPod, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Get(pod.GetName(), metav1.GetOptions{})
+			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(listOptions)
 			outService, serviceErr := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(service.GetName(), metav1.GetOptions{})
 
 			switch rec.(type) {
 			case *GrpcRegistryReconciler:
 				// Should be created by a GrpcRegistryReconciler
 				require.NoError(t, podErr)
-				require.Equal(t, pod, outPod)
+				require.Len(t, outPods.Items, 1)
+				outPod := outPods.Items[0]
+				require.Equal(t, pod.GetGenerateName(), outPod.GetGenerateName())
+				require.Equal(t, pod.GetLabels(), outPod.GetLabels())
+				require.Equal(t, pod.Spec, outPod.Spec)
 				require.NoError(t, serviceErr)
 				require.Equal(t, service, outService)
 			case *GrpcAddressRegistryReconciler:
 				// Should not be created by a GrpcAddressRegistryReconciler
-				require.Error(t, podErr)
-				require.True(t, k8serrors.IsNotFound(podErr))
+				require.NoError(t, podErr)
+				require.Len(t, outPods.Items, 0)
 				require.NoError(t, err)
 				require.True(t, k8serrors.IsNotFound(serviceErr))
 			}
+
+		})
+	}
+}
+
+func TestGrpcRegistryChecker(t *testing.T) {
+	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
+	timeNow = func() metav1.Time { return nowTime }
+
+	type cluster struct {
+		k8sObjs []runtime.Object
+	}
+	type in struct {
+		cluster cluster
+		catsrc  *v1alpha1.CatalogSource
+	}
+	type out struct {
+		healthy bool
+		err     error
+	}
+	tests := []struct {
+		testName string
+		in       in
+		out      out
+	}{
+		{
+			testName: "Grpc/ExistingRegistry/Image/Healthy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("test-img", "")),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: true,
+			},
+		},
+		{
+			testName: "Grpc/NoExistingRegistry/Image/NotHealthy",
+			in: in{
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/BadService",
+			in: in{
+				cluster: cluster{
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Service{}, "badName"),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/BadPod",
+			in: in{
+				cluster: cluster{
+					k8sObjs: setLabel(objectsForCatalogSource(validGrpcCatalogSource("test-img", "")), &corev1.Pod{}, CatalogSourceLabelKey, ""),
+				},
+				catsrc: validGrpcCatalogSource("test-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/Image/OldPod/NotHealthy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", "")),
+				},
+				catsrc: validGrpcCatalogSource("new-img", ""),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/NoExistingRegistry/Address/Healthy",
+			in: in{
+				catsrc: validGrpcCatalogSource("", "catalog.svc.cluster.local:50001"),
+			},
+			out: out{
+				healthy: true,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/AddressAndImage/Healthy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001")),
+				},
+				catsrc: validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
+			},
+			out: out{
+				healthy: true,
+			},
+		},
+		{
+			testName: "Grpc/NoExistingRegistry/AddressAndImage/NotHealthy",
+			in: in{
+				cluster: cluster{},
+				catsrc:  validGrpcCatalogSource("img-catalog", "catalog.svc.cluster.local:50001"),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/AddressAndImage/BadService/NotHealthy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: modifyObjName(objectsForCatalogSource(validGrpcCatalogSource("test-img", "catalog.svc.cluster.local:50001")), &corev1.Service{}, "badName"),
+				},
+				catsrc: validGrpcCatalogSource("test-img", "catalog.svc.cluster.local:50001"),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+		{
+			testName: "Grpc/ExistingRegistry/AddressAndImage/OldPod/NotHealthy",
+			in: in{
+				cluster: cluster{
+					k8sObjs: objectsForCatalogSource(validGrpcCatalogSource("old-img", "catalog.svc.cluster.local:50001")),
+				},
+				catsrc: validGrpcCatalogSource("new-img", "catalog.svc.cluster.local:50001"),
+			},
+			out: out{
+				healthy: false,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			stopc := make(chan struct{})
+			defer close(stopc)
+
+			factory, _ := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...))
+			rec := factory.ReconcilerForSource(tt.in.catsrc)
+
+			healthy, err := rec.CheckRegistryServer(tt.in.catsrc)
+
+			require.Equal(t, tt.out.err, err)
+			if tt.out.err != nil {
+				return
+			}
+
+			require.Equal(t, tt.out.healthy, healthy)
 
 		})
 	}

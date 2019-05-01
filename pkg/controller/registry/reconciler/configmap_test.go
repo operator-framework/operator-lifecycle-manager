@@ -2,23 +2,29 @@ package reconciler
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	"github.com/ghodss/yaml"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
-	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	k8slabels "k8s.io/kubernetes/pkg/util/labels"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
 const (
@@ -26,8 +32,43 @@ const (
 	testNamespace     = "testns"
 )
 
-func cmReconciler(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{}) (*ConfigMapRegistryReconciler, operatorclient.ClientInterface) {
-	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(k8sObjs...), nil, nil)
+type fakeReconcilerConfig struct {
+	k8sObjs              []runtime.Object
+	k8sClientOptions     []clientfake.Option
+	configMapServerImage string
+}
+
+type fakeReconcilerOption func(*fakeReconcilerConfig)
+
+func withK8sObjs(k8sObjs ...runtime.Object) fakeReconcilerOption {
+	return func(config *fakeReconcilerConfig) {
+		config.k8sObjs = k8sObjs
+	}
+}
+
+func withK8sClientOptions(options ...clientfake.Option) fakeReconcilerOption {
+	return func(config *fakeReconcilerConfig) {
+		config.k8sClientOptions = options
+	}
+}
+
+func withConfigMapServerImage(configMapServerImage string) fakeReconcilerOption {
+	return func(config *fakeReconcilerConfig) {
+		config.configMapServerImage = configMapServerImage
+	}
+}
+
+func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeReconcilerOption) (RegistryReconcilerFactory, operatorclient.ClientInterface) {
+	config := &fakeReconcilerConfig{
+		configMapServerImage: registryImageName,
+	}
+
+	// Apply all config options
+	for _, option := range options {
+		option(config)
+	}
+
+	opClientFake := operatorclient.NewClient(clientfake.NewReactionForwardingClientsetDecorator(config.k8sObjs, config.k8sClientOptions...), nil, nil)
 
 	// Creates registry pods in response to configmaps
 	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), 5*time.Second)
@@ -55,10 +96,10 @@ func cmReconciler(t *testing.T, k8sObjs []runtime.Object, stopc <-chan struct{})
 	lister.CoreV1().RegisterPodLister(testNamespace, podInformer.Lister())
 	lister.CoreV1().RegisterConfigMapLister(testNamespace, configMapInformer.Lister())
 
-	rec := &ConfigMapRegistryReconciler{
-		Image:    registryImageName,
-		OpClient: opClientFake,
-		Lister:   lister,
+	rec := &registryReconcilerFactory{
+		OpClient:             opClientFake,
+		Lister:               lister,
+		ConfigMapServerImage: config.configMapServerImage,
 	}
 
 	var hasSyncedCheckFns []cache.InformerSynced
@@ -137,14 +178,27 @@ func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogS
 }
 
 func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
-	decorated := configMapCatalogSourceDecorator{catsrc}
-	objs := []runtime.Object{
-		decorated.Pod(registryImageName),
-		decorated.Service(),
-		decorated.ServiceAccount(),
-		decorated.Role(),
-		decorated.RoleBinding(),
+	var objs []runtime.Object
+	switch catsrc.Spec.SourceType {
+	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
+		decorated := configMapCatalogSourceDecorator{catsrc}
+		objs = clientfake.AddSimpleGeneratedNames(
+			clientfake.AddSimpleGeneratedName(decorated.Pod(registryImageName)),
+			decorated.Service(),
+			decorated.ServiceAccount(),
+			decorated.Role(),
+			decorated.RoleBinding(),
+		)
+	case v1alpha1.SourceTypeGrpc:
+		if catsrc.Spec.Image != "" {
+			decorated := grpcCatalogSourceDecorator{catsrc}
+			objs = clientfake.AddSimpleGeneratedNames(
+				decorated.Pod(),
+				decorated.Service(),
+			)
+		}
 	}
+
 	blockOwnerDeletion := false
 	isController := false
 	for _, o := range objs {
@@ -161,14 +215,30 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 	return objs
 }
 
-func modifyObjName(objs []runtime.Object, kind, newName string) []runtime.Object {
+func modifyObjName(objs []runtime.Object, kind runtime.Object, newName string) []runtime.Object {
 	out := []runtime.Object{}
-	for _, o := range objs {
-		if o.GetObjectKind().GroupVersionKind().Kind == kind {
-			mo := o.(metav1.Object)
-			mo.SetName(newName)
-			out = append(out, mo.(runtime.Object))
-			continue
+	t := reflect.TypeOf(kind)
+	for _, obj := range objs {
+		o := obj.DeepCopyObject()
+		if reflect.TypeOf(o) == t {
+			if accessor, err := meta.Accessor(o); err == nil {
+				accessor.SetName(newName)
+			}
+		}
+		out = append(out, o)
+	}
+	return out
+}
+
+func setLabel(objs []runtime.Object, kind runtime.Object, label, value string) []runtime.Object {
+	out := []runtime.Object{}
+	t := reflect.TypeOf(kind)
+	for _, obj := range objs {
+		o := obj.DeepCopyObject()
+		if reflect.TypeOf(o) == t {
+			if accessor, err := meta.Accessor(o); err == nil {
+				k8slabels.AddLabel(accessor.GetLabels(), label, value)
+			}
 		}
 		out = append(out, o)
 	}
@@ -235,7 +305,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadServiceAccount",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), "ServiceAccount", "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), &corev1.ServiceAccount{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -253,7 +323,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadService",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), "Service", "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), &corev1.Service{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -271,7 +341,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadPod",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), "Pod", "badName"), validConfigMap),
+					k8sObjs: append(setLabel(objectsForCatalogSource(validCatalogSource), &corev1.Pod{}, CatalogSourceLabelKey, "badValue"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -289,7 +359,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadRole",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), "Role", "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), &rbacv1.Role{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -307,7 +377,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			testName: "ExistingRegistry/BadRoleBinding",
 			in: in{
 				cluster: cluster{
-					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), "RoleBinding", "badName"), validConfigMap),
+					k8sObjs: append(modifyObjName(objectsForCatalogSource(validCatalogSource), &rbacv1.RoleBinding{}, "badName"), validConfigMap),
 				},
 				catsrc: validCatalogSource,
 			},
@@ -345,7 +415,8 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			rec, client := cmReconciler(t, tt.in.cluster.k8sObjs, stopc)
+			factory, client := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
+			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
 
@@ -360,9 +431,14 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			decorated := configMapCatalogSourceDecorator{tt.in.catsrc}
 
 			pod := decorated.Pod(registryImageName)
-			outPod, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).Get(pod.GetName(), metav1.GetOptions{})
+			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
+			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(listOptions)
 			require.NoError(t, err)
-			require.Equal(t, pod, outPod)
+			require.Len(t, outPods.Items, 1)
+			outPod := outPods.Items[0]
+			require.Equal(t, pod.GetGenerateName(), outPod.GetGenerateName())
+			require.Equal(t, pod.GetLabels(), outPod.GetLabels())
+			require.Equal(t, pod.Spec, outPod.Spec)
 
 			service := decorated.Service()
 			outService, err := client.KubernetesInterface().CoreV1().Services(service.GetNamespace()).Get(service.GetName(), metav1.GetOptions{})

@@ -14,15 +14,16 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 )
 
 func TestSyncSubscriptions(t *testing.T) {
 	now := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
 	timeNow = func() metav1.Time { return now }
-
 	testNamespace := "testNamespace"
+
 	type fields struct {
-		fakeClientOptions []fakeClientOption
+		clientOptions     []clientfake.Option
 		sourcesLastUpdate metav1.Time
 		resolveSteps      []*v1alpha1.Step
 		resolveSubs       []*v1alpha1.Subscription
@@ -51,7 +52,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		{
 			name: "NoStatus/NoCurrentCSV/FoundInCatalog",
 			fields: fields{
-				fakeClientOptions: []fakeClientOption{withSelfLinks(t)},
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.Subscription{
 						ObjectMeta: metav1.ObjectMeta{
@@ -182,7 +183,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		{
 			name: "Status/HaveCurrentCSV/UpdateFoundInCatalog",
 			fields: fields{
-				fakeClientOptions: []fakeClientOption{withSelfLinks(t)},
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.ClusterServiceVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -322,7 +323,7 @@ func TestSyncSubscriptions(t *testing.T) {
 		{
 			name: "Status/HaveCurrentCSV/UpdateFoundInCatalog/UpdateRequiresDependency",
 			fields: fields{
-				fakeClientOptions: []fakeClientOption{withSelfLinks(t)},
+				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.ClusterServiceVersion{
 						ObjectMeta: metav1.ObjectMeta{
@@ -514,7 +515,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			// Create test operator
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			o, err := NewFakeOperator(testNamespace, []string{testNamespace}, stopCh, withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.fakeClientOptions...))
+			o, err := NewFakeOperator(testNamespace, []string{testNamespace}, stopCh, withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{

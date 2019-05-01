@@ -49,8 +49,8 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	crc := newCRClient(t)
 
 	catalogSourceName := genName("mock-ocs-")
-	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-	defer cleanupCatalogSource()
+	_, cleanupSource := createInternalCatalogSource(t, c, crc, catalogSourceName, operatorNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	defer cleanupSource()
 
 	// ensure the mock catalog exists and has been synced by the catalog operator
 	catalogSource, err := fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, catalogSourceRegistryPodSynced)
@@ -264,7 +264,7 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 	}
 
 	// Create the initial catalogsource
-	_, cleanupCatalog := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+	_, cleanupSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
 
 	// Attempt to get the catalog source before creating install plan
 	fetchedInitialCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
@@ -279,7 +279,7 @@ func TestConfigMapReplaceTriggersRegistryPodRollout(t *testing.T) {
 	require.Equal(t, 1, len(initialPods.Items))
 
 	// delete the first catalog
-	cleanupCatalog()
+	cleanupSource()
 
 	// create a catalog with the same name
 	createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, append(mainManifests, dependentManifests...), []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, dependentCSV})
@@ -436,7 +436,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestDeleteRegistryPodTriggersRecreation(t *testing.T) {
+func TestDeleteInternalRegistryPodTriggersRecreation(t *testing.T) {
 	// Create internal CatalogSource containing csv in package
 	// Wait for a registry pod to be created
 	// Create a Subscription for package
@@ -452,7 +452,7 @@ func TestDeleteRegistryPodTriggersRecreation(t *testing.T) {
 	packageStable := fmt.Sprintf("%s-stable", packageName)
 	stableChannel := "stable"
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	catalogName := genName("catsrc-")
+	sourceName := genName("catalog-")
 	crd := newCRD(genName("ins-"))
 	csv := newCSV(packageStable, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 	manifests := []registry.PackageManifest{
@@ -467,11 +467,11 @@ func TestDeleteRegistryPodTriggersRecreation(t *testing.T) {
 
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	_, cleanupCatalog := createInternalCatalogSource(t, c, crc, catalogName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-	defer cleanupCatalog()
+	_, cleanupSource := createInternalCatalogSource(t, c, crc, sourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	defer cleanupSource()
 
 	// Wait for a new registry pod to be created
-	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": catalogName})
+	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": sourceName})
 	singlePod := podCount(1)
 	registryPods, err := awaitPods(t, c, testNamespace, selector.String(), singlePod)
 	require.NoError(t, err, "error awaiting registry pod")
@@ -484,7 +484,7 @@ func TestDeleteRegistryPodTriggersRecreation(t *testing.T) {
 
 	// Create a Subscription for package
 	subscriptionName := genName("sub-")
-	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, sourceName, packageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
 	defer cleanupSubscription()
 
 	// Wait for the Subscription to succeed
@@ -499,6 +499,90 @@ func TestDeleteRegistryPodTriggersRecreation(t *testing.T) {
 	// Delete the registry pod
 	err = c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(name, &metav1.DeleteOptions{})
 	require.NoError(t, err)
+
+	// Wait for a new registry pod to be created
+	notUID := func(pods *corev1.PodList) bool {
+		for _, pod := range pods.Items {
+			if pod.GetUID() == uid {
+				return false
+			}
+		}
+
+		return true
+	}
+	registryPods, err = awaitPods(t, c, testNamespace, selector.String(), unionPodsCheck(singlePod, notUID))
+	require.NoError(t, err, "error waiting for replacement registry pod")
+	require.NotNil(t, registryPods, "nil replacement registry pods")
+	require.Equal(t, 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
+}
+
+func TestDeleteGRPCRegistryPodTriggersRecreation(t *testing.T) {
+	// Create gRPC CatalogSource using an external registry image (community-operators)
+	// Wait for a registry pod to be created
+	// Create a Subscription for package
+	// Wait for the Subscription to succeed
+	// Wait for csv to succeed
+	// Delete the registry pod
+	// Wait for a new registry pod to be created
+
+	defer cleaner.NotifyTestComplete(t, true)
+
+	sourceName := genName("catalog-")
+	packageName := "etcd"
+	channelName := "clusterwide-alpha"
+
+	// Create gRPC CatalogSource using an external registry image (community-operators)
+	source := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sourceName,
+			Namespace: testNamespace,
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Image:      communityOperatorsImage,
+		},
+	}
+
+	crc := newCRClient(t)
+	source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Wait for a new registry pod to be created
+	c := newKubeClient(t)
+	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+	singlePod := podCount(1)
+	registryPods, err := awaitPods(t, c, source.GetNamespace(), selector.String(), singlePod)
+	require.NoError(t, err, "error awaiting registry pod")
+	require.NotNil(t, registryPods, "nil registry pods")
+	require.Equal(t, 1, len(registryPods.Items), "unexpected number of registry pods found")
+
+	// Store the UID for later comparison
+	uid := registryPods.Items[0].GetUID()
+	name := registryPods.Items[0].GetName()
+
+	// Create a Subscription for package
+	subscriptionName := genName("sub-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	// Wait for the Subscription to succeed
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for csv to succeed
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Delete the registry pod
+	require.NoError(t, c.KubernetesInterface().CoreV1().Pods(testNamespace).Delete(name, &metav1.DeleteOptions{}))
 
 	// Wait for a new registry pod to be created
 	notUID := func(pods *corev1.PodList) bool {

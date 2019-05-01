@@ -26,8 +26,13 @@ type configMapCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
 }
 
+const (
+	// ConfigMapServerPostfix is a postfix appended to the names of resources generated for a ConfigMap server.
+	ConfigMapServerPostfix string = "-configmap-server"
+)
+
 func (s *configMapCatalogSourceDecorator) serviceAccountName() string {
-	return s.GetName() + "-configmap-server"
+	return s.GetName() + ConfigMapServerPostfix
 }
 
 func (s *configMapCatalogSourceDecorator) roleName() string {
@@ -36,16 +41,21 @@ func (s *configMapCatalogSourceDecorator) roleName() string {
 
 func (s *configMapCatalogSourceDecorator) Selector() map[string]string {
 	return map[string]string{
-		"olm.catalogSource": s.GetName(),
+		CatalogSourceLabelKey: s.GetName(),
 	}
 }
 
+const (
+	// ConfigMapRVLabelKey is the key for a label used to track the resource version of a related ConfigMap.
+	ConfigMapRVLabelKey string = "olm.configMapResourceVersion"
+)
+
 func (s *configMapCatalogSourceDecorator) Labels() map[string]string {
 	labels := map[string]string{
-		"olm.catalogSource": s.GetName(),
+		CatalogSourceLabelKey: s.GetName(),
 	}
 	if s.Spec.SourceType == v1alpha1.SourceTypeInternal || s.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
-		labels["olm.configMapResourceVersion"] = s.Status.ConfigMapResource.ResourceVersion
+		labels[ConfigMapRVLabelKey] = s.Status.ConfigMapResource.ResourceVersion
 	}
 	return labels
 }
@@ -123,7 +133,7 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 					Operator: v1.TolerationOpExists,
 				},
 			},
-			ServiceAccountName: s.GetName() + "-configmap-server",
+			ServiceAccountName: s.GetName() + ConfigMapServerPostfix,
 		},
 	}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
@@ -442,7 +452,7 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha
 		c.currentRole(source) == nil ||
 		c.currentRoleBinding(source) == nil ||
 		c.currentService(source) == nil ||
-		len(c.currentPods(source, c.Image)) != 1 {
+		len(c.currentPods(source, c.Image)) < 1 {
 		healthy = false
 		return
 	}

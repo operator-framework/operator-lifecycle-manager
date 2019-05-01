@@ -7,6 +7,11 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
+const (
+	// CatalogSourceLabelKey is the key for a label containing a CatalogSource name.
+	CatalogSourceLabelKey string = "olm.catalogSource"
+)
+
 // RegistryEnsurer describes methods for ensuring a registry exists.
 type RegistryEnsurer interface {
 	// EnsureRegistryServer ensures a registry server exists for the given CatalogSource.
