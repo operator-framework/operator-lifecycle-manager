@@ -32,6 +32,22 @@ type cleanupFunc func()
 
 var immediateDeleteGracePeriod int64 = 0
 
+func findLastEvent(events *corev1.EventList) (event corev1.Event) {
+	var latestTime metav1.Time
+	var latestInd int
+	for i, item := range events.Items {
+		if i != 0 {
+			if latestTime.Before(&item.LastTimestamp) {
+				latestTime = item.LastTimestamp
+				latestInd = i
+			}
+		} else {
+			latestTime = item.LastTimestamp
+		}
+	}
+	return events.Items[latestInd]
+}
+
 func buildCSVCleanupFunc(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, csv v1alpha1.ClusterServiceVersion, namespace string, deleteCRDs, deleteAPIServices bool) cleanupFunc {
 	return func() {
 		require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).Delete(csv.GetName(), &metav1.DeleteOptions{}))
@@ -2718,6 +2734,223 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	require.NotNil(t, depNew2)
 	err = waitForDeploymentToDelete(t, c, strategy.DeploymentSpecs[0].Name)
 	require.NoError(t, err)
+}
+
+func TestCreateCSVRequirementsEvents(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	sa := corev1.ServiceAccount{}
+	sa.SetName(genName("sa-"))
+	sa.SetNamespace(testNamespace)
+	_, err := c.CreateServiceAccount(&sa)
+	require.NoError(t, err, "could not create ServiceAccount")
+
+	permissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: sa.GetName(),
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"create"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+				{
+					Verbs:     []string{"delete"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	clusterPermissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: sa.GetName(),
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{"get"},
+					APIGroups: []string{""},
+					Resources: []string{"deployment"},
+				},
+			},
+		},
+	}
+
+	depName := genName("dep-")
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: newNginxInstallStrategy(depName, permissions, clusterPermissions),
+			// Cheating a little; this is an APIservice that will exist for the e2e tests
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Required: []v1alpha1.APIServiceDescription{
+					{
+						Group:       "packages.operators.coreos.com",
+						Version:     "v1",
+						Kind:        "PackageManifest",
+						DisplayName: "Package Manifest",
+						Description: "An apiservice that exists",
+					},
+				},
+			},
+		},
+	}
+
+	// Create Role/Cluster Roles and RoleBindings
+	role := rbacv1.Role{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+			{
+				Verbs:     []string{"delete"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	role.SetName("test-role")
+	role.SetNamespace(testNamespace)
+	_, err = c.CreateRole(&role)
+	require.NoError(t, err, "could not create Role")
+
+	roleBinding := rbacv1.RoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     role.GetName(),
+		},
+	}
+	roleBinding.SetName(genName("dep-"))
+	roleBinding.SetNamespace(testNamespace)
+	_, err = c.CreateRoleBinding(&roleBinding)
+	require.NoError(t, err, "could not create RoleBinding")
+
+	clusterRole := rbacv1.ClusterRole{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"get"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	clusterRole.SetName(genName("dep-"))
+	_, err = c.CreateClusterRole(&clusterRole)
+	require.NoError(t, err, "could not create ClusterRole")
+
+	clusterRoleBinding := rbacv1.ClusterRoleBinding{
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      sa.GetName(),
+				Namespace: sa.GetNamespace(),
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     clusterRole.GetName(),
+		},
+	}
+	clusterRoleBinding.SetName(genName("dep-"))
+	_, err = c.CreateClusterRoleBinding(&clusterRoleBinding)
+	require.NoError(t, err, "could not create ClusterRoleBinding")
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	listOptions := metav1.ListOptions{
+		FieldSelector: "involvedObject.kind=ClusterServiceVersion",
+	}
+
+	// Get events from test namespace for CSV
+	eventsList, err := c.KubernetesInterface().CoreV1().Events(testNamespace).List(listOptions)
+	require.NoError(t, err)
+	latestEvent := findLastEvent(eventsList)
+	require.Equal(t, string(latestEvent.Reason), "InstallSucceeded")
+
+	// Edit role
+	updatedRole := rbacv1.Role{
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"create"},
+				APIGroups: []string{""},
+				Resources: []string{"deployment"},
+			},
+		},
+	}
+	updatedRole.SetName("test-role")
+	updatedRole.SetNamespace(testNamespace)
+	_, err = c.UpdateRole(&updatedRole)
+	require.NoError(t, err)
+
+	// Check CSV status
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Check event
+	eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(listOptions)
+	require.NoError(t, err)
+	latestEvent = findLastEvent(eventsList)
+	require.Equal(t, string(latestEvent.Reason), "RequirementsNotMet")
+
+	// Reverse the updated role
+	_, err = c.UpdateRole(&role)
+	require.NoError(t, err)
+
+	// Check CSV status
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Check event
+	eventsList, err = c.KubernetesInterface().CoreV1().Events(testNamespace).List(listOptions)
+	require.NoError(t, err)
+	latestEvent = findLastEvent(eventsList)
+	require.Equal(t, string(latestEvent.Reason), "InstallSucceeded")
 }
 
 // TODO: test behavior when replaces field doesn't point to existing CSV
