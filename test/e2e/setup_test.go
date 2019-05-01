@@ -23,8 +23,14 @@ var (
 	olmNamespace = flag.String(
 		"olmNamespace", "", "namespace where olm is running")
 
-	testNamespace     = ""
-	operatorNamespace = ""
+	communityOperators = flag.String(
+		"communityOperators",
+		"quay.io/operator-framework/upstream-community-operators@sha256:098457dc5e0b6ca9599bd0e7a67809f8eca397907ca4d93597380511db478fec",
+		"reference to upstream-community-operators image")
+
+	testNamespace           = ""
+	operatorNamespace       = ""
+	communityOperatorsImage = ""
 )
 
 func TestMain(m *testing.M) {
@@ -35,8 +41,9 @@ func TestMain(m *testing.M) {
 
 	testNamespace = *namespace
 	operatorNamespace = *olmNamespace
-	cleaner = newNamespaceCleaner(testNamespace)
+	communityOperatorsImage = *communityOperators
 
+	cleaner = newNamespaceCleaner(testNamespace)
 	c, err := client.NewClient(*kubeConfigPath)
 	if err != nil {
 		panic(err)

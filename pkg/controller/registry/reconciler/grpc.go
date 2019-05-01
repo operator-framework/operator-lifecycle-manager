@@ -214,7 +214,7 @@ func (c *GrpcRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha1.Cat
 
 	// Check on registry resources
 	// TODO: add gRPC health check
-	if len(c.currentPodsWithCorrectImage(source)) == 1 ||
+	if len(c.currentPodsWithCorrectImage(source)) < 1 ||
 		c.currentService(source) == nil {
 		healthy = false
 		return

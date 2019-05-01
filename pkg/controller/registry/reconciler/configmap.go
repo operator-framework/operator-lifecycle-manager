@@ -36,7 +36,7 @@ func (s *configMapCatalogSourceDecorator) serviceAccountName() string {
 }
 
 func (s *configMapCatalogSourceDecorator) roleName() string {
-	return s.GetName() + ConfigMapServerPostfix
+	return s.GetName() + "-configmap-reader"
 }
 
 func (s *configMapCatalogSourceDecorator) Selector() map[string]string {
@@ -170,15 +170,10 @@ func (s *configMapCatalogSourceDecorator) Role() *rbacv1.Role {
 	return role
 }
 
-const (
-	// ConfigMapReaderPostfix is the postfix applied to the name of reader RoleBinding generated for a ConfigMap server.
-	ConfigMapReaderPostfix string = ConfigMapServerPostfix + "-reader"
-)
-
 func (s *configMapCatalogSourceDecorator) RoleBinding() *rbacv1.RoleBinding {
 	rb := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      s.GetName() + ConfigMapReaderPostfix,
+			Name:      s.GetName() + "-server-configmap-reader",
 			Namespace: s.GetNamespace(),
 		},
 		Subjects: []rbacv1.Subject{
