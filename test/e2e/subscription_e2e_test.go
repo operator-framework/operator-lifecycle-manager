@@ -319,6 +319,12 @@ func subscriptionStateAny(subscription *v1alpha1.Subscription) bool {
 		subscriptionStateUpgradeAvailableChecker(subscription)
 }
 
+func subscriptionHasCurrentCSV(currentCSV string) subscriptionStateChecker {
+	return func(subscription *v1alpha1.Subscription) bool {
+		return subscription.Status.CurrentCSV == currentCSV
+	}
+}
+
 func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
 	var fetchedSubscription *v1alpha1.Subscription
 	var err error

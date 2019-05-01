@@ -105,6 +105,8 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 
 			// add steps for subscriptions for bundles that were added through resolution
 			if !subExists {
+				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
+				op.SourceInfo().StartingCSV = op.Identifier()
 				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo())
 				if err != nil {
 					return nil, nil, err
@@ -147,15 +149,15 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.S
 	for _, s := range subs {
 		startingCSV := s.Spec.StartingCSV
 		if s.Status.CurrentCSV != "" {
-			// If a csv has previously been resolved for the operator, don't enable 
+			// If a csv has previously been resolved for the operator, don't enable
 			// a starting csv search.
 			startingCSV = ""
 		}
 		add[OperatorSourceInfo{
-			Package: s.Spec.Package,
-			Channel: s.Spec.Channel,
+			Package:     s.Spec.Package,
+			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
-			Catalog: CatalogKey{Name: s.Spec.CatalogSource, Namespace: s.Spec.CatalogSourceNamespace},
+			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: s.Spec.CatalogSourceNamespace},
 		}] = s.DeepCopy()
 	}
 	return

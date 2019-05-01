@@ -83,6 +83,7 @@ func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1a
 			CatalogSourceNamespace: info.Catalog.Namespace,
 			Package:                info.Package,
 			Channel:                info.Channel,
+			StartingCSV:            info.StartingCSV,
 			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
 		},
 	}, info.Catalog.Name, info.Catalog.Namespace)

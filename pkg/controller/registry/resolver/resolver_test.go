@@ -532,6 +532,7 @@ func subSteps(namespace, operatorName, pkgName, channelName string, catalog Cata
 			Channel:                channelName,
 			CatalogSource:          catalog.Name,
 			CatalogSourceNamespace: catalog.Namespace,
+			StartingCSV:            operatorName,
 			InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
 		},
 	}

@@ -326,6 +326,30 @@ EXPECTED:
 	}
 
 	t.Logf("All expected resources resolved")
+
+	// Verify that the dependent subscription is in a good state
+	dependentSubscription, err := fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, dependentSubscription)
+	require.NotNil(t, dependentSubscription.Status.InstallPlanRef)
+	require.Equal(t, v1alpha1.SubscriptionState("AtLatestKnown"), dependentSubscription.Status.State)
+	require.Equal(t, dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
+
+	// TODO: update dependent subscription in catalog and wait for csv to update
+	updatedDependentCSV := newCSV(dependentPackageStable+"v2", testNamespace, dependentPackageStable, *semver.New("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+	dependentManifests = []registry.PackageManifest{
+		{
+			PackageName: dependentPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: updatedDependentCSV.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+	updateInternalCatalog(t, c, crc, dependentCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV, updatedDependentCSV}, dependentManifests)
+
+	dependentSubscription, err = fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasCurrentCSV(updatedDependentCSV.GetName()))
+	require.NoError(t, err)
 }
 
 func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
