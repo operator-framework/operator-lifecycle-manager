@@ -138,7 +138,7 @@ func TestExecutePlan(t *testing.T) {
 			testName: "MultipleSteps",
 			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
 				[]*v1alpha1.Step{
-					&v1alpha1.Step{
+					{
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
@@ -150,7 +150,7 @@ func TestExecutePlan(t *testing.T) {
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
-					&v1alpha1.Step{
+					{
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
@@ -211,12 +211,39 @@ func TestExecutePlan(t *testing.T) {
 }
 
 func TestSyncCatalogSources(t *testing.T) {
+	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
+	timeNow = func() metav1.Time { return nowTime }
+
+	configmapCatalog := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cool-catalog",
+			Namespace: "cool-namespace",
+			UID:       types.UID("catalog-uid"),
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			ConfigMap:  "cool-configmap",
+			SourceType: v1alpha1.SourceTypeInternal,
+		},
+	}
+	grpcCatalog := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cool-catalog",
+			Namespace: "cool-namespace",
+			UID:       types.UID("catalog-uid"),
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			Image:      "catalog-image",
+			SourceType: v1alpha1.SourceTypeGrpc,
+		},
+	}
 	tests := []struct {
 		testName       string
 		namespace      string
 		catalogSource  *v1alpha1.CatalogSource
+		k8sObjs        []runtime.Object
 		configMap      *corev1.ConfigMap
 		expectedStatus *v1alpha1.CatalogSourceStatus
+		expectedObjs   []runtime.Object
 		expectedError  error
 	}{
 		{
@@ -233,40 +260,34 @@ func TestSyncCatalogSources(t *testing.T) {
 					SourceType: "nope",
 				},
 			},
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "cool-configmap",
-					Namespace:       "cool-namespace",
-					UID:             types.UID("configmap-uid"),
-					ResourceVersion: "resource-version",
+			k8sObjs: []runtime.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "cool-configmap",
+						Namespace:       "cool-namespace",
+						UID:             types.UID("configmap-uid"),
+						ResourceVersion: "resource-version",
+					},
+					Data: fakeConfigMapData(),
 				},
-				Data: fakeConfigMapData(),
 			},
 			expectedStatus: nil,
 			expectedError:  fmt.Errorf("no reconciler for source type nope"),
 		},
 		{
-			testName:  "CatalogSourceWithBackingConfigMap",
-			namespace: "cool-namespace",
-			catalogSource: &v1alpha1.CatalogSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cool-catalog",
-					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
+			testName:      "CatalogSourceWithBackingConfigMap",
+			namespace:     "cool-namespace",
+			catalogSource: configmapCatalog,
+			k8sObjs: []runtime.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "cool-configmap",
+						Namespace:       "cool-namespace",
+						UID:             types.UID("configmap-uid"),
+						ResourceVersion: "resource-version",
+					},
+					Data: fakeConfigMapData(),
 				},
-				Spec: v1alpha1.CatalogSourceSpec{
-					ConfigMap:  "cool-configmap",
-					SourceType: v1alpha1.SourceTypeInternal,
-				},
-			},
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "cool-configmap",
-					Namespace:       "cool-namespace",
-					UID:             types.UID("configmap-uid"),
-					ResourceVersion: "resource-version",
-				},
-				Data: fakeConfigMapData(),
 			},
 			expectedStatus: &v1alpha1.CatalogSourceStatus{
 				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
@@ -276,6 +297,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					ResourceVersion: "resource-version",
 				},
 				RegistryServiceStatus: nil,
+				LastSync:              timeNow(),
 			},
 			expectedError: nil,
 		},
@@ -300,16 +322,19 @@ func TestSyncCatalogSources(t *testing.T) {
 						ResourceVersion: "resource-version",
 					},
 					RegistryServiceStatus: nil,
+					LastSync:              timeNow(),
 				},
 			},
-			configMap: &corev1.ConfigMap{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:            "cool-configmap",
-					Namespace:       "cool-namespace",
-					UID:             types.UID("configmap-uid"),
-					ResourceVersion: "resource-version",
+			k8sObjs: []runtime.Object{
+				&corev1.ConfigMap{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:            "cool-configmap",
+						Namespace:       "cool-namespace",
+						UID:             types.UID("configmap-uid"),
+						ResourceVersion: "resource-version",
+					},
+					Data: fakeConfigMapData(),
 				},
-				Data: fakeConfigMapData(),
 			},
 			expectedStatus: &v1alpha1.CatalogSourceStatus{
 				ConfigMapResource: &v1alpha1.ConfigMapResourceReference{
@@ -318,39 +343,89 @@ func TestSyncCatalogSources(t *testing.T) {
 					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
 				},
-				RegistryServiceStatus: nil,
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        timeNow(),
+				},
+				LastSync: timeNow(),
 			},
 			expectedError: nil,
 		},
 		{
-			testName:  "CatalogSourceWithMissingConfigMap",
-			namespace: "cool-namespace",
-			catalogSource: &v1alpha1.CatalogSource{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "cool-catalog",
-					Namespace: "cool-namespace",
-					UID:       types.UID("catalog-uid"),
-				},
-				Spec: v1alpha1.CatalogSourceSpec{
-					ConfigMap:  "cool-configmap",
-					SourceType: v1alpha1.SourceTypeConfigmap,
-				},
+			testName:      "CatalogSourceWithMissingConfigMap",
+			namespace:     "cool-namespace",
+			catalogSource: configmapCatalog,
+			k8sObjs: []runtime.Object{
+				&corev1.ConfigMap{},
 			},
-			configMap:      &corev1.ConfigMap{},
 			expectedStatus: nil,
 			expectedError:  errors.New("failed to get catalog config map cool-configmap: configmap \"cool-configmap\" not found"),
+		},
+		{
+			testName:      "CatalogSourceWithGrpcImage",
+			namespace:     "cool-namespace",
+			catalogSource: grpcCatalog,
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        timeNow(),
+				},
+				LastSync: timeNow(),
+			},
+			expectedError: nil,
+			expectedObjs: []runtime.Object{
+				pod(*grpcCatalog),
+			},
+		},
+		{
+			testName:      "CatalogSourceWithGrpcImage/EnsuresCorrectImage",
+			namespace:     "cool-namespace",
+			catalogSource: grpcCatalog,
+			k8sObjs: []runtime.Object{
+				pod(v1alpha1.CatalogSource{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "cool-catalog",
+						Namespace: "cool-namespace",
+						UID:       types.UID("catalog-uid"),
+					},
+					Spec: v1alpha1.CatalogSourceSpec{
+						Image:      "old-image",
+						SourceType: v1alpha1.SourceTypeGrpc,
+					},
+				}),
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
+					Protocol:         "grpc",
+					ServiceName:      "cool-catalog",
+					ServiceNamespace: "cool-namespace",
+					Port:             "50051",
+					CreatedAt:        timeNow(),
+				},
+				LastSync: timeNow(),
+			},
+			expectedError: nil,
+			expectedObjs: []runtime.Object{
+				pod(*grpcCatalog),
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
 			// Create existing objects
 			clientObjs := []runtime.Object{tt.catalogSource}
-			k8sObjs := []runtime.Object{tt.configMap}
 
 			// Create test operator
 			stopCh := make(chan struct{})
 			defer func() { stopCh <- struct{}{} }()
-			op, err := NewFakeOperator(tt.namespace, []string{tt.namespace}, stopCh, withClientObjs(clientObjs...), withK8sObjs(k8sObjs...))
+
+			op, err := NewFakeOperator(tt.namespace, []string{tt.namespace}, stopCh, withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
 			require.NoError(t, err)
 
 			// Run sync
@@ -368,11 +443,27 @@ func TestSyncCatalogSources(t *testing.T) {
 
 			if tt.expectedStatus != nil {
 				require.NotEmpty(t, updated.Status)
-				require.Equal(t, *tt.expectedStatus.ConfigMapResource, *updated.Status.ConfigMapResource)
+				require.Equal(t, *tt.expectedStatus, updated.Status)
 
-				configMap, err := op.OpClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
-				require.NoError(t, err)
-				require.True(t, ownerutil.EnsureOwner(configMap, updated))
+				if tt.catalogSource.Spec.ConfigMap != "" {
+					configMap, err := op.OpClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
+					require.NoError(t, err)
+					require.True(t, ownerutil.EnsureOwner(configMap, updated))
+				}
+			}
+
+			for _, o := range tt.expectedObjs {
+				switch o.(type) {
+				case *corev1.Pod:
+					t.Log("verifying pod")
+					pods, err := op.OpClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(metav1.ListOptions{})
+					require.NoError(t, err)
+					require.Len(t, pods.Items, 1)
+
+					// set the name to the generated name
+					o.(*corev1.Pod).SetName(pods.Items[0].GetName())
+					require.EqualValues(t, o, &pods.Items[0])
+				}
 			}
 		})
 	}
@@ -669,4 +760,53 @@ func service(name, namespace string) *corev1.Service {
 func toManifest(obj runtime.Object) string {
 	raw, _ := json.Marshal(obj)
 	return string(raw)
+}
+
+func pod(s v1alpha1.CatalogSource) *corev1.Pod {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: s.GetName() + "-",
+			Namespace:    s.GetNamespace(),
+			Labels: map[string]string{
+				"olm.catalogSource": s.GetName(),
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "registry-server",
+					Image: s.Spec.Image,
+					Ports: []corev1.ContainerPort{
+						{
+							Name:          "grpc",
+							ContainerPort: 50051,
+						},
+					},
+					ReadinessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							Exec: &corev1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+							},
+						},
+						InitialDelaySeconds: 5,
+					},
+					LivenessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							Exec: &corev1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+							},
+						},
+						InitialDelaySeconds: 10,
+					},
+				},
+			},
+			Tolerations: []corev1.Toleration{
+				{
+					Operator: corev1.TolerationOpExists,
+				},
+			},
+		},
+	}
+	ownerutil.AddOwner(pod, &s, false, false)
+	return pod
 }

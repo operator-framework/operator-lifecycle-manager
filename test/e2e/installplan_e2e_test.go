@@ -337,7 +337,7 @@ EXPECTED:
 	require.NoError(t, err)
 	require.NotNil(t, dependentSubscription)
 	require.NotNil(t, dependentSubscription.Status.InstallPlanRef)
-	require.Equal(t, v1alpha1.SubscriptionState("AtLatestKnown"), dependentSubscription.Status.State)
+	require.Equal(t, "AtLatestKnown", string(dependentSubscription.Status.State))
 	require.Equal(t, dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
 
 	// TODO: update dependent subscription in catalog and wait for csv to update

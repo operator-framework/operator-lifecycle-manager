@@ -1113,7 +1113,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	case v1alpha1.CSVPhaseDeleting:
 		var immediate int64 = 0
 
-		if err := a.csvQueueSet.Remove(out.GetNamespace(), out.GetName()); err != nil {
+		if err := a.csvQueueSet.Remove(out.GetName(), out.GetNamespace()); err != nil {
 			logger.WithError(err).Debug("error removing from queue")
 		}
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{GracePeriodSeconds: &immediate})
