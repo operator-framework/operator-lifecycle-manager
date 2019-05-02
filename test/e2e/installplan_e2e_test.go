@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
@@ -208,6 +209,10 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
 	mainPackageName := genName("nginx-")
 	dependentPackageName := genName("nginxdep-")
 
@@ -290,7 +295,7 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	// Wait for InstallPlan to be status: Complete before checking resource presence
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 	require.NoError(t, err)
-	t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+	log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 
@@ -304,9 +309,9 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	require.Equal(t, len(expectedStepSources), len(fetchedInstallPlan.Status.Plan), "Number of resolved steps matches the number of expected steps")
 
 	// Ensure resolved step resources originate from the correct catalog sources
-	t.Logf("%#v", expectedStepSources)
+	log(fmt.Sprintf("%#v", expectedStepSources))
 	for _, step := range fetchedInstallPlan.Status.Plan {
-		t.Logf("checking %s", step.Resource)
+		log(fmt.Sprintf("checking %s", step.Resource))
 		key := registry.ResourceKey{Name: step.Resource.Name, Kind: step.Resource.Kind}
 		expectedSource, ok := expectedStepSources[key]
 		require.True(t, ok, "didn't find %v", key)
@@ -325,7 +330,7 @@ EXPECTED:
 		t.Fatalf("expected step %s not found in %#v", key, fetchedInstallPlan.Status.Plan)
 	}
 
-	t.Logf("All expected resources resolved")
+	log("All expected resources resolved")
 
 	// Verify that the dependent subscription is in a good state
 	dependentSubscription, err := fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasInstallPlanChecker)

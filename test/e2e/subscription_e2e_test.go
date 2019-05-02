@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
@@ -329,17 +330,21 @@ func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name st
 	var fetchedSubscription *v1alpha1.Subscription
 	var err error
 
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.Install)
+		log(fmt.Sprintf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef))
 		return checker(fetchedSubscription), nil
 	})
 	if err != nil {
-		t.Logf("never got correct status: %#v", fetchedSubscription.Status)
-		t.Logf("subscription spec: %#v", fetchedSubscription.Spec)
+		log(fmt.Sprintf("never got correct status: %#v", fetchedSubscription.Status))
+		log(fmt.Sprintf("subscription spec: %#v", fetchedSubscription.Spec))
 	}
 	return fetchedSubscription, err
 }

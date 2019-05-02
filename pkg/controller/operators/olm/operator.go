@@ -607,11 +607,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return
 	}
 
-	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == operatorGroup.GetNamespace() {
-		logger.Debug("skipping copy for OwnNamespace operatorgroup")
-		return
-	}
-
 	logger.WithFields(logrus.Fields{
 		"targetNamespaces": strings.Join(operatorGroup.Status.Namespaces, ","),
 	}).Debug("copying csv to targets")
