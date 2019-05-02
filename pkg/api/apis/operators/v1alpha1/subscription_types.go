@@ -101,51 +101,23 @@ type SubscriptionCatalogStatus struct {
 	Healthy bool `json:"healthy"`
 }
 
-// SetSubscriptionCatalogStatus sets the given SusbcriptionCatalogStatus in a SubscriptionStatus if it doesn't already exist
-// or the status has changed and returns true if the status was set; false otherwise.
-func (status *SubscriptionStatus) SetSubscriptionCatalogStatus(catalogStatus SubscriptionCatalogStatus) bool {
-	target := catalogStatus.CatalogSourceRef
-	if target == nil && target.APIVersion == SchemeGroupVersion.String() && target.Kind == SubscriptionKind {
-		return false
+// SetSubscriptionCatalogStatus sets the SubscriptionStatus' CatalogStatus field as the given slice if it differs
+// from the stored value. Returns true if a change was made, false otherwise.
+func (status *SubscriptionStatus) SetSubscriptionCatalogStatus(catalogStatus []SubscriptionCatalogStatus) bool {
+	if len(status.CatalogStatus) != len(catalogStatus) {
+		status.CatalogStatus = catalogStatus
+		return true
 	}
 
-	// Search for status to replace
-	for i, cs := range status.CatalogStatus {
-		ref := cs.CatalogSourceRef
-		if ref == nil {
-			continue
-		}
+	// TODO: dedupe catalogStatus?
 
-		if ref.Namespace == target.Namespace && ref.Name == target.Name && ref.UID == target.UID {
-			if cs.Healthy != catalogStatus.Healthy {
-				status.CatalogStatus[i] = catalogStatus
-				return true
-			}
-
-			return false
-		}
+	set := map[SubscriptionCatalogStatus]struct{}{}
+	for _, cs := range status.CatalogStatus {
+		set[cs] = struct{}{}
 	}
-
-	status.CatalogStatus = append(status.CatalogStatus, catalogStatus)
-	return true
-}
-
-// RemoveSubscriptionCatalogStatus removes the SubscriptionCatalogStatus matching the given ObjectReference from a SubscriptionStatus
-// and returns true if the status was removed; false otherwise.
-func (status *SubscriptionStatus) RemoveSubscriptionCatalogStatus(target *corev1.ObjectReference) bool {
-	if target == nil && target.APIVersion == SchemeGroupVersion.String() && target.Kind == SubscriptionKind {
-		return false
-	}
-
-	// Search for status to remove
-	for i, cs := range status.CatalogStatus {
-		ref := cs.CatalogSourceRef
-		if ref == nil {
-			continue
-		}
-
-		if ref.Namespace == target.Namespace && ref.Name == target.Name && ref.UID == target.UID {
-			status.CatalogStatus = append(status.CatalogStatus[:i], status.CatalogStatus[i+1:]...)
+	for _, cs := range catalogStatus {
+		if _, ok := set[cs]; !ok {
+			status.CatalogStatus = catalogStatus
 			return true
 		}
 	}

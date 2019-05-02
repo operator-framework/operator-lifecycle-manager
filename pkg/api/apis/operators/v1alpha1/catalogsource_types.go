@@ -101,7 +101,10 @@ func (c *CatalogSource) Address() string {
 	if c.Spec.Address != "" {
 		return c.Spec.Address
 	}
-	return c.Status.RegistryServiceStatus.Address()
+	if c.Status.RegistryServiceStatus != nil {
+		return c.Status.RegistryServiceStatus.Address()
+	}
+	return ""
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

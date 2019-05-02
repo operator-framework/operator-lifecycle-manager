@@ -33,6 +33,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	opcache "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/cache"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -61,17 +62,20 @@ type Operator struct {
 	client                versioned.Interface
 	lister                operatorlister.OperatorLister
 	namespace             string
+	watchedNamespaces     []string
 	sources               map[resolver.CatalogKey]resolver.SourceRef
 	sourcesLock           sync.RWMutex
 	sourcesLastUpdate     metav1.Time
 	resolver              resolver.Resolver
-	subQueue              workqueue.RateLimitingInterface
-	catSrcQueueSet        *queueinformer.ResourceQueueSet
+	catsrcQueueSet        *queueinformer.ResourceQueueSet
+	subQueueSet           *queueinformer.ResourceQueueSet
 	namespaceResolveQueue workqueue.RateLimitingInterface
 	reconciler            reconciler.RegistryReconcilerFactory
+	viewIndexerSet        *opcache.ViewIndexerSet
+	subIndexerSet         *opcache.IndexerSet
 }
 
-// NewOperator creates a new Catalog Operator.
+// NewOperator returns a configured, unstarted Operator.
 func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval time.Duration, configmapRegistryImage, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
 	// Default to watching all namespaces.
 	if watchedNamespaces == nil {
@@ -84,141 +88,35 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		return nil, err
 	}
 
-	// Create an OperatorLister
-	lister := operatorlister.NewLister()
-
-	// Create an informer for each watched namespace.
-	ipSharedIndexInformers := []cache.SharedIndexInformer{}
-	subSharedIndexInformers := []cache.SharedIndexInformer{}
-	csvSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
-		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
-		csvSharedIndexInformers = append(csvSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
-
-		// resolver needs subscription and csv listers
-		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
-		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
-		lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, nsInformerFactory.Operators().V1alpha1().InstallPlans().Lister())
-	}
-
 	// Create a new queueinformer-based operator.
 	queueOperator, err := queueinformer.NewOperator(kubeconfigPath, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	// Allocate the new instance of an Operator.
+	lister := operatorlister.NewLister()
 	op := &Operator{
-		Operator:       queueOperator,
-		catSrcQueueSet: queueinformer.NewEmptyResourceQueueSet(),
-		client:         crClient,
-		lister:         lister,
-		namespace:      operatorNamespace,
-		sources:        make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
+		Operator:          queueOperator,
+		catsrcQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
+		subQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
+		client:            crClient,
+		lister:            lister,
+		namespace:         operatorNamespace,
+		watchedNamespaces: watchedNamespaces,
+		sources:           make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver:          resolver.NewOperatorsV1alpha1Resolver(lister),
+		reconciler:        reconciler.NewRegistryReconcilerFactory(lister, queueOperator.OpClient, configmapRegistryImage),
+		viewIndexerSet:    opcache.NewViewIndexerSet(),
+		subIndexerSet:     opcache.NewIndexerSet(),
 	}
 
-	// Create an informer for each catalog namespace
-	deleteCatSrc := &cache.ResourceEventHandlerFuncs{
-		DeleteFunc: op.handleCatSrcDeletion,
-	}
-	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		catsrcInformer := nsInformerFactory.Operators().V1alpha1().CatalogSources()
-
-		// Register queue and QueueInformer
-		var queueName string
-		if namespace == corev1.NamespaceAll {
-			queueName = "catsrc"
-		} else {
-			queueName = fmt.Sprintf("%s/catsrc", namespace)
-		}
-		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		op.RegisterQueueInformer(queueinformer.NewInformer(catsrcQueue, catsrcInformer.Informer(), op.syncCatalogSources, deleteCatSrc, queueName, metrics.NewMetricsCatalogSource(op.client), logger))
-		op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(namespace, catsrcInformer.Lister())
-		op.catSrcQueueSet.Set(namespace, catsrcQueue)
-	}
-
-	// Register InstallPlan informers.
-	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installplans")
-	ipQueueInformers := queueinformer.New(
-		ipQueue,
-		ipSharedIndexInformers,
-		op.syncInstallPlans,
-		nil,
-		"installplan",
-		metrics.NewMetricsInstallPlan(op.client),
-		logger,
-	)
-	for _, informer := range ipQueueInformers {
-		op.RegisterQueueInformer(informer)
-	}
-
-	// Register Subscription informers.
-	subscriptionQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "subscriptions")
-	subscriptionQueueInformers := queueinformer.New(
-		subscriptionQueue,
-		subSharedIndexInformers,
-		op.syncSubscriptions,
-		nil,
-		"subscription",
-		metrics.NewMetricsSubscription(op.client),
-		logger,
-	)
-	op.subQueue = subscriptionQueue
-	for _, informer := range subscriptionQueueInformers {
-		op.RegisterQueueInformer(informer)
-	}
-
-	handleDelete := &cache.ResourceEventHandlerFuncs{
-		DeleteFunc: op.handleDeletion,
-	}
-	// Set up informers for requeuing catalogs
-	for _, namespace := range watchedNamespaces {
-		roleQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "role")
-		roleBindingQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolebinding")
-		serviceAccountQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount")
-		serviceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "service")
-		podQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
-		configmapQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configmap")
-
-		informerFactory := informers.NewSharedInformerFactoryWithOptions(op.OpClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
-		roleInformer := informerFactory.Rbac().V1().Roles()
-		roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-		serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
-		serviceInformer := informerFactory.Core().V1().Services()
-		podInformer := informerFactory.Core().V1().Pods()
-		configMapInformer := informerFactory.Core().V1().ConfigMaps()
-
-		queueInformers := []*queueinformer.QueueInformer{
-			queueinformer.NewInformer(roleQueue, roleInformer.Informer(), op.syncObject, handleDelete, "role", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(roleBindingQueue, roleBindingInformer.Informer(), op.syncObject, handleDelete, "rolebinding", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(serviceAccountQueue, serviceAccountInformer.Informer(), op.syncObject, handleDelete, "serviceaccount", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(serviceQueue, serviceInformer.Informer(), op.syncObject, handleDelete, "service", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(podQueue, podInformer.Informer(), op.syncObject, handleDelete, "pod", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(configmapQueue, configMapInformer.Informer(), op.syncObject, handleDelete, "configmap", metrics.NewMetricsNil(), logger),
-		}
-		for _, q := range queueInformers {
-			op.RegisterQueueInformer(q)
-		}
-
-		op.lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
-		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
-		op.lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
-		op.lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
-		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
-		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
-	}
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(op.lister, op.OpClient, configmapRegistryImage)
-
-	// Namespace sync for resolving subscriptions
+	// Setup global components
 	namespaceInformer := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
 	resolvingNamespaceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
 	namespaceQueueInformer := queueinformer.NewInformer(
 		resolvingNamespaceQueue,
 		namespaceInformer.Informer(),
+		// Namespace sync for resolving subscriptions
 		op.syncResolvingNamespace,
 		nil,
 		"resolver",
@@ -230,10 +128,160 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
 	op.namespaceResolveQueue = resolvingNamespaceQueue
 
-	// Register CSV informers to fill cache
-	for _, informer := range csvSharedIndexInformers {
-		op.RegisterInformer(informer)
+	// Setup namespaced components
+	for _, namespace := range watchedNamespaces {
+		viewIndexer := opcache.NewViewIndexer()
+		op.viewIndexerSet.Set(namespace, viewIndexer)
+
+		// Create CR informers
+		crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
+		subInformer := crInformerFactory.Operators().V1alpha1().Subscriptions()
+		ipInformer := crInformerFactory.Operators().V1alpha1().InstallPlans()
+		csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+
+		// Create k8s informers
+		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.OpClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
+		roleInformer := k8sInformerFactory.Rbac().V1().Roles()
+		roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
+		serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
+		serviceInformer := k8sInformerFactory.Core().V1().Services()
+		podInformer := k8sInformerFactory.Core().V1().Pods()
+		configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
+
+		// Register CR listers
+		lister.OperatorsV1alpha1().RegisterCatalogSourceLister(namespace, catsrcInformer.Lister())
+		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
+		lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, ipInformer.Lister())
+		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
+
+		// Register k8s listers
+		op.lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
+		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
+		op.lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
+		op.lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
+		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
+		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
+
+		// Create all queues
+		catsrcQueueName := "catalogsources"
+		subQueueName := "subscriptions"
+		subCatQueueName := "subcat"
+		ipQueueName := "installplans"
+		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), catsrcQueueName)
+		subQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), subQueueName)
+		subCatQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), subCatQueueName)
+		ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), ipQueueName)
+		roleQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "role")
+		roleBindingQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolebinding")
+		serviceAccountQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount")
+		serviceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "service")
+		podQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
+		configmapQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configmap")
+
+		// Create queue sets
+		op.catsrcQueueSet.Set(namespace, catsrcQueue)
+		op.subQueueSet.Set(namespace, subQueue)
+
+		// Set up viewers
+		mv := newMetaViewer(op, withNamespace(namespace))
+		scv := newSubCatViewer(mv)
+		scvKey := opcache.NewViewerKey(subCatIndexKey, new(v1alpha1.CatalogSource), new(v1alpha1.SubscriptionCatalogStatus))
+		viewIndexer.AddViewer(scvKey, scv)
+
+		// Set up indexing and index enqueuing
+		if err := viewIndexer.AddIndex(subCatIndexKey, opcache.BuildEnqueuingIndex(scv.subCatViewIndex, subCatQueue)); err != nil {
+			logrus.WithError(err).Warn("failed to setup subscription catalog status view indexer")
+			return nil, err
+		}
+
+		// TODO: Create and register queue indexers
+		subIndexers := map[string]cache.Indexer{namespace: subInformer.Informer().GetIndexer()}
+		op.subIndexerSet.Set(namespace, subInformer.Informer().GetIndexer())
+		subCatQueueIndexerName := "subcat-" + namespace
+		subCatQueueIndexer := queueinformer.NewQueueIndexer(subCatQueue, subIndexers, scv.setSubCatStatus, subCatQueueIndexerName, logger, metrics.NewMetricsNil())
+		op.RegisterQueueIndexer(subCatQueueIndexer)
+
+		// Define extra event handlers
+		handleCatsrcDelete := &cache.ResourceEventHandlerFuncs{
+			DeleteFunc: op.handleCatSrcDeletion,
+		}
+		handleDelete := &cache.ResourceEventHandlerFuncs{
+			DeleteFunc: op.handleDeletion,
+		}
+
+		// Create and register queue informers
+		queueInformers := []*queueinformer.QueueInformer{
+			// CR informers
+			queueinformer.NewInformer(
+				catsrcQueue,
+				catsrcInformer.Informer(),
+				op.syncCatalogSources,
+				handleCatsrcDelete,
+				catsrcQueueName,
+				metrics.NewMetricsCatalogSource(op.client),
+				logger,
+			).WithViewIndexer(viewIndexer),
+			queueinformer.NewInformer(
+				ipQueue,
+				ipInformer.Informer(),
+				op.syncInstallPlans,
+				nil,
+				ipQueueName,
+				metrics.NewMetricsInstallPlan(op.client),
+				logger,
+			),
+			queueinformer.NewInformer(
+				subQueue,
+				subInformer.Informer(),
+				op.syncSubscriptions,
+				nil,
+				subQueueName,
+				metrics.NewMetricsSubscription(op.client),
+				logger,
+			).AdditionallyDistribute(subCatQueue),
+
+			// k8s informers
+			queueinformer.NewInformer(roleQueue, roleInformer.Informer(), op.syncObject, handleDelete, "role", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(roleBindingQueue, roleBindingInformer.Informer(), op.syncObject, handleDelete, "rolebinding", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(serviceAccountQueue, serviceAccountInformer.Informer(), op.syncObject, handleDelete, "serviceaccount", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(serviceQueue, serviceInformer.Informer(), op.syncObject, handleDelete, "service", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(podQueue, podInformer.Informer(), op.syncObject, handleDelete, "pod", metrics.NewMetricsNil(), logger),
+			queueinformer.NewInformer(configmapQueue, configMapInformer.Informer(), op.syncObject, handleDelete, "configmap", metrics.NewMetricsNil(), logger),
+		}
+		for _, q := range queueInformers {
+			op.RegisterQueueInformer(q)
+		}
+
 	}
+
+	// // Register the QueueInformer for SubscriptionStatus.CatalogStatus
+	// subCatsrcStatusQueueName := fmt.Sprintf("%s/subscription/status", catsrcQueueName)
+	// subCatsrcStatusQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), subCatsrcStatusQueueName)
+	// catsrcQueueInformers = append(catsrcQueueInformers, queueinformer.New(
+	// 	subCatsrcStatusQueue,
+	// 	catsrcSharedIndexInformers,
+	// 	op.syncSubscriptionCatalogStatus,
+	// 	nil,
+	// 	subCatsrcStatusQueueName,
+	// 	metrics.NewMetricsCatalogSource(op.client),
+	// 	logger,
+	// )...)
+
+	// TODO: add subscription queueindexer for updating subscription status
+
+	// Register the QueueInformer for SubscriptionStatus.CatalogStatus
+	// subCleanupQueueName := fmt.Sprintf("%s/catalogstatus/cleanup", subQueueName)
+	// subCleanupQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), subCleanupQueueName)
+	// subQueueInformers = append(subQueueInformers, queueinformer.New(
+	// 	subCleanupQueue,
+	// 	subSharedIndexInformers,
+	// 	op.cleanupSubscriptionCatalogStatus,
+	// 	nil,
+	// 	subCleanupQueueName,
+	// 	metrics.NewMetricsSubscription(op.client),
+	// 	logger,
+	// )...)
 
 	return op, nil
 }
@@ -273,7 +321,7 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 			defer o.sourcesLock.RUnlock()
 			if _, ok := o.sources[sourceKey]; ok {
 				logger.Debug("requeueing owner CatalogSource")
-				if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err != nil {
+				if err := o.catsrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err != nil {
 					logger.Warn(err.Error())
 				}
 			}
@@ -324,7 +372,7 @@ func (o *Operator) handleDeletion(obj interface{}) {
 	}
 
 	// Requeue CatalogSource
-	if err := o.catSrcQueueSet.Requeue(catsrc.GetName(), catsrc.GetNamespace()); err != nil {
+	if err := o.catsrcQueueSet.Requeue(catsrc.GetName(), catsrc.GetNamespace()); err != nil {
 		logger.WithError(err).Warn("error requeuing owner catalogsource")
 	}
 }
@@ -354,7 +402,7 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	}()
 	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 
-	if err := o.catSrcQueueSet.Remove(sourceKey.Name, sourceKey.Namespace); err != nil {
+	if err := o.catsrcQueueSet.Remove(sourceKey.Name, sourceKey.Namespace); err != nil {
 		o.Log.WithError(err)
 	}
 }
@@ -496,7 +544,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 					if !client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure) {
 						logger.Debug("state didn't change, trigger reconnect. this may happen when cached dns is wrong.")
 						delete(o.sources, sourceKey)
-						if err := o.catSrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
+						if err := o.catsrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
 							logger.WithError(err).Debug("error requeueing")
 						}
 						return
@@ -549,7 +597,9 @@ func (o *Operator) syncDependentSubscriptions(logger *logrus.Entry, catalogSourc
 		}
 		if sub.Spec.CatalogSource == catalogSource && catalogNamespace == catalogSourceNamespace {
 			logger.Debug("requeueing subscription because catalog changed")
-			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
+			if err := o.subQueueSet.RequeueRateLimited(sub.GetName(), sub.GetNamespace()); err != nil {
+				logger.WithError(err).Warn("failed to requeue subscription")
+			}
 		}
 	}
 }
@@ -681,7 +731,7 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 			if ref.LastHealthy.IsZero() {
 				logger = logger.WithField("source", k)
 				logger.Debug("omitting source, hasn't yet become healthy")
-				if err := o.catSrcQueueSet.Requeue(k.Name, k.Namespace); err != nil {
+				if err := o.catsrcQueueSet.Requeue(k.Name, k.Namespace); err != nil {
 					logger.Warn("error requeueing")
 				}
 				continue
@@ -907,13 +957,6 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 	return operators.GetReference(res)
 }
 
-func (o *Operator) requeueSubscription(name, namespace string) {
-	// we can build the key directly, will need to change if queue uses different key scheme
-	key := fmt.Sprintf("%s/%s", namespace, name)
-	o.subQueue.Add(key)
-	return
-}
-
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
@@ -950,7 +993,9 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	if ownerutil.IsOwnedByKind(outInstallPlan, v1alpha1.SubscriptionKind) {
 		oref := ownerutil.GetOwnerByKind(outInstallPlan, v1alpha1.SubscriptionKind)
 		logger.WithField("owner", oref).Debug("requeueing installplan owner")
-		o.requeueSubscription(oref.Name, outInstallPlan.GetNamespace())
+		if err := o.subQueueSet.RequeueRateLimited(oref.Name, outInstallPlan.GetNamespace()); err != nil {
+			logger.WithError(err).Warn("failed to requeue installplan owner subscription")
+		}
 	}
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.

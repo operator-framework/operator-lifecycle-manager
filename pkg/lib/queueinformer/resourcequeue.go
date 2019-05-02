@@ -53,6 +53,27 @@ func (r *ResourceQueueSet) Requeue(name, namespace string) error {
 	return fmt.Errorf("couldn't find queue for resource")
 }
 
+// RequeueRateLimited performs a rate limited requeue on the resource in the set with the given name and namespace
+func (r *ResourceQueueSet) RequeueRateLimited(name, namespace string) error {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	// We can build the key directly, will need to change if queue uses different key scheme
+	key := fmt.Sprintf("%s/%s", namespace, name)
+
+	if queue, ok := r.queueSet[metav1.NamespaceAll]; len(r.queueSet) == 1 && ok {
+		queue.AddRateLimited(key)
+		return nil
+	}
+
+	if queue, ok := r.queueSet[namespace]; ok {
+		queue.AddRateLimited(key)
+		return nil
+	}
+
+	return fmt.Errorf("couldn't find queue for resource")
+}
+
 // RequeueByKey adds the given key to the resource queue that should contain it
 func (r *ResourceQueueSet) RequeueByKey(key string) error {
 	r.mutex.RLock()
