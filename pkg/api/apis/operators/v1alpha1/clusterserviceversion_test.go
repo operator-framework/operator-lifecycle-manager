@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"testing"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestSetRequirementStatus(t *testing.T) {
@@ -281,4 +283,94 @@ func TestSupports(t *testing.T) {
 			require.Equal(t, tt.expectedErr, err)
 		})
 	}
+}
+
+func TestSetPhaseWithConditions(t *testing.T) {
+	tests := []struct {
+		description   string
+		limit         int
+		currentLength int
+		startIndex    int
+	}{
+		{
+			// The original list is already at limit (length == limit).
+			// We expect the oldest element ( item at 0 index) to be removed.
+			description:   "TestSetPhaseWithConditionsLengthAtLimit",
+			limit:         ConditionsLengthLimit,
+			currentLength: ConditionsLengthLimit,
+
+			// The first element from the original list should be dropped from
+			// the new list.
+			startIndex: 1,
+		},
+		{
+			// The original list is 1 length away from limit.
+			// We don't expect the list to be trimmed.
+			description:   "TestSetPhaseWithConditionsLengthBelowLimit",
+			limit:         ConditionsLengthLimit,
+			currentLength: ConditionsLengthLimit - 1,
+
+			// Everything in the original list should be preserved.
+			startIndex: 0,
+		},
+		{
+			// The original list has N more element(s) than allowed limit.
+			// We expect (N + 1) oldest elements to be deleted to keep the list
+			// at limit.
+			description:   "TestSetPhaseWithConditionsLimitExceeded",
+			limit:         ConditionsLengthLimit,
+			currentLength: ConditionsLengthLimit + 10,
+
+			// The first 11 (N=10 plus 1 to make room for the newly added
+			// condition) elements from the original list should be dropped.
+			startIndex: 11,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			csv := ClusterServiceVersion{}
+			csv.Status.Conditions = helperNewConditions(tt.currentLength)
+
+			now := metav1.Now()
+
+			oldConditionsWant := csv.Status.Conditions[tt.startIndex:]
+			lastAddedConditionWant := ClusterServiceVersionCondition{
+				Phase:              ClusterServiceVersionPhase("Pending"),
+				LastTransitionTime: now,
+				LastUpdateTime:     now,
+				Message:            "message",
+				Reason:             ConditionReason("reason"),
+			}
+
+			csv.SetPhase("Pending", "reason", "message", now)
+
+			conditionsGot := csv.Status.Conditions
+			assert.Equal(t, tt.limit, len(conditionsGot))
+
+			oldConditionsGot := conditionsGot[0 : len(conditionsGot)-1]
+			assert.EqualValues(t, oldConditionsWant, oldConditionsGot)
+
+			lastAddedConditionGot := conditionsGot[len(conditionsGot)-1]
+			assert.Equal(t, lastAddedConditionWant, lastAddedConditionGot)
+		})
+	}
+}
+
+func helperNewConditions(count int) []ClusterServiceVersionCondition {
+	conditions := make([]ClusterServiceVersionCondition, 0)
+
+	for i := 1; i <= count; i++ {
+		now := metav1.Now()
+		condition := ClusterServiceVersionCondition{
+			Phase:              ClusterServiceVersionPhase(fmt.Sprintf("phase-%d", i)),
+			LastTransitionTime: now,
+			LastUpdateTime:     now,
+			Message:            fmt.Sprintf("message-%d", i),
+			Reason:             ConditionReason(fmt.Sprintf("reason-%d", i)),
+		}
+		conditions = append(conditions, condition)
+	}
+
+	return conditions
 }
