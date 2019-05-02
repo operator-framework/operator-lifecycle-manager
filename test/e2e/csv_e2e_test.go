@@ -262,7 +262,7 @@ func awaitCSV(t *testing.T, c versioned.Interface, namespace, name string, check
 			}
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+		t.Logf("%s - %s (%s): %s", name, fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
 		return checker(fetched), nil
 	})
 

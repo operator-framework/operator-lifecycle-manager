@@ -336,7 +336,7 @@ EXPECTED:
 	require.Equal(t, dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
 
 	// TODO: update dependent subscription in catalog and wait for csv to update
-	updatedDependentCSV := newCSV(dependentPackageStable+"v2", testNamespace, dependentPackageStable, *semver.New("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+	updatedDependentCSV := newCSV(dependentPackageStable+"v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 	dependentManifests = []registry.PackageManifest{
 		{
 			PackageName: dependentPackageName,

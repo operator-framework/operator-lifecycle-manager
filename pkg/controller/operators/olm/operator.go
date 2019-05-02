@@ -773,12 +773,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		*out = *updated
 	}
 
-	// Check if the current CSV is being replaced, return with replacing status if so
-	if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
-		logger.WithError(err).Info("replacement check")
-		return
-	}
-
 	// Verify CSV operatorgroup (and update annotations if needed)
 	operatorGroup, err := a.operatorGroupForCSV(out, logger)
 	if operatorGroup == nil {
@@ -889,6 +883,15 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 		out.SetRequirementStatus(statuses)
 
+		// Check if we need to requeue the previous
+		if prev := a.isReplacing(out); prev != nil {
+			if prev.Status.Phase == v1alpha1.CSVPhaseSucceeded {
+				if err := a.csvQueueSet.Requeue(prev.GetName(), prev.GetNamespace()); err != nil {
+					a.Log.WithError(err).Warn("error requeueing previous")
+				}
+			}
+		}
+
 		if !met {
 			logger.Info("requirements were not met")
 			out.SetPhaseWithEventIfChanged(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonRequirementsNotMet, "one or more requirements couldn't be found", now, a.recorder)
@@ -910,6 +913,13 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonOwnerConflict, syncError.Error(), now, a.recorder)
 			}
 			return
+		}
+
+		// Check if we're not ready to install part of the replacement chain yet
+		if prev := a.isReplacing(out); prev != nil {
+			if prev.Status.Phase != v1alpha1.CSVPhaseReplacing {
+				return
+			}
 		}
 
 		logger.Info("scheduling ClusterServiceVersion for install")
@@ -955,6 +965,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 	case v1alpha1.CSVPhaseSucceeded:
+		// Check if the current CSV is being replaced, return with replacing status if so
+		if err := a.checkReplacementsAndUpdateStatus(out); err != nil {
+			logger.WithError(err).Info("replacement check")
+			return
+		}
+
 		installer, strategy, _ := a.parseStrategiesAndUpdateStatus(out)
 		if strategy == nil {
 			return
@@ -1073,6 +1089,14 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
+		// If we are a leaf, we should requeue the replacement for processing
+		if next := a.isBeingReplaced(out, a.csvSet(out.GetNamespace(), v1alpha1.CSVPhaseAny)); next != nil {
+			err := a.csvQueueSet.Requeue(next.GetName(), next.GetNamespace())
+			if err != nil {
+				a.Log.WithError(err).Warn("error requeuing replacement")
+			}
+		}
+
 		// If we can find a newer version that's successfully installed, we're safe to mark all intermediates
 		for _, csv := range a.findIntermediatesForDeletion(out) {
 			// we only mark them in this step, in case some get deleted but others fail and break the replacement chain
@@ -1093,6 +1117,10 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 	case v1alpha1.CSVPhaseDeleting:
 		var immediate int64 = 0
+
+		if err := a.csvQueueSet.Remove(out.GetNamespace(), out.GetName()); err != nil {
+			logger.WithError(err).Debug("error removing from queue")
+		}
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{GracePeriodSeconds: &immediate})
 		if syncError != nil {
 			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
@@ -1158,7 +1186,7 @@ func (a *Operator) checkReplacementsAndUpdateStatus(csv *v1alpha1.ClusterService
 	}
 	if replacement := a.isBeingReplaced(csv, a.csvSet(csv.GetNamespace(), v1alpha1.CSVPhaseAny)); replacement != nil {
 		a.Log.Infof("newer ClusterServiceVersion replacing %s, no-op", csv.SelfLink)
-		msg := fmt.Sprintf("being replaced by csv: %s", replacement.SelfLink)
+		msg := fmt.Sprintf("being replaced by csv: %s", replacement.GetName())
 		csv.SetPhaseWithEvent(v1alpha1.CSVPhaseReplacing, v1alpha1.CSVReasonBeingReplaced, msg, timeNow(), a.recorder)
 		metrics.CSVUpgradeCount.Inc()
 
@@ -1237,16 +1265,68 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	return installer, strategy, previousStrategy
 }
 
-func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvs map[string]*v1alpha1.ClusterServiceVersion) error {
-	for _, crd := range in.Spec.CustomResourceDefinitions.Owned {
-		for name, csv := range csvs {
-			if name != in.GetName() && in.Spec.Replaces != name && csv.OwnsCRD(crd.Name) {
+func (a *Operator) crdOwnerConflicts(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) error {
+	csvsInChain := a.getReplacementChain(in, csvsInNamespace)
+	// find csvs in the namespace that are not part of the replacement chain
+	for name, csv := range csvsInNamespace {
+		if _, ok := csvsInChain[name]; ok {
+			continue
+		}
+		for _, crd := range in.Spec.CustomResourceDefinitions.Owned {
+			if name != in.GetName() && csv.OwnsCRD(crd.Name) {
 				return ErrCRDOwnerConflict
 			}
 		}
 	}
 
 	return nil
+}
+
+func (a *Operator) getReplacementChain(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) map[string]struct{} {
+	current := in.GetName()
+	csvsInChain := map[string]struct{}{
+		current: {},
+	}
+
+	replacement := func(csvName string) *string {
+		for _, csv := range csvsInNamespace {
+			if csv.Spec.Replaces == csvName {
+				name := csv.GetName()
+				return &name
+			}
+		}
+		return nil
+	}
+
+	replaces := func(replaces string) *string {
+		for _, csv := range csvsInNamespace {
+			name := csv.GetName()
+			if name == replaces {
+				rep := csv.Spec.Replaces
+				return &rep
+			}
+		}
+		return nil
+	}
+
+	next := replacement(current)
+	for next != nil {
+		csvsInChain[*next] = struct{}{}
+		current = *next
+		next = replacement(current)
+	}
+
+	current = in.Spec.Replaces
+	prev := replaces(current)
+	if prev != nil {
+		csvsInChain[current] = struct{}{}
+	}
+	for prev != nil && *prev != "" {
+		current = *prev
+		csvsInChain[current] = struct{}{}
+		prev = replaces(current)
+	}
+	return csvsInChain
 }
 
 func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion) error {
@@ -1297,6 +1377,8 @@ func (a *Operator) isReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clu
 	if in.Spec.Replaces == "" {
 		return nil
 	}
+
+	// using the client instead of a lister; missing an object because of a cache sync can cause upgrades to fail
 	previous, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces)
 	if err != nil {
 		a.Log.WithField("replacing", in.Spec.Replaces).WithError(err).Debugf("unable to get previous csv")

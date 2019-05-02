@@ -783,7 +783,7 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	go func(t *testing.T) {
 		wg.Add(1)
 		defer wg.Done()
-		_, err := awaitCSV(t, crc, testNamespace, csvB.GetName(), csvAnyChecker)
+		_, err := awaitCSV(t, crc, testNamespace, csvB.GetName(), csvReplacingChecker)
 		require.NoError(t, err)
 	}(t)
 	// Update the catalog to include multiple updates

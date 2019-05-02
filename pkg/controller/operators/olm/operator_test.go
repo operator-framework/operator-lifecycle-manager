@@ -2966,6 +2966,278 @@ func TestTransitionCSV(t *testing.T) {
 	}
 }
 
+func TestUpdates(t *testing.T) {
+	// A - replacedby -> B - replacedby -> C
+	namespace := "ns"
+	defaultOperatorGroup := &v1.OperatorGroup{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "OperatorGroup",
+			APIVersion: v1.SchemeGroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: namespace,
+		},
+		Spec: v1.OperatorGroupSpec{
+			TargetNamespaces: []string{namespace},
+		},
+		Status: v1.OperatorGroupStatus{
+			Namespaces: []string{namespace},
+		},
+	}
+	defaultTemplateAnnotations := map[string]string{
+		v1.OperatorGroupTargetsAnnotationKey:   namespace,
+		v1.OperatorGroupNamespaceAnnotationKey: namespace,
+		v1.OperatorGroupAnnotationKey:          defaultOperatorGroup.GetName(),
+	}
+	runningOperator := []runtime.Object{
+		withLabels(
+			deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
+			map[string]string{
+				ownerutil.OwnerKey:          "csv1",
+				ownerutil.OwnerNamespaceKey: namespace,
+				ownerutil.OwnerKind:         "ClusterServiceVersion",
+			},
+		),
+	}
+
+	deleted := v1alpha1.ClusterServiceVersionPhase("deleted")
+
+	crd := crd("c1", "v1", "g1")
+	a := csv("csvA",
+		namespace,
+		"0.0.0",
+		"",
+		installStrategy("csv1-dep1", nil, nil),
+		[]*v1beta1.CustomResourceDefinition{crd},
+		[]*v1beta1.CustomResourceDefinition{},
+		v1alpha1.CSVPhaseNone)
+	b := csv("csvB",
+		namespace,
+		"0.0.0",
+		"csvA",
+		installStrategy("csv1-dep1", nil, nil),
+		[]*v1beta1.CustomResourceDefinition{crd},
+		[]*v1beta1.CustomResourceDefinition{},
+		v1alpha1.CSVPhaseNone)
+	c := csv("csvC",
+		namespace,
+		"0.0.0",
+		"csvB",
+		installStrategy("csv1-dep1", nil, nil),
+		[]*v1beta1.CustomResourceDefinition{crd},
+		[]*v1beta1.CustomResourceDefinition{},
+		v1alpha1.CSVPhaseNone)
+
+	type csvPhases map[string][]v1alpha1.ClusterServiceVersionPhase
+	tests := []struct {
+		name     string
+		in       []*v1alpha1.ClusterServiceVersion
+		expected map[string][]v1alpha1.ClusterServiceVersionPhase
+	}{
+		{
+			name: "abc",
+			in:   []*v1alpha1.ClusterServiceVersion{a, b, c},
+			expected: csvPhases{
+				"csvA": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseDeleting,
+					deleted,
+					deleted,
+					deleted,
+				},
+				"csvB": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseDeleting,
+					deleted,
+				},
+				"csvC": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseSucceeded,
+				},
+			},
+		},
+		{
+			name: "bac",
+			in:   []*v1alpha1.ClusterServiceVersion{a, b, c},
+			expected: csvPhases{
+				"csvB": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseDeleting,
+					deleted,
+				},
+				"csvA": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseDeleting,
+					deleted,
+					deleted,
+					deleted,
+				},
+				"csvC": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseSucceeded,
+				},
+			},
+		},
+		{
+			name: "cba",
+			in:   []*v1alpha1.ClusterServiceVersion{a, b, c},
+			expected: csvPhases{
+				"csvC": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseSucceeded,
+				},
+				"csvB": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseDeleting,
+					deleted,
+				},
+				"csvA": {
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhaseNone,
+					v1alpha1.CSVPhasePending,
+					v1alpha1.CSVPhaseInstallReady,
+					v1alpha1.CSVPhaseInstalling,
+					v1alpha1.CSVPhaseSucceeded,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseReplacing,
+					v1alpha1.CSVPhaseDeleting,
+					deleted,
+					deleted,
+					deleted,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stopCh := make(chan struct{})
+			defer func() { stopCh <- struct{}{} }()
+			op, _, err := NewFakeOperator([]runtime.Object{defaultOperatorGroup}, runningOperator, []runtime.Object{crd}, nil, &install.StrategyResolver{}, nil, nil, []string{namespace}, stopCh)
+			require.NoError(t, err)
+
+			// Create input CSV set
+			for _, csv := range tt.in {
+				_, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(csv)
+				require.NoError(t, err)
+			}
+
+			for i := range tt.expected["csvA"] {
+				// sync all csvs once
+				for _, csv := range tt.in {
+					if i > 0 && tt.expected[csv.GetName()][i-1] == deleted {
+						// don't sync deleted csvs
+						continue
+					}
+					fetched, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
+					require.NoError(t, err)
+					op.syncClusterServiceVersion(fetched)
+				}
+
+				// check that each csv is in the expected phase
+				for _, csv := range tt.in {
+					expectedPhase := tt.expected[csv.GetName()][i]
+					if expectedPhase != deleted {
+						fetched, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
+						require.NoError(t, err)
+						t.Logf("%s - %v", csv.GetName(), fetched.Status)
+						require.Equal(t, string(expectedPhase), string(fetched.Status.Phase), "incorrect phase for %s at index %d", csv.GetName(), i)
+					} else {
+						_, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
+						require.Error(t, err)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestSyncOperatorGroups(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
 	nowTime := metav1.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600))
