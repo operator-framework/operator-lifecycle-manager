@@ -607,11 +607,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 		return
 	}
 
-	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == operatorGroup.GetNamespace() {
-		logger.Debug("skipping copy for OwnNamespace operatorgroup")
-		return
-	}
-
 	logger.WithFields(logrus.Fields{
 		"targetNamespaces": strings.Join(operatorGroup.Status.Namespaces, ","),
 	}).Debug("copying csv to targets")
@@ -1118,7 +1113,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	case v1alpha1.CSVPhaseDeleting:
 		var immediate int64 = 0
 
-		if err := a.csvQueueSet.Remove(out.GetNamespace(), out.GetName()); err != nil {
+		if err := a.csvQueueSet.Remove(out.GetName(), out.GetNamespace()); err != nil {
 			logger.WithError(err).Debug("error removing from queue")
 		}
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), &metav1.DeleteOptions{GracePeriodSeconds: &immediate})
@@ -1379,7 +1374,7 @@ func (a *Operator) isReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clu
 	}
 
 	// using the client instead of a lister; missing an object because of a cache sync can cause upgrades to fail
-	previous, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces)
+	previous, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces, metav1.GetOptions{})
 	if err != nil {
 		a.Log.WithField("replacing", in.Spec.Replaces).WithError(err).Debugf("unable to get previous csv")
 		return nil

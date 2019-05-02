@@ -234,7 +234,7 @@ type Operator struct {
 
 var _ OperatorSurface = &Operator{}
 
-func NewOperatorFromBundle(bundle *opregistry.Bundle, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
+func NewOperatorFromBundle(bundle *opregistry.Bundle, replaces string, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
 	csv, err := bundle.ClusterServiceVersion()
 	if err != nil {
 		return nil, err
@@ -247,9 +247,13 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, startingCSV string, source
 	if err != nil {
 		return nil, err
 	}
+	r := replaces
+	if r == "" {
+		r = csv.Spec.Replaces
+	}
 	return &Operator{
 		name:         csv.GetName(),
-		replaces:     csv.Spec.Replaces,
+		replaces:     r,
 		version:      &csv.Spec.Version.Version,
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,

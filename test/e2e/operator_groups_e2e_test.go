@@ -80,6 +80,10 @@ func TestOperatorGroup(t *testing.T) {
 	// Verify copied CVS is deleted
 	defer cleaner.NotifyTestComplete(t, true)
 
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	csvName := genName("another-csv-") // must be lowercase for DNS-1123 validation
@@ -114,14 +118,14 @@ func TestOperatorGroup(t *testing.T) {
 		require.NoError(t, err)
 	}()
 
-	t.Log("Creating CRD")
+	log("Creating CRD")
 	mainCRDPlural := genName("opgroup")
 	mainCRD := newCRD(mainCRDPlural)
 	cleanupCRD, err := createCRD(c, mainCRD)
 	require.NoError(t, err)
 	defer cleanupCRD()
 
-	t.Log("Creating operator group")
+	log("Creating operator group")
 	operatorGroup := v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("e2e-operator-group-"),
@@ -144,7 +148,7 @@ func TestOperatorGroup(t *testing.T) {
 		Namespaces: []string{opGroupNamespace, createdOtherNamespace.GetName()},
 	}
 
-	t.Log("Waiting on operator group to have correct status")
+	log("Waiting on operator group to have correct status")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(operatorGroup.Name, metav1.GetOptions{})
 		if fetchErr != nil {
@@ -158,7 +162,7 @@ func TestOperatorGroup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Log("Creating CSV")
+	log("Creating CSV")
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
 	permissions := []install.StrategyDeploymentPermissions{
@@ -219,25 +223,25 @@ func TestOperatorGroup(t *testing.T) {
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
-	t.Log("wait for CSV to succeed")
+	log("wait for CSV to succeed")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(createdCSV.GetName(), metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message)
+		log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
 		return csvSucceededChecker(fetched), nil
 	})
 	require.NoError(t, err)
 
-	t.Log("Waiting for operator namespace csv to have annotations")
+	log("Waiting for operator namespace csv to have annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
 			if errors.IsNotFound(fetchErr) {
 				return false, nil
 			}
-			t.Logf("Error (in %v): %v", testNamespace, fetchErr.Error())
+			log(fmt.Sprintf("Error (in %v): %v", testNamespace, fetchErr.Error()))
 			return false, fetchErr
 		}
 		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, true, bothNamespaceNames) == nil {
@@ -247,14 +251,14 @@ func TestOperatorGroup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Log("Waiting for target namespace csv to have annotations (but not target namespaces)")
+	log("Waiting for target namespace csv to have annotations (but not target namespaces)")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
 			if errors.IsNotFound(fetchErr) {
 				return false, nil
 			}
-			t.Logf("Error (in %v): %v", otherNamespaceName, fetchErr.Error())
+			log(fmt.Sprintf("Error (in %v): %v", otherNamespaceName, fetchErr.Error()))
 			return false, fetchErr
 		}
 		if checkOperatorGroupAnnotations(fetchedCSV, &operatorGroup, false, "") == nil {
@@ -264,7 +268,7 @@ func TestOperatorGroup(t *testing.T) {
 		return false, nil
 	})
 
-	t.Log("Checking status on csv in target namespace")
+	log("Checking status on csv in target namespace")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedCSV, fetchErr := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		if fetchErr != nil {
@@ -281,7 +285,7 @@ func TestOperatorGroup(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Log("Waiting on deployment to have correct annotations")
+	log("Waiting on deployment to have correct annotations")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		createdDeployment, err := c.GetDeployment(opGroupNamespace, deploymentName)
 		if err != nil {
@@ -325,7 +329,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	ruleChecker := install.NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), &aCSV)
 
-	t.Log("Waiting for operator to have rbac in target namespace")
+	log("Waiting for operator to have rbac in target namespace")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		for _, perm := range permissions {
 			sa, err := c.GetServiceAccount(opGroupNamespace, perm.ServiceAccountName)
@@ -368,7 +372,7 @@ func TestOperatorGroup(t *testing.T) {
 	require.Equal(t, viewPolicyRules, viewRole.Rules)
 
 	// Unsupport all InstallModes
-	t.Log("unsupporting all csv installmodes")
+	log("unsupporting all csv installmodes")
 	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Get(csvName, metav1.GetOptions{})
 	require.NoError(t, err, "could not fetch csv")
 	fetchedCSV.Spec.InstallModes = []v1alpha1.InstallMode{}
@@ -380,11 +384,11 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err, "csv did not transition to failed as expected")
 
 	// ensure deletion cleans up copied CSV
-	t.Log("deleting parent csv")
+	log("deleting parent csv")
 	err = crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Delete(csvName, &metav1.DeleteOptions{})
 	require.NoError(t, err)
 
-	t.Log("waiting for orphaned csv to be deleted")
+	log("waiting for orphaned csv to be deleted")
 	err = waitForDelete(func() error {
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
 		return err

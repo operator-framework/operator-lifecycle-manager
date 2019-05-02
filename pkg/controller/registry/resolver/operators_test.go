@@ -898,6 +898,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			Namespace: "testNamespace",
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
+			Replaces: "v1",
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned:    []v1alpha1.CRDDescription{},
 				Required: []v1alpha1.CRDDescription{},
@@ -982,6 +983,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	type args struct {
 		bundle    *opregistry.Bundle
 		sourceKey CatalogKey
+		replaces  string
 	}
 	tests := []struct {
 		name    string
@@ -994,10 +996,12 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			args: args{
 				bundle:    bundleNoAPIs,
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				replaces:  "",
 			},
 			want: &Operator{
 				name:         "testCSV",
 				version:      &version.Version,
+				replaces:     "v1",
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
@@ -1013,10 +1017,12 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			args: args{
 				bundle:    bundleWithAPIs,
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				replaces:  "",
 			},
 			want: &Operator{
-				name:    "testCSV",
-				version: &version.Version,
+				name:     "testCSV",
+				version:  &version.Version,
+				replaces: "v1",
 				providedAPIs: APISet{
 					opregistry.APIKey{
 						Group:   "crd.group.com",
@@ -1053,10 +1059,31 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "BundleReplaceOverrides",
+			args: args{
+				bundle:    bundleNoAPIs,
+				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				replaces:  "replaced",
+			},
+			want: &Operator{
+				name:         "testCSV",
+				providedAPIs: EmptyAPISet(),
+				requiredAPIs: EmptyAPISet(),
+				bundle:       bundleNoAPIs,
+				replaces:     "replaced",
+				version:      &version.Version,
+				sourceInfo: &OperatorSourceInfo{
+					Package: "testPackage",
+					Channel: "testChannel",
+					Catalog: CatalogKey{"source", "testNamespace"},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey)
+			got, err := NewOperatorFromBundle(tt.args.bundle, tt.args.replaces, "", tt.args.sourceKey)
 			require.Equal(t, tt.wantErr, err)
 			require.Equal(t, tt.want, got)
 		})
