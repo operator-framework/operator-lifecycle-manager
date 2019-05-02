@@ -26,10 +26,10 @@ import (
 // RequireStepsEqual is similar to require.ElementsMatch, but produces better error messages
 func RequireStepsEqual(t *testing.T, expectedSteps, steps []*v1alpha1.Step) {
 	for _, s := range expectedSteps {
-		require.Contains(t, steps, s)
+		require.Contains(t, steps, s, "step in expected not found in steps")
 	}
 	for _, s := range steps {
-		require.Contains(t, expectedSteps, s)
+		require.Contains(t, expectedSteps, s, "step in steps not found in expected")
 	}
 }
 
@@ -240,6 +240,11 @@ func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, re
 	return opregistry.NewBundle(name, pkg, channel, bundleObjs...)
 }
 
+func withReplaces(operator *Operator, replaces string) *Operator {
+	operator.replaces = replaces
+	return operator
+}
+
 // TestBundle verifies that the bundle stubbing works as expected
 func TestBundleStub(t *testing.T) {
 	tests := []struct {
@@ -346,5 +351,25 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 		}
 		sources[catKey] = source
 	}
+	return NewNamespaceSourceQuerier(sources)
+}
+
+// NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
+func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *opregistry.Bundle) *NamespaceSourceQuerier {
+	sources := map[CatalogKey]client.Interface{}
+	source := &fakes.FakeInterface{}
+	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*opregistry.Bundle, error) {
+		return nil, fmt.Errorf("no bundle found")
+	}
+	source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*opregistry.Bundle, error) {
+		return nil, fmt.Errorf("no bundle found")
+	}
+	source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*opregistry.Bundle, error) {
+		return nil, fmt.Errorf("no bundle found")
+	}
+	source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*opregistry.Bundle, error) {
+		return bundle, nil
+	}
+	sources[catKey] = source
 	return NewNamespaceSourceQuerier(sources)
 }

@@ -51,22 +51,24 @@ func TestNamespaceResolver(t *testing.T) {
 		subs:  []*v1alpha1.Subscription{},
 	}
 	tests := []struct {
-		name             string
-		clusterState     []runtime.Object
-		bundlesInCatalog []*opregistry.Bundle
-		out              out
+		name         string
+		clusterState []runtime.Object
+		querier      SourceQuerier
+		out          out
 	}{
 		{
 			name: "SingleNewSubscription/NoDeps",
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -78,14 +80,16 @@ func TestNamespaceResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
-				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, catalog),
-					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, "", catalog),
 					subSteps(namespace, "b.v1", "b", "beta", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
@@ -98,14 +102,16 @@ func TestNamespaceResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"}, ObjectMeta: metav1.ObjectMeta{Name: "test-rb"}})),
-				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"}, ObjectMeta: metav1.ObjectMeta{Name: "test-rb"}})),
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, catalog),
-					bundleSteps(withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"}, ObjectMeta: metav1.ObjectMeta{Name: "test-rb"}})), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
+					bundleSteps(withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&rbacv1.RoleBinding{TypeMeta: metav1.TypeMeta{Kind: "RoleBinding", APIVersion: "rbac.authorization.k8s.io/v1"}, ObjectMeta: metav1.ObjectMeta{Name: "test-rb"}})), namespace, "", catalog),
 					subSteps(namespace, "b.v1", "b", "beta", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
@@ -118,14 +124,16 @@ func TestNamespaceResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&corev1.Service{TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: ""}, ObjectMeta: metav1.ObjectMeta{Name: "test-service"}})),
-				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&corev1.Service{TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: ""}, ObjectMeta: metav1.ObjectMeta{Name: "test-service"}})),
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, catalog),
-					bundleSteps(withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&corev1.Service{TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: ""}, ObjectMeta: metav1.ObjectMeta{Name: "test-service"}})), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
+					bundleSteps(withBundleObject(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), u(&corev1.Service{TypeMeta: metav1.TypeMeta{Kind: "Service", APIVersion: ""}, ObjectMeta: metav1.ObjectMeta{Name: "test-service"}})), namespace, "", catalog),
 					subSteps(namespace, "b.v1", "b", "beta", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
@@ -138,9 +146,11 @@ func TestNamespaceResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				newSub(namespace, "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+				},
+			}),
 			out: nothing,
 		},
 		{
@@ -149,9 +159,11 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				},
+			}),
 			out: nothing,
 		},
 		{
@@ -160,13 +172,15 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil),
-				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil),
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
@@ -178,12 +192,14 @@ func TestNamespaceResolver(t *testing.T) {
 			clusterState: []runtime.Object{
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, "", catalog),
 				},
 				// no updated subs because existingSub already points the right CSV, it just didn't exist for some reason
 				subs: []*v1alpha1.Subscription{},
@@ -195,15 +211,17 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
-				bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil),
-				bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+					bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil),
+					bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil), namespace, catalog),
-					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, Requires1, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, "", catalog),
 					subSteps(namespace, "b.v1", "b", "beta", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
@@ -217,15 +235,17 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				existingOperator(namespace, "a.v1", "a", "alpha", "", nil, nil, Provides1, nil),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
-				bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, Requires1),
-				bundle("b.v1", "b", "beta", "", nil, nil, Provides1, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+					bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, Requires1),
+					bundle("b.v1", "b", "beta", "", nil, nil, Provides1, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, Requires1), namespace, catalog),
-					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, Provides1, nil), namespace, catalog),
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, Requires1), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, Provides1, nil), namespace, "", catalog),
 					subSteps(namespace, "b.v1", "b", "beta", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
@@ -240,15 +260,17 @@ func TestNamespaceResolver(t *testing.T) {
 				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
 				newSub(namespace, "b", "beta", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
-				bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
-				bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, nil, nil, nil),
+					bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil),
+					bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil), namespace, catalog),
-					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", nil, nil, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
@@ -262,14 +284,16 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				newSub(namespace, "b", "beta", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
-				bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+					bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, catalog),
-					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", Provides1, nil, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "b.v1", "b", "beta", catalog),
@@ -282,14 +306,16 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "a.v1", "a", "alpha", catalog),
 				newSub(namespace, "b", "beta", catalog),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v1", "a", "alpha", "", nil, nil, Provides1, nil),
-				bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, nil, Provides1, nil),
+					bundle("b.v1", "b", "beta", "", nil, nil, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, nil, Provides1, nil), namespace, catalog),
-					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, nil, Provides1, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", nil, nil, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "b.v1", "b", "beta", catalog),
@@ -305,18 +331,36 @@ func TestNamespaceResolver(t *testing.T) {
 				existingSub(namespace, "b.v1", "b", "alpha", catalog),
 				existingOperator(namespace, "b.v1", "b", "alpha", "", Provides2, Requires1, nil, nil),
 			},
-			bundlesInCatalog: []*opregistry.Bundle{
-				bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
-				bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
-			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				catalog: {
+					bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil),
+					bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil),
+				},
+			}),
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, catalog),
-					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, catalog),
+					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides3, Requires4, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v2", "b", "alpha", "b.v1", Provides4, Requires3, nil, nil), namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
 					updatedSub(namespace, "b.v2", "b", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/UpdateInHead/SkipRange",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			querier: NewFakeSourceQuerierCustomReplacement(catalog, bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil)),
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v3", "a", "alpha", "a.v2", nil, nil, nil, nil), namespace, "a.v1", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v3", "a", "alpha", catalog),
 				},
 			},
 		},
@@ -337,9 +381,9 @@ func TestNamespaceResolver(t *testing.T) {
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
 			resolver := NewOperatorsV1alpha1Resolver(lister)
-			querier := NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{catalog: tt.bundlesInCatalog})
-			steps, subs, err := resolver.ResolveSteps(namespace, querier)
+			steps, subs, err := resolver.ResolveSteps(namespace, tt.querier)
 			require.Equal(t, tt.out.err, err)
+			t.Logf("%#v", steps)
 			RequireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.subs, subs)
 		})
@@ -386,7 +430,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			bundlesInCatalog: []*opregistry.Bundle{bundle},
 			out: out{
 				steps: [][]*v1alpha1.Step{
-					bundleSteps(bundle, namespace, catalog),
+					bundleSteps(bundle, namespace, "", catalog),
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -504,8 +548,12 @@ func existingOperator(namespace, operatorName, pkg, channel, replaces string, pr
 	return csv
 }
 
-func bundleSteps(bundle *opregistry.Bundle, ns string, catalog CatalogKey) []*v1alpha1.Step {
-	stepresources, err := NewStepResourceFromBundle(bundle, ns, catalog.Name, catalog.Namespace)
+func bundleSteps(bundle *opregistry.Bundle, ns, replaces string, catalog CatalogKey) []*v1alpha1.Step {
+	if replaces == "" {
+		csv, _ := bundle.ClusterServiceVersion()
+		replaces = csv.Spec.Replaces
+	}
+	stepresources, err := NewStepResourceFromBundle(bundle, ns, replaces, catalog.Name, catalog.Namespace)
 	if err != nil {
 		panic(err)
 	}

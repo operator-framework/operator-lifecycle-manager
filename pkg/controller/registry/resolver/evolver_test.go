@@ -394,6 +394,22 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				NewFakeOperatorSurface("updated", "o", "c", "original", "catsrc", "", nil, nil, nil, nil),
 			),
 		},
+		{
+			// an existing operator has an update available and skips previous versions via channel head annotations
+			name: "UpdateRequired/SkipVersions",
+			fields: fields{
+				querier: NewFakeSourceQuerierCustomReplacement(CatalogKey{"catsrc", "catsrc-namespace"}, bundle("updated.v3", "o", "c", "updated.v2", nil, nil, nil, nil)),
+				gen: NewGenerationFromOperators(
+					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", nil, nil, nil, nil),
+				),
+			},
+			args: args{},
+			wantGen: NewGenerationFromOperators(
+				// the csv in the bundle still has the original replaces field, but the surface has the value overridden
+				withReplaces(NewFakeOperatorSurface("updated.v3", "o", "c", "updated.v2", "catsrc", "", nil, nil, nil, nil),
+					"original"),
+			),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
