@@ -146,6 +146,7 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoForNewSubscriptions(namespace stri
 
 func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.Subscription) (add map[OperatorSourceInfo]*v1alpha1.Subscription) {
 	add = make(map[OperatorSourceInfo]*v1alpha1.Subscription)
+	var sourceNamespace string
 	for _, s := range subs {
 		startingCSV := s.Spec.StartingCSV
 		if s.Status.CurrentCSV != "" {
@@ -153,11 +154,16 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.S
 			// a starting csv search.
 			startingCSV = ""
 		}
+		if s.Spec.CatalogSourceNamespace == "" {
+			sourceNamespace = s.GetNamespace()
+		} else {
+			sourceNamespace = s.Spec.CatalogSourceNamespace
+		}
 		add[OperatorSourceInfo{
 			Package:     s.Spec.Package,
 			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
-			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: s.Spec.CatalogSourceNamespace},
+			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
 		}] = s.DeepCopy()
 	}
 	return
