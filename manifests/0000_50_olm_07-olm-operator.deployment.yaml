@@ -30,6 +30,7 @@ spec:
           - /var/run/secrets/serving-cert/tls.crt
           - -tls-key
           - /var/run/secrets/serving-cert/tls.key
+          - debug
           image: quay.io/operator-framework/olm@sha256:7e4b13b89b3d59876b228697bbd0c9e364fd73f946ab90308c34fd82053a5a76
           imagePullPolicy: IfNotPresent
           ports:
