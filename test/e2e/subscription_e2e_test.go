@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
@@ -319,21 +320,31 @@ func subscriptionStateAny(subscription *v1alpha1.Subscription) bool {
 		subscriptionStateUpgradeAvailableChecker(subscription)
 }
 
+func subscriptionHasCurrentCSV(currentCSV string) subscriptionStateChecker {
+	return func(subscription *v1alpha1.Subscription) bool {
+		return subscription.Status.CurrentCSV == currentCSV
+	}
+}
+
 func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
 	var fetchedSubscription *v1alpha1.Subscription
 	var err error
+
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedSubscription, err = crc.OperatorsV1alpha1().Subscriptions(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || fetchedSubscription == nil {
 			return false, err
 		}
-		t.Logf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.Install)
+		log(fmt.Sprintf("%s (%s): %s", fetchedSubscription.Status.State, fetchedSubscription.Status.CurrentCSV, fetchedSubscription.Status.InstallPlanRef))
 		return checker(fetchedSubscription), nil
 	})
 	if err != nil {
-		t.Logf("never got correct status: %#v", fetchedSubscription.Status)
-		t.Logf("subscription spec: %#v", fetchedSubscription.Spec)
+		log(fmt.Sprintf("never got correct status: %#v", fetchedSubscription.Status))
+		log(fmt.Sprintf("subscription spec: %#v", fetchedSubscription.Spec))
 	}
 	return fetchedSubscription, err
 }
@@ -469,13 +480,32 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 func TestSubscriptionSkipRange(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
 	mainPackageName := genName("nginx-")
 	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
 	updatedPackageStable := fmt.Sprintf("%s-updated", mainPackageName)
 	stableChannel := "stable"
 	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661347"), nil, nil, mainNamedStrategy)
-	updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), nil, nil, mainNamedStrategy)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661347"), []apiextensions.CustomResourceDefinition{crd}, nil, mainNamedStrategy)
+	updatedCSV := newCSV(updatedPackageStable, testNamespace, "", semver.MustParse("0.1.0-1556661832"), []apiextensions.CustomResourceDefinition{crd}, nil, mainNamedStrategy)
 	updatedCSV.SetAnnotations(map[string]string{resolver.SkipPackageAnnotationKey: ">=0.1.0-1556661347 <0.1.0-1556661832"})
 
 	c := newKubeClient(t)
@@ -507,7 +537,7 @@ func TestSubscriptionSkipRange(t *testing.T) {
 	}
 
 	// Create catalog source
-	_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+	_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{mainCSV})
 	defer cleanupMainCatalogSource()
 	// Attempt to get the catalog source before creating subscription
 	_, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
@@ -519,15 +549,18 @@ func TestSubscriptionSkipRange(t *testing.T) {
 	defer subscriptionCleanup()
 
 	// Wait for csv to install
-	_, err = awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+	firstCSV, err := awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Update catalog with a new csv in the channel with a skip range
-	updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, nil, []v1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
+	updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{updatedCSV}, updatedManifests)
 
 	// Wait for csv to update
-	_, err = awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+	finalCSV, err := awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
+
+	// Ensure we set the replacement field based on the registry data
+	require.Equal(t, firstCSV.GetName(), finalCSV.Spec.Replaces)
 }
 
 // If installPlanApproval is set to manual, the installplans created should be created with approval: manual
@@ -777,7 +810,7 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	go func(t *testing.T) {
 		wg.Add(1)
 		defer wg.Done()
-		_, err := awaitCSV(t, crc, testNamespace, csvB.GetName(), csvAnyChecker)
+		_, err := awaitCSV(t, crc, testNamespace, csvB.GetName(), csvReplacingChecker)
 		require.NoError(t, err)
 	}(t)
 	// Update the catalog to include multiple updates
