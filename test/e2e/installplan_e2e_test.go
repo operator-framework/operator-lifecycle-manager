@@ -333,14 +333,16 @@ EXPECTED:
 	log("All expected resources resolved")
 
 	// Verify that the dependent subscription is in a good state
-	dependentSubscription, err := fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasInstallPlanChecker)
+	dependentSubscription, err := fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, dependentSubscription)
 	require.NotNil(t, dependentSubscription.Status.InstallPlanRef)
-	require.Equal(t, "AtLatestKnown", string(dependentSubscription.Status.State))
 	require.Equal(t, dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
 
-	// TODO: update dependent subscription in catalog and wait for csv to update
+	fetchedCSV, err := awaitCSV(t, crc, testNamespace, dependentCSV.GetName(), csvAnyChecker)
+	require.NoError(t, err)
+
+	// Update dependent subscription in catalog and wait for csv to update
 	updatedDependentCSV := newCSV(dependentPackageStable+"v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 	dependentManifests = []registry.PackageManifest{
 		{
@@ -354,6 +356,12 @@ EXPECTED:
 	updateInternalCatalog(t, c, crc, dependentCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV, updatedDependentCSV}, dependentManifests)
 
 	dependentSubscription, err = fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasCurrentCSV(updatedDependentCSV.GetName()))
+	require.NoError(t, err)
+
+	fetchedCSV, err = awaitCSV(t, crc, testNamespace, updatedDependentCSV.GetName(), csvAnyChecker)
+	require.NoError(t, err)
+
+	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedCSV.GetName(), metav1.NewDeleteOptions(0))
 	require.NoError(t, err)
 }
 

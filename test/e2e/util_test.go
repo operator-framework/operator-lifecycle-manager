@@ -369,24 +369,28 @@ func cleanupOLM(t *testing.T, namespace string) {
 	var err error
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCSVFieldSelector})
+		t.Logf("%d %s remaining", len(res.Items), "csvs")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)
 
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+		t.Logf("%d %s remaining", len(res.Items), "installplans")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)
 
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+		t.Logf("%d %s remaining", len(res.Items), "subs")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)
 
 	err = waitForEmptyList(func() (int, error) {
 		res, err := crc.OperatorsV1alpha1().CatalogSources(namespace).List(metav1.ListOptions{FieldSelector: nonPersistentCatalogsFieldSelector})
+		t.Logf("%d %s remaining", len(res.Items), "catalogs")
 		return len(res.Items), err
 	})
 	require.NoError(t, err)

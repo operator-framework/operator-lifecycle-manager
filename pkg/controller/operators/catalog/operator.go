@@ -323,22 +323,6 @@ func (o *Operator) handleDeletion(obj interface{}) {
 		return
 	}
 
-	// Check the registry server
-	checker := o.reconciler.ReconcilerForSource(catsrc)
-	healthy, err := checker.CheckRegistryServer(catsrc)
-	if err != nil {
-		logger.WithError(err).Warn("error checking registry health")
-	} else if !healthy {
-		logger.Debug("registry server unhealthy, updating catalog source")
-		catsrc.Status.RegistryServiceStatus = nil
-		_, err = o.client.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).UpdateStatus(catsrc)
-		if err == nil {
-			logger.Debug("successfully updated catalogsource registry status")
-			return
-		}
-		logger.WithError(err).Warn("error updating catalogsource registry status")
-	}
-
 	// Requeue CatalogSource
 	if err := o.catSrcQueueSet.Requeue(catsrc.GetName(), catsrc.GetNamespace()); err != nil {
 		logger.WithError(err).Warn("error requeuing owner catalogsource")
@@ -429,13 +413,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		logger.Debug("catsrc configmap state good, checking registry pod")
 	}
 
-	reconciler := o.reconciler.ReconcilerForSource(catsrc)
-	if reconciler == nil {
+	srcReconciler := o.reconciler.ReconcilerForSource(catsrc)
+	if srcReconciler == nil {
 		// TODO: Add failure status on catalogsource and remove from sources
 		return fmt.Errorf("no reconciler for source type %s", catsrc.Spec.SourceType)
 	}
 
-	healthy, err := reconciler.CheckRegistryServer(catsrc)
+	healthy, err := srcReconciler.CheckRegistryServer(catsrc)
 	if err != nil {
 		return err
 	}
@@ -444,7 +428,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	if !healthy || catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
 		logger.Debug("ensuring registry server")
 
-		if err := reconciler.EnsureRegistryServer(out); err != nil {
+		if err := srcReconciler.EnsureRegistryServer(out); err != nil {
 			logger.WithError(err).Warn("couldn't ensure registry server")
 			return err
 		}
@@ -919,7 +903,7 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 func (o *Operator) requeueSubscription(name, namespace string) {
 	// we can build the key directly, will need to change if queue uses different key scheme
 	key := fmt.Sprintf("%s/%s", namespace, name)
-	o.subQueue.AddRateLimited(key)
+	o.subQueue.Add(key)
 	return
 }
 
