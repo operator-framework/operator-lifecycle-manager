@@ -242,7 +242,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 }
 
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, csvNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
+func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace, serviceAccountNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
 
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) (bool, error) {
@@ -266,7 +266,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 			}
 
 			// Ensure the ServiceAccount exists
-			sa, err := a.OpClient.GetServiceAccount(csvNamespace, perm.ServiceAccountName)
+			sa, err := a.OpClient.GetServiceAccount(serviceAccountNamespace, perm.ServiceAccountName)
 			if err != nil {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
@@ -320,7 +320,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 		return met, nil
 	}
 
-	permMet, err := checkPermissions(strategyDetailsDeployment.Permissions, csvNamespace)
+	permMet, err := checkPermissions(strategyDetailsDeployment.Permissions, targetNamespace)
 	if err != nil {
 		return false, nil, err
 	}
@@ -331,7 +331,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 	statuses := []v1alpha1.RequirementStatus{}
 	for key, status := range statusesSet {
-		a.Log.Debugf("appending permission status: %s", key)
+		a.Log.WithField("key", key).WithField("status", status).Debugf("appending permission status")
 		statuses = append(statuses, status)
 	}
 
@@ -365,7 +365,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	clusterRoleBindingLister := rbacLister.ClusterRoleBindingLister()
 
 	ruleChecker := install.NewCSVRuleChecker(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister, csv)
-	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace())
+	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace(), csv.GetNamespace())
 	if err != nil {
 		return false, nil, err
 	}

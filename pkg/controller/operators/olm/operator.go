@@ -551,6 +551,12 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	})
 	logger.Debug("syncing CSV")
 
+	if clusterServiceVersion.IsCopied() {
+		logger.Debug("skipping copied csv transition, schedule for gc check")
+		a.gcQueueIndexer.Enqueue(clusterServiceVersion)
+		return
+	}
+
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
 	if outCSV == nil {
@@ -569,9 +575,10 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 			updateErr := errors.New("error updating ClusterServiceVersion status: " + err.Error())
 			if syncError == nil {
 				logger.Info(updateErr)
-				return updateErr
+				syncError = updateErr
+			} else {
+				syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
 			}
-			syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
 		}
 	}
 
@@ -597,11 +604,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 	})
 
 	logger.Debug("copying CSV")
-
-	if clusterServiceVersion.IsUncopiable() {
-		logger.Debug("CSV uncopiable")
-		return
-	}
 
 	operatorGroup := a.operatorGroupFromAnnotations(logger, clusterServiceVersion)
 	if operatorGroup == nil {
@@ -742,12 +744,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 	out = in.DeepCopy()
 	now := timeNow()
-
-	if out.IsCopied() {
-		logger.Debug("skipping copied csv transition, schedule for gc check")
-		a.gcQueueIndexer.Enqueue(out)
-		return
-	}
 
 	operatorSurface, err := resolver.NewOperatorFromV1Alpha1CSV(out)
 	if err != nil {

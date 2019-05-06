@@ -163,6 +163,7 @@ func TestOperatorGroup(t *testing.T) {
 	require.NoError(t, err)
 
 	log("Creating CSV")
+
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
 	permissions := []install.StrategyDeploymentPermissions{
@@ -178,12 +179,24 @@ func TestOperatorGroup(t *testing.T) {
 		},
 	}
 
+	// Create a new NamedInstallStrategy
+	deploymentName := genName("operator-deployment")
+	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
+
+	aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
+	require.NoError(t, err)
+
 	serviceAccount := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: opGroupNamespace,
 			Name:      serviceAccountName,
 		},
 	}
+	ownerutil.AddNonBlockingOwner(serviceAccount, createdCSV)
+	err = ownerutil.AddOwnerLabels(serviceAccount, createdCSV)
+	require.NoError(t, err)
+
 	role := &rbacv1.Role{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: opGroupNamespace,
@@ -191,6 +204,10 @@ func TestOperatorGroup(t *testing.T) {
 		},
 		Rules: permissions[0].Rules,
 	}
+	ownerutil.AddNonBlockingOwner(role, createdCSV)
+	err = ownerutil.AddOwnerLabels(role, createdCSV)
+	require.NoError(t, err)
+
 	roleBinding := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: opGroupNamespace,
@@ -208,19 +225,15 @@ func TestOperatorGroup(t *testing.T) {
 			Name: role.GetName(),
 		},
 	}
+	ownerutil.AddNonBlockingOwner(roleBinding, createdCSV)
+	err = ownerutil.AddOwnerLabels(roleBinding, createdCSV)
+	require.NoError(t, err)
+
 	_, err = c.CreateServiceAccount(serviceAccount)
 	require.NoError(t, err)
 	_, err = c.CreateRole(role)
 	require.NoError(t, err)
 	_, err = c.CreateRoleBinding(roleBinding)
-	require.NoError(t, err)
-
-	// Create a new NamedInstallStrategy
-	deploymentName := genName("operator-deployment")
-	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
-
-	aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
-	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
 	require.NoError(t, err)
 
 	log("wait for CSV to succeed")

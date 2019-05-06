@@ -2466,8 +2466,8 @@ func TestTransitionCSV(t *testing.T) {
 			},
 			expected: expected{
 				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
-					"csv2": {exists: true, phase: v1alpha1.CSVPhaseDeleting},
+					"csv1": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
+					"csv2": {exists: true, phase: v1alpha1.CSVPhaseReplacing},
 					"csv3": {exists: true, phase: v1alpha1.CSVPhaseSucceeded},
 				},
 			},
@@ -3549,8 +3549,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      "csv-role",
-							Namespace: targetNamespace,
+							ResourceVersion: "0",
+							Name:            "csv-role",
+							Namespace:       targetNamespace,
 							Labels: map[string]string{
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
@@ -3569,8 +3570,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      "csv-rolebinding",
-							Namespace: targetNamespace,
+							ResourceVersion: "0",
+							Name:            "csv-rolebinding",
+							Namespace:       targetNamespace,
 							Labels: map[string]string{
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
@@ -3649,8 +3651,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      "csv-role",
-							Namespace: targetNamespace,
+							ResourceVersion: "0",
+							Name:            "csv-role",
+							Namespace:       targetNamespace,
 							Labels: map[string]string{
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",
@@ -3669,8 +3672,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 							APIVersion: rbacv1.GroupName,
 						},
 						ObjectMeta: metav1.ObjectMeta{
-							Name:      "csv-rolebinding",
-							Namespace: targetNamespace,
+							ResourceVersion: "0",
+							Name:            "csv-rolebinding",
+							Namespace:       targetNamespace,
 							Labels: map[string]string{
 								"olm.copiedFrom":      "operator-ns",
 								"olm.owner":           "csv1",

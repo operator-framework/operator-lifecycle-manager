@@ -297,7 +297,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 			strategyDetailsDeployment.ClusterPermissions = append(strategyDetailsDeployment.ClusterPermissions, p)
 		}
 		strategyDetailsDeployment.Permissions = nil
-		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, corev1.NamespaceAll)
+		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, corev1.NamespaceAll, csv.GetNamespace())
 		if err != nil {
 			return err
 		}
@@ -321,15 +321,21 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 			continue
 		}
 
-		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, ns)
+		permMet, _, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, ns, csv.GetNamespace())
 		if err != nil {
+			logger.WithError(err).Debug("permission status")
 			return err
 		}
+		logger.WithField("target", ns).WithField("permMet", permMet).Debug("permission status")
+
 		// operator already has access in the target namespace
 		if permMet {
-			return nil
+			logger.Debug("operator has access")
+			continue
 		}
+
 		if err := a.ensureTenantRBAC(operatorGroup.GetNamespace(), ns, csv); err != nil {
+			logger.WithError(err).Debug("ensuring tenant rbac")
 			return err
 		}
 	}
@@ -408,6 +414,10 @@ func (a *Operator) ensureSingletonRBAC(operatorNamespace string, csv *v1alpha1.C
 }
 
 func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, csv *v1alpha1.ClusterServiceVersion) error {
+	if operatorNamespace == targetNamespace {
+		return nil
+	}
+
 	targetCSV, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(targetNamespace).Get(csv.GetName())
 	if err != nil {
 		return err
@@ -416,6 +426,10 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 	ownedRoles, err := a.lister.RbacV1().RoleLister().Roles(operatorNamespace).List(ownerSelector)
 	if err != nil {
 		return err
+	}
+
+	if len(ownedRoles) == 0 {
+		return fmt.Errorf("owned roles not found in cache")
 	}
 
 	targetRoles, err := a.lister.RbacV1().RoleLister().Roles(targetNamespace).List(ownerutil.CSVOwnerSelector(targetCSV))
@@ -448,13 +462,15 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 
 		// role doesn't exist, create it
 		// TODO: we can work around error cases here; if there's an un-owned role with a matching name we should generate instead
-		ownedRole.SetNamespace(targetNamespace)
-		ownedRole.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
-		if err := ownerutil.AddOwnerLabels(ownedRole, targetCSV); err != nil {
+		targetRole := ownedRole.DeepCopy()
+		targetRole.SetResourceVersion("0")
+		targetRole.SetNamespace(targetNamespace)
+		targetRole.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
+		if err := ownerutil.AddOwnerLabels(targetRole, targetCSV); err != nil {
 			return err
 		}
-		ownedRole.SetLabels(utillabels.AddLabel(ownedRole.GetLabels(), v1alpha1.CopiedLabelKey, operatorNamespace))
-		if _, err := a.OpClient.CreateRole(ownedRole); err != nil {
+		targetRole.SetLabels(utillabels.AddLabel(targetRole.GetLabels(), v1alpha1.CopiedLabelKey, operatorNamespace))
+		if _, err := a.OpClient.CreateRole(targetRole); err != nil {
 			return err
 		}
 	}
@@ -491,6 +507,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		// role binding doesn't exist
 		// TODO: we can work around error cases here; if there's an un-owned role with a matching name we should generate instead
 		ownedRoleBinding.SetNamespace(targetNamespace)
+		ownedRoleBinding.SetResourceVersion("0")
 		ownedRoleBinding.SetOwnerReferences([]metav1.OwnerReference{ownerutil.NonBlockingOwner(targetCSV)})
 		if err := ownerutil.AddOwnerLabels(ownedRoleBinding, targetCSV); err != nil {
 			return err
