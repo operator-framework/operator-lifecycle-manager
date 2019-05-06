@@ -48,6 +48,7 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
+          terminationMessagePolicy: FallbackToLogsOnError
           env:
           
           - name: RELEASE_VERSION

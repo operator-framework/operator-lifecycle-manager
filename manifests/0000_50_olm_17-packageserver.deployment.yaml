@@ -49,3 +49,4 @@ spec:
             scheme: HTTPS
             path: /healthz
             port: 5443
+        terminationMessagePolicy: FallbackToLogsOnError

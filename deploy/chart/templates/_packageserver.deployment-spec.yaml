@@ -56,4 +56,5 @@ spec:
             scheme: HTTPS
             path: /healthz
             port: {{ .Values.package.service.internalPort }}
+        terminationMessagePolicy: FallbackToLogsOnError
 {{- end -}}
