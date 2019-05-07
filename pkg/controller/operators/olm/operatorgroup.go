@@ -544,6 +544,10 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 }
 
 func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespace string) error {
+	if csv.GetNamespace() == namespace {
+		return nil
+	}
+
 	logger := a.Log.WithField("operator-ns", csv.GetNamespace()).WithField("target-ns", namespace)
 	newCSV := csv.DeepCopy()
 	delete(newCSV.Annotations, v1.OperatorGroupTargetsAnnotationKey)

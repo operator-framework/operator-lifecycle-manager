@@ -290,7 +290,7 @@ func TestInstallPlanWithCSVsAcrossMultipleCatalogSources(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	installPlanName := subscription.Status.Install.Name
+	installPlanName := subscription.Status.InstallPlanRef.Name
 
 	// Wait for InstallPlan to be status: Complete before checking resource presence
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
@@ -339,11 +339,12 @@ EXPECTED:
 	require.NotNil(t, dependentSubscription.Status.InstallPlanRef)
 	require.Equal(t, dependentCSV.GetName(), dependentSubscription.Status.CurrentCSV)
 
-	fetchedCSV, err := awaitCSV(t, crc, testNamespace, dependentCSV.GetName(), csvAnyChecker)
+	// Verify CSV is created
+	_, err = awaitCSV(t, crc, testNamespace, dependentCSV.GetName(), csvAnyChecker)
 	require.NoError(t, err)
 
 	// Update dependent subscription in catalog and wait for csv to update
-	updatedDependentCSV := newCSV(dependentPackageStable+"v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+	updatedDependentCSV := newCSV(dependentPackageStable+"-v2", testNamespace, dependentPackageStable, semver.MustParse("0.1.1"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
 	dependentManifests = []registry.PackageManifest{
 		{
 			PackageName: dependentPackageName,
@@ -353,15 +354,21 @@ EXPECTED:
 			DefaultChannelName: stableChannel,
 		},
 	}
+
 	updateInternalCatalog(t, c, crc, dependentCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV, updatedDependentCSV}, dependentManifests)
 
-	dependentSubscription, err = fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasCurrentCSV(updatedDependentCSV.GetName()))
+	// Wait for subscription to update
+	updatedDepSubscription, err := fetchSubscription(t, crc, testNamespace, strings.Join([]string{dependentPackageStable, dependentCatalogName, testNamespace}, "-"), subscriptionHasCurrentCSV(updatedDependentCSV.GetName()))
 	require.NoError(t, err)
 
-	fetchedCSV, err = awaitCSV(t, crc, testNamespace, updatedDependentCSV.GetName(), csvAnyChecker)
+	// Verify installplan created and installed
+	fetchedUpdatedDepInstallPlan, err := fetchInstallPlan(t, crc, updatedDepSubscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
 	require.NoError(t, err)
+	log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedUpdatedDepInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.Status.Phase))
+	require.NotEqual(t, fetchedInstallPlan.GetName(), fetchedUpdatedDepInstallPlan.GetName())
 
-	err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedCSV.GetName(), metav1.NewDeleteOptions(0))
+	// Wait for csv to update
+	_, err = awaitCSV(t, crc, testNamespace, updatedDependentCSV.GetName(), csvAnyChecker)
 	require.NoError(t, err)
 }
 
