@@ -116,6 +116,7 @@ spec:
                     scheme: HTTPS
                     path: /healthz
                     port: 5443
+                terminationMessagePolicy: FallbackToLogsOnError
   maturity: alpha
   version: 0.9.0
   apiservicedefinitions:

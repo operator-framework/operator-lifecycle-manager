@@ -63,6 +63,7 @@ spec:
             httpGet:
               path: /healthz
               port: {{ .Values.olm.service.internalPort }}
+          terminationMessagePolicy: FallbackToLogsOnError
           env:
         {{ if and .Values.installType (eq .Values.installType "ocp") }}
           - name: RELEASE_VERSION
