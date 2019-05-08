@@ -176,6 +176,7 @@ release:
 	rm -rf manifests
 	mkdir manifests
 	cp -R deploy/ocp/manifests/$(ver)/. manifests
+	# requires gnu sed if on mac
 	find ./manifests -type f -exec sed -i "/^#/d" {} \;
 	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
