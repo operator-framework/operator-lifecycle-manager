@@ -51,26 +51,29 @@ spec:
               path: /healthz
               port: 8080
           env:
-          
           - name: RELEASE_VERSION
             value: "0.0.1-snapshot"
-          
-          
           volumeMounts:
           - mountPath: /var/run/secrets/serving-cert
             name: serving-cert
-          
-      
       volumes:
       - name: serving-cert
         secret:
           secretName: catalog-operator-serving-cert
           optional: true
-      
       nodeSelector:
         beta.kubernetes.io/os: linux
         node-role.kubernetes.io/master: ""
-        
       tolerations:
-        - operator: Exists
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
         
