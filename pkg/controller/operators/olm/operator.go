@@ -719,6 +719,9 @@ func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logg
 				logger.WithError(err).Warn("error adding operatorgroup annotations")
 				return nil, err
 			}
+			if targetNamespaceList, err := a.getOperatorGroupTargets(operatorGroup); err == nil && len(targetNamespaceList) == 0 {
+				csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoTargetNamespaces, "no targetNamespaces are matched operatorgroups namespace selection", now, a.recorder)
+			}
 			return nil, nil
 		}
 		logger.Info("csv in operatorgroup")
