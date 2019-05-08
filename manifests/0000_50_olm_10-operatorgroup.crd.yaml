@@ -27,6 +27,7 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: A grouping of namespaces for usage with an operator.
       properties:
         spec:
           properties:

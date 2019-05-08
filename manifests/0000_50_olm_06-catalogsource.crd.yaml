@@ -43,6 +43,7 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: A source configured to find packages and updates.
       properties:
         spec:
           type: object

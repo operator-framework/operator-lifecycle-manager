@@ -4,7 +4,7 @@ metadata:
   name: subscriptions.operators.coreos.com
   annotations:
     displayName: Subscription
-    description: Subcribes service catalog to a source and channel to recieve updates for packages.
+    description: Subscribes service catalog to a source and channel to recieve updates for packages.
 spec:
   group: operators.coreos.com
   version: v1alpha1
@@ -41,6 +41,7 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: Subscribes service catalog to a source and channel to recieve updates for packages.
       properties:
         spec:
           type: object
