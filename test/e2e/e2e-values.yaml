@@ -1,4 +1,5 @@
 writeStatusName: '""'
+debug: true
 
 olm:
   replicaCount: 1
@@ -7,7 +8,6 @@ olm:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
-  commandArgs: -debug
 
 catalog:
   replicaCount: 1
@@ -16,7 +16,6 @@ catalog:
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
-  commandArgs: -debug
 
 package:
   replicaCount: 1
@@ -25,7 +24,6 @@ package:
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
-  commandArgs: --debug
 
 e2e:
   image:

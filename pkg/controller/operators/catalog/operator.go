@@ -446,6 +446,12 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		o.sourcesLastUpdate = timeNow()
 		logger.Debug("registry server recreated")
 
+		func() {
+			o.sourcesLock.Lock()
+			defer o.sourcesLock.Unlock()
+			delete(o.sources, sourceKey)
+		}()
+
 		return nil
 	}
 	logger.Debug("registry state good")
@@ -717,7 +723,7 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
 		return true
 	}
-	if sub.Status.Install != nil && sub.Status.State == v1alpha1.SubscriptionStateUpgradePending {
+	if sub.Status.InstallPlanRef != nil && sub.Status.State == v1alpha1.SubscriptionStateUpgradePending {
 		logger.Debugf("skipping update: installplan already created")
 		return true
 	}
@@ -797,13 +803,14 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	out.Status.LastUpdated = timeNow()
 
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
-	if sub, err = o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(out); err != nil {
+	updatedSub, err := o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(out)
+	if err != nil {
 		logger.WithError(err).Info("error updating subscription status")
 		return nil, false, fmt.Errorf("error updating Subscription status: " + err.Error())
 	}
 
 	// subscription status represents cluster state
-	return sub, true, nil
+	return updatedSub, true, nil
 }
 
 func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.Subscription, installPlanRef *corev1.ObjectReference) error {

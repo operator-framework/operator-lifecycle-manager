@@ -1099,9 +1099,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			syncError = fmt.Errorf("CSV marked as replacement, but no replacmenet CSV found in cluster.")
 		}
 	case v1alpha1.CSVPhaseDeleting:
-		if err := a.csvQueueSet.Remove(out.GetName(), out.GetNamespace()); err != nil {
-			logger.WithError(err).Debug("error removing from queue")
-		}
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), metav1.NewDeleteOptions(0))
 		if syncError != nil {
 			logger.Debugf("unable to get delete csv marked for deletion: %s", syncError.Error())
