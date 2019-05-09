@@ -154,12 +154,14 @@ container-mockgen:
 	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/package-server/client/fakes/. ./pkg/package-server/client/fakes
 	docker rm temp-mockgen
 
+verify: verify-codegen verify-manifests
+
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 verify-codegen: codegen
 	git diff --exit-code
 
 # this is here for backwards compatibility with the ci job that calls verify-catalog
-verify-catalog: verify-manifests
+verify-catalog:
 
 verify-manifests: ver=$(shell cat OLM_VERSION)
 verify-manifests:
