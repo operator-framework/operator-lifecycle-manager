@@ -158,7 +158,18 @@ container-mockgen:
 verify-codegen: codegen
 	git diff --exit-code
 
-verify-catalog:
+# this is here for backwards compatibility with the ci job that calls verify-catalog
+verify-catalog: verify-manifests
+
+verify-manifests: ver=$(shell cat OLM_VERSION)
+verify-manifests:
+	rm -rf manifests
+	mkdir manifests
+	./scripts/package_release.sh $(ver) manifests deploy/ocp/values.yaml
+	# requires gnu sed if on mac
+	find ./manifests -type f -exec sed -i "/^#/d" {} \;
+	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
+	git diff --exit-code
 
 mockgen:
 	$(MOCKGEN)
