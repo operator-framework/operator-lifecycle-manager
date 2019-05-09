@@ -1,6 +1,6 @@
 # Debugging a ClusterServiceVersion
 
-We have a ClusterServiceVersion that is failing to report as avialable.
+We have a ClusterServiceVersion that is failing to report as available.
 
 ```sh
 $ kubectl -n ci-olm-pr-188-gc-csvs get clusterserviceversions etcdoperator.v0.8.1 -o yaml

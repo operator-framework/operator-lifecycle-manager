@@ -83,7 +83,7 @@ There is no way to express a dependency on a particular version of an operator (
 ## Discovery, Catalogs, and Automated Upgrades
 OLM has the concept of catalogs, which are repositories of application definitions and CRDs. 	
 
-Catalogs contain a set of Packages, which map “channels” to a particular application definition. Channels allow package authors write different upgrade paths for different users (e.g. alpha vs. stable). 
+Catalogs contain a set of Packages, which map “channels” to a particular application definition. Channels allow package authors to write different upgrade paths for different users (e.g. alpha vs. stable).
 
 Example: [etcd package](https://github.com/operator-framework/community-operators/blob/master/community-operators/etcd/etcd.package.yaml)
 

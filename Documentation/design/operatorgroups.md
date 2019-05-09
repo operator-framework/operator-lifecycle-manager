@@ -5,7 +5,7 @@ An `OperatorGroup` is an OLM resource that provides rudimentary multitenant conf
 ## OperatorGroup Overview
 
 * An `OperatorGroup` selects a set of target namespaces in which to generate required RBAC access for its member operators.
-* The set of target namespaces is provided via a comma-delimited string stored in the `olm.targetNamespaces` annotation. This annotation is applied to member operator's `ClusterServiceVersion` (CSV) instances and is projected into their deployments. It accessible to operator containers using [The Downward API](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api)
+* The set of target namespaces is provided via a comma-delimited string stored in the `olm.targetNamespaces` annotation. This annotation is applied to member operator's `ClusterServiceVersion` (CSV) instances and is projected into their deployments. It is accessible to operator containers using [The Downward API](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api)
 * An operator is said to be a [member of an `OperatorGroup`](#operatorgroup-membership) if its CSV exists in the same namespace as the `OperatorGroup` and its CSV's [`InstallModes` support the set of namespaces targetted by the `OperatorGroup`](#installmodes-and-supported-operatorgroups)
 * In order to transition, a CSV must be an active member of an `OperatorGroup` that has no [provided API conflicts with intersecting `OperatorGroups`](#operatorgroup-intersection)
 
@@ -128,7 +128,7 @@ When an `OperatorGroup` is created, 3 ClusterRoles each containing a single Aggr
 * `<operatorgroup-name>-edit`
   * ClusterRoleSelector set to match the `olm.opgroup.permissions/aggregate-to-edit: <operatorgroup-name>` label
 
-* `<oepratorgroup-name>-view`
+* `<operatorgroup-name>-view`
   * ClusterRoleSelector set to match the `olm.opgroup.permissions/aggregate-to-view: <operatorgroup-name>` label
 
 When a CSV becomes an active member of an `OperatorGroup` and is not in a failed state with reason InterOperatorGroupOwnerConflict, the following RBAC resources are generated:

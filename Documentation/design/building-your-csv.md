@@ -147,7 +147,7 @@ The Lifecycle Manager will check against the available CRDs and Operators in the
       description: Represents a cluster of etcd nodes.
 ```
 ## CRD Templates
-Users of your Operator will need to be aware of which options are required vs optional. You can provide templates for each of our CRDs with a minimum set of configuration as an annotation named `alm-examples`. Compatible UIs will pre-enter this template for users to further customize.
+Users of your Operator will need to be aware of which options are required vs optional. You can provide templates for each of your CRDs with a minimum set of configuration as an annotation named `alm-examples`. Compatible UIs will pre-enter this template for users to further customize.
 
 The annotation consists of a list of the `kind`, eg. the CRD name, and the corresponding `metadata` and `spec` of the Kubernetes object. Here’s a full example that provides templates for `EtcdCluster`, `EtcdBackup` and `EtcdRestore`:
 
@@ -238,7 +238,7 @@ The metadata section contains general metadata around the name, version and othe
 
 **Selectors** (optional): A label selector to identify related resources. Set this to select on current labels applied to this CSV object (if applicable).
 
-**InstallModes**: A set of `InstallMode`s that tell OLM which `OperatorGroup`s an Operator can belong to. Belonging to an `OperatorGroup` means that OLM provides the set of targetted namespaces as an annotation on the Operator's CSV and any deployments defined therin. These deployments can then untilize [the Downward API](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api) to inject the list of namespaces into its container(s). An `InstallMode` consists of an `InstallModeType` field and a boolean `Supported` field. There are four `InstallModeTypes`: 
+**InstallModes**: A set of `InstallMode`s that tell OLM which `OperatorGroup`s an Operator can belong to. Belonging to an `OperatorGroup` means that OLM provides the set of targeted namespaces as an annotation on the Operator's CSV and any deployments defined therein. These deployments can then utilize [the Downward API](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api) to inject the list of namespaces into their container(s). An `InstallMode` consists of an `InstallModeType` field and a boolean `Supported` field. There are four `InstallModeTypes`:
 * `OwnNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects its own namespace
 * `SingleNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects one namespace
 * `MultiNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects more than one namespace
