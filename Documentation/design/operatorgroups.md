@@ -21,7 +21,7 @@ If there exists more than one `OperatorGroup` in a single namespace, any CSV cre
 
 ### InstallModes and Supported OperatorGroups
 
-An `InstallMode` consists of an `InstallModeType` field and a boolean `Supported` field. A CSV's spec can contain a set of `InstallModes` of four distinct `InstallModeTypes`: 
+An `InstallMode` consists of an `InstallModeType` field and a boolean `Supported` field. A CSV's spec can contain a set of `InstallModes` of four distinct `InstallModeTypes`:
 * `OwnNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects its own namespace
 * `SingleNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects one namespace
 * `MultiNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects more than one namespace
@@ -56,11 +56,11 @@ kind: OperatorGroup
 metadata:
   name: my-group
   namespace: my-namespace
-  spec:
-    targetNamespaces:
-    - my-namespace
-    - my-other-namespace
-    - my-other-other-namespace
+spec:
+  targetNamespaces:
+  - my-namespace
+  - my-other-namespace
+  - my-other-other-namespace
 ```
 
 > Note: If both `spec.targetNamespaces` and `spec.selector` are defined, `spec.selector` is ignored.
@@ -142,7 +142,7 @@ When a CSV becomes an active member of an `OperatorGroup` and is not in a failed
   * A `<kind.group-version-admin>` ClusterRole is generated with the `*` verb on `<group>` `<kind>` with aggregation labels `rbac.authorization.k8s.io/aggregate-to-admin: true` and `olm.opgroup.permissions/aggregate-to-admin: <operatorgroup-name>`
   * A `<kind.group-version-edit>` ClusterRole is generated with the `create, update, patch, release` verbs on `<group>` `<kind>` with aggregation labels `rbac.authorization.k8s.io/aggregate-to-edit: true` and `olm.opgroup.permissions/aggregate-to-edit: <operatorgroup-name>`
   * A `<kind.group-version-view>` ClusterRole is generated with the `get, list, watch` verbs on `<group>` `<kind>` with aggregation labels `rbac.authorization.k8s.io/aggregate-to-view: true` and `olm.opgroup.permissions/aggregate-to-view: <operatorgroup-name>`
- 
+
 * If |target namespaces| == 1 and contains `*`:
   * A ClusterRole and corresponding ClusterRoleBinding are generated for each permission defined in the CSV's permissions field. All resources generated are given the `olm.owner: <csv-name>` and `olm.owner.namespace: <csv-namespace>` labels
 * Else for each target namespace:
@@ -215,4 +215,3 @@ Each time an `OperatorGroup` syncs:
   * If `olm.providedAPIs` contains any extraneous provided APIs:
     * `olm.providedAPIs` is pruned of any extraneous provided APIs (not provided on cluster)
 * All CSVs that provide the same APIs across all namespaces (including those removed) are requeued. This notifies conflicting CSVs in intersecting groups that their conflict has possibly been resolved, either through resizing or through deletion of the conflicting CSV.
-
