@@ -26,12 +26,14 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/version"
@@ -3002,6 +3004,7 @@ func TestUpdates(t *testing.T) {
 	}
 
 	deleted := v1alpha1.ClusterServiceVersionPhase("deleted")
+	noPrevious := v1alpha1.ClusterServiceVersionPhase("NoPrevious")
 
 	crd := crd("c1", "v1", "g1")
 	a := csv("csvA",
@@ -3211,13 +3214,40 @@ func TestUpdates(t *testing.T) {
 			for i := range tt.expected["csvA"] {
 				// sync all csvs once
 				for _, csv := range tt.in {
-					if i > 0 && tt.expected[csv.GetName()][i-1] == deleted {
-						// don't sync deleted csvs
+					name := csv.GetName()
+					expectedCurrent := tt.expected[name][i]
+					var expectedPrevious v1alpha1.ClusterServiceVersionPhase
+					if i > 0 {
+						expectedPrevious = tt.expected[name][i-1]
+					} else {
+						expectedPrevious = noPrevious
+					}
+
+					if expectedPrevious == deleted {
+						// don't sync previously deleted csvs
 						continue
 					}
-					fetched, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
+
+					// Get the CSV from the cluster
+					fetched, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
 					require.NoError(t, err)
-					op.syncClusterServiceVersion(fetched)
+
+					// Sync the CSV once
+					_ = op.syncClusterServiceVersion(fetched)
+
+					// If the csv was deleted by the sync, we don't bother waiting for listers to sync
+					if expectedCurrent == deleted {
+						continue
+					}
+
+					// If we expect a change, wait for listers to sync the change so that the next sync reflects the changes
+					if expectedCurrent != expectedPrevious {
+						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+							updated, err := op.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(csv.GetName())
+							return !equality.Semantic.DeepEqual(updated, fetched), err
+						})
+						require.NoError(t, err)
+					}
 				}
 
 				// check that each csv is in the expected phase
