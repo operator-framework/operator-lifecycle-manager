@@ -45,6 +45,7 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: Represents a plan to install and resolve dependencies for Cluster Services.
       properties:
         spec:
           type: object

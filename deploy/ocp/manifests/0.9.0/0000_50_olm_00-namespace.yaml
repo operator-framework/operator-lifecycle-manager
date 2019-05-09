@@ -4,6 +4,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: openshift-operator-lifecycle-manager
+  
   annotations:
     openshift.io/node-selector: ""
   labels:
@@ -15,6 +16,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: openshift-operators
+  
   annotations:
     openshift.io/node-selector: ""
   labels:

@@ -46,6 +46,7 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: Represents an Operator that should be running on the cluster, including requirements and install strategy.
       properties:
         spec:
           type: object

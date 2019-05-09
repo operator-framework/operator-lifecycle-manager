@@ -96,5 +96,5 @@ spec:
     {{- end }}
     {{- if .Values.olm.tolerations }}
       tolerations:
-{{ toYaml .Values.olm.tolerations | indent 8 }}
+{{ toYaml .Values.olm.tolerations | indent 6 }}
     {{- end }}

@@ -88,18 +88,20 @@ data:
                     nodeSelector:
                       beta.kubernetes.io/os: linux
                       node-role.kubernetes.io/master: ""
+                      
                     tolerations:
-                    - key: "node-role.kubernetes.io/master"
-                      operator: "Exists"
-                      effect: "NoSchedule"
-                    - key: "node.kubernetes.io/unreachable"
-                      operator: "Exists"
-                      effect: "NoExecute"
-                      tolerationSeconds: 120 
-                    - key: "node.kubernetes.io/not-ready"
-                      operator: "Exists"
-                      effect: "NoExecute"
-                      tolerationSeconds: 120 
+                    - effect: NoSchedule
+                      key: node-role.kubernetes.io/master
+                      operator: Exists
+                    - effect: NoExecute
+                      key: node.kubernetes.io/unreachable
+                      operator: Exists
+                      tolerationSeconds: 120
+                    - effect: NoExecute
+                      key: node.kubernetes.io/not-ready
+                      operator: Exists
+                      tolerationSeconds: 120
+                    
                     containers:
                     - name: packageserver
                       command:
@@ -123,6 +125,7 @@ data:
                           scheme: HTTPS
                           path: /healthz
                           port: 5443
+                      terminationMessagePolicy: FallbackToLogsOnError
         maturity: alpha
         version: 0.9.0
         apiservicedefinitions:
