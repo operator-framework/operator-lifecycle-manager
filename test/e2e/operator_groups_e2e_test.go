@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -496,10 +497,82 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 	_, err = fetchCSV(t, crc, csvA.GetName(), nsA, csvSucceededChecker)
 	require.NoError(t, err)
 
+	// Create a csv for an apiserver
+	depName := genName("hat-server")
+	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	version := "v1alpha1"
+	mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
+	mockKinds := []string{"fez", "fedora"}
+	mockNames := []string{"fezs", "fedoras"}
+	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: depName,
+				Spec: depSpec,
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
+	for i, kind := range mockKinds {
+		owned[i] = v1alpha1.APIServiceDescription{
+			Name:           mockNames[i],
+			Group:          mockGroup,
+			Version:        version,
+			Kind:           kind,
+			DeploymentName: depName,
+			ContainerPort:  int32(5443),
+			DisplayName:    kind,
+			Description:    fmt.Sprintf("A %s", kind),
+		}
+	}
+
+	csvB := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: owned,
+			},
+		},
+	}
+	csvB.SetName(depName)
+
+	// Create the APIService CSV
+	cleanupCSV, err := createCSV(t, c, crc, csvB, nsA, false, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csvB.GetName(), nsA, csvSucceededChecker)
+	require.NoError(t, err)
+
 	// Ensure clusterroles created and aggregated for access provided APIs
 	padmin, cleanupPadmin := createProjectAdmin(t, c, nsA)
 	defer cleanupPadmin()
 
+	// Check CRD access aggregated
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
 			Spec: authorizationv1.SubjectAccessReviewSpec{
@@ -520,6 +593,31 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 			return false, nil
 		}
 		t.Log("checking padmin for permission")
+		return res.Status.Allowed, nil
+	})
+	require.NoError(t, err)
+
+	// Check apiserver access aggregated
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
+			Spec: authorizationv1.SubjectAccessReviewSpec{
+				User: padmin,
+				ResourceAttributes: &authorizationv1.ResourceAttributes{
+					Namespace: nsA,
+					Group:     mockGroup,
+					Version:   version,
+					Resource:  mockNames[1],
+					Verb:      "create",
+				},
+			},
+		})
+		if err != nil {
+			return false, err
+		}
+		if res == nil {
+			return false, nil
+		}
+		t.Logf("checking padmin for permission: %#v", res)
 		return res.Status.Allowed, nil
 	})
 	require.NoError(t, err)
