@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -300,6 +301,29 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 		requiredAPIs: requiredAPIs,
 		sourceInfo:   &ExistingOperator,
 	}, nil
+}
+
+func (o *Operator) ValidateExamplesAnnotation(csv *v1alpha1.ClusterServiceVersion) (map[string]interface{}, error) {
+	var examples map[string]interface{}
+	annotations := csv.ObjectMeta.GetAnnotations()
+	if annotations == nil {
+		return nil, fmt.Errorf("Unable to get annotations")
+	}
+
+	almExamples, ok := annotations["alm-examples"]
+	if !ok {
+		return nil, fmt.Errorf("Unable to get alm-examples annotations")
+	}
+
+	if json.Unmarshal([]byte(almExamples), &examples) == nil {
+		return nil, fmt.Errorf("Unable to parse alm-examples annotations")
+	}
+
+	return examples, nil
+}
+
+func (o *Operator) MatchGVKProvidedAPIs(examples map[string]interface{}, providedAPI APISet) error {
+	return nil
 }
 
 func (o *Operator) ProvidedAPIs() APISet {
