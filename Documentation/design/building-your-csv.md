@@ -220,7 +220,7 @@ The metadata section contains general metadata around the name, version and othe
 
 **Provider**: The name of the publishing entity behind the Operator
 
-**Maturity**: The stability of the Operator, eg. alpha, beta or stable
+**Maturity**: Level of maturity the Operator has achieved at this version, eg. planning, pre-alpha, alpha, beta, stable, mature, inactive, or deprecated.
 
 **Version**: The semanic version of the Operator. This value should be incremented each time a new Operator image is published.
 
