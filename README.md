@@ -114,7 +114,7 @@ Use the OpenShift admin console (compatible with upstream Kubernetes) to interac
 Ensure `kubectl` is pointing at a cluster and run:
 
 ```shell
-$ ./scripts/run_console_local.sh
+$ make run-console-local
 ```
 
 Then visit `http://localhost:9000` to view the console.

@@ -195,3 +195,12 @@ endif
 ifeq ($(quickstart), true)
 	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml
 endif
+
+##########################
+#  OLM - Commands        #
+##########################
+
+.PHONY: run-console-local
+run-console-local:
+	@echo Running script to run the OLM console locally:
+	. ./scripts/run_console_local.sh
