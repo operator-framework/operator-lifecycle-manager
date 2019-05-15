@@ -211,7 +211,6 @@ func crd(key opregistry.APIKey) *v1beta1.CustomResourceDefinition {
 }
 
 func u(object runtime.Object) *unstructured.Unstructured {
-	fmt.Println(object)
 	unst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(object)
 	if err != nil {
 		panic(err)
