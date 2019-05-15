@@ -715,6 +715,8 @@ func (a *Operator) getOperatorGroupTargets(op *v1.OperatorGroup) (map[string]str
 		matchedNamespaces, err := a.lister.CoreV1().NamespaceLister().List(selector)
 		if err != nil {
 			return nil, err
+		} else if len(matchedNamespaces) == 0 {
+			a.Log.Debugf("No matched TargetNamespaces are found for given selector: %#v\n", selector)
 		}
 
 		for _, ns := range matchedNamespaces {

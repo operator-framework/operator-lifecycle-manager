@@ -3375,6 +3375,23 @@ func TestSyncOperatorGroups(t *testing.T) {
 		},
 	}
 
+	// Failed CSV due to operatorgroup namespace selector doesn't any existing namespaces
+	operatorCSVFailedNoTargetNS := operatorCSV.DeepCopy()
+	operatorCSVFailedNoTargetNS.Status.Phase = v1alpha1.CSVPhaseFailed
+	operatorCSVFailedNoTargetNS.Status.Message = "no targetNamespaces are matched operatorgroups namespace selection"
+	operatorCSVFailedNoTargetNS.Status.Reason = v1alpha1.CSVReasonNoTargetNamespaces
+	operatorCSVFailedNoTargetNS.Status.LastUpdateTime = timeNow()
+	operatorCSVFailedNoTargetNS.Status.LastTransitionTime = timeNow()
+	operatorCSVFailedNoTargetNS.Status.Conditions = []v1alpha1.ClusterServiceVersionCondition{
+		{
+			Phase:              v1alpha1.CSVPhaseFailed,
+			Reason:             v1alpha1.CSVReasonNoTargetNamespaces,
+			Message:            "no targetNamespaces are matched operatorgroups namespace selection",
+			LastUpdateTime:     timeNow(),
+			LastTransitionTime: timeNow(),
+		},
+	}
+
 	targetCSV := operatorCSVFinal.DeepCopy()
 	targetCSV.SetNamespace(targetNamespace)
 	targetCSV.Status.Reason = v1alpha1.CSVReasonCopied
@@ -3488,6 +3505,47 @@ func TestSyncOperatorGroups(t *testing.T) {
 				},
 			},
 			expectedStatus: v1.OperatorGroupStatus{},
+		},
+		{
+			name:          "NoMatchingNamespace/CSVPresent",
+			expectedEqual: true,
+			initial: initial{
+				operatorGroup: &v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "operator-group-1",
+						Namespace: operatorNamespace,
+					},
+					Spec: v1.OperatorGroupSpec{
+						Selector: &metav1.LabelSelector{
+							MatchLabels: map[string]string{"a": "app-a"},
+						},
+					},
+				},
+				clientObjs: []runtime.Object{operatorCSV},
+				k8sObjs: []runtime.Object{
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: operatorNamespace,
+						},
+					},
+					&corev1.Namespace{
+						ObjectMeta: metav1.ObjectMeta{
+							Name: targetNamespace,
+						},
+					},
+					ownedDeployment,
+					serviceAccount,
+					role,
+					roleBinding,
+				},
+				crds: []runtime.Object{crd},
+			},
+			expectedStatus: v1.OperatorGroupStatus{},
+			final: final{objects: map[string][]runtime.Object{
+				operatorNamespace: {
+					withAnnotations(operatorCSVFailedNoTargetNS.DeepCopy(), map[string]string{v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
+				},
+			}},
 		},
 		{
 			name:          "MatchingNamespace/NoCSVs",
