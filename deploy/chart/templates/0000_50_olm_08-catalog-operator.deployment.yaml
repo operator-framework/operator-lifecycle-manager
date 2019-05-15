@@ -92,5 +92,5 @@ spec:
     {{- end }}
     {{- if .Values.catalog.tolerations }}
       tolerations:
-{{ toYaml .Values.catalog.tolerations | indent 8 }}
+{{ toYaml .Values.catalog.tolerations | indent 6 }}
     {{- end }}

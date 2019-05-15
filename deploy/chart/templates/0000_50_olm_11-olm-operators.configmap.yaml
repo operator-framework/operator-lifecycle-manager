@@ -6,6 +6,6 @@ metadata:
 data:
   customResourceDefinitions: |-
   clusterServiceVersions: |-
-{{- include "packageserver.clusterserviceversion" . | nindent 4 }}
+{{- include "packageserver.clusterserviceversion" . | cat "-" | nindent 6 | replace "      - apiVersion" "    - apiVersion" }}
   packages: |- 
 {{- include "packageserver.package" . | nindent 4 }}

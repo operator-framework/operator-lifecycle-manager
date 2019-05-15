@@ -5,6 +5,11 @@ RUN yum install -y make git
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
+# install helm for templating - used in verification tests
+RUN curl -LO https://storage.googleapis.com/kubernetes-helm/helm-v2.13.1-linux-amd64.tar.gz && \
+    tar -zxvf helm-v2.13.1-linux-amd64.tar.gz && \
+    mv linux-amd64/helm /usr/local/bin/helm
+
 WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
@@ -18,8 +23,10 @@ COPY pkg pkg
 COPY vendor vendor
 COPY cmd cmd
 COPY test test
+COPY scripts scripts
+COPY deploy deploy
+RUN make verify-manifests
 RUN make build
-
 
 FROM openshift/origin-base
 

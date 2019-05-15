@@ -21,7 +21,7 @@ spec:
       {{- end }}
       {{- if .Values.package.tolerations }}
       tolerations:
-        {{- toYaml .Values.package.tolerations | nindent 8 }}
+        {{- toYaml .Values.package.tolerations | nindent 6 }}
       {{- end }}
       containers:
       - name: packageserver
