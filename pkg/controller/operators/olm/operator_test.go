@@ -61,6 +61,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 )
 
 // Fakes
@@ -163,16 +164,24 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	}
 
 	// Create the new operator
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.StandardLogger())
+	logger := logrus.StandardLogger()
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logger)
+
+	lister := operatorlister.NewLister()
+	csvSetGenerator := csvutility.NewSetGenerator(logger, lister)
+	csvReplaceFinder := csvutility.NewReplaceFinder(logger, clientFake)
+
 	op := &Operator{
-		Operator:      queueOperator,
-		client:        clientFake,
-		resolver:      strategyResolver,
-		apiReconciler: apiReconciler,
-		lister:        operatorlister.NewLister(),
-		csvQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
-		recorder:      eventRecorder,
-		apiLabeler:    apiLabeler,
+		Operator:         queueOperator,
+		client:           clientFake,
+		resolver:         strategyResolver,
+		apiReconciler:    apiReconciler,
+		lister:           lister,
+		csvQueueSet:      queueinformer.NewEmptyResourceQueueSet(),
+		recorder:         eventRecorder,
+		apiLabeler:       apiLabeler,
+		csvSetGenerator:  csvSetGenerator,
+		csvReplaceFinder: csvReplaceFinder,
 	}
 
 	wakeupInterval := 5 * time.Minute
@@ -216,7 +225,7 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	}
 	// Register separate queue for copying csvs
 	csvCopyQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvCopy")
-	csvQueueIndexer := queueinformer.NewQueueIndexer(csvCopyQueue, csvIndexes, op.syncCopyCSV, "csvCopy", logrus.StandardLogger(), metrics.NewMetricsNil())
+	csvQueueIndexer := queueinformer.NewQueueIndexer(csvCopyQueue, csvIndexes, op.syncCopyCSV, "csvCopy", logger, metrics.NewMetricsNil())
 	op.RegisterQueueIndexer(csvQueueIndexer)
 	op.copyQueueIndexer = csvQueueIndexer
 
@@ -258,6 +267,23 @@ func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconcilia
 	reconciler := &fakes.FakeAPIIntersectionReconciler{}
 	reconciler.ReconcileReturns(result)
 	return reconciler
+}
+
+func NewFakeOperatorDefault() *Operator {
+	logger := logrus.StandardLogger()
+
+	clientFake := fake.NewSimpleClientset()
+	lister := operatorlister.NewLister()
+	csvSetGenerator := csvutility.NewSetGenerator(logger, lister)
+	csvReplaceFinder := csvutility.NewReplaceFinder(logger, clientFake)
+
+	return &Operator{
+		Operator: &queueinformer.Operator{
+			Log: logrus.New(),
+		},
+		csvSetGenerator:  csvSetGenerator,
+		csvReplaceFinder: csvReplaceFinder,
+	}
 }
 
 // Tests
@@ -4403,7 +4429,7 @@ func TestIsBeingReplaced(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op := &Operator{Operator: &queueinformer.Operator{Log: logrus.New()}}
+			op := NewFakeOperatorDefault()
 
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
@@ -4451,7 +4477,7 @@ func TestCheckReplacement(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// configure cluster state
-			op := &Operator{Operator: &queueinformer.Operator{Log: logrus.New()}}
+			op := NewFakeOperatorDefault()
 
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
