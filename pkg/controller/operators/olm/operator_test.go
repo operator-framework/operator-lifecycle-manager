@@ -27,6 +27,7 @@ import (
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/apimachinery/pkg/api/equality"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -3248,6 +3249,9 @@ func TestUpdates(t *testing.T) {
 					if expectedCurrent != expectedPrevious {
 						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
 							updated, err := op.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(csv.GetName())
+							if k8serrors.IsNotFound(err) {
+								return false, nil
+							}
 							return !equality.Semantic.DeepEqual(updated, fetched), err
 						})
 						require.NoError(t, err)
