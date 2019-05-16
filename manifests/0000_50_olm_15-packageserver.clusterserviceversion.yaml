@@ -3,6 +3,8 @@ kind: ClusterServiceVersion
 metadata:
   name: packageserver.v0.10.1
   namespace: openshift-operator-lifecycle-manager
+  labels:
+    olm.clusteroperator.name: operator-lifecycle-manager-packageserver
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.

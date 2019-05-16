@@ -40,6 +40,10 @@ spec:
           - -writeStatusName
           - {{ .Values.writeStatusName }}
           {{- end }}
+          {{- if .Values.writePackageServerStatusName }}
+          - -writePackageServerStatusName
+          - {{ .Values.writePackageServerStatusName }}
+          {{- end }}
           {{- if .Values.olm.tlsCertPath }}
           - -tls-cert
           - {{ .Values.olm.tlsCertPath }}

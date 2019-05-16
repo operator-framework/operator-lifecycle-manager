@@ -5,6 +5,7 @@ catalog_namespace: olm
 operator_namespace: operators
 imagestream: false
 writeStatusName: '""'
+writePackageServerStatusName: ""
 olm:
   replicaCount: 1
   image:
