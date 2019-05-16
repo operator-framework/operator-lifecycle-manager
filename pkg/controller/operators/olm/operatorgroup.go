@@ -468,7 +468,7 @@ func (a *Operator) ensureTenantRBAC(operatorNamespace, targetNamespace string, c
 		if !ownerutil.IsOwnedBy(ownedRoleBinding, csv) {
 			continue
 		}
-		_, ok := targetRolesByName[ownedRoleBinding.GetName()]
+		_, ok := targetRoleBindingsByName[ownedRoleBinding.GetName()]
 
 		// role binding exists
 		if ok {
@@ -520,6 +520,7 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 			var targetCSV *v1alpha1.ClusterServiceVersion
 			if targetCSV, err = a.copyToNamespace(csv, ns.GetName()); err != nil {
 				a.Log.WithError(err).Debug("error copying to target")
+				continue
 			}
 			targetCSVs[ns.GetName()] = targetCSV
 		} else {
@@ -532,6 +533,10 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 	targetNamespaces := operatorGroup.Status.Namespaces
 	if targetNamespaces == nil {
 		a.Log.Errorf("operatorgroup '%v' should have non-nil status", operatorGroup.GetName())
+		return nil
+	}
+	if len(targetNamespaces) == 1 && targetNamespaces[0] == corev1.NamespaceAll {
+		// global operator group handled by ensureRBACInTargetNamespace
 		return nil
 	}
 	for _, ns := range targetNamespaces {
@@ -547,6 +552,8 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 		if permMet {
 			logger.Debug("operator has access")
 			continue
+		} else {
+			logger.Debug("operator needs access, going to create permissions")
 		}
 
 		targetCSV, ok := targetCSVs[ns]
@@ -557,6 +564,7 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 			logger.WithError(err).Debug("ensuring tenant rbac")
 			return err
 		}
+		logger.Debug("permissions created")
 	}
 
 	return nil
@@ -583,7 +591,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 			fetchedCSV.SetLabels(utillabels.AddLabel(fetchedCSV.GetLabels(), v1alpha1.CopiedLabelKey, csv.GetNamespace()))
 			// CRs don't support strategic merge patching, but in the future if they do this should be updated to patch
 			logger.Debug("updating target CSV")
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(fetchedCSV); err != nil {
+			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Update(fetchedCSV); err != nil {
 				logger.WithError(err).Error("update target CSV failed")
 				return nil, err
 			}
@@ -599,7 +607,7 @@ func (a *Operator) copyToNamespace(csv *v1alpha1.ClusterServiceVersion, namespac
 			// Must use fetchedCSV because UpdateStatus(...) checks resource UID.
 			fetchedCSV.Status = newCSV.Status
 			fetchedCSV.Status.LastUpdateTime = timeNow()
-			if _, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(fetchedCSV); err != nil {
+			if fetchedCSV, err = a.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).UpdateStatus(fetchedCSV); err != nil {
 				logger.WithError(err).Error("status update for target CSV failed")
 				return nil, err
 			}

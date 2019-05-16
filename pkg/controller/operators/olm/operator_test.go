@@ -231,6 +231,10 @@ func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extO
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
 	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(customResourceDefinitionInformer.Lister())
 
+	// TODO: are there other resources that query all namespaces?
+	csvInformerAll := externalversions.NewSharedInformerFactory(clientFake, wakeupInterval).Operators().V1alpha1().ClusterServiceVersions()
+	op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformerAll.Lister())
+
 	var hasSyncedCheckFns []cache.InformerSynced
 	for _, informer := range informerList {
 		op.RegisterInformer(informer)
@@ -3470,11 +3474,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 		objects map[string][]runtime.Object
 	}
 	tests := []struct {
-		initial        initial
-		name           string
-		expectedEqual  bool
-		expectedStatus v1.OperatorGroupStatus
-		final          final
+		initial         initial
+		name            string
+		expectedEqual   bool
+		expectedStatus  v1.OperatorGroupStatus
+		final           final
+		ignoreCopyError bool
 	}{
 		{
 			name:          "NoMatchingNamespace/NoCSVs",
@@ -3546,6 +3551,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					withAnnotations(operatorCSVFailedNoTargetNS.DeepCopy(), map[string]string{v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 				},
 			}},
+			ignoreCopyError: true,
 		},
 		{
 			name:          "MatchingNamespace/NoCSVs",
@@ -4147,24 +4153,66 @@ func TestSyncOperatorGroups(t *testing.T) {
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
 			require.NoError(t, err)
 
+			// wait on operator group updated status to be in the cache as it is required for later CSV operations
+			err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+				operatorGroup, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName())
+				if err != nil {
+					return false, err
+				}
+				sort.Strings(tt.expectedStatus.Namespaces)
+				sort.Strings(operatorGroup.Status.Namespaces)
+				if !reflect.DeepEqual(tt.expectedStatus, operatorGroup.Status) {
+					return false, err
+				}
+				return true, nil
+			})
+			require.NoError(t, err)
+
+			// this must be done twice to have annotateCSVs run in syncOperatorGroups
+			// and to catch provided API changes
+			err = op.syncOperatorGroups(tt.initial.operatorGroup)
+			require.NoError(t, err)
+
 			// Sync csvs enough to get them back to succeeded state
 			for i := 0; i < 8; i++ {
 				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
 				require.NoError(t, err)
 
-				for _, obj := range opGroupCSVs.Items {
+				for i, obj := range opGroupCSVs.Items {
 
 					err = op.syncClusterServiceVersion(&obj)
 					require.NoError(t, err, "%#v", obj)
 
 					err = op.syncCopyCSV(&obj)
-					require.NoError(t, err, "%#v", obj)
+					if !tt.ignoreCopyError {
+						require.NoError(t, err, "%#v", obj)
+					}
+
+					if i == 0 {
+						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+							for namespace, objects := range tt.final.objects {
+								if err := RequireObjectsInCache(t, op.lister, namespace, objects, false); err != nil {
+									return false, nil
+								}
+							}
+							return true, nil
+						})
+						require.NoError(t, err)
+					}
+
+					if i == 8 {
+						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+							for namespace, objects := range tt.final.objects {
+								if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
+									return false, nil
+								}
+							}
+							return true, nil
+						})
+						require.NoError(t, err)
+					}
 				}
 			}
-
-			// Sync again to catch provided API changes
-			err = op.syncOperatorGroups(tt.initial.operatorGroup)
-			require.NoError(t, err)
 
 			operatorGroup, err := op.GetClient().OperatorsV1().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName(), metav1.GetOptions{})
 			require.NoError(t, err)
@@ -4177,6 +4225,41 @@ func TestSyncOperatorGroups(t *testing.T) {
 			}
 		})
 	}
+}
+
+func RequireObjectsInCache(t *testing.T, lister operatorlister.OperatorLister, namespace string, objects []runtime.Object, doCompare bool) error {
+	for _, object := range objects {
+		var err error
+		var fetched runtime.Object
+		switch o := object.(type) {
+		case *appsv1.Deployment:
+			fetched, err = lister.AppsV1().DeploymentLister().Deployments(namespace).Get(o.GetName())
+		case *rbacv1.ClusterRole:
+			fetched, err = lister.RbacV1().ClusterRoleLister().Get(o.GetName())
+		case *rbacv1.Role:
+			fetched, err = lister.RbacV1().RoleLister().Roles(namespace).Get(o.GetName())
+		case *rbacv1.ClusterRoleBinding:
+			fetched, err = lister.RbacV1().ClusterRoleBindingLister().Get(o.GetName())
+		case *rbacv1.RoleBinding:
+			fetched, err = lister.RbacV1().RoleBindingLister().RoleBindings(namespace).Get(o.GetName())
+		case *v1alpha1.ClusterServiceVersion:
+			fetched, err = lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(o.GetName())
+		case *v1.OperatorGroup:
+			fetched, err = lister.OperatorsV1().OperatorGroupLister().OperatorGroups(namespace).Get(o.GetName())
+		default:
+			require.Failf(t, "couldn't find expected object", "%#v", object)
+		}
+		if err != nil {
+			return fmt.Errorf("namespace: %v, error: %v", namespace, err)
+		}
+		if doCompare {
+			if !reflect.DeepEqual(object, fetched) {
+				diff.ObjectDiff(object, fetched)
+				return fmt.Errorf("expected object didn't match %v", object)
+			}
+		}
+	}
+	return nil
 }
 
 func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInterface, client versioned.Interface, namespace string, objects []runtime.Object) {
