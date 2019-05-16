@@ -11,7 +11,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/operator-framework/operator-registry/pkg/schema"
@@ -88,19 +87,22 @@ func (d *DirectoryLoader) LoadBundleWalkFunc(path string, f os.FileInfo, err err
 		return nil
 	}
 
-	if !strings.HasSuffix(path, ".clusterserviceversion.yaml") {
-		log.Info("skipping non-csv file")
+	fileReader, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("unable to load file %s: %v", path, err)
+	}
+
+	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
+	csv := v1alpha1.ClusterServiceVersion{}
+
+	log.Info("found csv, loading bundle")
+	if err = decoder.Decode(&csv); err != nil {
+		log.Infof("could not decode contents of file %s into package: %v", path, err)
 		return nil
 	}
 
-	log.Info("found csv, loading bundle")
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("unable to load CSV from file %s: %v", path, err)
-	}
-	csv := v1alpha1.ClusterServiceVersion{}
-	if _, _, err = scheme.Codecs.UniversalDecoder().Decode(data, nil, &csv); err != nil {
-		return fmt.Errorf("could not decode contents of file %s into CSV: %v", path, err)
+	if csv.Kind != v1alpha1.ClusterServiceVersionKind {
+		return nil
 	}
 
 	bundle, err := d.LoadBundle(filepath.Dir(path))
@@ -143,15 +145,20 @@ func (d *DirectoryLoader) LoadBundle(dir string) (*registry.Bundle, error) {
 		}
 
 		log.Info("loading bundle file")
-		data, err := ioutil.ReadFile(filepath.Join(dir, f.Name()))
+		path := filepath.Join(dir, f.Name())
+		fileReader, err := os.Open(path)
 		if err != nil {
-			return nil, fmt.Errorf("unable to load bundle file %s: %v", f.Name(), err)
+			return nil, fmt.Errorf("unable to load file %s: %v", path, err)
+		}
+		decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
+		obj := &unstructured.Unstructured{}
+
+		log.Info("found csv, loading bundle")
+		if err = decoder.Decode(obj); err != nil {
+			log.Infof("could not decode contents of file %s into file: %v", path, err)
+			return nil, nil
 		}
 
-		obj := &unstructured.Unstructured{}
-		if _, _, err = registry.DefaultYAMLDecoder().Decode(data, nil, obj); err != nil {
-			return nil, fmt.Errorf("could not decode contents of file %s into object: %v", f.Name(), err)
-		}
 		if obj != nil {
 			bundle.Add(obj)
 		}
@@ -179,11 +186,6 @@ func (d *DirectoryLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err e
 		return nil
 	}
 
-	if !strings.HasSuffix(path, ".package.yaml") {
-		log.Info("skipping non-package file")
-		return nil
-	}
-
 	fileReader, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("unable to load package from file %s: %v", path, err)
@@ -192,7 +194,11 @@ func (d *DirectoryLoader) LoadPackagesWalkFunc(path string, f os.FileInfo, err e
 	decoder := yaml.NewYAMLOrJSONDecoder(fileReader, 30)
 	manifest := registry.PackageManifest{}
 	if err = decoder.Decode(&manifest); err != nil {
-		return fmt.Errorf("could not decode contents of file %s into package: %v", path, err)
+		 log.Infof("could not decode contents of file %s into package: %v", path, err)
+		 return nil
+	}
+	if manifest.PackageName == "" {
+		return nil
 	}
 
 	if err := d.store.AddPackageChannels(manifest); err != nil {

@@ -33,12 +33,13 @@ require (
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible
 	github.com/openshift/client-go v0.0.0-20190401163519-84c2b942258a
-	github.com/operator-framework/operator-registry v1.1.0
+	github.com/operator-framework/operator-registry v1.1.1
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.2
 	github.com/sirupsen/logrus v1.4.1
 	github.com/spf13/cobra v0.0.3
 	github.com/stretchr/testify v1.2.2
+	go.uber.org/atomic v1.4.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5 // indirect
 	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db // indirect
@@ -49,7 +50,7 @@ require (
 	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
 	k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
 	k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
-	k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34
+	k8s.io/apiserver v0.0.0-20190518070817-682b37ff211e
 	k8s.io/cli-runtime v0.0.0-20190221101700-11047e25a94a // indirect
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
