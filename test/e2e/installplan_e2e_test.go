@@ -174,8 +174,8 @@ func newCSV(name, namespace, replaces string, version semver.Version, owned []ap
 			},
 			InstallStrategy: namedStrategy,
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
-				Owned:    []v1alpha1.CRDDescription{},
-				Required: []v1alpha1.CRDDescription{},
+				Owned:    nil,
+				Required: nil,
 			},
 		},
 	}

@@ -102,6 +102,9 @@ type CSVDescription struct {
 
 	// InstallModes specify supported installation types
 	InstallModes []operatorv1alpha1.InstallMode `json:"installModes,omitempty"`
+
+	CustomResourceDefinitions operatorv1alpha1.CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
+	APIServiceDefinitions     operatorv1alpha1.APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`
 }
 
 // AppLink defines a link to an application
