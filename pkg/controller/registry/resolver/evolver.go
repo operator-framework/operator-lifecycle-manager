@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"github.com/blang/semver"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/pkg/errors"
 )
@@ -14,12 +15,13 @@ type Evolver interface {
 }
 
 type NamespaceGenerationEvolver struct {
-	querier SourceQuerier
-	gen     Generation
+	querier       SourceQuerier
+	gen           Generation
+	serverVersion *semver.Version
 }
 
-func NewNamespaceGenerationEvolver(querier SourceQuerier, gen Generation) Evolver {
-	return &NamespaceGenerationEvolver{querier: querier, gen: gen}
+func NewNamespaceGenerationEvolver(querier SourceQuerier, gen Generation, serverVersion *semver.Version) Evolver {
+	return &NamespaceGenerationEvolver{querier: querier, gen: gen, serverVersion: serverVersion}
 }
 
 // Evolve takes new requested operators, adds them to the generation, and attempts to resolve dependencies with querier
@@ -93,6 +95,10 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
+		// omit any new operators that wouldn't be installable due to minKubeVersion
+		if o.MinKubeVersion() != nil && e.serverVersion.LT(*o.MinKubeVersion()) {
+			continue
+		}
 		if err := e.gen.AddOperator(o); err != nil {
 			if err != nil {
 				return errors.Wrap(err, "error calculating generation changes due to new bundle")
@@ -119,6 +125,13 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 			if err != nil {
 				return errors.Wrap(err, "error parsing bundle")
 			}
+
+			// TODO: bubble this information so that it can be written to a status
+			// omit any new operators that wouldn't be installable due to minKubeVersion
+			if o.MinKubeVersion() != nil && e.serverVersion.LT(*o.MinKubeVersion()) {
+				continue
+			}
+
 			if err := e.gen.AddOperator(o); err != nil {
 				return errors.Wrap(err, "error calculating generation changes due to new bundle")
 			}

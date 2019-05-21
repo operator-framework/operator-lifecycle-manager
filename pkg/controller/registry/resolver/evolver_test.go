@@ -4,11 +4,15 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/coreos/go-semver/semver"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNamespaceGenerationEvolver(t *testing.T) {
+	kubeServerVersion := semver.New("1.0.0")
+	requireNewerKube := semver.New("1.1.1")
+	requireOlderKube := semver.New("0.1.0")
 	type fields struct {
 		querier SourceQuerier
 		gen     Generation
@@ -55,7 +59,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -68,8 +72,8 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
-				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", "", nil, nil, nil, nil),
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
+				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", "", nil, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -83,7 +87,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -97,8 +101,8 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
-				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", "nothing.v1", nil, nil, nil, nil),
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
+				NewFakeOperatorSurface("nothing.v1", "nothing", "channel", "", "catsrc", "nothing.v1", nil, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -111,7 +115,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -125,7 +129,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 			),
 			wantErr: fmt.Errorf("{nothing channel nothing.v1 {catsrc catsrc-namespace}} not found: no bundle found"),
 		},
@@ -163,7 +167,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+					NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -176,7 +180,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("op1", "pkgA", "c", "", "s", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -202,8 +206,8 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -264,9 +268,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
-				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -300,9 +304,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}),
-				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil),
+				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", nil, nil, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
 			),
 		},
 		{
@@ -322,7 +326,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("original", "o", "c", "", "s", "", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
+					NewFakeOperatorSurface("original", "o", "c", "", "s", "", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -335,10 +339,10 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("original", "o", "c", "", "s", "", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil),
-				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil),
+				NewFakeOperatorSurface("original", "o", "c", "", "s", "", []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider2.v1", "provider2", "channel", "", "catsrc", "", []opregistry.APIKey{{"g2", "v2", "k2", "k2s"}}, []opregistry.APIKey{{"g3", "v3", "k3", "k3s"}}, nil, nil, nil),
 			),
 		},
 		{
@@ -355,7 +359,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					},
 				}),
 				gen: NewGenerationFromOperators(
-					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", nil, nil, nil, nil),
+					NewFakeOperatorSurface("original", "o", "c", "", "catsrc", "", nil, nil, nil, nil, nil),
 				),
 			},
 			args: args{
@@ -368,9 +372,9 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 				},
 			},
 			wantGen: NewGenerationFromOperators(
-				NewFakeOperatorSurface("updated", "o", "c", "original", "catsrc", "", nil, nil, nil, nil),
-				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil),
-				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("updated", "o", "c", "original", "catsrc", "", nil, nil, nil, nil, nil),
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, nil),
 			),
 		},
 		{
@@ -410,12 +414,91 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 					"original"),
 			),
 		},
+		{
+			// the incoming subscription requires apis that can be found and run on this version of kube
+			// this should produce a set with the new provider
+			name: "NewRequiredAPIs/FoundProvider/MinKubeVersion/ExactVersion",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundleWithMinKubeVersion("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), nil),
+						bundleWithMinKubeVersion("provider.v1", "provider", "channel", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), kubeServerVersion),
+					},
+				}),
+				gen: NewEmptyGeneration(),
+			},
+			args: args{
+				add: map[OperatorSourceInfo]struct{}{
+					OperatorSourceInfo{
+						Package: "depender",
+						Channel: "channel",
+						Catalog: CatalogKey{"catsrc", "catsrc-namespace"},
+					}: {},
+				},
+			},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, kubeServerVersion),
+			),
+		},
+		{
+			// the incoming subscription requires apis that can be found and run on this version of kube
+			// this should produce a set with the new provider
+			name: "NewRequiredAPIs/FoundProvider/MinKubeVersion/OlderVersion",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundleWithMinKubeVersion("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), nil),
+						bundleWithMinKubeVersion("provider.v1", "provider", "channel", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), requireOlderKube),
+					},
+				}),
+				gen: NewEmptyGeneration(),
+			},
+			args: args{
+				add: map[OperatorSourceInfo]struct{}{
+					OperatorSourceInfo{
+						Package: "depender",
+						Channel: "channel",
+						Catalog: CatalogKey{"catsrc", "catsrc-namespace"},
+					}: {},
+				},
+			},
+			wantGen: NewGenerationFromOperators(
+				NewFakeOperatorSurface("depender.v1", "depender", "channel", "", "catsrc", "", nil, []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil),
+				NewFakeOperatorSurface("provider.v1", "provider", "channel", "", "catsrc", "", []opregistry.APIKey{{"g", "v", "k", "ks"}}, nil, nil, nil, requireOlderKube),
+			),
+		},
+		{
+			// the incoming subscription requires apis that can be found
+			// but the the provider doesn't run on the current version of kube
+			name: "NewRequiredAPIs/FoundProvider/MinKubeVersion/NewerVersion",
+			fields: fields{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+					CatalogKey{"catsrc", "catsrc-namespace"}: {
+						bundleWithMinKubeVersion("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), nil),
+						bundleWithMinKubeVersion("provider.v1", "provider", "channel", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), requireNewerKube),
+					},
+				}),
+				gen: NewEmptyGeneration(),
+			},
+			args: args{
+				add: map[OperatorSourceInfo]struct{}{
+					OperatorSourceInfo{
+						Package: "depender",
+						Channel: "channel",
+						Catalog: CatalogKey{"catsrc", "catsrc-namespace"},
+					}: {},
+				},
+			},
+			wantGen: NewEmptyGeneration(),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := NewNamespaceGenerationEvolver(tt.fields.querier, tt.fields.gen)
+			e := NewNamespaceGenerationEvolver(tt.fields.querier, tt.fields.gen, kubeServerVersion)
 			err := e.Evolve(tt.args.add)
 			if tt.wantErr != nil {
+				require.NotNil(t, err)
 				require.EqualError(t, tt.wantErr, err.Error())
 			} else {
 				// if there was no error, then the generation should have "evolved" to a new good set

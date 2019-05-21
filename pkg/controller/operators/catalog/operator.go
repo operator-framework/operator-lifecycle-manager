@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	registryclient "github.com/operator-framework/operator-registry/pkg/client"
 	errorwrap "github.com/pkg/errors"
@@ -117,8 +119,15 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		lister:         lister,
 		namespace:      operatorNamespace,
 		sources:        make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
 	}
+
+	serverVersionInfo, err := op.OpClient.KubernetesInterface().Discovery().ServerVersion()
+	if err != nil {
+		return nil, err
+	}
+
+	serverVersion := semver.MustParse(strings.Split(strings.TrimPrefix(serverVersionInfo.String(), "v"), "-")[0])
+	op.resolver = resolver.NewOperatorsV1alpha1Resolver(lister, &serverVersion)
 
 	// Create an informer for each catalog namespace
 	deleteCatSrc := &cache.ResourceEventHandlerFuncs{

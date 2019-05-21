@@ -218,18 +218,20 @@ type OperatorSurface interface {
 	Identifier() string
 	Replaces() string
 	Version() *semver.Version
+	MinKubeVersion() *semver.Version
 	SourceInfo() *OperatorSourceInfo
 	Bundle() *opregistry.Bundle
 }
 
 type Operator struct {
-	name         string
-	replaces     string
-	providedAPIs APISet
-	requiredAPIs APISet
-	version      *semver.Version
-	bundle       *opregistry.Bundle
-	sourceInfo   *OperatorSourceInfo
+	name           string
+	replaces       string
+	providedAPIs   APISet
+	requiredAPIs   APISet
+	version        *semver.Version
+	minKubeVersion *semver.Version
+	bundle         *opregistry.Bundle
+	sourceInfo     *OperatorSourceInfo
 }
 
 var _ OperatorSurface = &Operator{}
@@ -251,13 +253,21 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, replaces string, startingC
 	if r == "" {
 		r = csv.Spec.Replaces
 	}
+
+	var minKubeVersion *semver.Version
+	if minKube, err := semver.ParseTolerant(csv.Spec.MinKubeVersion); err != nil {
+		minKubeVersion = nil
+	} else {
+		minKubeVersion = &minKube
+	}
 	return &Operator{
-		name:         csv.GetName(),
-		replaces:     r,
-		version:      &csv.Spec.Version.Version,
-		providedAPIs: providedAPIs,
-		requiredAPIs: requiredAPIs,
-		bundle:       bundle,
+		name:           csv.GetName(),
+		replaces:       r,
+		minKubeVersion: minKubeVersion,
+		version:        &csv.Spec.Version.Version,
+		providedAPIs:   providedAPIs,
+		requiredAPIs:   requiredAPIs,
+		bundle:         bundle,
 		sourceInfo: &OperatorSourceInfo{
 			Package:     bundle.Package,
 			Channel:     bundle.Channel,
@@ -291,14 +301,20 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 	for _, api := range csv.Spec.APIServiceDefinitions.Required {
 		requiredAPIs[opregistry.APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
 	}
-
+	var minKubeVersion *semver.Version
+	if minKube, err := semver.ParseTolerant(csv.Spec.MinKubeVersion); err != nil {
+		minKubeVersion = nil
+	} else {
+		minKubeVersion = &minKube
+	}
 	return &Operator{
-		name:         csv.GetName(),
-		version:      &csv.Spec.Version.Version,
-		replaces:     csv.Spec.Replaces,
-		providedAPIs: providedAPIs,
-		requiredAPIs: requiredAPIs,
-		sourceInfo:   &ExistingOperator,
+		name:           csv.GetName(),
+		version:        &csv.Spec.Version.Version,
+		minKubeVersion: minKubeVersion,
+		replaces:       csv.Spec.Replaces,
+		providedAPIs:   providedAPIs,
+		requiredAPIs:   requiredAPIs,
+		sourceInfo:     &ExistingOperator,
 	}, nil
 }
 
@@ -332,4 +348,8 @@ func (o *Operator) Bundle() *opregistry.Bundle {
 
 func (o *Operator) Version() *semver.Version {
 	return o.version
+}
+
+func (o *Operator) MinKubeVersion() *semver.Version {
+	return o.minKubeVersion
 }

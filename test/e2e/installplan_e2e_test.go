@@ -790,6 +790,99 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 }
 
+// TestCreateInstallPlanWithMinKubeVersion ensures that we don't resolve updates that would install operators that don't
+// support the current version of kube
+func TestCreateInstallPlanWithMinKubeVersion(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	packageName := genName("nginx")
+	stableChannel := "stable"
+	tooNewCSVName := packageName + "-too-new"
+	supportedCSVName := packageName + "-supported"
+
+	// Create manifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{
+					Name:           stableChannel,
+					CurrentCSVName: tooNewCSVName,
+				},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create new CRDs
+	crdPlural := genName("ins")
+	crd := newCRD(crdPlural)
+
+	// Create a new NamedInstallStrategy
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+	// Create new CSVs
+	tooNewCSV := newCSV(tooNewCSVName, testNamespace, supportedCSVName, *semver.New("10.0.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+	supportedCSV := newCSV(supportedCSVName, testNamespace, "", *semver.New("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
+
+	// Create CatalogSource
+	mainCatalogSourceName := genName("nginx-catalog")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{tooNewCSV, supportedCSV})
+	defer cleanupCatalogSource()
+
+	// Attempt to get CatalogSource
+	_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("sub-nginx-")
+	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, packageName, stableChannel, supportedCSVName, v1alpha1.ApprovalAutomatic)
+	defer subscriptionCleanup()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	installPlanName := subscription.Status.Install.Name
+
+	// Attempt to get InstallPlan
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	require.NotEqual(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
+
+	// Expect correct RBAC resources to be resolved and created
+	expectedSteps := map[registry.ResourceKey]struct{}{
+		registry.ResourceKey{Name: crd.Name, Kind: "CustomResourceDefinition"}:      {},
+		registry.ResourceKey{Name: supportedCSVName, Kind: "ClusterServiceVersion"}: {},
+	}
+
+	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
+
+	for _, step := range fetchedInstallPlan.Status.Plan {
+		key := registry.ResourceKey{
+			Name: step.Resource.Name,
+			Kind: step.Resource.Kind,
+		}
+		for expected := range expectedSteps {
+			if expected == key {
+				delete(expectedSteps, expected)
+			} else if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
+				delete(expectedSteps, expected)
+			} else {
+				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
+			}
+		}
+	}
+
+	// Should have removed every matching step
+	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
+}
+
 func TestInstallPlanCRDValidation(t *testing.T) {
 	// Tests if CRD validation works with the "minimum" property after being
 	// pulled from a CatalogSource's operator-registry.

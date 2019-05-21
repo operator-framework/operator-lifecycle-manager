@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/blang/semver"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -22,16 +23,18 @@ type Resolver interface {
 }
 
 type OperatorsV1alpha1Resolver struct {
-	subLister v1alpha1listers.SubscriptionLister
-	csvLister v1alpha1listers.ClusterServiceVersionLister
+	serverVersion *semver.Version
+	subLister     v1alpha1listers.SubscriptionLister
+	csvLister     v1alpha1listers.ClusterServiceVersionLister
 }
 
 var _ Resolver = &OperatorsV1alpha1Resolver{}
 
-func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister) *OperatorsV1alpha1Resolver {
+func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, serverVersion *semver.Version) *OperatorsV1alpha1Resolver {
 	return &OperatorsV1alpha1Resolver{
-		subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
-		csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		subLister:     lister.OperatorsV1alpha1().SubscriptionLister(),
+		csvLister:     lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		serverVersion: serverVersion,
 	}
 }
 
@@ -72,7 +75,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 
 	// evolve a generation by resolving the set of subscriptions (in `add`) by querying with `source`
 	// and taking the current generation (in `gen`) into account
-	if err := NewNamespaceGenerationEvolver(sourceQuerier, gen).Evolve(add); err != nil {
+	if err := NewNamespaceGenerationEvolver(sourceQuerier, gen, r.serverVersion).Evolve(add); err != nil {
 		return nil, nil, err
 	}
 

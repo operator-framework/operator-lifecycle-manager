@@ -45,7 +45,7 @@ func NewGenerationFromOperators(ops ...OperatorSurface) *NamespaceGeneration {
 	return g
 }
 
-func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey) *Operator {
+func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices []opregistry.APIKey, minKubeVersion *semver.Version) *Operator {
 	providedAPISet := EmptyAPISet()
 	requiredAPISet := EmptyAPISet()
 	providedCRDAPISet := EmptyAPISet()
@@ -70,7 +70,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 		requiredAPIServiceAPISet[r] = struct{}{}
 		requiredAPISet[r] = struct{}{}
 	}
-	b := bundle(name, pkg, channel, replaces, providedCRDAPISet, requiredCRDAPISet, providedAPIServiceAPISet, requiredAPIServiceAPISet)
+	b := bundleWithMinKubeVersion(name, pkg, channel, replaces, providedCRDAPISet, requiredCRDAPISet, providedAPIServiceAPISet, requiredAPIServiceAPISet, minKubeVersion)
 	// force bundle cache to fill
 	_, _ = b.ClusterServiceVersion()
 	_, _ = b.CustomResourceDefinitions()
@@ -81,6 +81,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 		name:         name,
 		replaces:     replaces,
 		version:      &version,
+		minKubeVersion: minKubeVersion,
 		sourceInfo: &OperatorSourceInfo{
 			Package:     pkg,
 			Channel:     channel,
@@ -91,7 +92,7 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 	}
 }
 
-func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
+func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions, minKubeVersion *semver.Version) *v1alpha1.ClusterServiceVersion {
 	var singleInstance = int32(1)
 	strategy := install.StrategyDetailsDeployment{
 		Permissions:        permissions,
@@ -160,7 +161,10 @@ func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requi
 	for api := range ownedAPIServices {
 		ownedAPIDescs = append(ownedAPIDescs, v1alpha1.APIServiceDescription{Name: api.Plural, Group: api.Group, Version: api.Version, Kind: api.Kind, DeploymentName: name, ContainerPort: 80})
 	}
-
+	versionString := ""
+	if minKubeVersion != nil {
+		versionString = minKubeVersion.String()
+	}
 	return &v1alpha1.ClusterServiceVersion{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.ClusterServiceVersionKind,
@@ -172,6 +176,7 @@ func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requi
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			Replaces:        replaces,
 			InstallStrategy: installStrategy,
+			MinKubeVersion:  versionString,
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned:    ownedCRDDescs,
 				Required: requiredCRDDescs,
@@ -219,7 +224,7 @@ func u(object runtime.Object) *unstructured.Unstructured {
 }
 
 func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet) *opregistry.Bundle {
-	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))}
+	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil, nil))}
 	for p := range providedCRDs {
 		bundleObjs = append(bundleObjs, u(crd(p)))
 	}
@@ -232,7 +237,15 @@ func withBundleObject(bundle *opregistry.Bundle, obj *unstructured.Unstructured)
 }
 
 func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions) *opregistry.Bundle {
-	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))}
+	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions, nil))}
+	for p := range providedCRDs {
+		bundleObjs = append(bundleObjs, u(crd(p)))
+	}
+	return opregistry.NewBundle(name, pkg, channel, bundleObjs...)
+}
+
+func bundleWithMinKubeVersion(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, minKubeVersion *semver.Version) *opregistry.Bundle {
+	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil, minKubeVersion))}
 	for p := range providedCRDs {
 		bundleObjs = append(bundleObjs, u(crd(p)))
 	}
