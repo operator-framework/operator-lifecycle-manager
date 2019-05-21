@@ -35,6 +35,11 @@ var uncopiableReasons = map[ConditionReason]struct{}{
 	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs: {},
 }
 
+// upgradeableReasons are the set of reasons that an operator can be upgraded in
+var upgradeableReasons = map[ConditionReason]struct{}{
+	CSVReasonInstallSuccessful: {},
+}
+
 // safeToAnnotateOperatorGroupReasons are the set of reasons that it's safe to attempt to update the operatorgroup
 // annotations
 var safeToAnnotateOperatorGroupReasons = map[ConditionReason]struct{}{
@@ -143,6 +148,11 @@ func (c *ClusterServiceVersion) IsUncopiable() bool {
 
 func (c *ClusterServiceVersion) IsSafeToUpdateOperatorGroupAnnotations() bool {
 	_, ok := safeToAnnotateOperatorGroupReasons[c.Status.Reason]
+	return ok
+}
+
+func (c *ClusterServiceVersion) IsUpgradable() bool {
+	_, ok := upgradeableReasons[c.Status.Reason]
 	return ok
 }
 

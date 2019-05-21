@@ -1025,7 +1025,6 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Create subscription for csvD2 in namespaceA
 	subD2Name := genName("d2-")
 	cleanupSubD2 := createSubscriptionForCatalog(t, crc, nsA, subD2Name, catalog, pkgD, stableChannel, pkgDStable, v1alpha1.ApprovalAutomatic)
-	defer cleanupSubD2()
 	subD2, err := fetchSubscription(t, crc, nsA, subD2Name, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subD2)
@@ -1045,6 +1044,9 @@ func TestOperatorGroupIntersection(t *testing.T) {
 	// Ensure csvD is still successful
 	_, err = awaitCSV(t, crc, nsD, csvD.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
+
+	// Clean up subscription and csvD2
+	cleanupSubD2()
 
 	// Create subscription for csvA in namespaceA
 	subAName := genName("a-")

@@ -93,14 +93,16 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 						ObjectMeta: metav1.ObjectMeta{
 							Labels: map[string]string{"app": "nginx"},
 						},
-						Spec: corev1.PodSpec{Containers: []corev1.Container{
-							{
-								Name:            genName("nginx"),
-								Image:           "bitnami/nginx:latest",
-								Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
-								ImagePullPolicy: corev1.PullIfNotPresent,
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								{
+									Name:            genName("nginx"),
+									Image:           "bitnami/nginx:latest",
+									Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
+									ImagePullPolicy: corev1.PullIfNotPresent,
+								},
 							},
-						}},
+						},
 					},
 				},
 			},

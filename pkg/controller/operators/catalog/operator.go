@@ -612,6 +612,11 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	shouldUpdate := false
 	for _, sub := range subs {
+		if !o.installedOperatorUpgradeable(logger, sub) {
+			logger.WithField("sub", sub.GetName()).Debug("can't update because of a current operator's status")
+			return fmt.Errorf("operator status incorrect, retry with backoff")
+		}
+
 		shouldUpdate = shouldUpdate || !o.nothingToUpdate(logger, sub)
 	}
 	if !shouldUpdate {
@@ -624,6 +629,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
 	steps, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
+		logger.WithError(err).Debug("error resolving steps")
 		return err
 	}
 
@@ -668,7 +674,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 }
 
 func (o *Operator) resolveNamespace(namespace string) {
-	o.namespaceResolveQueue.AddRateLimited(namespace)
+	o.namespaceResolveQueue.Add(namespace)
 }
 
 func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string) map[resolver.CatalogKey]registryclient.Interface {
@@ -730,6 +736,31 @@ func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscript
 	return false
 }
 
+func (o *Operator) installedOperatorUpgradeable(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
+	if sub.Status.Install == nil {
+		// treat no installplan as "up to date" with resolved operator
+		return true
+	}
+
+	if sub.Status.InstalledCSV == "" {
+		// if there is an installplan, but not yet an installed csv, we should prevent further updates
+		logger.Debug("subscription hasn't finished installing its current CSV, blocking updates")
+		return false
+	}
+
+	csv, err := o.client.OperatorsV1alpha1().ClusterServiceVersions(sub.GetNamespace()).Get(sub.Status.InstalledCSV, metav1.GetOptions{})
+	if err != nil {
+		// if we can't verify the status of the current operator, we should prevent updates
+		logger.WithError(err).Debug("can't get installed CSV from cluster, blocking updates")
+		return false
+	}
+
+	if !csv.IsUpgradable() {
+		logger.WithField("reason", csv.Status.Reason).Debug("csv not upgradable")
+	}
+	return csv.IsUpgradable()
+}
+
 func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub *v1alpha1.Subscription) (*v1alpha1.Subscription, bool, error) {
 	if sub.Status.InstallPlanRef != nil {
 		return sub, false, nil
@@ -743,7 +774,6 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	if !ok {
 		return sub, false, nil
 	}
-
 	ip, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(sub.GetNamespace()).Get(ipName)
 	if err != nil {
 		logger.WithField("installplan", ipName).Warn("unable to get installplan from cache")
@@ -782,6 +812,10 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		logger.WithError(err).WithField("currentCSV", sub.Status.CurrentCSV).Debug("error fetching csv listed in subscription status")
 		out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	} else {
+		out.Status.InstalledCSV = sub.Status.CurrentCSV
+	}
+
+	if sub.Status.InstalledCSV == out.Status.InstalledCSV {
 		// Check if an update is available for the current csv
 		if err := querier.Queryable(); err != nil {
 			return nil, false, err
@@ -796,7 +830,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		out.Status.InstalledCSV = sub.Status.CurrentCSV
 	}
 
-	if sub.Status.State == out.Status.State {
+	if sub.Status.State == out.Status.State && sub.Status.InstalledCSV == out.Status.InstalledCSV {
 		// The subscription status represents the cluster state
 		return sub, false, nil
 	}

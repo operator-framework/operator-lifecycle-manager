@@ -1,6 +1,8 @@
 package resolver
 
 import (
+	"fmt"
+
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/pkg/errors"
 )
@@ -66,6 +68,11 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
+
+		if o.Replaces() != op.Identifier() {
+			return fmt.Errorf("registry returned %s as a replacement for %s, but replaces field says %s", o.Identifier(), op.Replaces(), o.Replaces())
+		}
+
 		if err := e.gen.AddOperator(o); err != nil {
 			return errors.Wrap(err, "error calculating generation changes due to new bundle")
 		}

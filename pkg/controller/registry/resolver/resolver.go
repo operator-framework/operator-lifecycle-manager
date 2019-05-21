@@ -65,6 +65,16 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		return nil, nil, err
 	}
 
+	// TODO place into NewGenerationFromCluster
+	for _, sub := range subs {
+		// ensure every installed CSV is in csv cache
+		if sub.Status.InstalledCSV != "" {
+			if _, ok := gen.operators[sub.Status.InstalledCSV]; !ok {
+				return nil, nil, fmt.Errorf("installedCSV not found in cache, retry in a bit. have %#v", gen.operators)
+			}
+		}
+	}
+
 	// create a map of operatorsourceinfo (subscription+catalogsource data) to the original subscriptions
 	subMap := r.sourceInfoToSubscriptions(subs)
 	// get a list of new operators to add to the generation
