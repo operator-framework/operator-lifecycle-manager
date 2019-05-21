@@ -36,6 +36,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 )
 
 var (
@@ -64,6 +65,8 @@ type Operator struct {
 	gcQueueIndexer   *queueinformer.QueueIndexer
 	apiLabeler       labeler.Labeler
 	csvIndexers      map[string]cache.Indexer
+	csvSetGenerator	 csvutility.SetGenerator
+	csvReplaceFinder csvutility.ReplaceFinder
 }
 
 func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient operatorclient.ClientInterface, strategyResolver install.StrategyResolverInterface, wakeupInterval time.Duration, namespaces []string) (*Operator, error) {
@@ -83,17 +86,24 @@ func NewOperator(logger *logrus.Logger, crClient versioned.Interface, opClient o
 		return nil, err
 	}
 
+	lister := operatorlister.NewLister()
+	csvSetGenerator := csvutility.NewSetGenerator(logger, lister)
+
+	csvReplaceFinder := csvutility.NewReplaceFinder(logger, crClient)
+
 	op := &Operator{
-		Operator:      queueOperator,
-		csvQueueSet:   queueinformer.NewEmptyResourceQueueSet(),
-		ogQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
-		client:        crClient,
-		resolver:      strategyResolver,
-		apiReconciler: resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
-		lister:        operatorlister.NewLister(),
-		recorder:      eventRecorder,
-		apiLabeler:    labeler.Func(resolver.LabelSetsFor),
-		csvIndexers:   map[string]cache.Indexer{},
+		Operator:         queueOperator,
+		csvQueueSet:      queueinformer.NewEmptyResourceQueueSet(),
+		ogQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
+		client:           crClient,
+		resolver:         strategyResolver,
+		apiReconciler:    resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
+		lister:           lister,
+		recorder:         eventRecorder,
+		apiLabeler:       labeler.Func(resolver.LabelSetsFor),
+		csvIndexers:      map[string]cache.Indexer{},
+		csvSetGenerator:  csvSetGenerator,
+		csvReplaceFinder: csvReplaceFinder,
 	}
 
 	// Set up RBAC informers
@@ -350,6 +360,14 @@ func (a *Operator) syncAPIService(obj interface{}) (syncError error) {
 	}
 
 	return nil
+}
+
+func (a *Operator) GetCSVSetGenerator() csvutility.SetGenerator {
+	return a.csvSetGenerator
+}
+
+func (a *Operator) GetReplaceFinder() csvutility.ReplaceFinder {
+	return a.csvReplaceFinder
 }
 
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
@@ -1171,21 +1189,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 
 // csvSet gathers all CSVs in the given namespace into a map keyed by CSV name; if metav1.NamespaceAll gets the set across all namespaces
 func (a *Operator) csvSet(namespace string, phase v1alpha1.ClusterServiceVersionPhase) map[string]*v1alpha1.ClusterServiceVersion {
-	csvsInNamespace, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).List(labels.Everything())
-
-	if err != nil {
-		a.Log.Warnf("could not list CSVs while constructing CSV set")
-		return nil
-	}
-
-	csvs := make(map[string]*v1alpha1.ClusterServiceVersion, len(csvsInNamespace))
-	for _, csv := range csvsInNamespace {
-		if phase != v1alpha1.CSVPhaseAny && csv.Status.Phase != phase {
-			continue
-		}
-		csvs[csv.Name] = csv.DeepCopy()
-	}
-	return csvs
+	return a.csvSetGenerator.WithNamespace(namespace, phase)
 }
 
 // checkReplacementsAndUpdateStatus returns an error if we can find a newer CSV and sets the status if so
@@ -1370,30 +1374,11 @@ func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion)
 }
 
 func (a *Operator) isBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
-	for _, csv := range csvsInNamespace {
-		a.Log.Infof("checking %s", csv.GetName())
-		if csv.Spec.Replaces == in.GetName() {
-			a.Log.Infof("%s replaced by %s", in.GetName(), csv.GetName())
-			replacedBy = csv.DeepCopy()
-			return
-		}
-	}
-	return
+	return a.csvReplaceFinder.IsBeingReplaced(in, csvsInNamespace)
 }
 
 func (a *Operator) isReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.ClusterServiceVersion {
-	a.Log.Debugf("checking if csv is replacing an older version")
-	if in.Spec.Replaces == "" {
-		return nil
-	}
-
-	// using the client instead of a lister; missing an object because of a cache sync can cause upgrades to fail
-	previous, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(in.GetNamespace()).Get(in.Spec.Replaces, metav1.GetOptions{})
-	if err != nil {
-		a.Log.WithField("replacing", in.Spec.Replaces).WithError(err).Debugf("unable to get previous csv")
-		return nil
-	}
-	return previous
+	return a.csvReplaceFinder.IsReplacing(in)
 }
 
 func (a *Operator) handleDeletion(obj interface{}) {
