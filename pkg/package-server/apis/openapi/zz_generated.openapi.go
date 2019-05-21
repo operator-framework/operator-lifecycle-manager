@@ -31,7 +31,15 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference":        schema_api_apis_operators_v1alpha1_APIResourceReference(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions":       schema_api_apis_operators_v1alpha1_APIServiceDefinitions(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDescription":       schema_api_apis_operators_v1alpha1_APIServiceDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor":            schema_api_apis_operators_v1alpha1_ActionDescriptor(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CRDDescription":              schema_api_apis_operators_v1alpha1_CRDDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions":   schema_api_apis_operators_v1alpha1_CustomResourceDefinitions(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                 schema_api_apis_operators_v1alpha1_InstallMode(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor":              schema_api_apis_operators_v1alpha1_SpecDescriptor(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor":            schema_api_apis_operators_v1alpha1_StatusDescriptor(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion":                             schema_operator_lifecycle_manager_pkg_lib_version_OperatorVersion(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink":               schema_package_server_apis_apps_v1alpha1_AppLink(ref),
 		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription":        schema_package_server_apis_apps_v1alpha1_CSVDescription(ref),
@@ -95,6 +103,369 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
+func schema_api_apis_operators_v1alpha1_APIResourceReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "APIResourceReference is a Kubernetes resource type used by a custom resource",
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"name", "kind", "version"},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_APIServiceDefinitions(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "APIServiceDefinitions declares all of the extension apis managed or required by an operator being ran by ClusterServiceVersion.",
+				Properties: map[string]spec.Schema{
+					"owned": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDescription"),
+									},
+								},
+							},
+						},
+					},
+					"required": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDescription"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDescription"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_APIServiceDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "APIServiceDescription provides details to OLM about apis provided via aggregation",
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"deploymentName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"containerPort": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resources": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference"),
+									},
+								},
+							},
+						},
+					},
+					"statusDescriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor"),
+									},
+								},
+							},
+						},
+					},
+					"specDescriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor"),
+									},
+								},
+							},
+						},
+					},
+					"actionDescriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"name", "group", "version", "kind"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ActionDescriptor(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ActionDescriptor describes a declarative action that can be performed on a custom resource instance",
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"x-descriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "byte",
+						},
+					},
+				},
+				Required: []string{"path"},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_CRDDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CRDDescription provides details to OLM about the CRDs",
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resources": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference"),
+									},
+								},
+							},
+						},
+					},
+					"statusDescriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor"),
+									},
+								},
+							},
+						},
+					},
+					"specDescriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor"),
+									},
+								},
+							},
+						},
+					},
+					"actionDescriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"name", "version", "kind"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_CustomResourceDefinitions(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CustomResourceDefinitions declares all of the CRDs managed or required by an operator being ran by ClusterServiceVersion.\n\nIf the CRD is present in the Owned list, it is implicitly required.",
+				Properties: map[string]spec.Schema{
+					"owned": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CRDDescription"),
+									},
+								},
+							},
+						},
+					},
+					"required": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CRDDescription"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CRDDescription"},
+	}
+}
+
 func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -115,6 +486,108 @@ func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback
 					},
 				},
 				Required: []string{"type", "supported"},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SpecDescriptor(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SpecDescriptor describes a field in a spec block of a CRD so that OLM can consume it",
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"x-descriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "byte",
+						},
+					},
+				},
+				Required: []string{"path"},
+			},
+		},
+		Dependencies: []string{},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_StatusDescriptor(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StatusDescriptor describes a field in a status block of a CRD so that OLM can consume it",
+				Properties: map[string]spec.Schema{
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"x-descriptors": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "byte",
+						},
+					},
+				},
+				Required: []string{"path"},
 			},
 		},
 		Dependencies: []string{},
@@ -229,11 +702,21 @@ func schema_package_server_apis_apps_v1alpha1_CSVDescription(ref common.Referenc
 							},
 						},
 					},
+					"customresourcedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions"),
+						},
+					},
+					"apiservicedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon"},
 	}
 }
 
@@ -568,11 +1051,21 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 							},
 						},
 					},
+					"customresourcedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions"),
+						},
+					},
+					"apiservicedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions"),
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon"},
 	}
 }
 

@@ -50,6 +50,7 @@ type NamedInstallStrategy struct {
 }
 
 // StatusDescriptor describes a field in a status block of a CRD so that OLM can consume it
+// +k8s:openapi-gen=true
 type StatusDescriptor struct {
 	Path         string           `json:"path"`
 	DisplayName  string           `json:"displayName,omitempty"`
@@ -59,6 +60,7 @@ type StatusDescriptor struct {
 }
 
 // SpecDescriptor describes a field in a spec block of a CRD so that OLM can consume it
+// +k8s:openapi-gen=true
 type SpecDescriptor struct {
 	Path         string           `json:"path"`
 	DisplayName  string           `json:"displayName,omitempty"`
@@ -68,6 +70,7 @@ type SpecDescriptor struct {
 }
 
 // ActionDescriptor describes a declarative action that can be performed on a custom resource instance
+// +k8s:openapi-gen=true
 type ActionDescriptor struct {
 	Path         string           `json:"path"`
 	DisplayName  string           `json:"displayName,omitempty"`
@@ -77,6 +80,7 @@ type ActionDescriptor struct {
 }
 
 // CRDDescription provides details to OLM about the CRDs
+// +k8s:openapi-gen=true
 type CRDDescription struct {
 	Name              string                 `json:"name"`
 	Version           string                 `json:"version"`
@@ -90,6 +94,7 @@ type CRDDescription struct {
 }
 
 // APIServiceDescription provides details to OLM about apis provided via aggregation
+// +k8s:openapi-gen=true
 type APIServiceDescription struct {
 	Name              string                 `json:"name"`
 	Group             string                 `json:"group"`
@@ -106,6 +111,7 @@ type APIServiceDescription struct {
 }
 
 // APIResourceReference is a Kubernetes resource type used by a custom resource
+// +k8s:openapi-gen=true
 type APIResourceReference struct {
 	Name    string `json:"name"`
 	Kind    string `json:"kind"`
@@ -121,6 +127,7 @@ func (d APIServiceDescription) GetName() string {
 // an operator being ran by ClusterServiceVersion.
 //
 // If the CRD is present in the Owned list, it is implicitly required.
+// +k8s:openapi-gen=true
 type CustomResourceDefinitions struct {
 	Owned    []CRDDescription `json:"owned,omitempty"`
 	Required []CRDDescription `json:"required,omitempty"`
@@ -128,6 +135,7 @@ type CustomResourceDefinitions struct {
 
 // APIServiceDefinitions declares all of the extension apis managed or required by
 // an operator being ran by ClusterServiceVersion.
+// +k8s:openapi-gen=true
 type APIServiceDefinitions struct {
 	Owned    []APIServiceDescription `json:"owned,omitempty"`
 	Required []APIServiceDescription `json:"required,omitempty"`

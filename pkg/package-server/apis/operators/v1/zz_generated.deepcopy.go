@@ -63,6 +63,8 @@ func (in *CSVDescription) DeepCopyInto(out *CSVDescription) {
 		*out = make([]v1alpha1.InstallMode, len(*in))
 		copy(*out, *in)
 	}
+	in.CustomResourceDefinitions.DeepCopyInto(&out.CustomResourceDefinitions)
+	in.APIServiceDefinitions.DeepCopyInto(&out.APIServiceDefinitions)
 	return
 }
 
