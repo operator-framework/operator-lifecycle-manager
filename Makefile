@@ -15,6 +15,7 @@ IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
 KUBE_RELEASE := release-1.12
+SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
@@ -24,7 +25,7 @@ all: test build
 test: clean cover.out
 
 unit:
-	go test $(MOD_FLAGS) -v -race -tags=json1 -count=1 ./pkg/...
+	go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -tags=json1 -count=1 ./pkg/...
 
 schema-check:
 

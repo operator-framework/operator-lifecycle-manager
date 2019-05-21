@@ -582,6 +582,23 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		}
 	}
 
+	operatorGroup := a.operatorGroupFromAnnotations(logger, clusterServiceVersion)
+	if operatorGroup == nil {
+		logger.WithField("reason", "no operatorgroup found for active CSV").Debug("skipping potential RBAC creation in target namespaces")
+		return
+	}
+
+	if len(operatorGroup.Status.Namespaces) == 1 && operatorGroup.Status.Namespaces[0] == operatorGroup.GetNamespace() {
+		logger.Debug("skipping copy for OwnNamespace operatorgroup")
+		return
+	}
+	// Ensure operator has access to targetnamespaces with cluster RBAC
+	// (roles/rolebindings are checked for each target namespace in syncCopyCSV)
+	if err := a.ensureRBACInTargetNamespace(clusterServiceVersion, operatorGroup); err != nil {
+		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
+		syncError = err
+	}
+
 	if !outCSV.IsUncopiable() {
 		a.copyQueueIndexer.Enqueue(outCSV)
 	}
@@ -607,7 +624,9 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 
 	operatorGroup := a.operatorGroupFromAnnotations(logger, clusterServiceVersion)
 	if operatorGroup == nil {
-		logger.WithField("reason", "no operatorgroup found for active CSV").Debug("skipping CSV resource copy to target namespaces")
+		// since syncClusterServiceVersion is the only enqueuer, annotations should be present
+		logger.WithField("reason", "no operatorgroup found for active CSV").Error("operatorgroup should have annotations")
+		syncError = fmt.Errorf("operatorGroup for csv '%v' should have annotations", clusterServiceVersion.GetName())
 		return
 	}
 
@@ -618,12 +637,6 @@ func (a *Operator) syncCopyCSV(obj interface{}) (syncError error) {
 	// Check if we need to do any copying / annotation for the operatorgroup
 	if err := a.ensureCSVsInNamespaces(clusterServiceVersion, operatorGroup, resolver.NewNamespaceSet(operatorGroup.Status.Namespaces)); err != nil {
 		logger.WithError(err).Info("couldn't copy CSV to target namespaces")
-		syncError = err
-	}
-
-	// Ensure operator has access to targetnamespaces
-	if err := a.ensureRBACInTargetNamespace(clusterServiceVersion, operatorGroup); err != nil {
-		logger.WithError(err).Info("couldn't ensure RBAC in target namespaces")
 		syncError = err
 	}
 
