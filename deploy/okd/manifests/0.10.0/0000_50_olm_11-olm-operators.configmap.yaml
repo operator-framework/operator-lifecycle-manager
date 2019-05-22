@@ -1,3 +1,5 @@
+---
+# Source: olm/templates/0000_50_olm_11-olm-operators.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
 metadata:
@@ -84,24 +86,9 @@ data:
                       app: packageserver
                   spec:
                     serviceAccountName: packageserver
-                    priorityClassName: "system-cluster-critical"
                     nodeSelector:
                       beta.kubernetes.io/os: linux
-                      node-role.kubernetes.io/master: ""
                       
-                    tolerations:
-                    - effect: NoSchedule
-                      key: node-role.kubernetes.io/master
-                      operator: Exists
-                    - effect: NoExecute
-                      key: node.kubernetes.io/unreachable
-                      operator: Exists
-                      tolerationSeconds: 120
-                    - effect: NoExecute
-                      key: node.kubernetes.io/not-ready
-                      operator: Exists
-                      tolerationSeconds: 120
-                    
                     containers:
                     - name: packageserver
                       command:
@@ -112,7 +99,7 @@ data:
                       - --global-namespace
                       - openshift-operator-lifecycle-manager
                       image: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
-                      imagePullPolicy: IfNotPresent
+                      imagePullPolicy: Always
                       ports:
                       - containerPort: 5443
                       livenessProbe:

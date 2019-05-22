@@ -9,31 +9,7 @@ writeStatusNameCatalog: operator-lifecycle-manager-catalog
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm@sha256:7e4b13b89b3d59876b228697bbd0c9e364fd73f946ab90308c34fd82053a5a76
-    pullPolicy: IfNotPresent
-  service:
-    internalPort: 8080
-  nodeSelector:
-    beta.kubernetes.io/os: linux
-    node-role.kubernetes.io/master: ""
-  tolerations:
-  - key: node-role.kubernetes.io/master  
-    operator: Exists
-    effect: "NoSchedule"
-  - key: "node.kubernetes.io/unreachable"
-    operator: "Exists"
-    effect: "NoExecute"
-    tolerationSeconds: 120 
-  - key: "node.kubernetes.io/not-ready"
-    operator: "Exists"
-    effect: "NoExecute"
-    tolerationSeconds: 120 
-  tlsCertPath: /var/run/secrets/serving-cert/tls.crt
-  tlsKeyPath: /var/run/secrets/serving-cert/tls.key
-catalog:
-  replicaCount: 1
-  image:
-    ref: quay.io/operator-framework/olm@sha256:7e4b13b89b3d59876b228697bbd0c9e364fd73f946ab90308c34fd82053a5a76
+    ref: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -43,19 +19,43 @@ catalog:
   tolerations:
   - key: node-role.kubernetes.io/master
     operator: Exists
-    effect: "NoSchedule"
-  - key: "node.kubernetes.io/unreachable"
-    operator: "Exists"
-    effect: "NoExecute"
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
     tolerationSeconds: 120
-  - key: "node.kubernetes.io/not-ready"
-    operator: "Exists"
-    effect: "NoExecute"
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  tlsCertPath: /var/run/secrets/serving-cert/tls.crt
+  tlsKeyPath: /var/run/secrets/serving-cert/tls.key
+catalog:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 8080
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
     tolerationSeconds: 120
 package:
   replicaCount: 2
   image:
-    ref: quay.io/operator-framework/olm@sha256:7e4b13b89b3d59876b228697bbd0c9e364fd73f946ab90308c34fd82053a5a76
+    ref: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
@@ -65,12 +65,12 @@ package:
   tolerations:
   - key: node-role.kubernetes.io/master
     operator: Exists
-    effect: "NoSchedule"
-  - key: "node.kubernetes.io/unreachable"
-    operator: "Exists"
-    effect: "NoExecute"
-    tolerationSeconds: 120    
-  - key: "node.kubernetes.io/not-ready"
-    operator: "Exists"
-    effect: "NoExecute"
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
     tolerationSeconds: 120
