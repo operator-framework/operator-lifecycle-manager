@@ -1,31 +1,36 @@
+---
+# Source: olm/templates/0000_50_olm_08-catalog-operator.deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: olm-operator
+  name: catalog-operator
   namespace: openshift-operator-lifecycle-manager
   labels:
-    app: olm-operator
+    app: catalog-operator
 spec:
   strategy:
     type: RollingUpdate
   replicas: 1
   selector:
     matchLabels:
-      app: olm-operator
+      app: catalog-operator
   template:
     metadata:
       labels:
-        app: olm-operator
+        app: catalog-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
       priorityClassName: "system-cluster-critical"
       containers:
-        - name: olm-operator
+        - name: catalog-operator
           command:
-          - /bin/olm
+          - /bin/catalog
           args:
+          - '-namespace'
+          - openshift-operator-lifecycle-manager
+          - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
           - -writeStatusName
-          - operator-lifecycle-manager
+          - operator-lifecycle-manager-catalog
           - -tls-cert
           - /var/run/secrets/serving-cert/tls.crt
           - -tls-key
@@ -47,16 +52,10 @@ spec:
               port: 8080
           terminationMessagePolicy: FallbackToLogsOnError
           env:
-        
+          
           - name: RELEASE_VERSION
             value: "0.0.1-snapshot"
-        
-          - name: OPERATOR_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-          - name: OPERATOR_NAME
-            value: olm-operator
+          
           
           volumeMounts:
           - mountPath: /var/run/secrets/serving-cert
@@ -66,7 +65,7 @@ spec:
       volumes:
       - name: serving-cert
         secret:
-          secretName: olm-operator-serving-cert
+          secretName: catalog-operator-serving-cert
       
       nodeSelector:
         beta.kubernetes.io/os: linux

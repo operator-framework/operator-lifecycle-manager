@@ -1,0 +1,14 @@
+---
+# Source: olm/templates/0000_50_olm_14-packageserver.subscription.yaml
+#! validate-crd: ./deploy/chart/templates/05-subscription.crd.yaml
+#! parse-kind: Subscription
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: packageserver
+  namespace: openshift-operator-lifecycle-manager
+spec:
+  source: olm-operators
+  sourceNamespace: openshift-operator-lifecycle-manager
+  name: packageserver
+  channel: alpha
