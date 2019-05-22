@@ -40,6 +40,7 @@ type registryReconcilerFactory struct {
 	Lister               operatorlister.OperatorLister
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
+	GlobalNamespace      string
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -58,17 +59,26 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 				OpClient: r.OpClient,
 			}
 		} else if source.Spec.Address != "" {
-			return &GrpcAddressRegistryReconciler{}
+			return &GrpcAddressRegistryReconciler{
+				Lister:          r.Lister,
+				GlobalNamespace: r.GlobalNamespace,
+			}
+		} else if source.Spec.PodSelector != nil {
+			return &GrpcRegistryPodSelectorReconciler{
+				Lister:   r.Lister,
+				OpClient: r.OpClient,
+			}
 		}
 	}
 	return nil
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage, globalNamespace string) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
+		GlobalNamespace:      globalNamespace,
 	}
 }

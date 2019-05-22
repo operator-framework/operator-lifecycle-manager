@@ -67,6 +67,45 @@ spec:
               type: string
               description: An optional address. When set, directs OLM to connect to use a pre-existing registry server at this address.
 
+            podSelector:
+              selector:
+                type: object
+                description: Label selector to find the pod that serves the grpc api. Only required when using address.
+                anyOf:
+                  - properties:
+                      matchLabels:
+                        type: object
+                        description: Label key:value pairs to match directly
+                    required:
+                      - matchLabels
+                  - properties:
+                      matchExpressions:
+                        type: array
+                        description: A set of expressions to match against the resource.
+                        items:
+                          allOf:
+                            - type: object
+                              required:
+                                - key
+                                - operator
+                                - values
+                              properties:
+                                key:
+                                  type: string
+                                  description: the key to match
+                                operator:
+                                  type: string
+                                  description: the operator for the expression
+                                  enum:
+                                    - In
+                                    - NotIn
+                                    - Exists
+                                    - DoesNotExist
+                                values:
+                                  type: array
+                                  description: set of values for the expression
+                    required:
+                      - matchExpressions
             image:
               type: string
               description: An image that serves a grpc registry. Only valid for `grpc` sourceType. If both image and address are set, OLM does not use the address field.

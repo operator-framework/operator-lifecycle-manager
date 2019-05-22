@@ -5,7 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -15,6 +15,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
+
+const GrpcPort = 50051
 
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
 type grpcCatalogSourceDecorator struct {
@@ -33,18 +35,18 @@ func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
 	}
 }
 
-func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
-	svc := &v1.Service{
+func (s *grpcCatalogSourceDecorator) Service() *corev1.Service {
+	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.GetName(),
 			Namespace: s.GetNamespace(),
 		},
-		Spec: v1.ServiceSpec{
-			Ports: []v1.ServicePort{
+		Spec: corev1.ServiceSpec{
+			Ports: []corev1.ServicePort{
 				{
 					Name:       "grpc",
-					Port:       50051,
-					TargetPort: intstr.FromInt(50051),
+					Port:       GrpcPort,
+					TargetPort: intstr.FromInt(GrpcPort),
 				},
 			},
 			Selector: s.Labels(),
@@ -54,45 +56,44 @@ func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
 	return svc
 }
 
-func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
-	pod := &v1.Pod{
+func (s *grpcCatalogSourceDecorator) Pod() *corev1.Pod {
+	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: s.GetName() + "-",
 			Namespace:    s.GetNamespace(),
 			Labels:       s.Labels(),
 		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
 				{
 					Name:  "registry-server",
 					Image: s.Spec.Image,
-					Ports: []v1.ContainerPort{
+					Ports: []corev1.ContainerPort{
 						{
 							Name:          "grpc",
-							ContainerPort: 50051,
+							ContainerPort: GrpcPort,
 						},
 					},
-					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+					ReadinessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							Exec: &corev1.ExecAction{
+								Command: []string{"grpc_health_probe", fmt.Sprintf("-addr=localhost:%d", GrpcPort)},
 							},
 						},
 						InitialDelaySeconds: 5,
 					},
-					LivenessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
+					LivenessProbe: &corev1.Probe{
+						Handler: corev1.Handler{
+							Exec: &corev1.ExecAction{
+								Command: []string{"grpc_health_probe", fmt.Sprintf("-addr=localhost:%d", GrpcPort)}},
 						},
 						InitialDelaySeconds: 10,
 					},
 				},
 			},
-			Tolerations: []v1.Toleration{
+			Tolerations: []corev1.Toleration{
 				{
-					Operator: v1.TolerationOpExists,
+					Operator: corev1.TolerationOpExists,
 				},
 			},
 		},
@@ -108,7 +109,7 @@ type GrpcRegistryReconciler struct {
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
 
-func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) *v1.Service {
+func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) *corev1.Service {
 	serviceName := source.Service().GetName()
 	service, err := c.Lister.CoreV1().ServiceLister().Services(source.GetNamespace()).Get(serviceName)
 	if err != nil {
@@ -118,7 +119,7 @@ func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorato
 	return service
 }
 
-func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) []*v1.Pod {
+func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.Selector())
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
@@ -130,13 +131,13 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 	return pods
 }
 
-func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogSourceDecorator) []*v1.Pod {
+func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogSourceDecorator) []*corev1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
 		return nil
 	}
-	found := []*v1.Pod{}
+	found := []*corev1.Pod{}
 	for _, p := range pods {
 		if p.Spec.Containers[0].Image == source.Spec.Image {
 			found = append(found, p)

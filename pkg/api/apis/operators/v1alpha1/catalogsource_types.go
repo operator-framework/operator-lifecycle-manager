@@ -43,6 +43,12 @@ type CatalogSourceSpec struct {
 	// +Optional
 	Address string `json:"address,omitempty"`
 
+	// PodSelector tells OLM how to find the pod that is providing an address-type grpc catalogsource. This is used'
+	// to make authorization decisions around access to the catalogs. Pods must be in the local or global namespace
+	// to be consumed by a subscription.
+	// +optional
+	PodSelector *metav1.LabelSelector `json:"podSelector,omitempty"`
+
 	// Image is an operator-registry container image to instantiate a registry-server with.
 	// Only used when SourceType = SourceTypeGrpc.
 	// If present, the address field is ignored.
