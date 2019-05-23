@@ -8,11 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	registryclient "github.com/operator-framework/operator-registry/pkg/client"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc/connectivity"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
@@ -350,6 +348,11 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	func() {
 		o.sourcesLock.Lock()
 		defer o.sourcesLock.Unlock()
+		if s, ok := o.sources[sourceKey]; ok {
+			if err := s.Client.Close(); err != nil {
+				o.Log.WithError(err).Warn("error closing client")
+			}
+		}
 		delete(o.sources, sourceKey)
 	}()
 	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
@@ -449,6 +452,12 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		func() {
 			o.sourcesLock.Lock()
 			defer o.sourcesLock.Unlock()
+			s, ok := o.sources[sourceKey]
+			if ok {
+				if err := s.Client.Close(); err != nil {
+					o.Log.WithError(err).Debug("error closing client connection")
+				}
+			}
 			delete(o.sources, sourceKey)
 		}()
 
@@ -464,15 +473,34 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		address := catsrc.Address()
 		currentSource, ok := o.sources[sourceKey]
 		logger = logger.WithField("currentSource", sourceKey)
-		if !ok || currentSource.Address != address || catsrc.Status.LastSync.After(currentSource.LastConnect.Time) {
+
+		connect := false
+
+		// this connection is out of date, close and reconnect
+		if ok && (currentSource.Address != address || catsrc.Status.LastSync.After(currentSource.LastConnect.Time)) {
+			logger.Info("rebuilding connection to registry")
+			if currentSource.Client != nil {
+				if err := currentSource.Client.Close(); err != nil {
+					logger.WithError(err).Warn("couldn't close outdated connection to registry")
+					return
+				}
+			}
+			delete(o.sources, sourceKey)
+			connect = true
+		} else if !ok {
+			// have never made a connection, so need to build a new one
+			connect = true
+		}
+
+		if connect {
 			logger.Info("building connection to registry")
-			client, err := registryclient.NewClient(address)
+			c, err := registryclient.NewClient(address)
 			if err != nil {
 				logger.WithError(err).Warn("couldn't connect to registry")
 			}
 			sourceRef := resolver.SourceRef{
 				Address:     address,
-				Client:      client,
+				Client:      c,
 				LastConnect: timeNow(),
 				LastHealthy: metav1.Time{}, // haven't detected healthy yet
 			}
@@ -480,34 +508,30 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 			currentSource = sourceRef
 			sourcesUpdated = true
 		}
+
 		if currentSource.LastHealthy.IsZero() {
 			logger.Info("client hasn't yet become healthy, attempt a health check")
-			client, ok := currentSource.Client.(*registryclient.Client)
-			if !ok {
-				logger.WithField("client", currentSource.Client).Warn("unexpected client")
-				return
-			}
-			res, err := client.Health.Check(context.TODO(), &grpc_health_v1.HealthCheckRequest{Service: "Registry"})
+			healthy, err := currentSource.Client.HealthCheck(context.TODO(), 1*time.Second)
 			if err != nil {
-				logger.WithError(err).Debug("error checking health")
-				if client.Conn.GetState() == connectivity.TransientFailure {
-					logger.Debug("wait for state to change")
-					ctx, _ := context.WithTimeout(context.TODO(), 1*time.Second)
-					if !client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure) {
-						logger.Debug("state didn't change, trigger reconnect. this may happen when cached dns is wrong.")
-						delete(o.sources, sourceKey)
-						if err := o.catSrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
-							logger.WithError(err).Debug("error requeueing")
-						}
+				if registryclient.IsErrorUnrecoverable(err) {
+					logger.Debug("state didn't change, trigger reconnect. this may happen when cached dns is wrong.")
+					if err := currentSource.Client.Close(); err != nil {
+						logger.WithError(err).Warn("couldn't close outdated connection to registry")
 						return
 					}
+					delete(o.sources, sourceKey)
+					if err := o.catSrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
+						logger.WithError(err).Debug("error requeueing")
+					}
 				}
+				logger.WithError(err).Debug("connection error")
 				return
 			}
-			if res.Status != grpc_health_v1.HealthCheckResponse_SERVING {
-				logger.WithField("status", res.Status.String()).Debug("source not healthy")
+			if !healthy {
+				logger.Debug("source not healthy")
 				return
 			}
+
 			currentSource.LastHealthy = timeNow()
 			o.sources[sourceKey] = currentSource
 			sourcesUpdated = true
@@ -694,26 +718,14 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 	}()
 
 	for k, s := range resolverSources {
-		client, ok := s.(*registryclient.Client)
-		if !ok {
-			logger.Warn("unexpected client")
-			continue
-		}
-
 		logger = logger.WithField("resolverSource", k)
-		logger.WithField("clientState", client.Conn.GetState()).Debug("source")
-		if client.Conn.GetState() == connectivity.TransientFailure {
-			logger.WithField("clientState", client.Conn.GetState()).Debug("waiting for connection")
-			ctx, _ := context.WithTimeout(context.TODO(), 2*time.Second)
-			changed := client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure)
-			if !changed {
-				logger.WithField("clientState", client.Conn.GetState()).Debug("source in transient failure and didn't recover")
-				delete(resolverSources, k)
-			} else {
-				logger.WithField("clientState", client.Conn.GetState()).Debug("connection re-established")
-			}
+		healthy, err := s.HealthCheck(context.TODO(), 2*time.Second)
+		if err != nil || !healthy {
+			logger.WithError(err).Debug("omitting source due to unhealthy source")
+			delete(resolverSources, k)
 		}
 	}
+
 	return resolverSources
 }
 

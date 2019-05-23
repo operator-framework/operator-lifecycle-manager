@@ -118,7 +118,7 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 	if err != nil {
 		return err
 	}
-	defer addPackage.Close()
+	defer addDefaultChannel.Close()
 
 	if _, err := addPackage.Exec(manifest.PackageName); err != nil {
 		return err
@@ -130,15 +130,20 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 	}
 	defer addChannel.Close()
 
+	hasDefault := false
 	for _, c := range manifest.Channels {
 		if _, err := addChannel.Exec(c.Name, manifest.PackageName, c.CurrentCSVName); err != nil {
 			return err
 		}
 		if c.IsDefaultChannel(manifest) {
+			hasDefault = true
 			if _, err := addDefaultChannel.Exec(c.Name, manifest.PackageName); err != nil {
 				return err
 			}
 		}
+	}
+	if !hasDefault {
+		return fmt.Errorf("no default channel specified for %s", manifest.PackageName)
 	}
 
 	addChannelEntry, err := tx.Prepare("insert into channel_entry(channel_name, package_name, operatorbundle_name, depth) values(?, ?, ?, ?)")
@@ -152,7 +157,20 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 	 FROM operatorbundle,json_tree(operatorbundle.csv)
 	 WHERE operatorbundle.name IS ?
 	`)
+	if err != nil {
+		return err
+	}
 	defer getReplaces.Close()
+
+	getSkips, err := tx.Prepare(`
+	 SELECT DISTINCT value
+	 FROM operatorbundle,json_each(operatorbundle.csv, '$.spec.skips')
+	 WHERE operatorbundle.name IS ?
+	`)
+	if err != nil {
+		return err
+	}
+	defer getSkips.Close()
 
 	addReplaces, err := tx.Prepare("update channel_entry set replaces = ? where entry_id = ?")
 	if err != nil {
@@ -173,14 +191,63 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 		channelEntryCSVName := c.CurrentCSVName
 		depth := 1
 		for {
-			rows, err := getReplaces.Query(channelEntryCSVName)
+
+			// create skip entries
+			skipRows, err := getSkips.Query(channelEntryCSVName)
 			if err != nil {
 				return err
 			}
 
-			if rows.Next() {
+			for skipRows.Next() {
+				var skips sql.NullString
+				if err := skipRows.Scan(&skips); err != nil {
+					return err
+				}
+
+				if !skips.Valid || skips.String == "" {
+					break
+				}
+
+				// add dummy channel entry for the skipped version
+				skippedChannelEntry, err := addChannelEntry.Exec(c.Name, manifest.PackageName, skips.String, depth)
+				if err != nil {
+					return err
+				}
+
+				skippedID, err := skippedChannelEntry.LastInsertId()
+				if err != nil {
+					return err
+				}
+
+				// add another channel entry for the parent, which replaces the skipped
+				synthesizedChannelEntry, err := addChannelEntry.Exec(c.Name, manifest.PackageName, channelEntryCSVName, depth)
+				if err != nil {
+					return err
+				}
+
+
+				synthesizedID, err := synthesizedChannelEntry.LastInsertId()
+				if err != nil {
+					return err
+				}
+
+				_, err = addReplaces.Exec(skippedID, synthesizedID)
+				if err != nil {
+					return err
+				}
+
+				depth += 1
+			}
+
+			// create real replacement chain
+			replaceRows, err := getReplaces.Query(channelEntryCSVName)
+			if err != nil {
+				return err
+			}
+
+			if replaceRows.Next() {
 				var replaced sql.NullString
-				if err := rows.Scan(&replaced); err != nil {
+				if err := replaceRows.Scan(&replaced); err != nil {
 					return err
 				}
 
@@ -196,7 +263,10 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 				if err != nil {
 					return err
 				}
-				addReplaces.Exec(replacedID, currentID)
+				_, err = addReplaces.Exec(replacedID, currentID)
+				if err != nil {
+					return err
+				}
 				currentID = replacedID
 				channelEntryCSVName = replaced.String
 				depth += 1

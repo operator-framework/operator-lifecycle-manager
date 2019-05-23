@@ -41,10 +41,9 @@ var (
 		"communityOperators",
 		"quay.io/operator-framework/upstream-community-operators@sha256:098457dc5e0b6ca9599bd0e7a67809f8eca397907ca4d93597380511db478fec",
 		"reference to upstream-community-operators image")
-	
 
-	testNamespace     = ""
-	operatorNamespace = ""
+	testNamespace           = ""
+	operatorNamespace       = ""
 	communityOperatorsImage = ""
 )
 
@@ -111,12 +110,12 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		logrus.WithError(err).Fatalf("error configuring olm")
 	}
-	olmready, _ := olmOperator.Run(olmStopCh)
+	olmready, _, _ := olmOperator.Run(olmStopCh)
 	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, catlogger, time.Minute, "quay.io/operatorframework/configmap-operator-registry:latest", *namespace, namespaces...)
 	if err != nil {
 		logrus.WithError(err).Fatalf("error configuring catalog")
 	}
-	catready, _ := catalogOperator.Run(catalogStopCh)
+	catready, _, _ := catalogOperator.Run(catalogStopCh)
 	<-olmready
 	<-catready
 
@@ -125,7 +124,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	_, err = c.OperatorsV1alpha2().OperatorGroups(testNamespace).Create(&v1.OperatorGroup{
+	_, err = c.OperatorsV1().OperatorGroups(testNamespace).Create(&v1.OperatorGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "opgroup",
 			Namespace: testNamespace,
