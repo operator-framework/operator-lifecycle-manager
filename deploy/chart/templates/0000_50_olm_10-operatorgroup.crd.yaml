@@ -91,7 +91,6 @@ spec:
                 type: string
               type: array
           required:
-          - namespaces
           - lastUpdated
           type: object
       required:
