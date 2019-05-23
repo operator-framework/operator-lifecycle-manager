@@ -25,7 +25,7 @@ spec:
           - /bin/catalog
           args:
           - '-namespace'
-          - openshift-operator-lifecycle-manager
+          - openshift-marketplace
           - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
           - -writeStatusName
           - operator-lifecycle-manager-catalog

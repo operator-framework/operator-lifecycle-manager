@@ -1,7 +1,7 @@
 installType: ocp
 rbacApiVersion: rbac.authorization.k8s.io
 namespace: openshift-operator-lifecycle-manager
-catalog_namespace: openshift-operator-lifecycle-manager
+catalog_namespace: openshift-marketplace
 operator_namespace: openshift-operators
 imagestream: true
 writeStatusName: operator-lifecycle-manager
