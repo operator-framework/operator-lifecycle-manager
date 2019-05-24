@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -15,10 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
@@ -61,9 +59,10 @@ func init() {
 	metrics.RegisterOLM()
 }
 
-// main function - entrypoint to OLM operator
 func main() {
-	stopCh := signals.SetupSignalHandler()
+	// Get exit signal context
+	ctx, cancel := context.WithCancel(signals.Context())
+	defer cancel()
 
 	// Parse the command-line flags.
 	flag.Parse()
@@ -76,48 +75,12 @@ func main() {
 		os.Exit(0)
 	}
 
-	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
-	// the empty string, the resulting array will be `[]string{""}`.
-	namespaces := strings.Split(*watchedNamespaces, ",")
-	for _, ns := range namespaces {
-		if ns == v1.NamespaceAll {
-			namespaces = []string{v1.NamespaceAll}
-			break
-		}
-	}
-
-	// Create a client for OLM
-	crClient, err := client.NewClient(*kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-
-	logger := log.New()
-
 	// Set log level to debug if `debug` flag set
+	logger := log.New()
 	if *debug {
 		logger.SetLevel(log.DebugLevel)
 	}
 	logger.Infof("log level %s", logger.Level)
-
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
-
-	// create a config client for operator status
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-
-	// Create a new instance of the operator.
-	operator, err := olm.NewOperator(logger, crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, namespaces)
-
-	if err != nil {
-		log.Fatalf("error configuring operator: %s", err.Error())
-	}
 
 	var useTLS bool
 	if *tlsCertPath != "" && *tlsKeyPath == "" || *tlsCertPath == "" && *tlsKeyPath != "" {
@@ -159,11 +122,43 @@ func main() {
 		}()
 	}
 
-	ready, done, sync := operator.Run(stopCh)
+	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
+	// the empty string, the resulting array will be `[]string{""}`.
+	namespaces := strings.Split(*watchedNamespaces, ",")
+	for _, ns := range namespaces {
+		if ns == v1.NamespaceAll {
+			namespaces = []string{v1.NamespaceAll}
+			break
+		}
+	}
+
+	// Create a new instance of the OLM operator
+	builder := olm.NewBuilder()
+	builder.WithNamespaces(namespaces...).
+		WithKubeconfig(*kubeConfigPath).
+		WithLogger(logger).
+		WithResyncPeriod(*wakeupInterval)
+
+	op, err := builder.BuildOLMOperator()
+	if err != nil {
+		logger.Panicf("error configuring operator: %s", err.Error())
+	}
+
+	ready, done, sync := op.Run(ctx)
 	<-ready
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+		// create a config client for operator status
+		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+		if err != nil {
+			log.Fatalf("error configuring client: %s", err.Error())
+		}
+		configClient, err := configv1client.NewForConfig(config)
+		if err != nil {
+			log.Fatalf("error configuring client: %s", err.Error())
+		}
+
+		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, ctx.Done(), op.OpClient, configClient)
 	}
 
 	<-done

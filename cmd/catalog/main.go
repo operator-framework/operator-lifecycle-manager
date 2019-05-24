@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -66,7 +66,9 @@ func init() {
 }
 
 func main() {
-	stopCh := signals.SetupSignalHandler()
+	// Get exit signal context
+	ctx, cancel := context.WithCancel(signals.Context())
+	defer cancel()
 
 	// Parse the command-line flags.
 	flag.Parse()
@@ -77,16 +79,6 @@ func main() {
 
 		// Exit early
 		os.Exit(0)
-	}
-
-	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
-	// the empty string, the resulting array will be `[]string{""}`.
-	namespaces := strings.Split(*watchedNamespaces, ",")
-	for _, ns := range namespaces {
-		if ns == v1.NamespaceAll {
-			namespaces = []string{v1.NamespaceAll}
-			break
-		}
 	}
 
 	logger := log.New()
@@ -130,28 +122,45 @@ func main() {
 		}()
 	}
 
-	// create a config client for operator status
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
-
-	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
-	if err != nil {
-		log.Panicf("error configuring operator: %s", err.Error())
+	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
+	// the empty string, the resulting array will be `[]string{""}`.
+	namespaces := strings.Split(*watchedNamespaces, ",")
+	for _, ns := range namespaces {
+		if ns == v1.NamespaceAll {
+			namespaces = []string{v1.NamespaceAll}
+			break
+		}
 	}
 
-	ready, done, sync := catalogOperator.Run(stopCh)
+	// Build a catalog operator
+	builder := catalog.NewBuilder()
+	builder.WithConfigMapRegistryImage(*configmapServerImage).
+		WithNamespace(*catalogNamespace).
+		WithNamespaces(namespaces...).
+		WithKubeconfig(*kubeConfigPath).
+		WithLogger(logger).
+		WithResyncPeriod(*wakeupInterval)
+
+	op, err := builder.BuildCatalogOperator()
+	if err != nil {
+		logger.Panicf("error configuring operator: %s", err.Error())
+	}
+
+	ready, done, sync := op.Run(ctx)
 	<-ready
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+		// create a config client for operator status
+		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+		if err != nil {
+			log.Fatalf("error configuring client: %s", err.Error())
+		}
+		configClient, err := configv1client.NewForConfig(config)
+		if err != nil {
+			log.Fatalf("error configuring client: %s", err.Error())
+		}
+
+		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, ctx.Done(), op.OpClient, configClient)
 	}
 
 	<-done
