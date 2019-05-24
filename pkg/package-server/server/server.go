@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -183,12 +184,13 @@ func (o *PackageServerOptions) Run(stopCh <-chan struct{}) error {
 	}
 
 	// Ensure that provider stops after the apiserver gracefully shuts down
-	provCh := make(chan struct{})
-	ready, done, _ := sourceProvider.Run(provCh)
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+	ready, done, _ := sourceProvider.Run(ctx)
 	<-ready
 
 	err = server.GenericAPIServer.PrepareRun().Run(stopCh)
-	go func() { provCh <- struct{}{} }()
+	cancel()
 
 	<-done
 

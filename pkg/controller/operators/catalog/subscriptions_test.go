@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
@@ -18,8 +20,8 @@ import (
 )
 
 func TestSyncSubscriptions(t *testing.T) {
-	now := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
-	timeNow = func() metav1.Time { return now }
+	clockFake := clock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	now := metav1.NewTime(clockFake.Now())
 	testNamespace := "testNamespace"
 
 	type fields struct {
@@ -640,9 +642,9 @@ func TestSyncSubscriptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create test operator
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			o, err := NewFakeOperator(testNamespace, []string{testNamespace}, stopCh, withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			o, err := NewFakeOperator(ctx, testNamespace, withClock(clockFake), withNamespaces(testNamespace), withClientObjs(tt.fields.existingOLMObjs...), withK8sObjs(tt.fields.existingObjects...), withFakeClientOptions(tt.fields.clientOptions...))
 			require.NoError(t, err)
 
 			o.reconciler = &fakes.FakeRegistryReconcilerFactory{
@@ -674,12 +676,12 @@ func TestSyncSubscriptions(t *testing.T) {
 			}
 
 			for _, s := range tt.wantSubscriptions {
-				fetched, err := o.client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(s.GetName(), metav1.GetOptions{})
+				fetched, err := o.Client.OperatorsV1alpha1().Subscriptions(testNamespace).Get(s.GetName(), metav1.GetOptions{})
 				require.NoError(t, err)
 				require.Equal(t, s, fetched)
 			}
 			if tt.wantInstallPlan != nil {
-				installPlans, err := o.client.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+				installPlans, err := o.Client.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
 				require.NoError(t, err)
 				require.Equal(t, 1, len(installPlans.Items))
 				ip := installPlans.Items[0]

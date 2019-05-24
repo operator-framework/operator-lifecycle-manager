@@ -22,7 +22,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 )
 
@@ -78,8 +77,14 @@ func NewRegistryProvider(crClient versioned.Interface, operator *queueinformer.O
 		// Register queue and QueueInformer
 		logrus.WithField("namespace", namespace).Info("watching catalogsources")
 		queueName := fmt.Sprintf("%s/catalogsources", namespace)
+		sourceInformer.Informer().AddEventHandler(sourceHandlers)
 		sourceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		sourceQueueInformer := queueinformer.NewInformer(sourceQueue, sourceInformer.Informer(), p.syncCatalogSource, sourceHandlers, queueName, metrics.NewMetricsNil(), logrus.New())
+		sourceQueueInformer := queueinformer.NewQueueInformer(
+			queueName,
+			sourceQueue,
+			sourceInformer.Informer(),
+			queueinformer.WithSyncHandlers(p.syncCatalogSource),
+		)
 		p.RegisterQueueInformer(sourceQueueInformer)
 	}
 

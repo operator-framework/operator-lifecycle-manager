@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -25,43 +26,38 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
-	aextv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/apimachinery/pkg/util/diff"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/pkg/version"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/client-go/util/workqueue"
+	"k8s.io/client-go/tools/record"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
-	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
-	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 )
 
 // Fakes
@@ -141,126 +137,148 @@ func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	return apis
 }
 
-// NewFakeOperator creates a new operator using fake clients
-func NewFakeOperator(clientObjs []runtime.Object, k8sObjs []runtime.Object, extObjs []runtime.Object, regObjs []runtime.Object, strategyResolver install.StrategyResolverInterface, apiReconciler resolver.APIIntersectionReconciler, apiLabeler labeler.Labeler, namespaces []string, stopCh <-chan struct{}) (*Operator, []cache.InformerSynced, error) {
+// fakeOperatorConfig is the configuration for a fake operator.
+type fakeOperatorConfig struct {
+	clock         clock.Clock
+	namespaces    []string
+	clientObjs    []runtime.Object
+	k8sObjs       []runtime.Object
+	extObjs       []runtime.Object
+	regObjs       []runtime.Object
+	clientOptions []clientfake.Option
+	recorder      record.EventRecorder
+	resolver      install.StrategyResolverInterface
+	apiReconciler resolver.APIIntersectionReconciler
+	apiLabeler    labeler.Labeler
+}
+
+// fakeOperatorOption applies an option to the given fake operator configuration.
+type fakeOperatorOption func(*fakeOperatorConfig)
+
+func withClock(clk clock.Clock) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.clock = clk
+	}
+}
+
+func withNamespaces(namespaces ...string) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.namespaces = namespaces
+	}
+}
+
+func withClientObjs(clientObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.clientObjs = clientObjs
+	}
+}
+
+func withK8sObjs(k8sObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.k8sObjs = k8sObjs
+	}
+}
+
+func withExtObjs(extObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.extObjs = extObjs
+	}
+}
+
+func withRegObjs(regObjs ...runtime.Object) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.regObjs = regObjs
+	}
+}
+
+func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.clientOptions = options
+	}
+}
+
+func withEventRecorder(rec record.EventRecorder) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.recorder = rec
+	}
+}
+
+func withStrategyResolver(res install.StrategyResolverInterface) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.resolver = res
+	}
+}
+
+func withAPIReconciler(rec resolver.APIIntersectionReconciler) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.apiReconciler = rec
+	}
+}
+
+func withLabeler(labeler labeler.Labeler) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.apiLabeler = labeler
+	}
+}
+
+// NewFakeOperator creates and starts a new operator using fake clients.
+func NewFakeOperator(ctx context.Context, fakeOptions ...fakeOperatorOption) (*Operator, error) {
+	// Apply options to default config
+	config := &fakeOperatorConfig{
+		clock:         clock.RealClock{},
+		recorder:      &record.FakeRecorder{},
+		apiLabeler:    labeler.Func(resolver.LabelSetsFor),
+		apiReconciler: resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
+	}
+	for _, option := range fakeOptions {
+		option(config)
+	}
+
 	// Create client fakes
-	clientFake := fake.NewSimpleClientset(clientObjs...)
-	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
-	k8sClientFake.Resources = apiResourcesForObjects(append(extObjs, regObjs...))
-	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(extObjs...), apiregistrationfake.NewSimpleClientset(regObjs...))
+	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.clientOptions...)
+	// TODO: Using the ReactionForwardingClientsetDecorator for k8s objects causes issues with adding Resources for discovery.
+	// For now, directly use a SimpleClientset instead.
+	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
+	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
+	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 
-	eventRecorder, err := event.NewRecorder(opClientFake.KubernetesInterface().CoreV1().Events(metav1.NamespaceAll))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if apiReconciler == nil {
-		// Use the default reconciler if one isn't given
-		apiReconciler = resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection)
-	}
-
-	if apiLabeler == nil {
-		apiLabeler = labeler.Func(resolver.LabelSetsFor)
-	}
-
-	// Create the new operator
-	logger := logrus.StandardLogger()
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logger)
-
-	lister := operatorlister.NewLister()
-	csvSetGenerator := csvutility.NewSetGenerator(logger, lister)
-	csvReplaceFinder := csvutility.NewReplaceFinder(logger, clientFake)
-
-	op := &Operator{
-		Operator:         queueOperator,
-		client:           clientFake,
-		resolver:         strategyResolver,
-		apiReconciler:    apiReconciler,
-		lister:           lister,
-		csvQueueSet:      queueinformer.NewEmptyResourceQueueSet(),
-		recorder:         eventRecorder,
-		apiLabeler:       apiLabeler,
-		csvSetGenerator:  csvSetGenerator,
-		csvReplaceFinder: csvReplaceFinder,
-	}
-
-	wakeupInterval := 5 * time.Minute
-
-	informerFactory := informers.NewSharedInformerFactory(opClientFake.KubernetesInterface(), wakeupInterval)
-	roleInformer := informerFactory.Rbac().V1().Roles()
-	roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-	clusterRoleInformer := informerFactory.Rbac().V1().ClusterRoles()
-	clusterRoleBindingInformer := informerFactory.Rbac().V1().ClusterRoleBindings()
-	secretInformer := informerFactory.Core().V1().Secrets()
-	serviceInformer := informerFactory.Core().V1().Services()
-	serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
-	namespaceInformer := informerFactory.Core().V1().Namespaces()
-	apiServiceInformer := kagg.NewSharedInformerFactory(opClientFake.ApiregistrationV1Interface(), wakeupInterval).Apiregistration().V1().APIServices()
-	customResourceDefinitionInformer := aextv1beta1.NewSharedInformerFactory(opClientFake.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
-
-	// Register informers
-	informerList := []cache.SharedIndexInformer{
-		roleInformer.Informer(),
-		roleBindingInformer.Informer(),
-		clusterRoleInformer.Informer(),
-		clusterRoleBindingInformer.Informer(),
-		secretInformer.Informer(),
-		serviceInformer.Informer(),
-		serviceAccountInformer.Informer(),
-		namespaceInformer.Informer(),
-		apiServiceInformer.Informer(),
-		customResourceDefinitionInformer.Informer(),
-	}
-
-	csvIndexes := map[string]cache.Indexer{}
+	namespaces := config.namespaces
 	for _, ns := range namespaces {
-		csvInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns)).Operators().V1alpha1().ClusterServiceVersions()
-		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(ns, csvInformer.Lister())
-		operatorGroupInformer := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns)).Operators().V1().OperatorGroups()
-		op.lister.OperatorsV1().RegisterOperatorGroupLister(ns, operatorGroupInformer.Lister())
-		deploymentInformer := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(ns)).Apps().V1().Deployments()
-		op.lister.AppsV1().RegisterDeploymentLister(ns, deploymentInformer.Lister())
-		informerList = append(informerList, []cache.SharedIndexInformer{csvInformer.Informer(), operatorGroupInformer.Informer(), deploymentInformer.Informer()}...)
-		csvIndexes[ns] = csvInformer.Informer().GetIndexer()
-	}
-	// Register separate queue for copying csvs
-	csvCopyQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvCopy")
-	csvQueueIndexer := queueinformer.NewQueueIndexer(csvCopyQueue, csvIndexes, op.syncCopyCSV, "csvCopy", logger, metrics.NewMetricsNil())
-	op.RegisterQueueIndexer(csvQueueIndexer)
-	op.copyQueueIndexer = csvQueueIndexer
-
-	// Register listers
-	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
-	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
-	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
-	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
-	op.lister.CoreV1().RegisterSecretLister(metav1.NamespaceAll, secretInformer.Lister())
-	op.lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
-	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
-	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
-	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(customResourceDefinitionInformer.Lister())
-
-	// TODO: are there other resources that query all namespaces?
-	csvInformerAll := externalversions.NewSharedInformerFactory(clientFake, wakeupInterval).Operators().V1alpha1().ClusterServiceVersions()
-	op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformerAll.Lister())
-
-	var hasSyncedCheckFns []cache.InformerSynced
-	for _, informer := range informerList {
-		op.RegisterInformer(informer)
-		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
-		go informer.Run(stopCh)
+		_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
+		// Ignore already-exists errors
+		if err != nil && !k8serrors.IsAlreadyExists(err) {
+			return nil, err
+		}
 	}
 
-	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
-		return nil, nil, fmt.Errorf("failed to wait for caches to sync")
+	builder := NewBuilder()
+	builder.WithEventRecorder(config.recorder).
+		WithStrategyResolver(config.resolver).
+		WithAPIReconciler(config.apiReconciler).
+		WithLabeler(config.apiLabeler).
+		WithClock(config.clock).
+		WithNamespaces(namespaces...).
+		WithClient(clientFake).
+		WithOperatorClient(opClientFake).
+		WithResyncPeriod(5 * time.Minute)
+
+	opFake, err := builder.BuildOLMOperator()
+	if err != nil {
+		return nil, err
 	}
 
-	return op, hasSyncedCheckFns, nil
+	// Only start the operator's informers (no reconciliation)
+	opFake.RunInformers(ctx)
+
+	if ok := cache.WaitForCacheSync(ctx.Done(), opFake.HasSynced); !ok {
+		return nil, fmt.Errorf("failed to wait for caches to sync")
+	}
+
+	return opFake, nil
 }
 
 func (o *Operator) GetClient() versioned.Interface {
-	return o.client
+	return o.Client
 }
 
 func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconciliationResult) *fakes.FakeAPIIntersectionReconciler {
@@ -269,21 +287,14 @@ func buildFakeAPIIntersectionReconcilerThatReturns(result resolver.APIReconcilia
 	return reconciler
 }
 
-func NewFakeOperatorDefault() *Operator {
-	logger := logrus.StandardLogger()
-
-	clientFake := fake.NewSimpleClientset()
-	lister := operatorlister.NewLister()
-	csvSetGenerator := csvutility.NewSetGenerator(logger, lister)
-	csvReplaceFinder := csvutility.NewReplaceFinder(logger, clientFake)
-
-	return &Operator{
-		Operator: &queueinformer.Operator{
-			Log: logrus.New(),
-		},
-		csvSetGenerator:  csvSetGenerator,
-		csvReplaceFinder: csvReplaceFinder,
-	}
+func NewFakeOperatorDefault() (*Operator, error) {
+	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(), apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset())
+	builder := NewBuilder()
+	builder.WithEventRecorder(&record.FakeRecorder{}).
+		WithClient(fake.NewSimpleClientset()).
+		WithOperatorClient(opClientFake).
+		WithLogger(logrus.StandardLogger())
+	return builder.BuildOLMOperator()
 }
 
 // Tests
@@ -2954,14 +2965,18 @@ func TestTransitionCSV(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// configure cluster state
-			namespaceObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}}
-			tt.initial.objs = append(tt.initial.objs, namespaceObj)
-			clientObjs := append(tt.initial.csvs, tt.initial.clientObjs...)
-
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(clientObjs, tt.initial.objs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, tt.config.apiReconciler, tt.config.apiLabeler, []string{namespace}, stopCh)
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withClientObjs(append(tt.initial.csvs, tt.initial.clientObjs...)...),
+				withK8sObjs(tt.initial.objs...),
+				withExtObjs(tt.initial.crds...),
+				withRegObjs(tt.initial.apis...),
+				withAPIReconciler(tt.config.apiReconciler),
+				withLabeler(tt.config.apiLabeler),
+			)
 			require.NoError(t, err)
 
 			// run csv sync for each CSV
@@ -2973,7 +2988,7 @@ func TestTransitionCSV(t *testing.T) {
 
 			// get csvs in the cluster
 			outCSVMap := map[string]*v1alpha1.ClusterServiceVersion{}
-			outCSVs, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions("ns").List(metav1.ListOptions{})
+			outCSVs, err := op.GetClient().OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
 			require.NoError(t, err)
 			for _, csv := range outCSVs.Items {
 				outCSVMap[csv.GetName()] = csv.DeepCopy()
@@ -2993,7 +3008,7 @@ func TestTransitionCSV(t *testing.T) {
 
 			// Verify other objects
 			if tt.expected.objs != nil {
-				RequireObjectsInNamespace(t, op.OpClient, op.client, namespace, tt.expected.objs)
+				RequireObjectsInNamespace(t, op.OpClient, op.Client, namespace, tt.expected.objs)
 			}
 		})
 	}
@@ -3231,9 +3246,18 @@ func TestUpdates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator([]runtime.Object{defaultOperatorGroup}, runningOperator, []runtime.Object{crd}, nil, &install.StrategyResolver{}, nil, nil, []string{namespace}, stopCh)
+			t.Parallel()
+
+			// Setup fake operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withExtObjs(crd),
+				withClientObjs(defaultOperatorGroup),
+				withK8sObjs(runningOperator...),
+				withNamespaces(namespace),
+			)
 			require.NoError(t, err)
 
 			// Create input CSV set
@@ -3274,7 +3298,7 @@ func TestUpdates(t *testing.T) {
 					// If we expect a change, wait for listers to sync the change so that the next sync reflects the changes
 					if expectedCurrent != expectedPrevious {
 						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
-							updated, err := op.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(csv.GetName())
+							updated, err := op.Lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(csv.GetName())
 							if k8serrors.IsNotFound(err) {
 								return false, nil
 							}
@@ -3304,8 +3328,8 @@ func TestUpdates(t *testing.T) {
 
 func TestSyncOperatorGroups(t *testing.T) {
 	logrus.SetLevel(logrus.DebugLevel)
-	nowTime := metav1.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600))
-	timeNow = func() metav1.Time { return nowTime }
+	clockFake := clock.NewFakeClock(time.Date(2006, time.January, 2, 15, 4, 5, 0, time.FixedZone("MST", -7*3600)))
+	now := metav1.NewTime(clockFake.Now())
 
 	operatorNamespace := "operator-ns"
 	targetNamespace := "target-ns"
@@ -3342,8 +3366,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 	operatorCSVFinal.Status.Phase = v1alpha1.CSVPhaseSucceeded
 	operatorCSVFinal.Status.Message = "install strategy completed with no errors"
 	operatorCSVFinal.Status.Reason = v1alpha1.CSVReasonInstallSuccessful
-	operatorCSVFinal.Status.LastUpdateTime = timeNow()
-	operatorCSVFinal.Status.LastTransitionTime = timeNow()
+	operatorCSVFinal.Status.LastUpdateTime = now
+	operatorCSVFinal.Status.LastTransitionTime = now
 	operatorCSVFinal.Status.RequirementStatus = []v1alpha1.RequirementStatus{
 		{
 			Group:   "operators.coreos.com",
@@ -3383,29 +3407,29 @@ func TestSyncOperatorGroups(t *testing.T) {
 			Phase:              v1alpha1.CSVPhasePending,
 			Reason:             v1alpha1.CSVReasonRequirementsUnknown,
 			Message:            "requirements not yet checked",
-			LastUpdateTime:     timeNow(),
-			LastTransitionTime: timeNow(),
+			LastUpdateTime:     now,
+			LastTransitionTime: now,
 		},
 		{
 			Phase:              v1alpha1.CSVPhaseInstallReady,
 			Reason:             v1alpha1.CSVReasonRequirementsMet,
 			Message:            "all requirements found, attempting install",
-			LastUpdateTime:     timeNow(),
-			LastTransitionTime: timeNow(),
+			LastUpdateTime:     now,
+			LastTransitionTime: now,
 		},
 		{
 			Phase:              v1alpha1.CSVPhaseInstalling,
 			Reason:             v1alpha1.CSVReasonInstallSuccessful,
 			Message:            "waiting for install components to report healthy",
-			LastUpdateTime:     timeNow(),
-			LastTransitionTime: timeNow(),
+			LastUpdateTime:     now,
+			LastTransitionTime: now,
 		},
 		{
 			Phase:              v1alpha1.CSVPhaseSucceeded,
 			Reason:             v1alpha1.CSVReasonInstallSuccessful,
 			Message:            "install strategy completed with no errors",
-			LastUpdateTime:     timeNow(),
-			LastTransitionTime: timeNow(),
+			LastUpdateTime:     now,
+			LastTransitionTime: now,
 		},
 	}
 
@@ -3414,15 +3438,15 @@ func TestSyncOperatorGroups(t *testing.T) {
 	operatorCSVFailedNoTargetNS.Status.Phase = v1alpha1.CSVPhaseFailed
 	operatorCSVFailedNoTargetNS.Status.Message = "no targetNamespaces are matched operatorgroups namespace selection"
 	operatorCSVFailedNoTargetNS.Status.Reason = v1alpha1.CSVReasonNoTargetNamespaces
-	operatorCSVFailedNoTargetNS.Status.LastUpdateTime = timeNow()
-	operatorCSVFailedNoTargetNS.Status.LastTransitionTime = timeNow()
+	operatorCSVFailedNoTargetNS.Status.LastUpdateTime = now
+	operatorCSVFailedNoTargetNS.Status.LastTransitionTime = now
 	operatorCSVFailedNoTargetNS.Status.Conditions = []v1alpha1.ClusterServiceVersionCondition{
 		{
 			Phase:              v1alpha1.CSVPhaseFailed,
 			Reason:             v1alpha1.CSVReasonNoTargetNamespaces,
 			Message:            "no targetNamespaces are matched operatorgroups namespace selection",
-			LastUpdateTime:     timeNow(),
-			LastTransitionTime: timeNow(),
+			LastUpdateTime:     now,
+			LastTransitionTime: now,
 		},
 	}
 
@@ -3430,7 +3454,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	targetCSV.SetNamespace(targetNamespace)
 	targetCSV.Status.Reason = v1alpha1.CSVReasonCopied
 	targetCSV.Status.Message = "The operator is running in operator-ns but is managing this namespace"
-	targetCSV.Status.LastUpdateTime = timeNow()
+	targetCSV.Status.LastUpdateTime = now
 
 	ownerutil.AddNonBlockingOwner(serviceAccount, operatorCSV)
 
@@ -3614,7 +3638,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{targetNamespace},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 		},
 		{
@@ -3655,7 +3679,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{operatorNamespace, targetNamespace},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -3757,7 +3781,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{operatorNamespace, targetNamespace},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -3862,7 +3886,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -3964,7 +3988,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -3986,7 +4010,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						Spec: v1.OperatorGroupSpec{},
 						Status: v1.OperatorGroupStatus{
 							Namespaces:  []string{corev1.NamespaceAll},
-							LastUpdated: timeNow(),
+							LastUpdated: now,
 						},
 					},
 				},
@@ -4074,7 +4098,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -4092,7 +4116,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 						Status: v1.OperatorGroupStatus{
 							Namespaces:  []string{corev1.NamespaceAll},
-							LastUpdated: timeNow(),
+							LastUpdated: now,
 						},
 					},
 				},
@@ -4139,7 +4163,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: timeNow(),
+				LastUpdated: now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -4158,7 +4182,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 							}), v1alpha1.CSVPhaseFailed,
 						v1alpha1.CSVReasonUnsupportedOperatorGroup,
 						"AllNamespaces InstallModeType not supported, cannot configure to watch all namespaces",
-						timeNow()),
+						now),
 				},
 				"":              {},
 				targetNamespace: {},
@@ -4179,9 +4203,18 @@ func TestSyncOperatorGroups(t *testing.T) {
 			// Append operatorGroup to initialObjs
 			tt.initial.clientObjs = append(tt.initial.clientObjs, tt.initial.operatorGroup)
 
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(tt.initial.clientObjs, tt.initial.k8sObjs, tt.initial.crds, tt.initial.apis, &install.StrategyResolver{}, nil, nil, namespaces, stopCh)
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(
+				ctx,
+				withClock(clockFake),
+				withNamespaces(namespaces...),
+				withClientObjs(tt.initial.clientObjs...),
+				withK8sObjs(tt.initial.k8sObjs...),
+				withExtObjs(tt.initial.crds...),
+				withRegObjs(tt.initial.apis...),
+			)
 			require.NoError(t, err)
 
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
@@ -4189,7 +4222,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			// wait on operator group updated status to be in the cache as it is required for later CSV operations
 			err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
-				operatorGroup, err := op.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName())
+				operatorGroup, err := op.Lister.OperatorsV1().OperatorGroupLister().OperatorGroups(tt.initial.operatorGroup.GetNamespace()).Get(tt.initial.operatorGroup.GetName())
 				if err != nil {
 					return false, err
 				}
@@ -4209,7 +4242,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 			// Sync csvs enough to get them back to succeeded state
 			for i := 0; i < 8; i++ {
-				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
+				opGroupCSVs, err := op.Client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
 				require.NoError(t, err)
 
 				for i, obj := range opGroupCSVs.Items {
@@ -4225,7 +4258,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					if i == 0 {
 						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
 							for namespace, objects := range tt.final.objects {
-								if err := RequireObjectsInCache(t, op.lister, namespace, objects, false); err != nil {
+								if err := RequireObjectsInCache(t, op.Lister, namespace, objects, false); err != nil {
 									return false, nil
 								}
 							}
@@ -4237,7 +4270,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					if i == 8 {
 						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
 							for namespace, objects := range tt.final.objects {
-								if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
+								if err := RequireObjectsInCache(t, op.Lister, namespace, objects, true); err != nil {
 									return false, nil
 								}
 							}
@@ -4255,7 +4288,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			assert.Equal(t, tt.expectedStatus, operatorGroup.Status)
 
 			for namespace, objects := range tt.final.objects {
-				RequireObjectsInNamespace(t, op.OpClient, op.client, namespace, objects)
+				RequireObjectsInNamespace(t, op.OpClient, op.Client, namespace, objects)
 			}
 		})
 	}
@@ -4377,10 +4410,10 @@ func TestIsReplacing(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// configure cluster state
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator(tt.initial.csvs, nil, nil, nil, &install.StrategyResolver{}, nil, nil, []string{namespace}, stopCh)
+			// Create test operator
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(ctx, withNamespaces(namespace), withClientObjs(tt.initial.csvs...))
 			require.NoError(t, err)
 
 			require.Equal(t, tt.expected, op.isReplacing(tt.in))
@@ -4428,9 +4461,8 @@ func TestIsBeingReplaced(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// configure cluster state
-			op := NewFakeOperatorDefault()
-
+			op, err := NewFakeOperatorDefault()
+			require.NoError(t, err)
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
 	}
@@ -4476,9 +4508,8 @@ func TestCheckReplacement(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// configure cluster state
-			op := NewFakeOperatorDefault()
-
+			op, err := NewFakeOperatorDefault()
+			require.NoError(t, err)
 			require.Equal(t, tt.expected, op.isBeingReplaced(tt.in, tt.initial.csvs))
 		})
 	}

@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/coreos/go-semver/semver"
+	"github.com/sirupsen/logrus"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	olmErrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
+func (o *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
 	status := v1alpha1.RequirementStatus{
 		Group:   "operators.coreos.com",
 		Version: "v1alpha1",
@@ -32,7 +32,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 	}
 
 	// Retrieve server k8s version
-	serverVersionInfo, err := a.OpClient.KubernetesInterface().Discovery().ServerVersion()
+	serverVersionInfo, err := o.OpClient.KubernetesInterface().Discovery().ServerVersion()
 	if err != nil {
 		status.Status = v1alpha1.RequirementStatusReasonPresentNotSatisfied
 		status.Message = "Server version discovery error"
@@ -74,7 +74,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 	return
 }
 
-func (a *Operator) requirementStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
+func (o *Operator) requirementStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
 	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription,
 	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
@@ -89,11 +89,11 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 
 		// check if CRD exists - this verifies group, version, and kind, so no need for GVK check via discovery
-		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
+		crd, err := o.Lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(r.Name)
 		if err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			status.Message = "CRD is not present"
-			a.Log.Debugf("Setting 'met' to false, %v with status %v, with err: %v", r.Name, status, err)
+			o.Log.Debugf("Setting 'met' to false, %v with status %v, with err: %v", r.Name, status, err)
 			met = false
 			statuses = append(statuses, status)
 			continue
@@ -113,7 +113,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 			if !served {
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
 				status.Message = "CRD version not served"
-				a.Log.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
+				o.Log.Debugf("Setting 'met' to false, %v with status %v, CRD version %v not found", r.Name, status, r.Version)
 				met = false
 				statuses = append(statuses, status)
 				continue
@@ -145,7 +145,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 			status.Status = v1alpha1.RequirementStatusReasonNotAvailable
 			status.Message = "CRD is present but the Established condition is False (not available)"
 			met = false
-			a.Log.Debugf("Setting 'met' to false, %v with status %v, established=%v, namesAccepted=%v", r.Name, status, established, namesAccepted)
+			o.Log.Debugf("Setting 'met' to false, %v with status %v, established=%v, namesAccepted=%v", r.Name, status, established, namesAccepted)
 			statuses = append(statuses, status)
 		}
 	}
@@ -161,7 +161,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 
 		// Check if GVK exists
-		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
+		if err := o.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
 			status.Status = "NotPresent"
 			met = false
 			statuses = append(statuses, status)
@@ -169,7 +169,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 
 		// Check if APIService is registered
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(name)
+		apiService, err := o.Lister.APIRegistrationV1().APIServiceLister().Get(name)
 		if err != nil {
 			status.Status = "NotPresent"
 			met = false
@@ -178,7 +178,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 		}
 
 		// Check if API is available
-		if !a.isAPIServiceAvailable(apiService) {
+		if !o.isAPIServiceAvailable(apiService) {
 			status.Status = "NotPresent"
 			met = false
 		} else {
@@ -224,7 +224,7 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 			Name:    name,
 		}
 
-		if err := a.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
+		if err := o.isGVKRegistered(r.Group, r.Version, r.Kind); err != nil {
 			status.Status = v1alpha1.RequirementStatusReasonNotPresent
 			status.Message = "Native API does not exist"
 			met = false
@@ -242,14 +242,14 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 }
 
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace, serviceAccountNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
+func (o *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace, serviceAccountNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
 
 	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) (bool, error) {
 		met := true
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
-			a.Log.Debugf("perm.ServiceAccountName: %s", saName)
+			o.Log.Debugf("perm.ServiceAccountName: %s", saName)
 
 			var status v1alpha1.RequirementStatus
 			if stored, ok := statusesSet[saName]; !ok {
@@ -266,7 +266,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 			}
 
 			// Ensure the ServiceAccount exists
-			sa, err := a.OpClient.GetServiceAccount(serviceAccountNamespace, perm.ServiceAccountName)
+			sa, err := o.OpClient.GetServiceAccount(serviceAccountNamespace, perm.ServiceAccountName)
 			if err != nil {
 				met = false
 				status.Status = v1alpha1.RequirementStatusReasonNotPresent
@@ -331,7 +331,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 	statuses := []v1alpha1.RequirementStatus{}
 	for key, status := range statusesSet {
-		a.Log.WithField("key", key).WithField("status", status).Debugf("appending permission status")
+		o.Log.WithField("key", key).WithField("status", status).Debugf("appending permission status")
 		statuses = append(statuses, status)
 	}
 
@@ -339,7 +339,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 }
 
 // requirementAndPermissionStatus returns the aggregate requirement and permissions statuses for the given CSV
-func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
+func (o *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
 	// Use a StrategyResolver to unmarshal
 	strategyResolver := install.StrategyResolver{}
 	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
@@ -354,18 +354,18 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	// Check kubernetes version requirement between CSV and server
-	minKubeMet, minKubeStatus := a.minKubeVersionStatus(csv.GetName(), csv.Spec.MinKubeVersion)
-	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
+	minKubeMet, minKubeStatus := o.minKubeVersionStatus(csv.GetName(), csv.Spec.MinKubeVersion)
+	reqMet, reqStatuses := o.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
 	allReqStatuses := append(minKubeStatus, reqStatuses...)
 
-	rbacLister := a.lister.RbacV1()
+	rbacLister := o.Lister.RbacV1()
 	roleLister := rbacLister.RoleLister()
 	roleBindingLister := rbacLister.RoleBindingLister()
 	clusterRoleLister := rbacLister.ClusterRoleLister()
 	clusterRoleBindingLister := rbacLister.ClusterRoleBindingLister()
 
 	ruleChecker := install.NewCSVRuleChecker(roleLister, roleBindingLister, clusterRoleLister, clusterRoleBindingLister, csv)
-	permMet, permStatuses, err := a.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace(), csv.GetNamespace())
+	permMet, permStatuses, err := o.permissionStatus(strategyDetailsDeployment, ruleChecker, csv.GetNamespace(), csv.GetNamespace())
 	if err != nil {
 		return false, nil, err
 	}
@@ -374,21 +374,21 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	statuses := append(allReqStatuses, permStatuses...)
 	met := minKubeMet && reqMet && permMet
 	if !met {
-		a.Log.WithField("minKubeMet", minKubeMet).WithField("reqMet", reqMet).WithField("permMet", permMet).Debug("permissions/requirements not met")
+		o.Log.WithField("minKubeMet", minKubeMet).WithField("reqMet", reqMet).WithField("permMet", permMet).Debug("permissions/requirements not met")
 	}
 
 	return met, statuses, nil
 }
 
-func (a *Operator) isGVKRegistered(group, version, kind string) error {
-	logger := a.Log.WithFields(logrus.Fields{
+func (o *Operator) isGVKRegistered(group, version, kind string) error {
+	logger := o.Log.WithFields(logrus.Fields{
 		"group":   group,
 		"version": version,
 		"kind":    kind,
 	})
 
 	gv := metav1.GroupVersion{Group: group, Version: version}
-	resources, err := a.OpClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv.String())
+	resources, err := o.OpClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv.String())
 	if err != nil {
 		logger.WithField("err", err).Info("could not query for GVK in api discovery")
 		return err

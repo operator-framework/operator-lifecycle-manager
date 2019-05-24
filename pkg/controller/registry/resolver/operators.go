@@ -19,7 +19,7 @@ type CatalogKey struct {
 }
 
 func (k *CatalogKey) String() string {
-	return fmt.Sprintf("%s/%s", k.Name, k.Namespace)
+	return fmt.Sprintf("%s/%s", k.Namespace, k.Name)
 }
 
 type APISet map[opregistry.APIKey]struct{}

@@ -707,7 +707,7 @@ func TestCatalogKey_String(t *testing.T) {
 		{
 			name:   "catalogkey",
 			fields: fields{Name: "test", Namespace: "namespace"},
-			want:   "test/namespace",
+			want:   "namespace/test",
 		},
 	}
 	for _, tt := range tests {

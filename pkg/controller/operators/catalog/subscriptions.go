@@ -26,7 +26,7 @@ func labelsForSubscription(sub *v1alpha1.Subscription) map[string]string {
 	}
 }
 
-// TODO remove this once UI no longer needs them
+// TODO: remove this once UI no longer needs them
 func legacyLabelsForSubscription(sub *v1alpha1.Subscription) map[string]string {
 	return map[string]string{
 		"alm-package": sub.Spec.Package,

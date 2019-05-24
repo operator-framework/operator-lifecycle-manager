@@ -33,7 +33,7 @@ const (
 	Organization = "Red Hat, Inc."
 )
 
-func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
+func (o *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	now := metav1.Now()
 	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
 		return true
@@ -47,7 +47,7 @@ func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 //
 // This method can be used to determine if a CSV in a failed state due to APIService
 // issues can resolve them by reinstalling
-func (a *Operator) apiServiceResourceErrorActionable(err error) bool {
+func (o *Operator) apiServiceResourceErrorActionable(err error) bool {
 	filtered := utilerrors.FilterOut(err, func(e error) bool {
 		_, unadoptable := e.(olmerrors.UnadoptableError)
 		return !unadoptable
@@ -58,7 +58,7 @@ func (a *Operator) apiServiceResourceErrorActionable(err error) bool {
 }
 
 // checkAPIServiceResources checks if all expected generated resources for the given APIService exist
-func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) error {
+func (o *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion, hashFunc certs.PEMHash) error {
 	logger := log.WithFields(log.Fields{
 		"csv":       csv.GetName(),
 		"namespace": csv.GetNamespace(),
@@ -68,7 +68,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 	owners := []ownerutil.Owner{csv}
 
 	// Get replacing CSV if exists
-	replacing, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+	replacing, err := o.Lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
 	if err != nil && !k8serrors.IsNotFound(err) {
 		logger.WithError(err).Warn("could not get replacement csv")
 		return err
@@ -77,14 +77,14 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		owners = append(owners, replacing)
 	}
 
-	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
+	ruleChecker := install.NewCSVRuleChecker(o.Lister.RbacV1().RoleLister(), o.Lister.RbacV1().RoleBindingLister(), o.Lister.RbacV1().ClusterRoleLister(), o.Lister.RbacV1().ClusterRoleBindingLister(), csv)
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
 		apiServiceName := desc.GetName()
 		logger := logger.WithFields(log.Fields{
 			"apiservice": apiServiceName,
 		})
 
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+		apiService, err := o.Lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
 		if err != nil {
 			logger.Warnf("could not retrieve generated APIService")
 			errs = append(errs, err)
@@ -101,7 +101,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		serviceName := APIServiceNameToServiceName(apiServiceName)
-		service, err := a.lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(serviceName)
+		service, err := o.Lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(serviceName)
 		if err != nil {
 			logger.WithField("service", serviceName).Warnf("could not retrieve generated Service")
 			errs = append(errs, err)
@@ -131,7 +131,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 
 		// Check if serving cert is active
 		secretName := apiServiceName + "-cert"
-		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
+		secret, err := o.Lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
 		if err != nil {
 			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret")
 			errs = append(errs, err)
@@ -170,7 +170,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		// Ensure the existing Deployment has a matching CA hash annotation
-		deployment, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).Get(desc.DeploymentName)
+		deployment, err := o.Lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).Get(desc.DeploymentName)
 		if k8serrors.IsNotFound(err) || err != nil {
 			logger.WithField("deployment", desc.DeploymentName).Warnf("expected Deployment could not be retrieved")
 			errs = append(errs, err)
@@ -187,7 +187,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		if serviceAccountName == "" {
 			serviceAccountName = "default"
 		}
-		serviceAccount, err := a.lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
+		serviceAccount, err := o.Lister.CoreV1().ServiceAccountLister().ServiceAccounts(deployment.GetNamespace()).Get(serviceAccountName)
 		if err != nil {
 			logger.WithField("serviceaccount", serviceAccountName).Warnf("could not retrieve ServiceAccount")
 			errs = append(errs, err)
@@ -210,7 +210,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		// extension-apiserver-authentication-reader
-		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles("kube-system").Get("extension-apiserver-authentication-reader")
+		authReaderRole, err := o.Lister.RbacV1().RoleLister().Roles("kube-system").Get("extension-apiserver-authentication-reader")
 		if err != nil {
 			logger.Warnf("could not retrieve Role extension-apiserver-authentication-reader")
 			errs = append(errs, err)
@@ -219,7 +219,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		rulesMap["kube-system"] = append(rulesMap["kube-system"], authReaderRole.Rules...)
 
 		// system:auth-delegator
-		authDelegatorClusterRole, err := a.lister.RbacV1().ClusterRoleLister().Get("system:auth-delegator")
+		authDelegatorClusterRole, err := o.Lister.RbacV1().ClusterRoleLister().Get("system:auth-delegator")
 		if err != nil {
 			logger.Warnf("could not retrieve ClusterRole system:auth-delegator")
 			errs = append(errs, err)
@@ -247,7 +247,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 	return utilerrors.NewAggregate(errs)
 }
 
-func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
+func (o *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIService) bool {
 	for _, c := range apiService.Status.Conditions {
 		if c.Type == apiregistrationv1.Available && c.Status == apiregistrationv1.ConditionTrue {
 			return true
@@ -256,9 +256,9 @@ func (a *Operator) isAPIServiceAvailable(apiService *apiregistrationv1.APIServic
 	return false
 }
 
-func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
+func (o *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) (bool, error) {
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
-		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
+		apiService, err := o.Lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
 		if k8serrors.IsNotFound(err) {
 			return false, nil
 		}
@@ -267,11 +267,11 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 			return false, err
 		}
 
-		if !a.isAPIServiceAvailable(apiService) {
+		if !o.isAPIServiceAvailable(apiService) {
 			return false, nil
 		}
 
-		if err := a.isGVKRegistered(desc.Group, desc.Version, desc.Kind); err != nil {
+		if err := o.isGVKRegistered(desc.Group, desc.Version, desc.Kind); err != nil {
 			return false, nil
 		}
 	}
@@ -279,7 +279,7 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 	return true, nil
 }
 
-func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
+func (o *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
 	logger := log.WithFields(log.Fields{
 		"csv":       csv.GetName(),
 		"namespace": csv.GetNamespace(),
@@ -318,7 +318,7 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIService %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
 		}
 
-		newDepSpec, err := a.installAPIServiceRequirements(desc, ca, rotateAt, depSpec, csv)
+		newDepSpec, err := o.installAPIServiceRequirements(desc, ca, rotateAt, depSpec, csv)
 		if err != nil {
 			return nil, err
 		}
@@ -339,7 +339,7 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	return strategyDetailsDeployment, nil
 }
 
-func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
+func (o *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 	logger := log.WithFields(log.Fields{
 		"csv":        csv.GetName(),
@@ -367,7 +367,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	service.SetNamespace(csv.GetNamespace())
 	ownerutil.AddNonBlockingOwner(service, csv)
 
-	existingService, err := a.lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(service.GetName())
+	existingService, err := o.Lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(service.GetName())
 	if err == nil {
 		if !ownerutil.Adoptable(csv, existingService.GetOwnerReferences()) {
 			return nil, fmt.Errorf("service %s not safe to replace: extraneous ownerreferences found", service.GetName())
@@ -375,14 +375,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		service.SetOwnerReferences(append(service.GetOwnerReferences(), existingService.GetOwnerReferences()...))
 
 		// Delete the Service to replace
-		deleteErr := a.OpClient.DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
+		deleteErr := o.OpClient.DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
 		if err != nil && !k8serrors.IsNotFound(deleteErr) {
 			return nil, fmt.Errorf("could not delete existing service %s", service.GetName())
 		}
 	}
 
 	// Attempt to create the Service
-	_, err = a.OpClient.CreateService(service)
+	_, err = o.OpClient.CreateService(service)
 	if err != nil {
 		logger.Warnf("could not create service %s", service.GetName())
 		return nil, fmt.Errorf("could not create service %s: %s", service.GetName(), err.Error())
@@ -425,7 +425,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	caHash := certs.PEMSHA256(caPEM)
 	secret.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
 
-	existingSecret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secret.GetName())
+	existingSecret, err := o.Lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secret.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(csv, existingSecret.GetOwnerReferences()) {
@@ -433,14 +433,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update
-		if _, err := a.OpClient.UpdateSecret(secret); err != nil {
+		if _, err := o.OpClient.UpdateSecret(secret); err != nil {
 			logger.Warnf("could not update secret %s", secret.GetName())
 			return nil, err
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the secret
 		ownerutil.AddNonBlockingOwner(secret, csv)
-		_, err = a.OpClient.CreateSecret(secret)
+		_, err = o.OpClient.CreateSecret(secret)
 		if err != nil {
 			log.Warnf("could not create secret %s", secret.GetName())
 			return nil, err
@@ -463,7 +463,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	secretRole.SetName(secret.GetName())
 	secretRole.SetNamespace(csv.GetNamespace())
 
-	existingSecretRole, err := a.lister.RbacV1().RoleLister().Roles(csv.GetNamespace()).Get(secretRole.GetName())
+	existingSecretRole, err := o.Lister.RbacV1().RoleLister().Roles(csv.GetNamespace()).Get(secretRole.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(csv, existingSecretRole.GetOwnerReferences()) {
@@ -471,14 +471,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update
-		if _, err := a.OpClient.UpdateRole(secretRole); err != nil {
+		if _, err := o.OpClient.UpdateRole(secretRole); err != nil {
 			logger.Warnf("could not update secret role %s", secretRole.GetName())
 			return nil, err
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the role
 		ownerutil.AddNonBlockingOwner(secretRole, csv)
-		_, err = a.OpClient.CreateRole(secretRole)
+		_, err = o.OpClient.CreateRole(secretRole)
 		if err != nil {
 			log.Warnf("could not create secret role %s", secretRole.GetName())
 			return nil, err
@@ -509,7 +509,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	secretRoleBinding.SetName(secret.GetName())
 	secretRoleBinding.SetNamespace(csv.GetNamespace())
 
-	existingSecretRoleBinding, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(csv.GetNamespace()).Get(secretRoleBinding.GetName())
+	existingSecretRoleBinding, err := o.Lister.RbacV1().RoleBindingLister().RoleBindings(csv.GetNamespace()).Get(secretRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain
 		if ownerutil.Adoptable(csv, existingSecretRoleBinding.GetOwnerReferences()) {
@@ -517,14 +517,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update
-		if _, err := a.OpClient.UpdateRoleBinding(secretRoleBinding); err != nil {
+		if _, err := o.OpClient.UpdateRoleBinding(secretRoleBinding); err != nil {
 			logger.Warnf("could not update secret rolebinding %s", secretRoleBinding.GetName())
 			return nil, err
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the role
 		ownerutil.AddNonBlockingOwner(secretRoleBinding, csv)
-		_, err = a.OpClient.CreateRoleBinding(secretRoleBinding)
+		_, err = o.OpClient.CreateRoleBinding(secretRoleBinding)
 		if err != nil {
 			log.Warnf("could not create secret rolebinding with dep spec: %+v", depSpec)
 			return nil, err
@@ -551,7 +551,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	}
 	authDelegatorClusterRoleBinding.SetName(apiServiceName + "-system:auth-delegator")
 
-	existingAuthDelegatorClusterRoleBinding, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
+	existingAuthDelegatorClusterRoleBinding, err := o.Lister.RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
 		if ownerutil.AdoptableLabels(existingAuthDelegatorClusterRoleBinding.GetLabels(), true, csv) {
@@ -562,7 +562,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update.
-		if _, err := a.OpClient.UpdateClusterRoleBinding(authDelegatorClusterRoleBinding); err != nil {
+		if _, err := o.OpClient.UpdateClusterRoleBinding(authDelegatorClusterRoleBinding); err != nil {
 			logger.Warnf("could not update auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, err
 		}
@@ -571,7 +571,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, csv); err != nil {
 			return nil, err
 		}
-		_, err = a.OpClient.CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
+		_, err = o.OpClient.CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, err
@@ -599,7 +599,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	authReaderRoleBinding.SetName(apiServiceName + "-auth-reader")
 	authReaderRoleBinding.SetNamespace("kube-system")
 
-	existingAuthReaderRoleBinding, err := a.lister.RbacV1().RoleBindingLister().RoleBindings("kube-system").Get(authReaderRoleBinding.GetName())
+	existingAuthReaderRoleBinding, err := o.Lister.RbacV1().RoleBindingLister().RoleBindings("kube-system").Get(authReaderRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
 		if ownerutil.AdoptableLabels(existingAuthReaderRoleBinding.GetLabels(), true, csv) {
@@ -609,7 +609,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			}
 		}
 		// Attempt an update.
-		if _, err := a.OpClient.UpdateRoleBinding(authReaderRoleBinding); err != nil {
+		if _, err := o.OpClient.UpdateRoleBinding(authReaderRoleBinding); err != nil {
 			logger.Warnf("could not update auth reader role binding %s", authReaderRoleBinding.GetName())
 			return nil, err
 		}
@@ -618,7 +618,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		if err := ownerutil.AddOwnerLabels(authReaderRoleBinding, csv); err != nil {
 			return nil, err
 		}
-		_, err = a.OpClient.CreateRoleBinding(authReaderRoleBinding)
+		_, err = o.OpClient.CreateRoleBinding(authReaderRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth reader role binding %s", authReaderRoleBinding.GetName())
 			return nil, err
@@ -690,7 +690,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
 
 	exists := true
-	apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+	apiService, err := o.Lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return nil, err
@@ -710,7 +710,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		owners := []ownerutil.Owner{csv}
 
 		// Get replacing CSV
-		replaces, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
+		replaces, err := o.Lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
 		if err == nil {
 			owners = append(owners, replaces)
 		}
@@ -739,10 +739,10 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	// attempt a update or create
 	if exists {
 		logger.Debug("updating APIService")
-		_, err = a.OpClient.UpdateAPIService(apiService)
+		_, err = o.OpClient.UpdateAPIService(apiService)
 	} else {
 		logger.Debug("creating APIService")
-		_, err = a.OpClient.CreateAPIService(apiService)
+		_, err = o.OpClient.CreateAPIService(apiService)
 	}
 
 	if err != nil {

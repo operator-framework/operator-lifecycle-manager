@@ -2,9 +2,9 @@
 package fakes
 
 import (
-	context "context"
-	sync "sync"
-	time "time"
+	"context"
+	"sync"
+	"time"
 
 	client "github.com/operator-framework/operator-registry/pkg/client"
 	registry "github.com/operator-framework/operator-registry/pkg/registry"
