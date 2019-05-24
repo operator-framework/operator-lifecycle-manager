@@ -14,15 +14,41 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
+// Builder describes something that knows how to build an operator.
 type Builder interface {
+	// WithKubeconfig registers a kubeconfig path to be used in creating clients for a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithKubeconfig(kubeconfig string) Builder
+
+	// WithClock registers a clock to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithClock(clk clock.Clock) Builder
+
+	// WithNamespaces registers a list of namespaces for a resulting operator to watch.
+	// The modified Builder is returned to allow method call chaining.
 	WithNamespaces(namespaces ...string) Builder
+
+	// WithResyncPeriod registers the period that a resulting operator is configured to resync with.
+	// The modified Builder is returned to allow method call chaining.
 	WithResyncPeriod(resyncPeriod time.Duration) Builder
+
+	// WithLogger registers a Logger for a resulting operator to use.
+	// The modified Builder is returned to allow method call chaining.
 	WithLogger(logger *logrus.Logger) Builder
+
+	// WithClient registers a Client for a resulting operator to use.
+	// The modified Builder is returned to allow method call chaining.
 	WithClient(cli versioned.Interface) Builder
+
+	// WithOperatorClient registers an OperatorClient for a resulting operator to use.
+	// The modified Builder is returned to allow method call chaining.
 	WithOperatorClient(opClient operatorclient.ClientInterface) Builder
+
+	// WithLister registers a Lister for the resulting operator to use.
+	// The modified Builder is returned to allow method call chaining.
 	WithLister(lister operatorlister.OperatorLister) Builder
+
+	// Build constructs and returns a catalog operator configured by the Builder.
 	Build() (*Operator, error)
 }
 

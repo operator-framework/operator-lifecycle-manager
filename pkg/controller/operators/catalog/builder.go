@@ -23,13 +23,27 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
+// Builder describes something that knows how to build a catalog operator.
 type Builder interface {
 	operators.Builder
 
+	// WithNamespace registers a namespace to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithNamespace(namespace string) Builder
+
+	// WithConfigMapRegistryImage registers a config map registry image to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithConfigMapRegistryImage(image string) Builder
+
+	// WithResolver registers a Resovler to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithResolver(res resolver.Resolver) Builder
+
+	// WithRegistryReconciler registers a RegistryReconcilerFactory to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithRegistryReconciler(rec reconciler.RegistryReconcilerFactory) Builder
+
+	// BuildCatalogOperator constructs and returns a catalog operator configured by the Builder.
 	BuildCatalogOperator() (*Operator, error)
 }
 
@@ -42,6 +56,7 @@ type operatorBuilder struct {
 	reconciler             reconciler.RegistryReconcilerFactory
 }
 
+// NewBuilder returns a builder that can construct catalog operators.
 func NewBuilder() Builder {
 	return &operatorBuilder{
 		Builder: operators.NewBuilder(),

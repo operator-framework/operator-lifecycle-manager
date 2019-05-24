@@ -34,13 +34,27 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
+// Builder describes something that builds an OLM operator.
 type Builder interface {
 	operators.Builder
 
+	// WithEventRecorder registers an EventRecorder to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithEventRecorder(rec record.EventRecorder) Builder
+
+	// WithStrategyResolver registers a StrategyResolverInterface to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithStrategyResolver(res install.StrategyResolverInterface) Builder
+
+	// WithAPIReconciler registers an APIIntersectionReconciler to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithAPIReconciler(rec resolver.APIIntersectionReconciler) Builder
+
+	// WithLabeler registers a Labeler to be added to a resulting operator.
+	// The modified Builder is returned to allow method call chaining.
 	WithLabeler(labeler labeler.Labeler) Builder
+
+	// BuildOLMOperator constructs and returns an OLM operator configured by the Builder.
 	BuildOLMOperator() (*Operator, error)
 }
 
@@ -53,6 +67,7 @@ type operatorBuilder struct {
 	apiLabeler    labeler.Labeler
 }
 
+// NewBuilder returns a builder that can construct OLM operators.
 func NewBuilder() Builder {
 	return &operatorBuilder{
 		Builder: operators.NewBuilder(),

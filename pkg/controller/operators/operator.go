@@ -11,8 +11,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
 
-// TODO: Add comments
-
+// Operator contains shared operator tooling.
 type Operator struct {
 	*queueinformer.Operator
 
@@ -23,14 +22,17 @@ type Operator struct {
 	resyncPeriod time.Duration
 }
 
+// Now returns the operator's view of the current time.
 func (o *Operator) Now() metav1.Time {
 	return metav1.NewTime(o.clock.Now())
 }
 
+// Namespaces returns the list namespaces the operator is configured to watch.
 func (o *Operator) Namespaces() []string {
 	return o.namespaces
 }
 
+// ResyncPeriod returns the period that the operator is configured to resync with.
 func (o *Operator) ResyncPeriod() time.Duration {
 	return o.resyncPeriod
 }
