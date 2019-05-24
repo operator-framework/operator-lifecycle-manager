@@ -67,15 +67,7 @@ func TestMain(m *testing.M) {
 	cleaner = newNamespaceCleaner(testNamespace)
 	namespaces := strings.Split(*watchedNamespaces, ",")
 
-	olmStopCh := make(chan struct{}, 1)
-	catalogStopCh := make(chan struct{}, 1)
-
 	// operator dependencies
-	crClient, err := client.NewClient(*kubeConfigPath)
-	if err != nil {
-		logrus.WithError(err).Fatalf("error configuring client")
-	}
-
 	olmLog, err := os.Create("test/log/e2e-olm.log")
 	if err != nil {
 		panic(err)
@@ -89,7 +81,6 @@ func TestMain(m *testing.M) {
 		ForceColors:      true,
 		DisableTimestamp: true,
 	})
-	olmOpClient := operatorclient.NewClientFromConfig(*kubeConfigPath, olmlogger)
 
 	catLog, err := os.Create("test/log/e2e-catalog.log")
 	if err != nil {
@@ -105,17 +96,36 @@ func TestMain(m *testing.M) {
 		DisableTimestamp: true,
 	})
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// start operators
-	olmOperator, err := olm.NewOperator(olmlogger, crClient, olmOpClient, &install.StrategyResolver{}, time.Minute, namespaces)
+	olmBuilder := olm.NewBuilder()
+	olmBuilder.WithNamespaces(namespaces...).
+		WithKubeconfig(*kubeConfigPath).
+		WithResyncPeriod(time.Minute).
+		WithLogger(olmlogger)
+
+	olmOperator, err := olmBuilder.BuildOLMOperator()
 	if err != nil {
 		logrus.WithError(err).Fatalf("error configuring olm")
 	}
-	olmready, _, _ := olmOperator.Run(olmStopCh)
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, catlogger, time.Minute, "quay.io/operatorframework/configmap-operator-registry:latest", *namespace, namespaces...)
+	olmready, _ := olmOperator.Run(ctx)
+
+	catalogBuilder := catalog.NewBuilder()
+	catalogBuilder.WithConfigMapRegistryImage("quay.io/operatorframework/configmap-operator-registry:latest").
+		WithNamespace(*namespace).
+		WithNamespaces(namespaces...).
+		WithKubeconfig(*kubeConfigPath).
+		WithResyncPeriod(time.Minute).
+		WithLogger(catlogger)
+
+	catalogOperator, err := catalogBuilder.BuildCatalogOperator()
 	if err != nil {
 		logrus.WithError(err).Fatalf("error configuring catalog")
 	}
 	catready, _, _ := catalogOperator.Run(catalogStopCh)
+	
 	<-olmready
 	<-catready
 
