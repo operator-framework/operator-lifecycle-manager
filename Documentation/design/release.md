@@ -20,3 +20,11 @@ github_changelog_generator -u operator-framework -p operator-lifecycle-manager -
 ```
 
 The resulting CHANGELOG.md file can be copied into a new release created via <https://github.com/operator-framework/operator-lifecycle-manager/releases/new>.
+
+## QuickStart
+
+Edit the GitHub Release and upload the files in `deploy/upstream/quickstart` as release artifacts.
+
+Then, add instructions to the GitHub release page to install referencing those manifests.
+
+See an [example here](https://github.com/operator-framework/operator-lifecycle-manager/releases/tag/0.10.0#Install).
