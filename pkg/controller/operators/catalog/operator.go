@@ -23,7 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -764,7 +764,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	logger.WithField("installplan", ipName).Debug("found installplan that generated subscription")
 
 	out := sub.DeepCopy()
-	ref, err := operators.GetReference(ip)
+	ref, err := reference.GetReference(ip)
 	if err != nil {
 		logger.WithError(err).Warn("unable to generate installplan reference")
 		return nil, false, err
@@ -856,7 +856,7 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	for _, installPlan := range installPlans {
 		if installPlan.Status.CSVManifestsMatch(steps) {
 			logger.Infof("found InstallPlan with matching manifests: %s", installPlan.GetName())
-			return operators.GetReference(installPlan)
+			return reference.GetReference(installPlan)
 		}
 	}
 	logger.Warn("no installplan found with matching manifests, creating new one")
@@ -916,7 +916,7 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 		return nil, err
 	}
 
-	return operators.GetReference(res)
+	return reference.GetReference(res)
 }
 
 func (o *Operator) requeueSubscription(name, namespace string) {

@@ -1,4 +1,4 @@
-package v1alpha1
+package operators
 
 import (
 	"errors"
@@ -8,10 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	InstallPlanKind       = "InstallPlan"
-	InstallPlanAPIVersion = GroupName + "/" + GroupVersion
-)
+// InstallPlanKind is the PascalCase name of an InstallPlan's kind.
+const InstallPlanKind = "InstallPlan"
 
 // Approval is the user approval policy for an InstallPlan.
 type Approval string
@@ -23,11 +21,11 @@ const (
 
 // InstallPlanSpec defines a set of Application resources to be installed
 type InstallPlanSpec struct {
-	CatalogSource              string   `json:"source"`
-	CatalogSourceNamespace     string   `json:"sourceNamespace"`
-	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
-	Approval                   Approval `json:"approval"`
-	Approved                   bool     `json:"approved"`
+	CatalogSource              string
+	CatalogSourceNamespace     string
+	ClusterServiceVersionNames []string
+	Approval                   Approval
+	Approved                   bool
 }
 
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
@@ -80,21 +78,21 @@ var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	Phase          InstallPlanPhase       `json:"phase"`
-	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
-	CatalogSources []string               `json:"catalogSources"`
-	Plan           []*Step                `json:"plan,omitempty"`
+	Phase          InstallPlanPhase
+	Conditions     []InstallPlanCondition
+	CatalogSources []string
+	Plan           []*Step
 }
 
 // InstallPlanCondition represents the overall status of the execution of
 // an InstallPlan.
 type InstallPlanCondition struct {
-	Type               InstallPlanConditionType   `json:"type,omitempty"`
-	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True, False, or Unknown
-	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
-	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
-	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
-	Message            string                     `json:"message,omitempty"`
+	Type               InstallPlanConditionType
+	Status             corev1.ConditionStatus // True, False, or Unknown
+	LastUpdateTime     metav1.Time
+	LastTransitionTime metav1.Time
+	Reason             InstallPlanConditionReason
+	Message            string
 }
 
 // allow overwriting `now` function for deterministic tests
@@ -138,9 +136,9 @@ func ConditionMet(cond InstallPlanConditionType) InstallPlanCondition {
 
 // Step represents the status of an individual step in an InstallPlan.
 type Step struct {
-	Resolving string       `json:"resolving"`
-	Resource  StepResource `json:"resource"`
-	Status    StepStatus   `json:"status"`
+	Resolving string
+	Resource  StepResource
+	Status    StepStatus
 }
 
 // ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
@@ -187,13 +185,13 @@ func (s *Step) String() string {
 // StepResource represents the status of a resource to be tracked by an
 // InstallPlan.
 type StepResource struct {
-	CatalogSource          string `json:"sourceName"`
-	CatalogSourceNamespace string `json:"sourceNamespace"`
-	Group                  string `json:"group"`
-	Version                string `json:"version"`
-	Kind                   string `json:"kind"`
-	Name                   string `json:"name"`
-	Manifest               string `json:"manifest,omitempty"`
+	CatalogSource          string
+	CatalogSourceNamespace string
+	Group                  string
+	Version                string
+	Kind                   string
+	Name                   string
+	Manifest               string
 }
 
 func (r StepResource) String() string {
@@ -205,11 +203,11 @@ func (r StepResource) String() string {
 
 // InstallPlan defines the installation of a set of operators.
 type InstallPlan struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.TypeMeta
+	metav1.ObjectMeta
 
-	Spec   InstallPlanSpec   `json:"spec"`
-	Status InstallPlanStatus `json:"status"`
+	Spec   InstallPlanSpec
+	Status InstallPlanStatus
 }
 
 // EnsureCatalogSource ensures that a CatalogSource is present in the Status
@@ -228,8 +226,8 @@ func (p *InstallPlan) EnsureCatalogSource(sourceName string) {
 
 // InstallPlanList is a list of InstallPlan resources.
 type InstallPlanList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.TypeMeta
+	metav1.ListMeta
 
-	Items []InstallPlan `json:"items"`
+	Items []InstallPlan
 }

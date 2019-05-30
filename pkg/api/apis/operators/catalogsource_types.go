@@ -1,4 +1,4 @@
-package v1alpha1
+package operators
 
 import (
 	"fmt"
@@ -7,10 +7,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-const (
-	CatalogSourceCRDAPIVersion = GroupName + "/" + GroupVersion
-	CatalogSourceKind          = "CatalogSource"
-)
+// CatalogSourceKind is the PascalCase name of a CatalogSource's kind.
+const CatalogSourceKind = "CatalogSource"
 
 // SourceType indicates the type of backing store for a CatalogSource
 type SourceType string
@@ -29,44 +27,44 @@ const (
 
 type CatalogSourceSpec struct {
 	// SourceType is the type of source
-	SourceType SourceType `json:"sourceType"`
+	SourceType SourceType
 
 	// ConfigMap is the name of the ConfigMap to be used to back a configmap-server registry.
 	// Only used when SourceType = SourceTypeConfigmap or SourceTypeInternal.
 	// +Optional
-	ConfigMap string `json:"configMap,omitempty"`
+	ConfigMap string
 
 	// Address is a host that OLM can use to connect to a pre-existing registry.
 	// Format: <registry-host or ip>:<port>
 	// Only used when SourceType = SourceTypeGrpc.
 	// Ignored when the Image field is set.
 	// +Optional
-	Address string `json:"address,omitempty"`
+	Address string
 
 	// Image is an operator-registry container image to instantiate a registry-server with.
 	// Only used when SourceType = SourceTypeGrpc.
 	// If present, the address field is ignored.
 	// +Optional
-	Image string `json:"image,omitempty"`
+	Image string
 
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.
 	// +Optional
-	Secrets []string `json:"secrets,omitempty"`
+	Secrets []string
 
 	// Metadata
-	DisplayName string `json:"displayName,omitempty"`
-	Description string `json:"description,omitempty"`
-	Publisher   string `json:"publisher,omitempty"`
-	Icon        Icon   `json:"icon,omitempty"`
+	DisplayName string
+	Description string
+	Publisher   string
+	Icon        Icon
 }
 
 type RegistryServiceStatus struct {
-	Protocol         string      `json:"protocol,omitempty"`
-	ServiceName      string      `json:"serviceName,omitempty"`
-	ServiceNamespace string      `json:"serviceNamespace,omitempty"`
-	Port             string      `json:"port,omitempty"`
-	CreatedAt        metav1.Time `json:"createdAt,omitempty"`
+	Protocol         string
+	ServiceName      string
+	ServiceNamespace string
+	Port             string
+	CreatedAt        metav1.Time
 }
 
 func (s *RegistryServiceStatus) Address() string {
@@ -74,17 +72,17 @@ func (s *RegistryServiceStatus) Address() string {
 }
 
 type CatalogSourceStatus struct {
-	ConfigMapResource     *ConfigMapResourceReference `json:"configMapReference,omitempty"`
-	RegistryServiceStatus *RegistryServiceStatus      `json:"registryService,omitempty"`
-	LastSync              metav1.Time                 `json:"lastSync,omitempty"`
+	ConfigMapResource     *ConfigMapResourceReference
+	RegistryServiceStatus *RegistryServiceStatus
+	LastSync              metav1.Time
 }
 
 type ConfigMapResourceReference struct {
-	Name      string `json:"name"`
-	Namespace string `json:"namespace"`
+	Name      string
+	Namespace string
 
-	UID             types.UID `json:"uid,omitempty"`
-	ResourceVersion string    `json:"resourceVersion,omitempty"`
+	UID             types.UID
+	ResourceVersion string
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -92,11 +90,11 @@ type ConfigMapResourceReference struct {
 
 // CatalogSource is a repository of CSVs, CRDs, and operator packages.
 type CatalogSource struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata"`
+	metav1.TypeMeta
+	metav1.ObjectMeta
 
-	Spec   CatalogSourceSpec   `json:"spec"`
-	Status CatalogSourceStatus `json:"status"`
+	Spec   CatalogSourceSpec
+	Status CatalogSourceStatus
 }
 
 func (c *CatalogSource) Address() string {
@@ -108,10 +106,10 @@ func (c *CatalogSource) Address() string {
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// CatalogSourceList is a repository of CSVs, CRDs, and operator packages.
+// CatalogSourceList is a list of CatalogSource resources.
 type CatalogSourceList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata"`
+	metav1.TypeMeta
+	metav1.ListMeta
 
-	Items []CatalogSource `json:"items"`
+	Items []CatalogSource
 }
