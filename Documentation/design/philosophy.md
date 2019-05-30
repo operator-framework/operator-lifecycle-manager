@@ -160,11 +160,11 @@ We have two major components that handle the resources described above
 
 **What if I want lifecycle/packaging/discovery for kubernetes, but don't want to write an operator?**
 
-If you don't want to write an operator, the thing you want to package probably fits one of the standard shapes of software that can be deployed on a cluster. You can take advantage of OLM by writing a package the binds your application to one of our standard operators, like [helm-app-operator-kit](https://github.com/coreos/helm-app-operator-kit).
+If you don't want to write an operator, the thing you want to package probably fits one of the standard shapes of software that can be deployed on a cluster. You can take advantage of OLM by writing a package that binds your application to one of our standard operators, like [helm-app-operator-kit](https://github.com/coreos/helm-app-operator-kit).
 
 If your use-case doesn't fit one of our standard operators, that means you have domain-specific operational knowledge you need to encode into an operator, and you can take advantage of our Operator SDK for common operator tasks.
 
-**Why are dependencies between operators are expressed as a dependency on a CRD?**
+**Why are dependencies between operators expressed as a dependency on a CRD?**
 
 This decouples the actual dependency from the operation of the dependency. For example, Vault requires an EtcdCluster, but we should be able to update the etcd operator out of step with the vault operator.
 

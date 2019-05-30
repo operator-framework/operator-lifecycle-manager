@@ -190,7 +190,7 @@ It’s recommended to only list out the objects that are important to a human, n
 Essentially the same as for owned CRDs.
 
 ### APIService Resource Creation
-The Lifecycle Manage is responsible for creating or replacing the Service and APIService resources for each unique owned APIService.
+The Lifecycle Manager is responsible for creating or replacing the Service and APIService resources for each unique owned APIService.
 * Service pod selectors are copied from the CSV deployment matching the APIServiceDescription's DeploymentName.
 * A new CA key/cert pair is generated for for each installation and the base64 encoded CA bundle is embedded in the respective APIService resource.
 

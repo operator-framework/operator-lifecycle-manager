@@ -6,7 +6,7 @@ An `OperatorGroup` is an OLM resource that provides rudimentary multitenant conf
 
 * An `OperatorGroup` selects a set of target namespaces in which to generate required RBAC access for its member operators.
 * The set of target namespaces is provided via a comma-delimited string stored in the `olm.targetNamespaces` annotation. This annotation is applied to member operator's `ClusterServiceVersion` (CSV) instances and is projected into their deployments. It is accessible to operator containers using [The Downward API](https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/#the-downward-api)
-* An operator is said to be a [member of an `OperatorGroup`](#operatorgroup-membership) if its CSV exists in the same namespace as the `OperatorGroup` and its CSV's [`InstallModes` support the set of namespaces targetted by the `OperatorGroup`](#installmodes-and-supported-operatorgroups)
+* An operator is said to be a [member of an `OperatorGroup`](#operatorgroup-membership) if its CSV exists in the same namespace as the `OperatorGroup` and its CSV's [`InstallModes` support the set of namespaces targeted by the `OperatorGroup`](#installmodes-and-supported-operatorgroups)
 * In order to transition, a CSV must be an active member of an `OperatorGroup` that has no [provided API conflicts with intersecting `OperatorGroups`](#operatorgroup-intersection)
 
 ## OperatorGroup Membership
@@ -27,7 +27,7 @@ An `InstallMode` consists of an `InstallModeType` field and a boolean `Supported
 * `MultiNamespace`: If supported, the operator can be a member of an `OperatorGroup` that selects more than one namespace
 * `AllNamespaces`: If supported, the operator can be a member of an `OperatorGroup` that selects all namespaces (target namespace set is the empty string "")
 
-> Note: If a CSV's spec omit's an entry of `InstallModeType`, that type is considered unsupported unless support can be inferred by an existing entry that implicitly supports it.
+> Note: If a CSV's spec omits an entry of `InstallModeType`, that type is considered unsupported unless support can be inferred by an existing entry that implicitly supports it.
 
 ### UnsupportedOperatorGroup
 
@@ -35,7 +35,7 @@ If a CSV's `InstallMode`s do not support the target namespace selection of the `
 
 ## Target Namespace Selection
 
-Selection of the set of namespaces by specifying a label selector with the `spec.selector` field:
+Select the set of namespaces by specifying a label selector with the `spec.selector` field:
 
 ```yaml
 apiVersion: operators.coreos.com/v1alpha2
