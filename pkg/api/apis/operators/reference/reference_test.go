@@ -1,4 +1,4 @@
-package operators
+package reference
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
