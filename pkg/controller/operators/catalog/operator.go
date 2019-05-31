@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"time"
 
@@ -1034,6 +1035,19 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Attempt to create the CRD.
 				_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
 				if k8serrors.IsAlreadyExists(err) {
+					currentCRD, _ := o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.GetName(), metav1.GetOptions{})
+					// Compare 2 CRDs to see if it needs to be updatetd
+					if !reflect.DeepEqual(crd, *currentCRD) {
+						// Verify CRD ownership, only attempt to update if
+						// CRD has only one owner
+						if len(existingCRDOwners[currentCRD.GetName()]) == 1 {
+							// Attempt to update CRD
+							_, err = o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
+							if err != nil {
+								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)
+							}
+						}
+					}
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 					continue
