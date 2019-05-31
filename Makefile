@@ -6,7 +6,6 @@ SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12)") && echo -mod=vendor)
 CMDS  := $(addprefix bin/, $(shell go list $(MOD_FLAGS) ./cmd/... | xargs -I{} basename {}))
-CODEGEN := ./vendor/k8s.io/code-generator/generate_groups.sh
 CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
 MOCKGEN := ./scripts/generate_mocks.sh
 # counterfeiter := $(GOBIN)/counterfeiter
@@ -127,12 +126,11 @@ gen-ci: $(CI)
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
 codegen:
-	cp scripts/generate_groups.sh vendor/k8s.io/code-generator/generate_groups.sh
 	cp scripts/generate_internal_groups.sh vendor/k8s.io/code-generator/generate_internal_groups.sh
 	mkdir -p vendor/k8s.io/code-generator/hack
 	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
 	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-	$(CODEGEN) all $(PKG)/pkg/api/client $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
+	$(CODEGEN_INTERNAL) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
 	$(CODEGEN_INTERNAL) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
 
 container-codegen:
