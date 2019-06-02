@@ -55,7 +55,7 @@ kubectl apply -f ./custom-olm
     * do not overwrite the old one
 * Add any new CRDs to `deploy/chart/catalog_resources/<catalog>`
 * run `make update-catalog` to regen the catalog configmap
-* either apply the new configmap on it's own and restart catalog or, easier, just run:
+* either apply the new configmap on its own and restart the catalog or, easier, just run:
 
 ```sh
 ./scripts/package_release.sh 1.0.0-custom custom-olm ./Documentation/install/example-values.yaml
