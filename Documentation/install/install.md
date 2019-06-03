@@ -2,22 +2,19 @@
 
 OLM deployment resources are templated so that they can be easily configured for different deployment environments.
 
-## Install the latest released version of OLM for upstream Kubernetes
+Check out the latest [releases on github](https://github.com/operator-framework/operator-lifecycle-manager/releases) for release-specific install instructions.
 
+## Manual installation 
+
+Installing the CRDs first gives them a chance to register before installing the rest, which requires the CRDs exist.
 ```bash
-kubectl create -f deploy/upstream/manifests/latest/
+kubectl create -f deploy/upstream/quickstart/crds.yaml
+kubectl create -f deploy/upstream/quickstart/olm.yaml
 ```
 
-## Install the latest release version of OLM for okd
+## OpenShift
 
-```bash
-oc create -f deploy/okd/manifests/latest/
-```
-
-## Install with Ansible for openshift
-
-OLM should be installed via [openshift-ansible](https://github.com/openshift/openshift-ansible). The manifests in this
-repo is periodically synced with openshift-ansible and should only be used for testing releases.
+OLM is installed by default in OpenShift 4.0 and above.
 
 ## Run locally with minikube
 
@@ -29,7 +26,7 @@ make run-local
 
 You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
 
-## Building deployment resources for any cluster
+## Customizing OLM installation 
 
 Deployments of OLM can be stamped out with different configurations by writing a `values.yaml` file and running commands to generate resources.
 

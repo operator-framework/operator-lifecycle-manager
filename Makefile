@@ -183,7 +183,6 @@ release: ver=$(shell cat OLM_VERSION)
 release:
 	docker pull quay.io/operator-framework/olm:$(ver)
 	$(MAKE) target=upstream ver=$(ver) quickstart=true package
-	$(MAKE) target=okd ver=$(ver) package
 	$(MAKE) target=ocp ver=$(ver) package
 	rm -rf manifests
 	mkdir manifests
@@ -206,7 +205,7 @@ endif
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)
-	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml
+	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
 endif
 
 ##########################
