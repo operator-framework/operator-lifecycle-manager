@@ -41,6 +41,9 @@ spec:
             - containerPort: 8081
               name: metrics
               protocol: TCP
+            - containerPort: 6789
+              name: admission
+              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz

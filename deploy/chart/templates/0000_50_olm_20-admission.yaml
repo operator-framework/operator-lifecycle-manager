@@ -1,0 +1,23 @@
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: olm-admission
+webhooks:
+  - name: csv.operators.olm.com
+    rules:
+      - apiGroups:
+          - "operators.olm.com"
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - clusterserviceversions
+        scope: "Namespaced"
+    clientConfig:
+      service:
+        namespace: {{ .Values.namespace }}
+        name: olm-admission
+    admissionReviewVersions:
+      - v1beta1
+    timeoutSeconds: 1

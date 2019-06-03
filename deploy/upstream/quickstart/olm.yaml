@@ -41,6 +41,22 @@ subjects:
   name: olm-operator-serviceaccount
   namespace: olm
 ---
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: olm-admission
+  namespace: olm
+spec:
+  ports:
+    - name: admission
+      port: 6789
+      protocol: TCP
+      targetPort: admission
+  selector:
+    app: olm-operator
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -76,6 +92,9 @@ spec:
             - containerPort: 8080
             - containerPort: 8081
               name: metrics
+              protocol: TCP
+            - containerPort: 6789
+              name: admission
               protocol: TCP
           livenessProbe:
             httpGet:
@@ -343,3 +362,27 @@ spec:
   image: quay.io/operator-framework/upstream-community-operators:latest
   displayName: Community Operators
   publisher: OperatorHub.io
+---
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: olm-admission
+webhooks:
+  - name: csv.operators.olm.com
+    rules:
+      - apiGroups:
+          - "operators.olm.com"
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+        resources:
+          - clusterserviceversions
+        scope: "Namespaced"
+    clientConfig:
+      service:
+        namespace: olm
+        name: olm-admission
+    admissionReviewVersions:
+      - v1beta1
+    timeoutSeconds: 1
