@@ -5,6 +5,8 @@ kind: CatalogSource
 metadata:
   name: olm-operators
   namespace: {{ .Values.catalog_namespace }}
+  labels: 
+    olm-visibility: hidden
 spec:
   sourceType: internal
   configMap: olm-operators
