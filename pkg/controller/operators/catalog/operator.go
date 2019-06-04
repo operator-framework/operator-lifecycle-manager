@@ -33,6 +33,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -57,21 +58,22 @@ const (
 type Operator struct {
 	queueinformer.Operator
 
-	logger            *logrus.Logger
-	clock             utilclock.Clock
-	opClient          operatorclient.ClientInterface
-	client            versioned.Interface
-	lister            operatorlister.OperatorLister
-	catsrcQueueSet    *queueinformer.ResourceQueueSet
-	subQueueSet       *queueinformer.ResourceQueueSet
-	ipQueueSet        *queueinformer.ResourceQueueSet
-	nsResolveQueue    workqueue.RateLimitingInterface
-	namespace         string
-	sources           map[resolver.CatalogKey]resolver.SourceRef
-	sourcesLock       sync.RWMutex
-	sourcesLastUpdate metav1.Time
-	resolver          resolver.Resolver
-	reconciler        reconciler.RegistryReconcilerFactory
+	logger                 *logrus.Logger
+	clock                  utilclock.Clock
+	opClient               operatorclient.ClientInterface
+	client                 versioned.Interface
+	lister                 operatorlister.OperatorLister
+	catsrcQueueSet         *queueinformer.ResourceQueueSet
+	subQueueSet            *queueinformer.ResourceQueueSet
+	ipQueueSet             *queueinformer.ResourceQueueSet
+	nsResolveQueue         workqueue.RateLimitingInterface
+	namespace              string
+	sources                map[resolver.CatalogKey]resolver.SourceRef
+	sourcesLock            sync.RWMutex
+	sourcesLastUpdate      metav1.Time
+	resolver               resolver.Resolver
+	reconciler             reconciler.RegistryReconcilerFactory
+	csvProvidedAPIsIndexer map[string]cache.Indexer
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -122,6 +124,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
 		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
 		op.RegisterInformer(csvInformer.Informer())
+
+		csvInformer.Informer().AddIndexers(cache.Indexers{index.ProvidedAPIsIndexFuncKey: index.ProvidedAPIsIndexFunc})
+		csvIndexer := csvInformer.Informer().GetIndexer()
+		op.csvProvidedAPIsIndexer[namespace] = csvIndexer
 
 		// TODO: Add namespace resolve sync
 
@@ -1040,8 +1046,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					if !reflect.DeepEqual(crd, *currentCRD) {
 						// Verify CRD ownership, only attempt to update if
 						// CRD has only one owner
-						if len(existingCRDOwners[currentCRD.GetName()]) == 1 {
+						// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
+						matchedCSV, err := index.APIsIndexValues(o.csvProvidedAPIsIndexer, crd)
+						if err != nil {
+							return errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
+						}
+						if len(matchedCSV) == 1 {
 							// Attempt to update CRD
+							crd.SetResourceVersion(currentCRD.GetResourceVersion())
 							_, err = o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)
