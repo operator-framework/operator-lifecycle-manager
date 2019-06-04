@@ -3,7 +3,16 @@
 # Colors definition
 readonly RED=$(tput setaf 1)
 readonly RESET=$(tput sgr0)
-readonly BLUE=$(tput setaf 2)
+readonly GREEN=$(tput setaf 2)
+
+# Check if Podman binary exists
+verify_podman_binary() {
+    if hash podman 2>/dev/null; then
+        POD_MANAGER="podman"
+    else
+        POD_MANAGER="docker"
+    fi
+}
 
 # Add port as 9000:9000 as arg when the SO is MacOS or Win
 add_host_port_arg (){
@@ -14,15 +23,15 @@ add_host_port_arg (){
 }
 
 pull_ocp_console_image (){
-   docker pull quay.io/openshift/origin-console:latest
+   $POD_MANAGER pull quay.io/openshift/origin-console:latest
 }
 
-run_docker_console (){
+run_ocp_console_image (){
     secretname=$(kubectl get serviceaccount default --namespace=kube-system -o jsonpath='{.secrets[0].name}')
     endpoint=$(kubectl config view -o json | jq '{myctx: .["current-context"], ctxs: .contexts[], clusters: .clusters[]}' | jq 'select(.myctx == .ctxs.name)' | jq 'select(.ctxs.context.cluster ==  .clusters.name)' | jq '.clusters.cluster.server' -r)
 
     echo -e "Using $endpoint"
-    command -v docker run -it $args \
+    $POD_MANAGER run -dit $args \
       -e BRIDGE_USER_AUTH="disabled" \
       -e BRIDGE_K8S_MODE="off-cluster" \
       -e BRIDGE_K8S_MODE_OFF_CLUSTER_ENDPOINT=$endpoint \
@@ -30,22 +39,33 @@ run_docker_console (){
       -e BRIDGE_K8S_AUTH="bearer-token" \
       -e BRIDGE_K8S_AUTH_BEARER_TOKEN=$(kubectl get secret "$secretname" --namespace=kube-system -o template --template='{{.data.token}}' | base64 --decode) \
       quay.io/openshift/origin-console:latest &> /dev/null
-
-    docker_exists=${?}; if [[ ${docker_exists} -ne 0 ]]; then
-        echo -e "${BLUE}The OLM is accessible via web console at:${RESET}"
-        echo -e "${BLUE}https://localhost:9000/${RESET}"
-    else
-        echo -e "${RED}Unable to run the console locally. May this port is in usage already. ${RESET}"
-        echo -e "${RED}Check if the OLM is not accessible via web console at: https://localhost:9000/. ${RESET}"
-        exit 1
-    fi
-
 }
 
+verify_ocp_console_image (){
+  while true; do
+    if [ "$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)" ];
+    then
+      echo -e "${GREEN}The OLM is accessible via web console at:${RESET}"
+      echo -e "${GREEN}http://localhost:9000/${RESET}"
+      echo -e "${GREEN}Press Ctrl-C to quit${RESET}"; sleep 10;
+    else
+      echo -e "${RED}Unable to run the console locally. May this port is in usage already.${RESET}"
+      echo -e "${RED}Check if the OLM is not accessible via web console at: http://localhost:9000/${RESET}"
+      exit 1
+    fi
+  done
+}
+
+function ctrl_c() {
+    container_id="$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)"
+    $POD_MANAGER rm -f $container_id
+    exit 130
+}
 
 # Calling the functions
+verify_podman_binary
 add_host_port_arg
 pull_ocp_console_image
-run_docker_console
-
-
+run_ocp_console_image
+trap ctrl_c INT
+verify_ocp_console_image
