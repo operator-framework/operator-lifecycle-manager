@@ -29,6 +29,7 @@ require (
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.8.5 // indirect
 	github.com/json-iterator/go v1.1.6 // indirect
+	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.0.2
 	github.com/onsi/ginkgo v1.8.0 // indirect
 	github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible
@@ -47,19 +48,19 @@ require (
 	google.golang.org/appengine v1.5.0 // indirect
 	google.golang.org/grpc v1.19.1
 	gotest.tools v2.2.0+incompatible // indirect
-	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
-	k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
-	k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
-	k8s.io/apiserver v0.0.0-20190518070817-682b37ff211e
-	k8s.io/cli-runtime v0.0.0-20190221101700-11047e25a94a // indirect
+	k8s.io/api v0.0.0-20190313235455-40a48860b5ab
+	k8s.io/apiextensions-apiserver v0.0.0-20190315093550-53c4693659ed
+	k8s.io/apimachinery v0.0.0-20190404173353-6a84e37a896d
+	k8s.io/apiserver v0.0.0-20190531031430-24fd0f18bc21
 	k8s.io/client-go v11.0.0+incompatible
-	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
+	k8s.io/code-generator v0.0.0-20190311093542-50b561225d70
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect
 	k8s.io/klog v0.2.0 // indirect
-	k8s.io/kube-aggregator v0.0.0-20190221095344-e77f03c95d65
+	k8s.io/kube-aggregator v0.0.0-20190404125450-f5e124c822d6
 	k8s.io/kube-openapi v0.0.0-20190401085232-94e1e7b7574c
-	k8s.io/kubernetes v1.12.8
+	k8s.io/kubernetes v1.14.2
 	k8s.io/utils v0.0.0-20190308190857-21c4ce38f2a7 // indirect
+	sigs.k8s.io/yaml v1.1.0 // indirect
 )
 
 replace (

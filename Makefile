@@ -13,7 +13,7 @@ MOCKGEN := ./scripts/generate_mocks.sh
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
-KUBE_RELEASE := release-1.12
+KUBE_RELEASE := release-1.14
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 
 .PHONY: build test run clean vendor schema-check \
