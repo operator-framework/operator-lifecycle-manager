@@ -31,7 +31,7 @@ run_ocp_console_image (){
     endpoint=$(kubectl config view -o json | jq '{myctx: .["current-context"], ctxs: .contexts[], clusters: .clusters[]}' | jq 'select(.myctx == .ctxs.name)' | jq 'select(.ctxs.context.cluster ==  .clusters.name)' | jq '.clusters.cluster.server' -r)
 
     echo -e "Using $endpoint"
-    $POD_MANAGER run -dit $args \
+    $POD_MANAGER run -dit --rm $args \
       -e BRIDGE_USER_AUTH="disabled" \
       -e BRIDGE_K8S_MODE="off-cluster" \
       -e BRIDGE_K8S_MODE_OFF_CLUSTER_ENDPOINT=$endpoint \
@@ -42,24 +42,18 @@ run_ocp_console_image (){
 }
 
 verify_ocp_console_image (){
-  while true; do
     if [ "$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)" ];
     then
+      container_id="$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)"
       echo -e "${GREEN}The OLM is accessible via web console at:${RESET}"
       echo -e "${GREEN}http://localhost:9000/${RESET}"
-      echo -e "${GREEN}Press Ctrl-C to quit${RESET}"; sleep 10;
+      echo -e "${GREEN}Press Ctrl-C to quit${RESET}";
+      $POD_MANAGER attach $container_id
     else
       echo -e "${RED}Unable to run the console locally. May this port is in usage already.${RESET}"
       echo -e "${RED}Check if the OLM is not accessible via web console at: http://localhost:9000/${RESET}"
       exit 1
     fi
-  done
-}
-
-function ctrl_c() {
-    container_id="$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)"
-    $POD_MANAGER rm -f $container_id
-    exit 130
 }
 
 # Calling the functions
@@ -67,5 +61,4 @@ verify_podman_binary
 add_host_port_arg
 pull_ocp_console_image
 run_ocp_console_image
-trap ctrl_c INT
 verify_ocp_console_image
