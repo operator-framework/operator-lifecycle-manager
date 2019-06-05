@@ -117,6 +117,8 @@ github.com/inconshreveable/mousetrap
 github.com/json-iterator/go
 # github.com/konsorten/go-windows-terminal-sequences v1.0.1
 github.com/konsorten/go-windows-terminal-sequences
+# github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de
+github.com/liggitt/tabwriter
 # github.com/mailru/easyjson v0.0.0-20180823135443-60711f1a8329
 github.com/mailru/easyjson/jlexer
 github.com/mailru/easyjson/jwriter
@@ -205,13 +207,7 @@ golang.org/x/text/secure/bidirule
 golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 golang.org/x/text/width
-golang.org/x/text/encoding/unicode
 golang.org/x/text/transform
-golang.org/x/text/encoding
-golang.org/x/text/encoding/internal
-golang.org/x/text/encoding/internal/identifier
-golang.org/x/text/internal/utf8internal
-golang.org/x/text/runes
 # golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 golang.org/x/time/rate
 # golang.org/x/tools v0.0.0-20190320215829-36c10c0a621f
@@ -276,7 +272,7 @@ gopkg.in/inf.v0
 gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/yaml.v2 v2.2.1
 gopkg.in/yaml.v2
-# k8s.io/api v0.0.0-20190118113203-912cbe2bfef3 => k8s.io/api v0.0.0-20181128191700-6db15a15d2d3
+# k8s.io/api v0.0.0-20190313235455-40a48860b5ab => k8s.io/api v0.0.0-20181128191700-6db15a15d2d3
 k8s.io/api/core/v1
 k8s.io/api/apps/v1
 k8s.io/api/rbac/v1
@@ -285,10 +281,6 @@ k8s.io/api/admissionregistration/v1alpha1
 k8s.io/api/admissionregistration/v1beta1
 k8s.io/api/apps/v1beta1
 k8s.io/api/apps/v1beta2
-k8s.io/api/authentication/v1
-k8s.io/api/authentication/v1beta1
-k8s.io/api/authorization/v1
-k8s.io/api/authorization/v1beta1
 k8s.io/api/autoscaling/v1
 k8s.io/api/autoscaling/v2beta1
 k8s.io/api/autoscaling/v2beta2
@@ -308,12 +300,15 @@ k8s.io/api/settings/v1alpha1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
+k8s.io/api/authentication/v1
+k8s.io/api/authentication/v1beta1
+k8s.io/api/authorization/v1
+k8s.io/api/authorization/v1beta1
 k8s.io/api/admission/v1beta1
-k8s.io/api/imagepolicy/v1alpha1
-# k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78 => k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
-k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
+# k8s.io/apiextensions-apiserver v0.0.0-20190315093550-53c4693659ed => k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions
+k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake
@@ -326,12 +321,13 @@ k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensio
 k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation
 k8s.io/apiextensions-apiserver/pkg/apiserver/validation
 k8s.io/apiextensions-apiserver/pkg/features
-# k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc => k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
-k8s.io/apimachinery/pkg/runtime
-k8s.io/apimachinery/pkg/util/runtime
+# k8s.io/apimachinery v0.0.0-20190404173353-6a84e37a896d => k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
 k8s.io/apimachinery/pkg/apis/meta/v1
+k8s.io/apimachinery/pkg/runtime
 k8s.io/apimachinery/pkg/runtime/schema
 k8s.io/apimachinery/pkg/types
+k8s.io/apimachinery/pkg/util/runtime
+k8s.io/apimachinery/pkg/conversion
 k8s.io/apimachinery/pkg/runtime/serializer
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/labels
@@ -343,7 +339,6 @@ k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/apis/meta/v1/unstructured
 k8s.io/apimachinery/pkg/util/strategicpatch
 k8s.io/apimachinery/pkg/util/wait
-k8s.io/apimachinery/pkg/conversion
 k8s.io/apimachinery/pkg/apis/meta/internalversion
 k8s.io/apimachinery/pkg/apis/meta/v1beta1
 k8s.io/apimachinery/pkg/fields
@@ -353,10 +348,11 @@ k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/util/validation
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/waitgroup
+k8s.io/apimachinery/pkg/selection
 k8s.io/apimachinery/pkg/conversion/queryparams
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/naming
-k8s.io/apimachinery/pkg/selection
+k8s.io/apimachinery/third_party/forked/golang/reflect
 k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/util/net
 k8s.io/apimachinery/pkg/runtime/serializer/streaming
@@ -373,12 +369,10 @@ k8s.io/apimachinery/pkg/util/framer
 k8s.io/apimachinery/pkg/util/rand
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/third_party/forked/golang/json
-k8s.io/apimachinery/third_party/forked/golang/reflect
 k8s.io/apimachinery/pkg/api/validation/path
 k8s.io/apimachinery/pkg/apis/meta/v1/validation
 k8s.io/apimachinery/pkg/util/uuid
-k8s.io/apimachinery/pkg/apis/meta/v1/unstructured/unstructuredscheme
-# k8s.io/apiserver v0.0.0-20190518070817-682b37ff211e => k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34
+# k8s.io/apiserver v0.0.0-20190531031430-24fd0f18bc21 => k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34
 k8s.io/apiserver/pkg/server
 k8s.io/apiserver/pkg/util/logs
 k8s.io/apiserver/pkg/authentication/serviceaccount
@@ -472,14 +466,9 @@ k8s.io/apiserver/pkg/util/trace
 k8s.io/apiserver/pkg/storage/etcd/util
 k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission
 k8s.io/apiserver/pkg/admission/plugin/webhook/config/apis/webhookadmission/v1alpha1
-# k8s.io/cli-runtime v0.0.0-20190221101700-11047e25a94a
-k8s.io/cli-runtime/pkg/genericclioptions
-k8s.io/cli-runtime/pkg/genericclioptions/printers
-k8s.io/cli-runtime/pkg/genericclioptions/resource
 # k8s.io/client-go v11.0.0+incompatible => k8s.io/client-go v0.0.0-20190228133956-77e032213d34
 k8s.io/client-go/tools/clientcmd
 k8s.io/client-go/tools/reference
-k8s.io/client-go/kubernetes/scheme
 k8s.io/client-go/tools/record
 k8s.io/client-go/plugin/pkg/client/auth/oidc
 k8s.io/client-go/rest
@@ -491,6 +480,7 @@ k8s.io/client-go/tools/cache
 k8s.io/client-go/listers/rbac/v1
 k8s.io/client-go/informers
 k8s.io/client-go/util/workqueue
+k8s.io/client-go/kubernetes/scheme
 k8s.io/client-go/listers/core/v1
 k8s.io/client-go/kubernetes/fake
 k8s.io/client-go/kubernetes/typed/core/v1
@@ -587,7 +577,6 @@ k8s.io/client-go/kubernetes/typed/storage/v1alpha1
 k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake
 k8s.io/client-go/kubernetes/typed/storage/v1beta1
 k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake
-k8s.io/client-go/util/jsonpath
 k8s.io/client-go/tools/clientcmd/api/v1
 k8s.io/client-go/pkg/apis/clientauthentication
 k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1
@@ -620,8 +609,6 @@ k8s.io/client-go/informers/settings/v1alpha1
 k8s.io/client-go/informers/storage/v1
 k8s.io/client-go/informers/storage/v1alpha1
 k8s.io/client-go/informers/storage/v1beta1
-k8s.io/client-go/restmapper
-k8s.io/client-go/third_party/forked/golang/template
 k8s.io/client-go/listers/admissionregistration/v1beta1
 k8s.io/client-go/listers/admissionregistration/v1alpha1
 k8s.io/client-go/listers/apps/v1beta1
@@ -646,7 +633,7 @@ k8s.io/client-go/listers/settings/v1alpha1
 k8s.io/client-go/listers/storage/v1
 k8s.io/client-go/listers/storage/v1alpha1
 k8s.io/client-go/listers/storage/v1beta1
-# k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3 => k8s.io/code-generator v0.0.0-20181128191024-b1289fc74931
+# k8s.io/code-generator v0.0.0-20190311093542-50b561225d70 => k8s.io/code-generator v0.0.0-20181128191024-b1289fc74931
 k8s.io/code-generator/cmd/client-gen
 k8s.io/code-generator/cmd/conversion-gen/
 k8s.io/code-generator/cmd/deepcopy-gen
@@ -689,7 +676,7 @@ k8s.io/gengo/parser
 k8s.io/gengo/examples/set-gen/sets
 # k8s.io/klog v0.2.0
 k8s.io/klog
-# k8s.io/kube-aggregator v0.0.0-20190221095344-e77f03c95d65 => k8s.io/kube-aggregator v0.0.0-20190221095344-e77f03c95d65
+# k8s.io/kube-aggregator v0.0.0-20190404125450-f5e124c822d6 => k8s.io/kube-aggregator v0.0.0-20190221095344-e77f03c95d65
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
 k8s.io/kube-aggregator/pkg/client/informers/externalversions
 k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset
@@ -718,12 +705,11 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.12.8
+# k8s.io/kubernetes v1.14.2
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/util/labels
 k8s.io/kubernetes/pkg/printers
 k8s.io/kubernetes/pkg/printers/storage
 k8s.io/kubernetes/pkg/apis/rbac/v1
 k8s.io/kubernetes/pkg/registry/rbac/validation
-k8s.io/kubernetes/pkg/kubectl/scheme
 k8s.io/kubernetes/pkg/apis/rbac
