@@ -2,7 +2,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: olm-operators
-  namespace: {{ .Values.catalog_namespace }}
+  namespace: {{ .Values.namespace }}
 data:
   customResourceDefinitions: |-
   clusterServiceVersions: |-
