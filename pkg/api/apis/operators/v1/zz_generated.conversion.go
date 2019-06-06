@@ -24,6 +24,7 @@ import (
 	unsafe "unsafe"
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -136,7 +137,7 @@ func Convert_operators_OperatorGroupList_To_v1_OperatorGroupList(in *operators.O
 func autoConvert_v1_OperatorGroupSpec_To_operators_OperatorGroupSpec(in *OperatorGroupSpec, out *operators.OperatorGroupSpec, s conversion.Scope) error {
 	out.Selector = (*metav1.LabelSelector)(unsafe.Pointer(in.Selector))
 	out.TargetNamespaces = *(*[]string)(unsafe.Pointer(&in.TargetNamespaces))
-	out.ServiceAccount = in.ServiceAccount
+	out.ServiceAccountName = in.ServiceAccountName
 	out.StaticProvidedAPIs = in.StaticProvidedAPIs
 	return nil
 }
@@ -149,7 +150,7 @@ func Convert_v1_OperatorGroupSpec_To_operators_OperatorGroupSpec(in *OperatorGro
 func autoConvert_operators_OperatorGroupSpec_To_v1_OperatorGroupSpec(in *operators.OperatorGroupSpec, out *OperatorGroupSpec, s conversion.Scope) error {
 	out.Selector = (*metav1.LabelSelector)(unsafe.Pointer(in.Selector))
 	out.TargetNamespaces = *(*[]string)(unsafe.Pointer(&in.TargetNamespaces))
-	out.ServiceAccount = in.ServiceAccount
+	out.ServiceAccountName = in.ServiceAccountName
 	out.StaticProvidedAPIs = in.StaticProvidedAPIs
 	return nil
 }
@@ -161,6 +162,7 @@ func Convert_operators_OperatorGroupSpec_To_v1_OperatorGroupSpec(in *operators.O
 
 func autoConvert_v1_OperatorGroupStatus_To_operators_OperatorGroupStatus(in *OperatorGroupStatus, out *operators.OperatorGroupStatus, s conversion.Scope) error {
 	out.Namespaces = *(*[]string)(unsafe.Pointer(&in.Namespaces))
+	out.ServiceAccountRef = (*corev1.ObjectReference)(unsafe.Pointer(in.ServiceAccountRef))
 	out.LastUpdated = in.LastUpdated
 	return nil
 }
@@ -172,6 +174,7 @@ func Convert_v1_OperatorGroupStatus_To_operators_OperatorGroupStatus(in *Operato
 
 func autoConvert_operators_OperatorGroupStatus_To_v1_OperatorGroupStatus(in *operators.OperatorGroupStatus, out *OperatorGroupStatus, s conversion.Scope) error {
 	out.Namespaces = *(*[]string)(unsafe.Pointer(&in.Namespaces))
+	out.ServiceAccountRef = (*corev1.ObjectReference)(unsafe.Pointer(in.ServiceAccountRef))
 	out.LastUpdated = in.LastUpdated
 	return nil
 }

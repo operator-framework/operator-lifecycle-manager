@@ -879,7 +879,6 @@ func (in *OperatorGroupSpec) DeepCopyInto(out *OperatorGroupSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	in.ServiceAccount.DeepCopyInto(&out.ServiceAccount)
 	return
 }
 
@@ -900,6 +899,11 @@ func (in *OperatorGroupStatus) DeepCopyInto(out *OperatorGroupStatus) {
 		in, out := &in.Namespaces, &out.Namespaces
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.ServiceAccountRef != nil {
+		in, out := &in.ServiceAccountRef, &out.ServiceAccountRef
+		*out = new(corev1.ObjectReference)
+		**out = **in
 	}
 	in.LastUpdated.DeepCopyInto(&out.LastUpdated)
 	return
