@@ -1,3 +1,5 @@
+---
+# Source: olm/templates/0000_50_olm_11-olm-operators.configmap.yaml
 kind: ConfigMap
 apiVersion: v1
 metadata:
