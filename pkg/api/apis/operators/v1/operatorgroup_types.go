@@ -76,3 +76,21 @@ func (o *OperatorGroup) BuildTargetNamespaces() string {
 	sort.Strings(o.Status.Namespaces)
 	return strings.Join(o.Status.Namespaces, ",")
 }
+
+// IsServiceAccountSpecified returns true if the spec has a service account name specified.
+func (o *OperatorGroup) IsServiceAccountSpecified() bool {
+	if o.Spec.ServiceAccountName == "" {
+		return false
+	}
+
+	return true
+}
+
+// HasServiceAccountSynced returns true if the service account specified has been synced.
+func (o *OperatorGroup) HasServiceAccountSynced() bool {
+	if o.IsServiceAccountSpecified() && o.Status.ServiceAccountRef != nil {
+		return true
+	}
+
+	return false
+}

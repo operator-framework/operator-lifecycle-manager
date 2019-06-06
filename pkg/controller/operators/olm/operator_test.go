@@ -39,6 +39,7 @@ import (
 	"k8s.io/client-go/pkg/version"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -57,6 +58,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
+	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 )
 
 type TestStrategy struct{}
@@ -287,6 +290,15 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 		return nil, err
 	}
 	op.recorder = config.recorder
+
+	scheme := runtime.NewScheme()
+	if err := k8sscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
+	op.csvSetGenerator = csvutility.NewSetGenerator(config.logger, op.lister)
+	op.csvReplaceFinder = csvutility.NewReplaceFinder(config.logger, config.externalClient)
+	op.serviceAccountSyncer = scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, op.client)
 
 	// Only start the operator's informers (no reconciliation)
 	op.RunInformers(ctx)

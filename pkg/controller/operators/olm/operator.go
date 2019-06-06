@@ -14,6 +14,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -21,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
@@ -38,6 +40,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -70,6 +73,7 @@ type Operator struct {
 	csvSetGenerator  csvutility.SetGenerator
 	csvReplaceFinder csvutility.ReplaceFinder
 	csvNotification  csvutility.WatchNotification
+	serviceAccountSyncer *scoped.UserDefinedServiceAccountSyncer
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -96,25 +100,31 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 
 	lister := operatorlister.NewLister()
 
+	scheme := runtime.NewScheme()
+	if err := k8sscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
 	op := &Operator{
-		Operator:         queueOperator,
-		clock:            config.clock,
-		logger:           config.logger,
-		opClient:         config.operatorClient,
-		client:           config.externalClient,
-		ogQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
-		csvQueueSet:      queueinformer.NewEmptyResourceQueueSet(),
-		csvCopyQueueSet:  queueinformer.NewEmptyResourceQueueSet(),
-		csvGCQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
-		apiServiceQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
-		resolver:         config.strategyResolver,
-		apiReconciler:    config.apiReconciler,
-		lister:           lister,
-		recorder:         eventRecorder,
-		apiLabeler:       config.apiLabeler,
-		csvIndexers:      map[string]cache.Indexer{},
-		csvSetGenerator:  csvutility.NewSetGenerator(config.logger, lister),
-		csvReplaceFinder: csvutility.NewReplaceFinder(config.logger, config.externalClient),
+		Operator:             queueOperator,
+		clock:                config.clock,
+		logger:               config.logger,
+		opClient:             config.operatorClient,
+		client:               config.externalClient,
+		ogQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
+		csvQueueSet:          queueinformer.NewEmptyResourceQueueSet(),
+		csvCopyQueueSet:      queueinformer.NewEmptyResourceQueueSet(),
+		csvGCQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
+		apiServiceQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
+		resolver:             config.strategyResolver,
+		apiReconciler:        config.apiReconciler,
+		lister:               lister,
+		recorder:             eventRecorder,
+		apiLabeler:           config.apiLabeler,
+		csvIndexers:          map[string]cache.Indexer{},
+		csvSetGenerator:      csvutility.NewSetGenerator(config.logger, lister),
+		csvReplaceFinder:     csvutility.NewReplaceFinder(config.logger, config.externalClient),
+		serviceAccountSyncer: scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
 	}
 
 	// Set up syncing for namespace-scoped resources
