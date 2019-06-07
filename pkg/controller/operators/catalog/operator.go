@@ -15,6 +15,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -250,6 +251,21 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		}
 
 	}
+
+	// Register CustomResourceDefinition QueueInformer
+	customResourceDefinitionInformer := extinf.NewSharedInformerFactory(op.OpClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
+	op.RegisterQueueInformer(queueinformer.NewInformer(
+		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "customresourcedefinitions"),
+		customResourceDefinitionInformer.Informer(),
+		op.syncObject,
+		&cache.ResourceEventHandlerFuncs{
+			DeleteFunc: op.handleDeletion,
+		},
+		"customresourcedefinitions",
+		metrics.NewMetricsNil(),
+		logger,
+	))
+	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(customResourceDefinitionInformer.Lister())
 
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod).Core().V1().Namespaces()
@@ -1041,13 +1057,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Attempt to create the CRD.
 				_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
 				if k8serrors.IsAlreadyExists(err) {
-					currentCRD, _ := o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.GetName(), metav1.GetOptions{})
+					currentCRD, _ := o.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(crd.GetName())
 					// Compare 2 CRDs to see if it needs to be updatetd
 					if !reflect.DeepEqual(crd, *currentCRD) {
 						// Verify CRD ownership, only attempt to update if
 						// CRD has only one owner
 						// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
-						matchedCSV, err := index.APIsIndexValues(o.csvProvidedAPIsIndexer, crd)
+						matchedCSV, err := index.CRDProviderNames(o.csvProvidedAPIsIndexer, crd)
 						if err != nil {
 							return errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
 						}

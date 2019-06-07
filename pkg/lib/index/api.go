@@ -14,6 +14,7 @@ const (
 	ProvidedAPIsIndexFuncKey string = "providedAPIs"
 )
 
+// ProvidedAPIsIndexFunc returns indicies from the owned CRDs and APIs of the given object (CSV)
 func ProvidedAPIsIndexFunc(obj interface{}) ([]string, error) {
 	indicies := []string{}
 
@@ -27,24 +28,24 @@ func ProvidedAPIsIndexFunc(obj interface{}) ([]string, error) {
 		if len(parts) < 2 {
 			return indicies, fmt.Errorf("couldn't parse plural.group from crd name: %s", crd.Name)
 		}
-		indicies = append(indicies, fmt.Sprintf("provided=%s/%s/%s", parts[1], crd.Version, crd.Kind))
+		indicies = append(indicies, fmt.Sprintf("%s/%s/%s", parts[1], crd.Version, crd.Kind))
 	}
 	for _, api := range csv.Spec.APIServiceDefinitions.Owned {
-		indicies = append(indicies, fmt.Sprintf("provided=%s/%s/%s", api.Group, api.Version, api.Kind))
+		indicies = append(indicies, fmt.Sprintf("%s/%s/%s", api.Group, api.Version, api.Kind))
 	}
 
 	return indicies, nil
 }
 
-// APIsIndexValues returns the names of CSVs that own the given CRD
-func APIsIndexValues(indexers map[string]cache.Indexer, crd v1beta1ext.CustomResourceDefinition) (map[string]struct{}, error) {
+// CRDProviderNames returns the names of CSVs that own the given CRD
+func CRDProviderNames(indexers map[string]cache.Indexer, crd v1beta1ext.CustomResourceDefinition) (map[string]struct{}, error) {
 	csvSet := map[string]struct{}{}
 	crdSpec := map[string]struct{}{}
 	for _, v := range crd.Spec.Versions {
-		crdSpec[fmt.Sprintf("provided=%s/%s/%s", crd.Spec.Group, v.Name, crd.Spec.Names.Kind)] = struct{}{}
+		crdSpec[fmt.Sprintf("%s/%s/%s", crd.Spec.Group, v.Name, crd.Spec.Names.Kind)] = struct{}{}
 	}
 	if crd.Spec.Version != "" {
-		crdSpec[fmt.Sprintf("provided=%s/%s/%s", crd.Spec.Group, crd.Spec.Version, crd.Spec.Names.Kind)] = struct{}{}
+		crdSpec[fmt.Sprintf("%s/%s/%s", crd.Spec.Group, crd.Spec.Version, crd.Spec.Names.Kind)] = struct{}{}
 	}
 	for _, indexer := range indexers {
 		for key, _ := range crdSpec {
