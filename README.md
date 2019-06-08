@@ -42,9 +42,9 @@ ClusterServiceVersions can be collected into `CatalogSource`s which will allow a
 
 Learn more about the components used by OLM by reading about the [architecture] and [philosophy].
 
-[architecture]: /Documentation/design/architecture.md
-[philosophy]: /Documentation/design/philosophy.md
-[installation guide]: /Documentation/install/install.md
+[architecture]: /doc/design/architecture.md
+[philosophy]: /doc/design/philosophy.md
+[installation guide]: /doc/install/install.md
 
 
 # Key Concepts
