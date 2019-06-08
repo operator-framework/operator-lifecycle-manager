@@ -4,7 +4,7 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
 metadata:
   name: olm-operators
-  namespace: {{ .Values.catalog_namespace }}
+  namespace: {{ .Values.namespace }}
 spec:
   sourceType: internal
   configMap: olm-operators

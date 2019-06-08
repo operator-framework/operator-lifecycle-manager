@@ -44,7 +44,7 @@ spec:
         - --secure-port
         - "5443"
         - --global-namespace
-        - openshift-operator-lifecycle-manager
+        - openshift-marketplace
         image: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
         imagePullPolicy: IfNotPresent
         ports:
