@@ -1,32 +1,79 @@
-# Installing OLM
+Installing OLM
+------
+
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+<!--**Table of Contents**   *generated with [DocToc](https://github.com/thlorenz/doctoc)*  -->
+
+- [Overview](#overview)
+- [Installation Options](#installation-options)
+  - [Release binary](#release-binary)
+  - [Minikube](#minikube)
+  - [Minishift (Deprecated)](#minishift-deprecated)
+  - [OpenShift](#openshift)
+- [Customizing OLM installation](#customizing-olm-installation)
+- [Uninstall](#uninstall)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+# Overview
 
 OLM deployment resources are templated so that they can be easily configured for different deployment environments.
 
+# Installation Options
+
+## Release binary
+
 Check out the latest [releases on github](https://github.com/operator-framework/operator-lifecycle-manager/releases) for release-specific install instructions.
 
-## Manual installation 
-
-Installing the CRDs first gives them a chance to register before installing the rest, which requires the CRDs exist.
-```bash
-kubectl create -f deploy/upstream/quickstart/crds.yaml
-kubectl create -f deploy/upstream/quickstart/olm.yaml
-```
-
-## OpenShift
-
-OLM is installed by default in OpenShift 4.0 and above.
-
-## Run locally with minikube
+## Minikube 
 
 This command starts minikube, builds the OLM containers locally with the minikube-provided docker, and uses the local configuration in [local-values.yaml](local-values.yaml) to build localized deployment resources for OLM.
 
-```
-make run-local
+```bash
+# Add pre-requisites for manual installation
+$ make install-crd
+
+# To install and run locally
+$ make run-local
 ```
 
 You can verify that the OLM components have been successfully deployed by running `kubectl -n local get deployments`
 
-## Customizing OLM installation 
+**NOTE** It is recommended for development pruposed and will use the source locally
+
+## Minishift (Deprecated)
+
+Following the steps. 
+
+* Run the following command to allow your Minishift work wth operators. 
+
+```bash
+# add addon to allow work with operators
+$ minishift addon enable admin-user
+```
+
+* Re-started your Minishift
+
+```bash
+# minishift stop
+$ minishift start
+```
+* Run the following command to install. 
+
+```bash
+# Add pre-requisites for manual installation
+$ make install-crd
+
+# To install and give permissions
+$ make install-ocp
+```
+
+## OpenShift
+
+**IMPORTANT:** OLM is installed by default in OpenShift 4.0 and above.
+
+# Customizing OLM installation 
 
 Deployments of OLM can be stamped out with different configurations by writing a `values.yaml` file and running commands to generate resources.
 
@@ -87,10 +134,11 @@ To configure a release of OLM for installation in a cluster:
 
 The above steps are automated for official releases with `make ver=0.3.0 release`, which will output new versions of manifests in `deploy/tectonic-alm-operator/manifests/$(ver)`.
 
-## Subscribe to a Package and Channel
+# Uninstall
 
-Cloud Services can be installed from the catalog by subscribing to a channel in the corresponding package.
+Run the command `make uninstall`.
 
+<<<<<<< HEAD:Documentation/install/install.md
 If using one of the `local` run options, this will subscribe to `etcd`, `vault`, and `prometheus` operators. Subscribing to a service that doesn't exist yet will install the operator and related CRDs in the namespace.
 
 ```yaml
@@ -116,3 +164,6 @@ spec:
   source: operatorhubio-catalog
   sourceNamespace: olm
 ```
+=======
+**NOTE** Valid just for local/manual installs. 
+>>>>>>> doc(Readme/Install) : Organize information in order to make more understanble and add missing steps:doc/install/install.md
