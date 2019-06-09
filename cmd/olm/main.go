@@ -162,6 +162,7 @@ func main() {
 		olm.WithResyncPeriod(*wakeupInterval),
 		olm.WithExternalClient(crClient),
 		olm.WithOperatorClient(opClient),
+		olm.WithRestConfig(config),
 	)
 	if err != nil {
 		log.Fatalf("error configuring operator: %s", err.Error())

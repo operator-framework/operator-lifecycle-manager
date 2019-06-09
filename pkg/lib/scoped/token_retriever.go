@@ -62,6 +62,12 @@ func getAPISecret(logger *logrus.Entry, kubeclient operatorclient.ClientInterfac
 			break
 		}
 
+		// Validate that this is a token for API access.
+		if !IsServiceAccountToken(secret, sa) {
+			logger.Warnf("skipping secret %s - %v", ref.Name, getErr)
+			continue
+		}
+
 		// The first eligible secret that has an API access token is returned.
 		APISecret = secret
 		break

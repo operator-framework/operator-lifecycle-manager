@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -260,6 +261,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 			strategyResolver:  &install.StrategyResolver{},
 			apiReconciler:     resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
 			apiLabeler:        labeler.Func(resolver.LabelSetsFor),
+			restConfig: 	   &rest.Config{},
 		},
 		recorder: &record.FakeRecorder{},
 		// default expected namespaces

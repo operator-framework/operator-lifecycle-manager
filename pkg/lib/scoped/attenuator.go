@@ -91,3 +91,36 @@ func (s *ClientAttenuator) AttenuateClient(querier ServiceAccountQuerierFunc) (k
 
 	return
 }
+
+// AttenuateOperatorClient returns a scoped operator client instance based on the
+// service account returned by the querier specified.
+func (s *ClientAttenuator) AttenuateOperatorClient(querier ServiceAccountQuerierFunc) (kubeclient operatorclient.ClientInterface, err error) {
+	if querier == nil {
+		err = errQuerierNotSpecified
+		return
+	}
+
+	reference, err := querier()
+	if err != nil {
+		return
+	}
+
+	if reference == nil {
+		// No service account/token has been provided. Return the default client(s).
+		kubeclient = s.kubeclient
+		return
+	}
+
+	token, err := s.retriever.Retrieve(reference)
+	if err != nil {
+		return
+	}
+
+	// Create client(s) bound to the user defined service account.
+	kubeclient, err = s.factory.NewOperatorClient(token)
+	if err != nil {
+		return
+	}
+
+	return
+}
