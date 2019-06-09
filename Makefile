@@ -84,6 +84,7 @@ run-local: build-linux build-wait
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
 
+
 deploy-local:
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
@@ -229,11 +230,54 @@ ifeq ($(quickstart), true)
 	./scripts/package_quickstart.sh deploy/$(target)/manifests/$(ver) deploy/$(target)/quickstart/olm.yaml deploy/$(target)/quickstart/crds.yaml deploy/$(target)/quickstart/install.sh
 endif
 
-##########################
-#  OLM - Commands        #
-##########################
+################################
+#  OLM - Install/Uninstall/Run #
+################################
 
 .PHONY: run-console-local
 run-console-local:
 	@echo Running script to run the OLM console locally:
 	. ./scripts/run_console_local.sh
+
+.PHONY: uninstall
+uninstall:
+	@echo Uninstalling OLM:
+	- kubectl delete -f deploy/upstream/quickstart/crds.yaml
+	- kubectl delete -f deploy/upstream/quickstart/olm.yam
+	- kubectl delete catalogsources.operators.coreos.com
+	- kubectl delete clusterserviceversions.operators.coreos.com
+	- kubectl delete installplans.operators.coreos.com
+	- kubectl delete operatorgroups.operators.coreos.com subscriptions.operators.coreos.com
+	- kubectl delete apiservices.apiregistration.k8s.io v1.packages.operators.coreos.com
+	- kubectl delete ns olm
+	- kubectl delete ns openshift-operator-lifecycle-manager
+	- kubectl delete ns openshift-operators
+	- kubectl delete ns operators
+	- kubectl delete clusterrole.rbac.authorization.k8s.io/aggregate-olm-edit
+	- kubectl delete clusterrole.rbac.authorization.k8s.io/aggregate-olm-view
+	- kubectl delete clusterrole.rbac.authorization.k8s.io/system:controller:operator-lifecycle-manager
+	- kubectl delete clusterroles.rbac.authorization.k8s.io "system:controller:operator-lifecycle-manager"
+	- kubectl delete clusterrolebindings.rbac.authorization.k8s.io "olm-operator-binding-openshift-operator-lifecycle-manager"
+
+.PHONY: run-local
+run-local: build-linux
+	@echo Building OLM:
+	rm -rf build
+	. ./scripts/build_local.sh
+	mkdir -p build/resources
+	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
+	. ./scripts/install_local.sh local build/resources
+	rm -rf build
+
+.PHONY: install-crd
+install-crd:
+	@echo Applying upstream quick start crd ...
+	- kubectl apply -f deploy/upstream/quickstart/crds.yaml
+	- kubectl apply -f deploy/upstream/quickstart/olm.yaml
+
+.PHONY: install-ocp
+install-ocp:
+	@echo Applying latest ...
+	- kubectl create -f deploy/ocp/manifests/latest/
+	@echo Adding cluster-admin permissions to system:serviceaccount:kube-system:default...
+	- oc adm policy add-cluster-role-to-user cluster-admin system:serviceaccount:kube-system:default
