@@ -13,10 +13,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/kubernetes/pkg/util/labels"
 
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -289,9 +289,11 @@ func toPackageManifest(pkg *api.Package, client registryClient) (*operators.Pack
 	catsrc := client.source
 	manifest := &operators.PackageManifest{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:              pkg.GetName(),
-			Namespace:         catsrc.GetNamespace(),
-			Labels:            catsrc.GetLabels(),
+			Name:      pkg.GetName(),
+			Namespace: catsrc.GetNamespace(),
+			Labels: labels.CloneAndAddLabel(
+				labels.CloneAndAddLabel(catsrc.GetLabels(),
+					"catalog", catsrc.GetName()), "catalog-namespace", catsrc.GetNamespace()),
 			CreationTimestamp: catsrc.GetCreationTimestamp(),
 		},
 		Status: operators.PackageManifestStatus{
@@ -304,11 +306,6 @@ func toPackageManifest(pkg *api.Package, client registryClient) (*operators.Pack
 			DefaultChannel:           pkg.GetDefaultChannelName(),
 		},
 	}
-	if manifest.GetLabels() == nil {
-		manifest.SetLabels(labels.Set{})
-	}
-	manifest.ObjectMeta.Labels["catalog"] = manifest.Status.CatalogSource
-	manifest.ObjectMeta.Labels["catalog-namespace"] = manifest.Status.CatalogSourceNamespace
 
 	for i, pkgChannel := range pkgChannels {
 		bundle, err := client.GetBundleForChannel(context.Background(), &api.GetBundleInChannelRequest{PkgName: pkg.GetName(), ChannelName: pkgChannel.GetName()})
