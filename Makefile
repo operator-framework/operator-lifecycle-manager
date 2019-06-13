@@ -148,8 +148,10 @@ codegen:
 	mkdir -p vendor/k8s.io/code-generator/hack
 	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
 	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/operator-server/apis/operators/v1,./pkg/lib/version -p $(PKG)/pkg/operator-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	$(CODEGEN_INTERNAL) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
 	$(CODEGEN_INTERNAL) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
+	$(CODEGEN_INTERNAL) all $(PKG)/pkg/operator-server/client $(PKG)/pkg/operator-server/apis $(PKG)/pkg/operator-server/apis "operators:v1"
 
 container-codegen:
 	docker build -t olm:codegen -f codegen.Dockerfile .
@@ -158,6 +160,8 @@ container-codegen:
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/. ./pkg/api/apis
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/. ./pkg/package-server/apis
 	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/. ./pkg/package-server/client
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/operator-server/apis/. ./pkg/operator-server/apis
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/operator-server/client/. ./pkg/operator-server/client
 	docker rm temp-codegen
 
 container-mockgen:
