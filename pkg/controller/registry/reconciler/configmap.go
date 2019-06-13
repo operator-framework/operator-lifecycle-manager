@@ -3,7 +3,6 @@ package reconciler
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -18,8 +17,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
-
-var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 // configMapCatalogSourceDecorator wraps CatalogSource to add additional methods
 type configMapCatalogSourceDecorator struct {
@@ -194,6 +191,7 @@ func (s *configMapCatalogSourceDecorator) RoleBinding() *rbacv1.RoleBinding {
 }
 
 type ConfigMapRegistryReconciler struct {
+	now      nowFunc
 	Lister   operatorlister.OperatorLister
 	OpClient operatorclient.ClientInterface
 	Image    string
@@ -328,14 +326,15 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 	}
 
 	if overwritePod {
+		now := c.now()
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
-			CreatedAt:        timeNow(),
+			CreatedAt:        now,
 			Protocol:         "grpc",
 			ServiceName:      source.Service().GetName(),
 			ServiceNamespace: source.GetNamespace(),
 			Port:             fmt.Sprintf("%d", source.Service().Spec.Ports[0].Port),
 		}
-		catalogSource.Status.LastSync = timeNow()
+		catalogSource.Status.LastSync = now
 	}
 	return nil
 }

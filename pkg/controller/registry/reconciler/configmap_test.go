@@ -33,12 +33,19 @@ const (
 )
 
 type fakeReconcilerConfig struct {
+	now                  nowFunc
 	k8sObjs              []runtime.Object
 	k8sClientOptions     []clientfake.Option
 	configMapServerImage string
 }
 
 type fakeReconcilerOption func(*fakeReconcilerConfig)
+
+func withNow(now nowFunc) fakeReconcilerOption {
+	return func(config *fakeReconcilerConfig) {
+		config.now = now
+	}
+}
 
 func withK8sObjs(k8sObjs ...runtime.Object) fakeReconcilerOption {
 	return func(config *fakeReconcilerConfig) {
@@ -60,6 +67,7 @@ func withConfigMapServerImage(configMapServerImage string) fakeReconcilerOption 
 
 func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeReconcilerOption) (RegistryReconcilerFactory, operatorclient.ClientInterface) {
 	config := &fakeReconcilerConfig{
+		now:                  metav1.Now,
 		configMapServerImage: registryImageName,
 	}
 
@@ -97,6 +105,7 @@ func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeR
 	lister.CoreV1().RegisterConfigMapLister(testNamespace, configMapInformer.Lister())
 
 	rec := &registryReconcilerFactory{
+		now:                  config.now,
 		OpClient:             opClientFake,
 		Lister:               lister,
 		ConfigMapServerImage: config.configMapServerImage,
@@ -246,8 +255,7 @@ func setLabel(objs []runtime.Object, kind runtime.Object, label, value string) [
 }
 
 func TestConfigMapRegistryReconciler(t *testing.T) {
-	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
-	timeNow = func() metav1.Time { return nowTime }
+	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
 
 	validConfigMap := validConfigMap()
 	validCatalogSource := validConfigMapCatalogSource(validConfigMap)
@@ -293,7 +301,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -311,7 +319,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -329,7 +337,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -347,7 +355,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -365,7 +373,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -383,7 +391,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -401,7 +409,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: testNamespace,
@@ -415,7 +423,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			factory, client := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
+			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)

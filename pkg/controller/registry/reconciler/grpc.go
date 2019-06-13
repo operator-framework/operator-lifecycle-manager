@@ -102,6 +102,7 @@ func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
 }
 
 type GrpcRegistryReconciler struct {
+	now      nowFunc
 	Lister   operatorlister.OperatorLister
 	OpClient operatorclient.ClientInterface
 }
@@ -163,14 +164,15 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	}
 
 	if overwritePod {
+		now := c.now()
 		catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
-			CreatedAt:        timeNow(),
+			CreatedAt:        now,
 			Protocol:         "grpc",
 			ServiceName:      source.Service().GetName(),
 			ServiceNamespace: source.GetNamespace(),
 			Port:             fmt.Sprintf("%d", source.Service().Spec.Ports[0].Port),
 		}
-		catalogSource.Status.LastSync = timeNow()
+		catalogSource.Status.LastSync = now
 	}
 	return nil
 }

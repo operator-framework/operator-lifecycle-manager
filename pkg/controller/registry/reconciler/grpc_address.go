@@ -4,7 +4,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
-type GrpcAddressRegistryReconciler struct{}
+type GrpcAddressRegistryReconciler struct {
+	now nowFunc
+}
 
 var _ RegistryEnsurer = &GrpcAddressRegistryReconciler{}
 var _ RegistryChecker = &GrpcAddressRegistryReconciler{}
@@ -12,10 +14,12 @@ var _ RegistryReconciler = &GrpcAddressRegistryReconciler{}
 
 // EnsureRegistryServer ensures a registry server exists for the given CatalogSource.
 func (g *GrpcAddressRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.CatalogSource) error {
+	now := g.now()
 	catalogSource.Status.RegistryServiceStatus = &v1alpha1.RegistryServiceStatus{
-		CreatedAt: timeNow(),
+		CreatedAt: now,
 		Protocol:  "grpc",
 	}
+	catalogSource.Status.LastSync = now
 
 	return nil
 }
