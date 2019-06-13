@@ -44,7 +44,7 @@ run_ocp_console_image (){
 verify_ocp_console_image (){
     if [ "$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)" ];
     then
-      container_id="$($POD_MANAGER ps -q -f label=io.openshift.build.source-location=https://github.com/openshift/console)"
+      container_id="$($POD_MANAGER ps -q -l -f label=io.openshift.build.source-location=https://github.com/openshift/console)"
       echo -e "${GREEN}The OLM is accessible via web console at:${RESET}"
       echo -e "${GREEN}http://localhost:9000/${RESET}"
       echo -e "${GREEN}Press Ctrl-C to quit${RESET}";
