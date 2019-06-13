@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -16,7 +17,6 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
@@ -63,7 +63,9 @@ func init() {
 
 // main function - entrypoint to OLM operator
 func main() {
-	stopCh := signals.SetupSignalHandler()
+	// Get exit signal context
+	ctx, cancel := context.WithCancel(signals.Context())
+	defer cancel()
 
 	// Parse the command-line flags.
 	flag.Parse()
@@ -86,38 +88,13 @@ func main() {
 		}
 	}
 
-	// Create a client for OLM
-	crClient, err := client.NewClient(*kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-
-	logger := log.New()
-
 	// Set log level to debug if `debug` flag set
+	logger := log.New()
 	if *debug {
-		logger.SetLevel(log.DebugLevel)
+		// TODO: Switch back to debug level
+		logger.SetLevel(log.TraceLevel)
 	}
 	logger.Infof("log level %s", logger.Level)
-
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
-
-	// create a config client for operator status
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-	configClient, err := configv1client.NewForConfig(config)
-	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
-	}
-
-	// Create a new instance of the operator.
-	operator, err := olm.NewOperator(logger, crClient, opClient, &install.StrategyResolver{}, *wakeupInterval, namespaces)
-
-	if err != nil {
-		log.Fatalf("error configuring operator: %s", err.Error())
-	}
 
 	var useTLS bool
 	if *tlsCertPath != "" && *tlsKeyPath == "" || *tlsCertPath == "" && *tlsKeyPath != "" {
@@ -159,12 +136,40 @@ func main() {
 		}()
 	}
 
-	ready, done, sync := operator.Run(stopCh)
-	<-ready
-
-	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+	// create a config client for operator status
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+	configClient, err := configv1client.NewForConfig(config)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
+	crClient, err := client.NewClient(*kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
 	}
 
-	<-done
+	// Create a new instance of the operator.
+	op, err := olm.NewOperator(
+		ctx,
+		olm.WithLogger(logger),
+		olm.WithWatchedNamespaces(namespaces...),
+		olm.WithResyncPeriod(*wakeupInterval),
+		olm.WithExternalClient(crClient),
+		olm.WithOperatorClient(opClient),
+	)
+	if err != nil {
+		log.Fatalf("error configuring operator: %s", err.Error())
+	}
+
+	op.Run(ctx)
+	<-op.Ready()
+
+	if *writeStatusName != "" {
+		operatorstatus.MonitorClusterStatus(*writeStatusName, op.AtLevel(), ctx.Done(), opClient, configClient)
+	}
+
+	<-op.Done()
 }

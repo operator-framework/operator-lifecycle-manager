@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
@@ -66,7 +68,9 @@ func init() {
 }
 
 func main() {
-	stopCh := signals.SetupSignalHandler()
+	// Get exit signal context
+	ctx, cancel := context.WithCancel(signals.Context())
+	defer cancel()
 
 	// Parse the command-line flags.
 	flag.Parse()
@@ -91,7 +95,8 @@ func main() {
 
 	logger := log.New()
 	if *debug {
-		logger.SetLevel(log.DebugLevel)
+		// TODO: change back to debug level
+		logger.SetLevel(log.TraceLevel)
 	}
 	logger.Infof("log level %s", logger.Level)
 
@@ -142,17 +147,17 @@ func main() {
 	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
 
 	// Create a new instance of the operator.
-	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}
 
-	ready, done, sync := catalogOperator.Run(stopCh)
-	<-ready
+	op.Run(ctx)
+	<-op.Ready()
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, op.AtLevel(), op.Done(), opClient, configClient)
 	}
 
-	<-done
+	<-op.Done()
 }
