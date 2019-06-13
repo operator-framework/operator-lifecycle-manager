@@ -27,9 +27,10 @@ import (
 )
 
 const (
-	defaultWakeupInterval          = 5 * time.Minute
-	defaultOperatorName            = ""
-	defaultPackageServerStatusName = ""
+	defaultWakeupInterval            = 5 * time.Minute
+	defaultOperatorName              = ""
+	defaultPackageServerStatusName   = ""
+	defaultPorcelainServerStatusName = ""
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -50,6 +51,9 @@ var (
 
 	writePackageServerStatusName = flag.String(
 		"writePackageServerStatusName", defaultPackageServerStatusName, "ClusterOperator name in which to write status for package API server, set to \"\" to disable.")
+
+	writePorcelainServerStatusName = flag.String(
+		"writePorcelainServerStatusName", defaultPorcelainServerStatusName, "ClusterOperator name in which to write status for porcelain API server, set to \"\" to disable.")
 
 	debug = flag.Bool(
 		"debug", false, "use debug log level")
@@ -199,12 +203,20 @@ func main() {
 		operatorstatus.MonitorClusterStatus(*writeStatusName, *namespace, op.AtLevel(), ctx.Done(), opClient, configClient)
 	}
 
+	var monitorNames []string
 	if *writePackageServerStatusName != "" {
-		logger.Info("Initializing cluster operator monitor for package server")
+		monitorNames = append(monitorNames, strings.TrimSpace(*writePackageServerStatusName))
+	}
+	if *writePorcelainServerStatusName != "" {
+		monitorNames = append(monitorNames, strings.TrimSpace(*writePorcelainServerStatusName))
+	}
 
-		names := *writePackageServerStatusName
+	// Register CVO monitoring for secondary API servers
+	if len(monitorNames) > 0 {
+		logger.Info("Initializing cluster operator monitor for %s", monitorNames)
+
 		discovery := opClient.KubernetesInterface().Discovery()
-		monitor, sender := operatorstatus.NewMonitor(names, logger, discovery, configClient)
+		monitor, sender := operatorstatus.NewMonitor(logger, discovery, configClient, monitorNames...)
 
 		handler := operatorstatus.NewCSVWatchNotificationHandler(logger, op.GetCSVSetGenerator(), op.GetReplaceFinder(), sender)
 		op.RegisterCSVWatchNotification(handler)
