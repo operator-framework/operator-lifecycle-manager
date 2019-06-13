@@ -326,6 +326,19 @@ func subscriptionHasCurrentCSV(currentCSV string) subscriptionStateChecker {
 	}
 }
 
+func subscriptionHasCondition(condType v1alpha1.SubscriptionConditionType, status corev1.ConditionStatus, reason, message string) subscriptionStateChecker {
+	return func(subscription *v1alpha1.Subscription) bool {
+		cond := subscription.Status.GetCondition(condType)
+		if cond.Status == status && cond.Reason == reason && cond.Message == message {
+			fmt.Printf("subscription condition met %v\n", cond)
+			return true
+		}
+
+		fmt.Printf("subscription condition not met: %v\n", cond)
+		return false
+	}
+}
+
 func fetchSubscription(t *testing.T, crc versioned.Interface, namespace, name string, checker subscriptionStateChecker) (*v1alpha1.Subscription, error) {
 	var fetchedSubscription *v1alpha1.Subscription
 	var err error
@@ -840,6 +853,48 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	require.NoError(t, err)
 
 	// TODO: check installplans, subscription status, etc
+}
+
+// TestSubscriptionStatusMissingTargetCatalogSource ensures that a Subscription has the appropriate status condition when
+// its target catalog is missing.
+//
+// Steps:
+// 1. Generate an initial CatalogSource in the target namespace
+// 2. Generate Subscription, "sub", targetting non-existent CatalogSource, "missing"
+// 3. Wait for sub status to show SubscriptionCatalogSourcesUnhealthy with status True, reason CatalogSourcesUpdated, and appropriate missing message
+// 4. Update sub's spec to target the "mysubscription"
+// 5. Wait for sub's status to show SubscriptionCatalogSourcesUnhealthy with status False, reason AllCatalogSourcesHealthy, and reason "all available catalogsources are healthy"
+// 6. Wait for sub to succeed
+func TestSubscriptionStatusMissingTargetCatalogSource(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
+	require.NoError(t, initCatalog(t, c, crc))
+
+	missingName := "missing"
+	cleanup := createSubscriptionForCatalog(t, crc, testNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
+	defer cleanup()
+
+	sub, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", testNamespace, missingName)))
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	// Update sub to target an existing CatalogSource
+	sub.Spec.CatalogSource = catalogSourceName
+	_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(sub)
+	require.NoError(t, err)
+
+	// Wait for SubscriptionCatalogSourcesUnhealthy to be false
+	_, err = fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
+	require.NoError(t, err)
+
+	// Wait for success
+	_, err = fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
 }
 
 func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
