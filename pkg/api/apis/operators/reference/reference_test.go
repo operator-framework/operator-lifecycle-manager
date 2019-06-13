@@ -11,7 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
 
@@ -155,6 +156,121 @@ func TestGetReference(t *testing.T) {
 					UID:        types.UID("uid"),
 					Kind:       v1.OperatorGroupKind,
 					APIVersion: v1.SchemeGroupVersion.String(),
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "internalversion/ClusterServiceVersion",
+			args: args{
+				&operators.ClusterServiceVersion{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "ns",
+						Name:      "csv",
+						UID:       types.UID("uid"),
+						SelfLink:  buildSelfLink(operators.SchemeGroupVersion.String(), "clusterserviceversions", "ns", "csv"),
+					},
+				},
+			},
+			want: want{
+				ref: &corev1.ObjectReference{
+					Namespace:  "ns",
+					Name:       "csv",
+					UID:        types.UID("uid"),
+					Kind:       operators.ClusterServiceVersionKind,
+					APIVersion: operators.SchemeGroupVersion.String(),
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "internalversion/InstallPlan",
+			args: args{
+				&v1alpha1.InstallPlan{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "ns",
+						Name:      "ip",
+						UID:       types.UID("uid"),
+						SelfLink:  buildSelfLink(operators.SchemeGroupVersion.String(), "installplans", "ns", "ip"),
+					},
+				},
+			},
+			want: want{
+				ref: &corev1.ObjectReference{
+					Namespace:  "ns",
+					Name:       "ip",
+					UID:        types.UID("uid"),
+					Kind:       operators.InstallPlanKind,
+					APIVersion: operators.SchemeGroupVersion.String(),
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "internalversion/Subscription",
+			args: args{
+				&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "ns",
+						Name:      "sub",
+						UID:       types.UID("uid"),
+						SelfLink:  buildSelfLink(operators.SchemeGroupVersion.String(), "subscriptions", "ns", "sub"),
+					},
+				},
+			},
+			want: want{
+				ref: &corev1.ObjectReference{
+					Namespace:  "ns",
+					Name:       "sub",
+					UID:        types.UID("uid"),
+					Kind:       operators.SubscriptionKind,
+					APIVersion: operators.SchemeGroupVersion.String(),
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "internalversion/CatalogSource",
+			args: args{
+				&v1alpha1.CatalogSource{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "ns",
+						Name:      "catsrc",
+						UID:       types.UID("uid"),
+						SelfLink:  buildSelfLink(operators.SchemeGroupVersion.String(), "catalogsources", "ns", "catsrc"),
+					},
+				},
+			},
+			want: want{
+				ref: &corev1.ObjectReference{
+					Namespace:  "ns",
+					Name:       "catsrc",
+					UID:        types.UID("uid"),
+					Kind:       operators.CatalogSourceKind,
+					APIVersion: operators.SchemeGroupVersion.String(),
+				},
+				err: nil,
+			},
+		},
+		{
+			name: "internalversion/OperatorGroup",
+			args: args{
+				&v1.OperatorGroup{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "ns",
+						Name:      "og",
+						UID:       types.UID("uid"),
+						SelfLink:  buildSelfLink(operators.SchemeGroupVersion.String(), "operatorgroups", "ns", "og"),
+					},
+				},
+			},
+			want: want{
+				ref: &corev1.ObjectReference{
+					Namespace:  "ns",
+					Name:       "og",
+					UID:        types.UID("uid"),
+					Kind:       operators.OperatorGroupKind,
+					APIVersion: operators.SchemeGroupVersion.String(),
 				},
 				err: nil,
 			},

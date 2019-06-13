@@ -11,7 +11,7 @@ import (
 )
 
 // ClusterServiceVersionKind is the PascalCase name of a CSV's kind.
-const ClusterServiceVersionKind = "ClusterServiceVersionKind"
+const ClusterServiceVersionKind = "ClusterServiceVersion"
 
 // InstallModeType is a supported type of install mode for CSV installation
 type InstallModeType string
