@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -604,15 +605,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.description, func(t *testing.T) {
-			namespaceObj := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: namespace,
-				},
-			}
-			test.existingObjs = append(test.existingObjs, namespaceObj)
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, _, err := NewFakeOperator([]runtime.Object{test.csv}, test.existingObjs, test.existingExtObjs, nil, &install.StrategyResolver{}, nil, nil, []string{namespace}, stopCh)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(ctx, withNamespaces(namespace), withOperatorNamespace(namespace), withClientObjs(test.csv), withK8sObjs(test.existingObjs...), withExtObjs(test.existingExtObjs...))
 			require.NoError(t, err)
 
 			// Get the permission status
