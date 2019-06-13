@@ -19,7 +19,7 @@ import (
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
 )
 
-func MonitorClusterStatus(name string, syncCh chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface) {
+func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface) {
 	var (
 		syncs              int
 		successfulSyncs    int
