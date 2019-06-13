@@ -17,7 +17,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
+	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -29,8 +29,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -49,30 +51,32 @@ const (
 	generatedByKey         = "olm.generated-by"
 )
 
-// for test stubbing and for ensuring standardization of timezones to UTC
-var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
-
 // Operator represents a Kubernetes operator that executes InstallPlans by
 // resolving dependencies in a catalog.
 type Operator struct {
-	*queueinformer.Operator
-	client                versioned.Interface
-	lister                operatorlister.OperatorLister
-	namespace             string
-	sources               map[resolver.CatalogKey]resolver.SourceRef
-	sourcesLock           sync.RWMutex
-	sourcesLastUpdate     metav1.Time
-	resolver              resolver.Resolver
-	subQueue              workqueue.RateLimitingInterface
-	catSrcQueueSet        *queueinformer.ResourceQueueSet
-	namespaceResolveQueue workqueue.RateLimitingInterface
-	reconciler            reconciler.RegistryReconcilerFactory
+	queueinformer.Operator
+
+	logger            *logrus.Logger
+	clock             utilclock.Clock
+	opClient          operatorclient.ClientInterface
+	client            versioned.Interface
+	lister            operatorlister.OperatorLister
+	catsrcQueueSet    *queueinformer.ResourceQueueSet
+	subQueueSet       *queueinformer.ResourceQueueSet
+	ipQueueSet        *queueinformer.ResourceQueueSet
+	nsResolveQueue    workqueue.RateLimitingInterface
+	namespace         string
+	sources           map[resolver.CatalogKey]resolver.SourceRef
+	sourcesLock       sync.RWMutex
+	sourcesLastUpdate metav1.Time
+	resolver          resolver.Resolver
+	reconciler        reconciler.RegistryReconcilerFactory
 }
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval time.Duration, configmapRegistryImage, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resyncPeriod time.Duration, configmapRegistryImage, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
 	// Default to watching all namespaces.
-	if watchedNamespaces == nil {
+	if len(watchedNamespaces) == 0 {
 		watchedNamespaces = []string{metav1.NamespaceAll}
 	}
 
@@ -82,207 +86,234 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		return nil, err
 	}
 
-	// Create an OperatorLister
-	lister := operatorlister.NewLister()
-
-	// Create an informer for each watched namespace.
-	ipSharedIndexInformers := []cache.SharedIndexInformer{}
-	subSharedIndexInformers := []cache.SharedIndexInformer{}
-	csvSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
-		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
-		csvSharedIndexInformers = append(csvSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
-
-		// resolver needs subscription and csv listers
-		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
-		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
-		lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, nsInformerFactory.Operators().V1alpha1().InstallPlans().Lister())
-	}
-
 	// Create a new queueinformer-based operator.
-	queueOperator, err := queueinformer.NewOperator(kubeconfigPath, logger)
+	opClient := operatorclient.NewClientFromConfig(kubeconfigPath, logger)
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClient.KubernetesInterface().Discovery(), logger)
 	if err != nil {
 		return nil, err
 	}
 
+	// Create an OperatorLister
+	lister := operatorlister.NewLister()
+
 	// Allocate the new instance of an Operator.
 	op := &Operator{
 		Operator:       queueOperator,
-		catSrcQueueSet: queueinformer.NewEmptyResourceQueueSet(),
+		logger:         logger,
+		clock:          clock,
+		opClient:       opClient,
 		client:         crClient,
 		lister:         lister,
 		namespace:      operatorNamespace,
 		sources:        make(map[resolver.CatalogKey]resolver.SourceRef),
 		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
+		catsrcQueueSet: queueinformer.NewEmptyResourceQueueSet(),
+		subQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
 	}
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
 
-	// Create an informer for each catalog namespace
-	deleteCatSrc := &cache.ResourceEventHandlerFuncs{
-		DeleteFunc: op.handleCatSrcDeletion,
-	}
+	// Set up syncing for namespace-scoped resources
 	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		catsrcInformer := nsInformerFactory.Operators().V1alpha1().CatalogSources()
+		// Wire OLM CR informers
+		crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod, externalversions.WithNamespace(namespace))
 
-		// Register queue and QueueInformer
-		var queueName string
-		if namespace == corev1.NamespaceAll {
-			queueName = "catsrc"
-		} else {
-			queueName = fmt.Sprintf("%s/catsrc", namespace)
+		// Wire CSVs
+		csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
+		op.RegisterInformer(csvInformer.Informer())
+
+		// TODO: Add namespace resolve sync
+
+		// Wire InstallPlans
+		ipInformer := crInformerFactory.Operators().V1alpha1().InstallPlans()
+		op.lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, ipInformer.Lister())
+		ipQueueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithMetricsProvider(metrics.NewMetricsInstallPlan(op.client)),
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(ipInformer.Informer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncInstallPlans).ToSyncer()),
+		)
+		if err != nil {
+			return nil, err
 		}
-		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName)
-		op.RegisterQueueInformer(queueinformer.NewInformer(catsrcQueue, catsrcInformer.Informer(), op.syncCatalogSources, deleteCatSrc, queueName, metrics.NewMetricsCatalogSource(op.client), logger))
+		op.RegisterQueueInformer(ipQueueInformer)
+
+		// Wire CatalogSources
+		catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
 		op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(namespace, catsrcInformer.Lister())
-		op.catSrcQueueSet.Set(namespace, catsrcQueue)
-	}
-
-	// Register InstallPlan informers.
-	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installplans")
-	ipQueueInformers := queueinformer.New(
-		ipQueue,
-		ipSharedIndexInformers,
-		op.syncInstallPlans,
-		nil,
-		"installplan",
-		metrics.NewMetricsInstallPlan(op.client),
-		logger,
-	)
-	for _, informer := range ipQueueInformers {
-		op.RegisterQueueInformer(informer)
-	}
-
-	// Register Subscription informers.
-	subscriptionQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "subscriptions")
-	subscriptionQueueInformers := queueinformer.New(
-		subscriptionQueue,
-		subSharedIndexInformers,
-		op.syncSubscriptions,
-		nil,
-		"subscription",
-		metrics.NewMetricsSubscription(op.client),
-		logger,
-	)
-	op.subQueue = subscriptionQueue
-	for _, informer := range subscriptionQueueInformers {
-		op.RegisterQueueInformer(informer)
-	}
-
-	handleDelete := &cache.ResourceEventHandlerFuncs{
-		DeleteFunc: op.handleDeletion,
-	}
-	// Set up informers for requeuing catalogs
-	for _, namespace := range watchedNamespaces {
-		roleQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "role")
-		roleBindingQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rolebinding")
-		serviceAccountQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount")
-		serviceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "service")
-		podQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "pod")
-		configmapQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configmap")
-
-		informerFactory := informers.NewSharedInformerFactoryWithOptions(op.OpClient.KubernetesInterface(), wakeupInterval, informers.WithNamespace(namespace))
-		roleInformer := informerFactory.Rbac().V1().Roles()
-		roleBindingInformer := informerFactory.Rbac().V1().RoleBindings()
-		serviceAccountInformer := informerFactory.Core().V1().ServiceAccounts()
-		serviceInformer := informerFactory.Core().V1().Services()
-		podInformer := informerFactory.Core().V1().Pods()
-		configMapInformer := informerFactory.Core().V1().ConfigMaps()
-
-		queueInformers := []*queueinformer.QueueInformer{
-			queueinformer.NewInformer(roleQueue, roleInformer.Informer(), op.syncObject, handleDelete, "role", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(roleBindingQueue, roleBindingInformer.Informer(), op.syncObject, handleDelete, "rolebinding", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(serviceAccountQueue, serviceAccountInformer.Informer(), op.syncObject, handleDelete, "serviceaccount", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(serviceQueue, serviceInformer.Informer(), op.syncObject, handleDelete, "service", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(podQueue, podInformer.Informer(), op.syncObject, handleDelete, "pod", metrics.NewMetricsNil(), logger),
-			queueinformer.NewInformer(configmapQueue, configMapInformer.Informer(), op.syncObject, handleDelete, "configmap", metrics.NewMetricsNil(), logger),
+		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/catsrcs", namespace))
+		op.catsrcQueueSet.Set(namespace, catsrcQueue)
+		catsrcQueueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithMetricsProvider(metrics.NewMetricsCatalogSource(op.client)),
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithQueue(catsrcQueue),
+			queueinformer.WithInformer(catsrcInformer.Informer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCatalogSources).ToSyncerWithDelete(op.handleCatSrcDeletion)),
+		)
+		if err != nil {
+			return nil, err
 		}
-		for _, q := range queueInformers {
-			op.RegisterQueueInformer(q)
-		}
+		op.RegisterQueueInformer(catsrcQueueInformer)
 
+		// Wire Subscriptions
+		subInformer := crInformerFactory.Operators().V1alpha1().Subscriptions()
+		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
+		subQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/subs", namespace))
+		op.subQueueSet.Set(namespace, subQueue)
+		subSyncer, err := subscription.NewSyncer(
+			ctx,
+			subscription.WithLogger(op.logger),
+			subscription.WithClient(op.client),
+			subscription.WithOperatorLister(op.lister),
+			subscription.WithSubscriptionInformer(subInformer.Informer()),
+			subscription.WithCatalogInformer(catsrcInformer.Informer()),
+			subscription.WithSubscriptionQueue(subQueue),
+			subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
+			subscription.WithRegistryReconcilerFactory(op.reconciler),
+			subscription.WithGlobalCatalogNamespace(op.namespace),
+		)
+		if err != nil {
+			return nil, err
+		}
+		subQueueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithMetricsProvider(metrics.NewMetricsSubscription(op.client)),
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithQueue(subQueue),
+			queueinformer.WithInformer(subInformer.Informer()),
+			queueinformer.WithSyncer(subSyncer),
+		)
+		if err != nil {
+			return nil, err
+		}
+		op.RegisterQueueInformer(subQueueInformer)
+
+		// Wire k8s informers
+		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod, informers.WithNamespace(namespace))
+		informers := []cache.SharedIndexInformer{}
+
+		// Wire Roles
+		roleInformer := k8sInformerFactory.Rbac().V1().Roles()
 		op.lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
+		informers = append(informers, roleInformer.Informer())
+
+		// Wire RoleBindings
+		roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
 		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
+		informers = append(informers, roleBindingInformer.Informer())
+
+		// Wire ServiceAccounts
+		serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
 		op.lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
+		informers = append(informers, serviceAccountInformer.Informer())
+
+		// Wire Services
+		serviceInformer := k8sInformerFactory.Core().V1().Services()
 		op.lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
+		informers = append(informers, serviceInformer.Informer())
+
+		// Wire Pods
+		podInformer := k8sInformerFactory.Core().V1().Pods()
 		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
+		informers = append(informers, podInformer.Informer())
+
+		// Wire ConfigMaps
+		configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
 		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
+		informers = append(informers, configMapInformer.Informer())
+
+		// Generate and register QueueInformers for k8s resources
+		k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
+		for _, informer := range informers {
+			queueInformer, err := queueinformer.NewQueueInformer(
+				ctx,
+				queueinformer.WithLogger(op.logger),
+				queueinformer.WithInformer(informer),
+				queueinformer.WithSyncer(k8sSyncer),
+			)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := op.RegisterQueueInformer(queueInformer); err != nil {
+				return nil, err
+			}
+		}
+
 	}
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(op.lister, op.OpClient, configmapRegistryImage)
 
 	// Namespace sync for resolving subscriptions
-	namespaceInformer := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
-	resolvingNamespaceQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
-	namespaceQueueInformer := queueinformer.NewInformer(
-		resolvingNamespaceQueue,
-		namespaceInformer.Informer(),
-		op.syncResolvingNamespace,
-		nil,
-		"resolver",
-		metrics.NewMetricsNil(),
-		logger,
-	)
-
-	op.RegisterQueueInformer(namespaceQueueInformer)
+	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod).Core().V1().Namespaces()
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
-	op.namespaceResolveQueue = resolvingNamespaceQueue
-
-	// Register CSV informers to fill cache
-	for _, informer := range csvSharedIndexInformers {
-		op.RegisterInformer(informer)
+	op.nsResolveQueue = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
+	namespaceQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(op.nsResolveQueue),
+		queueinformer.WithInformer(namespaceInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncResolvingNamespace).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
 	}
+	op.RegisterQueueInformer(namespaceQueueInformer)
 
 	return op, nil
 }
 
-func (o *Operator) syncObject(obj interface{}) (syncError error) {
-	// Assert as runtime.Object
-	runtimeObj, ok := obj.(runtime.Object)
-	if !ok {
-		syncError = errors.New("object sync: casting to runtime.Object failed")
-		o.Log.Warn(syncError.Error())
-		return
-	}
+func (o *Operator) now() metav1.Time {
+	return metav1.NewTime(o.clock.Now().UTC())
+}
 
-	gvk := runtimeObj.GetObjectKind().GroupVersionKind()
-	logger := o.Log.WithFields(logrus.Fields{
-		"group":   gvk.Group,
-		"version": gvk.Version,
-		"kind":    gvk.Kind,
+func (o *Operator) requeueOwners(obj metav1.Object) {
+	namespace := obj.GetNamespace()
+	logger := o.logger.WithFields(logrus.Fields{
+		"name":      obj.GetName(),
+		"namespace": namespace,
 	})
 
+	for _, owner := range obj.GetOwnerReferences() {
+		var queueSet *queueinformer.ResourceQueueSet
+		switch kind := owner.Kind; kind {
+		case v1alpha1.CatalogSourceKind:
+			if err := o.catsrcQueueSet.Requeue(namespace, owner.Name); err != nil {
+				logger.Warn(err.Error())
+			}
+			queueSet = o.catsrcQueueSet
+		case v1alpha1.SubscriptionKind:
+			if err := o.catsrcQueueSet.Requeue(namespace, owner.Name); err != nil {
+				logger.Warn(err.Error())
+			}
+			queueSet = o.subQueueSet
+		default:
+			logger.WithField("kind", kind).Trace("untracked owner kind")
+		}
+
+		if queueSet != nil {
+			logger.WithField("ref", owner).Trace("requeuing owner")
+			queueSet.Requeue(namespace, owner.Name)
+		}
+	}
+}
+
+func (o *Operator) syncObject(obj interface{}) (syncError error) {
 	// Assert as metav1.Object
 	metaObj, ok := obj.(metav1.Object)
 	if !ok {
-		syncError = errors.New("object sync: casting to metav1.Object failed")
-		logger.Warn(syncError.Error())
+		syncError = errors.New("casting to metav1 object failed")
+		o.logger.Warn(syncError.Error())
 		return
 	}
-	logger = logger.WithFields(logrus.Fields{
-		"name":      metaObj.GetName(),
-		"namespace": metaObj.GetNamespace(),
-	})
 
-	if owner := ownerutil.GetOwnerByKind(metaObj, v1alpha1.CatalogSourceKind); owner != nil {
-		sourceKey := resolver.CatalogKey{Name: owner.Name, Namespace: metaObj.GetNamespace()}
-		func() {
-			o.sourcesLock.RLock()
-			defer o.sourcesLock.RUnlock()
-			if _, ok := o.sources[sourceKey]; ok {
-				logger.Debug("requeueing owner CatalogSource")
-				if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err != nil {
-					logger.Warn(err.Error())
-				}
-			}
-		}()
-	}
+	o.requeueOwners(metaObj)
 
-	return nil
+	return
 }
 
 func (o *Operator) handleDeletion(obj interface{}) {
-	ownee, ok := obj.(metav1.Object)
+	metaObj, ok := obj.(metav1.Object)
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
@@ -290,41 +321,21 @@ func (o *Operator) handleDeletion(obj interface{}) {
 			return
 		}
 
-		ownee, ok = tombstone.Obj.(metav1.Object)
+		metaObj, ok = tombstone.Obj.(metav1.Object)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a metav1 object %#v", obj))
 			return
 		}
 	}
 
-	logger := o.Log.WithFields(logrus.Fields{
-		"sync":      "resourcedeletion",
-		"name":      ownee.GetName(),
-		"namespace": ownee.GetNamespace(),
-	})
+	o.logger.WithFields(logrus.Fields{
+		"name":      metaObj.GetName(),
+		"namespace": metaObj.GetNamespace(),
+	}).Debug("handling object deletion")
 
-	owner := ownerutil.GetOwnerByKind(ownee, v1alpha1.CatalogSourceKind)
-	if owner == nil {
-		logger.Debug("no owner catalogsource found")
-		return
-	}
+	o.requeueOwners(metaObj)
 
-	logger = logger.WithFields(logrus.Fields{
-		"owner":     owner.Name,
-		"ownerkind": owner.Kind,
-	})
-
-	// Get the owner CatalogSource
-	catsrc, err := o.lister.OperatorsV1alpha1().CatalogSourceLister().CatalogSources(ownee.GetNamespace()).Get(owner.Name)
-	if err != nil {
-		logger.WithError(err).Warn("could not get owner catalogsource from cache")
-		return
-	}
-
-	// Requeue CatalogSource
-	if err := o.catSrcQueueSet.Requeue(catsrc.GetName(), catsrc.GetNamespace()); err != nil {
-		logger.WithError(err).Warn("error requeuing owner catalogsource")
-	}
+	return
 }
 
 func (o *Operator) handleCatSrcDeletion(obj interface{}) {
@@ -350,26 +361,22 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 		defer o.sourcesLock.Unlock()
 		if s, ok := o.sources[sourceKey]; ok {
 			if err := s.Client.Close(); err != nil {
-				o.Log.WithError(err).Warn("error closing client")
+				o.logger.WithError(err).Warn("error closing client")
 			}
 		}
 		delete(o.sources, sourceKey)
 	}()
-	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
-
-	if err := o.catSrcQueueSet.Remove(sourceKey.Name, sourceKey.Namespace); err != nil {
-		o.Log.WithError(err)
-	}
+	o.logger.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	catsrc, ok := obj.(*v1alpha1.CatalogSource)
 	if !ok {
-		o.Log.Debugf("wrong type: %#v", obj)
+		o.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting CatalogSource failed")
 	}
 
-	logger := o.Log.WithFields(logrus.Fields{
+	logger := o.logger.WithFields(logrus.Fields{
 		"source": catsrc.GetName(),
 		"id":     queueinformer.NewLoopID(),
 	})
@@ -387,7 +394,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		}
 
 		if wasOwned := ownerutil.EnsureOwner(configMap, catsrc); !wasOwned {
-			configMap, err = o.OpClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(configMap)
+			configMap, err = o.opClient.KubernetesInterface().CoreV1().ConfigMaps(configMap.GetNamespace()).Update(configMap)
 			if err != nil {
 				return fmt.Errorf("unable to write owner onto catalog source configmap")
 			}
@@ -403,17 +410,14 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 				UID:             configMap.GetUID(),
 				ResourceVersion: configMap.GetResourceVersion(),
 			}
-			out.Status.LastSync = timeNow()
-			if _, err = o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+
+			out.Status.LastSync = o.now()
+			if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 				return err
 			}
 
-			o.sourcesLastUpdate = timeNow()
-
 			return nil
 		}
-
-		logger.Debug("catsrc configmap state good, checking registry pod")
 	}
 
 	srcReconciler := o.reconciler.ReconcilerForSource(catsrc)
@@ -426,42 +430,37 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	if err != nil {
 		return err
 	}
+	logger.Debugf("check registry server healthy: %t", healthy)
 
 	// If registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
-	if !healthy || catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
-		logger.Debug("ensuring registry server")
-
-		if err := srcReconciler.EnsureRegistryServer(out); err != nil {
-			logger.WithError(err).Warn("couldn't ensure registry server")
-			return err
-		}
-		logger.Debug("ensured registry server")
-
-		out.Status.RegistryServiceStatus.CreatedAt = timeNow()
-		out.Status.LastSync = out.Status.RegistryServiceStatus.CreatedAt
-
-		logger.Debug("updating catsrc status")
-		// update status
-		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
-			return err
-		}
-
-		o.sourcesLastUpdate = timeNow()
-		logger.Debug("registry server recreated")
-
-		func() {
+	if !healthy || catsrc.Status.RegistryServiceStatus == nil {
+		return func() error {
 			o.sourcesLock.Lock()
 			defer o.sourcesLock.Unlock()
-			s, ok := o.sources[sourceKey]
-			if ok {
+
+			logger.Debug("ensuring registry server")
+			if err := srcReconciler.EnsureRegistryServer(out); err != nil {
+				logger.WithError(err).Warn("couldn't ensure registry server")
+				return err
+			}
+			logger.Debug("ensured registry server")
+
+			if s, ok := o.sources[sourceKey]; ok {
 				if err := s.Client.Close(); err != nil {
-					o.Log.WithError(err).Debug("error closing client connection")
+					logger.WithError(err).Debug("error closing client connection")
 				}
 			}
 			delete(o.sources, sourceKey)
-		}()
+			o.sourcesLastUpdate = out.Status.LastSync
 
-		return nil
+			logger.Debug("updating catsrc status")
+			if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+				return err
+			}
+			logger.Debug("registry server recreated")
+
+			return nil
+		}()
 	}
 	logger.Debug("registry state good")
 
@@ -486,12 +485,15 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 				}
 			}
 			delete(o.sources, sourceKey)
+			o.sourcesLastUpdate = o.now()
+
 			connect = true
 		} else if !ok {
 			// have never made a connection, so need to build a new one
 			connect = true
 		}
 
+		logger := logger.WithField("address", address)
 		if connect {
 			logger.Info("building connection to registry")
 			c, err := registryclient.NewClient(address)
@@ -501,18 +503,19 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 			sourceRef := resolver.SourceRef{
 				Address:     address,
 				Client:      c,
-				LastConnect: timeNow(),
+				LastConnect: o.now(),
 				LastHealthy: metav1.Time{}, // haven't detected healthy yet
 			}
 			o.sources[sourceKey] = sourceRef
 			currentSource = sourceRef
 			sourcesUpdated = true
+			o.sourcesLastUpdate = sourceRef.LastConnect
 		}
 
 		if currentSource.LastHealthy.IsZero() {
 			logger.Info("client hasn't yet become healthy, attempt a health check")
-			healthy, err := currentSource.Client.HealthCheck(context.TODO(), 1*time.Second)
-			if err != nil {
+			healthy, err := currentSource.Client.HealthCheck(context.TODO(), 2*time.Second)
+			if err != nil || !healthy {
 				if registryclient.IsErrorUnrecoverable(err) {
 					logger.Debug("state didn't change, trigger reconnect. this may happen when cached dns is wrong.")
 					if err := currentSource.Client.Close(); err != nil {
@@ -520,19 +523,17 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 						return
 					}
 					delete(o.sources, sourceKey)
-					if err := o.catSrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
-						logger.WithError(err).Debug("error requeueing")
-					}
+					o.sourcesLastUpdate = o.now()
 				}
-				logger.WithError(err).Debug("connection error")
-				return
-			}
-			if !healthy {
-				logger.Debug("source not healthy")
+				if err := o.catsrcQueueSet.Requeue(sourceKey.Namespace, sourceKey.Name); err != nil {
+					logger.WithError(err).Debug("error requeuing")
+				}
 				return
 			}
 
-			currentSource.LastHealthy = timeNow()
+			logger.Debug("client has become healthy!")
+			currentSource.LastHealthy = currentSource.LastConnect
+			o.sourcesLastUpdate = currentSource.LastHealthy
 			o.sources[sourceKey] = currentSource
 			sourcesUpdated = true
 		}
@@ -543,57 +544,34 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	// record that we've done work here onto the status
-	out.Status.LastSync = timeNow()
+	out.Status.LastSync = o.now()
 	if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 		return err
 	}
 
 	// Trigger a resolve, will pick up any subscriptions that depend on the catalog
-	o.resolveNamespace(out.GetNamespace())
+	// o.resolveNamespace(out.GetNamespace())
+	o.nsResolveQueue.Add(out.GetNamespace())
 
 	return nil
-}
-
-func (o *Operator) syncDependentSubscriptions(logger *logrus.Entry, catalogSource, catalogSourceNamespace string) {
-	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().List(labels.Everything())
-	if err != nil {
-		logger.Warnf("could not list Subscriptions")
-		return
-	}
-
-	for _, sub := range subs {
-		logger = logger.WithFields(logrus.Fields{
-			"subscriptionCatalogSource":    sub.Spec.CatalogSource,
-			"subscriptionCatalogNamespace": sub.Spec.CatalogSourceNamespace,
-			"subscription":                 sub.GetName(),
-		})
-		catalogNamespace := sub.Spec.CatalogSourceNamespace
-		if catalogNamespace == "" {
-			catalogNamespace = o.namespace
-		}
-		if sub.Spec.CatalogSource == catalogSource && catalogNamespace == catalogSourceNamespace {
-			logger.Debug("requeueing subscription because catalog changed")
-			o.requeueSubscription(sub.GetName(), sub.GetNamespace())
-		}
-	}
 }
 
 func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	ns, ok := obj.(*corev1.Namespace)
 	if !ok {
-		o.Log.Debugf("wrong type: %#v", obj)
+		o.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Namespace failed")
 	}
 	namespace := ns.GetName()
 
-	logger := o.Log.WithFields(logrus.Fields{
+	logger := o.logger.WithFields(logrus.Fields{
 		"namespace": namespace,
 		"id":        queueinformer.NewLoopID(),
 	})
 
 	// get the set of sources that should be used for resolution and best-effort get their connections working
-	logger.Debug("resolving sources")
 	resolverSources := o.ensureResolverSources(logger, namespace)
+	logger.Debugf("resolved sources: %#v", resolverSources)
 	querier := resolver.NewNamespaceSourceQuerier(resolverSources)
 
 	logger.Debug("checking if subscriptions need update")
@@ -682,22 +660,18 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 func (o *Operator) syncSubscriptions(obj interface{}) error {
 	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
-		o.Log.Debugf("wrong type: %#v", obj)
+		o.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting Subscription failed")
 	}
 
-	o.resolveNamespace(sub.GetNamespace())
+	o.nsResolveQueue.Add(sub.GetNamespace())
 
 	return nil
 }
 
-func (o *Operator) resolveNamespace(namespace string) {
-	o.namespaceResolveQueue.AddRateLimited(namespace)
-}
-
 func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string) map[resolver.CatalogKey]registryclient.Interface {
 	// TODO: record connection status onto an object
-	resolverSources := make(map[resolver.CatalogKey]registryclient.Interface, 0)
+	resolverSources := map[resolver.CatalogKey]registryclient.Interface{}
 	func() {
 		o.sourcesLock.RLock()
 		defer o.sourcesLock.RUnlock()
@@ -705,7 +679,7 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 			if ref.LastHealthy.IsZero() {
 				logger = logger.WithField("source", k)
 				logger.Debug("omitting source, hasn't yet become healthy")
-				if err := o.catSrcQueueSet.Requeue(k.Name, k.Namespace); err != nil {
+				if err := o.catsrcQueueSet.Requeue(k.Namespace, k.Name); err != nil {
 					logger.Warn("error requeueing")
 				}
 				continue
@@ -719,9 +693,11 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 
 	for k, s := range resolverSources {
 		logger = logger.WithField("resolverSource", k)
-		healthy, err := s.HealthCheck(context.TODO(), 2*time.Second)
-		if err != nil || !healthy {
-			logger.WithError(err).Debug("omitting source due to unhealthy source")
+		if healthy, err := s.HealthCheck(context.TODO(), 2*time.Second); err != nil || !healthy {
+			logger.WithError(err).Debug("omitting unhealthy source")
+			if err := o.catsrcQueueSet.Requeue(k.Namespace, k.Name); err != nil {
+				logger.Warn("error requeueing")
+			}
 			delete(resolverSources, k)
 		}
 	}
@@ -730,8 +706,11 @@ func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string)
 }
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
+	o.sourcesLock.RLock()
+	defer o.sourcesLock.RUnlock()
+
 	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
+	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateNone && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
 		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
 		return true
 	}
@@ -773,7 +752,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 	out.Status.Install = v1alpha1.NewInstallPlanReference(ref)
 	out.Status.State = v1alpha1.SubscriptionStateUpgradePending
 	out.Status.CurrentCSV = out.Spec.StartingCSV
-	out.Status.LastUpdated = timeNow()
+	out.Status.LastUpdated = o.now()
 
 	updated, err := o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).UpdateStatus(out)
 	if err != nil {
@@ -798,8 +777,9 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		if err := querier.Queryable(); err != nil {
 			return nil, false, err
 		}
-		bundle, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{sub.Spec.CatalogSource, sub.Spec.CatalogSourceNamespace})
+		bundle, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
 		if bundle != nil {
+			o.logger.Tracef("replacement %s bundle found for current bundle %s", bundle.Name, sub.Status.CurrentCSV)
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 		} else {
 			out.Status.State = v1alpha1.SubscriptionStateAtLatest
@@ -812,7 +792,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 		// The subscription status represents the cluster state
 		return sub, false, nil
 	}
-	out.Status.LastUpdated = timeNow()
+	out.Status.LastUpdated = o.now()
 
 	// Update Subscription with status of transition. Log errors if we can't write them to the status.
 	updatedSub, err := o.client.OperatorsV1alpha1().Subscriptions(out.GetNamespace()).UpdateStatus(out)
@@ -829,7 +809,7 @@ func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.S
 	// TODO: parallel, sync waitgroup
 	var err error
 	for _, sub := range subs {
-		sub.Status.LastUpdated = timeNow()
+		sub.Status.LastUpdated = o.now()
 		if installPlanRef != nil {
 			sub.Status.InstallPlanRef = installPlanRef
 			sub.Status.Install = v1alpha1.NewInstallPlanReference(installPlanRef)
@@ -919,21 +899,14 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 	return reference.GetReference(res)
 }
 
-func (o *Operator) requeueSubscription(name, namespace string) {
-	// we can build the key directly, will need to change if queue uses different key scheme
-	key := fmt.Sprintf("%s/%s", namespace, name)
-	o.subQueue.Add(key)
-	return
-}
-
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	plan, ok := obj.(*v1alpha1.InstallPlan)
 	if !ok {
-		o.Log.Debugf("wrong type: %#v", obj)
+		o.logger.Debugf("wrong type: %#v", obj)
 		return fmt.Errorf("casting InstallPlan failed")
 	}
 
-	logger := o.Log.WithFields(logrus.Fields{
+	logger := o.logger.WithFields(logrus.Fields{
 		"id":        queueinformer.NewLoopID(),
 		"ip":        plan.GetName(),
 		"namespace": plan.GetNamespace(),
@@ -941,6 +914,18 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	})
 
 	logger.Info("syncing")
+
+	defer func() {
+		// make sure to notify subscription loop of installplan changes
+		if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
+			for _, owner := range owners {
+				logger.WithField("owner", owner).Debug("requeueing installplan owner")
+				o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name)
+			}
+		} else {
+			logger.Trace("no installplan owner subscriptions found to requeue")
+		}
+	}()
 
 	if len(plan.Status.Plan) == 0 {
 		logger.Info("skip processing installplan without status - subscription sync responsible for initial status")
@@ -958,13 +943,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return
 	}
 
-	// notify subscription loop of installplan changes
-	if ownerutil.IsOwnedByKind(outInstallPlan, v1alpha1.SubscriptionKind) {
-		oref := ownerutil.GetOwnerByKind(outInstallPlan, v1alpha1.SubscriptionKind)
-		logger.WithField("owner", oref).Debug("requeueing installplan owner")
-		o.requeueSubscription(oref.Name, outInstallPlan.GetNamespace())
-	}
-
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
 		logger = logger.WithField("updateError", err.Error())
@@ -976,6 +954,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		logger.Info("error transitioning InstallPlan")
 		syncError = fmt.Errorf("error transitioning InstallPlan: %s and error updating InstallPlan status: %s", syncError, updateErr)
 	}
+
 	return
 }
 
@@ -1042,7 +1021,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			continue
 
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
-			o.Log.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
+			o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
 			switch step.Resource.Kind {
 			case crdKind:
 				// Marshal the manifest into a CRD instance.
@@ -1054,7 +1033,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				// TODO: check that names are accepted
 				// Attempt to create the CRD.
-				_, err = o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
+				_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(&crd)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
@@ -1132,7 +1111,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 			case secretKind:
 				// TODO: this will confuse bundle users that include secrets in their bundles - this only handles pull secrets
 				// Get the pre-existing secret.
-				secret, err := o.OpClient.KubernetesInterface().CoreV1().Secrets(o.namespace).Get(step.Resource.Name, metav1.GetOptions{})
+				secret, err := o.opClient.KubernetesInterface().CoreV1().Secrets(o.namespace).Get(step.Resource.Name, metav1.GetOptions{})
 				if k8serrors.IsNotFound(err) {
 					return fmt.Errorf("secret %s does not exist", step.Resource.Name)
 				} else if err != nil {
@@ -1142,7 +1121,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Set the namespace to the InstallPlan's namespace and attempt to
 				// create a new secret.
 				secret.SetNamespace(namespace)
-				_, err = o.OpClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(&corev1.Secret{
+				_, err = o.opClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(&corev1.Secret{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      secret.Name,
 						Namespace: plan.Namespace,
@@ -1176,9 +1155,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				cr.OwnerReferences = updated
 
 				// Attempt to create the ClusterRole.
-				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
+				_, err = o.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
 				if k8serrors.IsAlreadyExists(err) {
-					_, err = o.OpClient.UpdateClusterRole(&cr)
+					_, err = o.opClient.UpdateClusterRole(&cr)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrole %s", cr.GetName())
 					}
@@ -1206,10 +1185,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				rb.OwnerReferences = updated
 
 				// Attempt to create the ClusterRoleBinding.
-				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
+				_, err = o.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
 					rb.SetNamespace(plan.Namespace)
-					_, err = o.OpClient.UpdateClusterRoleBinding(&rb)
+					_, err = o.opClient.UpdateClusterRoleBinding(&rb)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrolebinding %s", rb.GetName())
 					}
@@ -1240,11 +1219,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				r.SetNamespace(namespace)
 
 				// Attempt to create the Role.
-				_, err = o.OpClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
+				_, err = o.opClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already existed, mark the step as Present.
 					r.SetNamespace(plan.Namespace)
-					_, err = o.OpClient.UpdateRole(&r)
+					_, err = o.opClient.UpdateRole(&r)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating role %s", r.GetName())
 					}
@@ -1274,10 +1253,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				rb.SetNamespace(namespace)
 
 				// Attempt to create the RoleBinding.
-				_, err = o.OpClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
+				_, err = o.opClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
 					rb.SetNamespace(plan.Namespace)
-					_, err = o.OpClient.UpdateRoleBinding(&rb)
+					_, err = o.opClient.UpdateRoleBinding(&rb)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating rolebinding %s", rb.GetName())
 					}
@@ -1308,11 +1287,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				sa.SetNamespace(namespace)
 
 				// Attempt to create the ServiceAccount.
-				_, err = o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
+				_, err = o.opClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already exists we need to patch the existing SA with the new OwnerReferences
 					sa.SetNamespace(plan.Namespace)
-					_, err = o.OpClient.UpdateServiceAccount(&sa)
+					_, err = o.opClient.UpdateServiceAccount(&sa)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating service account: %s", sa.GetName())
 					}
@@ -1343,11 +1322,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				s.SetNamespace(namespace)
 
 				// Attempt to create the Service
-				_, err = o.OpClient.KubernetesInterface().CoreV1().Services(plan.Namespace).Create(&s)
+				_, err = o.opClient.KubernetesInterface().CoreV1().Services(plan.Namespace).Create(&s)
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already exists we need to patch the existing SA with the new OwnerReferences
 					s.SetNamespace(plan.Namespace)
-					_, err = o.OpClient.UpdateService(&s)
+					_, err = o.opClient.UpdateService(&s)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating service: %s", s.GetName())
 					}
