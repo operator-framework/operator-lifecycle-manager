@@ -48,13 +48,13 @@ func CRDProviderNames(indexers map[string]cache.Indexer, crd v1beta1ext.CustomRe
 		crdSpec[fmt.Sprintf("%s/%s/%s", crd.Spec.Group, crd.Spec.Version, crd.Spec.Names.Kind)] = struct{}{}
 	}
 	for _, indexer := range indexers {
-		for key, _ := range crdSpec {
+		for key := range crdSpec {
 			csvs, err := indexer.ByIndex(ProvidedAPIsIndexFuncKey, key)
 			if err != nil {
 				return nil, err
 			}
-			for _, csv := range csvs {
-				csv, ok := csv.(*v1alpha1.ClusterServiceVersion)
+			for _, item := range csvs {
+				csv, ok := item.(*v1alpha1.ClusterServiceVersion)
 				if !ok {
 					continue
 				}

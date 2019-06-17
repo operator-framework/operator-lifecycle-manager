@@ -102,17 +102,18 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		Operator:       queueOperator,
-		logger:         logger,
-		clock:          clock,
-		opClient:       opClient,
-		client:         crClient,
-		lister:         lister,
-		namespace:      operatorNamespace,
-		sources:        make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
-		catsrcQueueSet: queueinformer.NewEmptyResourceQueueSet(),
-		subQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
+		Operator:               queueOperator,
+		logger:                 logger,
+		clock:                  clock,
+		opClient:               opClient,
+		client:                 crClient,
+		lister:                 lister,
+		namespace:              operatorNamespace,
+		sources:                make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver:               resolver.NewOperatorsV1alpha1Resolver(lister),
+		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
+		subQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
+		csvProvidedAPIsIndexer: map[string]cache.Indexer{},
 	}
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
 
@@ -253,19 +254,18 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// Register CustomResourceDefinition QueueInformer
-	customResourceDefinitionInformer := extinf.NewSharedInformerFactory(op.OpClient.ApiextensionsV1beta1Interface(), wakeupInterval).Apiextensions().V1beta1().CustomResourceDefinitions()
-	op.RegisterQueueInformer(queueinformer.NewInformer(
-		workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "customresourcedefinitions"),
-		customResourceDefinitionInformer.Informer(),
-		op.syncObject,
-		&cache.ResourceEventHandlerFuncs{
-			DeleteFunc: op.handleDeletion,
-		},
-		"customresourcedefinitions",
-		metrics.NewMetricsNil(),
-		logger,
-	))
-	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(customResourceDefinitionInformer.Lister())
+	crdInformer := extinf.NewSharedInformerFactory(op.opClient.ApiextensionsV1beta1Interface(), resyncPeriod).Apiextensions().V1beta1().CustomResourceDefinitions()
+	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(crdInformer.Lister())
+	crdQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithInformer(crdInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	op.RegisterQueueInformer(crdQueueInformer)
 
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod).Core().V1().Namespaces()
@@ -1070,7 +1070,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						if len(matchedCSV) == 1 {
 							// Attempt to update CRD
 							crd.SetResourceVersion(currentCRD.GetResourceVersion())
-							_, err = o.OpClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
+							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)
 							}
