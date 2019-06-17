@@ -2,6 +2,7 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"os"
@@ -77,19 +78,19 @@ func packageManifest(value packageValue) operators.PackageManifest {
 	}
 }
 
-func NewFakeRegistryProvider(clientObjs []runtime.Object, k8sObjs []runtime.Object, watchedNamespaces []string, globalNamespace string, stopCh <-chan struct{}) (*RegistryProvider, error) {
+func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k8sObjs []runtime.Object, watchedNamespaces []string, globalNamespace string) (*RegistryProvider, error) {
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	opClientFake := operatorclient.NewClient(k8sClientFake, nil, nil)
 
-	operator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.StandardLogger())
+	op, err := queueinformer.NewOperatorFromClient(opClientFake.KubernetesInterface().Discovery(), logrus.StandardLogger())
 	if err != nil {
 		return nil, err
 	}
 
-	wakeupInterval := 5 * time.Minute
+	resyncInterval := 5 * time.Minute
 
-	return NewRegistryProvider(clientFake, operator, wakeupInterval, watchedNamespaces, globalNamespace), nil
+	return NewRegistryProvider(ctx, clientFake, op, resyncInterval, watchedNamespaces, globalNamespace)
 }
 
 func catalogSource(name, namespace string) *operatorsv1alpha1.CatalogSource {
@@ -386,9 +387,9 @@ func TestRegistryProviderGet(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer close(stopCh)
-			provider, err := NewFakeRegistryProvider(nil, nil, test.namespaces, test.globalNS, stopCh)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.namespaces, test.globalNS)
 			require.NoError(t, err)
 
 			for _, cs := range test.catalogSources {
@@ -587,9 +588,9 @@ func TestRegistryProviderList(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer close(stopCh)
-			provider, err := NewFakeRegistryProvider(nil, nil, test.namespaces, test.globalNS, stopCh)
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.namespaces, test.globalNS)
 			require.NoError(t, err)
 
 			for _, cs := range test.catalogSources {

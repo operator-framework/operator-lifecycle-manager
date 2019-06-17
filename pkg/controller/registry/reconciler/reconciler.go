@@ -2,10 +2,14 @@
 package reconciler
 
 import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
+
+type nowFunc func() metav1.Time
 
 const (
 	// CatalogSourceLabelKey is the key for a label containing a CatalogSource name.
@@ -37,6 +41,7 @@ type RegistryReconcilerFactory interface {
 
 // RegistryReconcilerFactory is a factory for RegistryReconcilers.
 type registryReconcilerFactory struct {
+	now                  nowFunc
 	Lister               operatorlister.OperatorLister
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
@@ -44,9 +49,11 @@ type registryReconcilerFactory struct {
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
 func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.CatalogSource) RegistryReconciler {
+	// TODO: add memoization by source type
 	switch source.Spec.SourceType {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
 		return &ConfigMapRegistryReconciler{
+			now:      r.now,
 			Lister:   r.Lister,
 			OpClient: r.OpClient,
 			Image:    r.ConfigMapServerImage,
@@ -54,19 +61,23 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 	case v1alpha1.SourceTypeGrpc:
 		if source.Spec.Image != "" {
 			return &GrpcRegistryReconciler{
+				now:      r.now,
 				Lister:   r.Lister,
 				OpClient: r.OpClient,
 			}
 		} else if source.Spec.Address != "" {
-			return &GrpcAddressRegistryReconciler{}
+			return &GrpcAddressRegistryReconciler{
+				now: r.now,
+			}
 		}
 	}
 	return nil
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
+		now:                  now,
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,

@@ -32,8 +32,7 @@ func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 }
 
 func TestGrpcRegistryReconciler(t *testing.T) {
-	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
-	timeNow = func() metav1.Time { return nowTime }
+	now := func() metav1.Time { return metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC) }
 
 	type cluster struct {
 		k8sObjs []runtime.Object
@@ -58,7 +57,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "img-catalog",
 					ServiceNamespace: testNamespace,
@@ -76,7 +75,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "img-catalog",
 					ServiceNamespace: testNamespace,
@@ -92,7 +91,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt: timeNow(),
+					CreatedAt: now(),
 					Protocol:  "grpc",
 				},
 			},
@@ -105,7 +104,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "img-catalog",
 					ServiceNamespace: testNamespace,
@@ -123,7 +122,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "img-catalog",
 					ServiceNamespace: testNamespace,
@@ -141,7 +140,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "img-catalog",
 					ServiceNamespace: testNamespace,
@@ -159,7 +158,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			},
 			out: out{
 				status: &v1alpha1.RegistryServiceStatus{
-					CreatedAt:        timeNow(),
+					CreatedAt:        now(),
 					Protocol:         "grpc",
 					ServiceName:      "img-catalog",
 					ServiceNamespace: testNamespace,
@@ -173,7 +172,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 			stopc := make(chan struct{})
 			defer close(stopc)
 
-			factory, client := fakeReconcilerFactory(t, stopc, withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
+			factory, client := fakeReconcilerFactory(t, stopc, withNow(now), withK8sObjs(tt.in.cluster.k8sObjs...), withK8sClientOptions(clientfake.WithNameGeneration(t)))
 			rec := factory.ReconcilerForSource(tt.in.catsrc)
 
 			err := rec.EnsureRegistryServer(tt.in.catsrc)
@@ -217,9 +216,6 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 }
 
 func TestGrpcRegistryChecker(t *testing.T) {
-	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
-	timeNow = func() metav1.Time { return nowTime }
-
 	type cluster struct {
 		k8sObjs []runtime.Object
 	}

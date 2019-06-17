@@ -375,14 +375,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		service.SetOwnerReferences(append(service.GetOwnerReferences(), existingService.GetOwnerReferences()...))
 
 		// Delete the Service to replace
-		deleteErr := a.OpClient.DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
+		deleteErr := a.opClient.DeleteService(service.GetNamespace(), service.GetName(), &metav1.DeleteOptions{})
 		if err != nil && !k8serrors.IsNotFound(deleteErr) {
 			return nil, fmt.Errorf("could not delete existing service %s", service.GetName())
 		}
 	}
 
 	// Attempt to create the Service
-	_, err = a.OpClient.CreateService(service)
+	_, err = a.opClient.CreateService(service)
 	if err != nil {
 		logger.Warnf("could not create service %s", service.GetName())
 		return nil, fmt.Errorf("could not create service %s: %s", service.GetName(), err.Error())
@@ -433,14 +433,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update
-		if _, err := a.OpClient.UpdateSecret(secret); err != nil {
+		if _, err := a.opClient.UpdateSecret(secret); err != nil {
 			logger.Warnf("could not update secret %s", secret.GetName())
 			return nil, err
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the secret
 		ownerutil.AddNonBlockingOwner(secret, csv)
-		_, err = a.OpClient.CreateSecret(secret)
+		_, err = a.opClient.CreateSecret(secret)
 		if err != nil {
 			log.Warnf("could not create secret %s", secret.GetName())
 			return nil, err
@@ -471,14 +471,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update
-		if _, err := a.OpClient.UpdateRole(secretRole); err != nil {
+		if _, err := a.opClient.UpdateRole(secretRole); err != nil {
 			logger.Warnf("could not update secret role %s", secretRole.GetName())
 			return nil, err
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the role
 		ownerutil.AddNonBlockingOwner(secretRole, csv)
-		_, err = a.OpClient.CreateRole(secretRole)
+		_, err = a.opClient.CreateRole(secretRole)
 		if err != nil {
 			log.Warnf("could not create secret role %s", secretRole.GetName())
 			return nil, err
@@ -517,14 +517,14 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update
-		if _, err := a.OpClient.UpdateRoleBinding(secretRoleBinding); err != nil {
+		if _, err := a.opClient.UpdateRoleBinding(secretRoleBinding); err != nil {
 			logger.Warnf("could not update secret rolebinding %s", secretRoleBinding.GetName())
 			return nil, err
 		}
 	} else if k8serrors.IsNotFound(err) {
 		// Create the role
 		ownerutil.AddNonBlockingOwner(secretRoleBinding, csv)
-		_, err = a.OpClient.CreateRoleBinding(secretRoleBinding)
+		_, err = a.opClient.CreateRoleBinding(secretRoleBinding)
 		if err != nil {
 			log.Warnf("could not create secret rolebinding with dep spec: %+v", depSpec)
 			return nil, err
@@ -562,7 +562,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		// Attempt an update.
-		if _, err := a.OpClient.UpdateClusterRoleBinding(authDelegatorClusterRoleBinding); err != nil {
+		if _, err := a.opClient.UpdateClusterRoleBinding(authDelegatorClusterRoleBinding); err != nil {
 			logger.Warnf("could not update auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, err
 		}
@@ -571,7 +571,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		if err := ownerutil.AddOwnerLabels(authDelegatorClusterRoleBinding, csv); err != nil {
 			return nil, err
 		}
-		_, err = a.OpClient.CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
+		_, err = a.opClient.CreateClusterRoleBinding(authDelegatorClusterRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth delegator clusterrolebinding %s", authDelegatorClusterRoleBinding.GetName())
 			return nil, err
@@ -609,7 +609,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			}
 		}
 		// Attempt an update.
-		if _, err := a.OpClient.UpdateRoleBinding(authReaderRoleBinding); err != nil {
+		if _, err := a.opClient.UpdateRoleBinding(authReaderRoleBinding); err != nil {
 			logger.Warnf("could not update auth reader role binding %s", authReaderRoleBinding.GetName())
 			return nil, err
 		}
@@ -618,7 +618,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		if err := ownerutil.AddOwnerLabels(authReaderRoleBinding, csv); err != nil {
 			return nil, err
 		}
-		_, err = a.OpClient.CreateRoleBinding(authReaderRoleBinding)
+		_, err = a.opClient.CreateRoleBinding(authReaderRoleBinding)
 		if err != nil {
 			log.Warnf("could not create auth reader role binding %s", authReaderRoleBinding.GetName())
 			return nil, err
@@ -739,10 +739,10 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	// attempt a update or create
 	if exists {
 		logger.Debug("updating APIService")
-		_, err = a.OpClient.UpdateAPIService(apiService)
+		_, err = a.opClient.UpdateAPIService(apiService)
 	} else {
 		logger.Debug("creating APIService")
-		_, err = a.OpClient.CreateAPIService(apiService)
+		_, err = a.opClient.CreateAPIService(apiService)
 	}
 
 	if err != nil {

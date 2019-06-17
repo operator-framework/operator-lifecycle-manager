@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
@@ -142,11 +144,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "",
-							Version:  "v1",
-							Kind:     "Service",
-							Name:     "service",
-							Manifest: toManifest(service("service", namespace)),
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Service",
+							Name:                   "service",
+							Manifest:               toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -154,11 +156,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "operators.coreos.com",
-							Version:  "v1alpha1",
-							Kind:     "ClusterServiceVersion",
-							Name:     "csv",
-							Manifest: toManifest(csv("csv", namespace, nil, nil)),
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -171,9 +173,10 @@ func TestExecutePlan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, err := NewFakeOperator(namespace, []string{namespace}, stopCh, withClientObjs(tt.in))
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.in))
 			require.NoError(t, err)
 
 			err = op.ExecutePlan(tt.in)
@@ -184,19 +187,19 @@ func TestExecutePlan(t *testing.T) {
 				var fetched runtime.Object
 				switch o := obj.(type) {
 				case *appsv1.Deployment:
-					fetched, err = op.OpClient.GetDeployment(namespace, o.GetName())
+					fetched, err = op.opClient.GetDeployment(namespace, o.GetName())
 				case *rbacv1.ClusterRole:
-					fetched, err = op.OpClient.GetClusterRole(o.GetName())
+					fetched, err = op.opClient.GetClusterRole(o.GetName())
 				case *rbacv1.Role:
-					fetched, err = op.OpClient.GetRole(namespace, o.GetName())
+					fetched, err = op.opClient.GetRole(namespace, o.GetName())
 				case *rbacv1.ClusterRoleBinding:
-					fetched, err = op.OpClient.GetClusterRoleBinding(o.GetName())
+					fetched, err = op.opClient.GetClusterRoleBinding(o.GetName())
 				case *rbacv1.RoleBinding:
-					fetched, err = op.OpClient.GetRoleBinding(namespace, o.GetName())
+					fetched, err = op.opClient.GetRoleBinding(namespace, o.GetName())
 				case *corev1.ServiceAccount:
-					fetched, err = op.OpClient.GetServiceAccount(namespace, o.GetName())
+					fetched, err = op.opClient.GetServiceAccount(namespace, o.GetName())
 				case *corev1.Service:
-					fetched, err = op.OpClient.GetService(namespace, o.GetName())
+					fetched, err = op.opClient.GetService(namespace, o.GetName())
 				case *v1alpha1.ClusterServiceVersion:
 					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
 				default:
@@ -211,8 +214,8 @@ func TestExecutePlan(t *testing.T) {
 }
 
 func TestSyncCatalogSources(t *testing.T) {
-	nowTime := metav1.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC)
-	timeNow = func() metav1.Time { return nowTime }
+	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	now := metav1.NewTime(clockFake.Now())
 
 	configmapCatalog := &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
@@ -297,7 +300,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					ResourceVersion: "resource-version",
 				},
 				RegistryServiceStatus: nil,
-				LastSync:              timeNow(),
+				LastSync:              now,
 			},
 			expectedError: nil,
 		},
@@ -322,7 +325,7 @@ func TestSyncCatalogSources(t *testing.T) {
 						ResourceVersion: "resource-version",
 					},
 					RegistryServiceStatus: nil,
-					LastSync:              timeNow(),
+					LastSync:              now,
 				},
 			},
 			k8sObjs: []runtime.Object{
@@ -348,9 +351,9 @@ func TestSyncCatalogSources(t *testing.T) {
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: "cool-namespace",
 					Port:             "50051",
-					CreatedAt:        timeNow(),
+					CreatedAt:        now,
 				},
-				LastSync: timeNow(),
+				LastSync: now,
 			},
 			expectedError: nil,
 		},
@@ -374,9 +377,9 @@ func TestSyncCatalogSources(t *testing.T) {
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: "cool-namespace",
 					Port:             "50051",
-					CreatedAt:        timeNow(),
+					CreatedAt:        now,
 				},
-				LastSync: timeNow(),
+				LastSync: now,
 			},
 			expectedError: nil,
 			expectedObjs: []runtime.Object{
@@ -406,9 +409,9 @@ func TestSyncCatalogSources(t *testing.T) {
 					ServiceName:      "cool-catalog",
 					ServiceNamespace: "cool-namespace",
 					Port:             "50051",
-					CreatedAt:        timeNow(),
+					CreatedAt:        now,
 				},
-				LastSync: timeNow(),
+				LastSync: now,
 			},
 			expectedError: nil,
 			expectedObjs: []runtime.Object{
@@ -422,10 +425,10 @@ func TestSyncCatalogSources(t *testing.T) {
 			clientObjs := []runtime.Object{tt.catalogSource}
 
 			// Create test operator
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
 
-			op, err := NewFakeOperator(tt.namespace, []string{tt.namespace}, stopCh, withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
+			op, err := NewFakeOperator(ctx, tt.namespace, []string{tt.namespace}, withClock(clockFake), withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
 			require.NoError(t, err)
 
 			// Run sync
@@ -446,7 +449,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				require.Equal(t, *tt.expectedStatus, updated.Status)
 
 				if tt.catalogSource.Spec.ConfigMap != "" {
-					configMap, err := op.OpClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
+					configMap, err := op.opClient.KubernetesInterface().CoreV1().ConfigMaps(tt.catalogSource.GetNamespace()).Get(tt.catalogSource.Spec.ConfigMap, metav1.GetOptions{})
 					require.NoError(t, err)
 					require.True(t, ownerutil.EnsureOwner(configMap, updated))
 				}
@@ -456,7 +459,7 @@ func TestSyncCatalogSources(t *testing.T) {
 				switch o.(type) {
 				case *corev1.Pod:
 					t.Log("verifying pod")
-					pods, err := op.OpClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(metav1.ListOptions{})
+					pods, err := op.opClient.KubernetesInterface().CoreV1().Pods(tt.catalogSource.Namespace).List(metav1.ListOptions{})
 					require.NoError(t, err)
 					require.Len(t, pods.Items, 1)
 
@@ -555,15 +558,23 @@ func fakeConfigMapData() map[string]string {
 
 // fakeOperatorConfig is the configuration for a fake operator.
 type fakeOperatorConfig struct {
+	clock         utilclock.Clock
 	clientObjs    []runtime.Object
 	k8sObjs       []runtime.Object
 	extObjs       []runtime.Object
 	regObjs       []runtime.Object
 	clientOptions []clientfake.Option
+	logger        *logrus.Logger
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
 type fakeOperatorOption func(*fakeOperatorConfig)
+
+func withClock(clock utilclock.Clock) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.clock = clock
+	}
+}
 
 func withClientObjs(clientObjs ...runtime.Object) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
@@ -590,9 +601,12 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 }
 
 // NewFakeOperator creates a new operator using fake clients.
-func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan struct{}, fakeOptions ...fakeOperatorOption) (*Operator, error) {
+func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
-	config := &fakeOperatorConfig{}
+	config := &fakeOperatorConfig{
+		logger: logrus.New(),
+		clock:  utilclock.RealClock{},
+	}
 	for _, option := range fakeOptions {
 		option(config)
 	}
@@ -650,13 +664,20 @@ func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan
 	}
 
 	// Create the new operator
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake, logrus.New())
+	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake.KubernetesInterface().Discovery(), logrus.New())
+	for _, informer := range sharedInformers {
+		queueOperator.RegisterInformer(informer)
+	}
+
 	op := &Operator{
 		Operator:  queueOperator,
+		clock:     config.clock,
+		logger:    config.logger,
+		opClient:  opClientFake,
 		client:    clientFake,
 		lister:    lister,
 		namespace: namespace,
-		namespaceResolveQueue: workqueue.NewNamedRateLimitingQueue(
+		nsResolveQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.NewMaxOfRateLimiter(
 				workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 1000*time.Second),
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
@@ -665,16 +686,11 @@ func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan
 		sources:  make(map[resolver.CatalogKey]resolver.SourceRef),
 		resolver: &fakes.FakeResolver{},
 	}
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.OpClient, "test:pod")
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
 
-	var hasSyncedCheckFns []cache.InformerSynced
-	for _, informer := range sharedInformers {
-		op.RegisterInformer(informer)
-		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
-		go informer.Run(stopCh)
-	}
+	op.RunInformers(ctx)
 
-	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
+	if ok := cache.WaitForCacheSync(ctx.Done(), op.HasSynced); !ok {
 		return nil, fmt.Errorf("failed to wait for caches to sync")
 	}
 
