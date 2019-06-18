@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"reflect"
 	"testing"
 	"time"
 
@@ -353,7 +354,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 
 			out, err := rec.Reconcile(ctx, tt.args.in)
 			require.Equal(t, tt.want.err, err)
-			require.Equal(t, tt.want.out, out)
+			require.Equal(t, reflect.TypeOf(tt.want.out), reflect.TypeOf(out))
 
 			// Ensure the client's view of the subscription matches the typestate's
 			sub := out.(SubscriptionState).Subscription()
