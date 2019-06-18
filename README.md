@@ -13,6 +13,7 @@
   - [User Interface (Running the console Locally)](#user-interface-running-the-console-locally)
   - [Subscribe to a Package and Channel](#subscribe-to-a-package-and-channel)
   - [End-to-end example](#end-to-end-example)
+  - [Contributing with Operator catalogue](#contributing-with-operator-catalogue)
 - [Key Concepts](#key-concepts)
   - [Kubernetes-native Applications](#kubernetes-native-applications)
   - [CustomResourceDefinitions](#customresourcedefinitions)
@@ -79,40 +80,22 @@ $ make run-console-local
 
 Then visit `http://localhost:9000` to view the console.
 
-**Subscription detail view:**
-![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
-
 ## Subscribe to a Package and Channel
 
 Cloud Services can be installed from the catalog by subscribing to a channel in the corresponding package.
 
-If using one of the `local` run options, this will subscribe to `etcd`, `vault`, and `prometheus` operators. Subscribing to a service that doesn't exist yet will install the operator and related CRDs in the namespace.
+**Subscription detail view:**
+![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
 
-```yaml
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: etcd
-  namespace: local
-spec:
-  channel: alpha
-  name: etcd
-  source: rh-operators
----
-apiVersion: operators.coreos.com/v1alpha1
-kind: Subscription
-metadata:
-  name: prometheus
-  namespace: local
-spec:
-  channel: alpha
-  name: prometheus
-  source: rh-operators
-```
+NOTE: The operators available in the catalogue by default are that ones which are published in https://operatorhub.io/.
 
 ## End-to-end example
 
-For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started).
+For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started). Also, see [Getting Started on OperatorHub.io](https://operatorhub.io/getting-started).
+
+## Contributing with Operator catalogue
+
+Check how to [Publish your Operator on OperatorHub.io](https://operatorhub.io/contribute).
 
 # Key Concepts
 
