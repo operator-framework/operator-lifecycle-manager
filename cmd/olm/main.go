@@ -91,8 +91,7 @@ func main() {
 	// Set log level to debug if `debug` flag set
 	logger := log.New()
 	if *debug {
-		// TODO: Switch back to debug level
-		logger.SetLevel(log.TraceLevel)
+		logger.SetLevel(log.DebugLevel)
 	}
 	logger.Infof("log level %s", logger.Level)
 

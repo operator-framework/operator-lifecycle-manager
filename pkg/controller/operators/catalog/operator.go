@@ -88,7 +88,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Create a new queueinformer-based operator.
 	opClient := operatorclient.NewClientFromConfig(kubeconfigPath, logger)
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClient.KubernetesInterface().Discovery(), logger)
+	queueOperator, err := queueinformer.NewOperator(opClient.KubernetesInterface().Discovery(), queueinformer.WithOperatorLogger(logger))
 	if err != nil {
 		return nil, err
 	}
@@ -550,7 +550,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	// Trigger a resolve, will pick up any subscriptions that depend on the catalog
-	// o.resolveNamespace(out.GetNamespace())
 	o.nsResolveQueue.Add(out.GetNamespace())
 
 	return nil
@@ -915,18 +914,6 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	logger.Info("syncing")
 
-	defer func() {
-		// make sure to notify subscription loop of installplan changes
-		if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
-			for _, owner := range owners {
-				logger.WithField("owner", owner).Debug("requeueing installplan owner")
-				o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name)
-			}
-		} else {
-			logger.Trace("no installplan owner subscriptions found to requeue")
-		}
-	}()
-
 	if len(plan.Status.Plan) == 0 {
 		logger.Info("skip processing installplan without status - subscription sync responsible for initial status")
 		return
@@ -942,6 +929,18 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 	if outInstallPlan.Status.Phase == plan.Status.Phase {
 		return
 	}
+
+	defer func() {
+		// Notify subscription loop of installplan changes
+		if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
+			for _, owner := range owners {
+				logger.WithField("owner", owner).Debug("requeueing installplan owner")
+				o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name)
+			}
+		} else {
+			logger.Trace("no installplan owner subscriptions found to requeue")
+		}
+	}()
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.
 	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(outInstallPlan); err != nil {
