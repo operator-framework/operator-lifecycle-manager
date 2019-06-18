@@ -1146,16 +1146,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
 
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(cr.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for clusterrole %s", cr.GetName())
-				}
-				cr.OwnerReferences = updated
-
 				// Attempt to create the ClusterRole.
 				_, err = o.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
 				if k8serrors.IsAlreadyExists(err) {
+					// if we're updating, point owner to the newest csv
+					cr.Labels[ownerutil.OwnerKey] = step.Resolving
 					_, err = o.opClient.UpdateClusterRole(&cr)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrole %s", cr.GetName())
@@ -1176,17 +1171,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
 
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(rb.OwnerReferences, plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for clusterrolebinding %s", rb.GetName())
-				}
-				rb.OwnerReferences = updated
-
 				// Attempt to create the ClusterRoleBinding.
 				_, err = o.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
-					rb.SetNamespace(plan.Namespace)
+					// if we're updating, point owner to the newest csv
+					rb.Labels[ownerutil.OwnerKey] = step.Resolving
 					_, err = o.opClient.UpdateClusterRoleBinding(&rb)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrolebinding %s", rb.GetName())
