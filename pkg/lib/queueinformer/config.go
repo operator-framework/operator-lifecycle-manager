@@ -3,6 +3,7 @@ package queueinformer
 import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
@@ -138,5 +139,78 @@ func WithKeyFunc(keyFunc KeyFunc) Option {
 func WithSyncer(syncer kubestate.Syncer) Option {
 	return func(config *queueInformerConfig) {
 		config.syncer = syncer
+	}
+}
+
+type operatorConfig struct {
+	discovery      discovery.DiscoveryInterface
+	queueInformers []*QueueInformer
+	informers      []cache.SharedIndexInformer
+	logger         *logrus.Logger
+	numWorkers     int
+}
+
+type OperatorOption func(*operatorConfig)
+
+// apply sequentially applies the given options to the config.
+func (c *operatorConfig) apply(options []OperatorOption) {
+	for _, option := range options {
+		option(c)
+	}
+}
+
+func newInvalidOperatorConfigError(msg string) error {
+	return errors.Errorf("invalid queue informer operator config: %s", msg)
+}
+
+// WithOperatorLogger sets the logger used by an Operator.
+func WithOperatorLogger(logger *logrus.Logger) OperatorOption {
+	return func(config *operatorConfig) {
+		config.logger = logger
+	}
+}
+
+// WithQueueInformers registers a set of initial QueueInformers with an Operator.
+// If the QueueInformer is configured with a SharedIndexInformer, that SharedIndexInformer
+// is registered with the Operator automatically.
+func WithQueueInformers(queueInformers ...*QueueInformer) OperatorOption {
+	return func(config *operatorConfig) {
+		config.queueInformers = queueInformers
+	}
+}
+
+// WithQueueInformers registers a set of initial Informers with an Operator.
+func WithInformers(informers ...cache.SharedIndexInformer) OperatorOption {
+	return func(config *operatorConfig) {
+		config.informers = informers
+	}
+}
+
+// WithNumWorkers sets the number of workers an Operator uses to process each queue.
+// It translates directly to the number of queue items processed in parallel for a given queue.
+// Specifying zero or less workers is an invariant and will cause an error upon configuration.
+// Specifying one worker indicates that each queue will only have one item processed at a time.
+func WithNumWorkers(numWorkers int) OperatorOption {
+	return func(config *operatorConfig) {
+		config.numWorkers = numWorkers
+	}
+}
+
+// validate returns an error if the config isn't valid.
+func (c *operatorConfig) validate() (err error) {
+	switch config := c; {
+	case config.discovery == nil:
+		err = newInvalidOperatorConfigError("discovery client nil")
+	case config.numWorkers < 1:
+		err = newInvalidOperatorConfigError("must specify at least one worker per queue")
+	}
+
+	return
+}
+
+func defaultOperatorConfig() *operatorConfig {
+	return &operatorConfig{
+		logger:     logrus.New(),
+		numWorkers: 2,
 	}
 }

@@ -165,7 +165,7 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	queueOperator, err := queueinformer.NewOperatorFromClient(crClient.Discovery(), log.New())
+	queueOperator, err := queueinformer.NewOperator(crClient.Discovery())
 	if err != nil {
 		return err
 	}

@@ -51,6 +51,7 @@ type operator struct {
 	informers        []cache.SharedIndexInformer
 	hasSynced        cache.InformerSynced
 	mu               sync.RWMutex
+	numWorkers       int
 	runInformersOnce sync.Once
 	reconcileOnce    sync.Once
 	logger           *logrus.Logger
@@ -206,8 +207,9 @@ func (o *operator) run(ctx context.Context) {
 
 	o.logger.Info("starting workers...")
 	for _, queueInformer := range o.queueInformers {
-		go o.worker(ctx, queueInformer)
-		go o.worker(ctx, queueInformer)
+		for w := 0; w < o.numWorkers; w++ {
+			go o.worker(ctx, queueInformer)
+		}
 	}
 
 	close(o.ready)
@@ -249,7 +251,7 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 		resource, exists, err := loop.indexer.GetByKey(key)
 		if err != nil {
 			logger.WithError(err).Error("cache get failed")
-			// queue.Forget(item)
+			queue.Forget(item)
 			return true
 		}
 		if !exists {
@@ -283,18 +285,41 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	return true
 }
 
-// NewOperatorFromClient returns a new Operator configured to manage the cluster with the given discovery client.
-func NewOperatorFromClient(disc discovery.DiscoveryInterface, logger *logrus.Logger) (Operator, error) {
+// NewOperator returns a new Operator configured to manage the cluster with the given discovery client.
+func NewOperator(disc discovery.DiscoveryInterface, options ...OperatorOption) (Operator, error) {
+	config := defaultOperatorConfig()
+	config.discovery = disc
+	config.apply(options)
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+
+	return newOperatorFromConfig(config)
+
+}
+
+func newOperatorFromConfig(config *operatorConfig) (Operator, error) {
 	op := &operator{
-		discovery:      disc,
-		queueInformers: []*QueueInformer{},
-		informers:      []cache.SharedIndexInformer{},
-		logger:         logger,
-		ready:          make(chan struct{}),
-		done:           make(chan struct{}),
-		atLevel:        make(chan error, 25),
+		discovery:  config.discovery,
+		numWorkers: config.numWorkers,
+		logger:     config.logger,
+		ready:      make(chan struct{}),
+		done:       make(chan struct{}),
+		atLevel:    make(chan error, 25),
 	}
 	op.syncCh = op.atLevel
+
+	// Register QueueInformers and Informers
+	for _, queueInformer := range op.queueInformers {
+		if err := op.RegisterQueueInformer(queueInformer); err != nil {
+			return nil, err
+		}
+	}
+	for _, informer := range op.informers {
+		if err := op.RegisterInformer(informer); err != nil {
+			return nil, err
+		}
+	}
 
 	return op, nil
 }

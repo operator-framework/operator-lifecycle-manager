@@ -331,7 +331,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 	statuses := []v1alpha1.RequirementStatus{}
 	for key, status := range statusesSet {
-		a.logger.WithField("key", key).WithField("status", status).Debugf("appending permission status")
+		a.logger.WithField("key", key).WithField("status", status).Tracef("appending permission status")
 		statuses = append(statuses, status)
 	}
 

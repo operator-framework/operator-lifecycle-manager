@@ -83,18 +83,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	// // Create a new client for OLM types (CRs)
-	// crClient, err := client.NewClient(kubeconfigPath)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// internalClient, err := client.NewInternalClient(kubeconfigPath)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	queueOperator, err := queueinformer.NewOperatorFromClient(config.operatorClient.KubernetesInterface().Discovery(), config.logger)
+	queueOperator, err := queueinformer.NewOperator(config.operatorClient.KubernetesInterface().Discovery(), queueinformer.WithOperatorLogger(config.logger))
 	if err != nil {
 		return nil, err
 	}

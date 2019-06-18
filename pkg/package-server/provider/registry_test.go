@@ -83,7 +83,7 @@ func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	opClientFake := operatorclient.NewClient(k8sClientFake, nil, nil)
 
-	op, err := queueinformer.NewOperatorFromClient(opClientFake.KubernetesInterface().Discovery(), logrus.StandardLogger())
+	op, err := queueinformer.NewOperator(opClientFake.KubernetesInterface().Discovery())
 	if err != nil {
 		return nil, err
 	}

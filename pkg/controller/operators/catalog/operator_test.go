@@ -664,7 +664,7 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 	}
 
 	// Create the new operator
-	queueOperator, err := queueinformer.NewOperatorFromClient(opClientFake.KubernetesInterface().Discovery(), logrus.New())
+	queueOperator, err := queueinformer.NewOperator(opClientFake.KubernetesInterface().Discovery())
 	for _, informer := range sharedInformers {
 		queueOperator.RegisterInformer(informer)
 	}
