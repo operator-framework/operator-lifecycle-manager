@@ -162,8 +162,11 @@ verify-codegen: codegen
 # this is here for backwards compatibility with the ci job that calls verify-catalog
 verify-catalog:
 
-verify-manifests: ver=$(shell cat OLM_VERSION)
+# this is here for backwards compatibility with the ci job that calls verify-manifests
 verify-manifests:
+
+verify-release: ver=$(shell cat OLM_VERSION)
+verify-release:
 	rm -rf manifests
 	mkdir manifests
 	./scripts/package_release.sh $(ver) manifests deploy/ocp/values.yaml
