@@ -1075,6 +1075,8 @@ spec:
       description: A grouping of namespaces for usage with an operator.
       properties:
         spec:
+          type: object
+          description: Spec for an OperatorGroup.
           properties:
             selector:
               type: object
@@ -1125,8 +1127,9 @@ spec:
             staticProvidedAPIs:
               type: boolean
               description: If true, OLM will not modify the OperatorGroup's providedAPIs annotation.
-          type: object
         status:
+          type: object
+          description: The status of the OperatorGroup.
           properties:
             lastUpdated:
               format: date-time
@@ -1137,6 +1140,5 @@ spec:
               type: array
           required:
           - lastUpdated
-          type: object
       required:
       - metadata
