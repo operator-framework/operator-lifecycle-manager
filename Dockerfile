@@ -1,11 +1,12 @@
-FROM openshift/origin-release:golang-1.10 as builder
+FROM openshift/origin-release:golang-1.12 as builder
 RUN yum update -y
 RUN yum install -y make git
 
+ENV GO111MODULE auto
 ENV GOPATH /go
 ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
 
-WORKDIR /go/src/github.com/operator-framework/operator-lifecycle-manager
+WORKDIR /build
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
 COPY .git/HEAD .git/HEAD
@@ -18,9 +19,8 @@ COPY pkg pkg
 COPY vendor vendor
 COPY cmd cmd
 COPY test test
-COPY scripts scripts
-COPY deploy deploy
-RUN make verify-manifests
+COPY go.mod go.mod
+COPY go.sum go.sum
 RUN make build
 
 FROM openshift/origin-base
@@ -29,9 +29,9 @@ ADD manifests/ /manifests
 LABEL io.openshift.release.operator=true
 
 # Copy the binary to a standard location where it will run.
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
-COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/package-server /bin/package-server
+COPY --from=builder /build/bin/olm /bin/olm
+COPY --from=builder /build/bin/catalog /bin/catalog
+COPY --from=builder /build/bin/package-server /bin/package-server
 
 # This image doesn't need to run as root user.
 USER 1001
