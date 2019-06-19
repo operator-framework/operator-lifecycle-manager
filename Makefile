@@ -2,22 +2,25 @@
 #  OLM - Build and Test  #
 ##########################
 
+# Force go modules even in path
+
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
+GO111MODULE := on
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12)") && echo -mod=vendor)
 CMDS  := $(addprefix bin/, $(shell go list $(MOD_FLAGS) ./cmd/... | xargs -I{} basename {}))
 CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
 MOCKGEN := ./scripts/generate_mocks.sh
-# counterfeiter := $(GOBIN)/counterfeiter
-# mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
 KUBE_RELEASE := release-1.14
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 
+
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
+
 
 all: test build
 
@@ -125,6 +128,7 @@ gen-ci: $(CI)
 
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
+codegen: GO111MODULE := off 
 codegen:
 	cp scripts/generate_internal_groups.sh vendor/k8s.io/code-generator/generate_internal_groups.sh
 	mkdir -p vendor/k8s.io/code-generator/hack
