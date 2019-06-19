@@ -68,7 +68,7 @@ spec:
           args:
           - -writeStatusName
           - ""
-          image: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
+          image: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -126,7 +126,7 @@ spec:
           - '-namespace'
           - olm
           - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
-          image: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
+          image: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -192,7 +192,7 @@ data:
     - apiVersion: operators.coreos.com/v1alpha1
       kind: ClusterServiceVersion
       metadata:
-        name: packageserver.v0.10.0
+        name: packageserver.v0.10.1
         namespace: olm
       spec:
         displayName: Package Server
@@ -279,7 +279,7 @@ data:
                       - "5443"
                       - --global-namespace
                       - olm
-                      image: quay.io/operator-framework/olm@sha256:93751ae9d398d571c2cb3d11b0ac4ae052117fd1726025364a6f2f3a5caef68e
+                      image: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
                       imagePullPolicy: Always
                       ports:
                       - containerPort: 5443
@@ -295,7 +295,7 @@ data:
                           port: 5443
                       terminationMessagePolicy: FallbackToLogsOnError
         maturity: alpha
-        version: 0.10.0
+        version: 0.10.1
         apiservicedefinitions:
           owned:
           - group: packages.operators.coreos.com
@@ -310,7 +310,7 @@ data:
     - packageName: packageserver
       channels:
       - name: alpha
-        currentCSV: packageserver.v0.10.0
+        currentCSV: packageserver.v0.10.1
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: CatalogSource
