@@ -15,6 +15,7 @@ IMAGE_TAG ?= "dev"
 KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
 KUBE_RELEASE := release-1.14
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
+export GO111MODULE=on
 
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
@@ -125,6 +126,7 @@ gen-ci: $(CI)
 
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
+codegen: export GO111MODULE := off
 codegen:
 	cp scripts/generate_internal_groups.sh vendor/k8s.io/code-generator/generate_internal_groups.sh
 	mkdir -p vendor/k8s.io/code-generator/hack
