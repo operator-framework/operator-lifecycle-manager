@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"flag"
 	"io"
 	"io/ioutil"
@@ -17,10 +18,10 @@ import (
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 )
 
 var (
@@ -110,7 +111,7 @@ func TestMain(m *testing.M) {
 	// start operators
 	olmOperator, err := olm.NewOperator(
 		ctx,
-		olm.WithLogger(olmLogger),
+		olm.WithLogger(olmlogger),
 		olm.WithWatchedNamespaces(namespaces...),
 		olm.WithResyncPeriod(time.Minute),
 		olm.WithExternalClient(crClient),
