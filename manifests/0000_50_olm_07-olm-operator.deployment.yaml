@@ -26,6 +26,8 @@ spec:
           args:
           - -writeStatusName
           - operator-lifecycle-manager
+          - -writePackageServerStatusName
+          - operator-lifecycle-manager-packageserver
           - -tls-cert
           - /var/run/secrets/serving-cert/tls.crt
           - -tls-key

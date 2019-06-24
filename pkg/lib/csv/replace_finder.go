@@ -20,6 +20,7 @@ func NewReplaceFinder(logger *logrus.Logger, client versioned.Interface) Replace
 type ReplaceFinder interface {
 	IsBeingReplaced(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion)
 	IsReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.ClusterServiceVersion
+	GetFinalCSVInReplacing(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion)
 }
 
 type replace struct {
@@ -67,4 +68,23 @@ func (r *replace) IsReplacing(in *v1alpha1.ClusterServiceVersion) *v1alpha1.Clus
 	}
 
 	return previous
+}
+
+// GetFinalCSVInReplacing returns the most recent ClustererviceVersion that is
+// in the replace chain.
+//
+// If the corresponding ClusterServiceVersion is not found nil is returned.
+func (r *replace) GetFinalCSVInReplacing(in *v1alpha1.ClusterServiceVersion, csvsInNamespace map[string]*v1alpha1.ClusterServiceVersion) (replacedBy *v1alpha1.ClusterServiceVersion) {
+	current := in
+	for {
+		next := r.IsBeingReplaced(current, csvsInNamespace)
+		if next == nil {
+			break
+		}
+
+		replacedBy = next
+		current = next
+	}
+
+	return
 }

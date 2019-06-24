@@ -4,6 +4,10 @@ kind: ClusterServiceVersion
 metadata:
   name: packageserver.v{{ .Chart.Version }}
   namespace: {{ .Values.namespace }}
+  labels:
+    {{- if .Values.writePackageServerStatusName }}
+    olm.clusteroperator.name: {{ .Values.writePackageServerStatusName }}
+    {{- end }}
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.

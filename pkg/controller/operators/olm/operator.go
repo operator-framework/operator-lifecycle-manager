@@ -69,6 +69,7 @@ type Operator struct {
 	apiLabeler       labeler.Labeler
 	csvSetGenerator  csvutility.SetGenerator
 	csvReplaceFinder csvutility.ReplaceFinder
+	csvNotification  csvutility.WatchNotification
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -401,6 +402,14 @@ func (a *Operator) GetReplaceFinder() csvutility.ReplaceFinder {
 	return a.csvReplaceFinder
 }
 
+func (a *Operator) RegisterCSVWatchNotification(csvNotification csvutility.WatchNotification) {
+	if csvNotification == nil {
+		return
+	}
+
+	a.csvNotification = csvNotification
+}
+
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	// Assert as metav1.Object
 	metaObj, ok := obj.(metav1.Object)
@@ -479,6 +488,10 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a ClusterServiceVersion %#v", obj))
 			return
 		}
+	}
+
+	if a.csvNotification != nil {
+		a.csvNotification.OnDelete(clusterServiceVersion)
 	}
 
 	logger := a.logger.WithFields(logrus.Fields{
@@ -639,6 +652,10 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		"phase":     clusterServiceVersion.Status.Phase,
 	})
 	logger.Debug("syncing CSV")
+
+	if a.csvNotification != nil {
+		a.csvNotification.OnAddOrUpdate(clusterServiceVersion)
+	}
 
 	if clusterServiceVersion.IsCopied() {
 		logger.Debug("skipping copied csv transition, schedule for gc check")
@@ -1201,7 +1218,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 				}
 			}
 		} else {
-			syncError = fmt.Errorf("csv marked as replacement, but no replacmenet csv found in cluster")
+			syncError = fmt.Errorf("CSV marked as replacement, but no replacement CSV found in cluster.")
 		}
 	case v1alpha1.CSVPhaseDeleting:
 		syncError = a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Delete(out.GetName(), metav1.NewDeleteOptions(0))
