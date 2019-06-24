@@ -23,6 +23,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
@@ -895,6 +896,207 @@ func TestSubscriptionStatusMissingTargetCatalogSource(t *testing.T) {
 	// Wait for success
 	_, err = fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
+}
+
+// TestSubscriptionInstallPlanStatus ensures that a Subscription has the appropriate status conditions for possible referenced
+// InstallPlan states.
+//
+// Steps:
+// 1. Create namespace, ns
+// 2. Create CatalogSource, cs, in ns
+// 3. Create OperatorGroup, og, in ns selecting its own namespace
+// 4. Create Subscription to a package of cs in ns, sub
+// 5. Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
+// 6. Store conditions for later comparision
+// 7. Get the InstallPlan
+// 8. Set the InstallPlan's approval mode to Manual
+// 9. Set the InstallPlan's phase to None
+// 10. Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
+// 11. Get the latest IntallPlan and set the phase to InstallPlanPhaseRequiresApproval
+// 12. Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
+// 13. Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling
+// 14. Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
+// 15. Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions
+// 16. Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
+// 17. Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed
+// 18. Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
+// 19. Delete the referenced InstallPlan
+// 20. Wait for sub to have status condition SubscriptionInstallPlanMissing true
+// 21. Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
+func TestSubscriptionInstallPlanStatus(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create namespace ns
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("ns-"),
+		},
+	}
+	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(ns)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Create CatalogSource, cs, in ns
+	pkgName := genName("pkg-")
+	channelName := genName("channel-")
+	strategy := newNginxInstallStrategy(pkgName, nil, nil)
+	crd := newCRD(pkgName)
+	csv := newCSV(pkgName, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, strategy)
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: pkgName,
+			Channels: []registry.PackageChannel{
+				{Name: channelName, CurrentCSVName: csv.GetName()},
+			},
+			DefaultChannelName: channelName,
+		},
+	}
+	catalogName := genName("catalog-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogName, ns.GetName(), manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	defer cleanupCatalogSource()
+	_, err = fetchCatalogSource(t, crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create OperatorGroup, og, in ns selecting its own namespace
+	og := newOperatorGroup(ns.GetName(), genName("og-"), nil, nil, []string{ns.GetName()}, false)
+	_, err = crc.OperatorsV1().OperatorGroups(og.GetNamespace()).Create(og)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1().OperatorGroups(og.GetNamespace()).Delete(og.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// Create Subscription to a package of cs in ns, sub
+	subName := genName("sub-")
+	defer createSubscriptionForCatalog(t, crc, ns.GetName(), subName, catalogName, pkgName, channelName, pkgName, v1alpha1.ApprovalAutomatic)()
+
+	// Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
+	sub, err := fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		for _, cond := range s.Status.Conditions {
+			switch cond.Type {
+			case v1alpha1.SubscriptionInstallPlanMissing, v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed:
+				return false
+			}
+		}
+		return subscriptionStateAtLatestChecker(s)
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	// Store conditions for later comparision
+	conds := sub.Status.Conditions
+
+	// Get the InstallPlan
+	ref := sub.Status.InstallPlanRef
+	require.NotNil(t, ref)
+	plan, err := crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	// Set the InstallPlan's approval mode to Manual
+	plan.Spec.Approval = v1alpha1.ApprovalManual
+	plan.Spec.Approved = false
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Update(plan)
+	require.NoError(t, err)
+
+	// Set the InstallPlan's phase to None
+	plan.Status.Phase = v1alpha1.InstallPlanPhaseNone
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
+	require.NoError(t, err)
+
+	// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason InstallPlanNotYetReconciled
+	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
+		return cond.Status == corev1.ConditionTrue && cond.Reason == v1alpha1.InstallPlanNotYetReconciled
+	})
+	require.NoError(t, err)
+
+	// Get the latest InstallPlan and set the phase to InstallPlanPhaseRequiresApproval
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	plan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
+	require.NoError(t, err)
+
+	// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason RequiresApproval
+	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
+		return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanPhaseRequiresApproval)
+	})
+	require.NoError(t, err)
+
+	// Get the latest InstallPlan and set the phase to InstallPlanPhaseInstalling
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	plan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
+	require.NoError(t, err)
+
+	// Wait for sub to have status condition SubscriptionInstallPlanPending true and reason Installing
+	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanPending)
+		return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanPhaseInstalling)
+	})
+	require.NoError(t, err)
+
+	// Get the latest InstallPlan and set the phase to InstallPlanPhaseFailed and remove all status conditions
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+	plan.Status.Conditions = nil
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
+	require.NoError(t, err)
+
+	// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallPlanFailed
+	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanFailed)
+		return cond.Status == corev1.ConditionTrue && cond.Reason == v1alpha1.InstallPlanFailed
+	})
+	require.NoError(t, err)
+
+	// Get the latest InstallPlan and set status condition of type Installed to false with reason InstallComponentFailed
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+	plan.Status.Phase = v1alpha1.InstallPlanPhaseFailed
+	failedCond := plan.Status.GetCondition(v1alpha1.InstallPlanInstalled)
+	failedCond.Status = corev1.ConditionFalse
+	failedCond.Reason = v1alpha1.InstallPlanReasonComponentFailed
+	plan.Status.SetCondition(failedCond)
+	plan, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).UpdateStatus(plan)
+	require.NoError(t, err)
+
+	// Wait for sub to have status condition SubscriptionInstallPlanFailed true and reason InstallComponentFailed
+	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		cond := s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanFailed)
+		return cond.Status == corev1.ConditionTrue && cond.Reason == string(v1alpha1.InstallPlanReasonComponentFailed)
+	})
+	require.NoError(t, err)
+
+	// Delete the referenced InstallPlan
+	require.NoError(t, crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Delete(ref.Name, &metav1.DeleteOptions{}))
+
+	// Wait for sub to have status condition SubscriptionInstallPlanMissing true
+	sub, err = fetchSubscription(t, crc, ns.GetName(), subName, func(s *v1alpha1.Subscription) bool {
+		return s.Status.GetCondition(v1alpha1.SubscriptionInstallPlanMissing).Status == corev1.ConditionTrue
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sub)
+
+	// Ensure original non-InstallPlan status conditions remain after InstallPlan transitions
+	hashEqual := comparison.NewHashEqualitor()
+	for _, cond := range conds {
+		switch condType := cond.Type; condType {
+		case v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed:
+			require.FailNowf(t, "failed", "subscription contains unexpected installplan condition: %v", cond)
+		case v1alpha1.SubscriptionInstallPlanMissing:
+			require.Equal(t, v1alpha1.ReferencedInstallPlanNotFound, cond.Reason)
+		default:
+			require.True(t, hashEqual(cond, sub.Status.GetCondition(condType)), "non-installplan status condition changed")
+		}
+	}
 }
 
 func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
