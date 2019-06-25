@@ -314,7 +314,7 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), catalog.Status.RegistryServiceStatus.Address())
 		return registryPodHealthy(catalog.Status.RegistryServiceStatus.Address())
 	}
-	fmt.Println("waiting for catalog pod to be available")
+	fmt.Printf("waiting for catalog pod %v to be available (for sync)\n", catalog.GetName())
 	return false
 }
 
