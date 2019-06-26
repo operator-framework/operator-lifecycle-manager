@@ -2,7 +2,6 @@ package subscription
 
 import (
 	"context"
-	"reflect"
 	"testing"
 	"time"
 
@@ -50,8 +49,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 			description: "ExistsToUnhealthy/NoCatalogs",
 			fields: fields{
 				config: &fakeReconcilerConfig{
-					now: nowFunc,
-					// registryReconcilerFactory: fakeRegistryReconcilerFactory(true, nil),
+					now:                    nowFunc,
 					globalCatalogNamespace: "global",
 					existingObjs: existingObjs{
 						clientObjs: []runtime.Object{
@@ -128,7 +126,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 										catalogHealth("ns", "cs-1", &earlier, false),
 									},
 									Conditions: []v1alpha1.SubscriptionCondition{
-										unhealthyCondition(corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, "targeted catalogsource ns/cs-0 unhealthy", &earlier),
+										catalogUnhealthyCondition(corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, "targeted catalogsource ns/cs-0 unhealthy", &earlier),
 									},
 									LastUpdated: earlier,
 								},
@@ -153,7 +151,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 							catalogHealth("ns", "cs-1", &earlier, false),
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
-							unhealthyCondition(corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, "targeted catalogsource ns/cs-0 unhealthy", &earlier),
+							catalogUnhealthyCondition(corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, "targeted catalogsource ns/cs-0 unhealthy", &earlier),
 						},
 						LastUpdated: earlier,
 					},
@@ -175,7 +173,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 							catalogHealth("ns", "cs-1", &earlier, false),
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
-							unhealthyCondition(corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, "targeted catalogsource ns/cs-0 unhealthy", &earlier),
+							catalogUnhealthyCondition(corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, "targeted catalogsource ns/cs-0 unhealthy", &earlier),
 						},
 						LastUpdated: earlier,
 					},
@@ -208,7 +206,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 										catalogHealth("ns", "cs-1", &earlier, true),
 									},
 									Conditions: []v1alpha1.SubscriptionCondition{
-										unhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+										catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
 									},
 									LastUpdated: earlier,
 								},
@@ -233,7 +231,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 							catalogHealth("ns", "cs-1", &earlier, true),
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
-							unhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
 						},
 						LastUpdated: earlier,
 					},
@@ -255,7 +253,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 							catalogHealth("ns", "cs-1", &earlier, true),
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
-							unhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
 						},
 						LastUpdated: earlier,
 					},
@@ -271,9 +269,9 @@ func TestCatalogHealthReconcile(t *testing.T) {
 					globalCatalogNamespace:    "global",
 					existingObjs: existingObjs{
 						clientObjs: []runtime.Object{
+							catalogSource("global", "cs-g"),
 							catalogSource("ns", "cs-0"),
 							catalogSource("ns", "cs-1"),
-							catalogSource("global", "cs-g"),
 							&v1alpha1.Subscription{
 								ObjectMeta: metav1.ObjectMeta{
 									Name:      "sub",
@@ -289,7 +287,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 										catalogHealth("ns", "cs-1", &earlier, true),
 									},
 									Conditions: []v1alpha1.SubscriptionCondition{
-										unhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+										catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
 									},
 									LastUpdated: earlier,
 								},
@@ -314,7 +312,7 @@ func TestCatalogHealthReconcile(t *testing.T) {
 							catalogHealth("ns", "cs-1", &earlier, true),
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
-							unhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
 						},
 						LastUpdated: earlier,
 					},
@@ -332,12 +330,12 @@ func TestCatalogHealthReconcile(t *testing.T) {
 					},
 					Status: v1alpha1.SubscriptionStatus{
 						CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+							catalogHealth("global", "cs-g", &now, true),
 							catalogHealth("ns", "cs-0", &now, true),
 							catalogHealth("ns", "cs-1", &now, true),
-							catalogHealth("global", "cs-g", &now, true),
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
-							unhealthyCondition(corev1.ConditionFalse, v1alpha1.CatalogSourcesAdded, "all available catalogsources are healthy", &now),
+							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.CatalogSourcesAdded, "all available catalogsources are healthy", &now),
 						},
 						LastUpdated: now,
 					},
@@ -354,7 +352,1100 @@ func TestCatalogHealthReconcile(t *testing.T) {
 
 			out, err := rec.Reconcile(ctx, tt.args.in)
 			require.Equal(t, tt.want.err, err)
-			require.Equal(t, reflect.TypeOf(tt.want.out), reflect.TypeOf(out))
+			require.Equal(t, tt.want.out, out)
+
+			// Ensure the client's view of the subscription matches the typestate's
+			sub := out.(SubscriptionState).Subscription()
+			clusterSub, err := rec.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Get(sub.GetName(), metav1.GetOptions{})
+			require.NoError(t, err)
+			require.Equal(t, sub, clusterSub)
+		})
+	}
+}
+
+func TestInstallPlanReconcile(t *testing.T) {
+	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	now := metav1.NewTime(clockFake.Now())
+	earlier := metav1.NewTime(now.Add(-time.Minute))
+	nowFunc := func() *metav1.Time { return &now }
+
+	type fields struct {
+		config *fakeReconcilerConfig
+	}
+	type args struct {
+		in kubestate.State
+	}
+	type want struct {
+		err error
+		out kubestate.State
+	}
+
+	tests := []struct {
+		description string
+		fields      fields
+		args        args
+		want        want
+	}{
+		{
+			description: "SubscriptionExistsToNoInstallPlanReferenced/NoConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+				}),
+			},
+			want: want{
+				out: newNoInstallPlanReferencedState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+				}),
+			},
+		},
+		{
+			description: "CatalogHealthyToNoInstallPlanReferenced/MixedConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+										catalogHealth("ns", "cs-0", &earlier, true),
+										catalogHealth("ns", "cs-1", &earlier, true),
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newCatalogHealthyState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+							catalogHealth("ns", "cs-0", &earlier, true),
+							catalogHealth("ns", "cs-1", &earlier, true),
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: &noInstallPlanReferencedState{
+					InstallPlanState: &installPlanState{
+						SubscriptionExistsState: newCatalogHealthyState(&v1alpha1.Subscription{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "sub",
+								Namespace: "ns",
+							},
+							Status: v1alpha1.SubscriptionStatus{
+								CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+									catalogHealth("ns", "cs-0", &earlier, true),
+									catalogHealth("ns", "cs-1", &earlier, true),
+								},
+								Conditions: []v1alpha1.SubscriptionCondition{
+									catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+								},
+								LastUpdated: earlier,
+							},
+						}),
+					},
+				},
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanNotFound/NoConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanMissingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planMissingCondition(corev1.ConditionTrue, v1alpha1.ReferencedInstallPlanNotFound, "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanNotFound/Conditions/NoChanges",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planMissingCondition(corev1.ConditionTrue, v1alpha1.ReferencedInstallPlanNotFound, "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planMissingCondition(corev1.ConditionTrue, v1alpha1.ReferencedInstallPlanNotFound, "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanMissingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planMissingCondition(corev1.ConditionTrue, v1alpha1.ReferencedInstallPlanNotFound, "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+		},
+		{
+			description: "CatalogHealthyToInstallPlanNotFound/MixedConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+										catalogHealth("ns", "cs-0", &earlier, true),
+										catalogHealth("ns", "cs-1", &earlier, true),
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newCatalogHealthyState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+							catalogHealth("ns", "cs-0", &earlier, true),
+							catalogHealth("ns", "cs-1", &earlier, true),
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: &installPlanMissingState{
+					InstallPlanKnownState: &installPlanKnownState{
+						InstallPlanReferencedState: &installPlanReferencedState{
+							InstallPlanState: &installPlanState{
+								SubscriptionExistsState: newCatalogHealthyState(&v1alpha1.Subscription{
+									ObjectMeta: metav1.ObjectMeta{
+										Name:      "sub",
+										Namespace: "ns",
+									},
+									Status: v1alpha1.SubscriptionStatus{
+										InstallPlanRef: &corev1.ObjectReference{
+											Namespace: "ns",
+											Name:      "ip",
+										},
+										CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+											catalogHealth("ns", "cs-0", &earlier, true),
+											catalogHealth("ns", "cs-1", &earlier, true),
+										},
+										Conditions: []v1alpha1.SubscriptionCondition{
+											catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+											planMissingCondition(corev1.ConditionTrue, v1alpha1.ReferencedInstallPlanNotFound, "", &now),
+										},
+										LastUpdated: now,
+									},
+								}),
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanPending/NotYetReconciled/NoConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							installPlan("ns", "ip"),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanPendingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanNotYetReconciled), "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanPending/Planning/NoConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhasePlanning,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanPendingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhasePlanning), "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanPending/Planning/Conditions/NoChanges",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhasePlanning,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhasePlanning), "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhasePlanning), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanPendingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhasePlanning), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanPending/Installing/NoConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseInstalling,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanPendingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanPending/RequiresApproval/NoConditions/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseRequiresApproval,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanPendingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseRequiresApproval), "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanPending/Installing/Conditions/NoChanges",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseInstalling,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanPendingState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanFailed/Failed/NoProjectedReason/Conditions/Installing/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseFailed,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanFailedState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planFailedCondition(corev1.ConditionTrue, v1alpha1.InstallPlanFailed, "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanFailed/Failed/ProjectedReason/Conditions/Installing/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseFailed,
+									Conditions: []v1alpha1.InstallPlanCondition{
+										{
+											Type:   v1alpha1.InstallPlanInstalled,
+											Status: corev1.ConditionFalse,
+											Reason: v1alpha1.InstallPlanReasonComponentFailed,
+										},
+									},
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanFailedState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planFailedCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanReasonComponentFailed), "", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanFailed/Failed/ProjectedReason/Conditions/NoChanges",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseFailed,
+									Conditions: []v1alpha1.InstallPlanCondition{
+										{
+											Type:   v1alpha1.InstallPlanInstalled,
+											Status: corev1.ConditionFalse,
+											Reason: v1alpha1.InstallPlanReasonComponentFailed,
+										},
+									},
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planFailedCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanReasonComponentFailed), "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planFailedCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanReasonComponentFailed), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanFailedState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planFailedCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanReasonComponentFailed), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanInstalled/Conditions/Installing/Changes",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseComplete,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							planPendingCondition(corev1.ConditionTrue, string(v1alpha1.InstallPlanPhaseInstalling), "", &earlier),
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanInstalledState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "SubscriptionExistsToInstallPlanInstalled/NoConditions/NoChanges",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now: nowFunc,
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							withInstallPlanStatus(
+								installPlan("ns", "ip"),
+								&v1alpha1.InstallPlanStatus{
+									Phase: v1alpha1.InstallPlanPhaseComplete,
+								},
+							),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									InstallPlanRef: &corev1.ObjectReference{
+										Namespace: "ns",
+										Name:      "ip",
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+			want: want{
+				out: newInstallPlanInstalledState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						InstallPlanRef: &corev1.ObjectReference{
+							Namespace: "ns",
+							Name:      "ip",
+						},
+						LastUpdated: earlier,
+					},
+				}),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			rec := newFakeInstallPlanReconciler(ctx, t, tt.fields.config)
+
+			out, err := rec.Reconcile(ctx, tt.args.in)
+			require.Equal(t, tt.want.err, err)
+			require.Equal(t, tt.want.out, out)
 
 			// Ensure the client's view of the subscription matches the typestate's
 			sub := out.(SubscriptionState).Subscription()
@@ -414,6 +1505,25 @@ func newFakeCatalogHealthReconciler(ctx context.Context, t *testing.T, config *f
 	return rec
 }
 
+func newFakeInstallPlanReconciler(ctx context.Context, t *testing.T, config *fakeReconcilerConfig) *installPlanReconciler {
+	fakeClient := config.existingObjs.fakeClientset(t)
+	versionedFactory := externalversions.NewSharedInformerFactoryWithOptions(fakeClient, time.Minute)
+	ipInformer := versionedFactory.Operators().V1alpha1().InstallPlans()
+	lister := operatorlister.NewLister()
+	lister.OperatorsV1alpha1().RegisterInstallPlanLister(metav1.NamespaceAll, ipInformer.Lister())
+
+	rec := &installPlanReconciler{
+		now:               config.now,
+		client:            fakeClient,
+		installPlanLister: lister.OperatorsV1alpha1().InstallPlanLister(),
+	}
+
+	versionedFactory.Start(ctx.Done())
+	versionedFactory.WaitForCacheSync(ctx.Done())
+
+	return rec
+}
+
 // Helper functions to shortcut to a particular state.
 // They should not be used outside of testing.
 
@@ -447,6 +1557,48 @@ func newCatalogUnhealthyState(sub *v1alpha1.Subscription) CatalogUnhealthyState 
 	}
 }
 
+func newNoInstallPlanReferencedState(sub *v1alpha1.Subscription) NoInstallPlanReferencedState {
+	return &noInstallPlanReferencedState{
+		InstallPlanState: newInstallPlanState(newSubscriptionExistsState(sub)),
+	}
+}
+
+func newInstallPlanReferencedState(sub *v1alpha1.Subscription) InstallPlanReferencedState {
+	return &installPlanReferencedState{
+		InstallPlanState: newInstallPlanState(newSubscriptionExistsState(sub)),
+	}
+}
+
+func newInstallPlanKnownState(sub *v1alpha1.Subscription) InstallPlanKnownState {
+	return &installPlanKnownState{
+		InstallPlanReferencedState: newInstallPlanReferencedState(sub),
+	}
+}
+
+func newInstallPlanMissingState(sub *v1alpha1.Subscription) InstallPlanMissingState {
+	return &installPlanMissingState{
+		InstallPlanKnownState: newInstallPlanKnownState(sub),
+	}
+}
+
+func newInstallPlanPendingState(sub *v1alpha1.Subscription) InstallPlanPendingState {
+	return &installPlanPendingState{
+		InstallPlanKnownState: newInstallPlanKnownState(sub),
+	}
+}
+
+func newInstallPlanFailedState(sub *v1alpha1.Subscription) InstallPlanFailedState {
+	return &installPlanFailedState{
+		InstallPlanKnownState: newInstallPlanKnownState(sub),
+	}
+}
+
+func newInstallPlanInstalledState(sub *v1alpha1.Subscription) InstallPlanInstalledState {
+	return &installPlanInstalledState{
+		InstallPlanKnownState: newInstallPlanKnownState(sub),
+	}
+}
+
 // Helper functions for generating OLM resources.
 
 func catalogSource(namespace, name string) *v1alpha1.CatalogSource {
@@ -454,8 +1606,31 @@ func catalogSource(namespace, name string) *v1alpha1.CatalogSource {
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
 			Name:      name,
-			SelfLink: clientfake.BuildSelfLink(v1alpha1.SchemeGroupVersion.String(), "catalogsources", namespace, name),
+			SelfLink:  clientfake.BuildSelfLink(v1alpha1.SchemeGroupVersion.String(), "catalogsources", namespace, name),
 			UID:       types.UID(name),
 		},
 	}
+}
+
+func installPlan(namespace, name string) *v1alpha1.InstallPlan {
+	return &v1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+			SelfLink:  clientfake.BuildSelfLink(v1alpha1.SchemeGroupVersion.String(), "installplans", namespace, name),
+			UID:       types.UID(name),
+		},
+	}
+}
+
+func withInstallPlanStatus(plan *v1alpha1.InstallPlan, status *v1alpha1.InstallPlanStatus) *v1alpha1.InstallPlan {
+	if plan == nil {
+		plan = &v1alpha1.InstallPlan{}
+	}
+	if status == nil {
+		status = &v1alpha1.InstallPlanStatus{}
+	}
+	plan.Status = *status
+
+	return plan
 }

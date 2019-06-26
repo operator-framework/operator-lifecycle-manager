@@ -58,6 +58,8 @@ func (m *mockTransitioner) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 func TestTransitionInstallPlan(t *testing.T) {
 	errMsg := "transition test error"
 	err := errors.New(errMsg)
+	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
+	now := metav1.NewTime(clockFake.Now())
 
 	installed := &v1alpha1.InstallPlanCondition{
 		Type:   v1alpha1.InstallPlanInstalled,
@@ -103,7 +105,7 @@ func TestTransitionInstallPlan(t *testing.T) {
 		transitioner := &mockTransitioner{tt.transError}
 
 		// Attempt to transition phases.
-		out, _ := transitionInstallPlanState(logrus.New(), transitioner, *plan)
+		out, _ := transitionInstallPlanState(logrus.New(), transitioner, *plan, now)
 
 		// Assert that the final phase is as expected.
 		require.Equal(t, tt.expected, out.Status.Phase)

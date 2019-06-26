@@ -178,6 +178,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 			subscription.WithOperatorLister(op.lister),
 			subscription.WithSubscriptionInformer(subInformer.Informer()),
 			subscription.WithCatalogInformer(catsrcInformer.Informer()),
+			subscription.WithInstallPlanInformer(ipInformer.Informer()),
 			subscription.WithSubscriptionQueue(subQueue),
 			subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
 			subscription.WithRegistryReconcilerFactory(op.reconciler),
@@ -942,7 +943,7 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return
 	}
 
-	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan)
+	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan, o.now())
 
 	if syncError != nil {
 		logger = logger.WithField("syncError", syncError)
@@ -987,7 +988,7 @@ type installPlanTransitioner interface {
 
 var _ installPlanTransitioner = &Operator{}
 
-func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTransitioner, in v1alpha1.InstallPlan) (*v1alpha1.InstallPlan, error) {
+func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTransitioner, in v1alpha1.InstallPlan, now metav1.Time) (*v1alpha1.InstallPlan, error) {
 	out := in.DeepCopy()
 
 	switch in.Status.Phase {
@@ -1004,11 +1005,11 @@ func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTran
 		log.Debug("attempting to install")
 		if err := transitioner.ExecutePlan(out); err != nil {
 			out.Status.SetCondition(v1alpha1.ConditionFailed(v1alpha1.InstallPlanInstalled,
-				v1alpha1.InstallPlanReasonComponentFailed, err))
+				v1alpha1.InstallPlanReasonComponentFailed, err.Error(), &now))
 			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 			return out, err
 		}
-		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled))
+		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled, &now))
 		out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
 		return out, nil
 	default:

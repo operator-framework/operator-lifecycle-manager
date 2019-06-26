@@ -21,6 +21,7 @@ type syncerConfig struct {
 	lister                    operatorlister.OperatorLister
 	subscriptionInformer      cache.SharedIndexInformer
 	catalogInformer           cache.SharedIndexInformer
+	installPlanInformer       cache.SharedIndexInformer
 	subscriptionQueue         workqueue.RateLimitingInterface
 	reconcilers               kubestate.ReconcilerChain
 	registryReconcilerFactory reconciler.RegistryReconcilerFactory
@@ -72,10 +73,17 @@ func WithSubscriptionInformer(subscriptionInformer cache.SharedIndexInformer) Sy
 	}
 }
 
-// WithCatalogInformer sets the informer a syncer will wire dependent subscription notifications to.
+// WithCatalogInformer sets a CatalogSource informer to act as an event source for dependent Subscriptions.
 func WithCatalogInformer(catalogInformer cache.SharedIndexInformer) SyncerOption {
 	return func(config *syncerConfig) {
 		config.catalogInformer = catalogInformer
+	}
+}
+
+// WithInstallPlanInformer sets an InstallPlan informer to act as an event source for dependent Subscriptions.
+func WithInstallPlanInformer(installPlanInformer cache.SharedIndexInformer) SyncerOption {
+	return func(config *syncerConfig) {
+		config.installPlanInformer = installPlanInformer
 	}
 }
 
@@ -138,6 +146,8 @@ func (s *syncerConfig) validate() (err error) {
 		err = newInvalidConfigError("nil subscription informer")
 	case s.catalogInformer == nil:
 		err = newInvalidConfigError("nil catalog informer")
+	case s.installPlanInformer == nil:
+		err = newInvalidConfigError("nil installplan informer")
 	case s.subscriptionQueue == nil:
 		err = newInvalidConfigError("nil subscription queue")
 	case len(s.reconcilers) == 0:

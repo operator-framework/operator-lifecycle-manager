@@ -12,7 +12,9 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 var scheme = runtime.NewScheme()
@@ -28,6 +30,7 @@ type subscriptionSyncer struct {
 	clock                  utilclock.Clock
 	reconcilers            kubestate.ReconcilerChain
 	subscriptionCache      cache.Indexer
+	installPlanLister      listers.InstallPlanLister
 	globalCatalogNamespace string
 	notify                 kubestate.NotifyFunc
 }
@@ -96,9 +99,9 @@ func (s *subscriptionSyncer) catalogSubscriptionKeys(namespace string) ([]string
 	return keys, err
 }
 
-// catalogNotification notifies dependent subscriptions of the change with the given object.
-// The given object is assumed to be a Subscription, Subscription tombstone, or a cache.ExplicitKey.
-func (s *subscriptionSyncer) catalogNotification(ctx context.Context, obj interface{}) {
+// notifyOnCatalog notifies dependent subscriptions of the change with the given object.
+// The given object is assumed to be a CatalogSource, CatalogSource tombstone, or a cache.ExplicitKey.
+func (s *subscriptionSyncer) notifyOnCatalog(ctx context.Context, obj interface{}) {
 	k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		s.logger.WithField("resource", obj).Warn("could not unpack key")
@@ -127,6 +130,66 @@ func (s *subscriptionSyncer) catalogNotification(ctx context.Context, obj interf
 	logger.Trace("dependent subscriptions notified")
 }
 
+// notifyOnInstallPlan notifies dependent subscriptions of the change with the given object.
+// The given object is assumed to be an InstallPlan, InstallPlan tombstone, or a cache.ExplicitKey.
+func (s *subscriptionSyncer) notifyOnInstallPlan(ctx context.Context, obj interface{}) {
+	plan, ok := obj.(*v1alpha1.InstallPlan)
+	if !ok {
+		s.logger.WithField("obj", fmt.Sprintf("%v", obj)).Trace("could not cast as installplan directly while notifying subscription syncer")
+		if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+			if plan, ok = tombstone.Obj.(*v1alpha1.InstallPlan); !ok {
+				s.logger.WithField("tombstone", tombstone).Warn("could not cast as installplan")
+				return
+			}
+		} else {
+			k, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
+			if err != nil {
+				s.logger.WithField("resource", obj).Warn("could not unpack key")
+				return
+			}
+			logger := s.logger.WithField("key", k)
+
+			ns, name, err := cache.SplitMetaNamespaceKey(k)
+			if err != nil {
+				logger.Warn("could not split meta key")
+				return
+			}
+
+			if plan, err = s.installPlanLister.InstallPlans(ns).Get(name); err != nil {
+				logger.WithError(err).Warn("could not get installplan")
+				return
+			}
+		}
+	}
+
+	logger := s.logger.WithFields(logrus.Fields{
+		"namespace":   plan.GetNamespace(),
+		"installplan": plan.GetName(),
+	})
+
+	// Notify dependent owner Subscriptions
+	owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind)
+	for _, owner := range owners {
+		subKey := fmt.Sprintf("%s/%s", plan.GetNamespace(), owner.Name)
+		logger.Tracef("notifying subscription %s", subKey)
+		s.Notify(kubestate.NewResourceEvent(kubestate.ResourceUpdated, cache.ExplicitKey(subKey)))
+	}
+}
+
+func eventHandlers(ctx context.Context, notify func(ctx context.Context, obj interface{})) cache.ResourceEventHandlerFuncs {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			notify(ctx, obj)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			notify(ctx, newObj)
+		},
+		DeleteFunc: func(obj interface{}) {
+			notify(ctx, obj)
+		},
+	}
+}
+
 // NewSyncer returns a syncer that syncs Subscription resources.
 func NewSyncer(ctx context.Context, options ...SyncerOption) (kubestate.Syncer, error) {
 	config := defaultSyncerConfig()
@@ -145,6 +208,7 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 		clock:             config.clock,
 		reconcilers:       config.reconcilers,
 		subscriptionCache: config.subscriptionInformer.GetIndexer(),
+		installPlanLister: config.lister.OperatorsV1alpha1().InstallPlanLister(),
 		notify: func(event kubestate.ResourceEvent) {
 			// Notify Subscriptions by enqueuing to the Subscription queue.
 			config.subscriptionQueue.Add(event)
@@ -154,6 +218,11 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 	// Build a reconciler chain from the default and configured reconcilers
 	// Default reconcilers should always come first in the chain
 	defaultReconcilers := kubestate.ReconcilerChain{
+		&installPlanReconciler{
+			now:               s.now,
+			client:            config.client,
+			installPlanLister: config.lister.OperatorsV1alpha1().InstallPlanLister(),
+		},
 		&catalogHealthReconciler{
 			now:                       s.now,
 			client:                    config.client,
@@ -165,17 +234,8 @@ func newSyncerWithConfig(ctx context.Context, config *syncerConfig) (kubestate.S
 	s.reconcilers = append(defaultReconcilers, s.reconcilers...)
 
 	// Add dependency notifications
-	config.catalogInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			s.catalogNotification(ctx, obj)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			s.catalogNotification(ctx, newObj)
-		},
-		DeleteFunc: func(obj interface{}) {
-			s.catalogNotification(ctx, obj)
-		},
-	})
+	config.installPlanInformer.AddEventHandler(eventHandlers(ctx, s.notifyOnInstallPlan))
+	config.catalogInformer.AddEventHandler(eventHandlers(ctx, s.notifyOnCatalog))
 
 	return s, nil
 }

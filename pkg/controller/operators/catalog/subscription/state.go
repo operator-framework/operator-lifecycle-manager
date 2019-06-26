@@ -6,12 +6,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	clientv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
-	"github.com/pkg/errors"
 )
 
 // SubscriptionState describes subscription states.
@@ -57,7 +56,7 @@ type SubscriptionDeletedState interface {
 
 // CatalogHealthState describes subscription states that represent a subscription with respect to catalog health.
 type CatalogHealthState interface {
-	SubscriptionState
+	SubscriptionExistsState
 
 	isCatalogHealthState()
 
@@ -85,6 +84,61 @@ type CatalogUnhealthyState interface {
 	CatalogHealthKnownState
 
 	isCatalogUnhealthyState()
+}
+
+// InstallPlanState describes Subscription states with respect to an InstallPlan.
+type InstallPlanState interface {
+	SubscriptionExistsState
+
+	isInstallPlanState()
+
+	CheckReference() InstallPlanState
+}
+
+type NoInstallPlanReferencedState interface {
+	InstallPlanState
+
+	isNoInstallPlanReferencedState()
+}
+
+type InstallPlanReferencedState interface {
+	InstallPlanState
+
+	isInstallPlanReferencedState()
+
+	InstallPlanNotFound(now *metav1.Time, client clientv1alpha1.SubscriptionInterface) (InstallPlanReferencedState, error)
+
+	CheckInstallPlanStatus(now *metav1.Time, client clientv1alpha1.SubscriptionInterface, status *v1alpha1.InstallPlanStatus) (InstallPlanReferencedState, error)
+}
+
+type InstallPlanKnownState interface {
+	InstallPlanReferencedState
+
+	isInstallPlanKnownState()
+}
+
+type InstallPlanMissingState interface {
+	InstallPlanKnownState
+
+	isInstallPlanMissingState()
+}
+
+type InstallPlanPendingState interface {
+	InstallPlanKnownState
+
+	isInstallPlanPendingState()
+}
+
+type InstallPlanFailedState interface {
+	InstallPlanKnownState
+
+	isInstallPlanFailedState()
+}
+
+type InstallPlanInstalledState interface {
+	InstallPlanKnownState
+
+	isInstallPlanInstalledState()
 }
 
 type subscriptionState struct {
@@ -236,7 +290,6 @@ func (c *catalogHealthState) UpdateHealth(now *metav1.Time, client clientv1alpha
 	}
 
 	if !update && cond.Equals(in.Status.GetCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy)) {
-		utilruntime.HandleError(errors.New("nothing has changed, returning same state"))
 		// Nothing to do, transition to self
 		return known, nil
 	}
@@ -285,3 +338,191 @@ type catalogUnhealthyState struct {
 }
 
 func (c *catalogUnhealthyState) isCatalogUnhealthyState() {}
+
+type installPlanState struct {
+	SubscriptionExistsState
+}
+
+func (i *installPlanState) isInstallPlanState() {}
+
+func (i *installPlanState) CheckReference() InstallPlanState {
+	if i.Subscription().Status.InstallPlanRef != nil {
+		return &installPlanReferencedState{
+			InstallPlanState: i,
+		}
+	}
+
+	return &noInstallPlanReferencedState{
+		InstallPlanState: i,
+	}
+}
+
+func newInstallPlanState(s SubscriptionExistsState) InstallPlanState {
+	return &installPlanState{
+		SubscriptionExistsState: s,
+	}
+}
+
+type noInstallPlanReferencedState struct {
+	InstallPlanState
+}
+
+func (n *noInstallPlanReferencedState) isNoInstallPlanReferencedState() {}
+
+type installPlanReferencedState struct {
+	InstallPlanState
+}
+
+func (i *installPlanReferencedState) isInstallPlanReferencedState() {}
+
+var hashEqual = comparison.NewHashEqualitor()
+
+func (i *installPlanReferencedState) InstallPlanNotFound(now *metav1.Time, client clientv1alpha1.SubscriptionInterface) (InstallPlanReferencedState, error) {
+	in := i.Subscription()
+	out := in.DeepCopy()
+
+	// Remove pending and failed conditions
+	out.Status.RemoveConditions(v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed)
+
+	// Set missing condition to true
+	missingCond := out.Status.GetCondition(v1alpha1.SubscriptionInstallPlanMissing)
+	missingCond.Status = corev1.ConditionTrue
+	missingCond.Reason = v1alpha1.ReferencedInstallPlanNotFound
+	missingCond.LastTransitionTime = now
+	out.Status.SetCondition(missingCond)
+
+	// Build missing state
+	missingState := &installPlanMissingState{
+		InstallPlanKnownState: &installPlanKnownState{
+			InstallPlanReferencedState: i,
+		},
+	}
+
+	// Bail out if the conditions haven't changed (using select fields included in a hash)
+	if hashEqual(out.Status.Conditions, in.Status.Conditions) {
+		return missingState, nil
+	}
+
+	// Update the Subscription
+	out.Status.LastUpdated = *now
+	updated, err := client.UpdateStatus(out)
+	if err != nil {
+		return i, err
+	}
+
+	// Stuff updated Subscription into state
+	missingState.setSubscription(updated)
+
+	return missingState, nil
+}
+
+func (i *installPlanReferencedState) CheckInstallPlanStatus(now *metav1.Time, client clientv1alpha1.SubscriptionInterface, status *v1alpha1.InstallPlanStatus) (InstallPlanReferencedState, error) {
+	in := i.Subscription()
+	out := in.DeepCopy()
+
+	// Remove missing, pending, and failed conditions
+	out.Status.RemoveConditions(v1alpha1.SubscriptionInstallPlanMissing, v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed)
+
+	// Build and set the InstallPlan condition, if any
+	cond := v1alpha1.SubscriptionCondition{
+		Status:             corev1.ConditionUnknown,
+		LastTransitionTime: now,
+	}
+
+	// TODO: Use InstallPlan conditions instead of phases
+	// Get the status of the InstallPlan and create the appropriate condition and state
+	var known InstallPlanKnownState
+	switch phase := status.Phase; phase {
+	case v1alpha1.InstallPlanPhaseNone:
+		// Set reason and let the following case fill out the pending condition
+		cond.Reason = v1alpha1.InstallPlanNotYetReconciled
+		fallthrough
+	case v1alpha1.InstallPlanPhasePlanning, v1alpha1.InstallPlanPhaseInstalling, v1alpha1.InstallPlanPhaseRequiresApproval:
+		if cond.Reason == "" {
+			cond.Reason = string(phase)
+		}
+
+		cond.Type = v1alpha1.SubscriptionInstallPlanPending
+		cond.Status = corev1.ConditionTrue
+		out.Status.SetCondition(cond)
+
+		// Build pending state
+		known = &installPlanPendingState{
+			InstallPlanKnownState: &installPlanKnownState{
+				InstallPlanReferencedState: i,
+			},
+		}
+	case v1alpha1.InstallPlanPhaseFailed:
+		// Attempt to project reason from failed InstallPlan condition
+		if installedCond := status.GetCondition(v1alpha1.InstallPlanInstalled); installedCond.Status == corev1.ConditionFalse {
+			cond.Reason = string(installedCond.Reason)
+		} else {
+			cond.Reason = v1alpha1.InstallPlanFailed
+		}
+
+		cond.Type = v1alpha1.SubscriptionInstallPlanFailed
+		cond.Status = corev1.ConditionTrue
+		out.Status.SetCondition(cond)
+
+		// Build failed state
+		known = &installPlanFailedState{
+			InstallPlanKnownState: &installPlanKnownState{
+				InstallPlanReferencedState: i,
+			},
+		}
+	default:
+		// Build installed state
+		known = &installPlanInstalledState{
+			InstallPlanKnownState: &installPlanKnownState{
+				InstallPlanReferencedState: i,
+			},
+		}
+	}
+
+	// Bail out if the conditions haven't changed (using select fields included in a hash)
+	if hashEqual(out.Status.Conditions, in.Status.Conditions) {
+		return known, nil
+	}
+
+	// Update the Subscription
+	out.Status.LastUpdated = *now
+	updated, err := client.UpdateStatus(out)
+	if err != nil {
+		return i, err
+	}
+
+	// Stuff updated Subscription into state
+	known.setSubscription(updated)
+
+	return known, nil
+}
+
+type installPlanKnownState struct {
+	InstallPlanReferencedState
+}
+
+func (i *installPlanKnownState) isInstallPlanKnownState() {}
+
+type installPlanMissingState struct {
+	InstallPlanKnownState
+}
+
+func (i *installPlanMissingState) isInstallPlanMissingState() {}
+
+type installPlanPendingState struct {
+	InstallPlanKnownState
+}
+
+func (i *installPlanPendingState) isInstallPlanPendingState() {}
+
+type installPlanFailedState struct {
+	InstallPlanKnownState
+}
+
+func (i *installPlanFailedState) isInstallPlanFailedState() {}
+
+type installPlanInstalledState struct {
+	InstallPlanKnownState
+}
+
+func (i *installPlanInstalledState) isInstallPlanInstalledState() {}

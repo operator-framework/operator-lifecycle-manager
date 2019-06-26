@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -18,6 +20,34 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 )
+
+// ReconcilerFromLegacySyncHandler returns a reconciler that invokes the given legacy sync handler and on delete funcs.
+// Since the reconciler does not return an updated kubestate, it MUST be the last reconciler in a given chain.
+func ReconcilerFromLegacySyncHandler(sync queueinformer.LegacySyncHandler, onDelete func(obj interface{})) kubestate.Reconciler {
+	var rec kubestate.ReconcilerFunc = func(ctx context.Context, in kubestate.State) (out kubestate.State, err error) {
+		out = in
+		switch s := in.(type) {
+		case SubscriptionExistsState:
+			if sync != nil {
+				err = sync(s.Subscription())
+			}
+		case SubscriptionDeletedState:
+			if onDelete != nil {
+				onDelete(s.Subscription())
+			}
+		case SubscriptionState:
+			if sync != nil {
+				err = sync(s.Subscription())
+			}
+		default:
+			utilruntime.HandleError(fmt.Errorf("unexpected subscription state in legacy reconciler: %T", s))
+		}
+
+		return
+	}
+
+	return rec
+}
 
 // catalogHealthReconciler reconciles catalog health status for subscriptions.
 type catalogHealthReconciler struct {
@@ -34,31 +64,33 @@ func (c *catalogHealthReconciler) Reconcile(ctx context.Context, in kubestate.St
 	var prev kubestate.State
 
 	// loop until this state can no longer transition
-	for err == nil && out == nil && next != nil && !next.Terminal() && prev != next {
+	for err == nil && next != nil && next != prev && !next.Terminal() {
 		select {
 		case <-ctx.Done():
-			err = errors.New("subscription catalog health reconciliation timed out")
+			err = errors.New("subscription catalog health reconciliation context closed")
 		default:
+			prev = next
+
 			switch s := next.(type) {
 			case CatalogHealthKnownState:
 				// Target state already known, no work to do
-				out = s
+				next = s
 			case CatalogHealthState:
 				// Gather catalog health and transition state
 				ns := s.Subscription().GetNamespace()
 				var catalogHealth []v1alpha1.SubscriptionCatalogHealth
-				catalogHealth, err = c.catalogHealth(ns)
-				if err != nil {
+				if catalogHealth, err = c.catalogHealth(ns); err != nil {
 					break
 				}
 
-				prev = s
 				next, err = s.UpdateHealth(c.now(), c.client.OperatorsV1alpha1().Subscriptions(ns), catalogHealth...)
 			case SubscriptionExistsState:
 				if s == nil {
+					err = errors.New("nil state")
 					break
 				}
 				if s.Subscription() == nil {
+					err = errors.New("nil subscription in state")
 					break
 				}
 
@@ -66,15 +98,12 @@ func (c *catalogHealthReconciler) Reconcile(ctx context.Context, in kubestate.St
 				next = NewCatalogHealthState(s)
 			default:
 				// Ignore all other typestates
-				utilruntime.HandleError(fmt.Errorf("unexpected subscription state in catalog health reconciler %T", next))
-				out = s
+				next = s
 			}
 		}
 	}
 
-	if prev == next {
-		out = prev
-	}
+	out = next
 
 	return
 }
@@ -95,6 +124,11 @@ func (c *catalogHealthReconciler) catalogHealth(namespace string) ([]v1alpha1.Su
 
 		catalogs = append(catalogs, globals...)
 	}
+
+	// Sort to ensure ordering
+	sort.Slice(catalogs, func(i, j int) bool {
+		return catalogs[i].GetNamespace()+catalogs[i].GetName() < catalogs[j].GetNamespace()+catalogs[j].GetName()
+	})
 
 	catalogHealth := make([]v1alpha1.SubscriptionCatalogHealth, len(catalogs))
 	now := c.now()
@@ -151,30 +185,71 @@ func (c *catalogHealthReconciler) healthy(catalog *v1alpha1.CatalogSource) (bool
 	return c.registryReconcilerFactory.ReconcilerForSource(catalog).CheckRegistryServer(catalog)
 }
 
-// ReconcilerFromLegacySyncHandler returns a reconciler that invokes the given legacy sync handler and on delete funcs.
-// Since the reconciler does not return an updated kubestate, it MUST be the last reconciler in a given chain.
-func ReconcilerFromLegacySyncHandler(sync queueinformer.LegacySyncHandler, onDelete func(obj interface{})) kubestate.Reconciler {
-	var rec kubestate.ReconcilerFunc = func(ctx context.Context, in kubestate.State) (out kubestate.State, err error) {
-		out = in
-		switch s := in.(type) {
-		case SubscriptionExistsState:
-			if sync != nil {
-				err = sync(s.Subscription())
-			}
-		case SubscriptionDeletedState:
-			if onDelete != nil {
-				onDelete(s.Subscription())
-			}
-		case SubscriptionState:
-			if sync != nil {
-				err = sync(s.Subscription())
-			}
-		default:
-			utilruntime.HandleError(fmt.Errorf("unexpected subscription state in legacy reconciler: %T", s))
-		}
+// installPlanReconciler reconciles InstallPlan status for Subscriptions.
+type installPlanReconciler struct {
+	now               func() *metav1.Time
+	client            versioned.Interface
+	installPlanLister listers.InstallPlanLister
+}
 
-		return
+// Reconcile reconciles Subscription InstallPlan conditions.
+func (i *installPlanReconciler) Reconcile(ctx context.Context, in kubestate.State) (out kubestate.State, err error) {
+	next := in
+	var prev kubestate.State
+
+	// loop until this state can no longer transition
+	for err == nil && next != nil && prev != next && !next.Terminal() {
+		select {
+		case <-ctx.Done():
+			err = errors.New("subscription installplan reconciliation context closed")
+		default:
+			prev = next
+
+			switch s := next.(type) {
+			case NoInstallPlanReferencedState:
+				// No InstallPlan was referenced, no work to do
+				next = s
+			case InstallPlanKnownState:
+				// Target state already known, no work to do
+				next = s
+			case InstallPlanReferencedState:
+				// Check the stated InstallPlan
+				ref := s.Subscription().Status.InstallPlanRef // Should never be nil in this typestate
+				subClient := i.client.OperatorsV1alpha1().Subscriptions(ref.Namespace)
+
+				var plan *v1alpha1.InstallPlan
+				if plan, err = i.installPlanLister.InstallPlans(ref.Namespace).Get(ref.Name); err != nil {
+					if apierrors.IsNotFound(err) {
+						next, err = s.InstallPlanNotFound(i.now(), subClient)
+					}
+
+					break
+				}
+
+				next, err = s.CheckInstallPlanStatus(i.now(), subClient, &plan.Status)
+			case InstallPlanState:
+				next = s.CheckReference()
+			case SubscriptionExistsState:
+				if s == nil {
+					err = errors.New("nil state")
+					break
+				}
+				if s.Subscription() == nil {
+					err = errors.New("nil subscription in state")
+					break
+				}
+
+				// Set up fresh state
+				next = newInstallPlanState(s)
+			default:
+				// Ignore all other typestates
+				utilruntime.HandleError(fmt.Errorf("unexpected subscription state in installplan reconciler %T", next))
+				next = s
+			}
+		}
 	}
 
-	return rec
+	out = next
+
+	return
 }

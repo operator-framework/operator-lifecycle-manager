@@ -42,19 +42,28 @@ type SubscriptionConditionType string
 const (
 	// SubscriptionCatalogSourcesUnhealthy indicates that some or all of the CatalogSources to be used in resolution are unhealthy.
 	SubscriptionCatalogSourcesUnhealthy SubscriptionConditionType = "CatalogSourcesUnhealthy"
+
+	// SubscriptionInstallPlanMissing indicates that a Subscription's InstallPlan is missing.
+	SubscriptionInstallPlanMissing SubscriptionConditionType = "InstallPlanMissing"
+
+	// SubscriptionInstallPlanPending indicates that a Subscription's InstallPlan is pending installation.
+	SubscriptionInstallPlanPending SubscriptionConditionType = "InstallPlanPending"
+
+	// SubscriptionInstallPlanFailed indicates that the installation of a Subscription's InstallPlan has failed.
+	SubscriptionInstallPlanFailed SubscriptionConditionType = "InstallPlanFailed"
 )
 
 const (
 	// NoCatalogSourcesFound is a reason string for Subscriptions with unhealthy CatalogSources due to none being available.
 	NoCatalogSourcesFound = "NoCatalogSourcesFound"
 
-	// AllCatalogSourcesHealthy is a reason string for Subscriptions whose CatalogSources are all healthy.
+	// AllCatalogSourcesHealthy is a reason string for Subscriptions that transitioned due to all CatalogSources being healthy.
 	AllCatalogSourcesHealthy = "AllCatalogSourcesHealthy"
 
 	// CatalogSourcesAdded is a reason string for Subscriptions that transitioned due to CatalogSources being added.
 	CatalogSourcesAdded = "CatalogSourcesAdded"
 
-	// CatalogSourcesUpdated is a reason string for Subscriptions that transitioned due to CatalogSource being updated..
+	// CatalogSourcesUpdated is a reason string for Subscriptions that transitioned due to CatalogSource being updated.
 	CatalogSourcesUpdated = "CatalogSourcesUpdated"
 
 	// CatalogSourcesDeleted is a reason string for Subscriptions that transitioned due to CatalogSources being removed.
@@ -62,8 +71,18 @@ const (
 
 	// UnhealthyCatalogSourceFound is a reason string for Subscriptions that transitioned because an unhealthy CatalogSource was found.
 	UnhealthyCatalogSourceFound = "UnhealthyCatalogSourceFound"
+
+	// ReferencedInstallPlanNotFound is a reason string for Subscriptions that transitioned due to a referenced InstallPlan not being found.
+	ReferencedInstallPlanNotFound = "ReferencedInstallPlanNotFound"
+
+	// InstallPlanNotYetReconciled is a reason string for Subscriptions that transitioned due to a referenced InstallPlan not being reconciled yet.
+	InstallPlanNotYetReconciled = "InstallPlanNotYetReconciled"
+
+	// InstallPlanFailed is a reason string for Subscriptions that transitioned due to a referenced InstallPlan failing without setting an explicit failure condition.
+	InstallPlanFailed = "InstallPlanFailed"
 )
 
+// SubscriptionCondition represents the latest available observations of a Subscription's state.
 type SubscriptionCondition struct {
 	// Type is the type of Subscription condition.
 	Type SubscriptionConditionType
@@ -127,7 +146,7 @@ type SubscriptionStatus struct {
 
 	// Conditions is a list of the latest available observations about a Subscription's current state.
 	// +optional
-	Conditions []SubscriptionCondition
+	Conditions []SubscriptionCondition `hash:"set"`
 
 	// LastUpdated represents the last time that the Subscription status was updated.
 	LastUpdated metav1.Time
@@ -135,8 +154,8 @@ type SubscriptionStatus struct {
 
 // GetCondition returns the SubscriptionCondition of the given type if it exists in the SubscriptionStatus' Conditions.
 // Returns a condition of the given type with a ConditionStatus of "Unknown" if not found.
-func (status SubscriptionStatus) GetCondition(conditionType SubscriptionConditionType) SubscriptionCondition {
-	for _, cond := range status.Conditions {
+func (s SubscriptionStatus) GetCondition(conditionType SubscriptionConditionType) SubscriptionCondition {
+	for _, cond := range s.Conditions {
 		if cond.Type == conditionType {
 			return cond
 		}
@@ -149,15 +168,34 @@ func (status SubscriptionStatus) GetCondition(conditionType SubscriptionConditio
 }
 
 // SetCondition sets the given SubscriptionCondition in the SubscriptionStatus' Conditions.
-func (status *SubscriptionStatus) SetCondition(condition SubscriptionCondition) {
-	for i, cond := range status.Conditions {
+func (s *SubscriptionStatus) SetCondition(condition SubscriptionCondition) {
+	for i, cond := range s.Conditions {
 		if cond.Type == condition.Type {
-			status.Conditions[i] = condition
+			s.Conditions[i] = condition
 			return
 		}
 	}
 
-	status.Conditions = append(status.Conditions, condition)
+	s.Conditions = append(s.Conditions, condition)
+}
+
+// RemoveConditions removes any conditions of the given types from the SubscriptionStatus' Conditions.
+func (s *SubscriptionStatus) RemoveConditions(remove ...SubscriptionConditionType) {
+	exclusions := map[SubscriptionConditionType]struct{}{}
+	for _, r := range remove {
+		exclusions[r] = struct{}{}
+	}
+
+	var filtered []SubscriptionCondition
+	for _, cond := range s.Conditions {
+		if _, ok := exclusions[cond.Type]; ok {
+			// Skip excluded condition types
+			continue
+		}
+		filtered = append(filtered, cond)
+	}
+
+	s.Conditions = filtered
 }
 
 type InstallPlanReference struct {

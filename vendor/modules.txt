@@ -97,7 +97,7 @@ github.com/google/btree
 github.com/google/gofuzz
 # github.com/google/uuid v1.0.0
 github.com/google/uuid
-# github.com/googleapis/gnostic v0.2.0
+# github.com/googleapis/gnostic v0.3.0
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
@@ -131,6 +131,8 @@ github.com/matttproud/golang_protobuf_extensions/pbutil
 github.com/maxbrunsfeld/counterfeiter/v6
 github.com/maxbrunsfeld/counterfeiter/v6/arguments
 github.com/maxbrunsfeld/counterfeiter/v6/generator
+# github.com/mitchellh/hashstructure v1.0.0
+github.com/mitchellh/hashstructure
 # github.com/mitchellh/mapstructure v1.1.2
 github.com/mitchellh/mapstructure
 # github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
@@ -194,8 +196,8 @@ golang.org/x/net/http/httpguts
 golang.org/x/net/http2/hpack
 golang.org/x/net/idna
 golang.org/x/net/internal/timeseries
-golang.org/x/net/websocket
 golang.org/x/net/context/ctxhttp
+golang.org/x/net/websocket
 # golang.org/x/oauth2 v0.0.0-20181105165119-ca4130e427c7
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
@@ -322,6 +324,7 @@ k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/validation
 k8s.io/apiextensions-apiserver/pkg/apiserver/validation
 k8s.io/apiextensions-apiserver/pkg/features
 # k8s.io/apimachinery v0.0.0-20190404173353-6a84e37a896d => k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc
+k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/apis/meta/v1
 k8s.io/apimachinery/pkg/runtime
 k8s.io/apimachinery/pkg/runtime/schema
@@ -346,14 +349,12 @@ k8s.io/apimachinery/pkg/util/duration
 k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/api/resource
 k8s.io/apimachinery/pkg/util/validation
-k8s.io/apimachinery/pkg/util/sets
-k8s.io/apimachinery/pkg/util/waitgroup
 k8s.io/apimachinery/pkg/selection
 k8s.io/apimachinery/pkg/conversion/queryparams
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/naming
+k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/third_party/forked/golang/reflect
-k8s.io/apimachinery/pkg/util/clock
 k8s.io/apimachinery/pkg/util/net
 k8s.io/apimachinery/pkg/runtime/serializer/streaming
 k8s.io/apimachinery/pkg/runtime/serializer/protobuf
@@ -369,17 +370,18 @@ k8s.io/apimachinery/pkg/util/framer
 k8s.io/apimachinery/pkg/util/rand
 k8s.io/apimachinery/pkg/util/mergepatch
 k8s.io/apimachinery/third_party/forked/golang/json
+k8s.io/apimachinery/pkg/util/waitgroup
 k8s.io/apimachinery/pkg/api/validation/path
 k8s.io/apimachinery/pkg/apis/meta/v1/validation
 k8s.io/apimachinery/pkg/util/uuid
 # k8s.io/apiserver v0.0.0-20190531031430-24fd0f18bc21 => k8s.io/apiserver v0.0.0-20190402012035-5e1c1f41ee34
-k8s.io/apiserver/pkg/server
 k8s.io/apiserver/pkg/util/logs
 k8s.io/apiserver/pkg/authentication/serviceaccount
 k8s.io/apiserver/pkg/authentication/user
 k8s.io/apiserver/pkg/authorization/authorizer
 k8s.io/apiserver/pkg/storage/names
 k8s.io/apiserver/pkg/endpoints/openapi
+k8s.io/apiserver/pkg/server
 k8s.io/apiserver/pkg/registry/rest
 k8s.io/apiserver/pkg/server/options
 k8s.io/apiserver/pkg/endpoints/request
@@ -490,12 +492,12 @@ k8s.io/client-go/tools/auth
 k8s.io/client-go/tools/clientcmd/api
 k8s.io/client-go/tools/clientcmd/api/latest
 k8s.io/client-go/util/homedir
-k8s.io/client-go/util/cert
 k8s.io/client-go/pkg/version
 k8s.io/client-go/plugin/pkg/client/auth/exec
 k8s.io/client-go/rest/watch
 k8s.io/client-go/tools/metrics
 k8s.io/client-go/transport
+k8s.io/client-go/util/cert
 k8s.io/client-go/util/integer
 k8s.io/client-go/tools/pager
 k8s.io/client-go/util/buffer
@@ -609,8 +611,8 @@ k8s.io/client-go/informers/settings/v1alpha1
 k8s.io/client-go/informers/storage/v1
 k8s.io/client-go/informers/storage/v1alpha1
 k8s.io/client-go/informers/storage/v1beta1
-k8s.io/client-go/listers/admissionregistration/v1beta1
 k8s.io/client-go/listers/admissionregistration/v1alpha1
+k8s.io/client-go/listers/admissionregistration/v1beta1
 k8s.io/client-go/listers/apps/v1beta1
 k8s.io/client-go/listers/apps/v1beta2
 k8s.io/client-go/listers/autoscaling/v1
@@ -705,7 +707,7 @@ k8s.io/kube-openapi/pkg/generators/rules
 k8s.io/kube-openapi/pkg/builder
 k8s.io/kube-openapi/pkg/handler
 k8s.io/kube-openapi/pkg/util/sets
-# k8s.io/kubernetes v1.14.2
+# k8s.io/kubernetes v1.14.3
 k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac
 k8s.io/kubernetes/pkg/util/labels
 k8s.io/kubernetes/pkg/printers
