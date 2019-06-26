@@ -39,6 +39,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	schema "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/schema"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -1022,6 +1023,18 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
+func (o *Operator) isSchemaStructural(in *v1beta1ext.CustomResourceDefinition) bool {
+	o.logger.Debugf("Validating global schema %#v", in.Spec.Validation)
+	if in.Spec.Validation != nil && in.Spec.Validation.OpenAPIV3Schema != nil {
+		_, err := schema.NewStructural(in.Spec.Validation.OpenAPIV3Schema)
+		if err != nil {
+			return false
+		}
+	}
+
+	return true
+}
+
 // ExecutePlan applies a planned InstallPlan to a namespace.
 func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhaseInstalling {
@@ -1060,7 +1073,8 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				if k8serrors.IsAlreadyExists(err) {
 					currentCRD, _ := o.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(crd.GetName())
 					// Compare 2 CRDs to see if it needs to be updatetd
-					if !reflect.DeepEqual(crd, *currentCRD) {
+					// and only update of validation schema is structural
+					if o.isSchemaStructural(&crd) && !reflect.DeepEqual(crd, *currentCRD) {
 						// Verify CRD ownership, only attempt to update if
 						// CRD has only one owner
 						// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
