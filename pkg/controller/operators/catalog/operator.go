@@ -136,20 +136,24 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:       scoped.NewClientAttenuator(logger, config, opClient, crClient),
 	}
-	op.sources = grpc.NewSourceStore(logger, op.syncSourceState)
+	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
 
 	// Set up syncing for namespace-scoped resources
 	for _, namespace := range watchedNamespaces {
-		// Wire OLM CR informers
+		// Wire OLM CR sharedIndexInformers
 		crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod, externalversions.WithNamespace(namespace))
 
 		// Wire CSVs
 		csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
 		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
-		op.RegisterInformer(csvInformer.Informer())
+		if err := op.RegisterInformer(csvInformer.Informer()); err != nil {
+			return nil, err
+		}
 
-		csvInformer.Informer().AddIndexers(cache.Indexers{index.ProvidedAPIsIndexFuncKey: index.ProvidedAPIsIndexFunc})
+		if err := csvInformer.Informer().AddIndexers(cache.Indexers{index.ProvidedAPIsIndexFuncKey: index.ProvidedAPIsIndexFunc}); err != nil {
+			return nil, err
+		}
 		csvIndexer := csvInformer.Informer().GetIndexer()
 		op.csvProvidedAPIsIndexer[namespace] = csvIndexer
 
@@ -228,43 +232,43 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 			return nil, err
 		}
 
-		// Wire k8s informers
+		// Wire k8s sharedIndexInformers
 		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod, informers.WithNamespace(namespace))
-		informers := []cache.SharedIndexInformer{}
+		sharedIndexInformers := []cache.SharedIndexInformer{}
 
 		// Wire Roles
 		roleInformer := k8sInformerFactory.Rbac().V1().Roles()
 		op.lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
-		informers = append(informers, roleInformer.Informer())
+		sharedIndexInformers = append(sharedIndexInformers, roleInformer.Informer())
 
 		// Wire RoleBindings
 		roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
 		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
-		informers = append(informers, roleBindingInformer.Informer())
+		sharedIndexInformers = append(sharedIndexInformers, roleBindingInformer.Informer())
 
 		// Wire ServiceAccounts
 		serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
 		op.lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
-		informers = append(informers, serviceAccountInformer.Informer())
+		sharedIndexInformers = append(sharedIndexInformers, serviceAccountInformer.Informer())
 
 		// Wire Services
 		serviceInformer := k8sInformerFactory.Core().V1().Services()
 		op.lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
-		informers = append(informers, serviceInformer.Informer())
+		sharedIndexInformers = append(sharedIndexInformers, serviceInformer.Informer())
 
 		// Wire Pods
 		podInformer := k8sInformerFactory.Core().V1().Pods()
 		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
-		informers = append(informers, podInformer.Informer())
+		sharedIndexInformers = append(sharedIndexInformers, podInformer.Informer())
 
 		// Wire ConfigMaps
 		configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
 		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
-		informers = append(informers, configMapInformer.Informer())
+		sharedIndexInformers = append(sharedIndexInformers, configMapInformer.Informer())
 
 		// Generate and register QueueInformers for k8s resources
 		k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
-		for _, informer := range informers {
+		for _, informer := range sharedIndexInformers {
 			queueInformer, err := queueinformer.NewQueueInformer(
 				ctx,
 				queueinformer.WithLogger(op.logger),
@@ -294,7 +298,9 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	if err != nil {
 		return nil, err
 	}
-	op.RegisterQueueInformer(crdQueueInformer)
+	if err := op.RegisterQueueInformer(crdQueueInformer); err != nil {
+		return nil, err
+	}
 
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), resyncPeriod).Core().V1().Namespaces()
@@ -328,7 +334,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
-		o.resolveNamespace(state.Key.Namespace)
+		o.nsResolveQueue.Add(state.Key.Namespace)
 	default:
 		if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
 			o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
@@ -509,12 +515,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 			return err
 		}
 
-		logger.Debug("updating catsrc status")
-		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
-			return err
-		}
-		logger.Debug("registry server recreated")
-
 		if err := o.sources.Remove(sourceKey); err != nil {
 			o.logger.WithError(err).Debug("error closing client connection")
 		}
@@ -670,10 +670,6 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 	o.nsResolveQueue.Add(sub.GetNamespace())
 
 	return nil
-}
-
-func (o *Operator) resolveNamespace(namespace string) {
-	o.nsResolveQueue.Add(namespace)
 }
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {

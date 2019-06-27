@@ -48,7 +48,7 @@ var (
 
 	dummyImage = flag.String(
 		"dummyImage",
-		"bitnami/nginx:latest",
+		"redis",
 		"dummy image to treat as an operator in tests")
 
 	testNamespace           = ""

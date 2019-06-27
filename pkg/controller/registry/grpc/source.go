@@ -35,35 +35,42 @@ type SourceConn struct {
 }
 
 type SourceStore struct {
-	sources     map[resolver.CatalogKey]SourceConn
-	sourcesLock sync.RWMutex
-	syncFn      func(SourceState)
-	logger      *logrus.Logger
-	notify      chan SourceState
+	sync.Once
+	sources      map[resolver.CatalogKey]SourceConn
+	sourcesLock  sync.RWMutex
+	syncFn       func(SourceState)
+	logger       *logrus.Logger
+	notify       chan SourceState
+	timeout      time.Duration
+	readyTimeout time.Duration
 }
 
-func NewSourceStore(logger *logrus.Logger, sync func(SourceState)) *SourceStore {
+func NewSourceStore(logger *logrus.Logger, timeout, readyTimeout time.Duration, sync func(SourceState)) *SourceStore {
 	return &SourceStore{
-		sources: make(map[resolver.CatalogKey]SourceConn),
-		notify:  make(chan SourceState),
-		syncFn:  sync,
-		logger:  logger,
+		sources:      make(map[resolver.CatalogKey]SourceConn),
+		notify:       make(chan SourceState),
+		syncFn:       sync,
+		logger:       logger,
+		timeout:      timeout,
+		readyTimeout: readyTimeout,
 	}
 }
 
 func (s *SourceStore) Start(ctx context.Context) {
-	s.logger.Warn("starting it")
+	s.logger.Debug("starting source manager")
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				s.logger.Warn("ending it")
-				return
-			case e := <-s.notify:
-				s.logger.Warnf("Got event: %#v", e)
-				s.syncFn(e)
+		s.Do(func() {
+			for {
+				select {
+				case <-ctx.Done():
+					s.logger.Debug("closing source manager")
+					return
+				case e := <-s.notify:
+					s.logger.Debugf("Got source event: %#v", e)
+					s.syncFn(e)
+				}
 			}
-		}
+		})
 	}()
 }
 
@@ -123,6 +130,13 @@ func (s *SourceStore) Add(key resolver.CatalogKey, address string) (*SourceConn,
 	return &source, nil
 }
 
+func (s *SourceStore) stateTimeout(state connectivity.State) time.Duration {
+	if state == connectivity.Ready {
+		return s.readyTimeout
+	}
+	return s.timeout
+}
+
 func (s *SourceStore) watch(ctx context.Context, key resolver.CatalogKey, source SourceConn) {
 	state := source.ConnectionState
 	for {
@@ -130,30 +144,25 @@ func (s *SourceStore) watch(ctx context.Context, key resolver.CatalogKey, source
 		case <-ctx.Done():
 			return
 		default:
-			s.logger.Warnf("source state: %s", state.String())
-			timeout := 10 * time.Second
-			if state == connectivity.Ready {
-				timeout = 10 * time.Minute
-			}
-			timer, _ := context.WithTimeout(context.Background(), timeout)
+			timer, _ := context.WithTimeout(ctx, s.stateTimeout(state))
 			if source.Conn.WaitForStateChange(timer, state) {
 				newState := source.Conn.GetState()
 				state = newState
-				s.logger.Warnf("source state changed: %s", newState.String())
 
 				// update connection state
-				if src := s.Get(key); src != nil {
-					src.LastConnect = metav1.Now()
-					src.ConnectionState = newState
-					s.logger.Warnf("setting state")
-					s.sourcesLock.Lock()
-					s.sources[key] = *src
-					s.sourcesLock.Unlock()
-					s.logger.Warnf("state set")
+				src := s.Get(key)
+				if src == nil {
+					// source was removed, cleanup this goroutine
+					return
 				}
 
+				src.LastConnect = metav1.Now()
+				src.ConnectionState = newState
+				s.sourcesLock.Lock()
+				s.sources[key] = *src
+				s.sourcesLock.Unlock()
+
 				// notify subscriber
-				s.logger.Warnf("notify")
 				s.notify <- SourceState{Key: key, State: newState}
 			}
 		}

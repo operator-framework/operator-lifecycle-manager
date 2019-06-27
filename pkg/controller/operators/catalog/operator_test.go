@@ -787,12 +787,12 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
 				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
 			), "resolver"),
-		resolver:              &fakes.FakeResolver{},
+		resolver:              config.resolver,
 		reconciler:            config.reconciler,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 	}
-	op.sources = grpc.NewSourceStore(config.logger, op.syncSourceState)
+	op.sources = grpc.NewSourceStore(config.logger, 1*time.Second, 5*time.Second, op.syncSourceState)
 	if op.reconciler == nil {
 		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
 	}
