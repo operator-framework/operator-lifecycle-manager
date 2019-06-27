@@ -148,7 +148,7 @@ func newNginxDeployment(name string) appsv1.DeploymentSpec {
 				Containers: []corev1.Container{
 					{
 						Name:  genName("nginx"),
-						Image: "bitnami/nginx:latest",
+						Image: "redis",
 						Ports: []corev1.ContainerPort{
 							{
 								ContainerPort: 80,
@@ -2391,6 +2391,172 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	// Should eventually GC the CSV
 	err = waitForCSVToDelete(t, crc, csv.Name)
 	require.NoError(t, err)
+}
+
+func TestUpdateCSVInPlace(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create dependency first (CRD)
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+
+	// Create "current" CSV
+	nginxName := genName("nginx-")
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(nginxName),
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	require.NoError(t, err)
+
+	require.NoError(t, err)
+	defer cleanupCRD()
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "v1alpha1",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster",
+					},
+				},
+			},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	// Wait for current CSV to succeed
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should have created deployment
+	dep, err := c.GetDeployment(testNamespace, strategy.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+	require.NotNil(t, dep)
+
+	// Create "updated" CSV with a different image
+	strategyNew := strategy
+	strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers = []corev1.Container{
+		{
+			Name:    genName("hat"),
+			Image:   "quay.io/coreos/mock-extension-apiserver:master",
+			Command: []string{"/bin/mock-extension-apiserver"},
+			Args: []string{
+				"-v=4",
+				"--mock-kinds",
+				"fedora",
+				"--mock-group-version",
+				"group.version",
+				"--secure-port",
+				"5443",
+				"--debug",
+			},
+			Ports: []corev1.ContainerPort{
+				{
+					ContainerPort: 5443,
+				},
+			},
+			ImagePullPolicy: corev1.PullIfNotPresent,
+		},
+	}
+
+	// Also set something outside the spec template - this should be ignored
+	var five int32 = 5
+	strategyNew.DeploymentSpecs[0].Spec.Replicas = &five
+
+	strategyNewRaw, err := json.Marshal(strategyNew)
+	require.NoError(t, err)
+
+	fetchedCSV.Spec.InstallStrategy.StrategySpecRaw = strategyNewRaw
+
+	// Update CSV directly
+	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
+	require.NoError(t, err)
+
+	// wait for deployment spec to be updated
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
+		if err != nil {
+			return false, err
+		}
+		fmt.Println("waiting for deployment to update...")
+		return fetched.Spec.Template.Spec.Containers[0].Name == strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name, nil
+	})
+	require.NoError(t, err)
+
+	// Wait for updated CSV to succeed
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	depUpdated, err := c.GetDeployment(testNamespace, strategyNew.DeploymentSpecs[0].Name)
+	require.NoError(t, err)
+	require.NotNil(t, depUpdated)
+
+	// Deployment should have changed even though the CSV is otherwise the same
+	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Name, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Name)
+	require.Equal(t, depUpdated.Spec.Template.Spec.Containers[0].Image, strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].Image)
+
+	// Field updated even though template spec didn't change, because it was part of a template spec change as well
+	require.Equal(t, *depUpdated.Spec.Replicas, *strategyNew.DeploymentSpecs[0].Spec.Replicas)
 }
 
 func TestUpdateCSVMultipleVersionCRD(t *testing.T) {

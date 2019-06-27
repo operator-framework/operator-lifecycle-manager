@@ -13,7 +13,7 @@ fi
 
 docker build -f local.Dockerfile -t quay.io/operator-framework/olm:local -t quay.io/operator-framework/olm-e2e:local ./bin
 
-if [ -x "$(command -v kind)" ] && [ "kubectl config current-context" -eq "kind" ]; then
+if [ -x "$(command -v kind)" ] && [ "$(kubectl config current-context)" = "kind" ]; then
   kind load docker-image quay.io/operator-framework/olm:local
   kind load docker-image quay.io/operator-framework/olm-e2e:local
 fi
