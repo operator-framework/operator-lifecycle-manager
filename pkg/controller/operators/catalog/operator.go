@@ -23,11 +23,11 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
@@ -39,6 +39,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -75,6 +76,8 @@ type Operator struct {
 	resolver               resolver.Resolver
 	reconciler             reconciler.RegistryReconcilerFactory
 	csvProvidedAPIsIndexer map[string]cache.Indexer
+	clientAttenuator       *scoped.ClientAttenuator
+	serviceAccountQuerier  *scoped.UserDefinedServiceAccountQuerier
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -84,8 +87,13 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		watchedNamespaces = []string{metav1.NamespaceAll}
 	}
 
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create a new client for OLM types (CRs)
-	crClient, err := client.NewClient(kubeconfigPath)
+	crClient, err := versioned.NewForConfig(config)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +122,8 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
 		csvProvidedAPIsIndexer: map[string]cache.Indexer{},
+		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
+		clientAttenuator:       scoped.NewClientAttenuator(logger, config, opClient, crClient),
 	}
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
 
@@ -1038,6 +1048,18 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 		return err
 	}
 
+	// Does the namespace have an operator group that specifies a user defined
+	// service account? If so, then we should use a scoped client for plan
+	// execution.
+	getter := o.serviceAccountQuerier.NamespaceQuerier(namespace)
+	kubeclient, crclient, err := o.clientAttenuator.AttenuateClient(getter)
+	if err != nil {
+		o.logger.Errorf("failed to get a client for plan execution- %v", err)
+		return err
+	}
+
+	ensurer := newStepEnsurer(kubeclient, crclient)
+
 	for i, step := range plan.Status.Plan {
 		switch step.Status {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
@@ -1113,16 +1135,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the CSV.
 				csv.SetNamespace(namespace)
-				_, err = o.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).Create(&csv)
-				if k8serrors.IsAlreadyExists(err) {
-					// If it already existed, mark the step as Present.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating csv %s", csv.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+
+				status, err := ensurer.EnsureClusterServiceVersion(&csv)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
+
 			case v1alpha1.SubscriptionKind:
 				// Marshal the manifest into a subscription instance.
 				var sub v1alpha1.Subscription
@@ -1140,46 +1160,21 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				// Attempt to create the Subscription
 				sub.SetNamespace(namespace)
-				_, err = o.client.OperatorsV1alpha1().Subscriptions(sub.GetNamespace()).Create(&sub)
-				if k8serrors.IsAlreadyExists(err) {
-					// If it already existed, mark the step as Present.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating subscription %s", sub.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
-				}
-			case secretKind:
-				// TODO: this will confuse bundle users that include secrets in their bundles - this only handles pull secrets
-				// Get the pre-existing secret.
-				secret, err := o.opClient.KubernetesInterface().CoreV1().Secrets(o.namespace).Get(step.Resource.Name, metav1.GetOptions{})
-				if k8serrors.IsNotFound(err) {
-					return fmt.Errorf("secret %s does not exist", step.Resource.Name)
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error getting pull secret from olm namespace %s", secret.GetName())
+
+				status, err := ensurer.EnsureSubscription(&sub)
+				if err != nil {
+					return err
 				}
 
-				// Set the namespace to the InstallPlan's namespace and attempt to
-				// create a new secret.
-				secret.SetNamespace(namespace)
-				_, err = o.opClient.KubernetesInterface().CoreV1().Secrets(plan.Namespace).Create(&corev1.Secret{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      secret.Name,
-						Namespace: plan.Namespace,
-					},
-					Data: secret.Data,
-					Type: secret.Type,
-				})
-				if k8serrors.IsAlreadyExists(err) {
-					// If it already existed, mark the step as Present.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
+				plan.Status.Plan[i].Status = status
+
+			case secretKind:
+				status, err := ensurer.EnsureSecret(o.namespace, plan.GetNamespace(), step.Resource.Name)
+				if err != nil {
 					return err
-				} else {
-					// If no error occured, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
 				}
+
+				plan.Status.Plan[i].Status = status
 
 			case clusterRoleKind:
 				// Marshal the manifest into a ClusterRole instance.
@@ -1189,23 +1184,13 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
 
-				// Attempt to create the ClusterRole.
-				_, err = o.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
-				if k8serrors.IsAlreadyExists(err) {
-					// if we're updating, point owner to the newest csv
-					cr.Labels[ownerutil.OwnerKey] = step.Resolving
-					_, err = o.opClient.UpdateClusterRole(&cr)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating clusterrole %s", cr.GetName())
-					}
-					// If it already existed, mark the step as Present.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating clusterrole %s", cr.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				status, err := ensurer.EnsureClusterRole(&cr, step)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
+
 			case clusterRoleBindingKind:
 				// Marshal the manifest into a RoleBinding instance.
 				var rb rbacv1.ClusterRoleBinding
@@ -1214,24 +1199,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
 				}
 
-				// Attempt to create the ClusterRoleBinding.
-				_, err = o.opClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
-				if k8serrors.IsAlreadyExists(err) {
-					// if we're updating, point owner to the newest csv
-					rb.Labels[ownerutil.OwnerKey] = step.Resolving
-					_, err = o.opClient.UpdateClusterRoleBinding(&rb)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating clusterrolebinding %s", rb.GetName())
-					}
-
-					// If it already existed, mark the step as Present.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating clusterrolebinding %s", rb.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				status, err := ensurer.EnsureClusterRoleBinding(&rb, step)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
 
 			case roleKind:
 				// Marshal the manifest into a Role instance.
@@ -1249,23 +1222,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				r.SetOwnerReferences(updated)
 				r.SetNamespace(namespace)
 
-				// Attempt to create the Role.
-				_, err = o.opClient.KubernetesInterface().RbacV1().Roles(plan.Namespace).Create(&r)
-				if k8serrors.IsAlreadyExists(err) {
-					// If it already existed, mark the step as Present.
-					r.SetNamespace(plan.Namespace)
-					_, err = o.opClient.UpdateRole(&r)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating role %s", r.GetName())
-					}
-
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating role %s", r.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				status, err := ensurer.EnsureRole(plan.Namespace, &r)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
 
 			case roleBindingKind:
 				// Marshal the manifest into a RoleBinding instance.
@@ -1283,23 +1245,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				rb.SetOwnerReferences(updated)
 				rb.SetNamespace(namespace)
 
-				// Attempt to create the RoleBinding.
-				_, err = o.opClient.KubernetesInterface().RbacV1().RoleBindings(plan.Namespace).Create(&rb)
-				if k8serrors.IsAlreadyExists(err) {
-					rb.SetNamespace(plan.Namespace)
-					_, err = o.opClient.UpdateRoleBinding(&rb)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating rolebinding %s", rb.GetName())
-					}
-
-					// If it already existed, mark the step as Present.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating rolebinding %s", rb.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				status, err := ensurer.EnsureRoleBinding(plan.Namespace, &rb)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
 
 			case serviceAccountKind:
 				// Marshal the manifest into a ServiceAccount instance.
@@ -1317,24 +1268,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				sa.SetOwnerReferences(updated)
 				sa.SetNamespace(namespace)
 
-				// Attempt to create the ServiceAccount.
-				_, err = o.opClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Create(&sa)
-				if k8serrors.IsAlreadyExists(err) {
-					// If it already exists we need to patch the existing SA with the new OwnerReferences
-					sa.SetNamespace(plan.Namespace)
-					_, err = o.opClient.UpdateServiceAccount(&sa)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating service account: %s", sa.GetName())
-					}
-
-					// Mark as present
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating service account: %s", sa.GetName())
-				} else {
-					// If no error occurred, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				status, err := ensurer.EnsureServiceAccount(namespace, &sa)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
 
 			case serviceKind:
 				// Marshal the manifest into a Service instance
@@ -1352,24 +1291,12 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				s.SetOwnerReferences(updated)
 				s.SetNamespace(namespace)
 
-				// Attempt to create the Service
-				_, err = o.opClient.KubernetesInterface().CoreV1().Services(plan.Namespace).Create(&s)
-				if k8serrors.IsAlreadyExists(err) {
-					// If it already exists we need to patch the existing SA with the new OwnerReferences
-					s.SetNamespace(plan.Namespace)
-					_, err = o.opClient.UpdateService(&s)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating service: %s", s.GetName())
-					}
-
-					// Mark as present
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
-				} else if err != nil {
-					return errorwrap.Wrapf(err, "error creating service: %s", s.GetName())
-				} else {
-					// If no error occurred, mark the step as Created
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				status, err := ensurer.EnsureService(namespace, &s)
+				if err != nil {
+					return err
 				}
+
+				plan.Status.Plan[i].Status = status
 
 			default:
 				return v1alpha1.ErrInvalidInstallPlan

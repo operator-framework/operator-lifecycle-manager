@@ -7,6 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/client-go/rest"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/internalversion"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -30,6 +31,7 @@ type operatorConfig struct {
 	strategyResolver  install.StrategyResolverInterface
 	apiReconciler     resolver.APIIntersectionReconciler
 	apiLabeler        labeler.Labeler
+	restConfig        *rest.Config
 }
 
 func (o *operatorConfig) apply(options []OperatorOption) {
@@ -67,6 +69,8 @@ func (o *operatorConfig) validate() (err error) {
 		err = newInvalidConfigError("api reconciler", "must not be nil")
 	case o.apiLabeler == nil:
 		err = newInvalidConfigError("api labeler", "must not be nil")
+	case o.restConfig == nil:
+		err = newInvalidConfigError("rest config", "must not be nil")
 	}
 
 	return
@@ -148,5 +152,11 @@ func WithAPIReconciler(apiReconciler resolver.APIIntersectionReconciler) Operato
 func WithAPILabeler(apiLabeler labeler.Labeler) OperatorOption {
 	return func(config *operatorConfig) {
 		config.apiLabeler = apiLabeler
+	}
+}
+
+func WithRestConfig(restConfig *rest.Config) OperatorOption {
+	return func(config *operatorConfig) {
+		config.restConfig = restConfig
 	}
 }

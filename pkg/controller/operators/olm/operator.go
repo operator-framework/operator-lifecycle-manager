@@ -14,10 +14,12 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -38,6 +40,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -52,24 +55,27 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 type Operator struct {
 	queueinformer.Operator
 
-	clock            utilclock.Clock
-	logger           *logrus.Logger
-	opClient         operatorclient.ClientInterface
-	client           versioned.Interface
-	lister           operatorlister.OperatorLister
-	ogQueueSet       *queueinformer.ResourceQueueSet
-	csvQueueSet      *queueinformer.ResourceQueueSet
-	csvCopyQueueSet  *queueinformer.ResourceQueueSet
-	csvGCQueueSet    *queueinformer.ResourceQueueSet
-	apiServiceQueue  workqueue.RateLimitingInterface
-	csvIndexers      map[string]cache.Indexer
-	recorder         record.EventRecorder
-	resolver         install.StrategyResolverInterface
-	apiReconciler    resolver.APIIntersectionReconciler
-	apiLabeler       labeler.Labeler
-	csvSetGenerator  csvutility.SetGenerator
-	csvReplaceFinder csvutility.ReplaceFinder
-	csvNotification  csvutility.WatchNotification
+	clock                 utilclock.Clock
+	logger                *logrus.Logger
+	opClient              operatorclient.ClientInterface
+	client                versioned.Interface
+	lister                operatorlister.OperatorLister
+	ogQueueSet            *queueinformer.ResourceQueueSet
+	csvQueueSet           *queueinformer.ResourceQueueSet
+	csvCopyQueueSet       *queueinformer.ResourceQueueSet
+	csvGCQueueSet         *queueinformer.ResourceQueueSet
+	apiServiceQueue       workqueue.RateLimitingInterface
+	csvIndexers           map[string]cache.Indexer
+	recorder              record.EventRecorder
+	resolver              install.StrategyResolverInterface
+	apiReconciler         resolver.APIIntersectionReconciler
+	apiLabeler            labeler.Labeler
+	csvSetGenerator       csvutility.SetGenerator
+	csvReplaceFinder      csvutility.ReplaceFinder
+	csvNotification       csvutility.WatchNotification
+	serviceAccountSyncer  *scoped.UserDefinedServiceAccountSyncer
+	clientAttenuator      *scoped.ClientAttenuator
+	serviceAccountQuerier *scoped.UserDefinedServiceAccountQuerier
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -96,25 +102,33 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 
 	lister := operatorlister.NewLister()
 
+	scheme := runtime.NewScheme()
+	if err := k8sscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+
 	op := &Operator{
-		Operator:         queueOperator,
-		clock:            config.clock,
-		logger:           config.logger,
-		opClient:         config.operatorClient,
-		client:           config.externalClient,
-		ogQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
-		csvQueueSet:      queueinformer.NewEmptyResourceQueueSet(),
-		csvCopyQueueSet:  queueinformer.NewEmptyResourceQueueSet(),
-		csvGCQueueSet:    queueinformer.NewEmptyResourceQueueSet(),
-		apiServiceQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
-		resolver:         config.strategyResolver,
-		apiReconciler:    config.apiReconciler,
-		lister:           lister,
-		recorder:         eventRecorder,
-		apiLabeler:       config.apiLabeler,
-		csvIndexers:      map[string]cache.Indexer{},
-		csvSetGenerator:  csvutility.NewSetGenerator(config.logger, lister),
-		csvReplaceFinder: csvutility.NewReplaceFinder(config.logger, config.externalClient),
+		Operator:              queueOperator,
+		clock:                 config.clock,
+		logger:                config.logger,
+		opClient:              config.operatorClient,
+		client:                config.externalClient,
+		ogQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
+		csvQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
+		csvCopyQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
+		csvGCQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
+		apiServiceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
+		resolver:              config.strategyResolver,
+		apiReconciler:         config.apiReconciler,
+		lister:                lister,
+		recorder:              eventRecorder,
+		apiLabeler:            config.apiLabeler,
+		csvIndexers:           map[string]cache.Indexer{},
+		csvSetGenerator:       csvutility.NewSetGenerator(config.logger, lister),
+		csvReplaceFinder:      csvutility.NewReplaceFinder(config.logger, config.externalClient),
+		serviceAccountSyncer:  scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
+		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient, config.externalClient),
+		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
 	}
 
 	// Set up syncing for namespace-scoped resources
@@ -1316,8 +1330,18 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 		}
 	}
 
+	// If an admin has specified a service account to the operator group
+	// associated with the namespace then we should use a scoped client that is
+	// bound to the service account.
+	querierFunc := a.serviceAccountQuerier.NamespaceQuerier(csv.GetNamespace())
+	kubeclient, err := a.clientAttenuator.AttenuateOperatorClient(querierFunc)
+	if err != nil {
+		a.logger.Errorf("failed to get a client for operator deployment- %v", err)
+		return nil, nil
+	}
+
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, a.opClient, a.lister, csv, csv.Annotations, previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.Annotations, previousStrategy)
 	return installer, strategy
 }
 

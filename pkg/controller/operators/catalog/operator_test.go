@@ -15,6 +15,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -39,6 +40,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 )
 
 type mockTransitioner struct {
@@ -665,6 +667,8 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 
 	}
 
+	logger := logrus.New()
+
 	// Create the new operator
 	queueOperator, err := queueinformer.NewOperator(opClientFake.KubernetesInterface().Discovery())
 	for _, informer := range sharedInformers {
@@ -687,6 +691,8 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 			), "resolver"),
 		sources:  make(map[resolver.CatalogKey]resolver.SourceRef),
 		resolver: &fakes.FakeResolver{},
+		clientAttenuator: scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
+		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 	}
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
 

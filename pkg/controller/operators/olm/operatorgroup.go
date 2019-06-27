@@ -18,7 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"	
 )
 
 const (
@@ -52,6 +52,12 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"operatorGroup": op.GetName(),
 		"namespace":     op.GetNamespace(),
 	})
+
+	op, err := a.serviceAccountSyncer.SyncOperatorGroup(op)
+	if err != nil {
+		logger.Errorf("error updating service account - %v", err)
+		return err
+	}
 
 	targetNamespaces, err := a.updateNamespaceList(op)
 	if err != nil {

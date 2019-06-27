@@ -65,11 +65,15 @@ func buildInstallPlanCleanupFunc(crc versioned.Interface, namespace string, inst
 }
 
 func fetchInstallPlan(t *testing.T, c versioned.Interface, name string, checkPhase checkInstallPlanFunc) (*v1alpha1.InstallPlan, error) {
+	return fetchInstallPlanWithNamespace(t, c, name, testNamespace, checkPhase)
+}
+
+func fetchInstallPlanWithNamespace(t *testing.T, c versioned.Interface, name string, namespace string, checkPhase checkInstallPlanFunc) (*v1alpha1.InstallPlan, error) {
 	var fetchedInstallPlan *v1alpha1.InstallPlan
 	var err error
 
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(testNamespace).Get(name, metav1.GetOptions{})
+		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || fetchedInstallPlan == nil {
 			return false, err
 		}

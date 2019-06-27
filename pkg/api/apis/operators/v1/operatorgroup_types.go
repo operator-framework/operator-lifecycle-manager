@@ -28,8 +28,9 @@ type OperatorGroupSpec struct {
 	// +optional
 	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
 
-	// ServiceAccount to bind OperatorGroup roles to.
-	ServiceAccount corev1.ServiceAccount `json:"serviceAccount,omitempty"`
+	// ServiceAccountName is the admin specified service account which will be
+	// used to deploy operator(s) in this operator group.
+	ServiceAccountName string `json:"serviceAccountName,omitempty"`
 
 	// Static tells OLM not to update the OperatorGroup's providedAPIs annotation
 	// +optional
@@ -40,6 +41,9 @@ type OperatorGroupSpec struct {
 type OperatorGroupStatus struct {
 	// Namespaces is the set of target namespaces for the OperatorGroup.
 	Namespaces []string `json:"namespaces,omitempty"`
+
+	// ServiceAccountRef references the service account object specified.
+	ServiceAccountRef *corev1.ObjectReference `json:"serviceAccountRef,omitempty"`
 
 	// LastUpdated is a timestamp of the last time the OperatorGroup's status was Updated.
 	LastUpdated metav1.Time `json:"lastUpdated"`
@@ -71,4 +75,22 @@ type OperatorGroupList struct {
 func (o *OperatorGroup) BuildTargetNamespaces() string {
 	sort.Strings(o.Status.Namespaces)
 	return strings.Join(o.Status.Namespaces, ",")
+}
+
+// IsServiceAccountSpecified returns true if the spec has a service account name specified.
+func (o *OperatorGroup) IsServiceAccountSpecified() bool {
+	if o.Spec.ServiceAccountName == "" {
+		return false
+	}
+
+	return true
+}
+
+// HasServiceAccountSynced returns true if the service account specified has been synced.
+func (o *OperatorGroup) HasServiceAccountSynced() bool {
+	if o.IsServiceAccountSpecified() && o.Status.ServiceAccountRef != nil {
+		return true
+	}
+
+	return false
 }
