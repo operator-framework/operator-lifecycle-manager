@@ -14,13 +14,18 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	validation "k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	conversion "k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
@@ -64,6 +69,7 @@ type Operator struct {
 	clock                  utilclock.Clock
 	opClient               operatorclient.ClientInterface
 	client                 versioned.Interface
+	dynamicClient          dynamic.Interface
 	lister                 operatorlister.OperatorLister
 	catsrcQueueSet         *queueinformer.ResourceQueueSet
 	subQueueSet            *queueinformer.ResourceQueueSet
@@ -98,6 +104,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		return nil, err
 	}
 
+	// Create a new client for dynamic types (CRs)
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create a new queueinformer-based operator.
 	opClient := operatorclient.NewClientFromConfig(kubeconfigPath, logger)
 	queueOperator, err := queueinformer.NewOperator(opClient.KubernetesInterface().Discovery(), queueinformer.WithOperatorLogger(logger))
@@ -114,6 +126,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		logger:                 logger,
 		clock:                  clock,
 		opClient:               opClient,
+		dynamicClient:          dynamicClient,
 		client:                 crClient,
 		lister:                 lister,
 		namespace:              operatorNamespace,
@@ -1067,7 +1080,51 @@ func safeToUpdate(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ex
 		}
 	}
 	return nil
+}
 
+func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
+	o.logger.Debugf("Comparing %#v to %#v", oldCRD.Spec.Validation, newCRD.Spec.Validation)
+	var convertedCRD *apiextensions.CustomResourceDefinition
+	var scope conversion.Scope
+	if err := v1beta1ext.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, scope); err != nil {
+		return err
+	}
+	for _, oldVersion := range oldCRD.Spec.Versions {
+		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldVersion.Name, Resource: newCRD.Spec.Names.Plural}
+		err := o.validateExistingCRs(gvr, convertedCRD)
+		if err != nil {
+			return err
+		}
+	}
+
+	if oldCRD.Spec.Version != "" {
+		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldCRD.Spec.Version, Resource: newCRD.Spec.Names.Plural}
+		err := o.validateExistingCRs(gvr, convertedCRD)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (o *Operator) validateExistingCRs(gvr schema.GroupVersionResource, newCRD *apiextensions.CustomResourceDefinition) error {
+	crList, err := o.dynamicClient.Resource(gvr).List(metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("error listing resources in GroupVersionResource %#v: %s", gvr, err)
+	}
+	for _, cr := range crList.Items {
+		validator, _, err := validation.NewSchemaValidator(newCRD.Spec.Validation)
+		if err != nil {
+			return fmt.Errorf("error creating validator for schema %#v: %s", newCRD.Spec.Validation, err)
+		}
+		err = validation.ValidateCustomResource(cr, validator)
+		if err != nil {
+			return fmt.Errorf("error validating custom resource against new schema %#v: %s", newCRD.Spec.Validation, err)
+		}
+	}
+
+	return nil
 }
 
 // ExecutePlan applies a planned InstallPlan to a namespace.
@@ -1131,6 +1188,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						crd.SetResourceVersion(currentCRD.GetResourceVersion())
 						if len(matchedCSV) == 1 {
 							o.logger.Debugf("Found one owner for CRD %v", crd)
+							if err = o.validateCustomResourceDefinition(currentCRD, &crd); err != nil {
+								return errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+							}
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
@@ -1140,7 +1200,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 							if err := safeToUpdate(currentCRD, &crd); err != nil {
 								return err
 							}
-
+							if err = o.validateCustomResourceDefinition(currentCRD, &crd); err != nil {
+								return errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+							}
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)
