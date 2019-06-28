@@ -16,12 +16,3 @@ status:
   versions:
     - name: operator
       version: "0.0.1-snapshot"
----
-apiVersion: config.openshift.io/v1
-kind: ClusterOperator
-metadata:
-  name: operator-lifecycle-manager-packageserver
-status:
-  versions:
-    - name: operator
-      version: "0.0.1-snapshot"
