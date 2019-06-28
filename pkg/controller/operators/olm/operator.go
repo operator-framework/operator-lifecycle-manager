@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -1410,17 +1411,6 @@ func (a *Operator) getReplacementChain(in *v1alpha1.ClusterServiceVersion, csvsI
 }
 
 func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion) error {
-	// Get replacing CSV if exists
-	replacing, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.Spec.Replaces)
-	if err != nil && !k8serrors.IsNotFound(err) && !k8serrors.IsGone(err) {
-		return err
-	}
-
-	owners := []ownerutil.Owner{csv}
-	if replacing != nil {
-		owners = append(owners, replacing)
-	}
-
 	for _, desc := range csv.GetOwnedAPIServiceDescriptions() {
 		// Check if the APIService exists
 		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(desc.GetName())
@@ -1432,7 +1422,12 @@ func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion)
 			continue
 		}
 
-		if !ownerutil.AdoptableLabels(apiService.GetLabels(), true, owners...) {
+		adoptable, err := a.isAPIServiceAdoptable(csv, apiService) 
+		if err != nil {
+			a.logger.WithFields(log.Fields{"obj": "apiService", "labels": apiService.GetLabels()}).Errorf("adoption check failed - %v", err)
+		}
+
+		if !adoptable {
 			return ErrAPIServiceOwnerConflict
 		}
 	}
