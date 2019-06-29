@@ -5,7 +5,8 @@
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12)") && echo -mod=vendor)
-CMDS  := $(addprefix bin/, $(shell go list $(MOD_FLAGS) ./cmd/... | xargs -I{} basename {}))
+CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
+TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
 CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
 MOCKGEN := ./scripts/generate_mocks.sh
 # counterfeiter := $(GOBIN)/counterfeiter
@@ -42,6 +43,11 @@ coverage-html: cover.out
 build: build_cmd=build
 build: clean $(CMDS)
 
+test-bare: BUILD_TAGS=-tags=bare
+test-bare: clean $(TCMDS)
+
+test-bin: clean $(TCMDS)
+
 # build versions of the binaries with coverage enabled
 build-coverage: build_cmd=test -c -covermode=count -coverpkg ./pkg/controller/...
 build-coverage: clean $(CMDS)
@@ -52,7 +58,10 @@ build-linux: clean $(CMDS)
 
 $(CMDS): version_flags=-ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	CGO_ENABLED=0 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o $@ $(PKG)/cmd/$(shell basename $@);
+	CGO_ENABLED=0 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
+
+$(TCMDS):
+	CGO_ENABLED=0 go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
 run-local: build-linux
 	rm -rf build
