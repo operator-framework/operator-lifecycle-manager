@@ -4,6 +4,10 @@ kind: ClusterServiceVersion
 metadata:
   name: packageserver.v{{ .Chart.Version }}
   namespace: {{ .Values.namespace }}
+  annotations:
+    {{- if .Chart.Version }}
+    olm.skipRange: <{{ .Chart.Version }}
+    {{- end }}
   labels:
     {{- if .Values.writePackageServerStatusName }}
     olm.clusteroperator.name: {{ .Values.writePackageServerStatusName }}
