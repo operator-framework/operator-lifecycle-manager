@@ -11,6 +11,8 @@ data:
       metadata:
         name: packageserver.v0.10.1
         namespace: openshift-operator-lifecycle-manager
+        annotations:
+          olm.skipRange: <0.10.1
         labels:
           olm.clusteroperator.name: operator-lifecycle-manager-packageserver
       spec:
