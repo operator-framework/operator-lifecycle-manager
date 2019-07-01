@@ -4,9 +4,12 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/diff"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -30,12 +33,28 @@ type StrategyDeploymentSpec struct {
 	Spec appsv1.DeploymentSpec `json:"spec"`
 }
 
+// WebhookSpec contains the user provided webhook rules, pod selector, and optional path to send the request to
+type WebhookSpec struct {
+	Rules       []admissionregistrationv1beta1.RuleWithOperations `json:"rules"`
+	Selector    metav1.LabelSelector                              `json:"selector"`
+	WebhookPath *string                                           `json:"webhookPath,omitempty"`
+	ServiceRef  *corev1.ObjectReference
+}
+
+// Webhooks contains the name, type, and spec for a webhook OLM should create and manage
+type Webhooks struct {
+	Name string      `json:"name"`
+	Type string      `json:"type"`
+	Spec WebhookSpec `json:"spec"`
+}
+
 // StrategyDetailsDeployment represents the parsed details of a Deployment
 // InstallStrategy.
 type StrategyDetailsDeployment struct {
 	DeploymentSpecs    []StrategyDeploymentSpec        `json:"deployments"`
 	Permissions        []StrategyDeploymentPermissions `json:"permissions,omitempty"`
 	ClusterPermissions []StrategyDeploymentPermissions `json:"clusterPermissions,omitempty"`
+	Webhooks           []Webhooks                      `json:"webhooks,omitempty"`
 }
 
 type StrategyDeploymentInstaller struct {
