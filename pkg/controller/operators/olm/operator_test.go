@@ -36,11 +36,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/pkg/version"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -54,13 +54,13 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
+	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
-	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type TestStrategy struct{}
@@ -261,7 +261,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 			strategyResolver:  &install.StrategyResolver{},
 			apiReconciler:     resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
 			apiLabeler:        labeler.Func(resolver.LabelSetsFor),
-			restConfig: 	   &rest.Config{},
+			restConfig:        &rest.Config{},
 		},
 		recorder: &record.FakeRecorder{},
 		// default expected namespaces
@@ -3318,7 +3318,7 @@ func TestUpdates(t *testing.T) {
 
 					// If we expect a change, wait for listers to sync the change so that the next sync reflects the changes
 					if expectedCurrent != expectedPrevious {
-						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
 							updated, err := op.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(csv.GetName())
 							if k8serrors.IsNotFound(err) {
 								return false, nil
@@ -4278,7 +4278,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					}
 
 					if i == 0 {
-						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
 							for namespace, objects := range tt.final.objects {
 								if err := RequireObjectsInCache(t, op.lister, namespace, objects, false); err != nil {
 									return false, nil
@@ -4290,7 +4290,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 					}
 
 					if i == 8 {
-						err = wait.PollImmediate(1*time.Millisecond, 5*time.Second, func() (bool, error) {
+						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
 							for namespace, objects := range tt.final.objects {
 								if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
 									return false, nil
