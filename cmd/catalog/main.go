@@ -10,8 +10,6 @@ import (
 	"time"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -19,6 +17,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
@@ -61,6 +62,9 @@ var (
 
 	tlsCertPath = flag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
+
+	profiling = flag.Bool(
+		"profiling", false, "serve profiling data (on port 8080)")
 )
 
 func init() {
@@ -114,6 +118,13 @@ func main() {
 	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
+
+	// Serve profiling if enabled
+	if *profiling {
+		logger.Infof("profiling enabled")
+		profile.RegisterHandlers(healthMux)
+	}
+
 	go http.ListenAndServe(":8080", healthMux)
 
 	metricsMux := http.NewServeMux()
