@@ -131,7 +131,7 @@ func (c *FakeInstallPlans) DeleteCollection(options *v1.DeleteOptions, listOptio
 // Patch applies the patch and returns the patched installPlan.
 func (c *FakeInstallPlans) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.InstallPlan, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(installplansResource, c.ns, name, data, subresources...), &operators.InstallPlan{})
+		Invokes(testing.NewPatchSubresourceAction(installplansResource, c.ns, name, pt, data, subresources...), &operators.InstallPlan{})
 
 	if obj == nil {
 		return nil, err

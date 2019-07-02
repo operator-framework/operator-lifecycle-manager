@@ -13,6 +13,7 @@ require (
 	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
+	github.com/golang/protobuf v1.2.0
 	github.com/google/btree v1.0.0 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
 	github.com/googleapis/gnostic v0.3.0 // indirect
@@ -33,6 +34,7 @@ require (
 	go.uber.org/atomic v1.4.0 // indirect
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5 // indirect
+	golang.org/x/net v0.0.0-20190320064053-1272bf9dcd53
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	google.golang.org/grpc v1.19.1
 	k8s.io/api v0.0.0-20190620084959-7cf5895f2711
@@ -41,6 +43,7 @@ require (
 	k8s.io/apiserver v0.0.0-20190620085212-47dc9a115b18
 	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/code-generator v0.0.0-20190612205613-18da4a14b22b
+	k8s.io/component-base v0.0.0-20190620085130-185d68e6e6ea
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect
 	k8s.io/kube-aggregator v0.0.0-20190404125450-f5e124c822d6
 	k8s.io/kube-openapi v0.0.0-20190401085232-94e1e7b7574c

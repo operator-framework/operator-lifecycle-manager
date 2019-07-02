@@ -7,10 +7,10 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/apiserver/pkg/util/logs"
+	"k8s.io/component-base/logs"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/server"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/server"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 
 // config flags defined globally so that they appear on the test binary as well
 var (
-	ctx  = signals.Context()
+	ctx     = signals.Context()
 	options = server.NewPackageServerOptions(os.Stdout, os.Stderr)
 	cmd     = &cobra.Command{
 		Short: "Launch a package-server",

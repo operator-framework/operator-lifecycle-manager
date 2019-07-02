@@ -9,7 +9,7 @@ import (
 	v1 "k8s.io/api/apps/v1"
 	v1b "k8s.io/api/core/v1"
 	v1a "k8s.io/api/rbac/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type FakeInstallStrategyDeploymentInterface struct {
@@ -744,4 +744,3 @@ func (fake *FakeInstallStrategyDeploymentInterface) recordInvocation(key string,
 }
 
 var _ wrappers.InstallStrategyDeploymentInterface = new(FakeInstallStrategyDeploymentInterface)
-

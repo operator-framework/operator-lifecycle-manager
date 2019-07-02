@@ -61,13 +61,13 @@ func NewFilteredPackageManifestInformer(client versioned.Interface, namespace st
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Operators().PackageManifests(namespace).List(options)
+				return client.OperatorsV1().PackageManifests(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.Operators().PackageManifests(namespace).Watch(options)
+				return client.OperatorsV1().PackageManifests(namespace).Watch(options)
 			},
 		},
 		&apisoperators.PackageManifest{},
