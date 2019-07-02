@@ -452,11 +452,6 @@ func TestCreateNewSubscriptionNotInstalled(t *testing.T) {
 
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
-
-	// Fetch subscription again to check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
-	require.NoError(t, err)
-	compareResources(t, subscription, sameSubscription)
 }
 
 //   I. Creating a new subscription
@@ -484,11 +479,6 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 	require.NotNil(t, subscription)
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
-
-	// check for unnecessary control loops
-	sameSubscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
-	require.NoError(t, err)
-	compareResources(t, subscription, sameSubscription)
 }
 
 func TestSubscriptionSkipRange(t *testing.T) {
