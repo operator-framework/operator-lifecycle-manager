@@ -13,7 +13,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -796,22 +795,14 @@ func TestUpdateInstallPlan(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(fetchedCRD.Spec.Versions), len(updatedCRD.Spec.Versions), "The CRD versions counts don't match")
 
-		fetchedCRDVersions := map[v1beta1.CustomResourceDefinitionVersion]struct{}{}
+		fetchedCRDVersions := map[string]struct{}{}
 		for _, version := range fetchedCRD.Spec.Versions {
-			key := v1beta1.CustomResourceDefinitionVersion{
-				Name:    version.Name,
-				Served:  version.Served,
-				Storage: version.Storage,
-			}
+			key := fmt.Sprintf("%s-%t-%t", version.Name, version.Served, version.Storage)
 			fetchedCRDVersions[key] = struct{}{}
 		}
 
 		for _, version := range updatedCRD.Spec.Versions {
-			key := v1beta1.CustomResourceDefinitionVersion{
-				Name:    version.Name,
-				Served:  version.Served,
-				Storage: version.Storage,
-			}
+			key := fmt.Sprintf("%s-%t-%t", version.Name, version.Served, version.Storage)
 			_, ok := fetchedCRDVersions[key]
 			require.True(t, ok, "couldn't find %v in fetched CRD versions: %#v", key, fetchedCRDVersions)
 		}
@@ -887,13 +878,9 @@ func TestUpdateInstallPlan(t *testing.T) {
 			},
 		}
 
-		expectedCRDVersions := map[v1beta1.CustomResourceDefinitionVersion]struct{}{}
+		expectedCRDVersions := map[string]struct{}{}
 		for _, version := range mainCRD.Spec.Versions {
-			key := v1beta1.CustomResourceDefinitionVersion{
-				Name:    version.Name,
-				Served:  version.Served,
-				Storage: version.Storage,
-			}
+			key := fmt.Sprintf("%s-%t-%t", version.Name, version.Served, version.Storage)
 			expectedCRDVersions[key] = struct{}{}
 		}
 
@@ -958,22 +945,14 @@ func TestUpdateInstallPlan(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, len(fetchedCRD.Spec.Versions), len(mainCRD.Spec.Versions), "The CRD versions counts don't match")
 
-		fetchedCRDVersions := map[v1beta1.CustomResourceDefinitionVersion]struct{}{}
+		fetchedCRDVersions := map[string]struct{}{}
 		for _, version := range fetchedCRD.Spec.Versions {
-			key := v1beta1.CustomResourceDefinitionVersion{
-				Name:    version.Name,
-				Served:  version.Served,
-				Storage: version.Storage,
-			}
+			key := fmt.Sprintf("%s-%t-%t", version.Name, version.Served, version.Storage)
 			fetchedCRDVersions[key] = struct{}{}
 		}
 
 		for _, version := range mainCRD.Spec.Versions {
-			key := v1beta1.CustomResourceDefinitionVersion{
-				Name:    version.Name,
-				Served:  version.Served,
-				Storage: version.Storage,
-			}
+			key := fmt.Sprintf("%s-%t-%t", version.Name, version.Served, version.Storage)
 			_, ok := fetchedCRDVersions[key]
 			require.True(t, ok, "couldn't find %v in fetched CRD versions: %#v", key, fetchedCRDVersions)
 		}
