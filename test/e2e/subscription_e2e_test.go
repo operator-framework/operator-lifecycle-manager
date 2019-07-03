@@ -210,7 +210,7 @@ var (
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
 								Name:            genName("nginx"),
-								Image:           "bitnami/nginx:latest",
+								Image:           "redis",
 								Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
 								ImagePullPolicy: corev1.PullIfNotPresent,
 							},

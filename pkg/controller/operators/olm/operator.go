@@ -1271,6 +1271,10 @@ func (a *Operator) updateInstallStatus(csv *v1alpha1.ClusterServiceVersion, inst
 	strategyInstalled, strategyErr := installer.CheckInstalled(strategy)
 	now := a.now()
 
+	if strategyErr != nil {
+		a.logger.WithError(strategyErr).Debug("operator not installed")
+	}
+
 	if strategyInstalled && apiServicesInstalled {
 		// if there's no error, we're successfully running
 		csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseSucceeded, v1alpha1.CSVReasonInstallSuccessful, "install strategy completed with no errors", now, a.recorder)
