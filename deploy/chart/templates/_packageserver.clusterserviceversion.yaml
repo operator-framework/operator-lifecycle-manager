@@ -34,7 +34,7 @@ spec:
     strategy: deployment
     spec:
       clusterPermissions:
-      - serviceAccountName: packageserver
+      - serviceAccountName: olm-operator-serviceaccount
         rules:
         - apiGroups:
             - authorization.k8s.io
