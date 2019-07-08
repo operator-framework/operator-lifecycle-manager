@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/client-go/tools/clientcmd"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -73,6 +75,11 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(signals.Context())
 	defer cancel()
 
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
+
 	// operator dependencies
 	crClient, err := client.NewClient(*kubeConfigPath)
 	if err != nil {
@@ -116,6 +123,7 @@ func TestMain(m *testing.M) {
 		olm.WithResyncPeriod(time.Minute),
 		olm.WithExternalClient(crClient),
 		olm.WithOperatorClient(olmOpClient),
+		olm.WithRestConfig(config),
 	)
 	if err != nil {
 		logrus.WithError(err).Fatalf("error configuring olm")
