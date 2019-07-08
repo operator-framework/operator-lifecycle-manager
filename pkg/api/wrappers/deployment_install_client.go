@@ -123,8 +123,7 @@ func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatching
 
 func (c *InstallStrategyDeploymentClientForNamespace) FindAnyDeploymentsMatchingLabels(label labels.Selector) ([]*appsv1.Deployment, error) {
 	deployments, err := c.opLister.AppsV1().DeploymentLister().Deployments(c.Namespace).List(label)
-	// Any errors other than !exists are propagated up
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil {
 		return nil, err
 	}
 
