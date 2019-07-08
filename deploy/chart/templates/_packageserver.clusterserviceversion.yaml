@@ -2,9 +2,10 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: packageserver.v{{ .Chart.Version }}
+  name: packageserver
   namespace: {{ .Values.namespace }}
   labels:
+    olm.version: {{ .Chart.Version }}
     {{- if .Values.writePackageServerStatusName }}
     olm.clusteroperator.name: {{ .Values.writePackageServerStatusName }}
     {{- end }}

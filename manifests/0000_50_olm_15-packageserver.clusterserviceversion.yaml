@@ -1,9 +1,10 @@
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
-  name: packageserver.v0.10.1
+  name: packageserver
   namespace: openshift-operator-lifecycle-manager
   labels:
+    olm.version: 0.10.1
     olm.clusteroperator.name: operator-lifecycle-manager-packageserver
 spec:
   displayName: Package Server

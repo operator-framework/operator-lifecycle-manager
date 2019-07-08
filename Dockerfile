@@ -32,6 +32,7 @@ LABEL io.openshift.release.operator=true
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
+COPY --from=builder /build/bin/init /bin/init
 
 # This image doesn't need to run as root user.
 USER 1001

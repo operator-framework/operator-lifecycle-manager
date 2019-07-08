@@ -176,7 +176,8 @@ func main() {
 		olm.WithRestConfig(config),
 	)
 	if err != nil {
-		log.Fatalf("error configuring operator: %s", err.Error())
+		log.WithError(err).Fatalf("error configuring operator")
+		return
 	}
 
 	op.Run(ctx)
