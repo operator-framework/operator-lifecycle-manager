@@ -3,6 +3,7 @@ package olm
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -235,6 +236,36 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 			status.Message = "Native API exists"
 			statuses = append(statuses, status)
 			continue
+		}
+	}
+
+	// check for webhook pod selector match
+	for _, webhook := range strategyDetailsDeployment.Webhooks {
+		found := false
+		for _, spec := range strategyDetailsDeployment.DeploymentSpecs {
+			// TODO: this is not correct - would like to compare both MatchLabels and MatchExpressions
+			// Updated, maybe it's ok now that it's just a map?
+			if !reflect.DeepEqual(webhook.Spec.Selector, spec.Spec.Selector) {
+				found = true
+				break
+			}
+		}
+
+		// deployment may not be in CSV, check cluster
+		if !found {
+			selector, err := metav1.LabelSelectorAsSelector(metav1.SetAsLabelSelector(webhook.Spec.Selector))
+			if err != nil {
+				a.logger.Error("map conversion failed: %v", err)
+			}
+			deploymentsList, err := a.lister.AppsV1().DeploymentLister().List(selector)
+			if err != nil {
+				a.logger.Error("list failed: %v", err)
+			}
+			if len(deploymentsList) == 0 {
+				// TODO: maybe should add new requirement status?
+				met = false
+				break
+			}
 		}
 	}
 

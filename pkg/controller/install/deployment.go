@@ -8,17 +8,26 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
+// WebhookAdmissionType is the type of admission webhooks supported by OLM
+type WebhookAdmissionType string
+
 const (
 	InstallStrategyNameDeployment = "deployment"
+	// InstallWebhookValidating is for validating admission webhooks
+	InstallWebhookValidating = "ValidatingAdmissionWebhook"
+	// InstallWebhookMutating is for mutating admission webhooks
+	InstallWebhookMutating = "MutatingAdmissionWebhook"
 )
 
 // StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy
@@ -36,16 +45,16 @@ type StrategyDeploymentSpec struct {
 // WebhookSpec contains the user provided webhook rules, pod selector, and optional path to send the request to
 type WebhookSpec struct {
 	Rules       []admissionregistrationv1beta1.RuleWithOperations `json:"rules"`
-	Selector    metav1.LabelSelector                              `json:"selector"`
+	Selector    map[string]string                                 `json:"selector"`
 	WebhookPath *string                                           `json:"webhookPath,omitempty"`
 	ServiceRef  *corev1.ObjectReference
 }
 
 // Webhooks contains the name, type, and spec for a webhook OLM should create and manage
 type Webhooks struct {
-	Name string      `json:"name"`
-	Type string      `json:"type"`
-	Spec WebhookSpec `json:"spec"`
+	Name string               `json:"name"`
+	Type WebhookAdmissionType `json:"type"`
+	Spec WebhookSpec          `json:"spec"`
 }
 
 // StrategyDetailsDeployment represents the parsed details of a Deployment
@@ -87,6 +96,63 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 		}
 	}
 
+	return nil
+}
+
+func (i *StrategyDeploymentInstaller) installWebhooks(webhooks []Webhooks) error {
+	for _, hook := range webhooks {
+		svc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      hook.Name + "-service",
+				Namespace: i.owner.GetNamespace(),
+			},
+			Spec: corev1.ServiceSpec{
+				Selector: hook.Spec.Selector,
+				Ports: []corev1.ServicePort{
+					{
+						Port:       int32(443),
+						TargetPort: intstr.FromInt(443),
+					},
+				},
+			},
+		}
+		if _, err := i.strategyClient.CreateOrUpdateService(svc); err != nil {
+			return err
+		}
+
+		webhooks := []admissionregistrationv1beta1.Webhook{
+			{
+				Name: hook.Name,
+				ClientConfig: admissionregistrationv1beta1.WebhookClientConfig{
+					Service: &admissionregistrationv1beta1.ServiceReference{
+						Name:      hook.Name + "-service",
+						Namespace: i.owner.GetNamespace(),
+						Path:      hook.Spec.WebhookPath,
+					},
+					//CABundle: , // TODO
+				},
+				Rules: hook.Spec.Rules,
+			},
+		}
+
+		switch hook.Type {
+		case InstallWebhookValidating:
+			hook := admissionregistrationv1beta1.ValidatingWebhookConfiguration{
+				Webhooks: webhooks,
+			}
+			if _, err := i.strategyClient.CreateOrUpdateValidatingWebhook(&hook); err != nil {
+				return err
+			}
+		case InstallWebhookMutating:
+			hook := admissionregistrationv1beta1.MutatingWebhookConfiguration{
+				Webhooks: webhooks,
+			}
+			if _, err := i.strategyClient.CreateOrUpdateMutatingWebhook(&hook); err != nil {
+				return err
+			}
+		}
+
+	}
 	return nil
 }
 
@@ -134,6 +200,9 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 
 	if err := i.installDeployments(strategy.DeploymentSpecs); err != nil {
+		return err
+	}
+	if err := i.installWebhooks(strategy.Webhooks); err != nil {
 		return err
 	}
 

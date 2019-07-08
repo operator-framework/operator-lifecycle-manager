@@ -3,6 +3,7 @@ package wrappers
 
 import (
 	"github.com/pkg/errors"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -23,6 +24,9 @@ type InstallStrategyDeploymentInterface interface {
 	EnsureServiceAccount(serviceAccount *corev1.ServiceAccount, owner ownerutil.Owner) (*corev1.ServiceAccount, error)
 	CreateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
 	CreateOrUpdateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
+	CreateOrUpdateService(service *corev1.Service) (*corev1.Service, error)
+	CreateOrUpdateValidatingWebhook(hook *admissionregistrationv1beta1.ValidatingWebhookConfiguration) (*admissionregistrationv1beta1.ValidatingWebhookConfiguration, error)
+	CreateOrUpdateMutatingWebhook(hook *admissionregistrationv1beta1.MutatingWebhookConfiguration) (*admissionregistrationv1beta1.MutatingWebhookConfiguration, error)
 	DeleteDeployment(name string) error
 	GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error)
 	FindAnyDeploymentsMatchingNames(depNames []string) ([]*appsv1.Deployment, error)
@@ -99,6 +103,69 @@ func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name stri
 func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
 	d, _, err := c.opClient.CreateOrRollingUpdateDeployment(deployment)
 	return d, err
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateService(service *corev1.Service) (*corev1.Service, error) {
+	_, err := c.opClient.GetService(service.GetNamespace(), service.GetName())
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		created, err := c.opClient.CreateService(service)
+		if err != nil {
+			return nil, err
+		}
+		return created, err
+	}
+
+	updated, err := c.opClient.UpdateService(service)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateValidatingWebhook(hook *admissionregistrationv1beta1.ValidatingWebhookConfiguration) (*admissionregistrationv1beta1.ValidatingWebhookConfiguration, error) {
+	_, err := c.opClient.GetValidatingWebhook(hook.GetName())
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		created, err := c.opClient.CreateValidatingWebhook(hook)
+		if err != nil {
+			return nil, err
+		}
+		return created, err
+	}
+
+	updated, err := c.opClient.UpdateValidatingWebhook(hook)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
+}
+
+func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateMutatingWebhook(hook *admissionregistrationv1beta1.MutatingWebhookConfiguration) (*admissionregistrationv1beta1.MutatingWebhookConfiguration, error) {
+	_, err := c.opClient.GetMutatingWebhook(hook.GetName())
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		created, err := c.opClient.CreateMutatingWebhook(hook)
+		if err != nil {
+			return nil, err
+		}
+		return created, err
+	}
+
+	updated, err := c.opClient.UpdateMutatingWebhook(hook)
+	if err != nil {
+		return nil, err
+	}
+
+	return updated, nil
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {
