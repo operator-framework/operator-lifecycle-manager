@@ -43,12 +43,13 @@ func (b *Builder) WithProgressing(status configv1.ConditionStatus, message strin
 }
 
 // WithDegraded sets an OperatorDegraded type condition.
-func (b *Builder) WithDegraded(status configv1.ConditionStatus) *Builder {
+func (b *Builder) WithDegraded(status configv1.ConditionStatus, reason string) *Builder {
 	b.init()
 	condition := &configv1.ClusterOperatorStatusCondition{
 		Type:               configv1.OperatorDegraded,
 		Status:             status,
 		LastTransitionTime: metav1.NewTime(b.clock.Now()),
+		Reason:             reason,
 	}
 
 	b.setCondition(condition)
@@ -61,6 +62,21 @@ func (b *Builder) WithAvailable(status configv1.ConditionStatus, message string)
 	b.init()
 	condition := &configv1.ClusterOperatorStatusCondition{
 		Type:               configv1.OperatorAvailable,
+		Status:             status,
+		Message:            message,
+		LastTransitionTime: metav1.NewTime(b.clock.Now()),
+	}
+
+	b.setCondition(condition)
+
+	return b
+}
+
+// WithUpgradeable sets an OperatorUpgradeable type condition.
+func (b *Builder) WithUpgradeable(status configv1.ConditionStatus, message string) *Builder {
+	b.init()
+	condition := &configv1.ClusterOperatorStatusCondition{
+		Type:               configv1.OperatorUpgradeable,
 		Status:             status,
 		Message:            message,
 		LastTransitionTime: metav1.NewTime(b.clock.Now()),

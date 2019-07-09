@@ -65,7 +65,7 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 	}()
 
 	// We don't monitor whether the CSV backed operator is in degraded status.
-	builder.WithDegraded(configv1.ConditionFalse)
+	builder.WithDegraded(configv1.ConditionFalse, "")
 
 	// A CSV has been deleted.
 	if context.CurrentDeleted {
