@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
@@ -139,7 +139,7 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						InstallPlanRef: &v1.ObjectReference{
+						InstallPlanRef: &corev1.ObjectReference{
 							Namespace:  testNamespace,
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
@@ -270,7 +270,7 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						InstallPlanRef: &v1.ObjectReference{
+						InstallPlanRef: &corev1.ObjectReference{
 							Namespace:  testNamespace,
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
@@ -410,7 +410,7 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						InstallPlanRef: &v1.ObjectReference{
+						InstallPlanRef: &corev1.ObjectReference{
 							Namespace:  testNamespace,
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
@@ -574,7 +574,7 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						InstallPlanRef: &v1.ObjectReference{
+						InstallPlanRef: &corev1.ObjectReference{
 							Namespace:  testNamespace,
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
@@ -665,7 +665,7 @@ func TestSyncSubscriptions(t *testing.T) {
 				},
 			}
 
-			namespace := &v1.Namespace{
+			namespace := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: testNamespace,
 				},
@@ -691,4 +691,146 @@ func TestSyncSubscriptions(t *testing.T) {
 			}
 		})
 	}
+}
+
+type operatorBuilder interface {
+	operator(ctx context.Context) (*Operator, error)
+}
+
+type objs struct {
+	clientObjs []runtime.Object
+	k8sObjs    []runtime.Object
+}
+
+type srnFields struct {
+	clientOptions []clientfake.Option
+	existingObjs  objs
+	resolver      resolver.Resolver
+	reconciler    reconciler.RegistryReconcilerFactory
+}
+
+type srnArgs struct {
+	namespace string
+}
+
+type srnTest struct {
+	fields srnFields
+	args   srnArgs
+}
+
+func (t srnTest) operator(ctx context.Context) (*Operator, error) {
+	return NewFakeOperator(
+		ctx,
+		t.args.namespace,
+		[]string{t.args.namespace},
+		withClientObjs(t.fields.existingObjs.clientObjs...),
+		withK8sObjs(t.fields.existingObjs.k8sObjs...),
+		withFakeClientOptions(t.fields.clientOptions...),
+		withResolver(t.fields.resolver),
+	)
+}
+
+func benchOperator(ctx context.Context, test operatorBuilder, b *testing.B) (*Operator, error) {
+	b.StartTimer()
+	defer b.StopTimer()
+
+	return test.operator(ctx)
+}
+
+func benchmarkSyncResolvingNamespace(test srnTest, b *testing.B) {
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		ctx, cancel := context.WithCancel(context.TODO())
+		defer cancel()
+
+		o, err := benchOperator(ctx, test, b)
+		require.NoError(b, err)
+
+		namespace := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: test.args.namespace,
+			},
+		}
+		require.NoError(b, o.syncResolvingNamespace(namespace))
+	}
+}
+
+func BenchmarkSyncResolvingNamespace(b *testing.B) {
+	ns := "default"
+	name := "sub"
+	benchmarkSyncResolvingNamespace(srnTest{
+		fields: srnFields{
+			clientOptions: []clientfake.Option{clientfake.WithSelfLinks(b)},
+			existingObjs: objs{
+				clientObjs: []runtime.Object{
+					&v1alpha1.Subscription{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      name,
+							Namespace: ns,
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSource:          "src",
+							CatalogSourceNamespace: ns,
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CurrentCSV: "",
+							State:      "",
+						},
+					},
+				},
+			},
+			reconciler: &fakes.FakeRegistryReconcilerFactory{
+				ReconcilerForSourceStub: func(*v1alpha1.CatalogSource) reconciler.RegistryReconciler {
+					return &fakes.FakeRegistryReconciler{
+						CheckRegistryServerStub: func(*v1alpha1.CatalogSource) (bool, error) {
+							return true, nil
+						},
+					}
+				},
+			},
+			resolver: &fakes.FakeResolver{
+				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error) {
+					steps := []*v1alpha1.Step{
+						{
+							Resolving: "csv.v.2",
+							Resource: v1alpha1.StepResource{
+								CatalogSource:          "src",
+								CatalogSourceNamespace: ns,
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "csv.v.2",
+								Manifest:               "{}",
+							},
+						},
+					}
+					subs := []*v1alpha1.Subscription{
+						{
+							TypeMeta: metav1.TypeMeta{
+								Kind:       v1alpha1.SubscriptionKind,
+								APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      name,
+								Namespace: ns,
+							},
+							Spec: &v1alpha1.SubscriptionSpec{
+								CatalogSource:          "src",
+								CatalogSourceNamespace: ns,
+							},
+							Status: v1alpha1.SubscriptionStatus{
+								CurrentCSV: "csv.v.2",
+								State:      "SubscriptionStateAtLatest",
+							},
+						},
+					}
+
+					return steps, subs, nil
+				},
+			},
+		},
+		args: srnArgs{
+			namespace: ns,
+		},
+	}, b)
 }

@@ -12,12 +12,12 @@ import (
 type Option func(ClientsetDecorator)
 
 // WithSelfLinks returns a fakeClientOption that configures a ClientsetDecorator to write selfLinks to all OLM types on create.
-func WithSelfLinks(t *testing.T) Option {
+func WithSelfLinks(tb testing.TB) Option {
 	return func(c ClientsetDecorator) {
 		c.PrependReactor("create", "*", func(a clitesting.Action) (bool, runtime.Object, error) {
 			ca, ok := a.(clitesting.CreateAction)
 			if !ok {
-				t.Fatalf("expected CreateAction")
+				tb.Fatalf("expected CreateAction")
 			}
 
 			obj := ca.GetObject()
@@ -39,12 +39,12 @@ func WithSelfLinks(t *testing.T) Option {
 }
 
 // WithNameGeneration returns a fakeK8sClientOption that configures a Clientset to write generated names to all types on create.
-func WithNameGeneration(t *testing.T) Option {
+func WithNameGeneration(tb testing.TB) Option {
 	return func(c ClientsetDecorator) {
 		c.PrependReactor("create", "*", func(a clitesting.Action) (bool, runtime.Object, error) {
 			ca, ok := a.(clitesting.CreateAction)
 			if !ok {
-				t.Fatalf("expected CreateAction")
+				tb.Fatalf("expected CreateAction")
 			}
 
 			return false, AddSimpleGeneratedName(ca.GetObject()), nil

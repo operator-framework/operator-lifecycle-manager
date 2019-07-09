@@ -15,7 +15,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/client-go/rest"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -24,6 +23,7 @@ import (
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
@@ -569,10 +569,24 @@ type fakeOperatorConfig struct {
 	regObjs       []runtime.Object
 	clientOptions []clientfake.Option
 	logger        *logrus.Logger
+	resolver      resolver.Resolver
+	reconciler    reconciler.RegistryReconcilerFactory
 }
 
 // fakeOperatorOption applies an option to the given fake operator configuration.
 type fakeOperatorOption func(*fakeOperatorConfig)
+
+func withResolver(res resolver.Resolver) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.resolver = res
+	}
+}
+
+func withReconciler(rec reconciler.RegistryReconcilerFactory) fakeOperatorOption {
+	return func(config *fakeOperatorConfig) {
+		config.reconciler = rec
+	}
+}
 
 func withClock(clock utilclock.Clock) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
@@ -608,8 +622,9 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
 	config := &fakeOperatorConfig{
-		logger: logrus.New(),
-		clock:  utilclock.RealClock{},
+		logger:   logrus.New(),
+		clock:    utilclock.RealClock{},
+		resolver: &fakes.FakeResolver{},
 	}
 	for _, option := range fakeOptions {
 		option(config)
@@ -689,12 +704,15 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
 				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
 			), "resolver"),
-		sources:  make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver: &fakes.FakeResolver{},
-		clientAttenuator: scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
-		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
+		sources:               make(map[resolver.CatalogKey]resolver.SourceRef),
+		resolver:              config.resolver,
+		reconciler:            config.reconciler,
+		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
+		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 	}
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
+	if op.reconciler == nil {
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
+	}
 
 	op.RunInformers(ctx)
 
