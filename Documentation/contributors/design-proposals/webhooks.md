@@ -2,7 +2,7 @@
 
 Status: Pending
 
-Version: v1alpha1
+Version: Alpha
 
 Implementation owner: TBD
 
