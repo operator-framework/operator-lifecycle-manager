@@ -1127,7 +1127,7 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 			fmt.Println("catalog updated")
 			return true
 		}
-		fmt.Println("waiting for catalog pod to be available")
+		fmt.Printf("waiting for catalog pod %v to be available (after catalog update)\n", catalog.GetName())
 		return false
 	})
 	require.NoError(t, err)

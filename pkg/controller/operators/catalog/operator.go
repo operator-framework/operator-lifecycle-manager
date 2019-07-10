@@ -1032,6 +1032,44 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
+// TODO: in the future this will be extended to verify more than just whether or not the schema changed
+func checkCRDSchemas(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) bool {
+	if reflect.DeepEqual(oldCRD.Spec.Validation, newCRD.Spec.Validation) {
+		return true
+	}
+
+	return false
+}
+
+func safeToUpdate(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
+	shouldCheckSchema := len(oldCRD.Spec.Versions) == len(newCRD.Spec.Versions) // no version bump
+
+	// 1) if there's no version change, verify that schemas match 2) ensure all old versions are present
+	for _, oldVersion := range oldCRD.Spec.Versions {
+		var versionPresent bool
+		for _, newVersion := range newCRD.Spec.Versions {
+			if oldVersion.Name == newVersion.Name {
+				if shouldCheckSchema && !checkCRDSchemas(oldCRD, newCRD) {
+					return fmt.Errorf("not allowing CRD (%v) update with multiple owners with schema change on version %v", newCRD.GetName(), oldVersion)
+				}
+				versionPresent = true
+			}
+		}
+		if !versionPresent {
+			return fmt.Errorf("not allowing CRD (%v) update with unincluded version %v", newCRD.GetName(), oldVersion)
+		}
+	}
+
+	// ensure a CRD with multiple versions isn't checked
+	if newCRD.Spec.Version != "" {
+		if !checkCRDSchemas(oldCRD, newCRD) {
+			return fmt.Errorf("not allowing CRD (%v) update with multiple owners with schema change on (single) version %v", newCRD.GetName(), newCRD.Spec.Version)
+		}
+	}
+	return nil
+
+}
+
 // ExecutePlan applies a planned InstallPlan to a namespace.
 func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	if plan.Status.Phase != v1alpha1.InstallPlanPhaseInstalling {
@@ -1090,9 +1128,19 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						if err != nil {
 							return errorwrap.Wrapf(err, "error find matched CSV: %s", step.Resource.Name)
 						}
+						crd.SetResourceVersion(currentCRD.GetResourceVersion())
 						if len(matchedCSV) == 1 {
-							// Attempt to update CRD
-							crd.SetResourceVersion(currentCRD.GetResourceVersion())
+							o.logger.Debugf("Found one owner for CRD %v", crd)
+							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
+							if err != nil {
+								return errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
+							}
+						} else if len(matchedCSV) > 1 {
+							o.logger.Debugf("Found multiple owners for CRD %v", crd)
+							if err := safeToUpdate(currentCRD, &crd); err != nil {
+								return err
+							}
+
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)

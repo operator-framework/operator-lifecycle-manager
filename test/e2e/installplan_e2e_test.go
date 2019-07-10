@@ -646,6 +646,233 @@ func TestCreateInstallPlanWithPreExistingCRDOwners(t *testing.T) {
 	})
 }
 
+func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	var min float64 = 2
+	var max float64 = 256
+	// generated outside of the test table so that the same naming can be used for both old and new CSVs
+	mainCRDPlural := genName("ins-main-")
+
+	// excluded: new CRD, same version, same schema - won't trigger a CRD update
+	tests := []struct {
+		name          string
+		expectedPhase v1alpha1.InstallPlanPhase
+		oldCRDName    string
+		oldCRD        apiextensions.CustomResourceDefinition
+		newCRD        *apiextensions.CustomResourceDefinition
+	}{
+		{
+			name:          "same version, different schema",
+			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+			oldCRD:        newCRD(mainCRDPlural + "0"),
+			newCRD: func() *apiextensions.CustomResourceDefinition {
+				crd := newCRD(mainCRDPlural + "0")
+				crd.Spec.Version = "v1alpha1"
+				crd.Spec.Validation = &apiextensions.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Properties: map[string]apiextensions.JSONSchemaProps{
+							"spec": {
+								Type:        "object",
+								Description: "Spec of a test object.",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"scalar": {
+										Type:        "number",
+										Description: "Scalar value that should have a min and max.",
+										Minimum:     &min,
+										Maximum:     &max,
+									},
+								},
+							},
+						},
+					},
+				}
+
+				return &crd
+			}(),
+		},
+		{
+			name:          "different version, different schema",
+			expectedPhase: v1alpha1.InstallPlanPhaseComplete,
+			oldCRD:        newCRD(mainCRDPlural + "1"),
+			newCRD: func() *apiextensions.CustomResourceDefinition {
+				crd := newCRD(mainCRDPlural + "1")
+				crd.Spec.Version = ""
+				crd.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: false,
+					},
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: true,
+					},
+				}
+				crd.Spec.Validation = &apiextensions.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Properties: map[string]apiextensions.JSONSchemaProps{
+							"spec": {
+								Type:        "object",
+								Description: "Spec of a test object.",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"scalar": {
+										Type:        "number",
+										Description: "Scalar value that should have a min and max.",
+										Minimum:     &min,
+										Maximum:     &max,
+									},
+								},
+							},
+						},
+					},
+				}
+
+				return &crd
+			}(),
+		},
+		{
+			name:          "different version, same schema",
+			expectedPhase: v1alpha1.InstallPlanPhaseComplete,
+			oldCRD:        newCRD(mainCRDPlural + "2"),
+			newCRD: func() *apiextensions.CustomResourceDefinition {
+				crd := newCRD(mainCRDPlural + "2")
+				crd.Spec.Version = ""
+				crd.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: false,
+					},
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: true,
+					},
+				}
+				return &crd
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer cleaner.NotifyTestComplete(t, true)
+
+			mainPackageName := genName("nginx-")
+			mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+			mainPackageBeta := fmt.Sprintf("%s-beta", mainPackageName)
+
+			stableChannel := "stable"
+			betaChannel := "beta"
+
+			// Create manifests
+			mainManifests := []registry.PackageManifest{
+				{
+					PackageName: mainPackageName,
+					Channels: []registry.PackageChannel{
+						{Name: stableChannel, CurrentCSVName: mainPackageStable},
+						{Name: betaChannel, CurrentCSVName: mainPackageBeta},
+					},
+					DefaultChannelName: stableChannel,
+				},
+			}
+
+			// Create a new named install strategy
+			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+			// Create new CSVs
+			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{tt.oldCRD}, nil, mainNamedStrategy)
+			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{tt.oldCRD}, nil, mainNamedStrategy)
+
+			c := newKubeClient(t)
+			crc := newCRClient(t)
+
+			// Create the catalog source
+			mainCatalogSourceName := genName("mock-ocs-main-")
+			_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{tt.oldCRD}, []v1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV})
+			defer cleanupCatalogSource()
+
+			// Attempt to get the catalog source before creating install plan(s)
+			_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+			require.NoError(t, err)
+
+			subscriptionName := genName("sub-nginx-")
+			// this subscription will be cleaned up below without the clean up function
+			createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+
+			subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			require.NoError(t, err)
+			require.NotNil(t, subscription)
+
+			installPlanName := subscription.Status.Install.Name
+
+			// Wait for InstallPlan to be status: Complete or failed before checking resource presence
+			completeOrFailedFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed)
+			fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, completeOrFailedFunc)
+			require.NoError(t, err)
+			t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+			require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+
+			// Ensure that the desired resources have been created
+			expectedSteps := map[registry.ResourceKey]struct{}{
+				registry.ResourceKey{Name: tt.oldCRD.Name, Kind: "CustomResourceDefinition"}:            {},
+				registry.ResourceKey{Name: mainPackageStable, Kind: v1alpha1.ClusterServiceVersionKind}: {},
+			}
+
+			require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
+
+			for _, step := range fetchedInstallPlan.Status.Plan {
+				key := registry.ResourceKey{
+					Name: step.Resource.Name,
+					Kind: step.Resource.Kind,
+				}
+				_, ok := expectedSteps[key]
+				require.True(t, ok, "couldn't find %v in expected steps: %#v", key, expectedSteps)
+
+				// Remove the entry from the expected steps set (to ensure no duplicates in resolved plan)
+				delete(expectedSteps, key)
+			}
+
+			// Should have removed every matching step
+			require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
+
+			updateInternalCatalog(t, c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []v1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
+			// Attempt to get the catalog source before creating install plan(s)
+			_, err = fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+			require.NoError(t, err)
+
+			// Update the subscription resource to point to the beta CSV
+			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+			require.NoError(t, err)
+
+			// existing cleanup should remove this
+			createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
+
+			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			require.NoError(t, err)
+			require.NotNil(t, subscription)
+
+			installPlanName = subscription.Status.Install.Name
+
+			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
+			fetchedInstallPlan, err = fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed))
+			require.NoError(t, err)
+			fmt.Printf("Phase = %v", fetchedInstallPlan.Status.Phase)
+			t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
+
+			require.Equal(t, tt.expectedPhase, fetchedInstallPlan.Status.Phase)
+
+			// Ensure correct in-cluster resource(s)
+			fetchedCSV, err := fetchCSV(t, crc, mainBetaCSV.GetName(), testNamespace, csvSucceededChecker)
+			require.NoError(t, err)
+
+			t.Logf("All expected resources resolved %s", fetchedCSV.Status.Phase)
+		})
+	}
+}
+
 func TestUpdateInstallPlan(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 	t.Run("UpdateSingleExistingCRDOwner", func(t *testing.T) {

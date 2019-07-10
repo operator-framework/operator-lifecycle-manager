@@ -125,6 +125,99 @@ func TestTransitionInstallPlan(t *testing.T) {
 	}
 }
 
+func TestSafeToUpdate(t *testing.T) {
+	mainCRDPlural := "ins-main-abcde"
+	differentSchema := &v1beta1.CustomResourceValidation{
+		OpenAPIV3Schema: &v1beta1.JSONSchemaProps{
+			Properties: map[string]v1beta1.JSONSchemaProps{
+				"spec": {
+					Type:        "object",
+					Description: "Spec of a test object.",
+					Properties: map[string]v1beta1.JSONSchemaProps{
+						"scalar": {
+							Type:        "number",
+							Description: "Scalar value that should have a min and max.",
+							Minimum: func() *float64 {
+								var min float64 = 2
+								return &min
+							}(),
+							Maximum: func() *float64 {
+								var max float64 = 256
+								return &max
+							}(),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	differentVersions := []v1beta1.CustomResourceDefinitionVersion{
+		{
+			Name:    "v1alpha1",
+			Served:  true,
+			Storage: false,
+		},
+		{
+			Name:    "v1alpha2",
+			Served:  true,
+			Storage: true,
+		},
+	}
+
+	tests := []struct {
+		name            string
+		oldCRD          v1beta1.CustomResourceDefinition
+		newCRD          v1beta1.CustomResourceDefinition
+		expectedFailure bool
+	}{
+		{
+			// in reality this would never happen within ExecutePlan, but fully exercises function
+			name:   "same version, same schema",
+			oldCRD: crd(mainCRDPlural),
+			newCRD: crd(mainCRDPlural),
+		},
+		{
+			name:   "same version, different schema",
+			oldCRD: crd(mainCRDPlural),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Validation = differentSchema
+				return newCRD
+			}(),
+			expectedFailure: true,
+		},
+		{
+			name:   "different version, different schema",
+			oldCRD: crd(mainCRDPlural),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = differentVersions
+				newCRD.Spec.Validation = differentSchema
+				return newCRD
+			}(),
+		},
+		{
+			name:   "different version, same schema",
+			oldCRD: crd(mainCRDPlural),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = differentVersions
+				return newCRD
+			}(),
+		},
+	}
+
+	for _, tt := range tests {
+		err := safeToUpdate(&tt.oldCRD, &tt.newCRD)
+		if tt.expectedFailure {
+			require.Error(t, err)
+		}
+	}
+}
+
 func TestExecutePlan(t *testing.T) {
 	namespace := "ns"
 

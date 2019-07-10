@@ -1616,7 +1616,7 @@ func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ..
 		return in, nil
 	}
 
-	a.logger.WithField("labels", merged).Error("Labels updated!")
+	a.logger.WithField("labels", merged).Info("Labels updated!")
 
 	out := in.DeepCopy()
 	out.SetLabels(merged)
