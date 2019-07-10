@@ -21,25 +21,13 @@ spec:
       {{- if and .Values.installType (eq .Values.installType "ocp") }}
       priorityClassName: "system-cluster-critical"
       {{- end }}
-      initContainers:
-      - name: init
-        command:
-        - /bin/init
-        - -namespace
-        - ${NAMESPACE}
-        image: {{ .Values.olm.image.ref }}
-        imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
-        terminationMessagePolicy: FallbackToLogsOnError
-        env:
-        - name: NAMESPACE
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.namespace
       containers:
         - name: olm-operator
           command:
           - /bin/olm
           args:
+          - -namespace
+          - ${OPERATOR_NAMESPACE}
           {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}
