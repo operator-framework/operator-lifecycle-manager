@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -678,6 +678,8 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		return
 	}
 
+	a.recordMetrics(logger, clusterServiceVersion)
+
 	outCSV, syncError := a.transitionCSVState(*clusterServiceVersion)
 
 	if outCSV == nil {
@@ -775,6 +777,18 @@ func (a *Operator) syncGcCsv(obj interface{}) (syncError error) {
 		return
 	}
 	return
+}
+
+func (a *Operator) recordMetrics(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) {
+	if csv.IsCopied() {
+		// don't record for copied CSVs
+		return
+	}
+	counter, err := metrics.CounterForCSV(csv.GetName(), string(csv.Status.Phase))
+	if err != nil {
+		logger.WithError(err).Warn("could not record metrics")
+	}
+	counter.Inc()
 }
 
 // operatorGroupFromAnnotations returns the OperatorGroup for the CSV only if the CSV is active one in the group
@@ -1426,7 +1440,7 @@ func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion)
 			continue
 		}
 
-		adoptable, err := a.isAPIServiceAdoptable(csv, apiService) 
+		adoptable, err := a.isAPIServiceAdoptable(csv, apiService)
 		if err != nil {
 			a.logger.WithFields(log.Fields{"obj": "apiService", "labels": apiService.GetLabels()}).Errorf("adoption check failed - %v", err)
 		}
