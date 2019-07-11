@@ -2,14 +2,22 @@
 
 OLM manages the dependency resolution and upgrade lifecycle of running operators. In many ways, thes problems OLM faces are similar to other OS package managers like `apt`/`dkpg` and `yum`/`rpm`.
 
-However, there is one constraint that similar systems don't generally have that OLM does: because operators are always running, OLM attempts to ensure that at no point in time are you left with a set of operators that do not work with each other. 
+However, there is one constraint that similar systems don't generally have that OLM does: because operators are always running, OLM attempts to ensure that at no point in time are you left with a set of operators that do not work with each other.
 
 This means that OLM needs to never:
- 
+
  - install a set of operators that require APIs that can't be provided
  - update an operator in a way that breaks another that depends upon it
- 
+
 The following examples motivate why OLM's dependency resolution and upgrade strategy works as it does, followed by a description of the current algorithm.
+
+## CustomResourceDefinition (CRD) Upgrade
+
+OLM will upgrade CRD right away if it is owned by singular CSV. If CRD is owned by multiple CSVs, then CRD is upgraded when it is
+satisfied all of the following backward compatible conditions:
+
+- All existing versions in current CRD are present in new CRD
+- All existing instances (Custom Resource) of current CRD are valid when validated against new CRD's validation schema
 
 # Example: Deprecate dependant API
 
@@ -41,7 +49,7 @@ If we attempt to update A without simultaneously updating B, or vice-versa, we w
 This is another case we prevent with OLM's upgrade strategy.
 
 
-# Dependency resolution 
+# Dependency resolution
 
 A Provider is an operator which "Owns" a CRD or APIService.
 
@@ -55,12 +63,12 @@ Consider the set of operators defined by running operators in a namespace:
         provisionally add the operator to the generation
      else
         check for a replacement in the source/package/channel
-  
+
   // Generation resolution
   For each required API with no provider in gen:
     search through prioritized sources to pick a provider
     provisionally add any new operators found to the generation, this could also add to the required APIs without providers
-    
+
   // Downgrade
   if there are still required APIs that can't be satisfied by sources:
     downgrade the operator(s) that require the APIs that can't be satisfied

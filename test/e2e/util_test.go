@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -528,4 +529,26 @@ func serializeObject(obj interface{}) string {
 		return ""
 	}
 	return string(bytes)
+}
+
+func createCR(c operatorclient.ClientInterface, item *unstructured.Unstructured, apiGroup, version, namespace, resourceKind, resourceName string) (cleanupFunc, error) {
+	err := c.CreateCustomResource(item)
+	if err != nil {
+		return nil, err
+	}
+	return buildCRCleanupFunc(c, apiGroup, version, namespace, resourceKind, resourceName), nil
+}
+
+func buildCRCleanupFunc(c operatorclient.ClientInterface, apiGroup, version, namespace, resourceKind, resourceName string) cleanupFunc {
+	return func() {
+		err := c.DeleteCustomResource(apiGroup, version, namespace, resourceKind, resourceName)
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		waitForDelete(func() error {
+			_, err := c.GetCustomResource(apiGroup, version, namespace, resourceKind, resourceName)
+			return err
+		})
+	}
 }

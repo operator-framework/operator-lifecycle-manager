@@ -20,7 +20,6 @@ import (
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	conversion "k8s.io/apimachinery/pkg/conversion"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
@@ -1045,26 +1044,12 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-// TODO: in the future this will be extended to verify more than just whether or not the schema changed
-func checkCRDSchemas(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) bool {
-	if reflect.DeepEqual(oldCRD.Spec.Validation, newCRD.Spec.Validation) {
-		return true
-	}
-
-	return false
-}
-
-func safeToUpdate(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
-	shouldCheckSchema := len(oldCRD.Spec.Versions) == len(newCRD.Spec.Versions) // no version bump
-
-	// 1) if there's no version change, verify that schemas match 2) ensure all old versions are present
+// Ensure all existing versions are present in new CRD
+func ensureCRDVersions(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
 	for _, oldVersion := range oldCRD.Spec.Versions {
 		var versionPresent bool
 		for _, newVersion := range newCRD.Spec.Versions {
 			if oldVersion.Name == newVersion.Name {
-				if shouldCheckSchema && !checkCRDSchemas(oldCRD, newCRD) {
-					return fmt.Errorf("not allowing CRD (%v) update with multiple owners with schema change on version %v", newCRD.GetName(), oldVersion)
-				}
 				versionPresent = true
 			}
 		}
@@ -1073,24 +1058,21 @@ func safeToUpdate(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ex
 		}
 	}
 
-	// ensure a CRD with multiple versions isn't checked
-	if newCRD.Spec.Version != "" {
-		if !checkCRDSchemas(oldCRD, newCRD) {
-			return fmt.Errorf("not allowing CRD (%v) update with multiple owners with schema change on (single) version %v", newCRD.GetName(), newCRD.Spec.Version)
-		}
-	}
 	return nil
 }
 
 func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
 	o.logger.Debugf("Comparing %#v to %#v", oldCRD.Spec.Validation, newCRD.Spec.Validation)
-	var convertedCRD *apiextensions.CustomResourceDefinition
-	var scope conversion.Scope
-	if err := v1beta1ext.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, scope); err != nil {
+	// If validation schema is unchanged, return right away
+	if reflect.DeepEqual(oldCRD.Spec.Validation, newCRD.Spec.Validation) {
+		return nil
+	}
+	convertedCRD := &apiextensions.CustomResourceDefinition{}
+	if err := v1beta1ext.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, nil); err != nil {
 		return err
 	}
 	for _, oldVersion := range oldCRD.Spec.Versions {
-		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldVersion.Name, Resource: newCRD.Spec.Names.Plural}
+		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldVersion.Name, Resource: oldCRD.Spec.Names.Plural}
 		err := o.validateExistingCRs(gvr, convertedCRD)
 		if err != nil {
 			return err
@@ -1098,7 +1080,7 @@ func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomRes
 	}
 
 	if oldCRD.Spec.Version != "" {
-		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldCRD.Spec.Version, Resource: newCRD.Spec.Names.Plural}
+		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldCRD.Spec.Version, Resource: oldCRD.Spec.Names.Plural}
 		err := o.validateExistingCRs(gvr, convertedCRD)
 		if err != nil {
 			return err
@@ -1118,7 +1100,7 @@ func (o *Operator) validateExistingCRs(gvr schema.GroupVersionResource, newCRD *
 		if err != nil {
 			return fmt.Errorf("error creating validator for schema %#v: %s", newCRD.Spec.Validation, err)
 		}
-		err = validation.ValidateCustomResource(cr, validator)
+		err = validation.ValidateCustomResource(cr.UnstructuredContent(), validator)
 		if err != nil {
 			return fmt.Errorf("error validating custom resource against new schema %#v: %s", newCRD.Spec.Validation, err)
 		}
@@ -1188,21 +1170,22 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						crd.SetResourceVersion(currentCRD.GetResourceVersion())
 						if len(matchedCSV) == 1 {
 							o.logger.Debugf("Found one owner for CRD %v", crd)
-							if err = o.validateCustomResourceDefinition(currentCRD, &crd); err != nil {
-								return errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
-							}
+
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
 							}
 						} else if len(matchedCSV) > 1 {
 							o.logger.Debugf("Found multiple owners for CRD %v", crd)
-							if err := safeToUpdate(currentCRD, &crd); err != nil {
-								return err
+
+							if err := ensureCRDVersions(currentCRD, &crd); err != nil {
+								return errorwrap.Wrapf(err, "error missing existing CRD version(s) in new CRD: %s", step.Resource.Name)
 							}
+
 							if err = o.validateCustomResourceDefinition(currentCRD, &crd); err != nil {
 								return errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
 							}
+
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)
