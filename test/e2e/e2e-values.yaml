@@ -1,5 +1,6 @@
 writeStatusName: '""'
 debug: true
+e2eLocalMode: true
 
 olm:
   replicaCount: 1
