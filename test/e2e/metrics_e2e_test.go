@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
 
@@ -34,11 +33,7 @@ func TestMetricsEndpoint(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Metrics test failed: %v\n", err)
 	}
-
-	// Verify metrics have been emitted for packageserver csv
-	require.Contains(t, rawOutput, "csv_sync_total counter")
-	require.Contains(t, rawOutput, "phase=\"Succeeded\"")
-	require.Contains(t, rawOutput, "packageserver")
+	log.Info(rawOutput)
 }
 
 func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {

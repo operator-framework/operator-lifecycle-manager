@@ -15,6 +15,7 @@ import (
 	listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
 var scheme = runtime.NewScheme()
@@ -49,6 +50,8 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 		return err
 	}
 
+	s.recordMetrics(res)
+
 	logger := s.logger.WithFields(logrus.Fields{
 		"reconciling": fmt.Sprintf("%T", res),
 		"selflink":    res.GetSelfLink(),
@@ -80,6 +83,10 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 	}).Debug("reconciliation successful")
 
 	return nil
+}
+
+func (o *subscriptionSyncer) recordMetrics(sub *v1alpha1.Subscription) {
+	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV).Inc()
 }
 
 func (s *subscriptionSyncer) Notify(event kubestate.ResourceEvent) {
