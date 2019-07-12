@@ -63,6 +63,9 @@ var (
 
 	profiling = flag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
+
+	namespace = flag.String(
+		"namespace", "", "namespace where cleanup runs")
 )
 
 func init() {
@@ -165,6 +168,8 @@ func main() {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 
+	cleanup(logger, opClient, crClient)
+
 	// Create a new instance of the operator.
 	op, err := olm.NewOperator(
 		ctx,
@@ -176,7 +181,8 @@ func main() {
 		olm.WithRestConfig(config),
 	)
 	if err != nil {
-		log.Fatalf("error configuring operator: %s", err.Error())
+		log.WithError(err).Fatalf("error configuring operator")
+		return
 	}
 
 	op.Run(ctx)

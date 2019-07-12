@@ -11,7 +11,7 @@ spec:
       labels:
         app: packageserver
     spec:
-      serviceAccountName: packageserver
+      serviceAccountName: olm-operator-serviceaccount
       {{- if and .Values.installType (eq .Values.installType "ocp") }}
       priorityClassName: "system-cluster-critical"
       {{- end }}

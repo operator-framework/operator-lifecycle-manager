@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -50,8 +50,6 @@ var (
 	ErrCRDOwnerConflict        = errors.New("conflicting CRD owner in namespace")
 	ErrAPIServiceOwnerConflict = errors.New("unable to adopt APIService")
 )
-
-var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type Operator struct {
 	queueinformer.Operator
@@ -152,8 +150,12 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(csvQueueInformer)
-		csvInformer.Informer().AddIndexers(cache.Indexers{index.MetaLabelIndexFuncKey: index.MetaLabelIndexFunc})
+		if err := op.RegisterQueueInformer(csvQueueInformer); err != nil {
+			return nil, err
+		}
+		if err := csvInformer.Informer().AddIndexers(cache.Indexers{index.MetaLabelIndexFuncKey: index.MetaLabelIndexFunc}); err != nil {
+			return nil, err
+		}
 		csvIndexer := csvInformer.Informer().GetIndexer()
 		op.csvIndexers[namespace] = csvIndexer
 
@@ -170,7 +172,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(csvCopyQueueInformer)
+		if err := op.RegisterQueueInformer(csvCopyQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Register separate queue for gcing csvs
 		csvGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv-gc", namespace))
@@ -185,7 +189,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(csvGCQueueInformer)
+		if err := op.RegisterQueueInformer(csvGCQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Wire OperatorGroup reconciliation
 		operatorGroupInformer := extInformerFactory.Operators().V1().OperatorGroups()
@@ -202,7 +208,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(operatorGroupQueueInformer)
+		if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Wire Deployments
 		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod, informers.WithNamespace(namespace))
@@ -217,7 +225,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(depQueueInformer)
+		if err := op.RegisterQueueInformer(depQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Set up RBAC informers
 		roleInformer := k8sInformerFactory.Rbac().V1().Roles()
@@ -231,7 +241,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(roleQueueInformer)
+		if err := op.RegisterQueueInformer(roleQueueInformer); err != nil {
+			return nil, err
+		}
 
 		roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
 		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
@@ -244,7 +256,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(roleBindingQueueInformer)
+		if err := op.RegisterQueueInformer(roleBindingQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Register Secret QueueInformer
 		secretInformer := k8sInformerFactory.Core().V1().Secrets()
@@ -258,7 +272,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(secretQueueInformer)
+		if err := op.RegisterQueueInformer(secretQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Register Service QueueInformer
 		serviceInformer := k8sInformerFactory.Core().V1().Services()
@@ -272,7 +288,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(serviceQueueInformer)
+		if err := op.RegisterQueueInformer(serviceQueueInformer); err != nil {
+			return nil, err
+		}
 
 		// Register ServiceAccount QueueInformer
 		serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
@@ -283,7 +301,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithInformer(serviceAccountInformer.Informer()),
 			queueinformer.WithSyncer(k8sSyncer),
 		)
-		op.RegisterQueueInformer(serviceAccountQueueInformer)
+		if err := op.RegisterQueueInformer(serviceAccountQueueInformer); err != nil {
+			return nil, err
+		}
 	}
 
 	k8sInformerFactory := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod)
@@ -298,7 +318,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	if err != nil {
 		return nil, err
 	}
-	op.RegisterQueueInformer(clusterRoleQueueInformer)
+	if err := op.RegisterQueueInformer(clusterRoleQueueInformer); err != nil {
+		return nil, err
+	}
 
 	clusterRoleBindingInformer := k8sInformerFactory.Rbac().V1().ClusterRoleBindings()
 	op.lister.RbacV1().RegisterClusterRoleBindingLister(clusterRoleBindingInformer.Lister())
@@ -311,7 +333,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	if err != nil {
 		return nil, err
 	}
-	op.RegisterQueueInformer(clusterRoleBindingQueueInformer)
+	if err := op.RegisterQueueInformer(clusterRoleBindingQueueInformer); err != nil {
+		return nil, err
+	}
 
 	// register namespace queueinformer
 	namespaceInformer := k8sInformerFactory.Core().V1().Namespaces()
@@ -331,7 +355,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	if err != nil {
 		return nil, err
 	}
-	op.RegisterQueueInformer(namespaceQueueInformer)
+	if err := op.RegisterQueueInformer(namespaceQueueInformer); err != nil {
+		return nil, err
+	}
 
 	// Register APIService QueueInformer
 	apiServiceInformer := kagg.NewSharedInformerFactory(op.opClient.ApiregistrationV1Interface(), config.resyncPeriod).Apiregistration().V1().APIServices()
@@ -346,7 +372,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	if err != nil {
 		return nil, err
 	}
-	op.RegisterQueueInformer(apiServiceQueueInformer)
+	if err := op.RegisterQueueInformer(apiServiceQueueInformer); err != nil {
+		return nil, err
+	}
 
 	// Register CustomResourceDefinition QueueInformer
 	crdInformer := extinf.NewSharedInformerFactory(op.opClient.ApiextensionsV1beta1Interface(), config.resyncPeriod).Apiextensions().V1beta1().CustomResourceDefinitions()
@@ -360,7 +388,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	if err != nil {
 		return nil, err
 	}
-	op.RegisterQueueInformer(crdQueueInformer)
+	if err := op.RegisterQueueInformer(crdQueueInformer); err != nil {
+		return nil, err
+	}
 
 	return op, nil
 }
@@ -1426,7 +1456,7 @@ func (a *Operator) apiServiceOwnerConflicts(csv *v1alpha1.ClusterServiceVersion)
 			continue
 		}
 
-		adoptable, err := a.isAPIServiceAdoptable(csv, apiService) 
+		adoptable, err := a.isAPIServiceAdoptable(csv, apiService)
 		if err != nil {
 			a.logger.WithFields(log.Fields{"obj": "apiService", "labels": apiService.GetLabels()}).Errorf("adoption check failed - %v", err)
 		}

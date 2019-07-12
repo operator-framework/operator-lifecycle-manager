@@ -26,6 +26,8 @@ spec:
           command:
           - /bin/olm
           args:
+          - -namespace
+          - ${OPERATOR_NAMESPACE}
           {{- if .Values.watchedNamespaces }}
           - -watchedNamespaces
           - {{ .Values.watchedNamespaces }}

@@ -24,6 +24,8 @@ spec:
           command:
           - /bin/olm
           args:
+          - -namespace
+          - ${OPERATOR_NAMESPACE}
           - -writeStatusName
           - operator-lifecycle-manager
           - -writePackageServerStatusName

@@ -31,7 +31,7 @@ kubectl rollout status -w deployment/catalog-operator --namespace="${namespace}"
 
 retries=50
 until [[ $retries == 0 || $new_csv_phase == "Succeeded" ]]; do
-    new_csv_phase=$(kubectl get csv -n "${namespace}" packageserver.v1.0.0 -o jsonpath='{.status.phase}' 2>/dev/null || echo "Waiting for CSV to appear")
+    new_csv_phase=$(kubectl get csv -n "${namespace}" packageserver -o jsonpath='{.status.phase}' 2>/dev/null || echo "Waiting for CSV to appear")
     if [[ $new_csv_phase != "$csv_phase" ]]; then
         csv_phase=$new_csv_phase
         echo "Package server phase: $csv_phase"
@@ -41,7 +41,7 @@ until [[ $retries == 0 || $new_csv_phase == "Succeeded" ]]; do
 done
 
 if [ $retries == 0 ]; then
-    echo "CSV \"packageserver.v1.0.0\" failed to reach phase succeeded"
+    echo "CSV \"packageserver\" failed to reach phase succeeded"
     exit 1
 fi
 
