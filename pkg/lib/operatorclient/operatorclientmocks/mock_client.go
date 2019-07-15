@@ -7,6 +7,7 @@ package operatorclientmocks
 import (
 	gomock "github.com/golang/mock/gomock"
 	operatorclient "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	v1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	v1 "k8s.io/api/apps/v1"
 	v10 "k8s.io/api/core/v1"
 	v11 "k8s.io/api/rbac/v1"
@@ -884,6 +885,124 @@ func (m *MockClientInterface) ListDeploymentsWithLabels(namespace string, labels
 func (mr *MockClientInterfaceMockRecorder) ListDeploymentsWithLabels(namespace, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDeploymentsWithLabels", reflect.TypeOf((*MockClientInterface)(nil).ListDeploymentsWithLabels), namespace, labels)
+}
+
+// CreateValidatingWebhook mocks base method
+func (m *MockClientInterface) CreateValidatingWebhook(hook *v1beta1.ValidatingWebhookConfiguration) (*v1beta1.ValidatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateValidatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.ValidatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateValidatingWebhook indicates an expected call of CreateValidatingWebhook
+func (mr *MockClientInterfaceMockRecorder) CreateValidatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateValidatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).CreateValidatingWebhook), hook)
+}
+
+// CreateMutatingWebhook mocks base method
+func (m *MockClientInterface) CreateMutatingWebhook(hook *v1beta1.MutatingWebhookConfiguration) (*v1beta1.MutatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateMutatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.MutatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateMutatingWebhook indicates an expected call of CreateMutatingWebhook
+func (mr *MockClientInterfaceMockRecorder) CreateMutatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMutatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).CreateMutatingWebhook), hook)
+}
+
+// GetValidatingWebhook mocks base method
+func (m *MockClientInterface) GetValidatingWebhook(name string) (*v1beta1.ValidatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetValidatingWebhook", name)
+	ret0, _ := ret[0].(*v1beta1.ValidatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetValidatingWebhook indicates an expected call of GetValidatingWebhook
+func (mr *MockClientInterfaceMockRecorder) GetValidatingWebhook(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).GetValidatingWebhook), name)
+}
+
+// GetMutatingWebhook mocks base method
+func (m *MockClientInterface) GetMutatingWebhook(name string) (*v1beta1.MutatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMutatingWebhook", name)
+	ret0, _ := ret[0].(*v1beta1.MutatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMutatingWebhook indicates an expected call of GetMutatingWebhook
+func (mr *MockClientInterfaceMockRecorder) GetMutatingWebhook(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMutatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).GetMutatingWebhook), name)
+}
+
+// DeleteMutatingWebhook mocks base method
+func (m *MockClientInterface) DeleteMutatingWebhook(name string, options *v12.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMutatingWebhook", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteMutatingWebhook indicates an expected call of DeleteMutatingWebhook
+func (mr *MockClientInterfaceMockRecorder) DeleteMutatingWebhook(name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMutatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).DeleteMutatingWebhook), name, options)
+}
+
+// DeleteValidatingWebhook mocks base method
+func (m *MockClientInterface) DeleteValidatingWebhook(name string, options *v12.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteValidatingWebhook", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteValidatingWebhook indicates an expected call of DeleteValidatingWebhook
+func (mr *MockClientInterfaceMockRecorder) DeleteValidatingWebhook(name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteValidatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).DeleteValidatingWebhook), name, options)
+}
+
+// UpdateMutatingWebhook mocks base method
+func (m *MockClientInterface) UpdateMutatingWebhook(hook *v1beta1.MutatingWebhookConfiguration) (*v1beta1.MutatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMutatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.MutatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateMutatingWebhook indicates an expected call of UpdateMutatingWebhook
+func (mr *MockClientInterfaceMockRecorder) UpdateMutatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMutatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).UpdateMutatingWebhook), hook)
+}
+
+// UpdateValidatingWebhook mocks base method
+func (m *MockClientInterface) UpdateValidatingWebhook(hook *v1beta1.ValidatingWebhookConfiguration) (*v1beta1.ValidatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateValidatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.ValidatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateValidatingWebhook indicates an expected call of UpdateValidatingWebhook
+func (mr *MockClientInterfaceMockRecorder) UpdateValidatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateValidatingWebhook", reflect.TypeOf((*MockClientInterface)(nil).UpdateValidatingWebhook), hook)
 }
 
 // MockCustomResourceClient is a mock of CustomResourceClient interface
@@ -1915,4 +2034,145 @@ func (m *MockDeploymentClient) ListDeploymentsWithLabels(namespace string, label
 func (mr *MockDeploymentClientMockRecorder) ListDeploymentsWithLabels(namespace, labels interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDeploymentsWithLabels", reflect.TypeOf((*MockDeploymentClient)(nil).ListDeploymentsWithLabels), namespace, labels)
+}
+
+// MockWebhookClient is a mock of WebhookClient interface
+type MockWebhookClient struct {
+	ctrl     *gomock.Controller
+	recorder *MockWebhookClientMockRecorder
+}
+
+// MockWebhookClientMockRecorder is the mock recorder for MockWebhookClient
+type MockWebhookClientMockRecorder struct {
+	mock *MockWebhookClient
+}
+
+// NewMockWebhookClient creates a new mock instance
+func NewMockWebhookClient(ctrl *gomock.Controller) *MockWebhookClient {
+	mock := &MockWebhookClient{ctrl: ctrl}
+	mock.recorder = &MockWebhookClientMockRecorder{mock}
+	return mock
+}
+
+// EXPECT returns an object that allows the caller to indicate expected use
+func (m *MockWebhookClient) EXPECT() *MockWebhookClientMockRecorder {
+	return m.recorder
+}
+
+// CreateValidatingWebhook mocks base method
+func (m *MockWebhookClient) CreateValidatingWebhook(hook *v1beta1.ValidatingWebhookConfiguration) (*v1beta1.ValidatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateValidatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.ValidatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateValidatingWebhook indicates an expected call of CreateValidatingWebhook
+func (mr *MockWebhookClientMockRecorder) CreateValidatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateValidatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).CreateValidatingWebhook), hook)
+}
+
+// CreateMutatingWebhook mocks base method
+func (m *MockWebhookClient) CreateMutatingWebhook(hook *v1beta1.MutatingWebhookConfiguration) (*v1beta1.MutatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateMutatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.MutatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateMutatingWebhook indicates an expected call of CreateMutatingWebhook
+func (mr *MockWebhookClientMockRecorder) CreateMutatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateMutatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).CreateMutatingWebhook), hook)
+}
+
+// GetValidatingWebhook mocks base method
+func (m *MockWebhookClient) GetValidatingWebhook(name string) (*v1beta1.ValidatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetValidatingWebhook", name)
+	ret0, _ := ret[0].(*v1beta1.ValidatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetValidatingWebhook indicates an expected call of GetValidatingWebhook
+func (mr *MockWebhookClientMockRecorder) GetValidatingWebhook(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).GetValidatingWebhook), name)
+}
+
+// GetMutatingWebhook mocks base method
+func (m *MockWebhookClient) GetMutatingWebhook(name string) (*v1beta1.MutatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMutatingWebhook", name)
+	ret0, _ := ret[0].(*v1beta1.MutatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMutatingWebhook indicates an expected call of GetMutatingWebhook
+func (mr *MockWebhookClientMockRecorder) GetMutatingWebhook(name interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMutatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).GetMutatingWebhook), name)
+}
+
+// DeleteMutatingWebhook mocks base method
+func (m *MockWebhookClient) DeleteMutatingWebhook(name string, options *v12.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMutatingWebhook", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteMutatingWebhook indicates an expected call of DeleteMutatingWebhook
+func (mr *MockWebhookClientMockRecorder) DeleteMutatingWebhook(name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMutatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).DeleteMutatingWebhook), name, options)
+}
+
+// DeleteValidatingWebhook mocks base method
+func (m *MockWebhookClient) DeleteValidatingWebhook(name string, options *v12.DeleteOptions) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteValidatingWebhook", name, options)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteValidatingWebhook indicates an expected call of DeleteValidatingWebhook
+func (mr *MockWebhookClientMockRecorder) DeleteValidatingWebhook(name, options interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteValidatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).DeleteValidatingWebhook), name, options)
+}
+
+// UpdateMutatingWebhook mocks base method
+func (m *MockWebhookClient) UpdateMutatingWebhook(hook *v1beta1.MutatingWebhookConfiguration) (*v1beta1.MutatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMutatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.MutatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateMutatingWebhook indicates an expected call of UpdateMutatingWebhook
+func (mr *MockWebhookClientMockRecorder) UpdateMutatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMutatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).UpdateMutatingWebhook), hook)
+}
+
+// UpdateValidatingWebhook mocks base method
+func (m *MockWebhookClient) UpdateValidatingWebhook(hook *v1beta1.ValidatingWebhookConfiguration) (*v1beta1.ValidatingWebhookConfiguration, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateValidatingWebhook", hook)
+	ret0, _ := ret[0].(*v1beta1.ValidatingWebhookConfiguration)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateValidatingWebhook indicates an expected call of UpdateValidatingWebhook
+func (mr *MockWebhookClientMockRecorder) UpdateValidatingWebhook(hook interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateValidatingWebhook", reflect.TypeOf((*MockWebhookClient)(nil).UpdateValidatingWebhook), hook)
 }
