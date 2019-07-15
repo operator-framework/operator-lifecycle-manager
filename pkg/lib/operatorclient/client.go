@@ -3,6 +3,7 @@ package operatorclient
 
 import (
 	"github.com/sirupsen/logrus"
+	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -31,6 +32,7 @@ type ClientInterface interface {
 	ClusterRoleBindingClient
 	ClusterRoleClient
 	DeploymentClient
+	WebhookClient
 }
 
 // CustomResourceClient contains methods for the Custom Resource.
@@ -127,6 +129,17 @@ type DeploymentClient interface {
 	ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1.DeploymentList, error)
 }
 
+type WebhookClient interface {
+	CreateValidatingWebhook(hook *admissionregistrationv1beta1.ValidatingWebhookConfiguration) (*admissionregistrationv1beta1.ValidatingWebhookConfiguration, error)
+	CreateMutatingWebhook(hook *admissionregistrationv1beta1.MutatingWebhookConfiguration) (*admissionregistrationv1beta1.MutatingWebhookConfiguration, error)
+	GetValidatingWebhook(name string) (*admissionregistrationv1beta1.ValidatingWebhookConfiguration, error)
+	GetMutatingWebhook(name string) (*admissionregistrationv1beta1.MutatingWebhookConfiguration, error)
+	DeleteMutatingWebhook(name string, options *metav1.DeleteOptions) error
+	DeleteValidatingWebhook(name string, options *metav1.DeleteOptions) error
+	UpdateMutatingWebhook(hook *admissionregistrationv1beta1.MutatingWebhookConfiguration) (*admissionregistrationv1beta1.MutatingWebhookConfiguration, error)
+	UpdateValidatingWebhook(hook *admissionregistrationv1beta1.ValidatingWebhookConfiguration) (*admissionregistrationv1beta1.ValidatingWebhookConfiguration, error)
+}
+
 // Interface assertion.
 var _ ClientInterface = &Client{}
 
@@ -174,7 +187,7 @@ func NewClientFromRestConfig(config *rest.Config) (client ClientInterface, err e
 	}
 
 	client = &Client{
-		kubernetes, 
+		kubernetes,
 		apiextensions,
 		apiregistration,
 	}
