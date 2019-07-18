@@ -9,6 +9,7 @@ import (
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/rest"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/internalversion"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -32,6 +33,7 @@ type operatorConfig struct {
 	apiReconciler     resolver.APIIntersectionReconciler
 	apiLabeler        labeler.Labeler
 	restConfig        *rest.Config
+	configClient      configv1client.Interface
 }
 
 func (o *operatorConfig) apply(options []OperatorOption) {
@@ -158,5 +160,11 @@ func WithAPILabeler(apiLabeler labeler.Labeler) OperatorOption {
 func WithRestConfig(restConfig *rest.Config) OperatorOption {
 	return func(config *operatorConfig) {
 		config.restConfig = restConfig
+	}
+}
+
+func WithConfigClient(configClient configv1client.Interface) OperatorOption {
+	return func(config *operatorConfig) {
+		config.configClient = configClient
 	}
 }
