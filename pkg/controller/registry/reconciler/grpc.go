@@ -6,7 +6,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -56,54 +55,7 @@ func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
 }
 
 func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: s.GetName() + "-",
-			Namespace:    s.GetNamespace(),
-			Labels:       s.Labels(),
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:  "registry-server",
-					Image: s.Spec.Image,
-					Ports: []v1.ContainerPort{
-						{
-							Name:          "grpc",
-							ContainerPort: 50051,
-						},
-					},
-					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
-						},
-						InitialDelaySeconds: 5,
-					},
-					LivenessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
-						},
-						InitialDelaySeconds: 10,
-					},
-					Resources: v1.ResourceRequirements{
-						Requests: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse("10m"),
-							v1.ResourceMemory: resource.MustParse("50Mi"),
-						},
-					},
-				},
-			},
-			Tolerations: []v1.Toleration{
-				{
-					Operator: v1.TolerationOpExists,
-				},
-			},
-		},
-	}
+	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, s.Labels(), 5, 10)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }

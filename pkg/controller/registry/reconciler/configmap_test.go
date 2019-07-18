@@ -170,6 +170,7 @@ func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogS
 			Name:      "cool-catalog",
 			Namespace: testNamespace,
 			UID:       types.UID("catalog-uid"),
+			Labels: map[string]string{"olm.catalogSource": "cool-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			ConfigMap:  "cool-configmap",

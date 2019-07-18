@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -90,56 +89,9 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 }
 
 func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
-	pod := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: s.GetName() + "-",
-			Namespace:    s.GetNamespace(),
-			Labels:       s.Labels(),
-		},
-		Spec: v1.PodSpec{
-			Containers: []v1.Container{
-				{
-					Name:    "configmap-registry-server",
-					Image:   image,
-					Command: []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()},
-					Ports: []v1.ContainerPort{
-						{
-							Name:          "grpc",
-							ContainerPort: 50051,
-						},
-					},
-					ReadinessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
-						},
-						InitialDelaySeconds: 1,
-					},
-					LivenessProbe: &v1.Probe{
-						Handler: v1.Handler{
-							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
-						},
-						InitialDelaySeconds: 2,
-					},
-					Resources: v1.ResourceRequirements{
-						Requests: v1.ResourceList{
-							v1.ResourceCPU:    resource.MustParse("10m"),
-							v1.ResourceMemory: resource.MustParse("50Mi"),
-						},
-					},
-				},
-			},
-			Tolerations: []v1.Toleration{
-				{
-					Operator: v1.TolerationOpExists,
-				},
-			},
-			ServiceAccountName: s.GetName() + ConfigMapServerPostfix,
-		},
-	}
+	pod := Pod(s.CatalogSource, "configmap-registry-server", image, s.Labels(), 1, 2)
+	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
+	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }
