@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"k8s.io/apiserver/pkg/util/logs"
+	"k8s.io/component-base/logs"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/server"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"

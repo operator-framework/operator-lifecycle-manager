@@ -13,8 +13,6 @@ MOCKGEN := ./scripts/generate_mocks.sh
 # mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
-KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
-KUBE_RELEASE := release-1.14
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 export GO111MODULE=on
 
@@ -56,7 +54,7 @@ build-linux: build_cmd=build
 build-linux: arch_flags=GOOS=linux GOARCH=386
 build-linux: clean $(CMDS)
 
-$(CMDS): version_flags=-ldflags "-w -X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
+$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
 	CGO_ENABLED=0 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
 
@@ -100,13 +98,7 @@ e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
-# kube dependencies all should be at the same release and should match up with client go
-# go.mod currently doesn't support specifying a branch name to track, and kube isn't publishing good version tags
-$(KUBE_DEPS):
-	go get -m k8s.io/kubernetes@v`echo $(KUBE_RELEASE) | cut -d "-" -f2`
-	go get -m k8s.io/$@@$(KUBE_RELEASE)
-
-vendor: $(KUBE_DEPS)
+vendor:
 	go mod tidy
 	go mod vendor
 
