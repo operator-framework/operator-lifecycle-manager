@@ -131,7 +131,7 @@ func (c *FakeSubscriptions) DeleteCollection(options *v1.DeleteOptions, listOpti
 // Patch applies the patch and returns the patched subscription.
 func (c *FakeSubscriptions) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *operators.Subscription, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(subscriptionsResource, c.ns, name, data, subresources...), &operators.Subscription{})
+		Invokes(testing.NewPatchSubresourceAction(subscriptionsResource, c.ns, name, pt, data, subresources...), &operators.Subscription{})
 
 	if obj == nil {
 		return nil, err
