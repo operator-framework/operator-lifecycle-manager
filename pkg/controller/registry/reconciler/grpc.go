@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -87,6 +88,12 @@ func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
 							},
 						},
 						InitialDelaySeconds: 10,
+					},
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("10m"),
+							v1.ResourceMemory: resource.MustParse("50Mi"),
+						},
 					},
 				},
 			},
