@@ -12,6 +12,7 @@ test_script:
   - echo %PATH%
   - go version
   - go env
+  - go vet ./...
   - go install .
   - copy scripts\counterfeiter.bat c:\gopath\bin
   - go generate ./...
