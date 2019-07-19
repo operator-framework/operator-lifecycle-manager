@@ -15,6 +15,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 
@@ -133,7 +134,7 @@ func newCRD(plural string) apiextensions.CustomResourceDefinition {
 				Plural:   plural,
 				Singular: plural,
 				Kind:     plural,
-				ListKind: "list" + plural,
+				ListKind: plural + "list",
 			},
 			Scope: "Namespaced",
 		},
@@ -650,26 +651,159 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 
 	var min float64 = 2
 	var max float64 = 256
+	var newMax float64 = 50
 	// generated outside of the test table so that the same naming can be used for both old and new CSVs
-	mainCRDPlural := genName("ins-main-")
+	mainCRDPlural := "testcrd"
 
 	// excluded: new CRD, same version, same schema - won't trigger a CRD update
 	tests := []struct {
 		name          string
 		expectedPhase v1alpha1.InstallPlanPhase
-		oldCRDName    string
-		oldCRD        apiextensions.CustomResourceDefinition
+		oldCRD        *apiextensions.CustomResourceDefinition
 		newCRD        *apiextensions.CustomResourceDefinition
 	}{
 		{
-			name:          "same version, different schema",
+			name:          "all existing versions are present, different (backwards compatible) schema",
+			expectedPhase: v1alpha1.InstallPlanPhaseComplete,
+			oldCRD: func() *apiextensions.CustomResourceDefinition {
+				oldCRD := newCRD(mainCRDPlural + "a")
+				oldCRD.Spec.Version = ""
+				oldCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+				}
+				return &oldCRD
+			}(),
+			newCRD: func() *apiextensions.CustomResourceDefinition {
+				newCRD := newCRD(mainCRDPlural + "a")
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: false,
+					},
+				}
+				newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]apiextensions.JSONSchemaProps{
+							"spec": {
+								Type:        "object",
+								Description: "Spec of a test object.",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"scalar": {
+										Type:        "number",
+										Description: "Scalar value that should have a min and max.",
+										Minimum:     &min,
+										Maximum:     &max,
+									},
+								},
+							},
+						},
+					},
+				}
+				return &newCRD
+			}(),
+		},
+		{
+			name:          "all existing versions are present, different (backwards incompatible) schema",
 			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
-			oldCRD:        newCRD(mainCRDPlural + "0"),
+			oldCRD: func() *apiextensions.CustomResourceDefinition {
+				oldCRD := newCRD(mainCRDPlural + "b")
+				oldCRD.Spec.Version = ""
+				oldCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+				}
+				return &oldCRD
+			}(),
 			newCRD: func() *apiextensions.CustomResourceDefinition {
-				crd := newCRD(mainCRDPlural + "0")
-				crd.Spec.Version = "v1alpha1"
-				crd.Spec.Validation = &apiextensions.CustomResourceValidation{
+				newCRD := newCRD(mainCRDPlural + "b")
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: false,
+					},
+				}
+				newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
 					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]apiextensions.JSONSchemaProps{
+							"spec": {
+								Type:        "object",
+								Description: "Spec of a test object.",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"scalar": {
+										Type:        "number",
+										Description: "Scalar value that should have a min and max.",
+										Minimum:     &min,
+										Maximum:     &newMax,
+									},
+								},
+							},
+						},
+					},
+				}
+				return &newCRD
+			}(),
+		},
+		{
+			name:          "missing existing versions in new CRD",
+			expectedPhase: v1alpha1.InstallPlanPhaseFailed,
+			oldCRD: func() *apiextensions.CustomResourceDefinition {
+				oldCRD := newCRD(mainCRDPlural + "c")
+				oldCRD.Spec.Version = ""
+				oldCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+					{
+						Name:    "v1alpha2",
+						Served:  true,
+						Storage: false,
+					},
+				}
+				return &oldCRD
+			}(),
+			newCRD: func() *apiextensions.CustomResourceDefinition {
+				newCRD := newCRD(mainCRDPlural + "c")
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+					{
+						Name:    "v1",
+						Served:  true,
+						Storage: false,
+					},
+				}
+				newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Type: "object",
 						Properties: map[string]apiextensions.JSONSchemaProps{
 							"spec": {
 								Type:        "object",
@@ -686,71 +820,7 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 						},
 					},
 				}
-
-				return &crd
-			}(),
-		},
-		{
-			name:          "different version, different schema",
-			expectedPhase: v1alpha1.InstallPlanPhaseComplete,
-			oldCRD:        newCRD(mainCRDPlural + "1"),
-			newCRD: func() *apiextensions.CustomResourceDefinition {
-				crd := newCRD(mainCRDPlural + "1")
-				crd.Spec.Version = ""
-				crd.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
-					{
-						Name:    "v1alpha1",
-						Served:  true,
-						Storage: false,
-					},
-					{
-						Name:    "v1alpha2",
-						Served:  true,
-						Storage: true,
-					},
-				}
-				crd.Spec.Validation = &apiextensions.CustomResourceValidation{
-					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
-						Properties: map[string]apiextensions.JSONSchemaProps{
-							"spec": {
-								Type:        "object",
-								Description: "Spec of a test object.",
-								Properties: map[string]apiextensions.JSONSchemaProps{
-									"scalar": {
-										Type:        "number",
-										Description: "Scalar value that should have a min and max.",
-										Minimum:     &min,
-										Maximum:     &max,
-									},
-								},
-							},
-						},
-					},
-				}
-
-				return &crd
-			}(),
-		},
-		{
-			name:          "different version, same schema",
-			expectedPhase: v1alpha1.InstallPlanPhaseComplete,
-			oldCRD:        newCRD(mainCRDPlural + "2"),
-			newCRD: func() *apiextensions.CustomResourceDefinition {
-				crd := newCRD(mainCRDPlural + "2")
-				crd.Spec.Version = ""
-				crd.Spec.Versions = []apiextensions.CustomResourceDefinitionVersion{
-					{
-						Name:    "v1alpha1",
-						Served:  true,
-						Storage: false,
-					},
-					{
-						Name:    "v1alpha2",
-						Served:  true,
-						Storage: true,
-					},
-				}
-				return &crd
+				return &newCRD
 			}(),
 		},
 	}
@@ -782,15 +852,30 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 
 			// Create new CSVs
-			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{tt.oldCRD}, nil, mainNamedStrategy)
-			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{tt.oldCRD}, nil, mainNamedStrategy)
+			mainStableCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, mainNamedStrategy)
+			mainBetaCSV := newCSV(mainPackageBeta, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{*tt.oldCRD}, nil, mainNamedStrategy)
 
 			c := newKubeClient(t)
 			crc := newCRClient(t)
 
+			// Existing custom resource
+			existingCR := &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "cluster.com/v1alpha1",
+					"kind":       tt.oldCRD.Spec.Names.Kind,
+					"metadata": map[string]interface{}{
+						"namespace": testNamespace,
+						"name":      "my-cr-1",
+					},
+					"spec": map[string]interface{}{
+						"scalar": 100,
+					},
+				},
+			}
+
 			// Create the catalog source
 			mainCatalogSourceName := genName("mock-ocs-main-")
-			_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{tt.oldCRD}, []v1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV})
+			_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogSourceName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{*tt.oldCRD}, []v1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV})
 			defer cleanupCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan(s)
@@ -837,11 +922,15 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			// Should have removed every matching step
 			require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected")
 
+			// Create initial CR
+			cleanupCR, err := createCR(c, existingCR, "cluster.com", "v1alpha1", testNamespace, tt.oldCRD.Spec.Names.Plural, "my-cr-1")
+			require.NoError(t, err)
+			defer cleanupCR()
+
 			updateInternalCatalog(t, c, crc, mainCatalogSourceName, testNamespace, []apiextensions.CustomResourceDefinition{*tt.newCRD}, []v1alpha1.ClusterServiceVersion{mainStableCSV, mainBetaCSV}, mainManifests)
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(t, err)
-
 			// Update the subscription resource to point to the beta CSV
 			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
 			require.NoError(t, err)
@@ -858,7 +947,6 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			// Wait for InstallPlan to be status: Complete or Failed before checking resource presence
 			fetchedInstallPlan, err = fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete, v1alpha1.InstallPlanPhaseFailed))
 			require.NoError(t, err)
-			fmt.Printf("Phase = %v", fetchedInstallPlan.Status.Phase)
 			t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 			require.Equal(t, tt.expectedPhase, fetchedInstallPlan.Status.Phase)
