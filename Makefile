@@ -63,6 +63,11 @@ build-linux: build_cmd=build
 build-linux: arch_flags=GOOS=linux GOARCH=386
 build-linux: clean $(CMDS)
 
+build-wait: clean bin/wait
+
+bin/wait:
+	CGO_ENABLED=0 GOOS=linux GOARCH=386 go build -o $@ $(PKG)/test/e2e/wait
+
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
 	CGO_ENABLED=0 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
@@ -94,9 +99,9 @@ setup-bare: clean e2e.namespace
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:
-	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager
+	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
 
-e2e-local: build-linux
+e2e-local: build-linux build-wait
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_local.sh $(TEST)
 
