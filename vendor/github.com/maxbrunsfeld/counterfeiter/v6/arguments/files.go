@@ -2,5 +2,5 @@ package arguments
 
 import "os"
 
-type SymlinkEvaler func(string) (string, error)
-type FileStatReader func(string) (os.FileInfo, error)
+type Evaler func(string) (string, error)
+type Stater func(string) (os.FileInfo, error)
