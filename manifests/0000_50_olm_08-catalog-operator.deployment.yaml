@@ -54,6 +54,11 @@ spec:
           - name: RELEASE_VERSION
             value: "0.0.1-snapshot"
           
+          resources:
+            requests:
+              cpu: 10m
+              memory: 80Mi
+            
           
           volumeMounts:
           - mountPath: /var/run/secrets/serving-cert

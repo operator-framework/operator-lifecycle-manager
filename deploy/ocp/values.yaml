@@ -31,6 +31,10 @@ olm:
     tolerationSeconds: 120
   tlsCertPath: /var/run/secrets/serving-cert/tls.crt
   tlsKeyPath: /var/run/secrets/serving-cert/tls.key
+  resources:
+    requests:
+      cpu: 10m
+      memory: 160Mi
 catalog:
   replicaCount: 1
   image:
@@ -53,6 +57,10 @@ catalog:
     operator: Exists
     effect: NoExecute
     tolerationSeconds: 120
+  resources:
+    requests:
+      cpu: 10m
+      memory: 80Mi
 package:
   replicaCount: 2
   image:
@@ -75,3 +83,7 @@ package:
     operator: Exists
     effect: NoExecute
     tolerationSeconds: 120
+  resources:
+    requests:
+      cpu: 10m
+      memory: 50Mi

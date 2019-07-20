@@ -18,6 +18,10 @@ olm:
     internalPort: 8080
   nodeSelector:
     beta.kubernetes.io/os: linux
+  resources:
+    requests:
+     cpu: 10m
+     memory: 160Mi
 
 catalog:
   replicaCount: 1
@@ -29,6 +33,10 @@ catalog:
     internalPort: 8080
   nodeSelector:
     beta.kubernetes.io/os: linux
+  resources:
+    requests:
+     cpu: 10m
+     memory: 80Mi
 
 package:
   replicaCount: 2
@@ -39,3 +47,7 @@ package:
     internalPort: 5443
   nodeSelector:
     beta.kubernetes.io/os: linux
+  resources:
+    requests:
+     cpu: 10m
+     memory: 50Mi

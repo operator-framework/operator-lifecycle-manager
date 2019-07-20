@@ -121,6 +121,11 @@ spec:
                     path: /healthz
                     port: 5443
                 terminationMessagePolicy: FallbackToLogsOnError
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 50Mi
+                  
   maturity: alpha
   version: 0.10.1
   apiservicedefinitions:

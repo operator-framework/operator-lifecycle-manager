@@ -228,11 +228,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "",
-							Version:  "v1",
-							Kind:     "Service",
-							Name:     "service",
-							Manifest: toManifest(service("service", namespace)),
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Service",
+							Name:                   "service",
+							Manifest:               toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -240,11 +240,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "operators.coreos.com",
-							Version:  "v1alpha1",
-							Kind:     "ClusterServiceVersion",
-							Name:     "csv",
-							Manifest: toManifest(csv("csv", namespace, nil, nil)),
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -317,6 +317,7 @@ func TestSyncCatalogSources(t *testing.T) {
 			Name:      "cool-catalog",
 			Namespace: "cool-namespace",
 			UID:       types.UID("catalog-uid"),
+			Labels:    map[string]string{"olm.catalogSource": "cool-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			Image:      "catalog-image",
@@ -480,6 +481,7 @@ func TestSyncCatalogSources(t *testing.T) {
 						Name:      "cool-catalog",
 						Namespace: "cool-namespace",
 						UID:       types.UID("catalog-uid"),
+						Labels:    map[string]string{"olm.catalogSource": "cool-catalog"},
 					},
 					Spec: v1alpha1.CatalogSourceSpec{
 						Image:      "old-image",
@@ -885,50 +887,7 @@ func toManifest(obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: s.GetName() + "-",
-			Namespace:    s.GetNamespace(),
-			Labels: map[string]string{
-				"olm.catalogSource": s.GetName(),
-			},
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:  "registry-server",
-					Image: s.Spec.Image,
-					Ports: []corev1.ContainerPort{
-						{
-							Name:          "grpc",
-							ContainerPort: 50051,
-						},
-					},
-					ReadinessProbe: &corev1.Probe{
-						Handler: corev1.Handler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
-						},
-						InitialDelaySeconds: 5,
-					},
-					LivenessProbe: &corev1.Probe{
-						Handler: corev1.Handler{
-							Exec: &corev1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
-							},
-						},
-						InitialDelaySeconds: 10,
-					},
-				},
-			},
-			Tolerations: []corev1.Toleration{
-				{
-					Operator: corev1.TolerationOpExists,
-				},
-			},
-		},
-	}
+	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetLabels(), 5, 10)
 	ownerutil.AddOwner(pod, &s, false, false)
 	return pod
 }

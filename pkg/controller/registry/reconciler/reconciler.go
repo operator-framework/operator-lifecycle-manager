@@ -2,6 +2,8 @@
 package reconciler
 
 import (
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -82,4 +84,56 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
 	}
+}
+
+func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
+	pod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: source.GetName() + "-",
+			Namespace:    source.GetNamespace(),
+			Labels:       labels,
+		},
+		Spec: v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Name:  name,
+					Image: image,
+					Ports: []v1.ContainerPort{
+						{
+							Name:          "grpc",
+							ContainerPort: 50051,
+						},
+					},
+					ReadinessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+							},
+						},
+						InitialDelaySeconds: readinessDelay,
+					},
+					LivenessProbe: &v1.Probe{
+						Handler: v1.Handler{
+							Exec: &v1.ExecAction{
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+							},
+						},
+						InitialDelaySeconds: livenessDelay,
+					},
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceCPU:    resource.MustParse("10m"),
+							v1.ResourceMemory: resource.MustParse("50Mi"),
+						},
+					},
+				},
+			},
+			Tolerations: []v1.Toleration{
+				{
+					Operator: v1.TolerationOpExists,
+				},
+			},
+		},
+	}
+	return pod
 }

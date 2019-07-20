@@ -22,6 +22,7 @@ func validGrpcCatalogSource(image, address string) *v1alpha1.CatalogSource {
 			Name:      "img-catalog",
 			Namespace: testNamespace,
 			UID:       types.UID("catalog-uid"),
+			Labels:    map[string]string{"olm.catalogSource": "img-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			Image:      image,
