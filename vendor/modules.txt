@@ -125,7 +125,15 @@ github.com/munnerz/goautoneg
 github.com/openshift/api/config/v1
 # github.com/openshift/client-go v0.0.0-00010101000000-000000000000 => github.com/openshift/client-go v0.0.0-20190627172412-c44a8b61b9f4
 github.com/openshift/client-go/config/clientset/versioned/typed/config/v1
+github.com/openshift/client-go/config/clientset/versioned
+github.com/openshift/client-go/config/informers/externalversions
+github.com/openshift/client-go/config/informers/externalversions/config/v1
+github.com/openshift/client-go/config/listers/config/v1
 github.com/openshift/client-go/config/clientset/versioned/scheme
+github.com/openshift/client-go/config/clientset/versioned/fake
+github.com/openshift/client-go/config/informers/externalversions/config
+github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
+github.com/openshift/client-go/config/clientset/versioned/typed/config/v1/fake
 # github.com/operator-framework/operator-registry v1.1.1
 github.com/operator-framework/operator-registry/pkg/client
 github.com/operator-framework/operator-registry/pkg/registry

@@ -29,12 +29,52 @@ const (
 
 // SubscriptionSpec defines an Application that can be installed
 type SubscriptionSpec struct {
-	CatalogSource          string   `json:"source"`
-	CatalogSourceNamespace string   `json:"sourceNamespace"`
-	Package                string   `json:"name"`
-	Channel                string   `json:"channel,omitempty"`
-	StartingCSV            string   `json:"startingCSV,omitempty"`
-	InstallPlanApproval    Approval `json:"installPlanApproval,omitempty"`
+	CatalogSource          string             `json:"source"`
+	CatalogSourceNamespace string             `json:"sourceNamespace"`
+	Package                string             `json:"name"`
+	Channel                string             `json:"channel,omitempty"`
+	StartingCSV            string             `json:"startingCSV,omitempty"`
+	InstallPlanApproval    Approval           `json:"installPlanApproval,omitempty"`
+	Config                 SubscriptionConfig `json:"config,omitempty"`
+}
+
+// SubscriptionConfig contains configuration specified for a subscription.
+type SubscriptionConfig struct {
+	// Label selector for pods. Existing ReplicaSets whose pods are
+	// selected by this will be the ones affected by this deployment.
+	// It must match the pod template's labels.
+	Selector *metav1.LabelSelector `json:"selector,omitempty"`
+
+	// NodeSelector is a selector which must be true for the pod to fit on a node.
+	// Selector which must match a node's labels for the pod to be scheduled on that node.
+	// More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
+	// +optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+
+	// If specified, the pod's tolerations.
+	// +optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
+
+	// Compute Resources required by this container.
+	// Cannot be updated.
+	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
+	// +optional
+	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
+
+	// List of sources to populate environment variables in the container.
+	// The keys defined within a source must be a C_IDENTIFIER. All invalid keys
+	// will be reported as an event when the container is starting. When a key exists in multiple
+	// sources, the value associated with the last source will take precedence.
+	// Values defined by an Env with a duplicate key will take precedence.
+	// Cannot be updated.
+	// +optional
+	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
+	// List of environment variables to set in the container.
+	// Cannot be updated.
+	// +optional
+	// +patchMergeKey=name
+	// +patchStrategy=merge
+	Env []corev1.EnvVar `json:"env,omitempty"`
 }
 
 // SubscriptionConditionType indicates an explicit state condition about a Subscription in "abnormal-true"
@@ -81,7 +121,7 @@ const (
 	InstallPlanNotYetReconciled = "InstallPlanNotYetReconciled"
 
 	// InstallPlanFailed is a reason string for Subscriptions that transitioned due to a referenced InstallPlan failing without setting an explicit failure condition.
-	InstallPlanFailed  = "InstallPlanFailed"
+	InstallPlanFailed = "InstallPlanFailed"
 )
 
 // SubscriptionCondition represents the latest available observations of a Subscription's state.

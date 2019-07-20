@@ -1,0 +1,10 @@
+{{- if .Values.e2eLocalMode }}
+apiVersion: config.openshift.io/v1
+kind: Proxy
+metadata:
+  name: cluster
+spec:
+  httpProxy: "http://foo.com:8080"
+  httpsProxy: "https://foo.com:8080"
+  noProxy: "a,b,c"
+{{- end }}

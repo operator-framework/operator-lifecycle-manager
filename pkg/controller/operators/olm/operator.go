@@ -42,6 +42,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/proxy"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/envvar"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -211,6 +213,19 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err := op.RegisterQueueInformer(operatorGroupQueueInformer); err != nil {
 			return nil, err
 		}
+
+		subInformer := extInformerFactory.Operators().V1alpha1().Subscriptions()
+		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())		
+		subQueueInformer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(subInformer.Informer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncSubscription).ToSyncerWithDelete(op.syncSubscriptionDeleted)),
+		)
+		if err != nil {
+			return nil, err
+		}
+		op.RegisterQueueInformer(subQueueInformer)
 
 		// Wire Deployments
 		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod, informers.WithNamespace(namespace))
@@ -392,11 +407,69 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
+
+	// setup proxy env var injection policies
+	discovery := config.operatorClient.KubernetesInterface().Discovery()
+	proxyAPIExists, err := proxy.IsAPIAvailable(discovery)
+	if err != nil {
+		op.logger.Errorf("error happened while probing for Proxy API support - %v", err)
+		return nil, err
+	}
+
+	proxyQuerierInUse := proxy.DefaultQuerier()
+	if proxyAPIExists {
+		op.logger.Info("OpenShift Proxy API  available - setting up watch for Proxy type")
+
+		proxyInformer, proxySyncer, proxyQuerier, err := proxy.NewSyncer(op.logger, config.configClient, discovery)
+		if err != nil {
+			err = fmt.Errorf("failed to initialize syncer for Proxy type - %v", err)
+			return nil, err
+		}
+
+		op.logger.Info("OpenShift Proxy query will be used to fetch cluster proxy configuration")
+		proxyQuerierInUse = proxyQuerier
+
+		informer, err := queueinformer.NewQueueInformer(
+			ctx,
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithInformer(proxyInformer.Informer()),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(proxySyncer.SyncProxy).ToSyncerWithDelete(proxySyncer.HandleProxyDelete)),
+		)
+		if err != nil {
+			return nil, err
+		}
+		op.RegisterQueueInformer(informer)
+	}
+
+	proxyEnvInjector := envvar.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
+	op.resolver = &install.StrategyResolver{
+		ProxyInjectorBuilder: proxyEnvInjector.GetDeploymentInitializer,
+	}
+	
 	return op, nil
 }
 
 func (a *Operator) now() metav1.Time {
 	return metav1.NewTime(a.clock.Now().UTC())
+}
+
+func (a *Operator) syncSubscription(obj interface{}) error {
+	_, ok := obj.(*v1alpha1.Subscription)
+	if !ok {
+		a.logger.Debugf("wrong type: %#v\n", obj)
+		return fmt.Errorf("casting Subscription failed")
+	}
+
+	return nil
+}
+
+func (a *Operator) syncSubscriptionDeleted(obj interface{}) {
+	_, ok := obj.(*v1alpha1.Subscription)
+	if !ok {
+		a.logger.Debugf("casting Subscription failed, wrong type: %#v\n", obj)
+	}
+
+	return
 }
 
 func (a *Operator) syncAPIService(obj interface{}) (syncError error) {

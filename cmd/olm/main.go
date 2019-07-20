@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	configclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -158,6 +159,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
+	versionedConfigClient, err := configclientset.NewForConfig(config)
+	if err != nil {
+		err = fmt.Errorf("error configuring OpenShift Proxy client: %v", err)
+		return
+	}
 	configClient, err := configv1client.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
@@ -179,6 +185,7 @@ func main() {
 		olm.WithExternalClient(crClient),
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
+		olm.WithConfigClient(versionedConfigClient),
 	)
 	if err != nil {
 		log.WithError(err).Fatalf("error configuring operator")

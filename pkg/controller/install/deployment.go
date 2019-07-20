@@ -43,6 +43,7 @@ type StrategyDeploymentInstaller struct {
 	owner               ownerutil.Owner
 	previousStrategy    Strategy
 	templateAnnotations map[string]string
+	initializers        DeploymentInitializerFuncChain
 }
 
 func (d *StrategyDetailsDeployment) GetStrategyName() string {
@@ -52,18 +53,53 @@ func (d *StrategyDetailsDeployment) GetStrategyName() string {
 var _ Strategy = &StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
-func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy) StrategyInstaller {
+// DeploymentInitializerFunc takes a deployment object and appropriately
+// initializes it for install.
+//
+// Before a deployment is created on the cluster, we can run a series of
+// initializer functions that will properly initialize the deployment object.
+type DeploymentInitializerFunc func(deployment *appsv1.Deployment) error
+
+// DeploymentInitializerFuncChain defines a chain of DeploymentInitializerFunc.
+type DeploymentInitializerFuncChain []DeploymentInitializerFunc
+
+// Apply runs series of initializer functions that will properly initialize
+// the deployment object.
+func (c DeploymentInitializerFuncChain) Apply(deployment *appsv1.Deployment) (err error) {
+	for _, initializer := range c {
+		if initializer == nil {
+			continue
+		}
+
+		if initializationErr := initializer(deployment); initializationErr != nil {
+			err = initializationErr
+			break
+		}
+	}
+
+	return
+}
+
+type DeploymentInitializerFuncBuilder func(owner ownerutil.Owner) DeploymentInitializerFunc
+
+func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain) StrategyInstaller {
 	return &StrategyDeploymentInstaller{
 		strategyClient:      strategyClient,
 		owner:               owner,
 		previousStrategy:    previousStrategy,
 		templateAnnotations: templateAnnotations,
+		initializers:        initializers,
 	}
 }
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
 	for _, d := range deps {
-		if _, err := i.strategyClient.CreateOrUpdateDeployment(i.deploymentForSpec(d.Name, d.Spec)); err != nil {
+		deployment, err := i.deploymentForSpec(d.Name, d.Spec)
+		if err != nil {
+			return err
+		}
+
+		if _, err := i.strategyClient.CreateOrUpdateDeployment(deployment); err != nil {
 			return err
 		}
 	}
@@ -71,7 +107,7 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeployme
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) *appsv1.Deployment {
+func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) (deployment *appsv1.Deployment, err error) {
 	dep := &appsv1.Deployment{Spec: spec}
 	dep.SetName(name)
 	dep.SetNamespace(i.owner.GetNamespace())
@@ -88,7 +124,14 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 
 	ownerutil.AddNonBlockingOwner(dep, i.owner)
 	ownerutil.AddOwnerLabelsForKind(dep, i.owner, v1alpha1.ClusterServiceVersionKind)
-	return dep
+
+	if applyErr := i.initializers.Apply(dep); applyErr != nil {
+		err = applyErr
+		return
+	}
+
+	deployment = dep
+	return
 }
 
 func (i *StrategyDeploymentInstaller) cleanupPrevious(current *StrategyDetailsDeployment, previous *StrategyDetailsDeployment) error {
@@ -185,7 +228,11 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []Stra
 		}
 
 		// check equality
-		calculated := i.deploymentForSpec(spec.Name, spec.Spec)
+		calculated, err := i.deploymentForSpec(spec.Name, spec.Spec)
+		if err != nil {
+			return err
+		}
+
 		if !i.equalDeployments(&calculated.Spec, &dep.Spec) {
 			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment changed, rolling update with patch: %s\n%#v\n%#v", diff.ObjectDiff(dep.Spec.Template.Spec, calculated.Spec.Template.Spec), calculated.Spec.Template.Spec, dep.Spec.Template.Spec)}
 		}
