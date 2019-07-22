@@ -1141,19 +1141,27 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 		}
 
 		require.NotNil(t, proxy)
-		proxyEnv := []corev1.EnvVar{
-			corev1.EnvVar{
+		proxyEnv := []corev1.EnvVar{}
+
+		if proxy.Status.HTTPProxy !="" {
+			proxyEnv = append(proxyEnv, corev1.EnvVar{
 				Name:  "HTTP_PROXY",
 				Value: proxy.Status.HTTPProxy,
-			},
-			corev1.EnvVar{
+			})
+		}
+
+		if proxy.Status.HTTPSProxy !="" {
+			proxyEnv = append(proxyEnv, corev1.EnvVar{
 				Name:  "HTTPS_PROXY",
 				Value: proxy.Status.HTTPSProxy,
-			},
-			corev1.EnvVar{
+			})
+		}
+
+		if proxy.Status.NoProxy !="" {
+			proxyEnv = append(proxyEnv, corev1.EnvVar{
 				Name:  "NO_PROXY",
 				Value: proxy.Status.NoProxy,
-			},
+			})
 		}
 
 		return proxyEnv
