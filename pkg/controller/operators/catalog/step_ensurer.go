@@ -163,7 +163,10 @@ func (o *StepEnsurer) EnsureClusterRole(cr *rbacv1.ClusterRole, step *v1alpha1.S
 	}
 
 	// We're updating, point owner to the newest csv
-	cr.Labels[ownerutil.OwnerKey] = step.Resolving
+	if cr.ObjectMeta.Labels == nil {
+		cr.ObjectMeta.Labels = map[string]string{}
+	}
+	cr.ObjectMeta.Labels[ownerutil.OwnerKey] = step.Resolving
 	if _, updateErr := o.kubeClient.UpdateClusterRole(cr); updateErr != nil {
 		err = errorwrap.Wrapf(updateErr, "error updating clusterrole %s", cr.GetName())
 		return
@@ -187,7 +190,10 @@ func (o *StepEnsurer) EnsureClusterRoleBinding(crb *rbacv1.ClusterRoleBinding, s
 	}
 
 	// if we're updating, point owner to the newest csv
-	crb.Labels[ownerutil.OwnerKey] = step.Resolving
+	if crb.ObjectMeta.Labels == nil {
+		crb.ObjectMeta.Labels = map[string]string{}
+	}
+	crb.ObjectMeta.Labels[ownerutil.OwnerKey] = step.Resolving
 	if _, updateErr := o.kubeClient.UpdateClusterRoleBinding(crb); updateErr != nil {
 		err = errorwrap.Wrapf(updateErr, "error updating clusterrolebinding %s", crb.GetName())
 		return
