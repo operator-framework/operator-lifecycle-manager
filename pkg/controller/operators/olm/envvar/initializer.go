@@ -63,7 +63,7 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 	merged = append(podConfigEnvVar, proxyEnvVar...)
 
 	if len(merged) == 0 {
-		d.logger.Debugf("no env var to inject into csv=%s", ownerCSV.GetName())
+		d.logger.WithField("csv", ownerCSV.GetName()).Debug("no env var to inject into csv")
 	}
 
 	podSpec := deployment.Spec.Template.Spec

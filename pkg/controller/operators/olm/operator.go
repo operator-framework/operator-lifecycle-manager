@@ -407,7 +407,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-
 	// setup proxy env var injection policies
 	discovery := config.operatorClient.KubernetesInterface().Discovery()
 	proxyAPIExists, err := proxy.IsAPIAvailable(discovery)
@@ -416,7 +415,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	proxyQuerierInUse := proxy.DefaultQuerier()
+	proxyQuerierInUse := proxy.NoopQuerier()
 	if proxyAPIExists {
 		op.logger.Info("OpenShift Proxy API  available - setting up watch for Proxy type")
 
@@ -443,7 +442,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 
 	proxyEnvInjector := envvar.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
 	op.resolver = &install.StrategyResolver{
-		ProxyInjectorBuilder: proxyEnvInjector.GetDeploymentInitializer,
+		ProxyInjectorBuilderFunc: proxyEnvInjector.GetDeploymentInitializer,
 	}
 	
 	return op, nil

@@ -1120,11 +1120,9 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 
 	newConfigClient := func(t *testing.T) configv1client.ConfigV1Interface {
 		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-		// require.NoErrorf(t, err, "could not create rest config: %s", err.Error())
 		require.NoError(t, err,)
 
 		client, err := configv1client.NewForConfig(config)
-		// require.NoErrorf(t, err, "error creating OpenShift Config client: %s", err.Error())
 		require.NoError(t, err)
 
 		return client

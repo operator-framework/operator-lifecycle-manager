@@ -4,9 +4,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// DefaultQuerier does...
-func DefaultQuerier() Querier {
-	return &defaultQuerier{}
+// NoopQuerier returns an instance of noopQuerier. It's used for upstream where
+// we don't have any cluster proxy configuration.
+func NoopQuerier() Querier {
+	return &noopQuerier{}
 }
 
 // Querier is an interface that wraps the QueryProxyConfig method.
@@ -16,11 +17,11 @@ type Querier interface {
 	QueryProxyConfig() (proxy []corev1.EnvVar, err error)
 }
 
-type defaultQuerier struct {
+type noopQuerier struct {
 }
 
 // QueryProxyConfig returns no env variable(s), err is set to nil to indicate
 // that the cluster has no global proxy configuration.
-func (*defaultQuerier) QueryProxyConfig() (proxy []corev1.EnvVar, err error) {
+func (*noopQuerier) QueryProxyConfig() (proxy []corev1.EnvVar, err error) {
 	return
 }
