@@ -27,6 +27,7 @@ import (
 const (
 	defaultWakeupInterval = 5 * time.Minute
 	defaultOperatorName   = ""
+	defaultOLMNamespace   = "openshift-operator-lifecycle-manager"
 )
 
 // config flags defined globally so that they appear on the test binary as well
@@ -55,6 +56,9 @@ var (
 
 	tlsCertPath = flag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
+
+	namespace = flag.String(
+		"namespace", defaultOLMNamespace, "namespace where olm will run and install olm resources")
 )
 
 func init() {
@@ -163,7 +167,7 @@ func main() {
 	<-ready
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, *namespace, sync, stopCh, opClient, configClient)
 	}
 
 	<-done
