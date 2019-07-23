@@ -16,6 +16,15 @@ IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 export GO111MODULE=on
 
+# ART builds are performed in dist-git, with content (but not commits) copied 
+# from the source repo. Thus at build time if your code is inspecting the local
+# git repo it is getting unrelated commits and tags from the dist-git repo, 
+# not the source repo.
+# For ART image builds, SOURCE_GIT_COMMIT, SOURCE_GIT_TAG, SOURCE_DATE_EPOCH 
+# variables are inserted in Dockerfile to enable recovering the original git 
+# metadata at build time.
+GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
+
 .PHONY: build test run clean vendor schema-check \
 	vendor-update coverage coverage-html e2e .FORCE
 
@@ -54,7 +63,7 @@ build-linux: build_cmd=build
 build-linux: arch_flags=GOOS=linux GOARCH=386
 build-linux: clean $(CMDS)
 
-$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=`git rev-parse --short HEAD` -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
+$(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
 	CGO_ENABLED=0 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
 
