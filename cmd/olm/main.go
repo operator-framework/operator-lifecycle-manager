@@ -163,7 +163,7 @@ func main() {
 	<-ready
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, sync, stopCh, opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, *namespace, sync, stopCh, opClient, configClient)
 	}
 
 	<-done
