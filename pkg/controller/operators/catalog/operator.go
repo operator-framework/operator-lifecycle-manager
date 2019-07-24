@@ -1190,7 +1190,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					if rb.ObjectMeta.Labels == nil {
 						rb.ObjectMeta.Labels = map[string]string{}
 					}
-					rb.Labels[ownerutil.OwnerKey] = step.Resolving
+					rb.ObjectMeta.Labels[ownerutil.OwnerKey] = step.Resolving
 					_, err = o.OpClient.UpdateClusterRoleBinding(&rb)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrolebinding %s", rb.GetName())
