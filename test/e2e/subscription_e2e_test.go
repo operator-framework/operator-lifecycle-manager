@@ -407,31 +407,6 @@ func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, 
 	return buildSubscriptionCleanupFunc(t, crc, subscription)
 }
 
-func createSubscriptionWithPodConfig(t *testing.T, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval, config v1alpha1.SubscriptionConfig) cleanupFunc {
-	subscription := &v1alpha1.Subscription{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.SubscriptionKind,
-			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: namespace,
-			Name:      name,
-		},
-		Spec: &v1alpha1.SubscriptionSpec{
-			CatalogSource:          catalogSourceName,
-			CatalogSourceNamespace: namespace,
-			Package:                packageName,
-			Channel:                channel,
-			InstallPlanApproval:    approval,
-			Config:                 config,
-		},
-	}
-
-	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
-	require.NoError(t, err)
-	return buildSubscriptionCleanupFunc(t, crc, subscription)
-}
-
 func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) cleanupFunc {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
@@ -450,6 +425,24 @@ func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespa
 			StartingCSV:            startingCSV,
 			InstallPlanApproval:    approval,
 		},
+	}
+
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
+	require.NoError(t, err)
+	return buildSubscriptionCleanupFunc(t, crc, subscription)
+}
+
+func createSubscriptionForCatalogWithSpec(t *testing.T, crc versioned.Interface, namespace, name string, spec *v1alpha1.SubscriptionSpec) cleanupFunc {
+	subscription := &v1alpha1.Subscription{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.SubscriptionKind,
+			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: spec,
 	}
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
@@ -1165,14 +1158,9 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 		return proxyEnv
 	}
 
-	c := newKubeClient(t)
-	crc := newCRClient(t)
+	kubeClient := newKubeClient(t)
+	crClient := newCRClient(t)
 	config := newConfigClient(t)
-
-	defer func() {
-		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
-	}()
-	require.NoError(t, initCatalog(t, c, crc))
 
 	podEnv := []corev1.EnvVar{
 		corev1.EnvVar{
@@ -1188,22 +1176,31 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 		Env: podEnv,
 	}
 
-	subscriptionName := "mysub-podconfig"
-	cleanup := createSubscriptionWithPodConfig(t, crc, testNamespace, subscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic, podConfig)
-	defer cleanup()
+	permissions := deploymentPermissions(t)
+	catsrc, subSpec, catsrcCleanup := newCatalogSource(t, kubeClient, crClient, "podconfig", testNamespace, permissions)
+	defer catsrcCleanup()
 
-	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	// Ensure that the catalog source is resolved before we create a subscription.
+	_, err := fetchCatalogSource(t, crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("podconfig-sub-")
+	subSpec.Config = podConfig
+	cleanupSubscription := createSubscriptionForCatalogWithSpec(t, crClient, testNamespace, subscriptionName, subSpec)	
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
-	csv, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	csv, err := fetchCSV(t, crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
 
 	proxyEnv := proxyEnvVarFunc(t, config)
 	expected := podEnv
 	expected = append(expected, proxyEnv...)
 
-	checkDeploymentWithPodConfiguration(t, c, csv, podConfig.Env)
+	checkDeploymentWithPodConfiguration(t, kubeClient, csv, podConfig.Env)
 }
 
 func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar) {
