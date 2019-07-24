@@ -881,6 +881,26 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	for _, installPlan := range installPlans {
 		if installPlan.Status.CSVManifestsMatch(steps) {
 			logger.Infof("found InstallPlan with matching manifests: %s", installPlan.GetName())
+
+			ownerWasAdded := false
+			for _, sub := range subs {
+				ownerWasAdded = ownerWasAdded || !ownerutil.EnsureOwner(installPlan, sub)
+			}
+			if ownerWasAdded {
+				_, err := o.client.OperatorsV1alpha1().InstallPlans(installPlan.GetNamespace()).Update(installPlan)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			installPlan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			for _, step := range installPlan.Status.Plan {
+				step.Status = v1alpha1.StepStatusUnknown
+			}
+			_, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(installPlan)
+			if err != nil {
+				return nil, err
+			}
 			return reference.GetReference(installPlan)
 		}
 	}
