@@ -1163,7 +1163,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					if cr.ObjectMeta.Labels == nil {
 						cr.ObjectMeta.Labels = map[string]string{}
 					}
-					cr.Labels[ownerutil.OwnerKey] = step.Resolving
+					cr.ObjectMeta.Labels[ownerutil.OwnerKey] = step.Resolving
 					_, err = o.OpClient.UpdateClusterRole(&cr)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrole %s", cr.GetName())
