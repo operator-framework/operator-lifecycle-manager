@@ -1,0 +1,13 @@
+##---
+# Source: olm/templates/0000_50_olm_00-namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: olm
+  
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operators
+  
