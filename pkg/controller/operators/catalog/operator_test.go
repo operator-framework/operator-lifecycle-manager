@@ -704,7 +704,7 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
 	config := &fakeOperatorConfig{
-		logger:   logrus.New(),
+		logger:   logrus.StandardLogger(),
 		clock:    utilclock.RealClock{},
 		resolver: &fakes.FakeResolver{},
 	}
