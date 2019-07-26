@@ -407,7 +407,6 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-
 	// setup proxy env var injection policies
 	discovery := config.operatorClient.KubernetesInterface().Discovery()
 	proxyAPIExists, err := proxy.IsAPIAvailable(discovery)
@@ -416,7 +415,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	proxyQuerierInUse := proxy.DefaultQuerier()
+	proxyQuerierInUse := proxy.NoopQuerier()
 	if proxyAPIExists {
 		op.logger.Info("OpenShift Proxy API  available - setting up watch for Proxy type")
 
@@ -443,7 +442,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 
 	proxyEnvInjector := envvar.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
 	op.resolver = &install.StrategyResolver{
-		ProxyInjectorBuilder: proxyEnvInjector.GetDeploymentInitializer,
+		ProxyInjectorBuilderFunc: proxyEnvInjector.GetDeploymentInitializer,
 	}
 	
 	return op, nil
@@ -454,10 +453,19 @@ func (a *Operator) now() metav1.Time {
 }
 
 func (a *Operator) syncSubscription(obj interface{}) error {
-	_, ok := obj.(*v1alpha1.Subscription)
+	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
 		a.logger.Debugf("wrong type: %#v\n", obj)
 		return fmt.Errorf("casting Subscription failed")
+	}
+
+	installedCSV := sub.Status.InstalledCSV
+	if installedCSV != "" {
+		a.logger.WithField("csv", installedCSV).Debug("subscription has changed, requeuing installed csv")
+		if err := a.csvQueueSet.Requeue(sub.GetNamespace(), installedCSV); err != nil {
+			a.logger.WithField("csv", installedCSV).Debug("failed to requeue installed csv")
+			return err
+		}
 	}
 
 	return nil

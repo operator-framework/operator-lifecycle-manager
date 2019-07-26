@@ -40,7 +40,8 @@ func TestUserDefinedServiceAccountWithNoPermission(t *testing.T) {
 	_, cleanupOG := newOperatorGroupWithServiceAccount(t, crclient, namespace, ogName, saName)
 	defer cleanupOG()
 
-	catsrc, subSpec, catsrcCleanup := newCatalogSource(t, kubeclient, crclient, namespace)
+	permissions := deploymentPermissions(t)
+	catsrc, subSpec, catsrcCleanup := newCatalogSource(t, kubeclient, crclient, "scoped", namespace, permissions)
 	defer catsrcCleanup()
 
 	// Ensure that the catalog source is resolved before we create a subscription.
@@ -96,7 +97,8 @@ func TestUserDefinedServiceAccountWithPermission(t *testing.T) {
 	_, cleanupOG := newOperatorGroupWithServiceAccount(t, crclient, namespace, ogName, saName)
 	defer cleanupOG()
 
-	catsrc, subSpec, catsrcCleanup := newCatalogSource(t, kubeclient, crclient, namespace)
+	permissions := deploymentPermissions(t)
+	catsrc, subSpec, catsrcCleanup := newCatalogSource(t, kubeclient, crclient, "scoped", namespace, permissions)
 	defer catsrcCleanup()
 
 	// Ensure that the catalog source is resolved before we create a subscription.
@@ -194,7 +196,7 @@ func newOperatorGroupWithServiceAccount(t *testing.T, client versioned.Interface
 	return
 }
 
-func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, namespace string) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
+func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []install.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
 
@@ -215,12 +217,15 @@ func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, c
 		},
 	}
 
+	prefixFunc := func(s string) string {
+		return fmt.Sprintf("%s-%s-", prefix, s)
+	}
+
 	// Create CSV
-	packageName := genName("nginx-")
+	packageName := genName(prefixFunc("package"))
 	stableChannel := "stable"
 
-	permissions := deploymentPermissions(t)
-	namedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, nil)
+	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
 	csvA := newCSV("nginx-a", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 	csvB := newCSV("nginx-b", namespace, "nginx-a", semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 
@@ -235,7 +240,7 @@ func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, c
 		},
 	}
 
-	catalogSourceName := genName("mock-nginx-")
+	catalogSourceName := genName(prefixFunc("catsrc"))
 	catsrc, cleanup = createInternalCatalogSource(t, kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
 	require.NotNil(t, catsrc)
 	require.NotNil(t, cleanup)

@@ -29,18 +29,15 @@ func merge(containerEnvVars []corev1.EnvVar, newEnvVars []corev1.EnvVar) (merged
 
 	for _, newEnvVar := range newEnvVars {
 		existing, found := find(containerEnvVars, newEnvVar.Name)
-		if !found {
-			if newEnvVar.Value != "" {
-				merged = append(merged, corev1.EnvVar{
-					Name:  newEnvVar.Name,
-					Value: newEnvVar.Value,
-				})
-			}
-
+		if found {
+			existing.Value = newEnvVar.Value
 			continue
 		}
 
-		existing.Value = newEnvVar.Value
+		merged = append(merged, corev1.EnvVar{
+			Name:  newEnvVar.Name,
+			Value: newEnvVar.Value,
+		})
 	}
 
 	return

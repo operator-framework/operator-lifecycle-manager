@@ -80,7 +80,9 @@ func (c DeploymentInitializerFuncChain) Apply(deployment *appsv1.Deployment) (er
 	return
 }
 
-type DeploymentInitializerFuncBuilder func(owner ownerutil.Owner) DeploymentInitializerFunc
+// DeploymentInitializerBuilderFunc returns a DeploymentInitializerFunc based on
+// the given context.
+type DeploymentInitializerBuilderFunc func(owner ownerutil.Owner) DeploymentInitializerFunc
 
 func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeploymentInterface, templateAnnotations map[string]string, owner ownerutil.Owner, previousStrategy Strategy, initializers DeploymentInitializerFuncChain) StrategyInstaller {
 	return &StrategyDeploymentInstaller{

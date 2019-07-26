@@ -56,12 +56,14 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 			err = fmt.Errorf("failed to query cluster proxy configuration - %v", err)
 			return err
 		}
+
+		proxyEnvVar = dropEmptyProxyEnv(proxyEnvVar)
 	}
 
 	merged = append(podConfigEnvVar, proxyEnvVar...)
 
 	if len(merged) == 0 {
-		d.logger.Debugf("no env var to inject into csv=%s", ownerCSV.GetName())
+		d.logger.WithField("csv", ownerCSV.GetName()).Debug("no env var to inject into csv")
 	}
 
 	podSpec := deployment.Spec.Template.Spec
@@ -70,4 +72,17 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 	}
 
 	return nil
+}
+
+func dropEmptyProxyEnv(in []corev1.EnvVar) (out []corev1.EnvVar) {
+	out = make([]corev1.EnvVar, 0)
+	for i := range in {
+		if in[i].Value == "" {
+			continue
+		}
+
+		out = append(out, in[i])
+	}
+
+	return
 }
