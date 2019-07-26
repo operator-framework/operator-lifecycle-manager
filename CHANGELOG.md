@@ -1,5 +1,73 @@
 # Change Log
 
+## [0.11.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.11.0) (2019-07-26)
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.11.0...0.11.0)
+
+**Other changes:**
+
+- Bug 1732613: Follow up for pod configuration [\#958](https://github.com/operator-framework/operator-lifecycle-manager/pull/958) ([tkashem](https://github.com/tkashem))
+- test\(e2e\): remove extra resource comparison [\#938](https://github.com/operator-framework/operator-lifecycle-manager/pull/938) ([njhale](https://github.com/njhale))
+
+## [0.11.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.11.0) (2019-07-25)
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.10.1...0.11.0)
+
+**Closed issues:**
+
+- Get OLM version from cluster [\#935](https://github.com/operator-framework/operator-lifecycle-manager/issues/935)
+- Is there documentation for a ClusterServiceVersion install.strategy=image? [\#905](https://github.com/operator-framework/operator-lifecycle-manager/issues/905)
+- ignore [\#899](https://github.com/operator-framework/operator-lifecycle-manager/issues/899)
+- Wrong steps in the Release notes \(0.10.0\) [\#895](https://github.com/operator-framework/operator-lifecycle-manager/issues/895)
+- Ignore [\#894](https://github.com/operator-framework/operator-lifecycle-manager/issues/894)
+- Unable to use OLM tool when the operator is cluster-scoped and has not the role [\#888](https://github.com/operator-framework/operator-lifecycle-manager/issues/888)
+- Unable to run UI console for OLM [\#886](https://github.com/operator-framework/operator-lifecycle-manager/issues/886)
+- Docs - Add a better explanation over the install commands [\#782](https://github.com/operator-framework/operator-lifecycle-manager/issues/782)
+- ignore [\#781](https://github.com/operator-framework/operator-lifecycle-manager/issues/781)
+
+**Other changes:**
+
+- \(release\) cut a release for 0.11.0 [\#962](https://github.com/operator-framework/operator-lifecycle-manager/pull/962) ([tkashem](https://github.com/tkashem))
+- Bug 1732302: Fix panic when binding already exists [\#959](https://github.com/operator-framework/operator-lifecycle-manager/pull/959) ([cblecker](https://github.com/cblecker))
+- fix\(manifest\): fix env var projection in command [\#957](https://github.com/operator-framework/operator-lifecycle-manager/pull/957) ([ecordell](https://github.com/ecordell))
+- feat\(deploy\): add resource requests to all pods [\#955](https://github.com/operator-framework/operator-lifecycle-manager/pull/955) ([jpeeler](https://github.com/jpeeler))
+- chore\(modules\): pin k8s deps to 1.14 [\#954](https://github.com/operator-framework/operator-lifecycle-manager/pull/954) ([njhale](https://github.com/njhale))
+- feat\(metrics\): record sync count for Subscriptions, labeled with name and installedCSV [\#951](https://github.com/operator-framework/operator-lifecycle-manager/pull/951) ([ecordell](https://github.com/ecordell))
+- Pod configuration [\#950](https://github.com/operator-framework/operator-lifecycle-manager/pull/950) ([tkashem](https://github.com/tkashem))
+- Minor fixes [\#945](https://github.com/operator-framework/operator-lifecycle-manager/pull/945) ([jpeeler](https://github.com/jpeeler))
+- Add simple benchmark for namespaced subscription resolution [\#943](https://github.com/operator-framework/operator-lifecycle-manager/pull/943) ([njhale](https://github.com/njhale))
+- Remove package server subscription  [\#942](https://github.com/operator-framework/operator-lifecycle-manager/pull/942) ([ecordell](https://github.com/ecordell))
+- proposal\(operator-config\): initial proposal for persisting configuration [\#941](https://github.com/operator-framework/operator-lifecycle-manager/pull/941) ([ecordell](https://github.com/ecordell))
+- 1723818: package server 4.1 to 4.2 upgrade should not fail [\#937](https://github.com/operator-framework/operator-lifecycle-manager/pull/937) ([tkashem](https://github.com/tkashem))
+- Validate existing Custom Resources against new schema prior updating [\#933](https://github.com/operator-framework/operator-lifecycle-manager/pull/933) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- feat\(csv\): detect changes to a deployment and persist them [\#931](https://github.com/operator-framework/operator-lifecycle-manager/pull/931) ([ecordell](https://github.com/ecordell))
+- Add optional profiling [\#929](https://github.com/operator-framework/operator-lifecycle-manager/pull/929) ([njhale](https://github.com/njhale))
+- manifests: move ServiceMonitor manifest to runlevel 90 [\#928](https://github.com/operator-framework/operator-lifecycle-manager/pull/928) ([paulfantom](https://github.com/paulfantom))
+- Bug 1723818: CSV name change should not cause upgrade to fail [\#925](https://github.com/operator-framework/operator-lifecycle-manager/pull/925) ([tkashem](https://github.com/tkashem))
+- Add Subscription InstallPlan Status [\#923](https://github.com/operator-framework/operator-lifecycle-manager/pull/923) ([njhale](https://github.com/njhale))
+- Add a target for compiling bare e2e [\#921](https://github.com/operator-framework/operator-lifecycle-manager/pull/921) ([jpeeler](https://github.com/jpeeler))
+- fix\(test\): fixup bare test imports and vars [\#920](https://github.com/operator-framework/operator-lifecycle-manager/pull/920) ([jpeeler](https://github.com/jpeeler))
+- fix\(build\): set GO111MODULE=on [\#918](https://github.com/operator-framework/operator-lifecycle-manager/pull/918) ([jpeeler](https://github.com/jpeeler))
+- Update CHANGELOG to include changelogs from 0.10.0 and 0.10.1 [\#917](https://github.com/operator-framework/operator-lifecycle-manager/pull/917) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- docs\(release\): add additional clarifying details [\#916](https://github.com/operator-framework/operator-lifecycle-manager/pull/916) ([jpeeler](https://github.com/jpeeler))
+- Bug 1723851: fix\(catalog\): do not add owner references to clusterroles or crbs \(4.1 cherrypick\) [\#915](https://github.com/operator-framework/operator-lifecycle-manager/pull/915) ([ecordell](https://github.com/ecordell))
+- Switch to go 1.12 in the root Dockerfile [\#914](https://github.com/operator-framework/operator-lifecycle-manager/pull/914) ([ecordell](https://github.com/ecordell))
+- Add webhook proposal [\#913](https://github.com/operator-framework/operator-lifecycle-manager/pull/913) ([jpeeler](https://github.com/jpeeler))
+- fix\(build\): don't use helm in src image [\#912](https://github.com/operator-framework/operator-lifecycle-manager/pull/912) ([ecordell](https://github.com/ecordell))
+- Add config options to QueueInformer constructors [\#911](https://github.com/operator-framework/operator-lifecycle-manager/pull/911) ([njhale](https://github.com/njhale))
+- fix\(chart\): add missing descriptions to operator group [\#910](https://github.com/operator-framework/operator-lifecycle-manager/pull/910) ([jpeeler](https://github.com/jpeeler))
+- allow KUBECONFIG to be set from env in run\_e2e\_bare.sh [\#909](https://github.com/operator-framework/operator-lifecycle-manager/pull/909) ([jpeeler](https://github.com/jpeeler))
+- add -l option to $POD\_MANAGER attach [\#907](https://github.com/operator-framework/operator-lifecycle-manager/pull/907) ([madorn](https://github.com/madorn))
+- Fix PackageManifest Server Crashes [\#904](https://github.com/operator-framework/operator-lifecycle-manager/pull/904) ([alecmerdler](https://github.com/alecmerdler))
+- Allow CRD updates with multiple owners [\#902](https://github.com/operator-framework/operator-lifecycle-manager/pull/902) ([jpeeler](https://github.com/jpeeler))
+- Bug 1691546: fix\(catalog\): do not add owner references to clusterroles or crbs [\#900](https://github.com/operator-framework/operator-lifecycle-manager/pull/900) ([ecordell](https://github.com/ecordell))
+- Add support for user defined ServiceAccount for OperatorGroup. [\#892](https://github.com/operator-framework/operator-lifecycle-manager/pull/892) ([tkashem](https://github.com/tkashem))
+- Change Package Server Global Namespace [\#890](https://github.com/operator-framework/operator-lifecycle-manager/pull/890) ([alecmerdler](https://github.com/alecmerdler))
+- make release 0.10.1 [\#889](https://github.com/operator-framework/operator-lifecycle-manager/pull/889) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- repair run\_console\_run.sh script [\#885](https://github.com/operator-framework/operator-lifecycle-manager/pull/885) ([madorn](https://github.com/madorn))
+- Subscription CatalogSource Status [\#881](https://github.com/operator-framework/operator-lifecycle-manager/pull/881) ([njhale](https://github.com/njhale))
+- \(proposal\) Add user defined service account [\#880](https://github.com/operator-framework/operator-lifecycle-manager/pull/880) ([tkashem](https://github.com/tkashem))
+- Enable OLM to update CRD when there is only one owner of that CRD [\#878](https://github.com/operator-framework/operator-lifecycle-manager/pull/878) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- Package API server monitoring [\#863](https://github.com/operator-framework/operator-lifecycle-manager/pull/863) ([tkashem](https://github.com/tkashem))
+
 ## [0.10.1](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.10.1) (2019-06-05)
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.10.0...0.10.1)
 
