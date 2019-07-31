@@ -2,7 +2,6 @@ package operatorstatus
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -26,10 +25,8 @@ const (
 // to send update notifications to it.
 //
 // The name of the clusteroperator resource to monitor is specified in name.
-func NewMonitor(name string, log *logrus.Logger, discovery discovery.DiscoveryInterface, configClient configv1client.ConfigV1Interface) (Monitor, Sender) {
+func NewMonitor(log *logrus.Logger, discovery discovery.DiscoveryInterface, configClient configv1client.ConfigV1Interface, names ...string) (Monitor, Sender) {
 	logger := log.WithField("monitor", "clusteroperator")
-	names := split(name)
-
 	logger.Infof("monitoring the following components %s", names)
 
 	monitor := &monitor{
@@ -207,18 +204,4 @@ func Waiting(clock clock.Clock, name string) *configv1.ClusterOperatorStatus {
 		GetStatus()
 
 	return status
-}
-
-func split(n string) []string {
-	names := make([]string, 0)
-
-	values := strings.Split(n, ",")
-	for _, v := range values {
-		v = strings.TrimSpace(v)
-		if v != "" {
-			names = append(names, v)
-		}
-	}
-
-	return names
 }
