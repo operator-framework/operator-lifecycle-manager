@@ -450,3 +450,9 @@ __pycache__/
 /apiserver.local.config
 e2e.namespace
 minikube.kubeconfig
+
+# Etcd
+default.etcd
+
+# Extension api-server
+apiserver.local.config
