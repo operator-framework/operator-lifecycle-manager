@@ -46,6 +46,10 @@ spec:
           - -writePackageServerStatusName
           - {{ .Values.writePackageServerStatusName }}
           {{- end }}
+          {{- if .Values.writePorcelainServerStatusName }}
+          - -writePorcelainServerStatusName
+          - {{ .Values.writePorcelainServerStatusName }}
+          {{- end }}
           {{- if .Values.olm.tlsCertPath }}
           - -tls-cert
           - {{ .Values.olm.tlsCertPath }}

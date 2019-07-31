@@ -7,6 +7,7 @@ imagestream: true
 writeStatusName: operator-lifecycle-manager
 writeStatusNameCatalog: operator-lifecycle-manager-catalog
 writePackageServerStatusName: operator-lifecycle-manager-packageserver
+writePorcelainServerStatusName: operator-lifecycle-manager-porcelain-server
 olm:
   replicaCount: 1
   image:
@@ -65,6 +66,32 @@ package:
   replicaCount: 2
   image:
     ref: quay.io/operator-framework/olm@sha256:81813ac9c937187c29e080c0975bb18489c1f232009c38c8d3a27bc9956ddd21
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 5443
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ""
+  tolerations:
+  - key: node-role.kubernetes.io/master
+    operator: Exists
+    effect: NoSchedule
+  - key: node.kubernetes.io/unreachable
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  - key: node.kubernetes.io/not-ready
+    operator: Exists
+    effect: NoExecute
+    tolerationSeconds: 120
+  resources:
+    requests:
+      cpu: 10m
+      memory: 50Mi
+porcelain:
+  replicaCount: 2
+  image:
+    ref: quay.io/operator-framework/olm@sha256:f965474776bada158e4bf7be5c84b54460843e7478f06060990d2fdeb31b0b90
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443

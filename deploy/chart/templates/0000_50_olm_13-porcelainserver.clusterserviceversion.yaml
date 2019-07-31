@@ -1,0 +1,143 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: porcelain-server
+  namespace: {{ .Values.namespace }}
+  labels:
+    olm.version: {{ .Chart.Version }}
+    {{- if .Values.writePorcelainServerStatusName }}
+    olm.clusteroperator.name: {{ .Values.writePorcelainServerStatusName }}
+    {{- end }}
+spec:
+  displayName: Operator Porcelain Server
+  description: Surfaces synthesized information
+  minKubeVersion: {{ .Values.minKubeVersion }}
+  keywords: ['installedoperators', 'installed', 'operators', 'olm']
+  maintainers:
+  - name: Red Hat
+    email: openshift-operators@redhat.com
+  provider:
+    name: Red Hat
+  links:
+  - name: Operator Porcelain Server
+    url: https://github.com/operator-framework/operator-lifecycle-manager/tree/master/pkg/porcelain-server
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: false
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: true
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+      - serviceAccountName: olm-operator-serviceaccount
+        rules:
+        - apiGroups:
+            - "" # core
+          resources:
+            - namespaces
+          verbs:
+            - get
+            - list
+            - watch
+        - apiGroups:
+            - authorization.k8s.io
+          resources:
+            - subjectaccessreviews
+            - roles
+            - rolebindings
+          verbs:
+            - create
+            - get
+            - list
+            - watch
+        - apiGroups:
+          - "operators.coreos.com"
+          resources:
+          - clusterserviceversions
+          - subscriptions
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - "porcelain.operators.coreos.com"
+          resources:
+          - installedoperators
+          verbs:
+          # TODO: rein in verb scope
+          - "*"
+      deployments:
+      - name: porcelain-server
+        spec:
+          strategy:
+            type: RollingUpdate
+          replicas: {{ .Values.porcelain.replicaCount }}
+          selector:
+            matchLabels:
+              app: porcelain-server
+          template:
+            metadata:
+              labels:
+                app: porcelain-server
+            spec:
+              serviceAccountName: olm-operator-serviceaccount
+              {{- if and .Values.installType (eq .Values.installType "ocp") }}
+              priorityClassName: "system-cluster-critical"
+              {{- end }}
+              {{- if .Values.porcelain.nodeSelector }}
+              nodeSelector:
+                {{- toYaml .Values.porcelain.nodeSelector | nindent 16 }}
+              {{- end }}
+              {{- if .Values.porcelain.tolerations }}
+              tolerations:
+                {{- toYaml .Values.porcelain.tolerations | nindent 14 }}
+              {{- end }}
+              containers:
+              # - name: etcd
+              #   image: quay.io/coreos/etcd:v3.3.10
+              - name: porcelain-server
+                command:
+                - /bin/porcelain-server
+                - -v=4
+                - --secure-port
+                - {{ .Values.porcelain.service.internalPort | quote }}
+                - --use-embedded-etcd
+                # {{- if .Values.porcelain.commandArgs }}
+                # - {{ .Values.porcelain.commandArgs }}
+                # {{- end }}
+                image: {{ .Values.porcelain.image.ref }}
+                imagePullPolicy: {{ .Values.porcelain.image.pullPolicy }}
+                ports:
+                - containerPort: {{ .Values.porcelain.service.internalPort }}
+                livenessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    path: /healthz
+                    port: {{ .Values.porcelain.service.internalPort }}
+                readinessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    path: /healthz
+                    port: {{ .Values.porcelain.service.internalPort }}
+                terminationMessagePolicy: FallbackToLogsOnError
+                {{- if .Values.porcelain.resources }}
+                resources:
+                  {{- toYaml .Values.porcelain.resources | nindent 18 }}
+                {{- end }}
+  maturity: alpha
+  version: {{ .Chart.Version }}
+  apiservicedefinitions:
+    owned:
+    - group: porcelain.operators.coreos.com
+      version: v1alpha1
+      kind: InstalledOperator
+      name: installedoperators
+      displayName: Installed Operator
+      description: Represents the state of an installed operator.
+      deploymentName: porcelain-server
+      containerPort: {{ .Values.porcelain.service.internalPort }}

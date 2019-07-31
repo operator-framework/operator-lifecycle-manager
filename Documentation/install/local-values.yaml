@@ -30,17 +30,37 @@ package:
   service:
     internalPort: 5443
   tolerations:
-  - key: node-role.kubernetes.io/master
-    operator: Exists
-    effect: "NoSchedule"
-  - key: "node.kubernetes.io/unreachable"
-    operator: "Exists"
-    effect: "NoExecute"
-    tolerationSeconds: 120
-  - key: "node.kubernetes.io/not-ready"
-    operator: "Exists"
-    effect: "NoExecute"
-    tolerationSeconds: 120
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: "NoSchedule"
+    - key: "node.kubernetes.io/unreachable"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 120
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 120
+
+porcelain:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 5443
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: "NoSchedule"
+    - key: "node.kubernetes.io/unreachable"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 120
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+      effect: "NoExecute"
+      tolerationSeconds: 120
 
 catalog_sources:
   - rh-operators
