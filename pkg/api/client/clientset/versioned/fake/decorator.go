@@ -48,7 +48,7 @@ func NewReactionForwardingClientsetDecorator(objects []runtime.Object, options .
 	// Swap out the embedded ReactionChain with a Reactor that reduces over the decorator's ReactionChain.
 	decorator.ReactionChain = decorator.Clientset.ReactionChain
 	decorator.Clientset.ReactionChain = []testing.Reactor{&testing.SimpleReactor{"*", "*", decorator.reduceReactions}}
-	
+
 	// Apply options
 	for _, option := range options {
 		option(decorator)

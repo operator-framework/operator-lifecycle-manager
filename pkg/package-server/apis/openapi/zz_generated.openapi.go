@@ -31,78 +31,110 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference":        schema_api_apis_operators_v1alpha1_APIResourceReference(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions":       schema_api_apis_operators_v1alpha1_APIServiceDefinitions(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDescription":       schema_api_apis_operators_v1alpha1_APIServiceDescription(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor":            schema_api_apis_operators_v1alpha1_ActionDescriptor(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CRDDescription":              schema_api_apis_operators_v1alpha1_CRDDescription(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions":   schema_api_apis_operators_v1alpha1_CustomResourceDefinitions(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                 schema_api_apis_operators_v1alpha1_InstallMode(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor":              schema_api_apis_operators_v1alpha1_SpecDescriptor(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor":            schema_api_apis_operators_v1alpha1_StatusDescriptor(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion":                             schema_operator_lifecycle_manager_pkg_lib_version_OperatorVersion(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink":               schema_package_server_apis_apps_v1alpha1_AppLink(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription":        schema_package_server_apis_apps_v1alpha1_CSVDescription(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon":                  schema_package_server_apis_apps_v1alpha1_Icon(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageChannel":        schema_package_server_apis_apps_v1alpha1_PackageChannel(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifest":       schema_package_server_apis_apps_v1alpha1_PackageManifest(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestList":   schema_package_server_apis_apps_v1alpha1_PackageManifestList(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestSpec":   schema_package_server_apis_apps_v1alpha1_PackageManifestSpec(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestStatus": schema_package_server_apis_apps_v1alpha1_PackageManifestStatus(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink":                schema_package_server_apis_operators_v1_AppLink(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription":         schema_package_server_apis_operators_v1_CSVDescription(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon":                   schema_package_server_apis_operators_v1_Icon(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel":         schema_package_server_apis_operators_v1_PackageChannel(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest":        schema_package_server_apis_operators_v1_PackageManifest(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestList":    schema_package_server_apis_operators_v1_PackageManifestList(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestSpec":    schema_package_server_apis_operators_v1_PackageManifestSpec(ref),
-		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestStatus":  schema_package_server_apis_operators_v1_PackageManifestStatus(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                        schema_pkg_apis_meta_v1_APIGroup(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                    schema_pkg_apis_meta_v1_APIGroupList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                     schema_pkg_apis_meta_v1_APIResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                 schema_pkg_apis_meta_v1_APIResourceList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                     schema_pkg_apis_meta_v1_APIVersions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                                                                   schema_pkg_apis_meta_v1_CreateOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                   schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                        schema_pkg_apis_meta_v1_Duration(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ExportOptions":                                                                   schema_pkg_apis_meta_v1_ExportOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Fields":                                                                          schema_pkg_apis_meta_v1_Fields(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                      schema_pkg_apis_meta_v1_GetOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                       schema_pkg_apis_meta_v1_GroupKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                   schema_pkg_apis_meta_v1_GroupResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                    schema_pkg_apis_meta_v1_GroupVersion(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                        schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                            schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializer":                                                                     schema_pkg_apis_meta_v1_Initializer(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializers":                                                                    schema_pkg_apis_meta_v1_Initializers(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                   schema_pkg_apis_meta_v1_InternalEvent(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                   schema_pkg_apis_meta_v1_LabelSelector(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                        schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                            schema_pkg_apis_meta_v1_List(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                        schema_pkg_apis_meta_v1_ListMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                     schema_pkg_apis_meta_v1_ListOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry":                                                              schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                       schema_pkg_apis_meta_v1_MicroTime(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                      schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                  schema_pkg_apis_meta_v1_OwnerReference(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                           schema_pkg_apis_meta_v1_Patch(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PatchOptions":                                                                    schema_pkg_apis_meta_v1_PatchOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                   schema_pkg_apis_meta_v1_Preconditions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                       schema_pkg_apis_meta_v1_RootPaths(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                       schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                          schema_pkg_apis_meta_v1_Status(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                     schema_pkg_apis_meta_v1_StatusCause(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                   schema_pkg_apis_meta_v1_StatusDetails(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                            schema_pkg_apis_meta_v1_Time(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                       schema_pkg_apis_meta_v1_Timestamp(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                        schema_pkg_apis_meta_v1_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.UpdateOptions":                                                                   schema_pkg_apis_meta_v1_UpdateOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                      schema_pkg_apis_meta_v1_WatchEvent(ref),
-		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                         schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                             schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                              schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		"k8s.io/apimachinery/pkg/version.Info":                                                                                 schema_k8sio_apimachinery_pkg_version_Info(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIResourceReference":           schema_api_apis_operators_v1alpha1_APIResourceReference(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions":          schema_api_apis_operators_v1alpha1_APIServiceDefinitions(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDescription":          schema_api_apis_operators_v1alpha1_APIServiceDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ActionDescriptor":               schema_api_apis_operators_v1alpha1_ActionDescriptor(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.AppLink":                        schema_api_apis_operators_v1alpha1_AppLink(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CRDDescription":                 schema_api_apis_operators_v1alpha1_CRDDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSource":                  schema_api_apis_operators_v1alpha1_CatalogSource(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceList":              schema_api_apis_operators_v1alpha1_CatalogSourceList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceSpec":              schema_api_apis_operators_v1alpha1_CatalogSourceSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceStatus":            schema_api_apis_operators_v1alpha1_CatalogSourceStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersion":          schema_api_apis_operators_v1alpha1_ClusterServiceVersion(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionCondition": schema_api_apis_operators_v1alpha1_ClusterServiceVersionCondition(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionList":      schema_api_apis_operators_v1alpha1_ClusterServiceVersionList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionSpec":      schema_api_apis_operators_v1alpha1_ClusterServiceVersionSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionStatus":    schema_api_apis_operators_v1alpha1_ClusterServiceVersionStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ConfigMapResourceReference":     schema_api_apis_operators_v1alpha1_ConfigMapResourceReference(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions":      schema_api_apis_operators_v1alpha1_CustomResourceDefinitions(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.DependentStatus":                schema_api_apis_operators_v1alpha1_DependentStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Icon":                           schema_api_apis_operators_v1alpha1_Icon(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode":                    schema_api_apis_operators_v1alpha1_InstallMode(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlan":                    schema_api_apis_operators_v1alpha1_InstallPlan(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanCondition":           schema_api_apis_operators_v1alpha1_InstallPlanCondition(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanList":                schema_api_apis_operators_v1alpha1_InstallPlanList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanReference":           schema_api_apis_operators_v1alpha1_InstallPlanReference(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanSpec":                schema_api_apis_operators_v1alpha1_InstallPlanSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanStatus":              schema_api_apis_operators_v1alpha1_InstallPlanStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Maintainer":                     schema_api_apis_operators_v1alpha1_Maintainer(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.NamedInstallStrategy":           schema_api_apis_operators_v1alpha1_NamedInstallStrategy(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.RegistryServiceStatus":          schema_api_apis_operators_v1alpha1_RegistryServiceStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.RequirementStatus":              schema_api_apis_operators_v1alpha1_RequirementStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SpecDescriptor":                 schema_api_apis_operators_v1alpha1_SpecDescriptor(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StatusDescriptor":               schema_api_apis_operators_v1alpha1_StatusDescriptor(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Step":                           schema_api_apis_operators_v1alpha1_Step(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StepResource":                   schema_api_apis_operators_v1alpha1_StepResource(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Subscription":                   schema_api_apis_operators_v1alpha1_Subscription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionCatalogHealth":      schema_api_apis_operators_v1alpha1_SubscriptionCatalogHealth(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionCondition":          schema_api_apis_operators_v1alpha1_SubscriptionCondition(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionConfig":             schema_api_apis_operators_v1alpha1_SubscriptionConfig(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionList":               schema_api_apis_operators_v1alpha1_SubscriptionList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionSpec":               schema_api_apis_operators_v1alpha1_SubscriptionSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionStatus":             schema_api_apis_operators_v1alpha1_SubscriptionStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion":                                schema_operator_lifecycle_manager_pkg_lib_version_OperatorVersion(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.AppLink":                  schema_package_server_apis_apps_v1alpha1_AppLink(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.CSVDescription":           schema_package_server_apis_apps_v1alpha1_CSVDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.Icon":                     schema_package_server_apis_apps_v1alpha1_Icon(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageChannel":           schema_package_server_apis_apps_v1alpha1_PackageChannel(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifest":          schema_package_server_apis_apps_v1alpha1_PackageManifest(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestList":      schema_package_server_apis_apps_v1alpha1_PackageManifestList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestSpec":      schema_package_server_apis_apps_v1alpha1_PackageManifestSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1.PackageManifestStatus":    schema_package_server_apis_apps_v1alpha1_PackageManifestStatus(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink":                   schema_package_server_apis_operators_v1_AppLink(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.CSVDescription":            schema_package_server_apis_operators_v1_CSVDescription(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon":                      schema_package_server_apis_operators_v1_Icon(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageChannel":            schema_package_server_apis_operators_v1_PackageChannel(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifest":           schema_package_server_apis_operators_v1_PackageManifest(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestList":       schema_package_server_apis_operators_v1_PackageManifestList(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestSpec":       schema_package_server_apis_operators_v1_PackageManifestSpec(ref),
+		"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.PackageManifestStatus":     schema_package_server_apis_operators_v1_PackageManifestStatus(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                                                           schema_pkg_apis_meta_v1_APIGroup(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                                                       schema_pkg_apis_meta_v1_APIGroupList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                                                        schema_pkg_apis_meta_v1_APIResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                                                    schema_pkg_apis_meta_v1_APIResourceList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                                                        schema_pkg_apis_meta_v1_APIVersions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                                                                      schema_pkg_apis_meta_v1_CreateOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                                                      schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                                                           schema_pkg_apis_meta_v1_Duration(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ExportOptions":                                                                      schema_pkg_apis_meta_v1_ExportOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Fields":                                                                             schema_pkg_apis_meta_v1_Fields(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                                                         schema_pkg_apis_meta_v1_GetOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                                                          schema_pkg_apis_meta_v1_GroupKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                                                      schema_pkg_apis_meta_v1_GroupResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                                                       schema_pkg_apis_meta_v1_GroupVersion(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                                                           schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                                                   schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                                                               schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializer":                                                                        schema_pkg_apis_meta_v1_Initializer(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Initializers":                                                                       schema_pkg_apis_meta_v1_Initializers(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                                                      schema_pkg_apis_meta_v1_InternalEvent(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                                                      schema_pkg_apis_meta_v1_LabelSelector(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                                                           schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                                                               schema_pkg_apis_meta_v1_List(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                                                           schema_pkg_apis_meta_v1_ListMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                                                        schema_pkg_apis_meta_v1_ListOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry":                                                                 schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                                                          schema_pkg_apis_meta_v1_MicroTime(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                                                         schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                                                     schema_pkg_apis_meta_v1_OwnerReference(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                                                              schema_pkg_apis_meta_v1_Patch(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PatchOptions":                                                                       schema_pkg_apis_meta_v1_PatchOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                                                      schema_pkg_apis_meta_v1_Preconditions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                                                          schema_pkg_apis_meta_v1_RootPaths(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                                                          schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                                                             schema_pkg_apis_meta_v1_Status(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                                                        schema_pkg_apis_meta_v1_StatusCause(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                                                      schema_pkg_apis_meta_v1_StatusDetails(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                                                               schema_pkg_apis_meta_v1_Time(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                                                          schema_pkg_apis_meta_v1_Timestamp(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                                                           schema_pkg_apis_meta_v1_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.UpdateOptions":                                                                      schema_pkg_apis_meta_v1_UpdateOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                                                         schema_pkg_apis_meta_v1_WatchEvent(ref),
+		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                                                            schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                                                                schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/runtime.Unknown":                                                                                 schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		"k8s.io/apimachinery/pkg/version.Info":                                                                                    schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
@@ -340,6 +372,30 @@ func schema_api_apis_operators_v1alpha1_ActionDescriptor(ref common.ReferenceCal
 	}
 }
 
+func schema_api_apis_operators_v1alpha1_AppLink(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_api_apis_operators_v1alpha1_CRDDescription(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -434,6 +490,653 @@ func schema_api_apis_operators_v1alpha1_CRDDescription(ref common.ReferenceCallb
 	}
 }
 
+func schema_api_apis_operators_v1alpha1_CatalogSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CatalogSource is a repository of CSVs, CRDs, and operator packages.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceStatus"),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec", "status"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_CatalogSourceList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CatalogSourceList is a repository of CSVs, CRDs, and operator packages.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSource"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CatalogSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_CatalogSourceSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"sourceType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SourceType is the type of source",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"configMap": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ConfigMap is the name of the ConfigMap to be used to back a configmap-server registry. Only used when SourceType = SourceTypeConfigmap or SourceTypeInternal.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"address": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Address is a host that OLM can use to connect to a pre-existing registry. Format: <registry-host or ip>:<port> Only used when SourceType = SourceTypeGrpc. Ignored when the Image field is set.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"image": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Image is an operator-registry container image to instantiate a registry-server with. Only used when SourceType = SourceTypeGrpc. If present, the address field is ignored.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"secrets": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Secrets represent set of secrets that can be used to access the contents of the catalog. It is best to keep this list small, since each will need to be tried for every catalog entry.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Metadata",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"publisher": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"icon": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Icon"),
+						},
+					},
+				},
+				Required: []string{"sourceType"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Icon"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_CatalogSourceStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"configMapReference": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ConfigMapResourceReference"),
+						},
+					},
+					"registryService": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.RegistryServiceStatus"),
+						},
+					},
+					"lastSync": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ConfigMapResourceReference", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.RegistryServiceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ClusterServiceVersion(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersion is a Custom Resource of type `ClusterServiceVersionSpec`.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionStatus"),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec", "status"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ClusterServiceVersionCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Conditions appear in the status as a record of state transitions on the ClusterServiceVersion",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Condition of the ClusterServiceVersion",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A human readable message indicating details about why the ClusterServiceVersion is in this condition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state. e.g. 'RequirementsNotMet'",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time we updated the status",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the status transitioned from one status to another.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ClusterServiceVersionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersionList represents a list of ClusterServiceVersions.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersion"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersion", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ClusterServiceVersionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersionSpec declarations tell OLM how to install an operator that can manage apps for a given version.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"install": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.NamedInstallStrategy"),
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion"),
+						},
+					},
+					"maturity": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"customresourcedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions"),
+						},
+					},
+					"apiservicedefinitions": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions"),
+						},
+					},
+					"nativeAPIs": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind"),
+									},
+								},
+							},
+						},
+					},
+					"minKubeVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"keywords": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"maintainers": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Maintainer"),
+									},
+								},
+							},
+						},
+					},
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.AppLink"),
+						},
+					},
+					"links": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.AppLink"),
+									},
+								},
+							},
+						},
+					},
+					"icon": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Icon"),
+									},
+								},
+							},
+						},
+					},
+					"installModes": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallModes specify supported installation types",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode"),
+									},
+								},
+							},
+						},
+					},
+					"replaces": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The name of a CSV this one replaces. Should match the `metadata.Name` field of the old CSV.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"labels": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Map of string keys and values that can be used to organize and categorize (scope and select) objects.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"annotations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Annotations is an unstructured key value map stored with a resource that may be set by external tools to store and retrieve arbitrary metadata.",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Label selector for related resources.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+				},
+				Required: []string{"install", "displayName"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Icon", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Maintainer", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.NamedInstallStrategy", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ClusterServiceVersionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ClusterServiceVersionStatus represents information about the status of a pod. Status may trail the actual state of a system.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Current condition of the ClusterServiceVersion",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A human readable message indicating details about why the ClusterServiceVersion is in this condition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "A brief CamelCase message indicating details about why the ClusterServiceVersion is in this state. e.g. 'RequirementsNotMet'",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time we updated the status",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the status transitioned from one status to another.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List of conditions, a history of state transitions",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionCondition"),
+									},
+								},
+							},
+						},
+					},
+					"requirementStatus": {
+						SchemaProps: spec.SchemaProps{
+							Description: "The status of each requirement for this CSV",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.RequirementStatus"),
+									},
+								},
+							},
+						},
+					},
+					"certsLastUpdated": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Last time the owned APIService certs were updated",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"certsRotateAt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Time the owned APIService certs will rotate next",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.ClusterServiceVersionCondition", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.RequirementStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_ConfigMapResourceReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"namespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"uid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resourceVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"name", "namespace"},
+			},
+		},
+	}
+}
+
 func schema_api_apis_operators_v1alpha1_CustomResourceDefinitions(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -473,6 +1176,81 @@ func schema_api_apis_operators_v1alpha1_CustomResourceDefinitions(ref common.Ref
 	}
 }
 
+func schema_api_apis_operators_v1alpha1_DependentStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "DependentStatus is the status for a dependent requirement (to prevent infinite nesting)",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"group", "version", "kind", "status"},
+			},
+		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_Icon(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"base64data": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"mediatype": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"base64data", "mediatype"},
+			},
+		},
+	}
+}
+
 func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -496,6 +1274,457 @@ func schema_api_apis_operators_v1alpha1_InstallMode(ref common.ReferenceCallback
 				Required: []string{"type", "supported"},
 			},
 		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallPlan(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlan defines the installation of a set of operators.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanStatus"),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec", "status"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallPlanCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanCondition represents the overall status of the execution of an InstallPlan.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"lastUpdateTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "True, False, or Unknown",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallPlanList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanList is a list of InstallPlan resources.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlan"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlan", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallPlanReference(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"apiVersion", "kind", "name", "uuid"},
+			},
+		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallPlanSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanSpec defines a set of Application resources to be installed",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"source": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"sourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"clusterServiceVersionNames": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"approval": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"approved": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"source", "sourceNamespace", "clusterServiceVersionNames", "approval", "approved"},
+			},
+		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_InstallPlanStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "InstallPlanStatus represents the information about the status of steps required to complete installation.\n\nStatus may trail the actual state of a system.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"phase": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanCondition"),
+									},
+								},
+							},
+						},
+					},
+					"catalogSources": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"plan": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Step"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"phase", "catalogSources"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanCondition", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Step"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_Maintainer(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"email": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_NamedInstallStrategy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "NamedInstallStrategy represents the block of an ClusterServiceVersion resource where the install strategy is specified.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"strategy": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "byte",
+						},
+					},
+				},
+				Required: []string{"strategy"},
+			},
+		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_RegistryServiceStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"serviceName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"serviceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"port": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"createdAt": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_RequirementStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"uuid": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"dependents": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.DependentStatus"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"group", "version", "kind", "name", "status", "message"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.DependentStatus"},
 	}
 }
 
@@ -598,6 +1827,509 @@ func schema_api_apis_operators_v1alpha1_StatusDescriptor(ref common.ReferenceCal
 				Required: []string{"path"},
 			},
 		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_Step(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Step represents the status of an individual step in an InstallPlan.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"resolving": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"resource": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StepResource"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"resolving", "resource", "status"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.StepResource"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_StepResource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "StepResource represents the status of a resource to be tracked by an InstallPlan.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"sourceName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"sourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"group": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"manifest": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"sourceName", "sourceNamespace", "group", "version", "kind", "name"},
+			},
+		},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_Subscription(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Subscription keeps operators up to date by tracking changes to Catalogs.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionStatus"),
+						},
+					},
+				},
+				Required: []string{"metadata", "spec", "status"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionSpec", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SubscriptionCatalogHealth(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionCatalogHealth describes the health of a CatalogSource the Subscription knows about.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"catalogSourceRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogSourceRef is a reference to a CatalogSource.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+						},
+					},
+					"lastUpdated": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastUpdated represents the last time that the CatalogSourceHealth changed",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"healthy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Healthy is true if the CatalogSource is healthy; false otherwise.",
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"catalogSourceRef", "lastUpdated", "healthy"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SubscriptionCondition(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionCondition represents the latest available observations of a Subscription's state.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type is the type of Subscription condition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Status is the status of the condition, one of True, False, Unknown.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reason is a one-word CamelCase reason for the condition's last transition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Message is a human-readable message indicating details about last transition.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"lastHeartbeatTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastHeartbeatTime is the last time we got an update on a given condition",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"lastTransitionTime": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastTransitionTime is the last time the condition transit from one status to another",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+				Required: []string{"type", "status"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SubscriptionConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionConfig contains configuration specified for a subscription.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"selector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Selector is the label selector for pods to be configured. Existing ReplicaSets whose pods are selected by this will be the ones affected by this deployment. It must match the pod template's labels.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"),
+						},
+					},
+					"nodeSelector": {
+						SchemaProps: spec.SchemaProps{
+							Description: "NodeSelector is a selector which must be true for the pod to fit on a node. Selector which must match a node's labels for the pod to be scheduled on that node. More info: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/",
+							Type:        []string{"object"},
+							AdditionalProperties: &spec.SchemaOrBool{
+								Allows: true,
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
+					"tolerations": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Tolerations are the pod's tolerations.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/core/v1.Toleration"),
+									},
+								},
+							},
+						},
+					},
+					"resources": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Resources represents compute resources required by this container. Immutable. More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/",
+							Ref:         ref("k8s.io/api/core/v1.ResourceRequirements"),
+						},
+					},
+					"envFrom": {
+						SchemaProps: spec.SchemaProps{
+							Description: "EnvFrom is a list of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Immutable.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/core/v1.EnvFromSource"),
+									},
+								},
+							},
+						},
+					},
+					"env": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-patch-merge-key": "name",
+								"x-kubernetes-patch-strategy":  "merge",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Env is a list of environment variables to set in the container. Cannot be updated.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/api/core/v1.EnvVar"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/api/core/v1.EnvFromSource", "k8s.io/api/core/v1.EnvVar", "k8s.io/api/core/v1.ResourceRequirements", "k8s.io/api/core/v1.Toleration", "k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SubscriptionList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionList is a list of Subscription resources.",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Subscription"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"metadata", "items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.Subscription", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SubscriptionSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "SubscriptionSpec defines an Application that can be installed",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"source": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"sourceNamespace": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"channel": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"startingCSV": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"installPlanApproval": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"config": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionConfig"),
+						},
+					},
+				},
+				Required: []string{"source", "sourceNamespace", "name"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionConfig"},
+	}
+}
+
+func schema_api_apis_operators_v1alpha1_SubscriptionStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Type: []string{"object"},
+				Properties: map[string]spec.Schema{
+					"currentCSV": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CurrentCSV is the CSV the Subscription is progressing to.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installedCSV": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstalledCSV is the CSV currently installed by the Subscription.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installplan": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Install is a reference to the latest InstallPlan generated for the Subscription. DEPRECATED: InstallPlanRef",
+							Ref:         ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanReference"),
+						},
+					},
+					"state": {
+						SchemaProps: spec.SchemaProps{
+							Description: "State represents the current state of the Subscription",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"reason": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Reason is the reason the Subscription was transitioned to its current state.",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"installPlanRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "InstallPlanRef is a reference to the latest InstallPlan that contains the Subscription's current CSV.",
+							Ref:         ref("k8s.io/api/core/v1.ObjectReference"),
+						},
+					},
+					"catalogHealth": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CatalogHealth contains the Subscription's view of its relevant CatalogSources' status. It is used to determine SubscriptionStatusConditions related to CatalogSources.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionCatalogHealth"),
+									},
+								},
+							},
+						},
+					},
+					"conditions": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Conditions is a list of the latest available observations about a Subscription's current state.",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionCondition"),
+									},
+								},
+							},
+						},
+					},
+					"lastUpdated": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LastUpdated represents the last time that the Subscription status was updated.",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+				Required: []string{"lastUpdated"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallPlanReference", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionCatalogHealth", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.SubscriptionCondition", "k8s.io/api/core/v1.ObjectReference", "k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
 	}
 }
 
