@@ -46,3 +46,4 @@ if [ $retries == 0 ]; then
 fi
 
 kubectl rollout status -w deployment/packageserver --namespace="${namespace}"
+kubectl rollout status -w deployment/porcelain-server --namespace="${namespace}"
