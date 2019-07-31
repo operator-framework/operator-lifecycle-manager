@@ -7,10 +7,7 @@ PKG   := github.com/operator-framework/operator-lifecycle-manager
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12)") && echo -mod=vendor)
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
-CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
-MOCKGEN := ./scripts/generate_mocks.sh
-# counterfeiter := $(GOBIN)/counterfeiter
-# mockgen := $(GOBIN)/mockgen
+CODEGEN := vendor/k8s.io/code-generator/generate_internal_groups.sh
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
@@ -77,8 +74,12 @@ $(TCMDS):
 	CGO_ENABLED=0 go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
 run-local: build-linux build-wait
+
+build-local: build-linux
 	rm -rf build
 	. ./scripts/build_local.sh
+
+run-local: build-local
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
@@ -133,46 +134,37 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
-CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
-$(CI):
-	jsonnet fmt -i -n 4 $@
-
-gen-ci: $(CI)
-	ffctl gen
-
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
 codegen: export GO111MODULE := off
 codegen:
-	cp scripts/generate_internal_groups.sh vendor/k8s.io/code-generator/generate_internal_groups.sh
+	# TODO: Use new codegen script with openapi in kube 1.16 (https://github.com/kubernetes/sample-apiserver/blob/16bc2fadc9dc2df696c8e9139f567dafd84531b0/hack/update-codegen.sh#L34)
+	cp scripts/generate_internal_groups.sh $(CODEGEN)
 	mkdir -p vendor/k8s.io/code-generator/hack
 	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
+
+	# Generate OpenAPI specs for packages.operators.coreos.com
 	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/operator-server/apis/operators/v1,./pkg/lib/version -p $(PKG)/pkg/operator-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-	$(CODEGEN_INTERNAL) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
-	$(CODEGEN_INTERNAL) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
-	$(CODEGEN_INTERNAL) all $(PKG)/pkg/operator-server/client $(PKG)/pkg/operator-server/apis $(PKG)/pkg/operator-server/apis "operators:v1"
+	# porcelain.operators.coreos.com
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/api/core/v1,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/porcelain-server/apis/porcelain/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/porcelain-server/generated/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null	
+
+	# Run codegen for operators.coreos.com
+	$(CODEGEN) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
+	# packages.operators.coreos.com
+	$(CODEGEN) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
+	# porcelain.operators.coreos.com
+	$(CODEGEN) all $(PKG)/pkg/porcelain-server/generated $(PKG)/pkg/porcelain-server/apis $(PKG)/pkg/porcelain-server/apis "porcelain:v1alpha1"
 
 container-codegen:
-	docker build -t olm:codegen -f codegen.Dockerfile .
+	docker build -t olm:codegen -f codegen.Dockerfile . --no-cache
 	docker run --name temp-codegen olm:codegen /bin/true
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/. ./pkg/api/client
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/. ./pkg/api/apis
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/. ./pkg/package-server/apis
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/. ./pkg/package-server/client
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/operator-server/apis/. ./pkg/operator-server/apis
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/operator-server/client/. ./pkg/operator-server/client
+	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/. ./pkg
 	docker rm temp-codegen
 
 container-mockgen:
 	docker build -t olm:mockgen -f mockgen.Dockerfile . --no-cache
 	docker run --name temp-mockgen olm:mockgen /bin/true
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorclient/operatorclientmocks/. ./pkg/lib/operatorclient/operatorclientmocks
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes/. ./pkg/controller/registry/resolver/fakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/package-server/client/fakes/. ./pkg/package-server/client/fakes
+	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/. ./pkg
 	docker rm temp-mockgen
 
 verify: verify-codegen verify-manifests
@@ -198,9 +190,9 @@ verify-release:
 	git diff --exit-code
 
 mockgen:
-	$(MOCKGEN)
+	./scripts/generate_mocks.sh
 
-gen-all: gen-ci container-codegen container-mockgen
+gen-all: container-codegen container-mockgen
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
