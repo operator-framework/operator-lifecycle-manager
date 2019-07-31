@@ -27,7 +27,16 @@ package:
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443
-  commandArgs: -test.coverprofile=/tmp/catalog-coverage.cov
+  commandArgs: -test.coverprofile=/tmp/package-coverage.cov
+
+porcelain:
+  replicaCount: 1
+  image:
+    ref: quay.io/operator-framework/olm:local
+    pullPolicy: IfNotPresent
+  service:
+    internalPort: 5443
+  commandArgs: -test.coverprofile=/tmp/porcelain-coverage.cov
 
 e2e:
   image:

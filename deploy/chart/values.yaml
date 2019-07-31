@@ -35,8 +35,8 @@ catalog:
     beta.kubernetes.io/os: linux
   resources:
     requests:
-     cpu: 10m
-     memory: 80Mi
+      cpu: 10m
+      memory: 80Mi
 
 package:
   replicaCount: 2
@@ -49,5 +49,20 @@ package:
     beta.kubernetes.io/os: linux
   resources:
     requests:
-     cpu: 10m
-     memory: 50Mi
+      cpu: 10m
+      memory: 50Mi
+
+porcelain:
+  replicaCount: 2
+  commandArgs: --etcd-servers=http://localhost:2379
+  image:
+    ref: quay.io/operator-framework/olm:master
+    pullPolicy: Always
+  service:
+    internalPort: 5443
+  nodeSelector:
+    beta.kubernetes.io/os: linux
+  resources:
+    requests:
+      cpu: 10m
+      memory: 50Mi
