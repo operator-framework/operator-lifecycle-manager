@@ -24,6 +24,7 @@ WORKDIR /
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
+COPY --from=builder /build/bin/porcelain-server /bin/porcelain-server
 EXPOSE 8080
 EXPOSE 5443
 CMD ["/bin/olm"]
