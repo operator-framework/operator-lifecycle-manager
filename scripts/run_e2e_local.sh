@@ -36,6 +36,7 @@ function cleanupAndExit {
 		kubectl -n "${namespace}" logs -l app=olm-operator > olm.log;
 		kubectl -n "${namespace}" logs -l app=catalog-operator > catalog.log;
 		kubectl -n "${namespace}" logs -l app=packageserver > package.log
+		kubectl -n "${namespace}" logs -l app=porcelain-server > runtime.log
 
 		# make it obvious if a pod is crashing or has restarted
 		kubectl get po --all-namespaces
