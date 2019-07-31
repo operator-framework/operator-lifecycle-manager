@@ -32,6 +32,7 @@ LABEL io.openshift.release.operator=true
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
+COPY --from=builder /build/bin/porcelain-server /bin/porcelain-server
 
 # This image doesn't need to run as root user.
 USER 1001
@@ -51,5 +52,5 @@ EXPOSE 5443
 # confusing at best when examining images.
 #
 LABEL io.k8s.display-name="OpenShift Operator Lifecycle Manager" \
-      io.k8s.description="This is a component of OpenShift Container Platform and manages the lifecycle of operators." \
-      maintainer="Odin Team <aos-odin@redhat.com>"
+    io.k8s.description="This is a component of OpenShift Container Platform and manages the lifecycle of operators." \
+    maintainer="Odin Team <aos-odin@redhat.com>"
