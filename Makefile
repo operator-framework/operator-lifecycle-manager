@@ -75,7 +75,7 @@ $(CMDS):
 $(TCMDS):
 	CGO_ENABLED=0 go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
-run-local: build-linux
+run-local: build-linux build-wait
 	rm -rf build
 	. ./scripts/build_local.sh
 	mkdir -p build/resources

@@ -1278,7 +1278,9 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 
 	// wait for catalog to update
 	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
-		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync && catalog.Status.ConfigMapResource.ResourceVersion != fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion {
+		before := fetchedInitialCatalog.Status.ConfigMapResource
+		after := catalog.Status.ConfigMapResource
+		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion {
 			fmt.Println("catalog updated")
 			return true
 		}

@@ -67,22 +67,30 @@ type RegistryServiceStatus struct {
 	CreatedAt        metav1.Time
 }
 
+type GRPCConnectionState struct {
+	Address           string
+	LastObservedState string
+	LastConnectTime   metav1.Time
+}
+
 func (s *RegistryServiceStatus) Address() string {
 	return fmt.Sprintf("%s.%s.svc.cluster.local:%s", s.ServiceName, s.ServiceNamespace, s.Port)
 }
 
 type CatalogSourceStatus struct {
+	Message               string          `json:"message,omitempty"`
+	Reason                ConditionReason `json:"reason,omitempty"`
 	ConfigMapResource     *ConfigMapResourceReference
 	RegistryServiceStatus *RegistryServiceStatus
-	LastSync              metav1.Time
+	GRPCConnectionState   *GRPCConnectionState
 }
 
 type ConfigMapResourceReference struct {
-	Name      string
-	Namespace string
-
+	Name            string
+	Namespace       string
 	UID             types.UID
 	ResourceVersion string
+	LastUpdateTime  metav1.Time
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

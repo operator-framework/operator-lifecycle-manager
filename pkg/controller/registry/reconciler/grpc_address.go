@@ -19,7 +19,6 @@ func (g *GrpcAddressRegistryReconciler) EnsureRegistryServer(catalogSource *v1al
 		CreatedAt: now,
 		Protocol:  "grpc",
 	}
-	catalogSource.Status.LastSync = now
 
 	return nil
 }

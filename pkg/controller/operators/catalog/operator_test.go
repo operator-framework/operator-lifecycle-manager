@@ -384,9 +384,9 @@ func TestSyncCatalogSources(t *testing.T) {
 					Namespace:       "cool-namespace",
 					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
+					LastUpdateTime: now,
 				},
 				RegistryServiceStatus: nil,
-				LastSync:              now,
 			},
 			expectedError: nil,
 		},
@@ -409,9 +409,9 @@ func TestSyncCatalogSources(t *testing.T) {
 						Namespace:       "cool-namespace",
 						UID:             types.UID("configmap-uid"),
 						ResourceVersion: "resource-version",
+						LastUpdateTime:  now,
 					},
 					RegistryServiceStatus: nil,
-					LastSync:              now,
 				},
 			},
 			k8sObjs: []runtime.Object{
@@ -431,6 +431,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					Namespace:       "cool-namespace",
 					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
+					LastUpdateTime:  now,
 				},
 				RegistryServiceStatus: &v1alpha1.RegistryServiceStatus{
 					Protocol:         "grpc",
@@ -439,7 +440,6 @@ func TestSyncCatalogSources(t *testing.T) {
 					Port:             "50051",
 					CreatedAt:        now,
 				},
-				LastSync: now,
 			},
 			expectedError: nil,
 		},
@@ -465,7 +465,6 @@ func TestSyncCatalogSources(t *testing.T) {
 					Port:             "50051",
 					CreatedAt:        now,
 				},
-				LastSync: now,
 			},
 			expectedError: nil,
 			expectedObjs: []runtime.Object{
@@ -498,7 +497,6 @@ func TestSyncCatalogSources(t *testing.T) {
 					Port:             "50051",
 					CreatedAt:        now,
 				},
-				LastSync: now,
 			},
 			expectedError: nil,
 			expectedObjs: []runtime.Object{
@@ -791,6 +789,7 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 		reconciler:            config.reconciler,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
+		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
 	}
 	op.sources = grpc.NewSourceStore(config.logger, 1*time.Second, 5*time.Second, op.syncSourceState)
 	if op.reconciler == nil {
