@@ -2,16 +2,14 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: porcelain-server
-  namespace: {{ .Values.namespace }}
+  namespace: openshift-operator-lifecycle-manager
   labels:
-    olm.version: {{ .Chart.Version }}
-    {{- if .Values.writePorcelainServerStatusName }}
-    olm.clusteroperator.name: {{ .Values.writePorcelainServerStatusName }}
-    {{- end }}
+    olm.version: 0.11.0
+    olm.clusteroperator.name: operator-lifecycle-manager-porcelain-server
 spec:
   displayName: Operator Porcelain Server
   description: Surfaces synthesized information
-  minKubeVersion: {{ .Values.minKubeVersion }}
+  minKubeVersion: 1.11.0
   keywords: ['installedoperators', 'installed', 'operators', 'olm']
   maintainers:
   - name: Red Hat
@@ -76,7 +74,7 @@ spec:
         spec:
           strategy:
             type: RollingUpdate
-          replicas: {{ .Values.porcelain.replicaCount }}
+          replicas: 2
           selector:
             matchLabels:
               app: porcelain-server
@@ -86,46 +84,54 @@ spec:
                 app: porcelain-server
             spec:
               serviceAccountName: olm-operator-serviceaccount
-              {{- if and .Values.installType (eq .Values.installType "ocp") }}
               priorityClassName: "system-cluster-critical"
-              {{- end }}
-              {{- if .Values.porcelain.nodeSelector }}
               nodeSelector:
-                {{- toYaml .Values.porcelain.nodeSelector | nindent 16 }}
-              {{- end }}
-              {{- if .Values.porcelain.tolerations }}
+                beta.kubernetes.io/os: linux
+                node-role.kubernetes.io/master: ""
+                
               tolerations:
-                {{- toYaml .Values.porcelain.tolerations | nindent 14 }}
-              {{- end }}
+              - effect: NoSchedule
+                key: node-role.kubernetes.io/master
+                operator: Exists
+              - effect: NoExecute
+                key: node.kubernetes.io/unreachable
+                operator: Exists
+                tolerationSeconds: 120
+              - effect: NoExecute
+                key: node.kubernetes.io/not-ready
+                operator: Exists
+                tolerationSeconds: 120
+              
               containers:
               - name: porcelain-server
                 command:
                 - /bin/porcelain-server
                 - -v=4
                 - --secure-port
-                - {{ .Values.porcelain.service.internalPort | quote }}
+                - "5443"
                 - --use-embedded-etcd
-                image: {{ .Values.porcelain.image.ref }}
-                imagePullPolicy: {{ .Values.porcelain.image.pullPolicy }}
+                image: quay.io/operator-framework/olm@sha256:81813ac9c937187c29e080c0975bb18489c1f232009c38c8d3a27bc9956ddd21
+                imagePullPolicy: IfNotPresent
                 ports:
-                - containerPort: {{ .Values.porcelain.service.internalPort }}
+                - containerPort: 5443
                 livenessProbe:
                   httpGet:
                     scheme: HTTPS
                     path: /healthz
-                    port: {{ .Values.porcelain.service.internalPort }}
+                    port: 5443
                 readinessProbe:
                   httpGet:
                     scheme: HTTPS
                     path: /healthz
-                    port: {{ .Values.porcelain.service.internalPort }}
+                    port: 5443
                 terminationMessagePolicy: FallbackToLogsOnError
-                {{- if .Values.porcelain.resources }}
                 resources:
-                  {{- toYaml .Values.porcelain.resources | nindent 18 }}
-                {{- end }}
+                  requests:
+                    cpu: 10m
+                    memory: 50Mi
+                  
   maturity: alpha
-  version: {{ .Chart.Version }}
+  version: 0.11.0
   apiservicedefinitions:
     owned:
     - group: porcelain.operators.coreos.com
@@ -135,4 +141,4 @@ spec:
       displayName: Installed Operator
       description: Represents the state of an installed operator.
       deploymentName: porcelain-server
-      containerPort: {{ .Values.porcelain.service.internalPort }}
+      containerPort: 5443

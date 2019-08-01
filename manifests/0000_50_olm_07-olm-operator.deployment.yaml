@@ -30,6 +30,8 @@ spec:
           - operator-lifecycle-manager
           - -writePackageServerStatusName
           - operator-lifecycle-manager-packageserver
+          - -writePorcelainServerStatusName
+          - operator-lifecycle-manager-porcelain-server
           - -tls-cert
           - /var/run/secrets/serving-cert/tls.crt
           - -tls-key
