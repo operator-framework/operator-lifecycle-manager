@@ -97,6 +97,11 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 							Status:             configv1.ConditionFalse,
 							LastTransitionTime: metav1.Now(),
 						},
+						{
+							Type:               configv1.OperatorUpgradeable,
+							Status:             configv1.ConditionFalse,
+							LastTransitionTime: metav1.Now(),
+						},
 					},
 				},
 			})
@@ -138,6 +143,10 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 				Type:   configv1.OperatorAvailable,
 				Status: configv1.ConditionTrue,
 			})
+			setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:   configv1.OperatorUpgradeable,
+				Status: configv1.ConditionTrue,
+			})
 			// we set the versions array when all the latest code is deployed and running - in this case,
 			// the sync method is responsible for guaranteeing that happens before it returns nil
 			if len(targetOperatorVersion) > 0 {
@@ -171,6 +180,11 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 				Type:    configv1.OperatorProgressing,
 				Status:  configv1.ConditionFalse,
 				Message: fmt.Sprintf("Waiting to see update %s succeed", olmversion.OLMVersion),
+			})
+			setOperatorStatusCondition(&existing.Status.Conditions, configv1.ClusterOperatorStatusCondition{
+				Type:    configv1.OperatorUpgradeable,
+				Status:  configv1.ConditionFalse,
+				Message: "Waiting for updates to take effect",
 			})
 			// TODO: use % errors within a window to report available
 		}
