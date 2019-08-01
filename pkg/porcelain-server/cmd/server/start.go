@@ -170,7 +170,8 @@ func (o PorcelainServerOptions) RunPorcelainServer(ctx context.Context) error {
 	if o.UseEmbeddedEtcd {
 		klog.Info("Starting embedded etcd")
 		// Starts Etcd and blocks until the server is ready, the context is canceled, or an error occurs
-		if err := o.startEmbeddedEtcd(ctx); err != nil {
+		// TODO: Pull etcd data dir from PorcelainServerOptions
+		if err := o.startEmbeddedEtcd(ctx, "porcelain.etcd"); err != nil {
 			return err
 		}
 	}

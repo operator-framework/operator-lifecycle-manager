@@ -130,6 +130,13 @@ spec:
                     cpu: 10m
                     memory: 50Mi
                   
+                volumeMounts:
+                - mountPath: /porcelain.etcd
+                  name: etcd-cache
+              volumes:
+              - name: etcd-cache
+                emptyDir:
+                  medium: "Memory"
   maturity: alpha
   version: 0.11.0
   apiservicedefinitions:

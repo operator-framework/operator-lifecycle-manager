@@ -7,9 +7,9 @@ import (
 	"k8s.io/klog"
 )
 
-func (o PorcelainServerOptions) startEmbeddedEtcd(ctx context.Context) error {
+func (o PorcelainServerOptions) startEmbeddedEtcd(ctx context.Context, dataDir string) error {
 	cfg := embed.NewConfig()
-	cfg.Dir = "default.etcd"
+	cfg.Dir = dataDir
 	e, err := embed.StartEtcd(cfg)
 	if err != nil {
 		return err
