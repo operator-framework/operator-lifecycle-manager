@@ -138,15 +138,31 @@ clean:
 # use container-codegen
 codegen: export GO111MODULE := off
 codegen:
+	# Generate OpenAPI specs for packages.operators.coreos.com
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go \
+		--input-dirs "${PKG}/pkg/package-server/apis/apps/v1alpha1,${PKG}/pkg/package-server/apis/operators/v1" \
+		--input-dirs "${PKG}/pkg/lib/version,${PKG}/pkg/api/apis/operators/v1alpha1,${PKG}/pkg/api/apis/operators/v1" \
+		--input-dirs "k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/apimachinery/pkg/version" \
+		--output-base "./" \
+		--output-package "./pkg/package-server/apis/openapi" \
+		--output-file-base "zz_generated.openapi" \
+		--go-header-file "boilerplate.go.txt" \
+		-r /dev/null
+	# porcelain.operators.coreos.com	
+	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go \
+		--input-dirs "${PKG}/pkg/porcelain-server/apis/porcelain/v1alpha1" \
+		--input-dirs "${PKG}/pkg/lib/version,${PKG}/pkg/api/apis/operators/v1alpha1" \
+		--input-dirs "k8s.io/apimachinery/pkg/apis/meta/v1,k8s.io/apimachinery/pkg/runtime,k8s.io/apimachinery/pkg/version,k8s.io/api/core/v1" \
+		--output-base "./" \
+		--output-package "./pkg/porcelain-server/generated/openapi" \
+		--output-file-base "zz_generated.openapi" \
+		--go-header-file "boilerplate.go.txt" \
+		-r /dev/null
+
 	# TODO: Use new codegen script with openapi in kube 1.16 (https://github.com/kubernetes/sample-apiserver/blob/16bc2fadc9dc2df696c8e9139f567dafd84531b0/hack/update-codegen.sh#L34)
 	cp scripts/generate_internal_groups.sh $(CODEGEN)
 	mkdir -p vendor/k8s.io/code-generator/hack
 	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
-
-	# Generate OpenAPI specs for packages.operators.coreos.com
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-	# porcelain.operators.coreos.com
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/api/core/v1,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/porcelain-server/apis/porcelain/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/porcelain-server/generated/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null	
 
 	# Run codegen for operators.coreos.com
 	$(CODEGEN) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
@@ -219,6 +235,7 @@ endif
 	yq w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
 	yq w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
 	yq w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
+	yq w -i deploy/$(target)/values.yaml porcelain.image.ref $(olmref)
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)

@@ -6,11 +6,11 @@ import (
 	"github.com/blang/semver"
 )
 
-// +k8s:openapi-gen=true
 // OperatorVersion is a wrapper around semver.Version which supports correct
 // marshaling to YAML and JSON.
+// +k8s:openapi-gen=true
 type OperatorVersion struct {
-	semver.Version
+	semver.Version `json:",inline"`
 }
 
 // DeepCopyInto creates a deep-copy of the Version value.

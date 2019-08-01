@@ -69,6 +69,7 @@ require (
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gonum.org/v1/gonum v0.0.0-20190724213354-3129c79de289 // indirect
 	google.golang.org/grpc v1.22.1
+	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
 	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
 	k8s.io/apimachinery v0.0.0-20190118094746-1525e4dadd2d

@@ -180,16 +180,19 @@ type ClusterServiceVersionSpec struct {
 	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,2,opt,name=selector"`
 }
 
+// +k8s:openapi-gen=true
 type Maintainer struct {
 	Name  string `json:"name,omitempty"`
 	Email string `json:"email,omitempty"`
 }
 
+// +k8s:openapi-gen=true
 type AppLink struct {
 	Name string `json:"name,omitempty"`
 	URL  string `json:"url,omitempty"`
 }
 
+// +k8s:openapi-gen=true
 type Icon struct {
 	Data      string `json:"base64data"`
 	MediaType string `json:"mediatype"`
