@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	PHASE_LABEL = "phase"
-	NAME_LABEL  = "name"
+	NAME_LABEL      = "name"
+	INSTALLED_LABEL = "installed"
 )
 
 // TODO(alecmerdler): Can we use this to emit Kubernetes events?
@@ -138,30 +138,27 @@ var (
 		},
 	)
 
-	CSVSyncCount = prometheus.NewCounterVec(
+	SubscriptionSyncCount = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "csv_sync_total",
-			Help: "Monotonic count of CSV syncs",
+			Name: "subscription_sync_total",
+			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{PHASE_LABEL, NAME_LABEL},
+		[]string{NAME_LABEL, INSTALLED_LABEL},
 	)
 )
 
 func RegisterOLM() {
 	prometheus.MustRegister(csvCount)
 	prometheus.MustRegister(CSVUpgradeCount)
-	prometheus.MustRegister(CSVSyncCount)
 }
 
 func RegisterCatalog() {
 	prometheus.MustRegister(installPlanCount)
 	prometheus.MustRegister(subscriptionCount)
 	prometheus.MustRegister(catalogSourceCount)
+	prometheus.MustRegister(SubscriptionSyncCount)
 }
 
-func CounterForCSV(name, phase string) (prometheus.Counter, error) {
-	return CSVSyncCount.GetMetricWith(map[string]string{
-		PHASE_LABEL: phase,
-		NAME_LABEL:  name,
-	})
+func CounterForSubscription(name, installedCSV string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV)
 }

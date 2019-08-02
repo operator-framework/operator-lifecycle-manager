@@ -662,9 +662,14 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 		return fmt.Errorf("casting Subscription failed")
 	}
 
+	o.recordMetrics(sub)
 	o.resolveNamespace(sub.GetNamespace())
 
 	return nil
+}
+
+func (o *Operator) recordMetrics(sub *v1alpha1.Subscription) {
+	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV).Inc()
 }
 
 func (o *Operator) resolveNamespace(namespace string) {
