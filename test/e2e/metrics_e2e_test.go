@@ -5,10 +5,12 @@ package e2e
 import (
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
 // TestMetrics tests the metrics endpoint of the OLM pod.
@@ -33,7 +35,10 @@ func TestMetricsEndpoint(t *testing.T) {
 		t.Fatalf("Metrics test failed: %v\n", err)
 	}
 
-	log.Debugf("Metrics:\n%v", rawOutput)
+	// Verify metrics have been emitted for packageserver csv
+	require.Contains(t, rawOutput, "csv_sync_total counter")
+	require.Contains(t, rawOutput, "phase=\"Succeeded\"")
+	require.Contains(t, rawOutput, "packageserver")
 }
 
 func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
