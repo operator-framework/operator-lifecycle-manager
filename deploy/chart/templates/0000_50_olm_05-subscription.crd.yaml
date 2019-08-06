@@ -71,3 +71,114 @@ spec:
               enum:
               - Manual
               - Automatic
+            config:
+              type: object
+              description: Operator Pod configuration, it is applied to the operator during install. It has higher precedence than the same configuration specified in a ClusterServiveVersion.
+              properties:
+                env:
+                  type: array
+                  description: List of environment variables to set in the container
+                  items:
+                    type: object
+                    description: EnvVar represents an environment variable present in a Container
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        description: EnvVar represents an environment variable present in a Container
+                      value:
+                        type: string
+                        description: Value of the environment variable specified
+                      valueFrom:
+                        type: object
+                        description: Source for the environment variable's value. Cannot be used if value is not empty
+                        properties:
+                          configMapKeyRef:
+                            type: object
+                            description: Selects a key of a ConfigMap
+                            required:
+                              - key
+                            properties:
+                              key:
+                                type: string
+                                description: The key to select
+                              name:
+                                type: string
+                                description: "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names"
+                              optional:
+                                type: boolean
+                                description: Specify whether the ConfigMap or its key must be defined
+                          fieldRef:
+                            type: object
+                            description: "Selects a field of the pod: supports metadata.name, metadata.namespace, metadata.labels, metadata.annotations, spec.nodeName, spec.serviceAccountName, status.hostIP, status.podIP"
+                            required:
+                              - fieldPath
+                            properties:
+                              apiVersion:
+                                type: string
+                                description: Version of the schema the FieldPath is written in terms of, defaults to v1
+                              fieldPath:
+                                type: string
+                                description: Path of the field to select in the specified API version
+                          resourceFieldRef:
+                            type: object
+                            description: "Selects a resource of the container: only resources limits and requests (limits.cpu, limits.memory, limits.ephemeral-storage, requests.cpu, requests.memory and requests.ephemeral-storage) are currently supported."
+                            required:
+                              - resource
+                            properties:
+                              containerName:
+                                type: string
+                                description: "Container name: required for volumes, optional for env vars"
+                              divisor:
+                                type: string
+                                description: Specifies the output format of the exposed resources, defaults to 1
+                              resource:
+                                type: string
+                                description: "Required: resource to select"
+                          secretKeyRef:
+                            type: object
+                            description: Selects a key of a secret in the pod's namespace
+                            required:
+                              - key
+                            properties:
+                              key:
+                                type: string
+                                description: The key of the secret to select from.  Must be a valid secret key
+                              name:
+                                type: string
+                                description: "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names"
+                              optional:
+                                type: boolean
+                                description: Specify whether the Secret or its key must be defined
+                envFrom:
+                  type: array
+                  description: "List of sources to populate environment variables in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence. Values defined by an Env with a duplicate key will take precedence. Cannot be updated"
+                  items:
+                    type: object
+                    description: EnvFromSource represents the source of a set of ConfigMaps
+                    properties:
+                      configMapRef:
+                        type: object
+                        description: "ConfigMapEnvSource selects a ConfigMap to populate the environment variables with.\n\nThe contents of the target ConfigMap's Data field will represent the key-value pairs as environment variables"
+                        properties:
+                          name:
+                            type: string
+                            description: "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names"
+                          optional:
+                            type: boolean
+                            description: Specify whether the ConfigMap must be defined
+                      prefix:
+                        type: string
+                        description: An optional identifier to prepend to each key in the ConfigMap. Must be a C_IDENTIFIER
+                      secretRef:
+                        type: object
+                        description: "SecretEnvSource selects a Secret to populate the environment variables with.\n\nThe contents of the target Secret's Data field will represent the key-value pairs as environment variables"
+                        properties:
+                          name:
+                            type: string
+                            description: "Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names"
+                          optional:
+                            type: boolean
+                            description: Specify whether the Secret must be defined
+
