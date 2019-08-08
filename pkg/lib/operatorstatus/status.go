@@ -15,11 +15,18 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 
+	olmv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	olmv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
 )
 
-func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface) {
+const (
+	clusterOperatorOLM           = "operator-lifecycle-manager"
+	clusterOperatorCatalogSource = "operator-lifecycle-manager-catalog"
+)
+
+func MonitorClusterStatus(name, namespace string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface) {
 	var (
 		syncs              int
 		successfulSyncs    int
@@ -105,6 +112,7 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 					},
 				},
 			})
+			created.Status.RelatedObjects = relatedObjects(name, namespace)
 			if createErr != nil {
 				log.Errorf("Failed to create cluster operator: %v\n", createErr)
 				return
@@ -233,4 +241,44 @@ func findOperatorStatusCondition(conditions []configv1.ClusterOperatorStatusCond
 	}
 
 	return nil
+}
+
+// relatedObjects returns RelatedObjects in the ClusterOperator.Status.
+// RelatedObjects are consumed by https://github.com/openshift/must-gather
+func relatedObjects(name, namespace string) []configv1.ObjectReference {
+	var objectReferences []configv1.ObjectReference
+	switch name {
+	case clusterOperatorOLM:
+		objectReferences = []configv1.ObjectReference{
+			{
+				Group:     olmv1.GroupName,
+				Resource:  olmv1.OperatorGroupKind,
+				Namespace: namespace,
+			},
+			{
+				Group:     olmv1alpha1.GroupName,
+				Resource:  olmv1alpha1.ClusterServiceVersionKind,
+				Namespace: namespace,
+			},
+		}
+	case clusterOperatorCatalogSource:
+		objectReferences = []configv1.ObjectReference{
+			{
+				Group:     olmv1alpha1.GroupName,
+				Resource:  olmv1alpha1.SubscriptionKind,
+				Namespace: namespace,
+			},
+			{
+				Group:     olmv1alpha1.GroupName,
+				Resource:  olmv1alpha1.InstallPlanKind,
+				Namespace: namespace,
+			},
+		}
+	}
+	namespaces := configv1.ObjectReference{
+		Resource: "namespaces",
+		Name:     namespace,
+	}
+	objectReferences = append(objectReferences, namespaces)
+	return objectReferences
 }

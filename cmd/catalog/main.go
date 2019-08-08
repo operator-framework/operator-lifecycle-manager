@@ -166,7 +166,7 @@ func main() {
 	<-op.Ready()
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, op.AtLevel(), op.Done(), opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, *catalogNamespace, op.AtLevel(), op.Done(), opClient, configClient)
 	}
 
 	<-op.Done()
