@@ -46,6 +46,11 @@ var (
 		"quay.io/operator-framework/upstream-community-operators@sha256:098457dc5e0b6ca9599bd0e7a67809f8eca397907ca4d93597380511db478fec",
 		"reference to upstream-community-operators image")
 
+	dummyImage = flag.String(
+		"dummyImage",
+		"bitnami/nginx:latest",
+		"dummy image to treat as an operator in tests")
+
 	testNamespace           = ""
 	operatorNamespace       = ""
 	communityOperatorsImage = ""

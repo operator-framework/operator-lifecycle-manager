@@ -211,7 +211,7 @@ var (
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
 								Name:            genName("nginx"),
-								Image:           "redis",
+								Image:           *dummyImage,
 								Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
 								ImagePullPolicy: corev1.PullIfNotPresent,
 							},
@@ -743,9 +743,9 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	// Wait for the subscription to begin upgrading to csvB
 	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 	require.NoError(t, err)
-	require.NotEqual(t, fetchedInstallPlan.GetName(), subscription.Status.Install.Name, "expected new installplan for upgraded csv")
+	require.NotEqual(t, fetchedInstallPlan.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan for upgraded csv")
 
-	upgradeInstallPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, requiresApprovalChecker)
+	upgradeInstallPlan, err := fetchInstallPlan(t, crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
 	require.NoError(t, err)
 
 	// Approve the upgrade installplan and wait for

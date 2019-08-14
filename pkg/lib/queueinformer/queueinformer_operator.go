@@ -144,6 +144,7 @@ func (o *operator) addHasSynced(hasSynced cache.InformerSynced) {
 	}
 }
 
+// TODO: generalize over func(ctx) so this can start informers + source watcher
 func (o *operator) RunInformers(ctx context.Context) {
 	o.runInformersOnce.Do(func() {
 		o.mu.Lock()

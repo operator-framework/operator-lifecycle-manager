@@ -9,7 +9,7 @@ spec:
       containers:
       - name: e2e
         image:  {{ .Values.e2e.image.ref }}
-        command: ["go", "test", "-v", "-failfast", "-timeout", "50m", "./test/e2e/...", "-namespace=$(NAMESPACE)-operator", "-olmNamespace=$(NAMESPACE)"]
+        command: ["go", "test", "-v", "-failfast", "-timeout", "50m", "./test/e2e/...", "-namespace=$(NAMESPACE)-operator", "-olmNamespace=$(NAMESPACE)", " -dummyImage=hang:10"]
         env:
         - name: NAMESPACE
           valueFrom:

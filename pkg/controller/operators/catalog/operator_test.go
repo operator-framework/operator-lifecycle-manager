@@ -32,6 +32,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
@@ -786,17 +787,18 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
 				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
 			), "resolver"),
-		sources:               make(map[resolver.CatalogKey]resolver.SourceRef),
-		resolver:              config.resolver,
+		resolver:              &fakes.FakeResolver{},
 		reconciler:            config.reconciler,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 	}
+	op.sources = grpc.NewSourceStore(config.logger, op.syncSourceState)
 	if op.reconciler == nil {
 		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
 	}
 
 	op.RunInformers(ctx)
+	op.sources.Start(ctx)
 
 	if ok := cache.WaitForCacheSync(ctx.Done(), op.HasSynced); !ok {
 		return nil, fmt.Errorf("failed to wait for caches to sync")
