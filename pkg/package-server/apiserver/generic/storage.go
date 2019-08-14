@@ -64,12 +64,13 @@ type ProviderConfig struct {
 
 // BuildStorage constructs APIGroupInfo for the packages.apps.redhat.com and packages.operators.coreos.com API groups.
 func BuildStorage(providers *ProviderConfig) []generic.APIGroupInfo {
-
 	// Build storage for packages.operators.coreos.com
 	operatorInfo := generic.NewDefaultAPIGroupInfo(v1.Group, Scheme, metav1.ParameterCodec, Codecs)
 	operatorStorage := storage.NewStorage(v1.Resource("packagemanifests"), providers.Provider, Scheme)
+	iconStorage := storage.NewLogoStorage(v1.Resource("packagemanifests/icon"), providers.Provider)
 	operatorResources := map[string]rest.Storage{
-		"packagemanifests": operatorStorage,
+		"packagemanifests":      operatorStorage,
+		"packagemanifests/icon": iconStorage,
 	}
 	operatorInfo.VersionedResourcesStorageMap[v1.Version] = operatorResources
 
@@ -78,7 +79,8 @@ func BuildStorage(providers *ProviderConfig) []generic.APIGroupInfo {
 
 	// Use storage for package.operators.coreos.com since types are identical
 	appResources := map[string]rest.Storage{
-		"packagemanifests": operatorStorage,
+		"packagemanifests":      operatorStorage,
+		"packagemanifests/icon": iconStorage,
 	}
 	appInfo.VersionedResourcesStorageMap[v1alpha1.Version] = appResources
 

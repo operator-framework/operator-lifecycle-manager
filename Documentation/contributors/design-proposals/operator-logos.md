@@ -1,6 +1,6 @@
 # Operator Package Logos
 
-Status: Pending
+Status: In Progress
 
 Version: Alpha
 
