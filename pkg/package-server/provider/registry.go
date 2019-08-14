@@ -14,6 +14,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/util/labels"
 
@@ -51,6 +52,8 @@ func newRegistryClient(source *operatorsv1alpha1.CatalogSource, conn *grpc.Clien
 type RegistryProvider struct {
 	queueinformer.Operator
 
+	kubeClient kubernetes.Interface
+
 	mu              sync.RWMutex
 	globalNamespace string
 	clients         map[sourceKey]registryClient
@@ -58,9 +61,10 @@ type RegistryProvider struct {
 
 var _ PackageManifestProvider = &RegistryProvider{}
 
-func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, operator queueinformer.Operator, wakeupInterval time.Duration, watchedNamespaces []string, globalNamespace string) (*RegistryProvider, error) {
+func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, kubeClient kubernetes.Interface, operator queueinformer.Operator, wakeupInterval time.Duration, watchedNamespaces []string, globalNamespace string) (*RegistryProvider, error) {
 	p := &RegistryProvider{
-		Operator: operator,
+		Operator:   operator,
+		kubeClient: kubeClient,
 
 		globalNamespace: globalNamespace,
 		clients:         make(map[sourceKey]registryClient),
@@ -242,6 +246,12 @@ func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestLis
 	defer p.mu.RUnlock()
 
 	pkgs := []operators.PackageManifest{}
+	if namespace != metav1.NamespaceAll {
+		if _, err := p.kubeClient.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{}); err != nil {
+			return &operators.PackageManifestList{Items: pkgs}, nil
+		}
+	}
+
 	for _, client := range p.clients {
 		if client.source.GetNamespace() == namespace || client.source.GetNamespace() == p.globalNamespace || namespace == metav1.NamespaceAll {
 			logger.Debugf("found CatalogSource %s", client.source.GetName())

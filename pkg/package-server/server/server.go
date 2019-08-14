@@ -170,7 +170,7 @@ func (o *PackageServerOptions) Run(ctx context.Context) error {
 		return err
 	}
 
-	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, queueOperator, o.WakeupInterval, o.WatchedNamespaces, o.GlobalNamespace)
+	sourceProvider, err := provider.NewRegistryProvider(ctx, crClient, kubeClient, queueOperator, o.WakeupInterval, o.WatchedNamespaces, o.GlobalNamespace)
 	if err != nil {
 		return err
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -79,7 +80,7 @@ func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k
 
 	resyncInterval := 5 * time.Minute
 
-	return NewRegistryProvider(ctx, clientFake, op, resyncInterval, watchedNamespaces, globalNamespace)
+	return NewRegistryProvider(ctx, clientFake, k8sClientFake, op, resyncInterval, watchedNamespaces, globalNamespace)
 }
 
 func catalogSource(name, namespace string) *operatorsv1alpha1.CatalogSource {
@@ -388,6 +389,20 @@ func TestRegistryProviderGet(t *testing.T) {
 			expected:    nil,
 		},
 		{
+			name:       "SingleNamespace/NamespaceDoesNotExist",
+			namespaces: []string{"not-a-namespace"},
+			globalNS:   "ns",
+			catalogSources: []runtime.Object{
+				withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now())),
+			},
+			request: getRequest{
+				packageNamespace: "ns",
+				packageName:      "amq",
+			},
+			expectedErr: "",
+			expected:    nil,
+		},
+		{
 			name:       "SingleNamespace/PackageManifestFound",
 			namespaces: []string{"ns"},
 			globalNS:   "ns",
@@ -532,7 +547,14 @@ func TestRegistryProviderGet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
-			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.namespaces, test.globalNS)
+
+			existingNamespaces := []runtime.Object{}
+			for _, ns := range test.namespaces {
+				existingNamespaces = append(existingNamespaces, &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{Name: ns},
+				})
+			}
+			provider, err := NewFakeRegistryProvider(ctx, nil, existingNamespaces, test.namespaces, test.globalNS)
 			require.NoError(t, err)
 
 			for _, cs := range test.catalogSources {
@@ -820,7 +842,14 @@ func TestRegistryProviderList(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
-			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.namespaces, test.globalNS)
+
+			existingNamespaces := []runtime.Object{}
+			for _, ns := range test.namespaces {
+				existingNamespaces = append(existingNamespaces, &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{Name: ns},
+				})
+			}
+			provider, err := NewFakeRegistryProvider(ctx, nil, existingNamespaces, test.namespaces, test.globalNS)
 			require.NoError(t, err)
 
 			for _, c := range test.registryClients {

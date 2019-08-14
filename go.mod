@@ -31,7 +31,7 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.19.2
 	github.com/go-openapi/validate v0.19.2 // indirect
-	github.com/gogo/protobuf v1.2.0 // indirect
+	github.com/gogo/protobuf v1.2.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.3.1
 	github.com/google/btree v1.0.0 // indirect
@@ -60,12 +60,12 @@ require (
 	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
 	k8s.io/apimachinery v0.0.0-20190717022731-0bb8574e0887
 	k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
-	k8s.io/client-go v8.0.0+incompatible
+	k8s.io/client-go v11.0.0+incompatible
 	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
 	k8s.io/component-base v0.0.0-20190717023551-b4f50308a616
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect
 	k8s.io/kube-aggregator v0.0.0-20181204002017-122bac39d429
-	k8s.io/kube-openapi v0.0.0-20181031203759-72693cb1fadd
+	k8s.io/kube-openapi v0.0.0-20190510232812-a01b7d5d6c22
 	k8s.io/kubernetes v1.11.8-beta.0.0.20190124204751-3a10094374f2
 	k8s.io/utils v0.0.0-20190712204705-3dccf664f023 // indirect
 	sigs.k8s.io/structured-merge-diff v0.0.0-00010101000000-000000000000 // indirect
