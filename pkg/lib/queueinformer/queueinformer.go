@@ -105,6 +105,25 @@ func (q *QueueInformer) metricHandlers() *cache.ResourceEventHandlerFuncs {
 	}
 }
 
+func NewQueue(ctx context.Context, options ...Option) (*QueueInformer, error) {
+	config := defaultConfig()
+	config.apply(options)
+
+	if err := config.validateQueue(); err != nil {
+		return nil, err
+	}
+
+	queue := &QueueInformer{
+		MetricsProvider: config.provider,
+		logger:          config.logger,
+		queue:           config.queue,
+		keyFunc:         config.keyFunc,
+		syncer:          config.syncer,
+	}
+
+	return queue, nil
+}
+
 // NewQueueInformer returns a new QueueInformer configured with options.
 func NewQueueInformer(ctx context.Context, options ...Option) (*QueueInformer, error) {
 	// Get default config and apply given options
@@ -116,7 +135,7 @@ func NewQueueInformer(ctx context.Context, options ...Option) (*QueueInformer, e
 }
 
 func newQueueInformerFromConfig(ctx context.Context, config *queueInformerConfig) (*QueueInformer, error) {
-	if err := config.validate(); err != nil {
+	if err := config.validateQueueInformer(); err != nil {
 		return nil, err
 	}
 

@@ -18,7 +18,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"	
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 const (
@@ -253,7 +253,7 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup,
 		},
 		Rules: []rbacv1.PolicyRule{{Verbs: verbs, APIGroups: []string{group}, Resources: []string{resource}, ResourceNames: resourceNames}},
 	}
-	err := ownerutil.AddOwnerLabels(clusterRole, operatorGroup)
+	err := ownerutil.AddOwnerLabels(clusterRole, csv)
 	if err != nil {
 		return err
 	}

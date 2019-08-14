@@ -43,7 +43,7 @@ func (c *queueInformerConfig) complete() {
 }
 
 // validate returns an error if the config isn't valid.
-func (c *queueInformerConfig) validate() (err error) {
+func (c *queueInformerConfig) validateQueueInformer() (err error) {
 	switch config := c; {
 	case config.provider == nil:
 		err = newInvalidConfigError("nil metrics provider")
@@ -53,6 +53,24 @@ func (c *queueInformerConfig) validate() (err error) {
 		err = newInvalidConfigError("nil queue")
 	case config.indexer == nil && config.informer == nil:
 		err = newInvalidConfigError("nil indexer and informer")
+	case config.keyFunc == nil:
+		err = newInvalidConfigError("nil key function")
+	case config.syncer == nil:
+		err = newInvalidConfigError("nil syncer")
+	}
+
+	return
+}
+
+// difference from above is that this intentionally verifies without index/informer
+func (c *queueInformerConfig) validateQueue() (err error) {
+	switch config := c; {
+	case config.provider == nil:
+		err = newInvalidConfigError("nil metrics provider")
+	case config.logger == nil:
+		err = newInvalidConfigError("nil logger")
+	case config.queue == nil:
+		err = newInvalidConfigError("nil queue")
 	case config.keyFunc == nil:
 		err = newInvalidConfigError("nil key function")
 	case config.syncer == nil:

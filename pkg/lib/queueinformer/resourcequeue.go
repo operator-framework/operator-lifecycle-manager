@@ -34,6 +34,18 @@ func (r *ResourceQueueSet) Set(key string, queue workqueue.RateLimitingInterface
 	r.queueSet[key] = queue
 }
 
+func (r *ResourceQueueSet) RequeueEvent(namespace string, resourceEvent kubestate.ResourceEvent) error {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	if queue, ok := r.queueSet[namespace]; ok {
+		queue.AddRateLimited(resourceEvent)
+		return nil
+	}
+
+	return fmt.Errorf("couldn't find queue '%v' for event: %v", namespace, resourceEvent)
+}
+
 // Requeue requeues the resource in the set with the given name and namespace
 func (r *ResourceQueueSet) Requeue(namespace, name string) error {
 	r.mutex.RLock()
