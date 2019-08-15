@@ -55,7 +55,7 @@ require (
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gonum.org/v1/gonum v0.0.0-20190710053202-4340aa3071a0 // indirect
-	google.golang.org/grpc v1.22.0
+	google.golang.org/grpc v1.23.0
 	k8s.io/api v0.0.0-20190717022910-653c86b0609b
 	k8s.io/apiextensions-apiserver v0.0.0-20181204003618-e419c5771cdc
 	k8s.io/apimachinery v0.0.0-20190717022731-0bb8574e0887
