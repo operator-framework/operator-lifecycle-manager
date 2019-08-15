@@ -1128,16 +1128,22 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
+func getCRDVersionsMap(crd *v1beta1ext.CustomResourceDefinition) map[string]struct{} {
+	versionsMap := map[string]struct{}{}
+
+	for _, version := range crd.Spec.Versions {
+		versionsMap[version.Name] = struct{}{}
+	}
+	if crd.Spec.Version != "" {
+		versionsMap[crd.Spec.Version] = struct{}{}
+	}
+
+	return versionsMap
+}
+
 // Ensure all existing served versions are present in new CRD
 func ensureCRDVersions(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
-	newCRDVersions := map[string]struct{}{}
-
-	for _, newVersion := range newCRD.Spec.Versions {
-		newCRDVersions[newVersion.Name] = struct{}{}
-	}
-	if newCRD.Spec.Version != "" {
-		newCRDVersions[newCRD.Spec.Version] = struct{}{}
-	}
+	newCRDVersions := getCRDVersionsMap(newCRD)
 
 	for _, oldVersion := range oldCRD.Spec.Versions {
 		if oldVersion.Served {
@@ -1203,8 +1209,37 @@ func (o *Operator) validateExistingCRs(gvr schema.GroupVersionResource, newCRD *
 			return fmt.Errorf("error validating custom resource against new schema %#v: %s", newCRD.Spec.Validation, err)
 		}
 	}
-
 	return nil
+}
+
+// Attempt to remove stored versions that have been deprecated before allowing
+// those versions to be removed from the new CRD.
+// The function may not always succeed as storedVersions requires at least one
+// version. If there is only stored version, it won't be removed until a new
+// stored version is added.
+func removeDeprecatedStoredVersions(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) *v1beta1ext.CustomResourceDefinition {
+	// StoredVersions requires to have at least one version.
+	if len(oldCRD.Status.StoredVersions) <= 1 {
+		return nil
+	}
+
+	updatedCRD := oldCRD.DeepCopy()
+
+	newCRDVersions := getCRDVersionsMap(newCRD)
+	newStoredVersions := []string{}
+	for _, v := range oldCRD.Status.StoredVersions {
+		_, ok := newCRDVersions[v]
+		if ok {
+			newStoredVersions = append(newStoredVersions, v)
+		}
+	}
+
+	if len(newStoredVersions) < 1 {
+		return nil
+	} else {
+		updatedCRD.Status.StoredVersions = newStoredVersions
+		return updatedCRD
+	}
 }
 
 // ExecutePlan applies a planned InstallPlan to a namespace.
@@ -1268,6 +1303,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						if len(matchedCSV) == 1 {
 							o.logger.Debugf("Found one owner for CRD %v", crd)
 
+							crdStatus := removeDeprecatedStoredVersions(currentCRD, &crd)
+							if crdStatus != nil {
+								_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(crdStatus)
+								if err != nil {
+									return errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
+								}
+							}
+
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
 							if err != nil {
 								return errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
@@ -1282,6 +1325,14 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 							if err = o.validateCustomResourceDefinition(currentCRD, &crd); err != nil {
 								return errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
+							}
+
+							crdStatus := removeDeprecatedStoredVersions(currentCRD, &crd)
+							if crdStatus != nil {
+								_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(crdStatus)
+								if err != nil {
+									return errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
+								}
 							}
 
 							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
