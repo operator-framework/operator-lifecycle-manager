@@ -16,8 +16,83 @@ The following examples motivate why OLM's dependency resolution and upgrade stra
 OLM will upgrade CRD right away if it is owned by singular CSV. If CRD is owned by multiple CSVs, then CRD is upgraded when it is
 satisfied all of the following backward compatible conditions:
 
-- All existing versions in current CRD are present in new CRD
-- All existing instances (Custom Resource) of current CRD are valid when validated against new CRD's validation schema
+- All existing serving versions in current CRD are present in new CRD
+- All existing instances (Custom Resource) that are associated with serving versions of CRD are valid when validated against new CRD's validation schema
+
+### Add a new version to CRD
+
+The recommended procedure to add a new version in CRD:
+
+1. For example, the current CRD has one version `v1alpha1` and you want to add a new version `v1beta1` and mark it as the new storage version:
+
+```
+versions:
+  - name: v1alpha1
+    served: true
+    storage: false
+  - name: v1beta1
+    served: true
+    storage: true
+```
+
+2. Ensure the referencing version of CRD in CSV is updated if CSV intends to use the new version in `owned` section:
+
+```
+customresourcedefinitions:
+  owned:
+  - name: cluster.example.com
+    version: v1beta1
+    kind: cluster
+    displayName: Cluster
+```
+
+3. Push the updated CRD and CSV to your bundle
+
+### Deprecate/Remove a version of CRD
+
+OLM will not allow a serving version of CRD to be removed right away. Instead, a deprecated version of CRD should have been disabled first by marking `Served` field in CRD to `false` first. Then, the non-serving version can be removed on the subsequent CRD upgrade.
+
+The recommended procedure to deprecate and remove a specific version in CRD:
+
+1. Mark the deprecated version as non-serving to indicate this version is no longer in use and may be removed in subsequent upgrade. For example:
+
+```
+versions:
+  - name: v1alpha1
+    served: false
+    storage: true
+```
+
+2. Switch storage version to a serving version if soon-to-deprecated version is currently the storage version.
+For example:
+
+```
+versions:
+  - name: v1alpha1
+    served: false
+    storage: false
+  - name: v1beta1
+    served: true
+    storage: true
+```
+
+3. Upgrade CRD with above changes.
+
+4. In subsequent upgrade cycles, the non-serving version can be removed completely from CRD. For example:
+
+```
+versions:
+  - name: v1beta1
+    served: true
+    storage: true
+```
+
+Note:
+
+1. In order to remove a specific version that is or was storage version from CRD, that version needs to be removed from
+`storedVersion` in CRD's status. OLM will attempt to do this for you if it detects a stored version no longer exists in new CRD.
+
+2. Ensure referencing CRD's version in CSV is updated if that version is removed from the CRD.
 
 # Example: Deprecate dependant API
 
