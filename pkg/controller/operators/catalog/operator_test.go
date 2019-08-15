@@ -229,11 +229,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:                  "",
-							Version:                "v1",
-							Kind:                   "Service",
-							Name:                   "service",
-							Manifest:               toManifest(service("service", namespace)),
+							Group:    "",
+							Version:  "v1",
+							Kind:     "Service",
+							Name:     "service",
+							Manifest: toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -241,11 +241,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:                  "operators.coreos.com",
-							Version:                "v1alpha1",
-							Kind:                   "ClusterServiceVersion",
-							Name:                   "csv",
-							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
+							Group:    "operators.coreos.com",
+							Version:  "v1alpha1",
+							Kind:     "ClusterServiceVersion",
+							Name:     "csv",
+							Manifest: toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -797,12 +797,7 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
 	}
 
-	op.RunInformers(ctx)
 	op.sources.Start(ctx)
-
-	if ok := cache.WaitForCacheSync(ctx.Done(), op.HasSynced); !ok {
-		return nil, fmt.Errorf("failed to wait for caches to sync")
-	}
 
 	return op, nil
 }
