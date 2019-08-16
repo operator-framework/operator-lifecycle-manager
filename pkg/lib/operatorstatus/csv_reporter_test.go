@@ -50,17 +50,23 @@ func TestGetNewStatus(t *testing.T) {
 
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorDegraded,
 						Status:             configv1.ConditionFalse,
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
-					configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "Safe to upgrade",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
 						Type:               configv1.OperatorAvailable,
 						Status:             configv1.ConditionFalse,
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionTrue,
 						Message:            "Working toward 1.0.0",
@@ -69,13 +75,13 @@ func TestGetNewStatus(t *testing.T) {
 				},
 				Versions: []configv1.OperandVersion{},
 				RelatedObjects: []configv1.ObjectReference{
-					configv1.ObjectReference{
+					{
 						Group:     "",
 						Resource:  "namespaces",
 						Namespace: "",
 						Name:      "foo-namespace",
 					},
-					configv1.ObjectReference{
+					{
 						Group:     v1alpha1.GroupName,
 						Resource:  v1alpha1.ClusterServiceVersionKind,
 						Namespace: "foo-namespace",
@@ -111,17 +117,23 @@ func TestGetNewStatus(t *testing.T) {
 
 			expected: &configv1.ClusterOperatorStatus{
 				Conditions: []configv1.ClusterOperatorStatusCondition{
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorDegraded,
 						Status:             configv1.ConditionFalse,
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
-					configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "Safe to upgrade",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					{
 						Type:               configv1.OperatorAvailable,
 						Status:             configv1.ConditionTrue,
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
-					configv1.ClusterOperatorStatusCondition{
+					{
 						Type:               configv1.OperatorProgressing,
 						Status:             configv1.ConditionFalse,
 						Message:            "Deployed version 1.0.0",
@@ -129,23 +141,23 @@ func TestGetNewStatus(t *testing.T) {
 					},
 				},
 				Versions: []configv1.OperandVersion{
-					configv1.OperandVersion{
+					{
 						Name:    "operator",
 						Version: "snapshot",
 					},
-					configv1.OperandVersion{
+					{
 						Name:    "foo",
 						Version: "1.0.0",
 					},
 				},
 				RelatedObjects: []configv1.ObjectReference{
-					configv1.ObjectReference{
+					{
 						Group:     "",
 						Resource:  "namespaces",
 						Namespace: "",
 						Name:      "foo-namespace",
 					},
-					configv1.ObjectReference{
+					{
 						Group:     v1alpha1.GroupName,
 						Resource:  v1alpha1.ClusterServiceVersionKind,
 						Namespace: "foo-namespace",

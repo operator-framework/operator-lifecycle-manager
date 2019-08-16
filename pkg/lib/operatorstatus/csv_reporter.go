@@ -67,6 +67,9 @@ func (r *csvStatusReporter) GetNewStatus(existing *configv1.ClusterOperatorStatu
 	// We don't monitor whether the CSV backed operator is in degraded status.
 	builder.WithDegraded(configv1.ConditionFalse)
 
+	// CSV status won't block cluster upgrades
+	builder.WithUpgradeable(configv1.ConditionTrue, "Safe to upgrade")
+
 	// A CSV has been deleted.
 	if context.CurrentDeleted {
 		csv := context.Current
