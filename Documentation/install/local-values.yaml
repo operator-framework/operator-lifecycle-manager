@@ -1,9 +1,9 @@
 installType: upstream
 rbacApiVersion: rbac.authorization.k8s.io
-namespace: local
+namespace: olm
 writeStatusName: '""'
-catalog_namespace: local
-operator_namespace: local-operators
+catalog_namespace: olm
+operator_namespace: operators
 debug: true
 
 olm:

@@ -14,6 +14,7 @@ MOCKGEN := ./scripts/generate_mocks.sh
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
+LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
@@ -75,13 +76,13 @@ run-local: build-linux
 	. ./scripts/build_local.sh
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
-	. ./scripts/install_local.sh local build/resources
+	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
 
 deploy-local:
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
-	. ./scripts/install_local.sh local build/resources
+	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
 
 e2e.namespace:
