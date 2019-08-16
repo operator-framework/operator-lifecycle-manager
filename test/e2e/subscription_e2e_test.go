@@ -211,7 +211,7 @@ var (
 						Spec: corev1.PodSpec{Containers: []corev1.Container{
 							{
 								Name:            genName("nginx"),
-								Image:           "redis",
+								Image:           *dummyImage,
 								Ports:           []corev1.ContainerPort{{ContainerPort: 80}},
 								ImagePullPolicy: corev1.PullIfNotPresent,
 							},
@@ -743,9 +743,9 @@ func TestSusbcriptionWithStartingCSV(t *testing.T) {
 	// Wait for the subscription to begin upgrading to csvB
 	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 	require.NoError(t, err)
-	require.NotEqual(t, fetchedInstallPlan.GetName(), subscription.Status.Install.Name, "expected new installplan for upgraded csv")
+	require.NotEqual(t, fetchedInstallPlan.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan for upgraded csv")
 
-	upgradeInstallPlan, err := fetchInstallPlan(t, crc, subscription.Status.Install.Name, requiresApprovalChecker)
+	upgradeInstallPlan, err := fetchInstallPlan(t, crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
 	require.NoError(t, err)
 
 	// Approve the upgrade installplan and wait for
@@ -1278,7 +1278,9 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 
 	// wait for catalog to update
 	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
-		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync && catalog.Status.ConfigMapResource.ResourceVersion != fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion {
+		before := fetchedInitialCatalog.Status.ConfigMapResource
+		after := catalog.Status.ConfigMapResource
+		if after != nil && after.LastUpdateTime.After(before.LastUpdateTime.Time) && after.ResourceVersion != before.ResourceVersion {
 			fmt.Println("catalog updated")
 			return true
 		}

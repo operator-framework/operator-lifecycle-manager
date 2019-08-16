@@ -131,7 +131,6 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 			ServiceNamespace: source.GetNamespace(),
 			Port:             fmt.Sprintf("%d", source.Service().Spec.Ports[0].Port),
 		}
-		catalogSource.Status.LastSync = now
 	}
 	return nil
 }

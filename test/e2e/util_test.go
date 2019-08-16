@@ -311,9 +311,11 @@ func registryPodHealthy(address string) bool {
 }
 
 func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
-	if !catalog.Status.LastSync.IsZero() && catalog.Status.RegistryServiceStatus != nil {
-		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), catalog.Status.RegistryServiceStatus.Address())
-		return registryPodHealthy(catalog.Status.RegistryServiceStatus.Address())
+	registry := catalog.Status.RegistryServiceStatus
+	connState := catalog.Status.GRPCConnectionState
+	if registry != nil && connState != nil && !connState.LastConnectTime.IsZero() {
+		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
+		return registryPodHealthy(registry.Address())
 	}
 	fmt.Printf("waiting for catalog pod %v to be available (for sync)\n", catalog.GetName())
 	return false

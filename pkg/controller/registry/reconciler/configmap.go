@@ -255,6 +255,7 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 				Namespace:       configMap.GetNamespace(),
 				UID:             configMap.GetUID(),
 				ResourceVersion: configMap.GetResourceVersion(),
+				LastUpdateTime:  c.now(),
 			}
 
 			// recreate the pod if there are configmap changes; this causes the db to be rebuilt
@@ -293,7 +294,6 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 			ServiceNamespace: source.GetNamespace(),
 			Port:             fmt.Sprintf("%d", source.Service().Spec.Ports[0].Port),
 		}
-		catalogSource.Status.LastSync = now
 	}
 	return nil
 }

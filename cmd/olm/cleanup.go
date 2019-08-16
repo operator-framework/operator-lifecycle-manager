@@ -37,6 +37,10 @@ func cleanup(logger *logrus.Logger, c operatorclient.ClientInterface, crc versio
 		logger.WithError(err).Fatal("couldn't clean previous release")
 	}
 
+	if err := waitForDelete(checkClusterServiceVersion(crc, "packageserver.v0.10.1"), deleteClusterServiceVersion(crc, "packageserver.v0.10.0")); err != nil {
+		logger.WithError(err).Fatal("couldn't clean previous release")
+	}
+
 	if err := waitForDelete(checkClusterServiceVersion(crc, "packageserver.v0.9.0"), deleteClusterServiceVersion(crc, "packageserver.v0.9.0")); err != nil {
 		logger.WithError(err).Fatal("couldn't clean previous release")
 	}

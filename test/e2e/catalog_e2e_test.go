@@ -69,8 +69,10 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	// check for last synced update to catalogsource
 	t.Log("Checking for catalogsource lastSync updates")
 	_, err = fetchCatalogSource(t, crc, catalogSourceName, operatorNamespace, func(cs *v1alpha1.CatalogSource) bool {
-		if cs.Status.LastSync.After(catalogSource.Status.LastSync.Time) {
-			t.Logf("lastSync updated: %s -> %s", catalogSource.Status.LastSync, cs.Status.LastSync)
+		before := catalogSource.Status.GRPCConnectionState
+		after := cs.Status.GRPCConnectionState
+		if after != nil && after.LastConnectTime.After(before.LastConnectTime.Time) {
+			t.Logf("lastSync updated: %s -> %s", before.LastConnectTime, after.LastConnectTime)
 			return true
 		}
 		return false
@@ -149,7 +151,10 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	require.NoError(t, err)
 
 	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
-		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync && catalog.Status.ConfigMapResource.ResourceVersion != fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion {
+		before := fetchedInitialCatalog.Status.ConfigMapResource
+		after := catalog.Status.ConfigMapResource
+		if after != nil && before.LastUpdateTime.Before(&after.LastUpdateTime) && 
+		   after.ResourceVersion != before.ResourceVersion {
 			fmt.Println("catalog updated")
 			return true
 		}
