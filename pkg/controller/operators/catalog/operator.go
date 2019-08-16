@@ -1160,7 +1160,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoles().Create(&cr)
 				if k8serrors.IsAlreadyExists(err) {
 					// if we're updating, point owner to the newest csv
-					cr.Labels[ownerutil.OwnerKey] = step.Resolving
+					if cr.ObjectMeta.Labels == nil {
+						cr.ObjectMeta.Labels = map[string]string{}
+					}
+					cr.ObjectMeta.Labels[ownerutil.OwnerKey] = step.Resolving
 					_, err = o.OpClient.UpdateClusterRole(&cr)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrole %s", cr.GetName())
@@ -1184,7 +1187,10 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				// Attempt to create the ClusterRoleBinding.
 				_, err = o.OpClient.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(&rb)
 				if k8serrors.IsAlreadyExists(err) {
-					rb.Labels[ownerutil.OwnerKey] = step.Resolving
+					if rb.ObjectMeta.Labels == nil {
+						rb.ObjectMeta.Labels = map[string]string{}
+					}
+					rb.ObjectMeta.Labels[ownerutil.OwnerKey] = step.Resolving
 					_, err = o.OpClient.UpdateClusterRoleBinding(&rb)
 					if err != nil {
 						return errorwrap.Wrapf(err, "error updating clusterrolebinding %s", rb.GetName())
