@@ -96,11 +96,12 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: etcd
-  namespace: local 
+  namespace: olm
 spec:
-  channel: alpha
+  channel: singlenamespace-alpha
   name: etcd
-  source: rh-operators
+  source: operatorhubio-catalog
+  sourceNamespace: olm
 ```
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.

@@ -36,15 +36,15 @@ Here's an example `values.yaml`
 # sets the apiversion to use for rbac-resources. Change to `authorization.openshift.io` for openshift
 rbacApiVersion: rbac.authorization.k8s.io
 # namespace is the namespace the operators will _run_
-namespace: local
+namespace: olm
 # watchedNamespaces is a comma-separated list of namespaces the operators will _watch_ for OLM resources.
 # Omit to enable OLM in all namespaces
-watchedNamespaces: local
+watchedNamespaces: olm
 # catalog_namespace is the namespace where the catalog operator will look for global catalogs.
 # entries in global catalogs can be resolved in any watched namespace
-catalog_namespace: local
+catalog_namespace: olm
 # operator_namespace is the namespace where the operator runs
-operator_namespace: local
+operator_namespace: operators
 
 # OLM operator run configuration
 olm:
@@ -98,19 +98,21 @@ apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: etcd
-  namespace: local
+  namespace: olm
 spec:
-  channel: alpha
+  channel: singlenamespace-alpha
   name: etcd
-  source: rh-operators
+  source: operatorhubio-catalog
+  sourceNamespace: olm
 ---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: prometheus
-  namespace: local
+  namespace: olm
 spec:
   channel: alpha
   name: prometheus
-  source: rh-operators
+  source: operatorhubio-catalog
+  sourceNamespace: olm
 ```

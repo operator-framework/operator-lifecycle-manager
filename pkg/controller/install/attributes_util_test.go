@@ -14,7 +14,7 @@ func TestToAttributeSet(t *testing.T) {
 	user := &user.DefaultInfo{
 		Name: "Jim",
 	}
-	namespace := "local"
+	namespace := "olm"
 
 	tests := []struct {
 		description        string
