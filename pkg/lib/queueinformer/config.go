@@ -197,7 +197,7 @@ func WithQueueInformers(queueInformers ...*QueueInformer) OperatorOption {
 	}
 }
 
-// WithQueueInformers registers a set of initial Informers with an Operator.
+// WithInformers registers a set of initial Informers with an Operator.
 func WithInformers(informers ...cache.SharedIndexInformer) OperatorOption {
 	return func(config *operatorConfig) {
 		config.informers = informers
