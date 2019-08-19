@@ -11,6 +11,10 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
+const (
+	defaultWorkerCount = 1
+)
+
 type queueInformerConfig struct {
 	provider metrics.MetricsProvider
 	logger   *logrus.Logger
@@ -211,6 +215,6 @@ func (c *operatorConfig) validate() (err error) {
 func defaultOperatorConfig() *operatorConfig {
 	return &operatorConfig{
 		logger:     logrus.New(),
-		numWorkers: 2,
+		numWorkers: defaultWorkerCount,
 	}
 }
