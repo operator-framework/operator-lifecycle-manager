@@ -1217,16 +1217,14 @@ func (o *Operator) validateExistingCRs(gvr schema.GroupVersionResource, newCRD *
 // The function may not always succeed as storedVersions requires at least one
 // version. If there is only stored version, it won't be removed until a new
 // stored version is added.
-func removeDeprecatedStoredVersions(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) *v1beta1ext.CustomResourceDefinition {
+func removeDeprecatedStoredVersions(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) []string {
 	// StoredVersions requires to have at least one version.
 	if len(oldCRD.Status.StoredVersions) <= 1 {
 		return nil
 	}
 
-	updatedCRD := oldCRD.DeepCopy()
-
-	newCRDVersions := getCRDVersionsMap(newCRD)
 	newStoredVersions := []string{}
+	newCRDVersions := getCRDVersionsMap(newCRD)
 	for _, v := range oldCRD.Status.StoredVersions {
 		_, ok := newCRDVersions[v]
 		if ok {
@@ -1237,8 +1235,7 @@ func removeDeprecatedStoredVersions(oldCRD *v1beta1ext.CustomResourceDefinition,
 	if len(newStoredVersions) < 1 {
 		return nil
 	} else {
-		updatedCRD.Status.StoredVersions = newStoredVersions
-		return updatedCRD
+		return newStoredVersions
 	}
 }
 
@@ -1291,7 +1288,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				if k8serrors.IsAlreadyExists(err) {
 					currentCRD, _ := o.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(crd.GetName())
 					// Compare 2 CRDs to see if it needs to be updatetd
-					if !reflect.DeepEqual(crd, *currentCRD) {
+					if !(reflect.DeepEqual(crd.Spec.Version, currentCRD.Spec.Version) &&
+						reflect.DeepEqual(crd.Spec.Versions, currentCRD.Spec.Versions) &&
+						reflect.DeepEqual(crd.Spec.Validation, currentCRD.Spec.Validation)) {
 						// Verify CRD ownership, only attempt to update if
 						// CRD has only one owner
 						// Example: provided=database.coreos.com/v1alpha1/EtcdCluster
@@ -1302,19 +1301,6 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						crd.SetResourceVersion(currentCRD.GetResourceVersion())
 						if len(matchedCSV) == 1 {
 							o.logger.Debugf("Found one owner for CRD %v", crd)
-
-							crdStatus := removeDeprecatedStoredVersions(currentCRD, &crd)
-							if crdStatus != nil {
-								_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(crdStatus)
-								if err != nil {
-									return errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
-								}
-							}
-
-							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
-							if err != nil {
-								return errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
-							}
 						} else if len(matchedCSV) > 1 {
 							o.logger.Debugf("Found multiple owners for CRD %v", crd)
 
@@ -1326,19 +1312,21 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 							if err = o.validateCustomResourceDefinition(currentCRD, &crd); err != nil {
 								return errorwrap.Wrapf(err, "error validating existing CRs agains new CRD's schema: %s", step.Resource.Name)
 							}
-
-							crdStatus := removeDeprecatedStoredVersions(currentCRD, &crd)
-							if crdStatus != nil {
-								_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(crdStatus)
-								if err != nil {
-									return errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
-								}
-							}
-
-							_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
+						}
+						// Remove deprecated version in CRD storedVersions
+						storeVersions := removeDeprecatedStoredVersions(currentCRD, &crd)
+						if storeVersions != nil {
+							currentCRD.Status.StoredVersions = storeVersions
+							resultCRD, err := o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(currentCRD)
 							if err != nil {
-								return errorwrap.Wrapf(err, "error update CRD: %s", step.Resource.Name)
+								return errorwrap.Wrapf(err, "error updating CRD's status: %s", step.Resource.Name)
 							}
+							crd.SetResourceVersion(resultCRD.GetResourceVersion())
+						}
+						// Update CRD to new version
+						_, err = o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Update(&crd)
+						if err != nil {
+							return errorwrap.Wrapf(err, "error updating CRD: %s", step.Resource.Name)
 						}
 					}
 					// If it already existed, mark the step as Present.

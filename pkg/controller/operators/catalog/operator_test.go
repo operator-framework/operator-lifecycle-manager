@@ -235,6 +235,105 @@ func TestEnsureCRDVersions(t *testing.T) {
 	}
 }
 
+func TestRemoveDeprecatedStoredVersions(t *testing.T) {
+	mainCRDPlural := "ins-main-test"
+
+	currentVersions := []v1beta1.CustomResourceDefinitionVersion{
+		{
+			Name:    "v1alpha1",
+			Served:  true,
+			Storage: false,
+		},
+		{
+			Name:    "v1alpha2",
+			Served:  true,
+			Storage: true,
+		},
+	}
+
+	newVersions := []v1beta1.CustomResourceDefinitionVersion{
+		{
+			Name:    "v1alpha2",
+			Served:  true,
+			Storage: false,
+		},
+		{
+			Name:    "v1beta1",
+			Served:  true,
+			Storage: true,
+		},
+	}
+
+	crdStatusStoredVersions := v1beta1.CustomResourceDefinitionStatus{
+		StoredVersions: []string{},
+	}
+
+	tests := []struct {
+		name           string
+		oldCRD         v1beta1.CustomResourceDefinition
+		newCRD         v1beta1.CustomResourceDefinition
+		expectedResult []string
+	}{
+		{
+			name: "only one stored version exists",
+			oldCRD: func() v1beta1.CustomResourceDefinition {
+				oldCRD := crd(mainCRDPlural)
+				oldCRD.Spec.Version = ""
+				oldCRD.Spec.Versions = currentVersions
+				oldCRD.Status = crdStatusStoredVersions
+				oldCRD.Status.StoredVersions = []string{"v1alpha1"}
+				return oldCRD
+			}(),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = newVersions
+				return newCRD
+			}(),
+			expectedResult: nil,
+		},
+		{
+			name: "multiple stored versions with one deprecated version",
+			oldCRD: func() v1beta1.CustomResourceDefinition {
+				oldCRD := crd(mainCRDPlural)
+				oldCRD.Spec.Version = ""
+				oldCRD.Spec.Versions = currentVersions
+				oldCRD.Status.StoredVersions = []string{"v1alpha1", "v1alpha2"}
+				return oldCRD
+			}(),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = newVersions
+				return newCRD
+			}(),
+			expectedResult: []string{"v1alpha2"},
+		},
+		{
+			name: "multiple stored versions with all deprecated version",
+			oldCRD: func() v1beta1.CustomResourceDefinition {
+				oldCRD := crd(mainCRDPlural)
+				oldCRD.Spec.Version = ""
+				oldCRD.Spec.Versions = currentVersions
+				oldCRD.Status.StoredVersions = []string{"v1alpha1", "v1alpha3"}
+				return oldCRD
+			}(),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = newVersions
+				return newCRD
+			}(),
+			expectedResult: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		resultCRD := removeDeprecatedStoredVersions(&tt.oldCRD, &tt.newCRD)
+		require.Equal(t, tt.expectedResult, resultCRD)
+	}
+}
+
 func TestExecutePlan(t *testing.T) {
 	namespace := "ns"
 
