@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
@@ -24,14 +25,16 @@ type Resolver interface {
 type OperatorsV1alpha1Resolver struct {
 	subLister v1alpha1listers.SubscriptionLister
 	csvLister v1alpha1listers.ClusterServiceVersionLister
+	client    versioned.Interface
 }
 
 var _ Resolver = &OperatorsV1alpha1Resolver{}
 
-func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister) *OperatorsV1alpha1Resolver {
+func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface) *OperatorsV1alpha1Resolver {
 	return &OperatorsV1alpha1Resolver{
 		subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		client:    client,
 	}
 }
 
@@ -55,7 +58,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		}
 	}
 
-	subs, err := r.subLister.Subscriptions(namespace).List(labels.Everything())
+	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,5 +169,19 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.S
 			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},
 		}] = s.DeepCopy()
 	}
+	return
+}
+
+func (r *OperatorsV1alpha1Resolver) listSubscriptions(namespace string) (subs []*v1alpha1.Subscription, err error) {
+	list, err := r.client.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	subs = make([]*v1alpha1.Subscription, 0)
+	for i := range list.Items {
+		subs = append(subs, &list.Items[i])
+	}
+
 	return
 }

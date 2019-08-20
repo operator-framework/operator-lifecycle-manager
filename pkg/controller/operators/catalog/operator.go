@@ -131,7 +131,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                 crClient,
 		lister:                 lister,
 		namespace:              operatorNamespace,
-		resolver:               resolver.NewOperatorsV1alpha1Resolver(lister),
+		resolver:               resolver.NewOperatorsV1alpha1Resolver(lister, crClient),
 		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
 		csvProvidedAPIsIndexer: map[string]cache.Indexer{},
@@ -702,7 +702,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	logger.Debug("checking if subscriptions need update")
 
-	subs, err := o.lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(namespace).List(labels.Everything())
+	subs, err := o.listSubscriptions(namespace)
 	if err != nil {
 		logger.WithError(err).Debug("couldn't list subscriptions")
 		return err
@@ -1513,6 +1513,20 @@ func (o *Operator) getUpdatedOwnerReferences(refs []metav1.OwnerReference, names
 	return updated, nil
 }
 
+func (o *Operator) listSubscriptions(namespace string) (subs []*v1alpha1.Subscription, err error) {
+	list, err := o.client.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	subs = make([]*v1alpha1.Subscription, 0)
+	for i := range list.Items {
+		subs = append(subs, &list.Items[i])
+	}
+
+	return
+}
+
 // competingCRDOwnersExist returns true if there exists a CSV that owns at least one of the given CSVs owned CRDs (that's not the given CSV)
 func competingCRDOwnersExist(namespace string, csv *v1alpha1.ClusterServiceVersion, existingOwners map[string][]string) (bool, error) {
 	// Attempt to find a pre-existing owner in the namespace for any owned crd
@@ -1542,3 +1556,4 @@ func getCSVNameSet(plan *v1alpha1.InstallPlan) map[string]struct{} {
 
 	return csvNameSet
 }
+

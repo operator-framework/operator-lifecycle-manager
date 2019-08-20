@@ -14,6 +14,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -375,12 +376,12 @@ func TestNamespaceResolver(t *testing.T) {
 			for _, steps := range tt.out.steps {
 				expectedSteps = append(expectedSteps, steps...)
 			}
-			informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
+			clientFake, informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			resolver := NewOperatorsV1alpha1Resolver(lister)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake)
 			steps, subs, err := resolver.ResolveSteps(namespace, tt.querier)
 			require.Equal(t, tt.out.err, err)
 			t.Logf("%#v", steps)
@@ -448,12 +449,12 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			for _, steps := range tt.out.steps {
 				expectedSteps = append(expectedSteps, steps...)
 			}
-			informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
+			clientFake, informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			resolver := NewOperatorsV1alpha1Resolver(lister)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake)
 			querier := NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{catalog: tt.bundlesInCatalog})
 			steps, subs, err := resolver.ResolveSteps(namespace, querier)
 			require.Equal(t, tt.out.err, err)
@@ -465,7 +466,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 
 // Helpers for resolver tests
 
-func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...runtime.Object) (externalversions.SharedInformerFactory, []cache.InformerSynced) {
+func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...runtime.Object) (versioned.Interface, externalversions.SharedInformerFactory, []cache.InformerSynced) {
 	// Create client fakes
 	clientFake := fake.NewSimpleClientset(objs...)
 
@@ -484,7 +485,7 @@ func StartResolverInformers(namespace string, stopCh <-chan struct{}, objs ...ru
 		panic("failed to wait for caches to sync")
 	}
 
-	return nsInformerFactory, hasSyncedCheckFns
+	return clientFake, nsInformerFactory, hasSyncedCheckFns
 }
 
 func newSub(namespace, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscription {
