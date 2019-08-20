@@ -389,6 +389,29 @@ func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscri
 	}
 }
 
+func scheduleCreateSubscription(t *testing.T, crc versioned.Interface, namespace, name, catalog, packageName, channel, startingCSV string, approval v1alpha1.Approval) error {
+	subscription := &v1alpha1.Subscription{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.SubscriptionKind,
+			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: &v1alpha1.SubscriptionSpec{
+			CatalogSource:          catalog,
+			CatalogSourceNamespace: namespace,
+			Package:                packageName,
+			Channel:                channel,
+			InstallPlanApproval:    approval,
+		},
+	}
+
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
+	return err
+}
+
 func createSubscription(t *testing.T, crc versioned.Interface, namespace, name, packageName, channel string, approval v1alpha1.Approval) cleanupFunc {
 	subscription := &v1alpha1.Subscription{
 		TypeMeta: metav1.TypeMeta{
@@ -1294,4 +1317,104 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 		return false
 	})
 	require.NoError(t, err)
+}
+
+// TestSingleInstallPlanCreatedPerSubscription ensures that applying N number of subscriptions only creates
+// N number of InstallPlans.
+//
+// Steps:
+// 1. Create namespace, ns
+// 2. Create CatalogSource, cs, in ns
+// 3. Create multiple Subscriptions to each package of cs in ns, sub
+// 4. Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
+// 5. Ensure that the InstallPlan is correctly referenced in the subscription
+// 6. Ensure that the number of InstallPlans created matches the number of subs created
+func TestSingleInstallPlanCreatedPerSubscription(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create namespace ns
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("ns-"),
+		},
+	}
+	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(ns)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	Numpkgs := 2
+
+	// Create a CatalogSource, cs, in ns with Numpkgs pkgs
+	pkgNames := []string{}
+	channelNames := []string{}
+	crds := []apiextensions.CustomResourceDefinition{}
+	csvs := []v1alpha1.ClusterServiceVersion{}
+	manifests := []registry.PackageManifest{}
+	for i := 0; i < Numpkgs; i++ {
+		pkgName := genName("pkg-")
+		channelName := genName("channel-")
+		strategy := newNginxInstallStrategy(pkgName, nil, nil)
+		crd := newCRD(pkgName)
+		csv := newCSV(pkgName, ns.GetName(), "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, strategy)
+		manifest := registry.PackageManifest{
+			PackageName: pkgName,
+			Channels: []registry.PackageChannel{
+				{Name: channelName, CurrentCSVName: csv.GetName()},
+			},
+			DefaultChannelName: channelName,
+		}
+		pkgNames = append(pkgNames, pkgName)
+		channelNames = append(channelNames, channelName)
+		manifests = append(manifests, manifest)
+		csvs = append(csvs, csv)
+		crds = append(crds, crd)
+	}
+	catalogName := genName("catalog-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogName, ns.GetName(), manifests, crds, csvs)
+	defer cleanupCatalogSource()
+	_, err = fetchCatalogSource(t, crc, catalogName, ns.GetName(), catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create Subscription to a package of cs in ns, sub
+	subCreated := make(chan string)
+	go func() {
+		for i := 0; i < Numpkgs; i++ {
+			subName := genName("sub-")
+			err := scheduleCreateSubscription(t, crc, ns.GetName(), subName, catalogName, pkgNames[i], channelNames[i], pkgNames[i], v1alpha1.ApprovalAutomatic)
+			require.NoError(t, err)
+			subCreated <- subName
+		}
+		close(subCreated)
+	}()
+
+	for sub := range subCreated {
+		// Wait for the package from sub to install successfully with no remaining InstallPlan status conditions
+		sub, err := fetchSubscription(t, crc, ns.GetName(), sub, func(s *v1alpha1.Subscription) bool {
+			for _, cond := range s.Status.Conditions {
+				switch cond.Type {
+				case v1alpha1.SubscriptionInstallPlanMissing, v1alpha1.SubscriptionInstallPlanPending, v1alpha1.SubscriptionInstallPlanFailed:
+					return false
+				}
+			}
+			return subscriptionStateAtLatestChecker(s)
+		})
+		require.NoError(t, err)
+		require.NotNil(t, sub)
+
+		// Check InstallPlan was created
+		ref := sub.Status.InstallPlanRef
+		require.NotNil(t, ref)
+		_, err = crc.OperatorsV1alpha1().InstallPlans(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+		require.NoError(t, err)
+	}
+
+	// Ensure only Numpks number of installplans were created
+	ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, ips.Items, Numpkgs)
 }
