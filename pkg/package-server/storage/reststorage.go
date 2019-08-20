@@ -85,6 +85,12 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 			filtered = append(filtered, manifest)
 		}
 	}
+	// Strip logo icons
+	for i := range filtered {
+		for j := range filtered[i].Status.Channels {
+			filtered[i].Status.Channels[j].CurrentCSVDesc.Icon = []operators.Icon{}
+		}
+	}
 	res.Items = filtered
 
 	return res, nil
@@ -96,6 +102,10 @@ func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *met
 	manifest, err := m.prov.Get(namespace, name)
 	if err != nil || manifest == nil {
 		return nil, k8serrors.NewNotFound(m.groupResource, name)
+	}
+	// Strip logo icons
+	for i := range manifest.Status.Channels {
+		manifest.Status.Channels[i].CurrentCSVDesc.Icon = []operators.Icon{}
 	}
 
 	return manifest, nil
