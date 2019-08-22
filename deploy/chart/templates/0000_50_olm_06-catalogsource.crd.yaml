@@ -23,7 +23,7 @@ spec:
     categories:
     - olm
   additionalPrinterColumns:
-  - name: Name
+  - name: Display
     type: string
     description: The pretty name of the catalog
     JSONPath: .spec.displayName
