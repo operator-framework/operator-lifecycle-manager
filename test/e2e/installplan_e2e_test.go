@@ -17,12 +17,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	opver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
@@ -1451,6 +1453,96 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 
 	// Should have removed every matching step
 	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
+
+	// the test from here out verifies created RBAC is removed after CSV deletion
+	createdClusterRoles, err := c.KubernetesInterface().RbacV1().ClusterRoles().List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+	createdClusterRoleNames := map[string]struct{}{}
+	for _, role := range createdClusterRoles.Items {
+		createdClusterRoleNames[role.GetName()] = struct{}{}
+		t.Logf("Monitoring cluster role %v", role.GetName())
+	}
+
+	createdClusterRoleBindings, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().List(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+	createdClusterRoleBindingNames := map[string]struct{}{}
+	for _, binding := range createdClusterRoleBindings.Items {
+		createdClusterRoleBindingNames[binding.GetName()] = struct{}{}
+		t.Logf("Monitoring cluster role binding %v", binding.GetName())
+	}
+
+	// can't query by owner reference, so just use the name we know is in the install plan
+	createdServiceAccountNames := map[string]struct{}{serviceAccountName: struct{}{}}
+	t.Logf("Monitoring service account %v", serviceAccountName)
+
+	crWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoles().Watch(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+	require.NoError(t, err)
+	crbWatcher, err := c.KubernetesInterface().RbacV1().ClusterRoleBindings().Watch(metav1.ListOptions{LabelSelector: fmt.Sprintf("%v=%v", ownerutil.OwnerKey, stableCSVName)})
+	require.NoError(t, err)
+	saWatcher, err := c.KubernetesInterface().CoreV1().ServiceAccounts(testNamespace).Watch(metav1.ListOptions{})
+	require.NoError(t, err)
+
+	done := make(chan struct{})
+	quit := make(chan struct{})
+	defer close(quit)
+	go func() {
+		for {
+			select {
+			case <-quit:
+				return
+			case evt, ok := <-crWatcher.ResultChan():
+				if !ok {
+					t.Fatal("cr watch channel closed unexpectedly")
+				}
+				if evt.Type == watch.Deleted {
+					cr, ok := evt.Object.(*rbacv1.ClusterRole)
+					if !ok {
+						continue
+					}
+					delete(createdClusterRoleNames, cr.GetName())
+					if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
+						done <- struct{}{}
+					}
+				}
+			case evt, ok := <-crbWatcher.ResultChan():
+				if !ok {
+					t.Fatal("crb watch channel closed unexpectedly")
+				}
+				if evt.Type == watch.Deleted {
+					crb, ok := evt.Object.(*rbacv1.ClusterRoleBinding)
+					if !ok {
+						continue
+					}
+					delete(createdClusterRoleBindingNames, crb.GetName())
+					if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
+						done <- struct{}{}
+					}
+				}
+			case evt, ok := <-saWatcher.ResultChan():
+				if !ok {
+					t.Fatal("sa watch channel closed unexpectedly")
+				}
+				if evt.Type == watch.Deleted {
+					sa, ok := evt.Object.(*corev1.ServiceAccount)
+					if !ok {
+						continue
+					}
+					delete(createdServiceAccountNames, sa.GetName())
+					if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
+						done <- struct{}{}
+					}
+				}
+			case <-time.After(pollDuration):
+				done <- struct{}{}
+			}
+		}
+	}()
+
+	t.Logf("Deleting CSV '%v' in namespace %v", stableCSVName, testNamespace)
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	<-done
+
+	require.Emptyf(t, createdClusterRoleNames, "unexpected cluster role remain: %v", createdClusterRoleNames)
+	require.Emptyf(t, createdClusterRoleBindingNames, "unexpected cluster role binding remain: %v", createdClusterRoleBindingNames)
+	require.Emptyf(t, createdServiceAccountNames, "unexpected service account remain: %v", createdServiceAccountNames)
 }
 
 func TestInstallPlanCRDValidation(t *testing.T) {

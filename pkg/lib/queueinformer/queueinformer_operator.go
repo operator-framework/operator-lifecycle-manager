@@ -248,17 +248,24 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 
 		logger = logger.WithField("cache-key", key)
 
-		// Get the current cached version of the resource
-		resource, exists, err := loop.indexer.GetByKey(key)
-		if err != nil {
-			logger.WithError(err).Error("cache get failed")
-			queue.Forget(item)
-			return true
-		}
-		if !exists {
-			logger.WithField("existing-cache-keys", loop.indexer.ListKeys()).Debug("cache get failed, key not in cache")
-			queue.Forget(item)
-			return true
+		var resource interface{}
+		if loop.indexer == nil {
+			resource = event.Resource()
+		} else {
+			// Get the current cached version of the resource
+			var exists bool
+			var err error
+			resource, exists, err = loop.indexer.GetByKey(key)
+			if err != nil {
+				logger.WithError(err).Error("cache get failed")
+				queue.Forget(item)
+				return true
+			}
+			if !exists {
+				logger.WithField("existing-cache-keys", loop.indexer.ListKeys()).Debug("cache get failed, key not in cache")
+				queue.Forget(item)
+				return true
+			}
 		}
 
 		if !ok {

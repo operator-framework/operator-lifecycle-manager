@@ -8,9 +8,11 @@ import (
 	"time"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,6 +34,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/envvar"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
@@ -40,10 +43,9 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/proxy"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/proxy"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/envvar"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -65,6 +67,7 @@ type Operator struct {
 	csvQueueSet           *queueinformer.ResourceQueueSet
 	csvCopyQueueSet       *queueinformer.ResourceQueueSet
 	csvGCQueueSet         *queueinformer.ResourceQueueSet
+	objGCQueueSet         *queueinformer.ResourceQueueSet
 	apiServiceQueue       workqueue.RateLimitingInterface
 	csvIndexers           map[string]cache.Indexer
 	recorder              record.EventRecorder
@@ -118,6 +121,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		csvQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		csvCopyQueueSet:       queueinformer.NewEmptyResourceQueueSet(),
 		csvGCQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
+		objGCQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
 		apiServiceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "apiservice"),
 		resolver:              config.strategyResolver,
 		apiReconciler:         config.apiReconciler,
@@ -215,7 +219,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 
 		subInformer := extInformerFactory.Operators().V1alpha1().Subscriptions()
-		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())		
+		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
 		subQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
 			queueinformer.WithLogger(op.logger),
@@ -319,6 +323,38 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err := op.RegisterQueueInformer(serviceAccountQueueInformer); err != nil {
 			return nil, err
 		}
+
+		objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/obj-gc", namespace))
+		op.objGCQueueSet.Set(namespace, objGCQueue)
+		objGCQueueInformer, err := queueinformer.NewQueue(
+			ctx,
+			queueinformer.WithLogger(op.logger),
+			queueinformer.WithQueue(objGCQueue),
+			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGCObject).ToSyncer()),
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := op.RegisterQueueInformer(objGCQueueInformer); err != nil {
+			return nil, err
+		}
+
+	}
+
+	// add queue for all namespaces as well
+	objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/obj-gc", ""))
+	op.objGCQueueSet.Set("", objGCQueue)
+	objGCQueueInformer, err := queueinformer.NewQueue(
+		ctx,
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(objGCQueue),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncGCObject).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(objGCQueueInformer); err != nil {
+		return nil, err
 	}
 
 	k8sInformerFactory := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod)
@@ -444,7 +480,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	op.resolver = &install.StrategyResolver{
 		ProxyInjectorBuilderFunc: proxyEnvInjector.GetDeploymentInitializer,
 	}
-	
+
 	return op, nil
 }
 
@@ -536,6 +572,60 @@ func (a *Operator) RegisterCSVWatchNotification(csvNotification csvutility.Watch
 	a.csvNotification = csvNotification
 }
 
+func (a *Operator) syncGCObject(obj interface{}) (syncError error) {
+	metaObj, ok := obj.(metav1.Object)
+	if !ok {
+		a.logger.Warn("object sync: casting to metav1.Object failed")
+		return
+	}
+	logger := a.logger.WithFields(logrus.Fields{
+		"name":      metaObj.GetName(),
+		"namespace": metaObj.GetNamespace(),
+		"self":      metaObj.GetSelfLink(),
+	})
+
+	switch metaObj.(type) {
+	case *rbacv1.ClusterRole:
+		if name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); ok {
+			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
+			if err == nil {
+				logger.Debugf("CSV still present, must wait until it is deleted (owners=%v/%v)", ns, name)
+				syncError = fmt.Errorf("cleanup must wait")
+				return
+			} else if !k8serrors.IsNotFound(err) {
+				syncError = err
+				return
+			}
+		}
+
+		if err := a.opClient.DeleteClusterRole(metaObj.GetName(), &metav1.DeleteOptions{}); err != nil {
+			logger.WithError(err).Warn("cannot delete cluster role")
+			break
+		}
+		logger.Debugf("Deleted cluster role %v due to no owning CSV", metaObj.GetName())
+	case *rbacv1.ClusterRoleBinding:
+		if name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind); ok {
+			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
+			if err == nil {
+				logger.Debugf("CSV still present, must wait until it is deleted (owners=%v)", name)
+				syncError = fmt.Errorf("cleanup must wait")
+				return
+			} else if !k8serrors.IsNotFound(err) {
+				syncError = err
+				return
+			}
+		}
+
+		if err := a.opClient.DeleteClusterRoleBinding(metaObj.GetName(), &metav1.DeleteOptions{}); err != nil {
+			logger.WithError(err).Warn("cannot delete cluster role binding")
+			break
+		}
+		logger.Debugf("Deleted cluster role binding %v due to no owning CSV", metaObj.GetName())
+	}
+
+	return
+}
+
 func (a *Operator) syncObject(obj interface{}) (syncError error) {
 	// Assert as metav1.Object
 	metaObj, ok := obj.(metav1.Object)
@@ -550,14 +640,33 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		"self":      metaObj.GetSelfLink(),
 	})
 
-	// Requeue all owner CSVs
-	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.ClusterServiceVersionKind) {
-		logger.Debug("requeueing owner csvs")
-		a.requeueOwnerCSVs(metaObj)
-	}
-
 	// Requeues objects that can't have ownerrefs (cluster -> namespace, cross-namespace)
 	if ownerutil.IsOwnedByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind) {
+		name, ns, ok := ownerutil.GetOwnerByKindLabel(metaObj, v1alpha1.ClusterServiceVersionKind)
+		if !ok {
+			logger.Error("unexpected owner label retrieval failure")
+		}
+		_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
+		if !k8serrors.IsNotFound(err) {
+			logger.Debug("requeueing owner csvs from owner label")
+			a.requeueOwnerCSVs(metaObj)
+		} else {
+			switch metaObj.(type) {
+			case *rbacv1.ClusterRole, *rbacv1.ClusterRoleBinding:
+				resourceEvent := kubestate.NewResourceEvent(
+					kubestate.ResourceUpdated,
+					metaObj,
+				)
+				syncError = a.objGCQueueSet.RequeueEvent(ns, resourceEvent)
+				logger.Debugf("syncObject - requeued update event for %v, res=%v", resourceEvent, syncError)
+				return
+			}
+		}
+
+	}
+
+	// Requeue all owner CSVs
+	if ownerutil.IsOwnedByKind(metaObj, v1alpha1.ClusterServiceVersionKind) {
 		logger.Debug("requeueing owner csvs")
 		a.requeueOwnerCSVs(metaObj)
 	}
@@ -712,6 +821,25 @@ func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
 			}
 		}
 	}
+
+	ownerSelector := ownerutil.CSVOwnerSelector(clusterServiceVersion)
+	crbs, err := a.lister.RbacV1().ClusterRoleBindingLister().List(ownerSelector)
+	if err != nil {
+		logger.WithError(err).Warn("cannot list cluster role bindings")
+	}
+	for _, crb := range crbs {
+		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, crb))
+		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", crb, syncError)
+	}
+
+	crs, err := a.lister.RbacV1().ClusterRoleLister().List(ownerSelector)
+	if err != nil {
+		logger.WithError(err).Warn("cannot list cluster roles")
+	}
+	for _, cr := range crs {
+		syncError := a.objGCQueueSet.RequeueEvent("", kubestate.NewResourceEvent(kubestate.ResourceUpdated, cr))
+		logger.Debugf("handleCSVdeletion - requeued update event for %v, res=%v", cr, syncError)
+	}
 }
 
 func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) error {
@@ -835,6 +963,7 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 		a.csvCopyQueueSet.Requeue(outCSV.GetNamespace(), outCSV.GetName())
 	}
 
+	logger.Debug("done syncing CSV")
 	return
 }
 
@@ -1580,14 +1709,14 @@ func (a *Operator) handleDeletion(obj interface{}) {
 	})
 	logger.Debug("handling resource deletion")
 
-	logger.Debug("requeueing owner csvs")
+	logger.Debug("requeueing owner csvs due to deletion")
 	a.requeueOwnerCSVs(metaObj)
 
 	// Requeue CSVs with provided and required labels (for CRDs)
 	if labelSets, err := a.apiLabeler.LabelSetsFor(metaObj); err != nil {
 		logger.WithError(err).Warn("couldn't create label set")
 	} else if len(labelSets) > 0 {
-		logger.Debug("requeueing providing/requiring csvs")
+		logger.Debug("requeueing providing/requiring csvs due to deletion")
 		a.requeueCSVsByLabelSet(logger, labelSets...)
 	}
 }
@@ -1619,8 +1748,13 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 	owners := ownerutil.GetOwnersByKind(ownee, v1alpha1.ClusterServiceVersionKind)
 	if len(owners) > 0 && ownee.GetNamespace() != metav1.NamespaceAll {
 		for _, ownerCSV := range owners {
+			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ownee.GetNamespace()).Get(ownerCSV.Name)
+			if k8serrors.IsNotFound(err) {
+				logger.Debugf("skipping requeue since CSV %v is not in cache", ownerCSV.Name)
+				continue
+			}
 			// Since cross-namespace CSVs can't exist we're guaranteed the owner will be in the same namespace
-			err := a.csvQueueSet.Requeue(ownee.GetNamespace(), ownerCSV.Name)
+			err = a.csvQueueSet.Requeue(ownee.GetNamespace(), ownerCSV.Name)
 			if err != nil {
 				logger.Warn(err.Error())
 			}
@@ -1630,7 +1764,13 @@ func (a *Operator) requeueOwnerCSVs(ownee metav1.Object) {
 
 	// Requeue owners based on labels
 	if name, ns, ok := ownerutil.GetOwnerByKindLabel(ownee, v1alpha1.ClusterServiceVersionKind); ok {
-		err := a.csvQueueSet.Requeue(ns, name)
+		_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(ns).Get(name)
+		if k8serrors.IsNotFound(err) {
+			logger.Debugf("skipping requeue since CSV %v is not in cache", name)
+			return
+		}
+
+		err = a.csvQueueSet.Requeue(ns, name)
 		if err != nil {
 			logger.Warn(err.Error())
 		}
