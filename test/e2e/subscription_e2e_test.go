@@ -10,15 +10,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
-	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/clientcmd"
-    configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -27,6 +19,14 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 var doubleInstance = int32(2)
@@ -308,7 +308,13 @@ func subscriptionStateAtLatestChecker(subscription *v1alpha1.Subscription) bool 
 }
 
 func subscriptionHasInstallPlanChecker(subscription *v1alpha1.Subscription) bool {
-	return subscription.Status.Install != nil
+	return subscription.Status.InstallPlanRef != nil
+}
+
+func subscriptionHasInstallPlanDifferentChecker(currentInstallPlanName string) subscriptionStateChecker {
+	return func(subscription *v1alpha1.Subscription) bool {
+		return subscriptionHasInstallPlanChecker(subscription) && subscription.Status.InstallPlanRef.Name != currentInstallPlanName
+	}
 }
 
 func subscriptionStateNoneChecker(subscription *v1alpha1.Subscription) bool {
@@ -1113,7 +1119,7 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 
 	newConfigClient := func(t *testing.T) configv1client.ConfigV1Interface {
 		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-		require.NoError(t, err,)
+		require.NoError(t, err)
 
 		client, err := configv1client.NewForConfig(config)
 		require.NoError(t, err)
@@ -1134,21 +1140,21 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 		require.NotNil(t, proxy)
 		proxyEnv := []corev1.EnvVar{}
 
-		if proxy.Status.HTTPProxy !="" {
+		if proxy.Status.HTTPProxy != "" {
 			proxyEnv = append(proxyEnv, corev1.EnvVar{
 				Name:  "HTTP_PROXY",
 				Value: proxy.Status.HTTPProxy,
 			})
 		}
 
-		if proxy.Status.HTTPSProxy !="" {
+		if proxy.Status.HTTPSProxy != "" {
 			proxyEnv = append(proxyEnv, corev1.EnvVar{
 				Name:  "HTTPS_PROXY",
 				Value: proxy.Status.HTTPSProxy,
 			})
 		}
 
-		if proxy.Status.NoProxy !="" {
+		if proxy.Status.NoProxy != "" {
 			proxyEnv = append(proxyEnv, corev1.EnvVar{
 				Name:  "NO_PROXY",
 				Value: proxy.Status.NoProxy,
@@ -1186,7 +1192,7 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 
 	subscriptionName := genName("podconfig-sub-")
 	subSpec.Config = podConfig
-	cleanupSubscription := createSubscriptionForCatalogWithSpec(t, crClient, testNamespace, subscriptionName, subSpec)	
+	cleanupSubscription := createSubscriptionForCatalogWithSpec(t, crClient, testNamespace, subscriptionName, subSpec)
 	defer cleanupSubscription()
 
 	subscription, err := fetchSubscription(t, crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)

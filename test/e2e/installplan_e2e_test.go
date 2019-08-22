@@ -10,6 +10,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -996,7 +997,7 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 	}
 }
 
-func TestUpdateInstallPlan(t *testing.T) {
+func TestUpdateCatalogForSubscription(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
 	// crdVersionKey uniquely identifies a version within a CRD.
@@ -1005,6 +1006,381 @@ func TestUpdateInstallPlan(t *testing.T) {
 		served  bool
 		storage bool
 	}
+
+	t.Run("AmplifyPermissions", func(t *testing.T) {
+		defer cleaner.NotifyTestComplete(t, true)
+
+		c := newKubeClient(t)
+		crc := newCRClient(t)
+		defer func() {
+			require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+		}()
+
+		// Build initial catalog
+		mainPackageName := genName("nginx-amplify-")
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		stableChannel := "stable"
+		crdPlural := genName("ins-amplify-")
+		crdName := crdPlural + ".cluster.com"
+		mainCRD := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+				},
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
+		}
+
+		// Generate permissions
+		serviceAccountName := genName("nginx-sa")
+		permissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"cluster.com"},
+						Resources: []string{crdPlural},
+					},
+				},
+			},
+		}
+		// Generate permissions
+		clusterPermissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"cluster.com"},
+						Resources: []string{crdPlural},
+					},
+				},
+			},
+		}
+
+		// Create the catalog sources
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+		mainCatalogName := genName("mock-ocs-amplify-")
+		mainManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: mainCSV.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+		_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		defer cleanupMainCatalogSource()
+		// Attempt to get the catalog source before creating install plan
+		_, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(t, err)
+
+		subscriptionName := genName("sub-nginx-update-perms1")
+		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		defer subscriptionCleanup()
+
+		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		require.NoError(t, err)
+		require.NotNil(t, subscription)
+		require.NotNil(t, subscription.Status.InstallPlanRef)
+		require.Equal(t, mainCSV.GetName(), subscription.Status.CurrentCSV)
+
+		installPlanName := subscription.Status.InstallPlanRef.Name
+
+		// Wait for InstallPlan to be status: Complete before checking resource presence
+		fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(t, err)
+
+		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+
+		// Verify CSV is created
+		_, err = awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+		require.NoError(t, err)
+
+		// Update CatalogSource with a new CSV with more permissions
+		updatedPermissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"cluster.com"},
+						Resources: []string{crdPlural},
+					},
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"local.cluster.com"},
+						Resources: []string{"locals"},
+					},
+				},
+			},
+		}
+		updatedClusterPermissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"cluster.com"},
+						Resources: []string{crdPlural},
+					},
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"two.cluster.com"},
+						Resources: []string{"twos"},
+					},
+				},
+			},
+		}
+
+		// Create the catalog sources
+		updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
+		updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, updatedNamedStrategy)
+		updatedManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: updatedCSV.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+		// Update catalog with updated CSV with more permissions
+		updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
+
+		_, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
+		require.NoError(t, err)
+
+		updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
+
+		// Wait for InstallPlan to be status: Complete before checking resource presence
+		fetchedUpdatedInstallPlan, err := fetchInstallPlan(t, crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(t, err)
+		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
+
+		// Wait for csv to update
+		_, err = awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+		require.NoError(t, err)
+
+		// If the CSV is succeeded, we successfully rolled out the RBAC changes
+	})
+
+	t.Run("AttenuatePermissions", func(t *testing.T) {
+		defer cleaner.NotifyTestComplete(t, true)
+
+		c := newKubeClient(t)
+		crc := newCRClient(t)
+		defer func() {
+			require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+		}()
+
+		// Build initial catalog
+		mainPackageName := genName("nginx-attenuate-")
+		mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+		stableChannel := "stable"
+		crdPlural := genName("ins-attenuate-")
+		crdName := crdPlural + ".cluster.com"
+		mainCRD := apiextensions.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: crdName,
+			},
+			Spec: apiextensions.CustomResourceDefinitionSpec{
+				Group: "cluster.com",
+				Versions: []apiextensions.CustomResourceDefinitionVersion{
+					{
+						Name:    "v1alpha1",
+						Served:  true,
+						Storage: true,
+					},
+				},
+				Names: apiextensions.CustomResourceDefinitionNames{
+					Plural:   crdPlural,
+					Singular: crdPlural,
+					Kind:     crdPlural,
+					ListKind: "list" + crdPlural,
+				},
+				Scope: "Namespaced",
+			},
+		}
+
+		// Generate permissions
+		serviceAccountName := genName("nginx-sa")
+		permissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"cluster.com"},
+						Resources: []string{crdPlural},
+					},
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"local.cluster.com"},
+						Resources: []string{"locals"},
+					},
+				},
+			},
+		}
+		// Generate permissions
+		clusterPermissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"cluster.com"},
+						Resources: []string{crdPlural},
+					},
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"two.cluster.com"},
+						Resources: []string{"twos"},
+					},
+				},
+			},
+		}
+
+		// Create the catalog sources
+		mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), permissions, clusterPermissions)
+		mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, nil, mainNamedStrategy)
+		mainCatalogName := genName("mock-ocs-main-update-perms1-")
+		mainManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: mainCSV.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+		_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+		defer cleanupMainCatalogSource()
+		// Attempt to get the catalog source before creating install plan
+		_, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(t, err)
+
+		subscriptionName := genName("sub-nginx-update-perms1")
+		subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+		defer subscriptionCleanup()
+
+		subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+		require.NoError(t, err)
+		require.NotNil(t, subscription)
+		require.NotNil(t, subscription.Status.InstallPlanRef)
+		require.Equal(t, mainCSV.GetName(), subscription.Status.CurrentCSV)
+
+		installPlanName := subscription.Status.InstallPlanRef.Name
+
+		// Wait for InstallPlan to be status: Complete before checking resource presence
+		fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(t, err)
+
+		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+
+		// Verify CSV is created
+		_, err = awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+		require.NoError(t, err)
+
+		// Update CatalogSource with a new CSV with more permissions
+		updatedPermissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"local.cluster.com"},
+						Resources: []string{"locals"},
+					},
+				},
+			},
+		}
+		updatedClusterPermissions := []install.StrategyDeploymentPermissions{
+			{
+				ServiceAccountName: serviceAccountName,
+				Rules: []rbacv1.PolicyRule{
+					{
+						Verbs:     []string{rbac.VerbAll},
+						APIGroups: []string{"two.cluster.com"},
+						Resources: []string{"twos"},
+					},
+				},
+			},
+		}
+
+		// Create the catalog sources
+		updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
+		updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, updatedNamedStrategy)
+		updatedManifests := []registry.PackageManifest{
+			{
+				PackageName: mainPackageName,
+				Channels: []registry.PackageChannel{
+					{Name: stableChannel, CurrentCSVName: updatedCSV.GetName()},
+				},
+				DefaultChannelName: stableChannel,
+			},
+		}
+		// Update catalog with updated CSV with more permissions
+		updateInternalCatalog(t, c, crc, mainCatalogName, testNamespace, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, updatedCSV}, updatedManifests)
+
+		// Wait for subscription to update its status
+		_, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
+		require.NoError(t, err)
+
+		updatedInstallPlanName := subscription.Status.InstallPlanRef.Name
+
+		// Wait for InstallPlan to be status: Complete before checking resource presence
+		fetchedUpdatedInstallPlan, err := fetchInstallPlan(t, crc, updatedInstallPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+		require.NoError(t, err)
+		require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedUpdatedInstallPlan.Status.Phase)
+
+		// Wait for csv to update
+		_, err = awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
+		require.NoError(t, err)
+
+		// Wait for ServiceAccount to not have access anymore
+		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+			res, err := c.KubernetesInterface().AuthorizationV1().SubjectAccessReviews().Create(&authorizationv1.SubjectAccessReview{
+				Spec: authorizationv1.SubjectAccessReviewSpec{
+					User: "system:serviceaccount:" + testNamespace + ":" + serviceAccountName,
+					ResourceAttributes: &authorizationv1.ResourceAttributes{
+						Group:    "cluster.com",
+						Version:  "v1alpha1",
+						Resource: crdPlural,
+						Verb:     rbac.VerbAll,
+					},
+				},
+			})
+			if err != nil {
+				return false, err
+			}
+			if res == nil {
+				return false, nil
+			}
+			t.Log("checking serviceaccount for permission")
+
+			// should not be allowed
+			return !res.Status.Allowed, nil
+		})
+
+	})
 
 	t.Run("UpdateSingleExistingCRDOwner", func(t *testing.T) {
 		defer cleaner.NotifyTestComplete(t, true)
