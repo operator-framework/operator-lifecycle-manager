@@ -825,6 +825,39 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 				return &newCRD
 			}(),
 		},
+		{
+			name:          "existing version is present in new CRD (deprecated field)",
+			expectedPhase: v1alpha1.InstallPlanPhaseComplete,
+			oldCRD: func() *apiextensions.CustomResourceDefinition {
+				oldCRD := newCRD(mainCRDPlural + "d")
+				oldCRD.Spec.Version = "v1alpha1"
+				return &oldCRD
+			}(),
+			newCRD: func() *apiextensions.CustomResourceDefinition {
+				newCRD := newCRD(mainCRDPlural + "d")
+				newCRD.Spec.Version = "v1alpha1"
+				newCRD.Spec.Validation = &apiextensions.CustomResourceValidation{
+					OpenAPIV3Schema: &apiextensions.JSONSchemaProps{
+						Type: "object",
+						Properties: map[string]apiextensions.JSONSchemaProps{
+							"spec": {
+								Type:        "object",
+								Description: "Spec of a test object.",
+								Properties: map[string]apiextensions.JSONSchemaProps{
+									"scalar": {
+										Type:        "number",
+										Description: "Scalar value that should have a min and max.",
+										Minimum:     &min,
+										Maximum:     &max,
+									},
+								},
+							},
+						},
+					},
+				}
+				return &newCRD
+			}(),
+		},
 	}
 
 	for _, tt := range tests {

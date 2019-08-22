@@ -196,6 +196,35 @@ func TestEnsureCRDVersions(t *testing.T) {
 			}(),
 			expectedFailure: true,
 		},
+		{
+			name: "missing version in new CRD",
+			oldCRD: func() v1beta1.CustomResourceDefinition {
+				oldCRD := crd(mainCRDPlural)
+				oldCRD.Spec.Version = "v1alpha1"
+				return oldCRD
+			}(),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = "v1alpha2"
+				return newCRD
+			}(),
+			expectedFailure: true,
+		},
+		{
+			name: "existing version is present in new CRD's versions",
+			oldCRD: func() v1beta1.CustomResourceDefinition {
+				oldCRD := crd(mainCRDPlural)
+				oldCRD.Spec.Version = "v1alpha1"
+				return oldCRD
+			}(),
+			newCRD: func() v1beta1.CustomResourceDefinition {
+				newCRD := crd(mainCRDPlural)
+				newCRD.Spec.Version = ""
+				newCRD.Spec.Versions = addedVersions
+				return newCRD
+			}(),
+			expectedFailure: false,
+		},
 	}
 
 	for _, tt := range tests {

@@ -1106,23 +1106,35 @@ func (o *Operator) ResolvePlan(plan *v1alpha1.InstallPlan) error {
 	return nil
 }
 
-// Ensure all existing versions are present in new CRD
+// Ensure all existing served versions are present in new CRD
 func ensureCRDVersions(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
-	for _, oldVersion := range oldCRD.Spec.Versions {
-		var versionPresent bool
-		for _, newVersion := range newCRD.Spec.Versions {
-			if oldVersion.Name == newVersion.Name {
-				versionPresent = true
-			}
-		}
-		if !versionPresent {
-			return fmt.Errorf("not allowing CRD (%v) update with unincluded version %v", newCRD.GetName(), oldVersion)
-		}
+	newCRDVersions := map[string]struct{}{}
+
+	for _, newVersion := range newCRD.Spec.Versions {
+		newCRDVersions[newVersion.Name] = struct{}{}
+	}
+	if newCRD.Spec.Version != "" {
+		newCRDVersions[newCRD.Spec.Version] = struct{}{}
 	}
 
+	for _, oldVersion := range oldCRD.Spec.Versions {
+		if oldVersion.Served {
+			_, ok := newCRDVersions[oldVersion.Name]
+			if !ok {
+				return fmt.Errorf("New CRD (%s) must contain existing served versions (%s)", oldCRD.Name, oldVersion.Name)
+			}
+		}
+	}
+	if oldCRD.Spec.Version != "" {
+		_, ok := newCRDVersions[oldCRD.Spec.Version]
+		if !ok {
+			return fmt.Errorf("New CRD (%s) must contain existing version (%s)", oldCRD.Name, oldCRD.Spec.Version)
+		}
+	}
 	return nil
 }
 
+// Validate all existing served versions against new CRD's validation (if changed)
 func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomResourceDefinition, newCRD *v1beta1ext.CustomResourceDefinition) error {
 	o.logger.Debugf("Comparing %#v to %#v", oldCRD.Spec.Validation, newCRD.Spec.Validation)
 	// If validation schema is unchanged, return right away
@@ -1133,11 +1145,13 @@ func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomRes
 	if err := v1beta1ext.Convert_v1beta1_CustomResourceDefinition_To_apiextensions_CustomResourceDefinition(newCRD, convertedCRD, nil); err != nil {
 		return err
 	}
-	for _, oldVersion := range oldCRD.Spec.Versions {
-		gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: oldVersion.Name, Resource: oldCRD.Spec.Names.Plural}
-		err := o.validateExistingCRs(gvr, convertedCRD)
-		if err != nil {
-			return err
+	for _, version := range oldCRD.Spec.Versions {
+		if !version.Served {
+			gvr := schema.GroupVersionResource{Group: oldCRD.Spec.Group, Version: version.Name, Resource: oldCRD.Spec.Names.Plural}
+			err := o.validateExistingCRs(gvr, convertedCRD)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1148,7 +1162,7 @@ func (o *Operator) validateCustomResourceDefinition(oldCRD *v1beta1ext.CustomRes
 			return err
 		}
 	}
-
+	o.logger.Debugf("Successfully validated CRD %s\n", newCRD.Name)
 	return nil
 }
 
@@ -1240,7 +1254,8 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 						} else if len(matchedCSV) > 1 {
 							o.logger.Debugf("Found multiple owners for CRD %v", crd)
 
-							if err := ensureCRDVersions(currentCRD, &crd); err != nil {
+							err := ensureCRDVersions(currentCRD, &crd)
+							if err != nil {
 								return errorwrap.Wrapf(err, "error missing existing CRD version(s) in new CRD: %s", step.Resource.Name)
 							}
 
