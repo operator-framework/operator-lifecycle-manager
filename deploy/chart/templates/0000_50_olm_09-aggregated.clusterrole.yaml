@@ -28,5 +28,5 @@ rules:
   resources: ["clusterserviceversions", "catalogsources", "installplans", "subscriptions", "operatorgroups"]
   verbs: ["get", "list", "watch"]
 - apiGroups: ["packages.operators.coreos.com"]
-  resources: ["packagemanifests"]
+  resources: ["packagemanifests", "packagemanifests/icon"]
   verbs: ["get", "list", "watch"]
