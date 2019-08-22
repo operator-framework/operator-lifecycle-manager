@@ -131,6 +131,60 @@ func TestUserDefinedServiceAccountWithPermission(t *testing.T) {
 	}
 }
 
+func TestUserDefinedServiceAccountWithRetry(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, false)
+
+	kubeclient := newKubeClient(t)
+	crclient := newCRClient(t)
+
+	namespace := genName("scoped-ns-")
+	_, cleanupNS := newNamespace(t, kubeclient, namespace)
+	defer cleanupNS()
+
+	// Create a service account, but add no permission to it.
+	saName := genName("scoped-sa-")
+	_, cleanupSA := newServiceAccount(t, kubeclient, namespace, saName)
+	defer cleanupSA()
+
+	// Add an OperatorGroup and specify the service account.
+	ogName := genName("scoped-og-")
+	_, cleanupOG := newOperatorGroupWithServiceAccount(t, crclient, namespace, ogName, saName)
+	defer cleanupOG()
+
+	permissions := deploymentPermissions(t)
+	catsrc, subSpec, catsrcCleanup := newCatalogSource(t, kubeclient, crclient, "scoped", namespace, permissions)
+	defer catsrcCleanup()
+
+	// Ensure that the catalog source is resolved before we create a subscription.
+	_, err := fetchCatalogSource(t, crclient, catsrc.GetName(), namespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("scoped-sub-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+	defer cleanupSubscription()
+
+	// Wait until an install plan is created.
+	subscription, err := fetchSubscription(t, crclient, namespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// We expect the InstallPlan to be in status: Failed.
+	ipNameOld := subscription.Status.Install.Name
+	ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
+	ipGotOld, err := fetchInstallPlanWithNamespace(t, crclient, ipNameOld, namespace, ipPhaseCheckerFunc)
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.InstallPlanPhaseFailed, ipGotOld.Status.Phase)
+
+	// Grant permission now and this should trigger an retry of InstallPlan.
+	cleanupPerm := grantPermission(t, kubeclient, namespace, saName)
+	defer cleanupPerm()
+
+	ipPhaseCheckerFunc = buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete)
+	ipGotNew, err := fetchInstallPlanWithNamespace(t, crclient, ipNameOld, namespace, ipPhaseCheckerFunc)
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, ipGotNew.Status.Phase)
+}
+
 func newNamespace(t *testing.T, client operatorclient.ClientInterface, name string) (ns *corev1.Namespace, cleanup cleanupFunc) {
 	request := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{

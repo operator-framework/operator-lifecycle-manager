@@ -84,6 +84,10 @@ type InstallPlanStatus struct {
 	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
 	CatalogSources []string               `json:"catalogSources"`
 	Plan           []*Step                `json:"plan,omitempty"`
+
+	// AttenuatedServiceAccountRef references the service account that is used
+	// to do scoped operator install.
+	AttenuatedServiceAccountRef *corev1.ObjectReference `json:"attenuatedServiceAccountRef,omitempty"`
 }
 
 // InstallPlanCondition represents the overall status of the execution of
@@ -131,23 +135,22 @@ func (s *InstallPlanStatus) SetCondition(cond InstallPlanCondition) InstallPlanC
 	return cond
 }
 
-
 func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionReason, message string, now *metav1.Time) InstallPlanCondition {
 	return InstallPlanCondition{
-		Type:    cond,
-		Status:  corev1.ConditionFalse,
-		Reason:  reason,
-		Message: message,
-		LastUpdateTime: *now,
+		Type:               cond,
+		Status:             corev1.ConditionFalse,
+		Reason:             reason,
+		Message:            message,
+		LastUpdateTime:     *now,
 		LastTransitionTime: *now,
 	}
 }
 
 func ConditionMet(cond InstallPlanConditionType, now *metav1.Time) InstallPlanCondition {
 	return InstallPlanCondition{
-		Type:   cond,
-		Status: corev1.ConditionTrue,
-		LastUpdateTime: *now,
+		Type:               cond,
+		Status:             corev1.ConditionTrue,
+		LastUpdateTime:     *now,
 		LastTransitionTime: *now,
 	}
 }

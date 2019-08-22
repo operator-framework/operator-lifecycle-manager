@@ -1239,6 +1239,7 @@ func autoConvert_v1alpha1_InstallPlanStatus_To_operators_InstallPlanStatus(in *I
 	out.Conditions = *(*[]operators.InstallPlanCondition)(unsafe.Pointer(&in.Conditions))
 	out.CatalogSources = *(*[]string)(unsafe.Pointer(&in.CatalogSources))
 	out.Plan = *(*[]*operators.Step)(unsafe.Pointer(&in.Plan))
+	out.AttenuatedServiceAccountRef = (*corev1.ObjectReference)(unsafe.Pointer(in.AttenuatedServiceAccountRef))
 	return nil
 }
 
@@ -1252,6 +1253,7 @@ func autoConvert_operators_InstallPlanStatus_To_v1alpha1_InstallPlanStatus(in *o
 	out.Conditions = *(*[]InstallPlanCondition)(unsafe.Pointer(&in.Conditions))
 	out.CatalogSources = *(*[]string)(unsafe.Pointer(&in.CatalogSources))
 	out.Plan = *(*[]*Step)(unsafe.Pointer(&in.Plan))
+	out.AttenuatedServiceAccountRef = (*corev1.ObjectReference)(unsafe.Pointer(in.AttenuatedServiceAccountRef))
 	return nil
 }
 
