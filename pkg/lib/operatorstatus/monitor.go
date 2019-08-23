@@ -202,6 +202,7 @@ func Waiting(clock clock.Clock, name string) *configv1.ClusterOperatorStatus {
 	}
 
 	status := builder.WithDegraded(configv1.ConditionFalse).
+		WithUpgradeable(configv1.ConditionTrue, "").
 		WithAvailable(configv1.ConditionFalse, "").
 		WithProgressing(configv1.ConditionTrue, fmt.Sprintf("waiting for events - source=%s", name)).
 		GetStatus()

@@ -56,6 +56,11 @@ func TestGetNewStatus(t *testing.T) {
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
 					configv1.ClusterOperatorStatusCondition{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					configv1.ClusterOperatorStatusCondition{
 						Type:               configv1.OperatorAvailable,
 						Status:             configv1.ConditionFalse,
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
@@ -114,6 +119,11 @@ func TestGetNewStatus(t *testing.T) {
 					configv1.ClusterOperatorStatusCondition{
 						Type:               configv1.OperatorDegraded,
 						Status:             configv1.ConditionFalse,
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+					configv1.ClusterOperatorStatusCondition{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
 						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
 					},
 					configv1.ClusterOperatorStatusCondition{
