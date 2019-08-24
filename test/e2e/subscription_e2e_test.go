@@ -11,6 +11,15 @@ import (
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
@@ -19,14 +28,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
-	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var doubleInstance = int32(2)
@@ -270,7 +271,7 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.I
 	// Create configmap containing catalog
 	dummyCatalogConfigMap.SetNamespace(testNamespace)
 	if _, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dummyCatalogConfigMap); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err
@@ -279,7 +280,7 @@ func initCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.I
 	// Create catalog source custom resource pointing to ConfigMap
 	dummyCatalogSource.SetNamespace(testNamespace)
 	if _, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(&dummyCatalogSource); err != nil {
-		if k8serrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
 			return fmt.Errorf("E2E bug detected: %v", err)
 		}
 		return err
@@ -385,6 +386,10 @@ func buildSubscriptionCleanupFunc(t *testing.T, crc versioned.Interface, subscri
 
 		// Delete the subscription
 		err := crc.OperatorsV1alpha1().Subscriptions(subscription.GetNamespace()).Delete(subscription.GetName(), &metav1.DeleteOptions{})
+		if apierrors.IsNotFound(err) {
+			// Ignore not found errors
+			return
+		}
 		require.NoError(t, err)
 	}
 }
@@ -1130,7 +1135,7 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	proxyEnvVarFunc := func(t *testing.T, client configv1client.ConfigV1Interface) []corev1.EnvVar {
 		proxy, getErr := client.Proxies().Get("cluster", metav1.GetOptions{})
 		if getErr != nil {
-			if !k8serrors.IsNotFound(getErr) {
+			if !apierrors.IsNotFound(getErr) {
 				require.NoError(t, getErr)
 			}
 

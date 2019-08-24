@@ -28,6 +28,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -36,6 +38,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	pmclient "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client"
 	pmversioned "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned"
+	porcelainclient "github.com/operator-framework/operator-lifecycle-manager/pkg/porcelain-server/generated/clientset/versioned"
 )
 
 const (
@@ -113,6 +116,20 @@ func newPMClient(t *testing.T) pmversioned.Interface {
 	pmc, err := pmclient.NewClient(*kubeConfigPath)
 	require.NoError(t, err)
 	return pmc
+}
+
+func newPClient(t *testing.T) porcelainclient.Interface {
+	var config *rest.Config
+	var err error
+
+	if *kubeConfigPath != "" {
+		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	} else {
+		config, err = rest.InClusterConfig()
+	}
+	require.NoError(t, err)
+
+	return porcelainclient.NewForConfigOrDie(config)
 }
 
 // awaitPods waits for a set of pods to exist in the cluster

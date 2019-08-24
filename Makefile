@@ -73,13 +73,13 @@ $(CMDS):
 $(TCMDS):
 	CGO_ENABLED=0 go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
-run-local: build-linux build-wait
 
-build-local: build-linux
+build-local: build-linux build-wait
 	rm -rf build
 	. ./scripts/build_local.sh
 
-run-local: build-local
+# run-local: build-linux build-wait
+run-local: build-linux build-wait
 	mkdir -p build/resources
 	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
