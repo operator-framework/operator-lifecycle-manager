@@ -3,15 +3,12 @@ package installedoperator
 import (
 	"context"
 	"fmt"
-	"sync"
-	"time"
 
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"k8s.io/apimachinery/pkg/util/wait"
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/client-go/kubernetes"
@@ -25,8 +22,6 @@ import (
 	operatorsinstall "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/install"
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	operatorsv1informers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1"
-	operatorsv1alpha1informers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions/operators/v1alpha1"
 	operatorsv1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1"
 	operatorsv1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/porcelain-server/apis/porcelain"
@@ -58,15 +53,6 @@ type Controller struct {
 	// store gives direct access to storage for InstalledOperator resources.
 	registry *registry.REST
 
-	csvIndexer cache.Indexer
-	csvLister  operatorsv1alpha1listers.ClusterServiceVersionLister
-	csvsSynced cache.InformerSynced
-	subIndexer cache.Indexer
-	subLister  operatorsv1alpha1listers.SubscriptionLister
-	subsSynced cache.InformerSynced
-	ogLister   operatorsv1listers.OperatorGroupLister
-	ogsSynced  cache.InformerSynced
-
 	// ready is closed when the controller is ready to reconcile new resource changes.
 	ready chan struct{}
 
@@ -76,50 +62,60 @@ type Controller struct {
 	// time, and makes it easy to ensure we are never processing the same item
 	// simultaneously in two different workers.
 	workqueue workqueue.RateLimitingInterface
+
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
 	recorder record.EventRecorder
+
+	csvIndexer cache.Indexer
+	csvLister  operatorsv1alpha1listers.ClusterServiceVersionLister
+	csvsSynced cache.InformerSynced
+	subIndexer cache.Indexer
+	subLister  operatorsv1alpha1listers.SubscriptionLister
+	subsSynced cache.InformerSynced
+	ogLister   operatorsv1listers.OperatorGroupLister
+	ogsSynced  cache.InformerSynced
 }
 
-// NewController returns a new installed-controller.
-func NewController(
-	kubeclientset kubernetes.Interface,
-	registry *registry.REST,
-	csvInformer operatorsv1alpha1informers.ClusterServiceVersionInformer,
-	subInformer operatorsv1alpha1informers.SubscriptionInformer,
-	ogInformer operatorsv1informers.OperatorGroupInformer,
-) *Controller {
+// NewController returns a new installed controller configured by the given options.
+func NewController(options ...ControllerOption) (*Controller, error) {
+	config := newControllerConfig()
+	config.apply(options)
+	if err := config.validate(); err != nil {
+		return nil, err
+	}
+	config.complete()
+
+	return newController(config), nil
+}
+
+func newController(config *controllerConfig) *Controller {
 	// Create event broadcaster
 	klog.V(4).Info("Creating event broadcaster")
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
-	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeclientset.CoreV1().Events("")})
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: config.kubeclientset.CoreV1().Events("")})
 	recorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: controllerAgentName})
 
 	controller := &Controller{
-		kubeclientset: kubeclientset,
-		registry:      registry,
-		csvIndexer:    csvInformer.Informer().GetIndexer(),
-		csvLister:     csvInformer.Lister(),
-		csvsSynced:    csvInformer.Informer().HasSynced,
-		subIndexer:    subInformer.Informer().GetIndexer(),
-		subLister:     subInformer.Lister(),
-		subsSynced:    subInformer.Informer().HasSynced,
-		ogLister:      ogInformer.Lister(),
-		ogsSynced:     ogInformer.Informer().HasSynced,
+		kubeclientset: config.kubeclientset,
+		registry:      config.registry,
+		workqueue:     config.workqueue,
 		ready:         make(chan struct{}),
-		workqueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "installedoperators"),
 		recorder:      recorder,
+		csvIndexer:    config.csvInformer.Informer().GetIndexer(),
+		csvLister:     config.csvInformer.Lister(),
+		csvsSynced:    config.csvInformer.Informer().HasSynced,
+		subIndexer:    config.subInformer.Informer().GetIndexer(),
+		subLister:     config.subInformer.Lister(),
+		subsSynced:    config.subInformer.Informer().HasSynced,
+		ogLister:      config.ogInformer.Lister(),
+		ogsSynced:     config.ogInformer.Informer().HasSynced,
 	}
-
-	// Add CSV index so we can quickly look up related Subscriptions.
-	subInformer.Informer().AddIndexers(cache.Indexers{
-		CSVSubscriptionIndexFuncKey: CSVSubscriptionIndexFunc,
-	})
 
 	// Set up an event handler to track CSV changes.
 	klog.Info("Setting up event handlers")
-	csvInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
+	config.csvInformer.Informer().AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
 			// Ignore events for copied CSVs
 			// TODO: Prevent spoofing by ensuring the OG exists and matches the annotations.
@@ -139,7 +135,7 @@ func NewController(
 	})
 
 	// Set up an event handler to track Subscription changes.
-	subInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	config.subInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleSub,
 		UpdateFunc: func(old, newObj interface{}) {
 			controller.handleSub(newObj)
@@ -148,7 +144,7 @@ func NewController(
 	})
 
 	// Set up an event handler to track OperatorGroup changes.
-	ogInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+	config.ogInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: controller.handleOG,
 		UpdateFunc: func(old, newObj interface{}) {
 			controller.handleOG(newObj)
@@ -157,112 +153,6 @@ func NewController(
 	})
 
 	return controller
-}
-
-// Run will set up the event handlers for types we are interested in, as well
-// as syncing informer caches and starting workers. It will block until stopCh
-// is closed, at which point it will shutdown the workqueue and wait for
-// workers to finish processing their current work items.
-func (c *Controller) Run(ctx context.Context, threadiness int) error {
-	defer utilruntime.HandleCrash()
-	defer c.workqueue.ShutDown()
-
-	// Start the informer factories to begin populating the informer caches
-	klog.Info("Starting Foo controller")
-
-	// Wait for the caches to be synced before starting workers
-	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(ctx.Done(), c.csvsSynced, c.subsSynced, c.ogsSynced); !ok {
-		return fmt.Errorf("failed to wait for caches to sync")
-	}
-
-	// Launch workers to process Foo resources
-	klog.Info("Starting workers")
-	var wg sync.WaitGroup
-	for i := 0; i < threadiness; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			wait.Until(func() { c.runWorker(ctx) }, time.Second, ctx.Done())
-		}()
-	}
-
-	klog.Infof("Started %d workers", threadiness)
-	close(c.ready) // Signal readiness
-	wg.Wait()
-	klog.Info("Shutting down workers")
-
-	return nil
-}
-
-// Ready returns a channel that is closed when the Controller is ready to reconcile new resource changes.
-func (c *Controller) Ready() <-chan struct{} {
-	return c.ready
-}
-
-// runWorker is a long-running function that will continually call the
-// processNextWorkItem function in order to read and process a message on the
-// workqueue.
-func (c *Controller) runWorker(ctx context.Context) {
-	for c.processNextWorkItem(ctx) {
-	}
-}
-
-// processNextWorkItem will read a single work item off the workqueue and
-// attempt to process it, by calling the syncHandler.
-func (c *Controller) processNextWorkItem(ctx context.Context) bool {
-	obj, shutdown := c.workqueue.Get()
-
-	if shutdown {
-		return false
-	}
-
-	// We wrap this block in a func so we can defer c.workqueue.Done.
-	err := func(obj interface{}) error {
-		// We call Done here so the workqueue knows we have finished
-		// processing this item. We also must remember to call Forget if we
-		// do not want this work item being re-queued. For example, we do
-		// not call Forget if a transient error occurs, instead the item is
-		// put back on the workqueue and attempted again after a back-off
-		// period.
-		defer c.workqueue.Done(obj)
-		var (
-			key Key
-			ok  bool
-		)
-
-		// We expect Keys to come off the workqueue. A Key represents a resource across different resource versions.
-		// We do this to prevent a resource from being processed concurrently with slightly different values.
-		if key, ok = obj.(Key); !ok {
-			// As the item in the workqueue is actually invalid, we call
-			// Forget here else we'd go into a loop of attempting to
-			// process a work item that is invalid.
-			c.workqueue.Forget(obj)
-			utilruntime.HandleError(fmt.Errorf("expected string in workqueue but got %#v", obj))
-			return nil
-		}
-
-		// Run the syncHandler, passing it the namespace/name string of the
-		// Foo resource to be synced.
-		if err := c.sync(ctx, key); err != nil {
-			// Put the item back on the workqueue to handle any transient errors.
-			c.workqueue.AddRateLimited(key)
-			return fmt.Errorf("error syncing '%s': %s, requeuing", key, err.Error())
-		}
-
-		// Finally, if no error occurs we Forget this item so it does not
-		// get queued again until another change happens.
-		c.workqueue.Forget(obj)
-		klog.Infof("Successfully synced '%s'", key)
-		return nil
-	}(obj)
-
-	if err != nil {
-		utilruntime.HandleError(err)
-		return true
-	}
-
-	return true
 }
 
 // sync builds an InstalledOperator resource for the given Key with the state of the Controller's CSV, Subscription,
@@ -362,7 +252,7 @@ func (c *Controller) sync(ctx context.Context, key Key) error {
 	}
 	klog.V(4).Infof("installed resource %s updated", key)
 
-	// c.recorder.Event(updated, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	// c.recorder.Event(io, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
 	return nil
 }
 
@@ -377,13 +267,8 @@ type Key struct {
 
 // String implements the fmt.Stringer interface for Keys.
 func (k Key) String() string {
-	// TODO: memoize built string?
+	// TODO: memoize string?
 	return fmt.Sprintf("%s/%s", k.Namespace, k.Name)
-}
-
-// enqueue adds the given Key to the controller's workqueue for processing.
-func (c *Controller) enqueue(key Key) {
-	c.workqueue.Add(key)
 }
 
 // handleCSV enqueues the Installed resource associated with the given CSV.

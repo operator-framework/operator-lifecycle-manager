@@ -126,13 +126,17 @@ func (c completedConfig) New() (*RuntimeServer, error) {
 	}
 
 	// Create the apiserver's Controller
-	s.Controller = iocontroller.NewController(
-		c.ExtraConfig.Client,
-		registry,
-		csvInformer,
-		operatorsInformerFactory.V1alpha1().Subscriptions(),
-		operatorsInformerFactory.V1().OperatorGroups(),
+	controller, err := iocontroller.NewController(
+		iocontroller.WithKubeclientset(c.ExtraConfig.Client),
+		iocontroller.WithRegistry(registry),
+		iocontroller.WithCSVInformer(csvInformer),
+		iocontroller.WithSubInformer(operatorsInformerFactory.V1alpha1().Subscriptions()),
+		iocontroller.WithOGInformer(operatorsInformerFactory.V1().OperatorGroups()),
 	)
+	if err != nil {
+		return nil, err
+	}
+	s.Controller = controller
 
 	return s, nil
 }

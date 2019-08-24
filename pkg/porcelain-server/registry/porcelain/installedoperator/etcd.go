@@ -76,8 +76,7 @@ func (r *REST) Get(ctx context.Context, name string, options *metav1.GetOptions)
 
 	var operatorNamespace string
 	err := r.forEachTargeting(targetNamespace, func(ns, n string) (stop bool, err error) {
-		stop = (name == n)
-		if stop {
+		if stop = name == n; stop {
 			operatorNamespace = ns
 		}
 		return
@@ -156,6 +155,7 @@ func (r *REST) List(ctx context.Context, options *metainternalversion.ListOption
 }
 
 // Watch returns a watch that aggregates InstalledOperator events for operators that target the request namespace.
+//
 // If the request specifies all namespaces, events are synthesized for every <InstalledOperator, target namespace> pair.
 func (r *REST) Watch(ctx context.Context, options *metainternalversion.ListOptions) (watch.Interface, error) {
 	klog.V(4).Info("Proxying watch request")
@@ -187,7 +187,7 @@ func (r *REST) Watch(ctx context.Context, options *metainternalversion.ListOptio
 // Delete is a no-op that exists to satisfy a k8s GC requirement so Installed resources may be used in OwnerReferences.
 func (r *REST) Delete(ctx context.Context, name string, options *metav1.DeleteOptions) (runtime.Object, bool, error) {
 	// Return a forbidden error
-	klog.V(4).Infof("Gracefully no-oping delete request: %s, %v, %v", name, ctx, options)
+	klog.V(4).Infof("Returning forbidden error for delete request: %s, %v, %v", name, ctx, options)
 	return nil, false, apierrors.NewForbidden(porcelainv1alpha1.Resource("installedoperators"), name, errors.New("synthetic resource deletion forbidden"))
 }
 
@@ -246,10 +246,9 @@ func (r *REST) forEachTargetingNamespace(targetNamespace string, do func(namespa
 	})
 }
 
-// synthesizeObject updates the UID and Namespace of each Object in the given list.
+// synthesizeObject updates the UID and Namespace of the given object.
 //
-// For each Object, the given namespace is used as a replacement for the Namespace field
-// and is prepended to the UID field.
+// The given namespace is used as a replacement for the Namespace field and is prepended to the UID field.
 func synthesizeObject(namespace string, base runtime.Object) error {
 	m, err := porcelain.InstalledOperatorMetaAccessor(base)
 	if err != nil {
@@ -291,7 +290,7 @@ func synthesizingWatch(ctx context.Context, base watch.Interface, getNamespaces 
 				func() {
 					for _, ns := range getNamespaces() {
 						if !m.TargetsNamespace(ns) {
-							klog.V(4).Infof("%s/%s does not target %s, skipping", m.GetNamespace(), m.GetName(), ns)
+							klog.V(4).Infof("%s/%s does not target %s, skipping: %v", m.GetNamespace(), m.GetName(), ns, m.GetAnnotations())
 							continue
 						}
 
@@ -306,7 +305,7 @@ func synthesizingWatch(ctx context.Context, base watch.Interface, getNamespaces 
 							utilruntime.HandleError(errors.New("context closed before synthesized event emitted"))
 							return
 						case <-proxy.StopChan():
-							utilruntime.HandleError(errors.New("watch stopped synthesized event emitted"))
+							utilruntime.HandleError(errors.New("watch stopped before synthesized event emitted"))
 							return
 						case result <- *event:
 						}

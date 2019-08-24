@@ -248,14 +248,7 @@ func TestSynthesizingWatch(t *testing.T) {
 				received = append(received, event)
 			}
 			require.Equal(t, tt.expected.events, received)
-			// require.Len(t, received, len(tt.expected.events))
-
-			// for i := 0; i < len(tt.expected.events); i++ {
-			// 	expected := tt.expected.events[i]
-			// 	actual := received[i]
-			// 	require.Equal(t, expected.Type, actual.Type)
-			// 	require.Equal(t, expected.Object, actual.Object)
-			// }
+			require.ElementsMatch(t, tt.expected.events, received)
 		})
 	}
 }
