@@ -76,13 +76,13 @@ func (i *installedMeta) Sanitize() {
 }
 
 func InstalledOperatorMetaAccessor(obj interface{}) (InstalledOperatorMeta, error) {
-	installed, ok := obj.(*InstalledOperator)
+	operator, ok := obj.(*InstalledOperator)
 	if !ok {
-		return nil, fmt.Errorf("obj is not of type installed: %T", obj)
+		return nil, fmt.Errorf("obj is not of type installedoperator: %T", obj)
 	}
 
 	m := &installedMeta{
-		Object: &installed.ObjectMeta,
+		Object: &operator.ObjectMeta,
 	}
 
 	return m, nil
@@ -130,6 +130,7 @@ func (ib *ioBuilder) SetClusterServiceVersion(csv *operatorsv1alpha1.ClusterServ
 	ib.io.SetName(csv.GetName())
 	ib.io.SetUID(csv.GetUID())
 	ib.io.SetCreationTimestamp(csv.GetCreationTimestamp())
+	ib.io.SetLabels(copiedCSV.GetLabels())
 
 	annotations := copiedCSV.GetAnnotations()
 	delete(annotations, lastAppliedAnnotationKey)

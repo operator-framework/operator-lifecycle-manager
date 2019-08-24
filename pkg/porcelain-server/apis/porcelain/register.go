@@ -6,7 +6,10 @@ import (
 )
 
 // GroupName is the name of the API group used to register internal runtime types with a scheme.
-const GroupName = "porcelain.operators.coreos.com"
+const (
+	GroupName             = "porcelain.operators.coreos.com"
+	InstalledOperatorKind = "InstalledOperator"
+)
 
 // SchemeGroupVersion is the group version used to register internal runtime types with a scheme.
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
