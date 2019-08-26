@@ -50,22 +50,12 @@ type ClientAttenuator struct {
 	logger    *logrus.Logger
 }
 
-// AttenuateClient returns appropriately scoped client(s) to the caller.
+// AttenuateClientWithServiceAccount returns appropriately scoped client(s) to the caller.
 //
 // client(s) that are bound to OLM cluster-admin role are returned if the querier
 // returns no error and reference to a service account is nil.
 // Otherwise an attempt is made to return attenuated client instance(s).
-func (s *ClientAttenuator) AttenuateClient(querier ServiceAccountQuerierFunc) (kubeclient operatorclient.ClientInterface, crclient versioned.Interface, err error) {
-	if querier == nil {
-		err = errQuerierNotSpecified
-		return
-	}
-
-	reference, err := querier()
-	if err != nil {
-		return
-	}
-
+func (s *ClientAttenuator) AttenuateClientWithServiceAccount(reference *corev1.ObjectReference) (kubeclient operatorclient.ClientInterface, crclient versioned.Interface, err error) {
 	if reference == nil {
 		// No service account/token has been provided. Return the default client(s).
 		kubeclient = s.kubeclient
@@ -90,6 +80,25 @@ func (s *ClientAttenuator) AttenuateClient(querier ServiceAccountQuerierFunc) (k
 	}
 
 	return
+}
+
+// AttenuateClient returns appropriately scoped client(s) to the caller.
+//
+// client(s) that are bound to OLM cluster-admin role are returned if the querier
+// returns no error and reference to a service account is nil.
+// Otherwise an attempt is made to return attenuated client instance(s).
+func (s *ClientAttenuator) AttenuateClient(querier ServiceAccountQuerierFunc) (kubeclient operatorclient.ClientInterface, crclient versioned.Interface, err error) {
+	if querier == nil {
+		err = errQuerierNotSpecified
+		return
+	}
+
+	reference, err := querier()
+	if err != nil {
+		return
+	}
+
+	return s.AttenuateClientWithServiceAccount(reference)
 }
 
 // AttenuateOperatorClient returns a scoped operator client instance based on the

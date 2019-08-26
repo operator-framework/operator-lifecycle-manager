@@ -777,6 +777,11 @@ func (in *InstallPlanStatus) DeepCopyInto(out *InstallPlanStatus) {
 			}
 		}
 	}
+	if in.AttenuatedServiceAccountRef != nil {
+		in, out := &in.AttenuatedServiceAccountRef, &out.AttenuatedServiceAccountRef
+		*out = new(corev1.ObjectReference)
+		**out = **in
+	}
 	return
 }
 

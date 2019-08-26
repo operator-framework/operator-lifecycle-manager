@@ -78,10 +78,11 @@ var ErrInvalidInstallPlan = errors.New("the InstallPlan contains invalid data")
 //
 // Status may trail the actual state of a system.
 type InstallPlanStatus struct {
-	Phase          InstallPlanPhase
-	Conditions     []InstallPlanCondition
-	CatalogSources []string
-	Plan           []*Step
+	Phase                       InstallPlanPhase
+	Conditions                  []InstallPlanCondition
+	CatalogSources              []string
+	Plan                        []*Step
+	AttenuatedServiceAccountRef *corev1.ObjectReference
 }
 
 // InstallPlanCondition represents the overall status of the execution of

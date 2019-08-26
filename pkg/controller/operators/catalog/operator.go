@@ -388,7 +388,7 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 
 	o.requeueOwners(metaObj)
 
-	return
+	return o.triggerInstallPlanRetry(obj)
 }
 
 func (o *Operator) handleDeletion(obj interface{}) {
@@ -1027,6 +1027,28 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		return
 	}
 
+	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
+	reference, err := querier()
+	if err != nil {
+		syncError = fmt.Errorf("attenuated service account query failed - %v", err)
+		return
+	}
+
+	if reference != nil {
+		out := plan.DeepCopy()
+		out.Status.AttenuatedServiceAccountRef = reference
+
+		if !reflect.DeepEqual(plan, out) {
+			if _, updateErr := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(out); err != nil {
+				syncError = fmt.Errorf("failed to attach attenuated ServiceAccount to status - %v", updateErr)
+				return
+			}
+						
+			logger.WithField("attenuated-sa", reference.Name).Info("successfully attached attenuated ServiceAccount to status")
+			return
+		}
+	}
+
 	outInstallPlan, syncError := transitionInstallPlanState(logger.Logger, o, *plan, o.now())
 
 	if syncError != nil {
@@ -1204,8 +1226,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	// Does the namespace have an operator group that specifies a user defined
 	// service account? If so, then we should use a scoped client for plan
 	// execution.
-	getter := o.serviceAccountQuerier.NamespaceQuerier(namespace)
-	kubeclient, crclient, err := o.clientAttenuator.AttenuateClient(getter)
+	kubeclient, crclient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(plan.Status.AttenuatedServiceAccountRef)
 	if err != nil {
 		o.logger.Errorf("failed to get a client for plan execution- %v", err)
 		return err
