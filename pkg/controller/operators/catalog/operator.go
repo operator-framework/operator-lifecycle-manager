@@ -15,7 +15,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
-	validation "k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
+	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -77,7 +78,7 @@ type Operator struct {
 	nsResolveQueue         workqueue.RateLimitingInterface
 	namespace              string
 	sources                *grpc.SourceStore
-	sourcesLastUpdate      metav1.Time
+	sourcesLastUpdate      sharedtime.SharedTime
 	resolver               resolver.Resolver
 	reconciler             reconciler.RegistryReconcilerFactory
 	csvProvidedAPIsIndexer map[string]cache.Indexer
@@ -332,7 +333,7 @@ func (o *Operator) now() metav1.Time {
 }
 
 func (o *Operator) syncSourceState(state grpc.SourceState) {
-	o.sourcesLastUpdate = o.now()
+	o.sourcesLastUpdate.Set(o.now().Time)
 
 	o.logger.Infof("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
 
@@ -467,7 +468,7 @@ func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSourc
 			out.SetError(v1alpha1.CatalogSourceConfigMapError, syncError)
 			return
 		}
-		
+
 		logger.Debug("adopted configmap")
 	}
 
@@ -541,8 +542,8 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 	// update operator's view of sources
 	now := o.now()
 	address := in.Address()
-	
-	connectFunc := func() (source *grpc.SourceMeta, connErr error){
+
+	connectFunc := func() (source *grpc.SourceMeta, connErr error) {
 		newSource, err := o.sources.Add(sourceKey, address)
 		if err != nil {
 			connErr = fmt.Errorf("couldn't connect to registry - %v", err)
@@ -560,10 +561,10 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 
 	updateConnectionStateFunc := func(out *v1alpha1.CatalogSource, source *grpc.SourceMeta) {
 		out.Status.GRPCConnectionState = &v1alpha1.GRPCConnectionState{
-			Address: source.Address,
+			Address:           source.Address,
 			LastObservedState: source.ConnectionState.String(),
-			LastConnectTime: source.LastConnect,
-		}		
+			LastConnectTime:   source.LastConnect,
+		}
 	}
 
 	source := o.sources.GetMeta(sourceKey)
@@ -573,7 +574,7 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 			out.SetError(v1alpha1.CatalogSourceRegistryServerError, syncError)
 			return
 		}
-		
+
 		// Set connection status and return.
 		updateConnectionStateFunc(out, source)
 		return
@@ -593,7 +594,7 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 	}
 
 	// connection is already good, but we need to update the sync time
-	if out.Status.GRPCConnectionState != nil && out.Status.GRPCConnectionState.LastConnectTime.Before(&o.sourcesLastUpdate) {
+	if out.Status.GRPCConnectionState != nil && o.sourcesLastUpdate.After(out.Status.GRPCConnectionState.LastConnectTime.Time) {
 		// Set connection status and return.
 		out.Status.GRPCConnectionState.LastConnectTime = now
 		out.Status.GRPCConnectionState.LastObservedState = source.ConnectionState.String()
@@ -617,7 +618,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	logger.Debug("syncing catsrc")
 
 	syncFunc := func(in *v1alpha1.CatalogSource, chain []CatalogSourceSyncFunc) (out *v1alpha1.CatalogSource, syncErr error) {
-		out = in 
+		out = in
 		for _, syncFunc := range chain {
 			cont := false
 			out, cont, syncErr = syncFunc(logger, in)
@@ -628,13 +629,13 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 			if !cont {
 				return
 			}
-	
+
 			in = out
 		}
 
 		return
 	}
-	
+
 	equalFunc := func(a, b *v1alpha1.CatalogSourceStatus) bool {
 		return reflect.DeepEqual(a, b)
 	}
@@ -648,7 +649,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 		out := latest.DeepCopy()
 		out.Status = catsrc.Status
-		
+
 		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 			logger.Errorf("error while setting catalogsource status condition - %v", err)
 			return err
@@ -663,7 +664,6 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 		o.syncConnection,
 	}
 
-	
 	in := catsrc.DeepCopy()
 	in.SetError("", nil)
 
@@ -797,7 +797,7 @@ func (o *Operator) syncSubscriptions(obj interface{}) error {
 
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
 	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateNone && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
+	if o.sourcesLastUpdate.Before(sub.Status.LastUpdated.Time) && sub.Status.State != v1alpha1.SubscriptionStateNone && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
 		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
 		return true
 	}
