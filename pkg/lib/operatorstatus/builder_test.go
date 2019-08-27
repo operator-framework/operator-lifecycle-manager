@@ -105,6 +105,90 @@ func TestBuilder(t *testing.T) {
 			},
 		},
 
+		// Condition: (Upgradeable, True).
+		// existing status.Conditions is empty.
+		{
+			name: "WithUpgradeable/NoUpgradeableConditionPresentInExistingStatus",
+			action: func(b *Builder) {
+				b.WithUpgradeable(configv1.ConditionTrue, "message")
+			},
+			expected: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "message",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+				},
+				Versions:       []configv1.OperandVersion{},
+				RelatedObjects: []configv1.ObjectReference{},
+			},
+		},
+
+		// Condition: (Upgradeable, True).
+		// (Upgradeable, False) is already present in existing status.Conditions.
+		{
+			name: "WithUpgradeable/UpgradeableConditionPresentInExistingStatus",
+			action: func(b *Builder) {
+				b.WithUpgradeable(configv1.ConditionTrue, "message")
+			},
+			existing: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:   configv1.OperatorUpgradeable,
+						Status: configv1.ConditionFalse,
+					},
+				},
+				Versions:       []configv1.OperandVersion{},
+				RelatedObjects: []configv1.ObjectReference{},
+			},
+			expected: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "message",
+						LastTransitionTime: metav1.NewTime(fakeClock.Now()),
+					},
+				},
+				Versions:       []configv1.OperandVersion{},
+				RelatedObjects: []configv1.ObjectReference{},
+			},
+		},
+
+		// Condition: (Upgradeable, True).
+		// (Upgradeable, True) is already present in existing status.Conditions.
+		{
+			name: "WithUpgradeable/UpgradeableConditionMatchesInExistingStatus",
+			action: func(b *Builder) {
+				b.WithUpgradeable(configv1.ConditionTrue, "message")
+			},
+			existing: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						LastTransitionTime: minuteAgo,
+					},
+				},
+				Versions:       []configv1.OperandVersion{},
+				RelatedObjects: []configv1.ObjectReference{},
+			},
+			expected: &configv1.ClusterOperatorStatus{
+				Conditions: []configv1.ClusterOperatorStatusCondition{
+					{
+						Type:               configv1.OperatorUpgradeable,
+						Status:             configv1.ConditionTrue,
+						Message:            "message",
+						LastTransitionTime: minuteAgo,
+					},
+				},
+				Versions:       []configv1.OperandVersion{},
+				RelatedObjects: []configv1.ObjectReference{},
+			},
+		},
+
 		// A new version is being added to status.
 		// Existing status does not have any matching name.
 		{

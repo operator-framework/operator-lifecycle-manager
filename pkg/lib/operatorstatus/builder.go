@@ -71,6 +71,21 @@ func (b *Builder) WithAvailable(status configv1.ConditionStatus, message string)
 	return b
 }
 
+// WithUpgradeable sets an OperatorUpgradeable type condition.
+func (b *Builder) WithUpgradeable(status configv1.ConditionStatus, message string) *Builder {
+	b.init()
+	condition := &configv1.ClusterOperatorStatusCondition{
+		Type:               configv1.OperatorUpgradeable,
+		Status:             status,
+		Message:            message,
+		LastTransitionTime: metav1.NewTime(b.clock.Now()),
+	}
+
+	b.setCondition(condition)
+
+	return b
+}
+
 // WithVersion adds the specific version into the status.
 func (b *Builder) WithVersion(name, version string) *Builder {
 	b.init()
