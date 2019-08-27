@@ -9,6 +9,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -254,11 +255,13 @@ func relatedObjects(name, namespace string) []configv1.ObjectReference {
 				Group:     olmv1.GroupName,
 				Resource:  olmv1.OperatorGroupKind,
 				Namespace: namespace,
+				Name:      clusterOperatorOLM,
 			},
 			{
 				Group:     olmv1alpha1.GroupName,
 				Resource:  olmv1alpha1.ClusterServiceVersionKind,
 				Namespace: namespace,
+				Name:      clusterOperatorOLM,
 			},
 		}
 	case clusterOperatorCatalogSource:
@@ -267,15 +270,18 @@ func relatedObjects(name, namespace string) []configv1.ObjectReference {
 				Group:     olmv1alpha1.GroupName,
 				Resource:  olmv1alpha1.SubscriptionKind,
 				Namespace: namespace,
+				Name:      clusterOperatorCatalogSource,
 			},
 			{
 				Group:     olmv1alpha1.GroupName,
 				Resource:  olmv1alpha1.InstallPlanKind,
 				Namespace: namespace,
+				Name:      clusterOperatorCatalogSource,
 			},
 		}
 	}
 	namespaces := configv1.ObjectReference{
+		Group:    corev1.GroupName,
 		Resource: "namespaces",
 		Name:     namespace,
 	}
