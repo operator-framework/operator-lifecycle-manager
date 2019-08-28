@@ -87,6 +87,10 @@ To configure a release of OLM for installation in a cluster:
 
 The above steps are automated for official releases with `make ver=0.3.0 release`, which will output new versions of manifests in `deploy/tectonic-alm-operator/manifests/$(ver)`.
 
+## Overriding the Global Catalog Namespace
+
+It is possible to override the Global Catalog Namespace by setting the `GLOBAL_CATALOG_NAMESPACE` environment variable in the catalog operator deployment.
+
 ## Subscribe to a Package and Channel
 
 Cloud Services can be installed from the catalog by subscribing to a channel in the corresponding package.

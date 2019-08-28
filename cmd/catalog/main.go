@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
 	defaultWakeupInterval       = 15 * time.Minute
 	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
 	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
@@ -102,6 +103,12 @@ func main() {
 		logger.SetLevel(log.DebugLevel)
 	}
 	logger.Infof("log level %s", logger.Level)
+
+	// If the catalogNamespaceEnvVarName environment variable is set, then  update the value of catalogNamespace.
+	if catalogNamespaceEnvVarValue := os.Getenv(catalogNamespaceEnvVarName); catalogNamespaceEnvVarValue != "" {
+		logger.Infof("%s environment variable is set. Updating Global Catalog Namespace to %s", catalogNamespaceEnvVarName, catalogNamespaceEnvVarValue)
+		*catalogNamespace = catalogNamespaceEnvVarValue
+	}
 
 	var useTLS bool
 	if *tlsCertPath != "" && *tlsKeyPath == "" || *tlsCertPath == "" && *tlsKeyPath != "" {
