@@ -17,7 +17,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 
-	olmv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	olmv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	olmversion "github.com/operator-framework/operator-lifecycle-manager/pkg/version"
@@ -26,9 +25,10 @@ import (
 const (
 	clusterOperatorOLM           = "operator-lifecycle-manager"
 	clusterOperatorCatalogSource = "operator-lifecycle-manager-catalog"
+	openshiftNamespace           = "openshift-operator-lifecycle-manager"
 )
 
-func MonitorClusterStatus(name, namespace string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface, crClient versioned.Interface) {
+func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface, crClient versioned.Interface) {
 	var (
 		syncs              int
 		successfulSyncs    int
@@ -114,10 +114,13 @@ func MonitorClusterStatus(name, namespace string, syncCh <-chan error, stopCh <-
 					},
 				},
 			})
-			created.Status.RelatedObjects = relatedObjects(name, namespace, opClient, crClient)
 			if createErr != nil {
 				log.Errorf("Failed to create cluster operator: %v\n", createErr)
 				return
+			}
+			created.Status.RelatedObjects, err = relatedObjects(name, opClient, crClient)
+			if err != nil {
+				log.Errorf("Failed to get related objects: %v", err)
 			}
 			existing = created
 			err = nil
@@ -247,38 +250,55 @@ func findOperatorStatusCondition(conditions []configv1.ClusterOperatorStatusCond
 
 // relatedObjects returns RelatedObjects in the ClusterOperator.Status.
 // RelatedObjects are consumed by https://github.com/openshift/must-gather
-func relatedObjects(name, namespace string, opClient operatorclient.ClientInterface, crClient versioned.Interface) []configv1.ObjectReference {
+func relatedObjects(name string, opClient operatorclient.ClientInterface, crClient versioned.Interface) ([]configv1.ObjectReference, error) {
 	var objectReferences []configv1.ObjectReference
+	log.Infof("Adding related objects for %v", name)
+	namespace := openshiftNamespace // hard-coded to constant
+
 	switch name {
 	case clusterOperatorOLM:
-		objectReferences = []configv1.ObjectReference{
-			{
-				Group:     olmv1.GroupName,
-				Resource:  olmv1.OperatorGroupKind,
-				Namespace: namespace,
-				Name:      clusterOperatorOLM,
-			},
-			{
+		csvList, err := crClient.OperatorsV1alpha1().ClusterServiceVersions(namespace).List(metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, csv := range csvList.Items {
+			if csv.IsCopied() {
+				continue
+			}
+			objectReferences = append(objectReferences, configv1.ObjectReference{
 				Group:     olmv1alpha1.GroupName,
 				Resource:  olmv1alpha1.ClusterServiceVersionKind,
-				Namespace: namespace,
-				Name:      clusterOperatorOLM,
-			},
+				Namespace: csv.GetNamespace(),
+				Name:      csv.GetName(),
+			})
 		}
 	case clusterOperatorCatalogSource:
-		objectReferences = []configv1.ObjectReference{
-			{
+		subList, err := crClient.OperatorsV1alpha1().Subscriptions(namespace).List(metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		installPlanList, err := crClient.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, sub := range subList.Items {
+			objectReferences = append(objectReferences, configv1.ObjectReference{
 				Group:     olmv1alpha1.GroupName,
 				Resource:  olmv1alpha1.SubscriptionKind,
-				Namespace: namespace,
-				Name:      clusterOperatorCatalogSource,
-			},
-			{
+				Namespace: sub.GetNamespace(),
+				Name:      sub.GetName(),
+			})
+		}
+		for _, ip := range installPlanList.Items {
+			objectReferences = append(objectReferences, configv1.ObjectReference{
 				Group:     olmv1alpha1.GroupName,
 				Resource:  olmv1alpha1.InstallPlanKind,
-				Namespace: namespace,
-				Name:      clusterOperatorCatalogSource,
-			},
+				Namespace: ip.GetNamespace(),
+				Name:      ip.GetName(),
+			})
 		}
 	}
 	namespaces := configv1.ObjectReference{
@@ -287,5 +307,5 @@ func relatedObjects(name, namespace string, opClient operatorclient.ClientInterf
 		Name:     namespace,
 	}
 	objectReferences = append(objectReferences, namespaces)
-	return objectReferences
+	return objectReferences, nil
 }
