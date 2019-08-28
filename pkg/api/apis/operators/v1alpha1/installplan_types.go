@@ -23,8 +23,8 @@ const (
 
 // InstallPlanSpec defines a set of Application resources to be installed
 type InstallPlanSpec struct {
-	CatalogSource              string   `json:"source"`
-	CatalogSourceNamespace     string   `json:"sourceNamespace"`
+	CatalogSource              string   `json:"source,omitempty"`
+	CatalogSourceNamespace     string   `json:"sourceNamespace,omitempty"`
 	ClusterServiceVersionNames []string `json:"clusterServiceVersionNames"`
 	Approval                   Approval `json:"approval"`
 	Approved                   bool     `json:"approved"`
