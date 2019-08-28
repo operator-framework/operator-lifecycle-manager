@@ -196,7 +196,7 @@ func main() {
 	<-op.Ready()
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, *namespace, op.AtLevel(), ctx.Done(), opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, *namespace, op.AtLevel(), ctx.Done(), opClient, configClient, crClient)
 	}
 
 	if *writePackageServerStatusName != "" {

@@ -16,6 +16,7 @@ import (
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
@@ -155,6 +156,10 @@ func main() {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
+	crClient, err := client.NewClient(*kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
 
 	// Create a new instance of the operator.
 	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
@@ -166,7 +171,7 @@ func main() {
 	<-op.Ready()
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, *catalogNamespace, op.AtLevel(), op.Done(), opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, *catalogNamespace, op.AtLevel(), op.Done(), opClient, configClient, crClient)
 	}
 
 	<-op.Done()
