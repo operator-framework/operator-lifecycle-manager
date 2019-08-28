@@ -8,6 +8,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	log "github.com/sirupsen/logrus"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,7 +27,7 @@ const (
 	clusterOperatorCatalogSource = "operator-lifecycle-manager-catalog"
 )
 
-func MonitorClusterStatus(name, namespace string, syncCh chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface) {
+func MonitorClusterStatus(name, namespace string, syncCh chan error, stopCh <-chan struct{}, opClient operatorclient.ClientInterface, configClient configv1client.ConfigV1Interface, crClient versioned.Interface) {
 	var (
 		syncs              int
 		successfulSyncs    int
@@ -112,7 +113,7 @@ func MonitorClusterStatus(name, namespace string, syncCh chan error, stopCh <-ch
 					},
 				},
 			})
-			created.Status.RelatedObjects = relatedObjects(name, namespace)
+			created.Status.RelatedObjects = relatedObjects(name, namespace, opClient, crClient)
 			if createErr != nil {
 				log.Errorf("Failed to create cluster operator: %v\n", createErr)
 				return
@@ -245,7 +246,7 @@ func findOperatorStatusCondition(conditions []configv1.ClusterOperatorStatusCond
 
 // relatedObjects returns RelatedObjects in the ClusterOperator.Status.
 // RelatedObjects are consumed by https://github.com/openshift/must-gather
-func relatedObjects(name, namespace string) []configv1.ObjectReference {
+func relatedObjects(name, namespace string, opClient operatorclient.ClientInterface, crClient versioned.Interface) []configv1.ObjectReference {
 	var objectReferences []configv1.ObjectReference
 	switch name {
 	case clusterOperatorOLM:

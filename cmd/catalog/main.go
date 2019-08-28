@@ -16,6 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/signals"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
@@ -140,6 +141,10 @@ func main() {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
 	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
+	crClient, err := client.NewClient(*kubeConfigPath)
+	if err != nil {
+		log.Fatalf("error configuring client: %s", err.Error())
+	}
 
 	// Create a new instance of the operator.
 	catalogOperator, err := catalog.NewOperator(*kubeConfigPath, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
@@ -151,7 +156,7 @@ func main() {
 	<-ready
 
 	if *writeStatusName != "" {
-		operatorstatus.MonitorClusterStatus(*writeStatusName, *catalogNamespace, sync, stopCh, opClient, configClient)
+		operatorstatus.MonitorClusterStatus(*writeStatusName, *catalogNamespace, sync, stopCh, opClient, configClient, crClient)
 	}
 
 	<-done
