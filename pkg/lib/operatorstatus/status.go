@@ -14,6 +14,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 
@@ -200,6 +201,16 @@ func MonitorClusterStatus(name string, syncCh <-chan error, stopCh <-chan struct
 				Message: "Waiting for updates to take effect",
 			})
 			// TODO: use % errors within a window to report available
+		}
+
+		// always update the related objects in case changes have occurred
+		existing.Status.RelatedObjects, err = relatedObjects(name, opClient, crClient)
+		if err != nil {
+			log.Errorf("Failed to get related objects: %v", err)
+		}
+		if !reflect.DeepEqual(previousStatus.RelatedObjects, existing.Status.RelatedObjects) {
+			diffString := diff.ObjectDiff(previousStatus.RelatedObjects, existing.Status.RelatedObjects)
+			log.Debugf("Update required for related objects: %v", diffString)
 		}
 
 		// update the status
