@@ -11,8 +11,9 @@ if [ -z "$NO_MINIKUBE" ]; then
   kubectl config use-context minikube
 fi
 
-docker build -f local.Dockerfile -t quay.io/operator-framework/olm:local -t quay.io/operator-framework/olm-e2e:local ./bin
-docker build -f test/e2e/hang.Dockerfile -t hang:10 ./bin
+cp local.Dockerfile test/e2e/hang.Dockerfile bin
+docker build -f bin/local.Dockerfile -t quay.io/operator-framework/olm:local -t quay.io/operator-framework/olm-e2e:local ./bin
+docker build -f bin/hang.Dockerfile -t hang:10 ./bin
 
 if [ -x "$(command -v kind)" ] && [ "$(kubectl config current-context)" = "kind" ]; then
   kind load docker-image quay.io/operator-framework/olm:local
