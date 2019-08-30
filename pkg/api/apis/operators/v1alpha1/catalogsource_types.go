@@ -75,7 +75,7 @@ type RegistryServiceStatus struct {
 }
 
 func (s *RegistryServiceStatus) Address() string {
-	return fmt.Sprintf("%s.%s.svc.cluster.local:%s", s.ServiceName, s.ServiceNamespace, s.Port)
+	return fmt.Sprintf("%s.%s.svc:%s", s.ServiceName, s.ServiceNamespace, s.Port)
 }
 
 type GRPCConnectionState struct {
