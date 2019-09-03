@@ -321,6 +321,17 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	return false
 }
 
+func catalogSourceIsConnectedToRegistryPod(catalog *v1alpha1.CatalogSource) bool {
+	registry := catalog.Status.RegistryServiceStatus
+	connState := catalog.Status.GRPCConnectionState
+	if registry != nil && connState != nil && connState.LastObservedState == "READY" {
+		fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
+		return registryPodHealthy(registry.Address())
+	}
+	fmt.Printf("waiting for catalog pod %v to be available (for sync)\n", catalog.GetName())
+	return false
+}
+
 func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
 	var fetched *v1alpha1.CatalogSource
 	var err error

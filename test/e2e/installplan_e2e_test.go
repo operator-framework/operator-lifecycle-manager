@@ -1148,7 +1148,7 @@ func TestInstallPlanWithDeprecatedVersionCRD(t *testing.T) {
 			defer cleanupCatalogSource()
 
 			// Attempt to get the catalog source before creating install plan(s)
-			_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+			_, err := fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceIsConnectedToRegistryPod)
 			require.NoError(t, err)
 
 			subscriptionName := genName("sub-nginx-")
