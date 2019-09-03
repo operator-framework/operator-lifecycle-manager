@@ -63,18 +63,22 @@ func MonitorClusterStatus(name, namespace string, syncCh <-chan error, stopCh <-
 			syncs++
 			if err == nil {
 				successfulSyncs++
+			} else {
+				log.Debugf("Got error from sync channel: %v", err)
 			}
 			// grab any other sync events that have accumulated
 			for len(syncCh) > 0 {
 				if err := <-syncCh; err == nil {
 					successfulSyncs++
+				} else {
+					log.Debugf("Got error from sync channel with length %v: %v", len(syncCh), err)
 				}
 				syncs++
 			}
 			// if we haven't yet accumulated enough syncs, wait longer
 			// TODO: replace these magic numbers with a better measure of syncs across all queueInformers
-			if successfulSyncs < 5 || syncs < 10 {
-				log.Printf("Waiting to observe more successful syncs")
+			if successfulSyncs < 5 && syncs < 50 {
+				log.Printf("Waiting to observe more successful syncs. Successful count: %v, total count: %v", successfulSyncs, syncs)
 				return
 			}
 		}

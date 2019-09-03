@@ -286,7 +286,7 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	queue.Forget(item)
 
 	select {
-	case o.syncCh <- err:
+	case o.syncCh <- fmt.Errorf("failing always for event %v", event):
 	default:
 	}
 
