@@ -13,26 +13,16 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 )
 
-type fakeProvider struct{}
+type fakeProvider struct {
+	packages []*operators.PackageManifest
 
-var getCalls = 0
+	getCalls int
+}
 
 func (p *fakeProvider) Get(namespace, name string) (*operators.PackageManifest, error) {
-	getCalls = getCalls + 1
+	p.getCalls = p.getCalls + 1
 
-	return &operators.PackageManifest{
-		Status: operators.PackageManifestStatus{
-			Channels: []operators.PackageChannel{
-				{
-					Name:       "stable",
-					CurrentCSV: "csv-a",
-					CurrentCSVDesc: operators.CSVDescription{
-						Icon: []operators.Icon{{Mediatype: "image/png", Base64Data: iconData}},
-					},
-				},
-			},
-		},
-	}, nil
+	return p.packages[0], nil
 }
 
 func (p *fakeProvider) List(namespace string) (*operators.PackageManifestList, error) {
@@ -43,6 +33,7 @@ var _ provider.PackageManifestProvider = &fakeProvider{}
 
 func TestLogoStorageConnect(t *testing.T) {
 	provider := fakeProvider{}
+	provider.packages = append(provider.packages, testPackage())
 	ctx, cancel := context.WithCancel(context.TODO())
 	defer cancel()
 
@@ -70,11 +61,50 @@ func TestLogoStorageConnect(t *testing.T) {
 
 	handler.ServeHTTP(cachedRR, cachedReq)
 	require.Equal(t, http.StatusNotModified, cachedRR.Code)
-	require.Equal(t, 1, getCalls, "PackageManifestProvider.Get() should not be called for cached icon")
+	require.Equal(t, 1, provider.getCalls, "PackageManifestProvider.Get() should not be called for cached icon")
 
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
-	require.Equal(t, 2, getCalls, "PackageManifestProvider.Get() should be called again to fetch icon")
+	require.Equal(t, 2, provider.getCalls, "PackageManifestProvider.Get() should be called again to fetch icon")
+}
+
+func TestLogoStorageConnectDefaultIcon(t *testing.T) {
+	provider := fakeProvider{}
+	provider.packages = append(provider.packages, testPackage())
+	provider.packages[0].Status.Channels = nil
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	storage := NewLogoStorage(v1.Resource("packagemanifests/icon"), &provider)
+
+	rr := httptest.NewRecorder()
+	req, err := http.NewRequest("GET", "", nil)
+	require.NoError(t, err)
+
+	handler, err := storage.Connect(ctx, "pkg-a", nil, nil)
+	require.NoError(t, err)
+
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	require.Equal(t, "image/svg+xml", rr.Header().Get("Content-Type"))
+	require.NotNil(t, rr.Body)
+	require.Equal(t, 1, provider.getCalls, "PackageManifestProvider.Get() should be called for missing icon")
+}
+
+func testPackage() *operators.PackageManifest {
+	return &operators.PackageManifest{
+		Status: operators.PackageManifestStatus{
+			Channels: []operators.PackageChannel{
+				{
+					Name:       "stable",
+					CurrentCSV: "csv-a",
+					CurrentCSVDesc: operators.CSVDescription{
+						Icon: []operators.Icon{{Mediatype: "image/png", Base64Data: iconData}},
+					},
+				},
+			},
+		},
+	}
 }
 
 const iconData = `

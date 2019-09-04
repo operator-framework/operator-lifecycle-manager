@@ -46,22 +46,29 @@ func (s *LogoStorage) Connect(ctx context.Context, name string, options runtime.
 
 		namespace := genericreq.NamespaceValue(ctx)
 		pkg, err := s.prov.Get(namespace, name)
-		if err != nil || pkg == nil || len(pkg.Status.Channels) == 0 || len(pkg.Status.Channels[0].CurrentCSVDesc.Icon) == 0 {
+		if err != nil || pkg == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+		imgBytes, mimeType, etag := func() ([]byte, string, string) {
+			if len(pkg.Status.Channels) == 0 || len(pkg.Status.Channels[0].CurrentCSVDesc.Icon) == 0 {
+				return []byte(defaultIcon), "image/svg+xml", ""
+			} else {
+				data := pkg.Status.Channels[0].CurrentCSVDesc.Icon[0].Base64Data
+				mimeType := pkg.Status.Channels[0].CurrentCSVDesc.Icon[0].Mediatype
+				etag := `"` + strings.Join([]string{name, pkg.Status.Channels[0].Name, pkg.Status.Channels[0].CurrentCSV}, ".") + `"`
 
-		data := pkg.Status.Channels[0].CurrentCSVDesc.Icon[0].Base64Data
-		mimeType := pkg.Status.Channels[0].CurrentCSVDesc.Icon[0].Mediatype
-		etag := `"` + strings.Join([]string{name, pkg.Status.Channels[0].Name, pkg.Status.Channels[0].CurrentCSV}, ".") + `"`
+				reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
+				imgBytes, _ := ioutil.ReadAll(reader)
 
-		reader := base64.NewDecoder(base64.StdEncoding, strings.NewReader(data))
-		imgBytes, err := ioutil.ReadAll(reader)
+				return imgBytes, mimeType, etag
+			}
+		}()
 
 		w.Header().Set("Content-Type", mimeType)
 		w.Header().Set("Content-Length", strconv.Itoa(len(imgBytes)))
 		w.Header().Set("Etag", etag)
-		_, err = w.Write(imgBytes)
+		w.Write(imgBytes)
 	}
 
 	return handler, nil
@@ -90,3 +97,7 @@ func (s *LogoStorage) ProducesMIMETypes(verb string) []string {
 func (s *LogoStorage) ProducesObject(verb string) interface{} {
 	return ""
 }
+
+const defaultIcon string = `
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 258.51 258.51"><defs><style>.cls-1{fill:#d1d1d1;}.cls-2{fill:#8d8d8f;}</style></defs><title>Asset 4</title><g id="Layer_2" data-name="Layer 2"><g id="Layer_1-2" data-name="Layer 1"><path class="cls-1" d="M129.25,20A109.1,109.1,0,0,1,206.4,206.4,109.1,109.1,0,1,1,52.11,52.11,108.45,108.45,0,0,1,129.25,20m0-20h0C58.16,0,0,58.16,0,129.25H0c0,71.09,58.16,129.26,129.25,129.26h0c71.09,0,129.26-58.17,129.26-129.26h0C258.51,58.16,200.34,0,129.25,0Z"/><path class="cls-2" d="M177.54,103.41H141.66L154.9,65.76c1.25-4.4-2.33-8.76-7.21-8.76H102.93a7.32,7.32,0,0,0-7.4,6l-10,69.61c-.59,4.17,2.89,7.89,7.4,7.89h36.9L115.55,197c-1.12,4.41,2.48,8.55,7.24,8.55a7.58,7.58,0,0,0,6.47-3.48L184,113.85C186.86,109.24,183.29,103.41,177.54,103.41Z"/></g></g></svg>
+`
