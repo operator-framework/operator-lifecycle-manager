@@ -97,8 +97,18 @@ func (c *InstallStrategyDeploymentClientForNamespace) DeleteDeployment(name stri
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) CreateOrUpdateDeployment(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	d, _, err := c.opClient.CreateOrRollingUpdateDeployment(deployment)
-	return d, err
+	_, err := c.opClient.GetDeployment(deployment.Namespace, deployment.Name)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		created, err := c.CreateDeployment(deployment)
+		if err != nil {
+			return nil, err
+		}
+		return created, err
+	}
+	return c.opClient.KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace()).Update(deployment)
 }
 
 func (c *InstallStrategyDeploymentClientForNamespace) GetServiceAccountByName(serviceAccountName string) (*corev1.ServiceAccount, error) {
