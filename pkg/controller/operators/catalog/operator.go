@@ -19,7 +19,6 @@ import (
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -915,7 +914,7 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	}
 
 	// Check if any existing installplans are creating the same resources
-	installPlans, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(namespace).List(labels.Everything())
+	installPlans, err := o.listInstallPlans(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -1558,6 +1557,20 @@ func (o *Operator) listSubscriptions(namespace string) (subs []*v1alpha1.Subscri
 	subs = make([]*v1alpha1.Subscription, 0)
 	for i := range list.Items {
 		subs = append(subs, &list.Items[i])
+	}
+
+	return
+}
+
+func (o *Operator) listInstallPlans(namespace string) (ips []*v1alpha1.InstallPlan, err error) {
+	list, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	ips = make([]*v1alpha1.InstallPlan, 0)
+	for i := range list.Items {
+		ips = append(ips, &list.Items[i])
 	}
 
 	return
