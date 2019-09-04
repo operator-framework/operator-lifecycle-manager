@@ -85,7 +85,7 @@ github.com/golang/groupcache/lru
 github.com/golang/mock/mockgen
 github.com/golang/mock/gomock
 github.com/golang/mock/mockgen/model
-# github.com/golang/protobuf v1.2.0
+# github.com/golang/protobuf v1.3.2
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes
@@ -97,7 +97,7 @@ github.com/google/btree
 github.com/google/gofuzz
 # github.com/google/uuid v1.0.0
 github.com/google/uuid
-# github.com/googleapis/gnostic v0.2.0
+# github.com/googleapis/gnostic v0.3.1
 github.com/googleapis/gnostic/OpenAPIv2
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
@@ -214,10 +214,9 @@ golang.org/x/text/internal/utf8internal
 golang.org/x/text/runes
 # golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20190320215829-36c10c0a621f
+# golang.org/x/tools v0.0.0-20190524140312-2c0ae7006135
 golang.org/x/tools/go/packages
 golang.org/x/tools/go/gcexportdata
-golang.org/x/tools/go/internal/cgo
 golang.org/x/tools/go/internal/packagesdriver
 golang.org/x/tools/internal/gopathwalk
 golang.org/x/tools/internal/semver
@@ -226,6 +225,7 @@ golang.org/x/tools/imports
 golang.org/x/tools/go/internal/gcimporter
 golang.org/x/tools/internal/fastwalk
 golang.org/x/tools/go/ast/astutil
+golang.org/x/tools/internal/imports
 golang.org/x/tools/internal/module
 # google.golang.org/appengine v1.5.0
 google.golang.org/appengine/urlfetch
@@ -237,7 +237,7 @@ google.golang.org/appengine/internal/log
 google.golang.org/appengine/internal/remote_api
 # google.golang.org/genproto v0.0.0-20181016170114-94acd270e44e
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.19.1
+# google.golang.org/grpc v1.23.0
 google.golang.org/grpc/connectivity
 google.golang.org/grpc
 google.golang.org/grpc/grpclog
@@ -249,6 +249,7 @@ google.golang.org/grpc/encoding
 google.golang.org/grpc/encoding/proto
 google.golang.org/grpc/internal
 google.golang.org/grpc/internal/backoff
+google.golang.org/grpc/internal/balancerload
 google.golang.org/grpc/internal/binarylog
 google.golang.org/grpc/internal/channelz
 google.golang.org/grpc/internal/envconfig
@@ -262,6 +263,7 @@ google.golang.org/grpc/peer
 google.golang.org/grpc/resolver
 google.golang.org/grpc/resolver/dns
 google.golang.org/grpc/resolver/passthrough
+google.golang.org/grpc/serviceconfig
 google.golang.org/grpc/stats
 google.golang.org/grpc/status
 google.golang.org/grpc/tap
@@ -274,7 +276,7 @@ google.golang.org/grpc/health/grpc_health_v1
 gopkg.in/inf.v0
 # gopkg.in/natefinch/lumberjack.v2 v2.0.0
 gopkg.in/natefinch/lumberjack.v2
-# gopkg.in/yaml.v2 v2.2.1
+# gopkg.in/yaml.v2 v2.2.2
 gopkg.in/yaml.v2
 # k8s.io/api v0.0.0-20190118113203-912cbe2bfef3 => k8s.io/api v0.0.0-20181128191700-6db15a15d2d3
 k8s.io/api/core/v1
@@ -492,6 +494,7 @@ k8s.io/client-go/listers/rbac/v1
 k8s.io/client-go/informers
 k8s.io/client-go/util/workqueue
 k8s.io/client-go/listers/core/v1
+k8s.io/client-go/kubernetes/fake
 k8s.io/client-go/kubernetes/typed/core/v1
 k8s.io/client-go/kubernetes
 k8s.io/client-go/listers/apps/v1
@@ -509,7 +512,6 @@ k8s.io/client-go/util/integer
 k8s.io/client-go/tools/pager
 k8s.io/client-go/util/buffer
 k8s.io/client-go/util/retry
-k8s.io/client-go/kubernetes/fake
 k8s.io/client-go/informers/admissionregistration
 k8s.io/client-go/informers/apps
 k8s.io/client-go/informers/autoscaling
@@ -527,72 +529,72 @@ k8s.io/client-go/informers/scheduling
 k8s.io/client-go/informers/settings
 k8s.io/client-go/informers/storage
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1alpha1
+k8s.io/client-go/kubernetes/typed/admissionregistration/v1alpha1/fake
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1
+k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/apps/v1
+k8s.io/client-go/kubernetes/typed/apps/v1/fake
 k8s.io/client-go/kubernetes/typed/apps/v1beta1
+k8s.io/client-go/kubernetes/typed/apps/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/apps/v1beta2
+k8s.io/client-go/kubernetes/typed/apps/v1beta2/fake
 k8s.io/client-go/kubernetes/typed/authentication/v1
+k8s.io/client-go/kubernetes/typed/authentication/v1/fake
 k8s.io/client-go/kubernetes/typed/authentication/v1beta1
+k8s.io/client-go/kubernetes/typed/authentication/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/authorization/v1
+k8s.io/client-go/kubernetes/typed/authorization/v1/fake
 k8s.io/client-go/kubernetes/typed/authorization/v1beta1
+k8s.io/client-go/kubernetes/typed/authorization/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/autoscaling/v1
+k8s.io/client-go/kubernetes/typed/autoscaling/v1/fake
 k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1
+k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1/fake
 k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2
+k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2/fake
 k8s.io/client-go/kubernetes/typed/batch/v1
+k8s.io/client-go/kubernetes/typed/batch/v1/fake
 k8s.io/client-go/kubernetes/typed/batch/v1beta1
+k8s.io/client-go/kubernetes/typed/batch/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/batch/v2alpha1
+k8s.io/client-go/kubernetes/typed/batch/v2alpha1/fake
 k8s.io/client-go/kubernetes/typed/certificates/v1beta1
+k8s.io/client-go/kubernetes/typed/certificates/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/coordination/v1beta1
+k8s.io/client-go/kubernetes/typed/coordination/v1beta1/fake
+k8s.io/client-go/kubernetes/typed/core/v1/fake
 k8s.io/client-go/kubernetes/typed/events/v1beta1
+k8s.io/client-go/kubernetes/typed/events/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/extensions/v1beta1
+k8s.io/client-go/kubernetes/typed/extensions/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/networking/v1
+k8s.io/client-go/kubernetes/typed/networking/v1/fake
 k8s.io/client-go/kubernetes/typed/policy/v1beta1
+k8s.io/client-go/kubernetes/typed/policy/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/rbac/v1
+k8s.io/client-go/kubernetes/typed/rbac/v1/fake
 k8s.io/client-go/kubernetes/typed/rbac/v1alpha1
+k8s.io/client-go/kubernetes/typed/rbac/v1alpha1/fake
 k8s.io/client-go/kubernetes/typed/rbac/v1beta1
+k8s.io/client-go/kubernetes/typed/rbac/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1
+k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1/fake
 k8s.io/client-go/kubernetes/typed/scheduling/v1beta1
+k8s.io/client-go/kubernetes/typed/scheduling/v1beta1/fake
 k8s.io/client-go/kubernetes/typed/settings/v1alpha1
+k8s.io/client-go/kubernetes/typed/settings/v1alpha1/fake
 k8s.io/client-go/kubernetes/typed/storage/v1
+k8s.io/client-go/kubernetes/typed/storage/v1/fake
 k8s.io/client-go/kubernetes/typed/storage/v1alpha1
+k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake
 k8s.io/client-go/kubernetes/typed/storage/v1beta1
+k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake
 k8s.io/client-go/util/jsonpath
 k8s.io/client-go/tools/clientcmd/api/v1
 k8s.io/client-go/pkg/apis/clientauthentication
 k8s.io/client-go/pkg/apis/clientauthentication/v1alpha1
 k8s.io/client-go/pkg/apis/clientauthentication/v1beta1
 k8s.io/client-go/util/connrotation
-k8s.io/client-go/kubernetes/typed/admissionregistration/v1alpha1/fake
-k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/apps/v1/fake
-k8s.io/client-go/kubernetes/typed/apps/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/apps/v1beta2/fake
-k8s.io/client-go/kubernetes/typed/authentication/v1/fake
-k8s.io/client-go/kubernetes/typed/authentication/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/authorization/v1/fake
-k8s.io/client-go/kubernetes/typed/authorization/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/autoscaling/v1/fake
-k8s.io/client-go/kubernetes/typed/autoscaling/v2beta1/fake
-k8s.io/client-go/kubernetes/typed/autoscaling/v2beta2/fake
-k8s.io/client-go/kubernetes/typed/batch/v1/fake
-k8s.io/client-go/kubernetes/typed/batch/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/batch/v2alpha1/fake
-k8s.io/client-go/kubernetes/typed/certificates/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/coordination/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/core/v1/fake
-k8s.io/client-go/kubernetes/typed/events/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/extensions/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/networking/v1/fake
-k8s.io/client-go/kubernetes/typed/policy/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/rbac/v1/fake
-k8s.io/client-go/kubernetes/typed/rbac/v1alpha1/fake
-k8s.io/client-go/kubernetes/typed/rbac/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/scheduling/v1alpha1/fake
-k8s.io/client-go/kubernetes/typed/scheduling/v1beta1/fake
-k8s.io/client-go/kubernetes/typed/settings/v1alpha1/fake
-k8s.io/client-go/kubernetes/typed/storage/v1/fake
-k8s.io/client-go/kubernetes/typed/storage/v1alpha1/fake
-k8s.io/client-go/kubernetes/typed/storage/v1beta1/fake
 k8s.io/client-go/informers/admissionregistration/v1alpha1
 k8s.io/client-go/informers/admissionregistration/v1beta1
 k8s.io/client-go/informers/apps/v1

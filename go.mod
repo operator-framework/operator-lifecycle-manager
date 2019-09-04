@@ -25,8 +25,8 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
 	github.com/google/btree v1.0.0 // indirect
-	github.com/google/go-cmp v0.2.0 // indirect
 	github.com/google/gofuzz v1.0.0 // indirect
+	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.8.5 // indirect
 	github.com/json-iterator/go v1.1.6 // indirect
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.0.2
@@ -44,7 +44,7 @@ require (
 	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	google.golang.org/appengine v1.5.0 // indirect
-	google.golang.org/grpc v1.19.1
+	google.golang.org/grpc v1.23.0
 	gotest.tools v2.2.0+incompatible // indirect
 	k8s.io/api v0.0.0-20190118113203-912cbe2bfef3
 	k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
