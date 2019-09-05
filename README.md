@@ -1,6 +1,11 @@
-[![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) [![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog)[![pipeline status](https://gitlab.com/operator-framework/operator-framework_operator-lifecycle-manager/badges/master/pipeline.svg)](https://gitlab.com/operator-framework/operator-framework_operator-lifecycle-manager/pipelines)
-
 <img src="/logo.svg" height="125px" alt="Operator Lifecycle Manager"></img>
+
+[![Docker Repository on Quay](https://quay.io/repository/coreos/alm/status?token=ccfd2fde-446d-4d82-88a8-4386f8deaab0 "Docker Repository on Quay")](https://quay.io/repository/coreos/alm) 
+[![Docker Repository on Quay](https://quay.io/repository/coreos/catalog/status?token=b5fc43ed-9f5f-408b-961b-c8493e983da5 "Docker Repository on Quay")](https://quay.io/repository/coreos/catalog) 
+[![License](http://img.shields.io/:license-apache-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0.html)
+[![Go Report Card](https://goreportcard.com/badge/github.com/operator-framework/operator-lifecycle-manager)](https://goreportcard.com/report/github.com/operator-framework/operator-lifecycle-manager)
+
+## Overview
 
 This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://coreos.com/blog/introducing-operator-framework).
 
@@ -19,15 +24,39 @@ This project does not:
 * Replace [Helm](https://github.com/kubernetes/helm)
 * Turn Kubernetes into a [PaaS](https://en.wikipedia.org/wiki/Platform_as_a_service)
 
+## Prerequisites
+
+- [git][git_tool]
+- [go][go_tool] version v1.12+.
+- [docker][docker_tool] version 17.03+.
+  - Alternatively [podman][podman_tool] `v1.2.0+` or [buildah][buildah_tool] `v1.7+`
+- [kubectl][kubectl_tool] version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
+
 ## Getting Started 
 
-#### Installation
+### Installation
 
 Install OLM on a Kubernetes or OpenShift cluster by following the [installation guide].
 
 For a complete end-to-end example of how OLM fits into the Operator Framework, see the [Operator Framework Getting Started Guide](https://github.com/operator-framework/getting-started).
 
-#### Kubernetes-native Applications
+### User Interface
+
+Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
+
+Ensure `kubectl` is pointing at a cluster and run:
+
+```shell
+$ make run-console-local
+```
+
+Then visit `http://localhost:9000` to view the console.
+
+**Subscription detail view:**
+![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
+
+## Kubernetes-native Applications
 
 An Operator is an application-specific controller that extends the Kubernetes API to create, configure, manage, and operate instances of complex applications on behalf of a user.
 
@@ -41,11 +70,6 @@ The primary vehicle for describing operator requirements with OLM is a [`Cluster
 ClusterServiceVersions can be collected into `CatalogSource`s which will allow automated installation and dependency resolution via an `InstallPlan`, and can be kept up-to-date with a `Subscription`.
 
 Learn more about the components used by OLM by reading about the [architecture] and [philosophy].
-
-[architecture]: /Documentation/design/architecture.md
-[philosophy]: /Documentation/design/philosophy.md
-[installation guide]: /Documentation/install/install.md
-
 
 # Key Concepts
 
@@ -108,17 +132,26 @@ This will keep the etcd `ClusterServiceVersion` up to date as new versions becom
 
 Catalogs are served internally over a grpc interface to OLM from [operator-registry](https://github.com/operator-framework/operator-registry) pods.
 
-### User Interface
+## Samples
 
-Use the OpenShift admin console (compatible with upstream Kubernetes) to interact with and visualize the resources managed by OLM. Create subscriptions, approve install plans, identify Operator-managed resources, and more.
+To explore any operator samples using the OLM, see the [https://operatorhub.io/](https://operatorhub.io/) and its resources in [Community Operators](https://github.com/operator-framework/community-operators/tree/master/upstream-community-operators). 
 
-Ensure `kubectl` is pointing at a cluster and run:
+## Contributing
 
-```shell
-$ make run-console-local
-```
+See the [proposal docs][proposals_docs] and issues for ongoing or planned work.
 
-Then visit `http://localhost:9000` to view the console.
+## License
 
-**Subscription detail view:**
-![screenshot_20180628_165240](https://user-images.githubusercontent.com/11700385/42060125-c3cde42c-7af3-11e8-87ec-e5910a554902.png)
+Operator Lifecycle Manager is under Apache 2.0 license. See the [LICENSE][license_file] file for details.
+
+[architecture]: /Documentation/design/architecture.md
+[philosophy]: /Documentation/design/philosophy.md
+[installation guide]: /Documentation/install/install.md
+[git_tool]:https://git-scm.com/downloads
+[go_tool]:https://golang.org/dl/
+[docker_tool]:https://docs.docker.com/install/
+[podman_tool]:https://github.com/containers/libpod/blob/master/install.md
+[buildah_tool]:https://github.com/containers/buildah/blob/master/install.md
+[kubectl_tool]:https://kubernetes.io/docs/tasks/tools/install-kubectl/
+[proposals_docs]: ./Documentation/contributors/design-proposals
+[license_file]:./LICENSE
