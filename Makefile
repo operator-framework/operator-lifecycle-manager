@@ -80,13 +80,13 @@ run-local: build-linux build-wait
 	rm -rf build
 	. ./scripts/build_local.sh
 	mkdir -p build/resources
-	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
+	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
 
 deploy-local:
 	mkdir -p build/resources
-	. ./scripts/package_release.sh 1.0.0 build/resources Documentation/install/local-values.yaml
+	. ./scripts/package_release.sh 1.0.0 build/resources doc/install/local-values.yaml
 	. ./scripts/install_local.sh $(LOCAL_NAMESPACE) build/resources
 	rm -rf build
 
