@@ -264,12 +264,12 @@ func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestLis
 				pkg, err := client.GetPackage(context.Background(), &api.GetPackageRequest{Name: pkgName.GetName()})
 				if err != nil {
 					logger.WithField("err", err.Error()).Warnf("error getting package")
-					break
+					continue
 				}
-				newPkg, err := toPackageManifest(pkg, client)
+				newPkg, err := toPackageManifest(logger, pkg, client)
 				if err != nil {
-					logger.WithField("err", err.Error()).Warnf("error converting to packagemanifest")
-					break
+					logger.WithField("err", err.Error()).Warnf("eliding package: error converting to packagemanifest")
+					continue
 				}
 
 				// Set request namespace to stop kube clients from complaining about global namespace mismatch.
@@ -284,7 +284,7 @@ func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestLis
 	return &operators.PackageManifestList{Items: pkgs}, nil
 }
 
-func toPackageManifest(pkg *api.Package, client registryClient) (*operators.PackageManifest, error) {
+func toPackageManifest(logger *logrus.Entry, pkg *api.Package, client registryClient) (*operators.PackageManifest, error) {
 	pkgChannels := pkg.GetChannels()
 	catsrc := client.source
 	manifest := &operators.PackageManifest{
@@ -302,36 +302,53 @@ func toPackageManifest(pkg *api.Package, client registryClient) (*operators.Pack
 			CatalogSourcePublisher:   catsrc.Spec.Publisher,
 			CatalogSourceNamespace:   catsrc.GetNamespace(),
 			PackageName:              pkg.Name,
-			Channels:                 make([]operators.PackageChannel, len(pkgChannels)),
 			DefaultChannel:           pkg.GetDefaultChannelName(),
 		},
 	}
 
-	for i, pkgChannel := range pkgChannels {
+	var (
+		providerSet   bool
+		defaultElided bool
+	)
+	for _, pkgChannel := range pkgChannels {
 		bundle, err := client.GetBundleForChannel(context.Background(), &api.GetBundleInChannelRequest{PkgName: pkg.GetName(), ChannelName: pkgChannel.GetName()})
 		if err != nil {
-			return nil, err
+			logger.WithError(err).WithField("channel", pkgChannel.GetName()).Warn("error getting bundle, eliding channel")
+			defaultElided = defaultElided || pkgChannel.Name == manifest.Status.DefaultChannel
+			continue
 		}
 
 		csv := operatorsv1alpha1.ClusterServiceVersion{}
 		err = json.Unmarshal([]byte(bundle.GetCsvJson()), &csv)
 		if err != nil {
-			return nil, err
+			logger.WithError(err).WithField("channel", pkgChannel.GetName()).Warn("error unmarshaling csv, eliding channel")
+			defaultElided = defaultElided || pkgChannel.Name == manifest.Status.DefaultChannel
+			continue
 		}
-		manifest.Status.Channels[i] = operators.PackageChannel{
+		manifest.Status.Channels = append(manifest.Status.Channels, operators.PackageChannel{
 			Name:           pkgChannel.GetName(),
 			CurrentCSV:     csv.GetName(),
 			CurrentCSVDesc: operators.CreateCSVDescription(&csv),
-		}
+		})
 
-		if manifest.Status.DefaultChannel != "" && pkgChannel.GetName() == manifest.Status.DefaultChannel || i == 0 {
+		if manifest.Status.DefaultChannel != "" && pkgChannel.GetName() == manifest.Status.DefaultChannel || !providerSet {
 			manifest.Status.Provider = operators.AppLink{
 				Name: csv.Spec.Provider.Name,
 				URL:  csv.Spec.Provider.URL,
 			}
 			manifest.ObjectMeta.Labels["provider"] = manifest.Status.Provider.Name
 			manifest.ObjectMeta.Labels["provider-url"] = manifest.Status.Provider.URL
+			providerSet = true
 		}
+	}
+
+	if len(manifest.Status.Channels) == 0 {
+		return nil, fmt.Errorf("packagemanifest has no valid channels")
+	}
+
+	if defaultElided {
+		logger.Warn("default channel elided, setting as first in packagemanifest")
+		manifest.Status.DefaultChannel = manifest.Status.Channels[0].Name
 	}
 
 	return manifest, nil
