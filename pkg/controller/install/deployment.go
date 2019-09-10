@@ -7,6 +7,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/diff"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -160,6 +161,9 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 	}
 
 	if err := i.installDeployments(strategy.DeploymentSpecs); err != nil {
+		if k8serrors.IsForbidden(err) {
+			return StrategyError{Reason: StrategyErrInsufficientPermissions, Message: fmt.Sprintf("install strategy failed: %s", err)}
+		}
 		return err
 	}
 

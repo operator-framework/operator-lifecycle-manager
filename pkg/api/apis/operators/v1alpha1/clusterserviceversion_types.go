@@ -231,6 +231,7 @@ const (
 	CSVReasonRequirementsMet                             ConditionReason = "AllRequirementsMet"
 	CSVReasonOwnerConflict                               ConditionReason = "OwnerConflict"
 	CSVReasonComponentFailed                             ConditionReason = "InstallComponentFailed"
+	CSVReasonComponentFailedNoRetry						 ConditionReason = "InstallComponentFailedNoRetry"
 	CSVReasonInvalidStrategy                             ConditionReason = "InvalidInstallStrategy"
 	CSVReasonWaiting                                     ConditionReason = "InstallWaiting"
 	CSVReasonInstallSuccessful                           ConditionReason = "InstallSucceeded"

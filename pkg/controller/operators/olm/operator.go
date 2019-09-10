@@ -1119,6 +1119,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		"phase":     in.Status.Phase,
 	})
 
+	if in.Status.Reason == v1alpha1.CSVReasonComponentFailedNoRetry {
+		// will change phase out of failed-no-retry in the event of an intentional requeue
+		logger.Debugf("skipping sync for CSV in failed-no-retry state")
+		return
+	}
+
 	out = in.DeepCopy()
 	now := a.now()
 
@@ -1308,6 +1314,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		if syncError = installer.Install(strategy); syncError != nil {
+			if install.IsErrorUnrecoverable(syncError) {
+				logger.Infof("Setting CSV reason to failed without retry: %v", syncError)
+				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailedNoRetry, fmt.Sprintf("install strategy failed: %s", syncError), now, a.recorder)
+				return
+			}
 			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install strategy failed: %s", syncError), now, a.recorder)
 			return
 		}
