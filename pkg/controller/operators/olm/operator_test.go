@@ -25,7 +25,6 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
-	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -44,6 +43,8 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
+	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
+
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -61,7 +62,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-registry/pkg/registry"
-	configfake "github.com/openshift/client-go/config/clientset/versioned/fake"
 )
 
 type TestStrategy struct{}
@@ -359,7 +359,6 @@ func deployment(deploymentName, namespace, serviceAccountName string, templateAn
 		},
 		Status: appsv1.DeploymentStatus{
 			Replicas:          singleInstance,
-			ReadyReplicas:     singleInstance,
 			AvailableReplicas: singleInstance,
 			UpdatedReplicas:   singleInstance,
 		},
@@ -3037,6 +3036,8 @@ func TestTransitionCSV(t *testing.T) {
 	}
 }
 
+// TestUpdates verifies that a set of expected phase transitions occur when multiple CSVs are present
+// and that they do not depend on sync order or event order
 func TestUpdates(t *testing.T) {
 	// A - replacedby -> B - replacedby -> C
 	namespace := "ns"
@@ -3073,14 +3074,13 @@ func TestUpdates(t *testing.T) {
 	}
 
 	deleted := v1alpha1.ClusterServiceVersionPhase("deleted")
-	noPrevious := v1alpha1.ClusterServiceVersionPhase("NoPrevious")
-
+	deploymentName := "csv1-dep1"
 	crd := crd("c1", "v1", "g1")
 	a := csv("csvA",
 		namespace,
 		"0.0.0",
 		"",
-		installStrategy("csv1-dep1", nil, nil),
+		installStrategy(deploymentName, nil, nil),
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone)
@@ -3088,7 +3088,7 @@ func TestUpdates(t *testing.T) {
 		namespace,
 		"0.0.0",
 		"csvA",
-		installStrategy("csv1-dep1", nil, nil),
+		installStrategy(deploymentName, nil, nil),
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone)
@@ -3096,175 +3096,140 @@ func TestUpdates(t *testing.T) {
 		namespace,
 		"0.0.0",
 		"csvB",
-		installStrategy("csv1-dep1", nil, nil),
+		installStrategy(deploymentName, nil, nil),
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone)
 
-	type csvPhases map[string][]v1alpha1.ClusterServiceVersionPhase
+	simulateSuccessfulRollout := func(csv *v1alpha1.ClusterServiceVersion, client operatorclient.ClientInterface) {
+		// get the deployment, which should exist
+		dep, err := client.GetDeployment(namespace, deploymentName)
+		require.NoError(t, err)
+
+		// force it healthy
+		dep.Status.Replicas = 1
+		dep.Status.UpdatedReplicas = 1
+		dep.Status.AvailableReplicas = 1
+		_, err = client.KubernetesInterface().AppsV1().Deployments(namespace).UpdateStatus(dep)
+		require.NoError(t, err)
+	}
+
+	// when csv A is in phase, X, expect B and C to be in state Y
+	type csvPhaseKey struct {
+		name  string
+		phase v1alpha1.ClusterServiceVersionPhase
+	}
+	type expectation struct {
+		whenIn   csvPhaseKey
+		shouldBe map[string]v1alpha1.ClusterServiceVersionPhase
+	}
+	// for a given CSV and phase, set the expected phases of the other CSVs
+	expected := []expectation{
+		{
+			whenIn: csvPhaseKey{name: a.GetName(), phase: v1alpha1.CSVPhaseNone},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				b.GetName(): v1alpha1.CSVPhaseNone,
+				c.GetName(): v1alpha1.CSVPhaseNone,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: a.GetName(), phase: v1alpha1.CSVPhasePending},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				b.GetName(): v1alpha1.CSVPhasePending,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: a.GetName(), phase: v1alpha1.CSVPhaseInstallReady},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				b.GetName(): v1alpha1.CSVPhasePending,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: a.GetName(), phase: v1alpha1.CSVPhaseInstalling},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				b.GetName(): v1alpha1.CSVPhasePending,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: a.GetName(), phase: v1alpha1.CSVPhaseSucceeded},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				b.GetName(): v1alpha1.CSVPhasePending,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: b.GetName(), phase: v1alpha1.CSVPhaseInstallReady},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				a.GetName(): v1alpha1.CSVPhaseReplacing,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: b.GetName(), phase: v1alpha1.CSVPhaseInstalling},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				a.GetName(): v1alpha1.CSVPhaseReplacing,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: b.GetName(), phase: v1alpha1.CSVPhaseSucceeded},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				a.GetName(): v1alpha1.CSVPhaseDeleting,
+				c.GetName(): v1alpha1.CSVPhasePending,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: c.GetName(), phase: v1alpha1.CSVPhaseInstallReady},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				a.GetName(): deleted,
+				b.GetName(): v1alpha1.CSVPhaseReplacing,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: c.GetName(), phase: v1alpha1.CSVPhaseInstalling},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				a.GetName(): deleted,
+				b.GetName(): v1alpha1.CSVPhaseReplacing,
+			},
+		},
+		{
+			whenIn: csvPhaseKey{name: c.GetName(), phase: v1alpha1.CSVPhaseSucceeded},
+			shouldBe: map[string]v1alpha1.ClusterServiceVersionPhase{
+				a.GetName(): deleted,
+				b.GetName(): deleted,
+			},
+		},
+	}
 	tests := []struct {
-		name     string
-		in       []*v1alpha1.ClusterServiceVersion
-		expected map[string][]v1alpha1.ClusterServiceVersionPhase
+		name string
+		in   []*v1alpha1.ClusterServiceVersion
 	}{
 		{
 			name: "abc",
 			in:   []*v1alpha1.ClusterServiceVersion{a, b, c},
-			expected: csvPhases{
-				"csvA": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseDeleting,
-					deleted,
-					deleted,
-					deleted,
-				},
-				"csvB": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseDeleting,
-					deleted,
-				},
-				"csvC": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseSucceeded,
-				},
-			},
+		},
+		{
+			name: "acb",
+			in:   []*v1alpha1.ClusterServiceVersion{a, c, b},
 		},
 		{
 			name: "bac",
 			in:   []*v1alpha1.ClusterServiceVersion{b, a, c},
-			expected: csvPhases{
-				"csvB": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseDeleting,
-					deleted,
-				},
-				"csvA": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseDeleting,
-					deleted,
-					deleted,
-					deleted,
-					deleted,
-				},
-				"csvC": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseSucceeded,
-				},
-			},
+		},
+		{
+			name: "bca",
+			in:   []*v1alpha1.ClusterServiceVersion{b, c, a},
 		},
 		{
 			name: "cba",
+			in:   []*v1alpha1.ClusterServiceVersion{c, b, a},
+		},
+		{
+			name: "cab",
 			in:   []*v1alpha1.ClusterServiceVersion{c, a, b},
-			expected: csvPhases{
-				"csvC": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseSucceeded,
-				},
-				"csvB": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseDeleting,
-					deleted,
-					deleted,
-				},
-				"csvA": {
-					v1alpha1.CSVPhaseNone,
-					v1alpha1.CSVPhasePending,
-					v1alpha1.CSVPhaseInstallReady,
-					v1alpha1.CSVPhaseInstalling,
-					v1alpha1.CSVPhaseSucceeded,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseReplacing,
-					v1alpha1.CSVPhaseDeleting,
-					deleted,
-					deleted,
-					deleted,
-					deleted,
-				},
-			},
 		},
 	}
 	for _, tt := range tests {
@@ -3283,66 +3248,87 @@ func TestUpdates(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			// Create input CSV set
-			for _, csv := range tt.in {
-				_, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(csv)
-				require.NoError(t, err)
+			// helper to get the latest view of a set of CSVs from the set - we only expect no errors if not deleted
+			fetchLatestCSVs := func(csvsToSync map[string]*v1alpha1.ClusterServiceVersion, deleted map[string]struct{}) (out map[string]*v1alpha1.ClusterServiceVersion) {
+				out = map[string]*v1alpha1.ClusterServiceVersion{}
+				for name := range csvsToSync {
+					fetched, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+					if _, ok := deleted[name]; !ok {
+						require.NoError(t, err)
+						out[name] = fetched
+					}
+				}
+				return out
 			}
 
-			for i := range tt.expected["csvA"] {
-				// sync all csvs once
-				for _, csv := range tt.in {
-					name := csv.GetName()
-					expectedCurrent := tt.expected[name][i]
-					var expectedPrevious v1alpha1.ClusterServiceVersionPhase
-					if i > 0 {
-						expectedPrevious = tt.expected[name][i-1]
-					} else {
-						expectedPrevious = noPrevious
-					}
-
-					if expectedPrevious == deleted {
-						// don't sync previously deleted csvs
-						continue
-					}
-
-					// Get the CSV from the cluster
-					fetched, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
-					require.NoError(t, err)
-
-					// Sync the CSV once
-					_ = op.syncClusterServiceVersion(fetched)
-
-					// If the csv was deleted by the sync, we don't bother waiting for listers to sync
-					if expectedCurrent == deleted {
-						continue
-					}
-
-					// If we expect a change, wait for listers to sync the change so that the next sync reflects the changes
-					if expectedCurrent != expectedPrevious {
-						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
-							updated, err := op.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(namespace).Get(csv.GetName())
-							if k8serrors.IsNotFound(err) {
-								return false, nil
-							}
-							return !equality.Semantic.DeepEqual(updated, fetched), err
-						})
+			// helper to sync a set of csvs, in order, and return the latest view from the cluster
+			syncCSVs := func(csvsToSync map[string]*v1alpha1.ClusterServiceVersion, deleted map[string]struct{}) (out map[string]*v1alpha1.ClusterServiceVersion) {
+				for name, csv := range csvsToSync {
+					_ = op.syncClusterServiceVersion(csv)
+					if _, ok := deleted[name]; !ok {
 						require.NoError(t, err)
 					}
 				}
+				return fetchLatestCSVs(csvsToSync, deleted)
+			}
 
-				// check that each csv is in the expected phase
-				for _, csv := range tt.in {
-					expectedPhase := tt.expected[csv.GetName()][i]
-					if expectedPhase != deleted {
-						fetched, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
-						require.NoError(t, err)
-						t.Logf("%s - %v", csv.GetName(), fetched.Status)
-						require.Equal(t, string(expectedPhase), string(fetched.Status.Phase), "incorrect phase for %s at index %d", csv.GetName(), i)
-					} else {
-						_, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(csv.GetName(), metav1.GetOptions{})
-						require.Error(t, err)
+			// helper, given a set of expectations, pull out which entries we expect to have been deleted from the cluster
+			deletedCSVs := func(shouldBe map[string]v1alpha1.ClusterServiceVersionPhase) map[string]struct{} {
+				out := map[string]struct{}{}
+				for name, phase := range shouldBe {
+					if phase != deleted {
+						continue
 					}
+					out[name] = struct{}{}
+				}
+				return out
+			}
+
+			// Create input CSV set
+			csvsToSync := map[string]*v1alpha1.ClusterServiceVersion{}
+			for _, csv := range tt.in {
+				_, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Create(csv)
+				require.NoError(t, err)
+				csvsToSync[csv.GetName()] = csv
+			}
+
+			for _, e := range expected {
+				// get the latest view from the cluster
+				csvsToSync = fetchLatestCSVs(csvsToSync, deletedCSVs(e.shouldBe))
+
+				// sync the current csv until it's reached the expected status
+				current := csvsToSync[e.whenIn.name]
+
+				if current.Status.Phase == v1alpha1.CSVPhaseInstalling {
+					simulateSuccessfulRollout(current, op.opClient)
+				}
+				for current.Status.Phase != e.whenIn.phase {
+					fmt.Printf("waiting for (when) %s to be %s\n", e.whenIn.name, e.whenIn.phase)
+					csvsToSync = syncCSVs(csvsToSync, deletedCSVs(e.shouldBe))
+					current = csvsToSync[e.whenIn.name]
+				}
+
+				// sync the other csvs until they're in the expected status
+				for name, phase := range e.shouldBe {
+					if phase == deleted {
+						// todo verify deleted
+						continue
+					}
+					other := csvsToSync[name]
+					for other.Status.Phase != phase {
+						fmt.Printf("waiting for %s to be %s\n", name, phase)
+						_ = op.syncClusterServiceVersion(other)
+						other, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(name, metav1.GetOptions{})
+						require.NoError(t, err)
+					}
+					csvsToSync[name] = other
+				}
+
+				for name, phase := range e.shouldBe {
+					if phase == deleted {
+						continue
+					}
+					require.Equal(t, phase, csvsToSync[name].Status.Phase)
 				}
 			}
 		})
@@ -3371,13 +3357,13 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 		},
 	}
-
+	deploymentName := "csv1-dep1"
 	crd := crd("c1", "v1", "fake.api.group")
 	operatorCSV := csvWithLabels(csv("csv1",
 		operatorNamespace,
 		"0.0.0",
 		"",
-		installStrategy("csv1-dep1", permissions, nil),
+		installStrategy(deploymentName, permissions, nil),
 		[]*v1beta1.CustomResourceDefinition{crd},
 		[]*v1beta1.CustomResourceDefinition{},
 		v1alpha1.CSVPhaseNone,
@@ -3481,7 +3467,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	ownerutil.AddNonBlockingOwner(serviceAccount, operatorCSV)
 
-	ownedDeployment := deployment("csv1-dep1", operatorNamespace, serviceAccount.GetName(), nil)
+	ownedDeployment := deployment(deploymentName, operatorNamespace, serviceAccount.GetName(), nil)
 	ownerutil.AddNonBlockingOwner(ownedDeployment, operatorCSV)
 
 	annotatedDeployment := ownedDeployment.DeepCopy()
@@ -4241,6 +4227,19 @@ func TestSyncOperatorGroups(t *testing.T) {
 			)
 			require.NoError(t, err)
 
+			simulateSuccessfulRollout := func(csv *v1alpha1.ClusterServiceVersion, client operatorclient.ClientInterface) {
+				// get the deployment, which should exist
+				dep, err := client.GetDeployment(tt.initial.operatorGroup.GetNamespace(), deploymentName)
+				require.NoError(t, err)
+
+				// force it healthy
+				dep.Status.Replicas = 1
+				dep.Status.UpdatedReplicas = 1
+				dep.Status.AvailableReplicas = 1
+				_, err = client.KubernetesInterface().AppsV1().Deployments(tt.initial.operatorGroup.GetNamespace()).UpdateStatus(dep)
+				require.NoError(t, err)
+			}
+
 			err = op.syncOperatorGroups(tt.initial.operatorGroup)
 			require.NoError(t, err)
 
@@ -4270,7 +4269,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 				require.NoError(t, err)
 
 				for i, obj := range opGroupCSVs.Items {
-
+					if obj.Status.Phase == v1alpha1.CSVPhaseInstalling {
+						simulateSuccessfulRollout(&obj, op.opClient)
+					}
 					err = op.syncClusterServiceVersion(&obj)
 					require.NoError(t, err, "%#v", obj)
 
