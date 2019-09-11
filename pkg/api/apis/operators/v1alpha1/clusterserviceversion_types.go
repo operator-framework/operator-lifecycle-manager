@@ -231,7 +231,7 @@ const (
 	CSVReasonRequirementsMet                             ConditionReason = "AllRequirementsMet"
 	CSVReasonOwnerConflict                               ConditionReason = "OwnerConflict"
 	CSVReasonComponentFailed                             ConditionReason = "InstallComponentFailed"
-	CSVReasonComponentFailedNoRetry						 ConditionReason = "InstallComponentFailedNoRetry"
+	CSVReasonComponentFailedNoRetry                      ConditionReason = "InstallComponentFailedNoRetry"
 	CSVReasonInvalidStrategy                             ConditionReason = "InvalidInstallStrategy"
 	CSVReasonWaiting                                     ConditionReason = "InstallWaiting"
 	CSVReasonInstallSuccessful                           ConditionReason = "InstallSucceeded"
@@ -252,6 +252,7 @@ const (
 	CSVReasonTooManyOperatorGroups                       ConditionReason = "TooManyOperatorGroups"
 	CSVReasonInterOperatorGroupOwnerConflict             ConditionReason = "InterOperatorGroupOwnerConflict"
 	CSVReasonCannotModifyStaticOperatorGroupProvidedAPIs ConditionReason = "CannotModifyStaticOperatorGroupProvidedAPIs"
+	CSVReasonDetectedClusterChange                       ConditionReason = "DetectedClusterChange"
 )
 
 // Conditions appear in the status as a record of state transitions on the ClusterServiceVersion

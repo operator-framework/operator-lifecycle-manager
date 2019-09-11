@@ -679,6 +679,29 @@ func (a *Operator) syncObject(obj interface{}) (syncError error) {
 		a.requeueCSVsByLabelSet(logger, labelSets...)
 	}
 
+	// Requeue CSVs that have the reason of `CSVReasonComponentFailedNoRetry` in the case of an RBAC change
+	var errs []error
+	related, _ := scoped.IsObjectRBACRelated(metaObj)
+	if related {
+		csvList := a.csvSet(metaObj.GetNamespace(), v1alpha1.CSVPhaseFailed)
+		for _, csv := range csvList {
+			if csv.Status.Reason != v1alpha1.CSVReasonComponentFailedNoRetry {
+				continue
+			}
+			csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonDetectedClusterChange, "Cluster resources changed state", a.now())
+			_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+				errs = append(errs, err)
+			}
+			logger.Debug("Requeuing CSV due to detected RBAC change")
+		}
+	}
+
+	syncError = utilerrors.NewAggregate(errs)
 	return nil
 }
 
@@ -1096,6 +1119,12 @@ func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logg
 			if targetNamespaceList, err := a.getOperatorGroupTargets(operatorGroup); err == nil && len(targetNamespaceList) == 0 {
 				csv.SetPhaseWithEventIfChanged(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoTargetNamespaces, "no targetNamespaces are matched operatorgroups namespace selection", now, a.recorder)
 			}
+			logger.Debug("CSV not in operatorgroup, requeuing operator group")
+			// this requeue helps when an operator group has not annotated a CSV due to a permissions error
+			// but the permissions issue has now been resolved
+			if err := a.ogQueueSet.Requeue(operatorGroup.GetNamespace(), operatorGroup.GetName()); err != nil {
+				return nil, err
+			}
 			return nil, nil
 		}
 		logger.Info("csv in operatorgroup")
@@ -1120,7 +1149,7 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	})
 
 	if in.Status.Reason == v1alpha1.CSVReasonComponentFailedNoRetry {
-		// will change phase out of failed-no-retry in the event of an intentional requeue
+		// will change phase out of failed in the event of an intentional requeue
 		logger.Debugf("skipping sync for CSV in failed-no-retry state")
 		return
 	}
