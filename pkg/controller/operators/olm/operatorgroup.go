@@ -53,10 +53,33 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		"namespace":     op.GetNamespace(),
 	})
 
+	previousRef := op.Status.ServiceAccountRef.DeepCopy()
 	op, err := a.serviceAccountSyncer.SyncOperatorGroup(op)
 	if err != nil {
 		logger.Errorf("error updating service account - %v", err)
 		return err
+	}
+	if op.Status.ServiceAccountRef != previousRef {
+		crdList, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		for _, csv := range crdList {
+			if group, ok := csv.GetAnnotations()[v1.OperatorGroupAnnotationKey]; !ok || group != op.GetName() {
+				continue
+			}
+			if csv.Status.Reason == v1alpha1.CSVReasonComponentFailedNoRetry {
+				csv.SetPhase(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonDetectedClusterChange, "Cluster resources changed state", a.now())
+				_, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(csv.GetNamespace()).UpdateStatus(csv)
+				if err != nil {
+					return err
+				}
+				if err := a.csvQueueSet.Requeue(csv.GetNamespace(), csv.GetName()); err != nil {
+					return err
+				}
+				logger.Debug("Requeuing CSV due to detected service account change")
+			}
+		}
 	}
 
 	targetNamespaces, err := a.updateNamespaceList(op)

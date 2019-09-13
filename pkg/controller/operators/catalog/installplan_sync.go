@@ -7,11 +7,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 // When a user adds permission to a ServiceAccount by creating or updating
@@ -26,7 +25,7 @@ func (o *Operator) triggerInstallPlanRetry(obj interface{}) (syncError error) {
 		return
 	}
 
-	related, _ := isObjectRBACRelated(obj)
+	related, _ := scoped.IsObjectRBACRelated(obj)
 	if !related {
 		return
 	}
@@ -73,28 +72,5 @@ func (o *Operator) triggerInstallPlanRetry(obj interface{}) (syncError error) {
 	}
 
 	syncError = utilerrors.NewAggregate(errs)
-	return
-}
-
-func isObjectRBACRelated(obj interface{}) (related bool, object runtime.Object) {
-	object, ok := obj.(runtime.Object)
-	if !ok {
-		return
-	}
-
-	if err := ownerutil.InferGroupVersionKind(object); err != nil {
-		return
-	}
-
-	kind := object.GetObjectKind().GroupVersionKind().Kind
-	switch kind {
-	case roleKind:
-		fallthrough
-	case roleBindingKind:
-		fallthrough
-	case serviceAccountKind:
-		related = true
-	}
-
 	return
 }

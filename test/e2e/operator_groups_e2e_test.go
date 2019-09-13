@@ -1613,3 +1613,240 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+func TestOperatorGroupInsufficientPermissionsResolveViaRBAC(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	csvName := genName("another-csv-")
+
+	newNamespaceName := genName(testNamespace + "-")
+
+	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: newNamespaceName,
+		},
+	})
+	require.NoError(t, err)
+	defer func() {
+		err = c.KubernetesInterface().CoreV1().Namespaces().Delete(newNamespaceName, &metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
+
+	log("Creating CRD")
+	mainCRDPlural := genName("opgroup")
+	mainCRD := newCRD(mainCRDPlural)
+	cleanupCRD, err := createCRD(c, mainCRD)
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	log("Creating operator group")
+	serviceAccountName := genName("nginx-sa")
+	// intentionally creating an operator group without a service account already existing
+	operatorGroup := v1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("e2e-operator-group-"),
+			Namespace: newNamespaceName,
+		},
+		Spec: v1.OperatorGroupSpec{
+			ServiceAccountName: serviceAccountName,
+			TargetNamespaces:   []string{newNamespaceName},
+		},
+	}
+	_, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Create(&operatorGroup)
+	require.NoError(t, err)
+
+	log("Creating CSV")
+
+	// Create a new NamedInstallStrategy
+	deploymentName := genName("operator-deployment")
+	namedStrategy := newNginxInstallStrategy(deploymentName, nil, nil)
+
+	aCSV := newCSV(csvName, newNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Create(&aCSV)
+	require.NoError(t, err)
+
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: newNamespaceName,
+			Name:      serviceAccountName,
+		},
+	}
+	ownerutil.AddNonBlockingOwner(serviceAccount, createdCSV)
+	err = ownerutil.AddOwnerLabels(serviceAccount, createdCSV)
+	require.NoError(t, err)
+
+	_, err = c.CreateServiceAccount(serviceAccount)
+	require.NoError(t, err)
+
+	log("wait for CSV to fail")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(createdCSV.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
+		return csvFailedChecker(fetched), nil
+	})
+	require.NoError(t, err)
+
+	// now add cluster admin permissions to service account
+	role := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: newNamespaceName,
+			Name:      serviceAccountName + "-role",
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{"*"},
+				APIGroups: []string{"*"},
+				Resources: []string{"*"},
+			},
+		},
+	}
+	ownerutil.AddNonBlockingOwner(role, createdCSV)
+	err = ownerutil.AddOwnerLabels(role, createdCSV)
+	require.NoError(t, err)
+
+	roleBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: newNamespaceName,
+			Name:      serviceAccountName + "-rb",
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				Name:      serviceAccountName,
+				Namespace: newNamespaceName,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			Kind: "Role",
+			Name: role.GetName(),
+		},
+	}
+	ownerutil.AddNonBlockingOwner(roleBinding, createdCSV)
+	err = ownerutil.AddOwnerLabels(roleBinding, createdCSV)
+	require.NoError(t, err)
+
+	_, err = c.CreateRole(role)
+	require.NoError(t, err)
+	_, err = c.CreateRoleBinding(roleBinding)
+	require.NoError(t, err)
+
+	log("wait for CSV to succeeed")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(createdCSV.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
+		return csvSucceededChecker(fetched), nil
+	})
+	require.NoError(t, err)
+}
+
+func TestOperatorGroupInsufficientPermissionsResolveViaServiceAccountRemoval(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	csvName := genName("another-csv-")
+
+	newNamespaceName := genName(testNamespace + "-")
+
+	_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: newNamespaceName,
+		},
+	})
+	require.NoError(t, err)
+	defer func() {
+		err = c.KubernetesInterface().CoreV1().Namespaces().Delete(newNamespaceName, &metav1.DeleteOptions{})
+		require.NoError(t, err)
+	}()
+
+	log("Creating CRD")
+	mainCRDPlural := genName("opgroup")
+	mainCRD := newCRD(mainCRDPlural)
+	cleanupCRD, err := createCRD(c, mainCRD)
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	log("Creating operator group")
+	serviceAccountName := genName("nginx-sa")
+	// intentionally creating an operator group without a service account already existing
+	operatorGroup := v1.OperatorGroup{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("e2e-operator-group-"),
+			Namespace: newNamespaceName,
+		},
+		Spec: v1.OperatorGroupSpec{
+			ServiceAccountName: serviceAccountName,
+			TargetNamespaces:   []string{newNamespaceName},
+		},
+	}
+	_, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Create(&operatorGroup)
+	require.NoError(t, err)
+
+	log("Creating CSV")
+
+	// Create a new NamedInstallStrategy
+	deploymentName := genName("operator-deployment")
+	namedStrategy := newNginxInstallStrategy(deploymentName, nil, nil)
+
+	aCSV := newCSV(csvName, newNamespaceName, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
+	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Create(&aCSV)
+	require.NoError(t, err)
+
+	serviceAccount := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: newNamespaceName,
+			Name:      serviceAccountName,
+		},
+	}
+	ownerutil.AddNonBlockingOwner(serviceAccount, createdCSV)
+	err = ownerutil.AddOwnerLabels(serviceAccount, createdCSV)
+	require.NoError(t, err)
+
+	_, err = c.CreateServiceAccount(serviceAccount)
+	require.NoError(t, err)
+
+	log("wait for CSV to fail")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(createdCSV.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
+		return csvFailedChecker(fetched), nil
+	})
+	require.NoError(t, err)
+
+	// now remove operator group specified service account
+	createdOpGroup, err := crc.OperatorsV1().OperatorGroups(newNamespaceName).Get(operatorGroup.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
+	createdOpGroup.Spec.ServiceAccountName = ""
+	_, err = crc.OperatorsV1().OperatorGroups(newNamespaceName).Update(createdOpGroup)
+	require.NoError(t, err)
+
+	log("wait for CSV to succeeed")
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetched, err := crc.OperatorsV1alpha1().ClusterServiceVersions(newNamespaceName).Get(createdCSV.GetName(), metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		log(fmt.Sprintf("%s (%s): %s", fetched.Status.Phase, fetched.Status.Reason, fetched.Status.Message))
+		return csvSucceededChecker(fetched), nil
+	})
+	require.NoError(t, err)
+}
