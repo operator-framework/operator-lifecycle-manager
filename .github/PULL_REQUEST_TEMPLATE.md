@@ -11,6 +11,15 @@ Note: Make sure your branch is rebased to the latest upstream master.
 
 **Motivation for the change:**
 
+**Reviewer Checklist**
+[] Implementation matches the proposed design, or proposal is updated to match implementation
+[] Sufficient unit test coverage 
+[] Sufficient end-to-end test coverage
+[] docs updated or added to `/docs` 
+[] commit messages sensible and descriptive
+[] if implementation differs from proposal, proposal is updated to reflect the changes
+
+
 <!--
 
 Note: If this PR is fixing an issue make sure to add a note saying:
