@@ -1,22 +1,22 @@
 # Steps to create a new release
 
 ## Step 1: Verify Manifests
-We need to ensure that `manifests` folder is in sync with the templates in `deploy/chart/templates`.
+We need to ensure that `./manifests` folder is in sync with the templates in `deploy/chart/templates`.
 * Make sure you have a clean workspace. `git status` should show no change(s) or untracked file.
 * Make sure you pull the latest from `upstream`.
 * Checkout `master` branch.
 * Run `make release`
 
-This should generate no change(s) in `manifests` folder. If there are no change(s) in `manifests` folder then you can proceed with the new release. 
+This should generate no change(s) in `./manifests` folder. If there are no change(s) in `./manifests` folder then you can proceed with the new release. 
 You can clean your workspace 
 ```bash
 git checkout -- .
 git clean -df
 ```
 
-If you see change(s) in `manifests` folder, then:
+If you see change(s) in `./manifests` folder, then:
 * STOP the release process
-* Consult the team and backport the changes in `manifests` folder into the templates.
+* Consult the team and backport the changes in `./manifests` folder into the templates.
 
 
 ## Step 2: Bump the Version
@@ -51,7 +51,7 @@ git push origin 0.11.0
 
 Verify the following:
 * The image digest in manifest file(s) matches the new tag in `quay.io`.
-* `manifests` folder only differs in version and image.
+* `./manifests` folder only differs in version and image.
 
 ## Step 4: Generate Changelog
 Changelogs for OLM are generated using [GitHub Changelog Generator](https://github.com/github-changelog-generator/github-changelog-generator).
