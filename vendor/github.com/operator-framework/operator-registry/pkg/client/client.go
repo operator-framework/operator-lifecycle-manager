@@ -95,9 +95,13 @@ func NewClient(address string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	return NewClientFromConn(conn), nil
+}
+
+func NewClientFromConn(conn *grpc.ClientConn) *Client {
 	return &Client{
 		Registry: api.NewRegistryClient(conn),
 		Health:   grpc_health_v1.NewHealthClient(conn),
 		Conn:     conn,
-	}, nil
+	}
 }

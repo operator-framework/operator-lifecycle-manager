@@ -342,7 +342,11 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 				if err != nil {
 					panic(err)
 				}
-				if csv.Spec.Replaces == bundleName && b.Channel == channelName && b.Package == packageName {
+				replaces, err := csv.GetReplaces()
+				if err != nil {
+					panic(err)
+				}
+				if replaces == bundleName && b.Channel == channelName && b.Package == packageName {
 					return b, nil
 				}
 			}

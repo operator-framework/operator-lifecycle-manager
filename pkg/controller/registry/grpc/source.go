@@ -10,8 +10,6 @@ import (
 	"google.golang.org/grpc/connectivity"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
 	"github.com/operator-framework/operator-registry/pkg/client"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -199,19 +197,10 @@ func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[reso
 		if source.LastConnect.IsZero() {
 			continue
 		}
-		refs[key] = NewClient(source.Conn)
+		refs[key] = client.NewClientFromConn(source.Conn)
 	}
 	s.sourcesLock.RUnlock()
 
 	// TODO : remove unhealthy
 	return refs
-}
-
-// TODO: move to operator-registry
-func NewClient(conn *grpc.ClientConn) client.Interface {
-	return &client.Client{
-		Registry: api.NewRegistryClient(conn),
-		Health:   grpc_health_v1.NewHealthClient(conn),
-		Conn:     conn,
-	}
 }
