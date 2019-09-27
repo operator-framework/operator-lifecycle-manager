@@ -25,6 +25,7 @@ import (
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
+	watch "k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/names"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
@@ -528,4 +529,30 @@ func serializeObject(obj interface{}) string {
 		return ""
 	}
 	return string(bytes)
+}
+
+type conditionChecker interface {
+	conditionMet(t *testing.T, event watch.Event) (met bool)
+}
+
+type conditionMetFunc func(t *testing.T, event watch.Event) (met bool)
+
+func (c conditionMetFunc) conditionMet(t *testing.T, event watch.Event) bool {
+	return c(t, event)
+}
+
+func awaitCondition(ctx context.Context, t *testing.T, w watch.Interface, checker conditionChecker) {
+	met := false
+	for !met {
+		select {
+		case <-ctx.Done():
+			require.NoError(t, ctx.Err())
+			return
+		case event, ok := <-w.ResultChan():
+			if !ok {
+				return
+			}
+			met = checker.conditionMet(t, event)
+		}
+	}
 }
