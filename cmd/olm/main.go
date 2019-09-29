@@ -204,7 +204,7 @@ func main() {
 
 		names := *writePackageServerStatusName
 		discovery := opClient.KubernetesInterface().Discovery()
-		monitor, sender := operatorstatus.NewMonitor(names, logger, discovery, configClient)
+		monitor, sender := operatorstatus.NewMonitor(logger, discovery, configClient, names)
 
 		handler := operatorstatus.NewCSVWatchNotificationHandler(logger, op.GetCSVSetGenerator(), op.GetReplaceFinder(), sender)
 		op.RegisterCSVWatchNotification(handler)
