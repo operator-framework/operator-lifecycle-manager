@@ -40,7 +40,8 @@ type SubscriptionSpec struct {
 
 // SubscriptionConfig contains configuration specified for a subscription.
 type SubscriptionConfig struct {
-	// Label selector for pods. Existing ReplicaSets whose pods are
+	// Selector is the label selector for pods to be configured.
+	// Existing ReplicaSets whose pods are
 	// selected by this will be the ones affected by this deployment.
 	// It must match the pod template's labels.
 	Selector *metav1.LabelSelector `json:"selector,omitempty"`
@@ -51,30 +52,30 @@ type SubscriptionConfig struct {
 	// +optional
 	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
 
-	// If specified, the pod's tolerations.
+	// Tolerations are the pod's tolerations.
 	// +optional
 	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 
-	// Compute Resources required by this container.
-	// Cannot be updated.
+	// Resources represents compute resources required by this container.
+	// Immutable.
 	// More info: https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/
 	// +optional
 	Resources corev1.ResourceRequirements `json:"resources,omitempty"`
 
-	// List of sources to populate environment variables in the container.
+	// EnvFrom is a list of sources to populate environment variables in the container.
 	// The keys defined within a source must be a C_IDENTIFIER. All invalid keys
 	// will be reported as an event when the container is starting. When a key exists in multiple
 	// sources, the value associated with the last source will take precedence.
 	// Values defined by an Env with a duplicate key will take precedence.
-	// Cannot be updated.
+	// Immutable.
 	// +optional
 	EnvFrom []corev1.EnvFromSource `json:"envFrom,omitempty"`
-	// List of environment variables to set in the container.
+	// Env is a list of environment variables to set in the container.
 	// Cannot be updated.
-	// +optional
 	// +patchMergeKey=name
 	// +patchStrategy=merge
-	Env []corev1.EnvVar `json:"env,omitempty"`
+	// +optional
+	Env []corev1.EnvVar `json:"env,omitempty" patchMergeKey:"name" patchStrategy:"merge"`
 }
 
 // SubscriptionConditionType indicates an explicit state condition about a Subscription in "abnormal-true"
