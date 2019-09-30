@@ -1,17 +1,16 @@
 package registry
 
 import (
-	"fmt"
-	"k8s.io/apimachinery/pkg/util/yaml"
 	"encoding/json"
+	"fmt"
 	"strings"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	"k8s.io/apimachinery/pkg/util/yaml"
 )
 
 // Scheme is the default instance of runtime.Scheme to which types in the Kubernetes API are already registered.
@@ -25,10 +24,6 @@ func DefaultYAMLDecoder() runtime.Decoder {
 }
 
 func init() {
-	if err := v1alpha1.AddToScheme(Scheme); err != nil {
-		panic(err)
-	}
-
 	if err := v1beta1.AddToScheme(Scheme); err != nil {
 		panic(err)
 	}
@@ -39,13 +34,13 @@ type Bundle struct {
 	Objects    []*unstructured.Unstructured
 	Package    string
 	Channel    string
-	csv        *v1alpha1.ClusterServiceVersion
+	csv        *ClusterServiceVersion
 	crds       []*apiextensions.CustomResourceDefinition
 	cacheStale bool
 }
 
 func NewBundle(name, pkgName, channelName string, objs ...*unstructured.Unstructured) *Bundle {
-	bundle := &Bundle{Name: name, Package:pkgName, Channel:channelName, cacheStale: false}
+	bundle := &Bundle{Name: name, Package: pkgName, Channel: channelName, cacheStale: false}
 	for _, o := range objs {
 		bundle.Add(o)
 	}
@@ -74,7 +69,7 @@ func (b *Bundle) Add(obj *unstructured.Unstructured) {
 	b.cacheStale = true
 }
 
-func (b *Bundle) ClusterServiceVersion() (*v1alpha1.ClusterServiceVersion, error) {
+func (b *Bundle) ClusterServiceVersion() (*ClusterServiceVersion, error) {
 	if err := b.cache(); err != nil {
 		return nil, err
 	}
@@ -99,7 +94,7 @@ func (b *Bundle) ProvidedAPIs() (map[APIKey]struct{}, error) {
 			provided[APIKey{Group: crd.Spec.Group, Version: v.Name, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
 		}
 		if crd.Spec.Version != "" {
-			provided[APIKey{Group: crd.Spec.Group, Version: crd.Spec.Version, Kind: crd.Spec.Names.Kind, Plural:crd.Spec.Names.Plural}] = struct{}{}
+			provided[APIKey{Group: crd.Spec.Group, Version: crd.Spec.Version, Kind: crd.Spec.Names.Kind, Plural: crd.Spec.Names.Plural}] = struct{}{}
 		}
 	}
 
@@ -108,7 +103,8 @@ func (b *Bundle) ProvidedAPIs() (map[APIKey]struct{}, error) {
 		return nil, err
 	}
 
-	for _, api := range csv.Spec.APIServiceDefinitions.Owned {
+	ownedAPIs, _, err := csv.GetApiServiceDefinitions()
+	for _, api := range ownedAPIs {
 		provided[APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
 	}
 	return provided, nil
@@ -120,7 +116,12 @@ func (b *Bundle) RequiredAPIs() (map[APIKey]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, api := range csv.Spec.CustomResourceDefinitions.Required {
+
+	_, requiredCRDs, err := csv.GetCustomResourceDefintions()
+	if err != nil {
+		return nil, err
+	}
+	for _, api := range requiredCRDs {
 		parts := strings.SplitN(api.Name, ".", 2)
 		if len(parts) < 2 {
 			return nil, fmt.Errorf("couldn't parse plural.group from crd name: %s", api.Name)
@@ -128,7 +129,11 @@ func (b *Bundle) RequiredAPIs() (map[APIKey]struct{}, error) {
 		required[APIKey{parts[1], api.Version, api.Kind, parts[0]}] = struct{}{}
 
 	}
-	for _, api := range csv.Spec.APIServiceDefinitions.Required {
+	_, requiredAPIs, err := csv.GetApiServiceDefinitions()
+	if err != nil {
+		return nil, err
+	}
+	for _, api := range requiredAPIs {
 		required[APIKey{Group: api.Group, Version: api.Version, Kind: api.Kind, Plural: api.Name}] = struct{}{}
 	}
 	return required, nil
@@ -143,8 +148,12 @@ func (b *Bundle) AllProvidedAPIsInBundle() error {
 	if err != nil {
 		return err
 	}
-	shouldExist := make(map[APIKey]struct{}, len(csv.Spec.CustomResourceDefinitions.Owned))
-	for _, crdDef := range csv.Spec.CustomResourceDefinitions.Owned {
+	ownedCRDs, _, err := csv.GetCustomResourceDefintions()
+	if err != nil {
+		return err
+	}
+	shouldExist := make(map[APIKey]struct{}, len(ownedCRDs))
+	for _, crdDef := range ownedCRDs {
 		parts := strings.SplitN(crdDef.Name, ".", 2)
 		if len(parts) < 2 {
 			return fmt.Errorf("couldn't parse plural.group from crd name: %s", crdDef.Name)
@@ -191,7 +200,7 @@ func (b *Bundle) cache() error {
 	}
 	for _, o := range b.Objects {
 		if o.GetObjectKind().GroupVersionKind().Kind == "ClusterServiceVersion" {
-			csv := &v1alpha1.ClusterServiceVersion{}
+			csv := &ClusterServiceVersion{}
 			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(o.UnstructuredContent(), csv); err != nil {
 				return err
 			}

@@ -7,7 +7,6 @@ import (
 type Load interface {
 	AddOperatorBundle(bundle *Bundle) error
 	AddPackageChannels(manifest PackageManifest) error
-	AddProvidedAPIs() error
 }
 
 type Query interface {

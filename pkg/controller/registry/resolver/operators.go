@@ -7,8 +7,9 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 )
@@ -249,12 +250,20 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, replaces string, startingC
 	}
 	r := replaces
 	if r == "" {
-		r = csv.Spec.Replaces
+		r, _ = csv.GetReplaces()
 	}
+
+	version, _ := csv.GetVersion()
+	parsedVersion, err := semver.ParseTolerant(version)
+	v := &parsedVersion
+	if err != nil {
+		v = nil
+	}
+
 	return &Operator{
 		name:         csv.GetName(),
 		replaces:     r,
-		version:      &csv.Spec.Version.Version,
+		version:      v,
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
 		bundle:       bundle,

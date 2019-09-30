@@ -40,7 +40,7 @@ func NewStorage(groupResource schema.GroupResource, prov provider.PackageManifes
 		groupResource:  groupResource,
 		prov:           prov,
 		scheme:         scheme,
-		TableConvertor: printerstorage.TableConvertor{TablePrinter: printers.NewTablePrinter().With(addTableHandlers)},
+		TableConvertor: printerstorage.TableConvertor{TableGenerator: printers.NewTableGenerator().With(addTableHandlers)},
 	}
 }
 

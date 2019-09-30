@@ -541,7 +541,7 @@ func existingSub(namespace, operatorName, pkg, channel string, catalog CatalogKe
 
 func existingOperator(namespace, operatorName, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs APISet) *v1alpha1.ClusterServiceVersion {
 	bundleForOperator := bundle(operatorName, pkg, channel, replaces, providedCRDs, requiredCRDs, providedAPIs, requiredAPIs)
-	csv, err := bundleForOperator.ClusterServiceVersion()
+	csv, err := V1alpha1CSVFromBundle(bundleForOperator)
 	if err != nil {
 		panic(err)
 	}
@@ -551,7 +551,7 @@ func existingOperator(namespace, operatorName, pkg, channel, replaces string, pr
 
 func bundleSteps(bundle *opregistry.Bundle, ns, replaces string, catalog CatalogKey) []*v1alpha1.Step {
 	if replaces == "" {
-		csv, _ := bundle.ClusterServiceVersion()
+		csv, _ := V1alpha1CSVFromBundle(bundle)
 		replaces = csv.Spec.Replaces
 	}
 	stepresources, err := NewStepResourceFromBundle(bundle, ns, replaces, catalog.Name, catalog.Namespace)

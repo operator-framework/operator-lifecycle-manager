@@ -89,8 +89,21 @@ func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1a
 	}, info.Catalog.Name, info.Catalog.Namespace)
 }
 
+func V1alpha1CSVFromBundle(bundle *registry.Bundle) (*v1alpha1.ClusterServiceVersion, error) {
+	for _, o := range bundle.Objects {
+		if o.GetObjectKind().GroupVersionKind().Kind == "ClusterServiceVersion" {
+			csv := &v1alpha1.ClusterServiceVersion{}
+			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(o.UnstructuredContent(), csv); err != nil {
+				return nil, err
+			}
+			return csv, nil
+		}
+	}
+	return nil, fmt.Errorf("no csv found in bundle")
+}
+
 func NewStepResourceFromBundle(bundle *registry.Bundle, namespace, replaces, catalogSourceName, catalogSourceNamespace string) ([]v1alpha1.StepResource, error) {
-	csv, err := bundle.ClusterServiceVersion()
+	csv, err := V1alpha1CSVFromBundle(bundle)
 	if err != nil {
 		return nil, err
 	}

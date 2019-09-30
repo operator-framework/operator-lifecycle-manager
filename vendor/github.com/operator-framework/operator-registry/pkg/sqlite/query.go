@@ -94,7 +94,7 @@ func (s *SQLQuerier) GetPackage(ctx context.Context, name string) (*registry.Pac
 		},
 	}
 
-	if rows.Next() {
+	for rows.Next() {
 		if err := rows.Scan(&pkgName, &defaultChannel, &channelName, &bundleName); err != nil {
 			return nil, err
 		}

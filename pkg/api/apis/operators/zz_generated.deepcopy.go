@@ -236,7 +236,7 @@ func (in *CatalogSource) DeepCopyObject() runtime.Object {
 func (in *CatalogSourceList) DeepCopyInto(out *CatalogSourceList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]CatalogSource, len(*in))
@@ -368,7 +368,7 @@ func (in *ClusterServiceVersionCondition) DeepCopy() *ClusterServiceVersionCondi
 func (in *ClusterServiceVersionList) DeepCopyInto(out *ClusterServiceVersionList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]ClusterServiceVersion, len(*in))
@@ -685,7 +685,7 @@ func (in *InstallPlanCondition) DeepCopy() *InstallPlanCondition {
 func (in *InstallPlanList) DeepCopyInto(out *InstallPlanList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]InstallPlan, len(*in))
@@ -864,7 +864,7 @@ func (in *OperatorGroup) DeepCopyObject() runtime.Object {
 func (in *OperatorGroupList) DeepCopyInto(out *OperatorGroupList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]OperatorGroup, len(*in))
@@ -1212,7 +1212,7 @@ func (in *SubscriptionConfig) DeepCopy() *SubscriptionConfig {
 func (in *SubscriptionList) DeepCopyInto(out *SubscriptionList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]Subscription, len(*in))
