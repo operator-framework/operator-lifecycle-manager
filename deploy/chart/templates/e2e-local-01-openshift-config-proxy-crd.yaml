@@ -2,12 +2,7 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
-  creationTimestamp: "2019-07-08T17:25:44Z"
-  generation: 1
   name: proxies.config.openshift.io
-  resourceVersion: "403"
-  selfLink: /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/proxies.config.openshift.io
-  uid: 6af86a13-a1a5-11e9-b519-0a2c4a2d8fc8
 spec:
   conversion:
     strategy: None
