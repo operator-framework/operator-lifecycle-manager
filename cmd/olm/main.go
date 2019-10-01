@@ -106,6 +106,9 @@ func main() {
 
 	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
 
+	// Perform resource cleanup before starting the operator
+	cleanup(logger, opClient, crClient)
+
 	// create a config client for operator status
 	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
 	if err != nil {

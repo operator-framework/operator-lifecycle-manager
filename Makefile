@@ -4,7 +4,7 @@
 
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
-MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12)") && echo -mod=vendor)
+MOD_FLAGS := $(shell (go version | grep -q -E "1\.(11|12|13)") && echo -mod=vendor)
 CMDS  := $(addprefix bin/, $(shell go list $(MOD_FLAGS) ./cmd/... | xargs -I{} basename {}))
 CODEGEN := ./vendor/k8s.io/code-generator/generate_groups.sh
 CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
