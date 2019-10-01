@@ -52,7 +52,7 @@ require (
 
 replace (
 	github.com/openshift/api => github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
-	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20190627172412-3b6373338c9b
+	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
 
 	// Pin to kube 1.16
 	k8s.io/api => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
