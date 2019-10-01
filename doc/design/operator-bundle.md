@@ -13,7 +13,7 @@ The operator manifests refers to a set of Kubernetes manifest(s) the defines the
 * API(s) provided and required.
 * Related images.
 
-An `Operator Bundle` is built as scratch (non-runnable) container image that contains operator manifests and specific metadata in designated directories inside the image. Then, it can be pushed and pulled from an OCI-compliant container registry. Ultimately, an operator bundle will be used by [Operator Registry](https://github.com/operator-framework/operator-registry) and [Operator-Lifecycle-Manager (OLM)](https://github.com/operator-framework/operator-lifecycle-manager) to install an operator in OLM-enabled clusters.
+An `Operator Bundle` is built as a scratch (non-runnable) container image that contains operator manifests and specific metadata in designated directories inside the image. Then, it can be pushed and pulled from an OCI-compliant container registry. Ultimately, an operator bundle will be used by [Operator Registry](https://github.com/operator-framework/operator-registry) and [Operator-Lifecycle-Manager (OLM)](https://github.com/operator-framework/operator-lifecycle-manager) to install an operator in OLM-enabled clusters.
 
 ### Bundle Annotations
 
@@ -34,7 +34,7 @@ annotations:
 ```
 
 *Notes:*
-* In case of a mismatch, the `annotations.yaml` file is authoritative because on-cluster operator-registry that relies on these annotations has access to the yaml file only.
+* In case of a mismatch, the `annotations.yaml` file is authoritative because the on-cluster operator-registry that relies on these annotations has access to the yaml file only.
 * The potential use case for the `LABELS` is - an external off-cluster tool can inspect the image to check the type of a given bundle image without downloading the content.
 
 This example uses [Operator Registry Manifests](https://github.com/operator-framework/operator-registry#manifest-format) format to build an operator bundle image. The source directory of an operator registry bundle has the following layout.
@@ -128,7 +128,8 @@ test
 └── Dockerfile
 ```
 
-Note: If there are `annotations.yaml` and `Dockerfile` existing in the directory, they will be overwritten.
+*Notes:*
+* If there are `annotations.yaml` and `Dockerfile` existing in the directory, they will be overwritten.
 
 ### Build Bundle Image
 
@@ -142,3 +143,7 @@ The default image builder is `Docker`. However, ` Buildah` and `Podman` are also
 ```bash
 $ ./operator-cli bundle build --directory /test/0.0.1/ --tag quay.io/coreos/test-operator.v0.0.1:latest --image-builder podman
 ```
+
+*Notes:*
+* If there are `annotations.yaml` and `Dockerfile` existing in the directory, they will be overwritten.
+* The directory where the operator manifests are located must must be inside the context of the build which in this case is inside the directory where you run the command.

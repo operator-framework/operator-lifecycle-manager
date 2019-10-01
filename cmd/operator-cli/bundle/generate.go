@@ -34,7 +34,8 @@ type AnnotationType struct {
 	MediaType string `yaml:"operators.operatorframework.io.bundle.mediatype"`
 }
 
-// newBundleBuildCmd returns a command that will build operator bundle image.
+// newBundleGenerateCmd returns a command that will generate operator bundle
+// annotations.yaml metadata
 func newBundleGenerateCmd() *cobra.Command {
 	bundleGenerateCmd := &cobra.Command{
 		Use:   "generate",

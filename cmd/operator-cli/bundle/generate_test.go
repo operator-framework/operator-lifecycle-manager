@@ -2,6 +2,7 @@ package bundle
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,7 @@ func TestGetMediaType(t *testing.T) {
 	setup("")
 	defer cleanup()
 
-	testDir := operatorDir + manifestsMetadata
+	testDir := filepath.Join(operatorDir, manifestsMetadata)
 	tests := []struct {
 		directory string
 		mediaType string
@@ -73,7 +74,7 @@ func TestGenerateAnnotationsFunc(t *testing.T) {
 }
 
 func TestGenerateDockerfileFunc(t *testing.T) {
-	testDir := operatorDir + manifestsMetadata
+	testDir := filepath.Join(operatorDir, manifestsMetadata)
 	output := "FROM scratch\n\n" +
 		"LABEL operators.operatorframework.io.bundle.resources=test1\n" +
 		"LABEL operators.operatorframework.io.bundle.mediatype=test2\n\n" +

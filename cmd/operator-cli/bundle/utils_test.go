@@ -16,7 +16,7 @@ const (
 
 func setup(input string) {
 	// Create test directory
-	testDir := operatorDir + manifestsDir
+	testDir := filepath.Join(operatorDir, manifestsDir)
 	createDir(testDir)
 
 	// Create test files in test directory
