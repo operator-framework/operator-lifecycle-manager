@@ -7,11 +7,16 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
+	olmv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+
 )
 
 const (
 	NAME_LABEL      = "name"
 	INSTALLED_LABEL = "installed"
+	VERSION_LABEL   = "version"
+	PHASE_LABEL    = "phase"
+	REASON_LABEL    = "reason"
 )
 
 // TODO(alecmerdler): Can we use this to emit Kubernetes events?
@@ -145,10 +150,19 @@ var (
 		},
 		[]string{NAME_LABEL, INSTALLED_LABEL},
 	)
+
+	csvSyncCounter = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "csv_sync_total",
+			Help: "Monotonic count of CSV syncs",
+		},
+		[]string{NAME_LABEL, VERSION_LABEL, PHASE_LABEL, REASON_LABEL},
+	)
 )
 
 func RegisterOLM() {
 	prometheus.MustRegister(csvCount)
+	prometheus.MustRegister(csvSyncCounter)
 	prometheus.MustRegister(CSVUpgradeCount)
 }
 
@@ -161,4 +175,8 @@ func RegisterCatalog() {
 
 func CounterForSubscription(name, installedCSV string) prometheus.Counter {
 	return SubscriptionSyncCount.WithLabelValues(name, installedCSV)
+}
+
+func EmitCSVMetric(csv *olmv1alpha1.ClusterServiceVersion){
+	csvSyncCounter.WithLabelValues(csv.Name, csv.Spec.Version.String(), string(csv.Status.Phase), string(csv.Status.Reason)).Inc()
 }
