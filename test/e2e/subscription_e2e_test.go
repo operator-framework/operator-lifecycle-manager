@@ -1168,6 +1168,23 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	crClient := newCRClient(t)
 	config := newConfigClient(t)
 
+	// Create a ConfigMap that is mounted to the operator via the subscription
+	testConfigMapName :=genName("test-configmap-")
+	testConfigMap:= &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testConfigMapName,
+		},
+	}
+
+	_, err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(testConfigMap)
+	require.NoError(t, err)
+	defer func(){
+		err := kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Delete(testConfigMap.Name, nil)
+		require.NoError(t,err)
+	}()
+
+	// Configure the Subscription.
+
 	podEnv := []corev1.EnvVar{
 		corev1.EnvVar{
 			Name:  "MY_ENV_VARIABLE1",
@@ -1178,8 +1195,28 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 			Value: "value2",
 		},
 	}
+	testVolumeName := genName("test-volume-")
+	podVolumes := []corev1.Volume{
+		corev1.Volume{
+			Name: testVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: testConfigMapName,
+					},
+				},
+			},
+		},
+	}
+
+	podVolumeMounts := []corev1.VolumeMount{
+		corev1.VolumeMount{Name:testVolumeName, MountPath:"/test"},
+	}
+
 	podConfig := v1alpha1.SubscriptionConfig{
 		Env: podEnv,
+		Volumes: podVolumes,
+		VolumeMounts: podVolumeMounts,
 	}
 
 	permissions := deploymentPermissions(t)
@@ -1187,7 +1224,7 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	defer catsrcCleanup()
 
 	// Ensure that the catalog source is resolved before we create a subscription.
-	_, err := fetchCatalogSource(t, crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	_, err = fetchCatalogSource(t, crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
 	subscriptionName := genName("podconfig-sub-")
@@ -1206,10 +1243,10 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	expected := podEnv
 	expected = append(expected, proxyEnv...)
 
-	checkDeploymentWithPodConfiguration(t, kubeClient, csv, podConfig.Env)
+	checkDeploymentWithPodConfiguration(t, kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts)
 }
 
-func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar) {
+func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) {
 	resolver := install.StrategyResolver{}
 
 	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
@@ -1218,11 +1255,38 @@ func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.Cli
 	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
 	require.Truef(t, ok, "could not cast install strategy as type %T", strategyDetailsDeployment)
 
-	find := func(envVar []corev1.EnvVar, name string) (env *corev1.EnvVar, found bool) {
+	findEnvVar := func(envVar []corev1.EnvVar, name string) (foundEnvVar *corev1.EnvVar, found bool) {
 		for i := range envVar {
 			if name == envVar[i].Name {
 				found = true
-				env = &envVar[i]
+				foundEnvVar = &envVar[i]
+
+				break
+			}
+		}
+
+		return
+	}
+
+
+	findVolumeMount := func(volumeMounts []corev1.VolumeMount, name string) (foundVolumeMount *corev1.VolumeMount, found bool) {
+		for i := range volumeMounts {
+			if name == volumeMounts[i].Name {
+				found = true
+				foundVolumeMount = &volumeMounts[i]
+
+				break
+			}
+		}
+
+		return
+	}
+
+	findVolume := func(volumes []corev1.Volume, name string) (foundVolume *corev1.Volume, found bool) {
+		for i := range volumes {
+			if name == volumes[i].Name {
+				found = true
+				foundVolume = &volumes[i]
 
 				break
 			}
@@ -1233,16 +1297,29 @@ func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.Cli
 
 	check := func(container *corev1.Container) {
 		for _, e := range envVar {
-			existing, found := find(container.Env, e.Name)
+			existing, found := findEnvVar(container.Env, e.Name)
 			require.Truef(t, found, "env variable name=%s not injected", e.Name)
 			require.NotNil(t, existing)
 			require.Equalf(t, e.Value, existing.Value, "env variable value does not match %s=%s", e.Name, e.Value)
+		}
+
+		for _, v := range volumeMounts {
+			existing, found := findVolumeMount(container.VolumeMounts, v.Name)
+			require.Truef(t, found, "VolumeMount name=%s not injected", v.Name)
+			require.NotNil(t, existing)
+			require.Equalf(t, v.MountPath, existing.MountPath, "VolumeMount MountPath does not match %s=%s", v.Name, v.MountPath)
 		}
 	}
 
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
 		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(deploymentSpec.Name, metav1.GetOptions{})
 		require.NoError(t, err)
+		for _, v := range volumes {
+			existing, found := findVolume(deployment.Spec.Template.Spec.Volumes, v.Name)
+			require.Truef(t, found, "Volume name=%s not injected", v.Name)
+			require.NotNil(t, existing)
+			require.Equalf(t, v.ConfigMap.LocalObjectReference.Name, existing.ConfigMap.LocalObjectReference.Name, "volume ConfigMap Names does not match %s=%s", v.Name, v.ConfigMap.LocalObjectReference.Name)
+		}
 
 		for i := range deployment.Spec.Template.Spec.Containers {
 			check(&deployment.Spec.Template.Spec.Containers[i])

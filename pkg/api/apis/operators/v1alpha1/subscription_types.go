@@ -76,6 +76,14 @@ type SubscriptionConfig struct {
 	// +patchStrategy=merge
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty" patchMergeKey:"name" patchStrategy:"merge"`
+	
+	// List of Volumes to set in the podSpec.
+	// +optional
+	Volumes []corev1.Volume `json:"volumes,omitempty"`
+
+	// List of VolumeMounts to set in the container.
+	// +optional
+	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 }
 
 // SubscriptionConditionType indicates an explicit state condition about a Subscription in "abnormal-true"

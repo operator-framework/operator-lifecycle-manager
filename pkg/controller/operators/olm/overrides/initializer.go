@@ -2,7 +2,6 @@ package overrides
 
 import (
 	"fmt"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -41,16 +40,16 @@ func (d *DeploymentInitializer) GetDeploymentInitializer(ownerCSV ownerutil.Owne
 // Initialize initializes a deployment object with appropriate global cluster
 // level proxy env variable(s).
 func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment *appsv1.Deployment) error {
-	var podConfigEnvVar, proxyEnvVar, merged []corev1.EnvVar
+	var envVarOverrides, proxyEnvVar, merged []corev1.EnvVar
 	var err error
 
-	podConfigEnvVar, err = d.config.GetOperatorConfig(ownerCSV)
+	envVarOverrides, volumeOverrides, volumeMountOverrides, err := d.config.GetConfigOverrides(ownerCSV)
 	if err != nil {
 		err = fmt.Errorf("failed to get subscription pod configuration - %v", err)
 		return err
 	}
 
-	if !proxy.IsOverridden(podConfigEnvVar) {
+	if !proxy.IsOverridden(envVarOverrides) {
 		proxyEnvVar, err = d.querier.QueryProxyConfig()
 		if err != nil {
 			err = fmt.Errorf("failed to query cluster proxy configuration - %v", err)
@@ -60,15 +59,23 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 		proxyEnvVar = dropEmptyProxyEnv(proxyEnvVar)
 	}
 
-	merged = append(podConfigEnvVar, proxyEnvVar...)
+	merged = append(envVarOverrides, proxyEnvVar...)
 
 	if len(merged) == 0 {
 		d.logger.WithField("csv", ownerCSV.GetName()).Debug("no env var to inject into csv")
 	}
 
-	podSpec := deployment.Spec.Template.Spec
-	if err := InjectEnvIntoDeployment(&podSpec, merged); err != nil {
+	podSpec := &deployment.Spec.Template.Spec
+	if err := InjectEnvIntoDeployment(podSpec, merged); err != nil {
 		return fmt.Errorf("failed to inject proxy env variable(s) into deployment spec name=%s - %v", deployment.Name, err)
+	}
+
+	if err = InjectVolumesIntoDeployment(podSpec, volumeOverrides); err != nil {
+		return fmt.Errorf("failed to inject volume(s) into deployment spec name=%s - %v", deployment.Name, err)
+	}
+
+	if err = InjectVolumeMountsIntoDeployment(podSpec, volumeMountOverrides); err != nil {
+		return fmt.Errorf("failed to inject volumeMounts(s) into deployment spec name=%s - %v", deployment.Name, err)
 	}
 
 	return nil

@@ -476,9 +476,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		op.RegisterQueueInformer(informer)
 	}
 
-	proxyEnvInjector := overrides.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
+	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
 	op.resolver = &install.StrategyResolver{
-		ProxyInjectorBuilderFunc: proxyEnvInjector.GetDeploymentInitializer,
+		OverridesBuilderFunc: overridesBuilderFunc.GetDeploymentInitializer,
 	}
 
 	return op, nil
