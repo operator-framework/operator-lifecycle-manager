@@ -1,6 +1,7 @@
 package catalog
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -29,8 +30,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -171,9 +172,9 @@ func TestExecutePlan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
-			op, err := NewFakeOperator(namespace, []string{namespace}, stopCh, withClientObjs(tt.in))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			op, err := NewFakeOperator(namespace, []string{namespace}, ctx, withClientObjs(tt.in))
 			require.NoError(t, err)
 
 			err = op.ExecutePlan(tt.in)
@@ -422,10 +423,10 @@ func TestSyncCatalogSources(t *testing.T) {
 			clientObjs := []runtime.Object{tt.catalogSource}
 
 			// Create test operator
-			stopCh := make(chan struct{})
-			defer func() { stopCh <- struct{}{} }()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-			op, err := NewFakeOperator(tt.namespace, []string{tt.namespace}, stopCh, withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
+			op, err := NewFakeOperator(tt.namespace, []string{tt.namespace}, ctx, withClientObjs(clientObjs...), withK8sObjs(tt.k8sObjs...))
 			require.NoError(t, err)
 
 			// Run sync
@@ -443,6 +444,13 @@ func TestSyncCatalogSources(t *testing.T) {
 
 			if tt.expectedStatus != nil {
 				require.NotEmpty(t, updated.Status)
+				require.Equal(t, tt.expectedStatus.LastSync, updated.Status.LastSync)
+
+				if tt.expectedStatus.RegistryServiceStatus != nil {
+					require.True(t, tt.expectedStatus.RegistryServiceStatus.CreatedAt.Time.Sub(updated.Status.RegistryServiceStatus.CreatedAt.Time) < 2*time.Second)
+					tt.expectedStatus.RegistryServiceStatus.CreatedAt = updated.Status.RegistryServiceStatus.CreatedAt
+				}
+
 				require.Equal(t, *tt.expectedStatus, updated.Status)
 
 				if tt.catalogSource.Spec.ConfigMap != "" {
@@ -590,7 +598,7 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 }
 
 // NewFakeOperator creates a new operator using fake clients.
-func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan struct{}, fakeOptions ...fakeOperatorOption) (*Operator, error) {
+func NewFakeOperator(namespace string, watchedNamespaces []string, ctx context.Context, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
 	config := &fakeOperatorConfig{}
 	for _, option := range fakeOptions {
@@ -662,19 +670,20 @@ func NewFakeOperator(namespace string, watchedNamespaces []string, stopCh <-chan
 				// 1 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
 				&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(1), 100)},
 			), "resolver"),
-		sources:  make(map[resolver.CatalogKey]resolver.SourceRef),
 		resolver: &fakes.FakeResolver{},
 	}
+	op.sources = grpc.NewSourceStore(logrus.StandardLogger(), 1*time.Second, 5*time.Second, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.OpClient, "test:pod")
 
 	var hasSyncedCheckFns []cache.InformerSynced
 	for _, informer := range sharedInformers {
 		op.RegisterInformer(informer)
 		hasSyncedCheckFns = append(hasSyncedCheckFns, informer.HasSynced)
-		go informer.Run(stopCh)
+		go informer.Run(ctx.Done())
 	}
+	op.sources.Start(ctx)
 
-	if ok := cache.WaitForCacheSync(stopCh, hasSyncedCheckFns...); !ok {
+	if ok := cache.WaitForCacheSync(ctx.Done(), hasSyncedCheckFns...); !ok {
 		return nil, fmt.Errorf("failed to wait for caches to sync")
 	}
 

@@ -5,11 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1"
-	registryclient "github.com/operator-framework/operator-registry/pkg/client"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
@@ -26,6 +23,9 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
+	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -61,9 +61,8 @@ type Operator struct {
 	client                versioned.Interface
 	lister                operatorlister.OperatorLister
 	namespace             string
-	sources               map[resolver.CatalogKey]resolver.SourceRef
-	sourcesLock           sync.RWMutex
-	sourcesLastUpdate     metav1.Time
+	sources               *grpc.SourceStore
+	sourcesLastUpdate     sharedtime.SharedTime
 	resolver              resolver.Resolver
 	subQueue              workqueue.RateLimitingInterface
 	catSrcQueueSet        *queueinformer.ResourceQueueSet
@@ -116,9 +115,10 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		client:         crClient,
 		lister:         lister,
 		namespace:      operatorNamespace,
-		sources:        make(map[resolver.CatalogKey]resolver.SourceRef),
 		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
 	}
+	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.OpClient, configmapRegistryImage)
 
 	// Create an informer for each catalog namespace
 	deleteCatSrc := &cache.ResourceEventHandlerFuncs{
@@ -211,7 +211,6 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
 		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
 	}
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(op.lister, op.OpClient, configmapRegistryImage)
 
 	// Namespace sync for resolving subscriptions
 	namespaceInformer := informers.NewSharedInformerFactory(op.OpClient.KubernetesInterface(), wakeupInterval).Core().V1().Namespaces()
@@ -234,8 +233,22 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	for _, informer := range csvSharedIndexInformers {
 		op.RegisterInformer(informer)
 	}
+	op.sources.Start(context.Background())
 
 	return op, nil
+}
+
+func (o *Operator) syncSourceState(state grpc.SourceState) {
+	o.sourcesLastUpdate.Set(timeNow().Time)
+
+	switch state.State {
+	case connectivity.Ready:
+		o.namespaceResolveQueue.Add(state.Key.Namespace)
+	}
+
+	if err := o.catSrcQueueSet.Requeue(state.Key.Name, state.Key.Namespace); err != nil {
+		o.Log.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
+	}
 }
 
 func (o *Operator) syncObject(obj interface{}) (syncError error) {
@@ -267,19 +280,10 @@ func (o *Operator) syncObject(obj interface{}) (syncError error) {
 	})
 
 	if owner := ownerutil.GetOwnerByKind(metaObj, v1alpha1.CatalogSourceKind); owner != nil {
-		sourceKey := resolver.CatalogKey{Name: owner.Name, Namespace: metaObj.GetNamespace()}
-		func() {
-			o.sourcesLock.RLock()
-			defer o.sourcesLock.RUnlock()
-			if _, ok := o.sources[sourceKey]; ok {
-				logger.Debug("requeueing owner CatalogSource")
-				if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err != nil {
-					logger.Warn(err.Error())
-				}
-			}
-		}()
+		if err := o.catSrcQueueSet.Requeue(owner.Name, metaObj.GetNamespace()); err != nil {
+			logger.Warn(err.Error())
+		}
 	}
-
 	return nil
 }
 
@@ -347,16 +351,10 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 		}
 	}
 	sourceKey := resolver.CatalogKey{Name: catsrc.GetName(), Namespace: catsrc.GetNamespace()}
-	func() {
-		o.sourcesLock.Lock()
-		defer o.sourcesLock.Unlock()
-		delete(o.sources, sourceKey)
-	}()
-	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
-
-	if err := o.catSrcQueueSet.Remove(sourceKey.Name, sourceKey.Namespace); err != nil {
-		o.Log.WithError(err)
+	if err := o.sources.Remove(sourceKey); err != nil {
+		o.Log.WithError(err).Warn("error closing client")
 	}
+	o.Log.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 }
 
 func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
@@ -405,7 +403,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 				return err
 			}
 
-			o.sourcesLastUpdate = timeNow()
+			o.sourcesLastUpdate.Set(timeNow().Time)
 
 			return nil
 		}
@@ -425,107 +423,61 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	// If registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it
-	if !healthy || catsrc.Status.RegistryServiceStatus == nil || catsrc.Status.RegistryServiceStatus.CreatedAt.Before(&catsrc.Status.LastSync) {
+	if !healthy || catsrc.Status.RegistryServiceStatus == nil {
 		logger.Debug("ensuring registry server")
-
 		if err := srcReconciler.EnsureRegistryServer(out); err != nil {
 			logger.WithError(err).Warn("couldn't ensure registry server")
 			return err
 		}
 		logger.Debug("ensured registry server")
 
-		out.Status.RegistryServiceStatus.CreatedAt = timeNow()
-		out.Status.LastSync = out.Status.RegistryServiceStatus.CreatedAt
-
-		logger.Debug("updating catsrc status")
 		// update status
+		logger.Debug("updating catsrc status")
+		out.Status.LastSync = timeNow()
 		if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
 			return err
 		}
 
-		o.sourcesLastUpdate = timeNow()
-		logger.Debug("registry server recreated")
-
-		func() {
-			o.sourcesLock.Lock()
-			defer o.sourcesLock.Unlock()
-			delete(o.sources, sourceKey)
-		}()
+		if err := o.sources.Remove(sourceKey); err != nil {
+			o.Log.WithError(err).Debug("error closing client connection")
+		}
 
 		return nil
 	}
 	logger.Debug("registry state good")
 
 	// update operator's view of sources
-	sourcesUpdated := false
-	func() {
-		o.sourcesLock.Lock()
-		defer o.sourcesLock.Unlock()
+	now := timeNow()
+
+	if currentSource := o.sources.GetMeta(sourceKey); currentSource != nil {
 		address := catsrc.Address()
-		currentSource, ok := o.sources[sourceKey]
-		logger = logger.WithField("currentSource", sourceKey)
-		if !ok || currentSource.Address != address || catsrc.Status.LastSync.After(currentSource.LastConnect.Time) {
-			logger.Info("building connection to registry")
-			client, err := registryclient.NewClient(address)
+
+		logger = logger.WithField("address", address).WithField("currentSource", sourceKey)
+		if currentSource.Address != address {
+			source, err := o.sources.Add(sourceKey, address)
 			if err != nil {
 				logger.WithError(err).Warn("couldn't connect to registry")
 			}
-			sourceRef := resolver.SourceRef{
-				Address:     address,
-				Client:      client,
-				LastConnect: timeNow(),
-				LastHealthy: metav1.Time{}, // haven't detected healthy yet
+			currentSource = &source.SourceMeta
+
+			out.Status.LastSync = now
+			if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+				return err
 			}
-			o.sources[sourceKey] = sourceRef
-			currentSource = sourceRef
-			sourcesUpdated = true
 		}
-		if currentSource.LastHealthy.IsZero() {
-			logger.Info("client hasn't yet become healthy, attempt a health check")
-			client, ok := currentSource.Client.(*registryclient.Client)
-			if !ok {
-				logger.WithField("client", currentSource.Client).Warn("unexpected client")
-				return
+
+		// connection is already good, but we need to update the sync time
+		if o.sourcesLastUpdate.After(out.Status.LastSync.Time) {
+			out.Status.LastSync = now
+			if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
+				return err
 			}
-			res, err := client.Health.Check(context.TODO(), &grpc_health_v1.HealthCheckRequest{Service: "Registry"})
-			if err != nil {
-				logger.WithError(err).Debug("error checking health")
-				if client.Conn.GetState() == connectivity.TransientFailure {
-					logger.Debug("wait for state to change")
-					ctx, _ := context.WithTimeout(context.TODO(), 1*time.Second)
-					if !client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure) {
-						logger.Debug("state didn't change, trigger reconnect. this may happen when cached dns is wrong.")
-						delete(o.sources, sourceKey)
-						if err := o.catSrcQueueSet.Requeue(sourceKey.Name, sourceKey.Namespace); err != nil {
-							logger.WithError(err).Debug("error requeueing")
-						}
-						return
-					}
-				}
-				return
-			}
-			if res.Status != grpc_health_v1.HealthCheckResponse_SERVING {
-				logger.WithField("status", res.Status.String()).Debug("source not healthy")
-				return
-			}
-			currentSource.LastHealthy = timeNow()
-			o.sources[sourceKey] = currentSource
-			sourcesUpdated = true
 		}
-	}()
-
-	if !sourcesUpdated {
-		return nil
+	} else {
+		if _, err := o.sources.Add(sourceKey, catsrc.Address()); err != nil {
+			return err
+		}
 	}
-
-	// record that we've done work here onto the status
-	out.Status.LastSync = timeNow()
-	if _, err := o.client.OperatorsV1alpha1().CatalogSources(out.GetNamespace()).UpdateStatus(out); err != nil {
-		return err
-	}
-
-	// Trigger a resolve, will pick up any subscriptions that depend on the catalog
-	o.resolveNamespace(out.GetNamespace())
 
 	return nil
 }
@@ -569,8 +521,8 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	// get the set of sources that should be used for resolution and best-effort get their connections working
 	logger.Debug("resolving sources")
-	resolverSources := o.ensureResolverSources(logger, namespace)
-	querier := resolver.NewNamespaceSourceQuerier(resolverSources)
+
+	querier := resolver.NewNamespaceSourceQuerier(o.sources.AsClients(o.namespace, namespace))
 
 	logger.Debug("checking if subscriptions need update")
 
@@ -676,55 +628,9 @@ func (o *Operator) resolveNamespace(namespace string) {
 	o.namespaceResolveQueue.AddRateLimited(namespace)
 }
 
-func (o *Operator) ensureResolverSources(logger *logrus.Entry, namespace string) map[resolver.CatalogKey]registryclient.Interface {
-	// TODO: record connection status onto an object
-	resolverSources := make(map[resolver.CatalogKey]registryclient.Interface, 0)
-	func() {
-		o.sourcesLock.RLock()
-		defer o.sourcesLock.RUnlock()
-		for k, ref := range o.sources {
-			if ref.LastHealthy.IsZero() {
-				logger = logger.WithField("source", k)
-				logger.Debug("omitting source, hasn't yet become healthy")
-				if err := o.catSrcQueueSet.Requeue(k.Name, k.Namespace); err != nil {
-					logger.Warn("error requeueing")
-				}
-				continue
-			}
-			// only resolve in namespace local + global catalogs
-			if k.Namespace == namespace || k.Namespace == o.namespace {
-				resolverSources[k] = ref.Client
-			}
-		}
-	}()
-
-	for k, s := range resolverSources {
-		client, ok := s.(*registryclient.Client)
-		if !ok {
-			logger.Warn("unexpected client")
-			continue
-		}
-
-		logger = logger.WithField("resolverSource", k)
-		logger.WithField("clientState", client.Conn.GetState()).Debug("source")
-		if client.Conn.GetState() == connectivity.TransientFailure {
-			logger.WithField("clientState", client.Conn.GetState()).Debug("waiting for connection")
-			ctx, _ := context.WithTimeout(context.TODO(), 2*time.Second)
-			changed := client.Conn.WaitForStateChange(ctx, connectivity.TransientFailure)
-			if !changed {
-				logger.WithField("clientState", client.Conn.GetState()).Debug("source in transient failure and didn't recover")
-				delete(resolverSources, k)
-			} else {
-				logger.WithField("clientState", client.Conn.GetState()).Debug("connection re-established")
-			}
-		}
-	}
-	return resolverSources
-}
-
 func (o *Operator) nothingToUpdate(logger *logrus.Entry, sub *v1alpha1.Subscription) bool {
 	// Only sync if catalog has been updated since last sync time
-	if o.sourcesLastUpdate.Before(&sub.Status.LastUpdated) && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
+	if o.sourcesLastUpdate.Before(sub.Status.LastUpdated.Time) && sub.Status.State != v1alpha1.SubscriptionStateUpgradeAvailable {
 		logger.Debugf("skipping update: no new updates to catalog since last sync at %s", sub.Status.LastUpdated.String())
 		return true
 	}
