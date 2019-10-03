@@ -1,9 +1,9 @@
-package envvar_test
+package overrides_test
 
 import (
 	"testing"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/envvar"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -229,7 +229,7 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envvar.InjectEnvIntoDeployment(tt.podSpec, tt.envVar)
+			overrides.InjectEnvIntoDeployment(tt.podSpec, tt.envVar)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
