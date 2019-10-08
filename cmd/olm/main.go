@@ -16,6 +16,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/admission"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -211,6 +212,15 @@ func main() {
 
 		go monitor.Run(op.Done())
 	}
+
+	admissionMux := http.NewServeMux()
+	admissionMux.HandleFunc("/operator-admit", admission.ServeAdmitOperator)
+	go func() {
+		err := http.ListenAndServe(":6789", admissionMux)
+		if err != nil {
+			logger.Errorf("Admission Webhook serving failed: %v", err)
+		}
+	}()
 
 	<-op.Done()
 }
