@@ -70,9 +70,9 @@ All Descriptors accept the following fields:
 
 **Path**: A dot-delimited path of the field on the object that this descriptor describes.
 
-**X-Descriptors**: Used to determine which "capabilities" this descriptor has and which UI component to use. A canonical list of React UI X-Descriptors for OpenShift can be found [here](https://github.com/openshift/console/blob/master/frontend/public/components/operator-lifecycle-manager/descriptors/types.ts#L5-L26).
+**X-Descriptors**: Used to determine which "capabilities" this descriptor has and which UI component to use. A canonical list of React UI X-Descriptors for OpenShift can be found [here](https://github.com/openshift/console/blob/master/frontend/packages/operator-lifecycle-manager/src/components/descriptors/types.ts).
 
-More information on Descriptors can be found [here](https://github.com/openshift/console/tree/master/frontend/public/components/operator-lifecycle-manager/descriptors).
+More information on Descriptors can be found [here](https://github.com/openshift/console/tree/master/frontend/packages/operator-lifecycle-manager/src/components/descriptors).
 
 Below is an example of a MongoDB “standalone” CRD that requires some user input in the form of a Secret and ConfigMap, and orchestrates Services, StatefulSets, Pods and ConfigMaps.
 
