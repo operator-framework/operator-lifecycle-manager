@@ -40,7 +40,7 @@ import (
 
 const (
 	pollInterval = 1 * time.Second
-	pollDuration = 5 * time.Minute
+	pollDuration = 2 * time.Minute
 
 	olmConfigMap = "olm-operators"
 	// sync name with scripts/install_local.sh
