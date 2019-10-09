@@ -939,7 +939,8 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 			// phase
 			if installPlanApproval == v1alpha1.ApprovalAutomatic {
 				installPlan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-			} else if installPlanApproval == v1alpha1.ApprovalManual {
+			} else {
+				logger.Info("Testing")
 				installPlan.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
 			}
 			for _, step := range installPlan.Status.Plan {
