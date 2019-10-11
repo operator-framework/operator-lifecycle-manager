@@ -2,7 +2,7 @@ FROM golang:1.12-alpine as builder
 LABEL stage=builder
 WORKDIR /build
 
-RUN apk update && apk add bash make git mercurial jq
+RUN apk update && apk add bash make git mercurial jq && apk upgrade
 
 # copy just enough of the git repo to parse HEAD, used to record version in OLM binaries
 COPY .git/HEAD .git/HEAD
