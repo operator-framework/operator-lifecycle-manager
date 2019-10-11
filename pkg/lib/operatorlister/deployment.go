@@ -21,7 +21,7 @@ func (udl *UnionDeploymentLister) List(selector labels.Selector) (ret []*v1.Depl
 	udl.deploymentLock.RLock()
 	defer udl.deploymentLock.RUnlock()
 
-	var set map[types.UID]*v1.Deployment
+	var set = make(map[types.UID]*v1.Deployment)
 	for _, dl := range udl.deploymentListers {
 		deployments, err := dl.List(selector)
 		if err != nil {
