@@ -1,6 +1,0 @@
----
-# Source: olm/templates/0000_50_olm_04-packageserver.operator.yaml
-apiVersion: operators.coreos.com/v2alpha1
-kind: Operator
-metadata:
-    name: packageserver

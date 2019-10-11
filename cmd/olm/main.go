@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -13,10 +12,12 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/features"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
@@ -33,43 +34,43 @@ const (
 
 // config flags defined globally so that they appear on the test binary as well
 var (
-	// kubeConfigPath = flag.String(
-	// 	"kubeconfig", "", "absolute path to the kubeconfig file")
-
-	wakeupInterval = flag.Duration(
+	wakeupInterval = pflag.Duration(
 		"interval", defaultWakeupInterval, "wake up interval")
 
-	watchedNamespaces = flag.String(
+	watchedNamespaces = pflag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces for olm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
 			"olm operator will watch all namespaces in the cluster.")
 
-	writeStatusName = flag.String(
+	writeStatusName = pflag.String(
 		"writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
 
-	writePackageServerStatusName = flag.String(
+	writePackageServerStatusName = pflag.String(
 		"writePackageServerStatusName", defaultPackageServerStatusName, "ClusterOperator name in which to write status for package API server, set to \"\" to disable.")
 
-	debug = flag.Bool(
+	debug = pflag.Bool(
 		"debug", false, "use debug log level")
 
-	version = flag.Bool("version", false, "displays olm version")
+	version = pflag.Bool("version", false, "displays olm version")
 
-	tlsKeyPath = flag.String(
+	tlsKeyPath = pflag.String(
 		"tls-key", "", "Path to use for private key (requires tls-cert)")
 
-	tlsCertPath = flag.String(
+	tlsCertPath = pflag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
-	profiling = flag.Bool(
+	profiling = pflag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
 
-	namespace = flag.String(
+	namespace = pflag.String(
 		"namespace", "", "namespace where cleanup runs")
 )
 
 func init() {
 	metrics.RegisterOLM()
+
+	// Add feature gates before parsing
+	features.AddFlag(pflag.CommandLine)
 }
 
 // main function - entrypoint to OLM operator
@@ -79,7 +80,7 @@ func main() {
 	defer cancel()
 
 	// Parse the command-line flags.
-	flag.Parse()
+	pflag.Parse()
 
 	// Check if version flag was set
 	if *version {
@@ -215,6 +216,7 @@ func main() {
 		go monitor.Run(op.Done())
 	}
 
+	// Start the controller manager
 	if err := mgr.Start(ctx.Done()); err != nil {
 		logger.WithError(err).Fatal("controller manager stopped")
 	}

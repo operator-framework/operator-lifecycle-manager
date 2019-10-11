@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/reference"
 
 	operatorsv2alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v2alpha1"
@@ -21,6 +22,12 @@ const (
 	newOperatorError       = "Cannot create new Operator: %s"
 	componentLabelKeyError = "Cannot generate component label key: %s"
 )
+
+var componentScheme = runtime.NewScheme()
+
+func init() {
+	utilruntime.Must(AddToScheme(componentScheme))
+}
 
 // OperatorNames returns a list of operator names extracted from the given labels.
 func OperatorNames(labels map[string]string) (names []types.NamespacedName) {
@@ -140,7 +147,7 @@ func (o *Operator) AddComponents(components ...runtime.Object) error {
 			return fmt.Errorf("Cannot add component %s/%s/%s to Operator %s: component labels not selected by %s", t.GetKind(), m.GetNamespace(), m.GetName(), o.GetName(), selector.String())
 		}
 
-		ref, err := reference.GetReference(reconcilerScheme, component)
+		ref, err := reference.GetReference(componentScheme, component)
 		if err != nil {
 			return err
 		}

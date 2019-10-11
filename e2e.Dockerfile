@@ -18,6 +18,7 @@ RUN make build-coverage
 FROM alpine:latest as olm
 LABEL stage=olm
 WORKDIR /
+COPY config/crd/bases /config/crd/bases
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/olm /bin/olm
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/catalog /bin/catalog
 COPY --from=builder /go/src/github.com/operator-framework/operator-lifecycle-manager/bin/package-server /bin/package-server

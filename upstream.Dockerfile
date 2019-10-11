@@ -21,6 +21,7 @@ RUN make build
 FROM alpine:latest
 LABEL stage=olm
 WORKDIR /
+COPY config/crd/bases /config/crd/bases
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server

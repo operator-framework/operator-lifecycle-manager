@@ -26,32 +26,32 @@ spec:
           command:
           - /bin/olm
           args:
-          - -namespace
+          - --namespace
           - $(OPERATOR_NAMESPACE)
           {{- if .Values.watchedNamespaces }}
-          - -watchedNamespaces
+          - --watchedNamespaces
           - {{ .Values.watchedNamespaces }}
           {{- end }}
           {{- if .Values.olm.commandArgs }}
           - {{ .Values.olm.commandArgs }}
           {{- end }}
           {{- if .Values.debug }}
-          - -debug
+          - --debug
           {{- end }}
           {{- if .Values.writeStatusName }}
-          - -writeStatusName
+          - --writeStatusName
           - {{ .Values.writeStatusName }}
           {{- end }}
           {{- if .Values.writePackageServerStatusName }}
-          - -writePackageServerStatusName
+          - --writePackageServerStatusName
           - {{ .Values.writePackageServerStatusName }}
           {{- end }}
           {{- if .Values.olm.tlsCertPath }}
-          - -tls-cert
+          - --tls-cert
           - {{ .Values.olm.tlsCertPath }}
           {{- end }}
           {{- if .Values.olm.tlsKeyPath }}
-          - -tls-key
+          - --tls-key
           - {{ .Values.olm.tlsKeyPath }}
           {{- end }}
           image: {{ .Values.olm.image.ref }}
@@ -71,16 +71,16 @@ spec:
               port: {{ .Values.olm.service.internalPort }}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
-        {{ if and .Values.installType (eq .Values.installType "ocp") }}
-          - name: RELEASE_VERSION
-            value: "0.0.1-snapshot"
-        {{ end }}
           - name: OPERATOR_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
           - name: OPERATOR_NAME
             value: olm-operator
+          {{- if and .Values.installType (eq .Values.installType "ocp") }}
+          - name: RELEASE_VERSION
+            value: "0.0.1-snapshot"
+          {{- end }}
           {{- if .Values.olm.resources }}
           resources:
 {{ toYaml .Values.olm.resources | indent 12 }}

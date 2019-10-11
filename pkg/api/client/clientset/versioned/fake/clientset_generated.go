@@ -24,6 +24,8 @@ import (
 	fakeoperatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1/fake"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
 	fakeoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1/fake"
+	operatorsv2alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v2alpha1"
+	fakeoperatorsv2alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v2alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -86,4 +88,9 @@ func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Inter
 // OperatorsV1 retrieves the OperatorsV1Client
 func (c *Clientset) OperatorsV1() operatorsv1.OperatorsV1Interface {
 	return &fakeoperatorsv1.FakeOperatorsV1{Fake: &c.Fake}
+}
+
+// OperatorsV2alpha1 retrieves the OperatorsV2alpha1Client
+func (c *Clientset) OperatorsV2alpha1() operatorsv2alpha1.OperatorsV2alpha1Interface {
+	return &fakeoperatorsv2alpha1.FakeOperatorsV2alpha1{Fake: &c.Fake}
 }

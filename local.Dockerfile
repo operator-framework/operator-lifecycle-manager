@@ -1,8 +1,9 @@
 FROM alpine:latest
 WORKDIR /
-COPY olm /bin/olm
-COPY catalog /bin/catalog
-COPY package-server /bin/package-server
+COPY config/crd/bases /config/crd/bases
+COPY bin/olm /bin/olm
+COPY bin/catalog /bin/catalog
+COPY bin/package-server /bin/package-server
 EXPOSE 8080
 EXPOSE 5443
 CMD ["/bin/olm"]

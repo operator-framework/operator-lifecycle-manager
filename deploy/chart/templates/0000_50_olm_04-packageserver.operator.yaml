@@ -1,4 +1,0 @@
-apiVersion: operators.coreos.com/v2alpha1
-kind: Operator
-metadata:
-    name: packageserver

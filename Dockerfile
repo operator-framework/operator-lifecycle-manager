@@ -28,6 +28,9 @@ FROM openshift/origin-base
 ADD manifests/ /manifests
 LABEL io.openshift.release.operator=true
 
+# Copy CRD manifests so they can be created when alpha feature gates are enabled
+COPY config/crd/bases /config/crd/bases
+
 # Copy the binary to a standard location where it will run.
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog

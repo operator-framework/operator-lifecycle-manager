@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,6 +11,7 @@ import (
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/clientcmd"
@@ -36,36 +36,36 @@ const (
 
 // config flags defined globally so that they appear on the test binary as well
 var (
-	kubeConfigPath = flag.String(
+	kubeConfigPath = pflag.String(
 		"kubeconfig", "", "absolute path to the kubeconfig file")
 
-	wakeupInterval = flag.Duration(
+	wakeupInterval = pflag.Duration(
 		"interval", defaultWakeupInterval, "wakeup interval")
 
-	watchedNamespaces = flag.String(
+	watchedNamespaces = pflag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces that catalog watches, leave empty to watch all namespaces")
 
-	catalogNamespace = flag.String(
+	catalogNamespace = pflag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
 
-	configmapServerImage = flag.String(
+	configmapServerImage = pflag.String(
 		"configmapServerImage", defaultConfigMapServerImage, "the image to use for serving the operator registry api for a configmap")
 
-	writeStatusName = flag.String(
+	writeStatusName = pflag.String(
 		"writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
 
-	debug = flag.Bool(
+	debug = pflag.Bool(
 		"debug", false, "use debug log level")
 
-	version = flag.Bool("version", false, "displays olm version")
+	version = pflag.Bool("version", false, "displays olm version")
 
-	tlsKeyPath = flag.String(
+	tlsKeyPath = pflag.String(
 		"tls-key", "", "Path to use for private key (requires tls-cert)")
 
-	tlsCertPath = flag.String(
+	tlsCertPath = pflag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
-	profiling = flag.Bool(
+	profiling = pflag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
 )
 
@@ -79,7 +79,7 @@ func main() {
 	defer cancel()
 
 	// Parse the command-line flags.
-	flag.Parse()
+	pflag.Parse()
 
 	// Check if version flag was set
 	if *version {

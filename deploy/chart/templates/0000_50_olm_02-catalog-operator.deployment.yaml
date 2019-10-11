@@ -26,28 +26,28 @@ spec:
           command:
           - /bin/catalog
           args:
+          - --namespace
+          - {{ .Values.catalog_namespace }}
           {{- if .Values.watchedNamespaces }}
-          - -watchedNamespaces
+          - --watchedNamespaces
           - {{ .Values.watchedNamespaces }}
           {{- end }}
-          - '-namespace'
-          - {{ .Values.catalog_namespace }}
           {{- if .Values.debug }}
-          - '-debug'
+          - --debug
           {{- end }}
           {{- if .Values.catalog.commandArgs }}
           - {{ .Values.catalog.commandArgs }}
           {{- end }}
           {{- if .Values.writeStatusNameCatalog }}
-          - -writeStatusName
+          - --writeStatusName
           - {{ .Values.writeStatusNameCatalog }}
           {{- end }}
           {{- if .Values.olm.tlsCertPath }}
-          - -tls-cert
+          - --tls-cert
           - {{ .Values.olm.tlsCertPath }}
           {{- end }}
           {{- if .Values.olm.tlsKeyPath }}
-          - -tls-key
+          - --tls-key
           - {{ .Values.olm.tlsKeyPath }}
           {{- end }}
           image: {{ .Values.catalog.image.ref }}
@@ -67,10 +67,10 @@ spec:
               port: {{ .Values.catalog.service.internalPort }}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
-          {{ if and .Values.installType (eq .Values.installType "ocp") }}
+          {{- if and .Values.installType (eq .Values.installType "ocp") }}
           - name: RELEASE_VERSION
             value: "0.0.1-snapshot"
-          {{ end }}
+          {{- end }}
           {{- if .Values.catalog.resources }}
           resources:
 {{ toYaml .Values.catalog.resources | indent 12 }}

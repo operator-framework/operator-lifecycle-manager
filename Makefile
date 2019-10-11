@@ -9,6 +9,7 @@ CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
 MOCKGEN := ./scripts/update_mockgen.sh
 CODEGEN := ./scripts/update_codegen.sh
+GEN_PATHS := "./pkg/api/apis/operators/v2alpha1/..."
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
@@ -32,7 +33,7 @@ endif
 GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
 
 .PHONY: build test run clean vendor schema-check \
-	vendor-update coverage coverage-html e2e .FORCE
+	vendor-update coverage coverage-html e2e manifests controller-gen .FORCE
 
 all: test build
 
@@ -138,19 +139,24 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
+# Generate manifests for CRDs
+# Use trivialVersions=true to generate CRDs w/o conversion webhooks for now
+manifests: controller-gen
+	$(CONTROLLER_GEN) crd paths=$(GEN_PATHS) output:crd:artifacts:config="config/crd/bases"
+
 codegen: codegen-v2 codegen-v1
 
 codegen-v1: vendor
 	$(CODEGEN)
 
 codegen-v2: controller-gen
-	$(CONTROLLER_GEN) object:headerFile=boilerplate.go.txt paths="./pkg/api/apis/operators/v2alpha1/..."
+	$(CONTROLLER_GEN) object:headerFile=boilerplate.go.txt paths=$(GEN_PATHS)
 
 # Find or download controller-gen.
 # Note: v0.2.1 is incompatible with k8s 1.16 deps, so download is broken until controller-tools is bumped.
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.1
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.2
 CONTROLLER_GEN=$(GOBIN)/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
@@ -180,9 +186,6 @@ verify-release:
 	rm -rf manifests
 	mkdir manifests
 	./scripts/package_release.sh $(ver) manifests deploy/ocp/values.yaml
-	# requires gnu sed if on mac
-	find ./manifests -type f -exec sed -i "/^#/d" {} \;
-	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 	git diff --exit-code
 
 # before running release, bump the version in OLM_VERSION and push to master,
@@ -195,9 +198,6 @@ release:
 	rm -rf manifests
 	mkdir manifests
 	cp -R deploy/ocp/manifests/$(ver)/. manifests
-	# requires gnu sed if on mac
-	find ./manifests -type f -exec sed -i "/^#/d" {} \;
-	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:$(ver))
 package:
