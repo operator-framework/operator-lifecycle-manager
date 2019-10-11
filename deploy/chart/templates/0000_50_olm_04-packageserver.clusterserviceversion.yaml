@@ -1,0 +1,145 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: packageserver
+  namespace: {{ .Values.namespace }}
+  labels:
+    operators.coreos.com/packageserver: ""
+    olm.version: {{ .Chart.Version }}
+    {{- if .Values.writePackageServerStatusName }}
+    olm.clusteroperator.name: {{ .Values.writePackageServerStatusName }}
+    {{- end }}
+spec:
+  displayName: Operator Package Server
+  description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
+  minKubeVersion: {{ .Values.minKubeVersion }}
+  keywords: ['packagemanifests', 'olm', 'packages']
+  maintainers:
+  - name: Red Hat
+    email: openshift-operators@redhat.com
+  provider:
+    name: Red Hat
+  links:
+  - name: Package Server
+    url: https://github.com/operator-framework/operator-lifecycle-manager/tree/master/pkg/package-server
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: true
+  - type: AllNamespaces
+    supported: true
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+      - serviceAccountName: olm-operator-serviceaccount
+        rules:
+        - apiGroups:
+            - authorization.k8s.io
+          resources:
+            - subjectaccessreviews
+          verbs:
+            - create
+            - get
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - "operators.coreos.com"
+          resources:
+          - catalogsources
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - "packages.operators.coreos.com"
+          resources:
+          - packagemanifests
+          verbs:
+          - get
+          - list
+      deployments:
+      - name: packageserver
+        spec:
+          strategy:
+            type: RollingUpdate
+          replicas: {{ .Values.package.replicaCount }}
+          selector:
+            matchLabels:
+              app: packageserver
+          template:
+            metadata:
+              labels:
+                app: packageserver
+            spec:
+              serviceAccountName: olm-operator-serviceaccount
+              {{- if and .Values.installType (eq .Values.installType "ocp") }}
+              priorityClassName: "system-cluster-critical"
+              {{- end }}
+              {{- if .Values.package.nodeSelector }}
+              nodeSelector:
+                {{- toYaml .Values.package.nodeSelector | nindent 16 }}
+              {{- end }}
+              {{- if .Values.package.tolerations }}
+              tolerations:
+                {{- toYaml .Values.package.tolerations | nindent 14 }}
+              {{- end }}
+              containers:
+              - name: packageserver
+                command:
+                - /bin/package-server
+                - -v=4
+                {{- if .Values.watchedNamespaces }}
+                - --watched-namespaces
+                - {{ .Values.watchedNamespaces }}
+                {{- end }}
+                - --secure-port
+                - {{ .Values.package.service.internalPort | quote }}
+                - --global-namespace
+                - {{ .Values.catalog_namespace }}
+                {{- if .Values.debug }}
+                - --debug
+                {{- end }}
+                {{- if .Values.package.commandArgs }}
+                - {{ .Values.package.commandArgs }}
+                {{- end }}
+                image: {{ .Values.package.image.ref }}
+                imagePullPolicy: {{ .Values.package.image.pullPolicy }}
+                ports:
+                - containerPort: {{ .Values.package.service.internalPort }}
+                livenessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    path: /healthz
+                    port: {{ .Values.package.service.internalPort }}
+                readinessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    path: /healthz
+                    port: {{ .Values.package.service.internalPort }}
+                terminationMessagePolicy: FallbackToLogsOnError
+                {{- if .Values.package.resources }}
+                resources:
+                  {{- toYaml .Values.package.resources | nindent 18 }}
+                {{- end}}
+  maturity: alpha
+  version: {{ .Chart.Version }}
+  apiservicedefinitions:
+    owned:
+    - group: packages.operators.coreos.com
+      version: v1
+      kind: PackageManifest
+      name: packagemanifests
+      displayName: PackageManifest
+      description: A PackageManifest is a resource generated from existing CatalogSources and their ConfigMaps
+      deploymentName: packageserver
+      containerPort: {{ .Values.package.service.internalPort }}
