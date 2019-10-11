@@ -342,7 +342,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	// add queue for all namespaces as well
-	objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/obj-gc", ""))
+	objGCQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "obj-gc")
 	op.objGCQueueSet.Set("", objGCQueue)
 	objGCQueueInformer, err := queueinformer.NewQueue(
 		ctx,
