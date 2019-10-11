@@ -1,3 +1,5 @@
+---
+# Source: olm/templates/0000_50_olm_03-operatorgroup-default.yaml
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:

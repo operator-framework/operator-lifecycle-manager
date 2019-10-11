@@ -1,9 +1,12 @@
+---
+# Source: olm/templates/0000_50_olm_04-packageserver.clusterserviceversion.yaml
 apiVersion: operators.coreos.com/v1alpha1
 kind: ClusterServiceVersion
 metadata:
   name: packageserver
   namespace: openshift-operator-lifecycle-manager
   labels:
+    operators.coreos.com/packageserver: ""
     olm.version: 0.12.0
     olm.clusteroperator.name: operator-lifecycle-manager-packageserver
 spec:
