@@ -29,7 +29,7 @@ type StrategyResolverInterface interface {
 }
 
 type StrategyResolver struct {
-	ProxyInjectorBuilderFunc DeploymentInitializerBuilderFunc
+	OverridesBuilderFunc DeploymentInitializerBuilderFunc
 }
 
 func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error) {
@@ -51,8 +51,8 @@ func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient op
 		strategyClient := wrappers.NewInstallStrategyDeploymentClient(opClient, opLister, owner.GetNamespace())
 
 		initializers := []DeploymentInitializerFunc{}
-		if r.ProxyInjectorBuilderFunc != nil {
-			initializers = append(initializers, r.ProxyInjectorBuilderFunc(owner))
+		if r.OverridesBuilderFunc != nil {
+			initializers = append(initializers, r.OverridesBuilderFunc(owner))
 		}
 
 		return NewStrategyDeploymentInstaller(strategyClient, annotations, owner, previousStrategy, initializers)

@@ -58,13 +58,13 @@ var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 // initializes it for install.
 //
 // Before a deployment is created on the cluster, we can run a series of
-// initializer functions that will properly initialize the deployment object.
+// overrides functions that will properly initialize the deployment object.
 type DeploymentInitializerFunc func(deployment *appsv1.Deployment) error
 
 // DeploymentInitializerFuncChain defines a chain of DeploymentInitializerFunc.
 type DeploymentInitializerFuncChain []DeploymentInitializerFunc
 
-// Apply runs series of initializer functions that will properly initialize
+// Apply runs series of overrides functions that will properly initialize
 // the deployment object.
 func (c DeploymentInitializerFuncChain) Apply(deployment *appsv1.Deployment) (err error) {
 	for _, initializer := range c {

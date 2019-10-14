@@ -1573,6 +1573,8 @@ func autoConvert_v1alpha1_SubscriptionConfig_To_operators_SubscriptionConfig(in 
 	out.Resources = in.Resources
 	out.EnvFrom = *(*[]corev1.EnvFromSource)(unsafe.Pointer(&in.EnvFrom))
 	out.Env = *(*[]corev1.EnvVar)(unsafe.Pointer(&in.Env))
+	out.Volumes = *(*[]corev1.Volume)(unsafe.Pointer(&in.Volumes))
+	out.VolumeMounts = *(*[]corev1.VolumeMount)(unsafe.Pointer(&in.VolumeMounts))
 	return nil
 }
 
@@ -1588,6 +1590,8 @@ func autoConvert_operators_SubscriptionConfig_To_v1alpha1_SubscriptionConfig(in 
 	out.Resources = in.Resources
 	out.EnvFrom = *(*[]corev1.EnvFromSource)(unsafe.Pointer(&in.EnvFrom))
 	out.Env = *(*[]corev1.EnvVar)(unsafe.Pointer(&in.Env))
+	out.Volumes = *(*[]corev1.Volume)(unsafe.Pointer(&in.Volumes))
+	out.VolumeMounts = *(*[]corev1.VolumeMount)(unsafe.Pointer(&in.VolumeMounts))
 	return nil
 }
 
