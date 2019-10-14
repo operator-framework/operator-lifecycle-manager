@@ -64,6 +64,9 @@ spec:
           - name: OPERATOR_NAME
             value: olm-operator
           resources:
+            limits:
+              cpu: 20m
+              memory: 3200Mi
             requests:
               cpu: 10m
               memory: 160Mi
