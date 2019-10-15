@@ -871,6 +871,122 @@ func TestSubscriptionUpdatesMultipleIntermediates(t *testing.T) {
 	// TODO: check installplans, subscription status, etc
 }
 
+// TestSubscriptionUpdatesExistingInstallPlan ensures that an existing InstallPlan
+//  has the appropriate approval requirement from Subscription.
+func TestSubscriptionUpdatesExistingInstallPlan(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	// Create CSV
+	packageName := genName("nginx-")
+	stableChannel := "stable"
+
+	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	csvA := newCSV("nginx-a", testNamespace, "", semver.MustParse("0.1.0"), nil, nil, namedStrategy)
+	csvB := newCSV("nginx-b", testNamespace, "nginx-a", semver.MustParse("0.2.0"), nil, nil, namedStrategy)
+
+	// Create PackageManifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvB.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the CatalogSource with just one version
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	catalogSourceName := genName("mock-nginx-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, nil, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	defer cleanupCatalogSource()
+
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create a subscription to just get an InstallPlan for csvB
+	subscriptionName := genName("sub-nginx-")
+	createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvB.GetName(), v1alpha1.ApprovalAutomatic)
+
+	// Wait for csvB to be installed
+	_, err = awaitCSV(t, crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+
+	// Delete this subscription
+	err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+	require.NoError(t, err)
+
+	// Create an InstallPlan for csvB
+	ip := &v1alpha1.InstallPlan{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "install-",
+			Namespace:    testNamespace,
+		},
+		Spec: v1alpha1.InstallPlanSpec{
+			ClusterServiceVersionNames: []string{csvB.GetName()},
+			Approval:                   v1alpha1.ApprovalAutomatic,
+			Approved:                   false,
+		},
+	}
+	ip2, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).Create(ip)
+	require.NoError(t, err)
+
+	ip2.Status = v1alpha1.InstallPlanStatus{
+		Plan:           fetchedInstallPlan.Status.Plan,
+		CatalogSources: []string{catalogSourceName},
+	}
+
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).UpdateStatus(ip2)
+	require.NoError(t, err)
+
+	subscriptionName = genName("sub-nginx-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, packageName, stableChannel, csvA.GetName(), v1alpha1.ApprovalManual)
+	defer cleanupSubscription()
+
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	installPlanName := subscription.Status.Install.Name
+
+	// Wait for InstallPlan to be status: Complete before checking resource presence
+	requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
+	fetchedInstallPlan, err = fetchInstallPlan(t, crc, installPlanName, requiresApprovalChecker)
+	require.NoError(t, err)
+
+	// Approve the installplan and wait for csvA to be installed
+	fetchedInstallPlan.Spec.Approved = true
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
+	require.NoError(t, err)
+
+	// Wait for csvA to be installed
+	_, err = awaitCSV(t, crc, testNamespace, csvA.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Wait for the subscription to begin upgrading to csvB
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
+	require.NoError(t, err)
+
+	// Fetch existing csvB installPlan
+	fetchedInstallPlan, err = fetchInstallPlan(t, crc, subscription.Status.InstallPlanRef.Name, requiresApprovalChecker)
+	require.NoError(t, err)
+	require.Equal(t, ip2.GetName(), subscription.Status.InstallPlanRef.Name, "expected new installplan is the same with pre-exising one")
+
+	// Approve the installplan and wait for csvB to be installed
+	fetchedInstallPlan.Spec.Approved = true
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
+	require.NoError(t, err)
+
+	// Wait for csvB to be installed
+	_, err = awaitCSV(t, crc, testNamespace, csvB.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+}
+
 // TestSubscriptionStatusMissingTargetCatalogSource ensures that a Subscription has the appropriate status condition when
 // its target catalog is missing.
 //
