@@ -1362,6 +1362,48 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	checkDeploymentWithPodConfiguration(t, kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts)
 }
 
+
+func TestCreateNewSubscriptionWithDependencies(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	kubeClient := newKubeClient(t)
+	crClient := newCRClient(t)
+
+	permissions := deploymentPermissions(t)
+
+	catsrc, subSpec, catsrcCleanup := newCatalogSourceWithDependencies(t, kubeClient, crClient, "podconfig", testNamespace, permissions)
+	defer catsrcCleanup()
+
+	// Ensure that the catalog source is resolved before we create a subscription.
+	_, err := fetchCatalogSource(t, crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create duplicates of the CatalogSource
+	for i := 0; i < 10; i++ {
+		duplicateCatsrc, _, duplicateCatSrcCleanup := newCatalogSourceWithDependencies(t, kubeClient, crClient, "podconfig", testNamespace, permissions)
+		defer duplicateCatSrcCleanup()
+
+		// Ensure that the catalog source is resolved before we create a subscription.
+		_, err = fetchCatalogSource(t, crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(t, err)
+	}
+
+	// Create a subscription that has a dependency
+	subscriptionName := genName("podconfig-sub-")
+	cleanupSubscription := createSubscriptionForCatalogWithSpec(t, crClient, testNamespace, subscriptionName, subSpec)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Check that a single catalog source was used to resolve the InstallPlan
+	installPlan, err:= fetchInstallPlan(t, crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	require.Len(t, installPlan.Status.CatalogSources,1)
+
+}
+
 func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) {
 	resolver := install.StrategyResolver{}
 

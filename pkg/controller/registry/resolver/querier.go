@@ -22,7 +22,7 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey) (*opregistry.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
 	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
 	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
 	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
@@ -48,7 +48,18 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey) (*opregistry.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+	if initialSource.Name != "" && initialSource.Namespace != "" {
+		source, ok := q.sources[initialSource]
+		if ok {
+			if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind); err == nil {
+				return bundle, &initialSource, nil
+			}
+			if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Plural+"."+api.Group, api.Version, api.Kind); err == nil {
+				return bundle, &initialSource, nil
+			}
+		}
+	}
 	for key, source := range q.sources {
 		if bundle, err := source.GetBundleThatProvides(context.TODO(), api.Group, api.Version, api.Kind); err == nil {
 			return bundle, &key, nil
