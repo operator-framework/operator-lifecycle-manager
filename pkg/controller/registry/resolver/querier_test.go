@@ -106,13 +106,25 @@ func TestNamespaceSourceQuerier_Queryable(t *testing.T) {
 
 func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 	fakeSource := fakes.FakeInterface{}
+	fakeSource2 := fakes.FakeInterface{}
 	sources := map[CatalogKey]client.Interface{
 		CatalogKey{"test", "ns"}: &fakeSource,
+		CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
 
 	bundle := opregistry.NewBundle("test", "testPkg", "testChannel")
+	bundle2 := opregistry.NewBundle("test2", "testPkg2", "testChannel2")
 	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*opregistry.Bundle, error) {
+		if group != "group" || version != "version" || kind != "kind" {
+			return nil, fmt.Errorf("Not Found")
+		}
 		return bundle, nil
+	}
+	fakeSource2.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*opregistry.Bundle, error) {
+		if group != "group2" || version != "version2" || kind != "kind2" {
+			return nil, fmt.Errorf("Not Found")
+		}
+		return bundle2, nil
 	}
 
 	type fields struct {
@@ -120,6 +132,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 	}
 	type args struct {
 		api opregistry.APIKey
+		catalogKey CatalogKey
 	}
 	type out struct {
 		bundle *opregistry.Bundle
@@ -138,6 +151,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			},
 			args: args{
 				api: opregistry.APIKey{"group", "version", "kind", "plural"},
+				catalogKey: CatalogKey{},
 			},
 			out: out{
 				bundle: bundle,
@@ -151,11 +165,40 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			},
 			args: args{
 				api: opregistry.APIKey{"group", "version", "kind", "plural"},
+				catalogKey: CatalogKey{},
 			},
 			out: out{
 				bundle: nil,
 				key:    nil,
 				err:    fmt.Errorf("group/version/kind (plural) not provided by a package in any CatalogSource"),
+			},
+		},
+		{
+			fields: fields{
+				sources: sources,
+			},
+			args: args{
+				api: opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
+				catalogKey: CatalogKey{Name: "test2", Namespace: "ns"},
+			},
+			out: out{
+				bundle: bundle2,
+				key:    &CatalogKey{Name: "test2", Namespace: "ns"},
+				err:    nil,
+			},
+		},
+		{
+			fields: fields{
+				sources: sources,
+			},
+			args: args{
+				api: opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
+				catalogKey: CatalogKey{Name: "test3", Namespace: "ns"},
+			},
+			out: out{
+				bundle: bundle2,
+				key:    &CatalogKey{Name: "test2", Namespace: "ns"},
+				err:    nil,
 			},
 		},
 	}
@@ -164,10 +207,10 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
 			}
-			bundle, key, err := q.FindProvider(tt.args.api)
-			require.Equal(t, err, tt.out.err)
-			require.Equal(t, bundle, tt.out.bundle)
-			require.Equal(t, key, tt.out.key)
+			bundle, key, err := q.FindProvider(tt.args.api, tt.args.catalogKey)
+			require.Equal(t, tt.out.err, err)
+			require.Equal(t, tt.out.bundle, bundle)
+			require.Equal(t, tt.out.key, key)
 		})
 	}
 }
