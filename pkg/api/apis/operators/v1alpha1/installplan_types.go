@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 const (
@@ -84,6 +87,7 @@ type InstallPlanStatus struct {
 	Conditions     []InstallPlanCondition `json:"conditions,omitempty"`
 	CatalogSources []string               `json:"catalogSources"`
 	Plan           []*Step                `json:"plan,omitempty"`
+	BundleLookups  []*BundleLookup        `json:"bundleLookup,omitempty"`
 
 	// AttenuatedServiceAccountRef references the service account that is used
 	// to do scoped operator install.
@@ -160,6 +164,24 @@ type Step struct {
 	Resolving string       `json:"resolving"`
 	Resource  StepResource `json:"resource"`
 	Status    StepStatus   `json:"status"`
+}
+
+// BundleJob tracks the job status for a given bundle
+type BundleJob struct {
+	Name           string                   `json:"name, omitempty"`
+	Namespace      string                   `json:"namespace, omitempty"`
+	Condition      batchv1.JobConditionType `json:"condition, omitempty"`
+	CompletionTime *metav1.Time             `json:"completionTime, omitempty"`
+}
+
+// BundleLookup serves as accounting for tracking a bundle data lookup
+type BundleLookup struct {
+	BundleJob            *BundleJob                  `json:"bundleJob"`
+	ConfigMapRef         *ConfigMapResourceReference `json:"configMapRef"`
+	Image                string                      `json:"image"`
+	BundleFromRegistry   *api.Bundle                 `json:"bundleFromRegistry"`
+	CatalogName          string                      `json:"catalogName"`
+	CatalogNamespace     string                      `json:"catalogNamespace"`
 }
 
 // ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
