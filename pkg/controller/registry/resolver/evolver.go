@@ -60,6 +60,12 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 
 		bundle, key, err := e.querier.FindReplacement(op.Version(), op.Identifier(), op.SourceInfo().Package, op.SourceInfo().Channel, op.SourceInfo().Catalog)
 		if err != nil || bundle == nil {
+			if bundle.BundlePath != nil {
+				e.gen.AddPendingOperator(LaunchBundleImageInfo{
+					operatorSourceInfo: op.SourceInfo(),
+					image:              bundle.BundlePath,
+				})
+			}
 			continue
 		}
 
@@ -80,11 +86,26 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 	for s := range add {
 		var bundle *api.Bundle
 		var key *CatalogKey
+		var bundlePath *string
 		var err error
 		if s.StartingCSV != "" {
 			bundle, key, err = e.querier.FindBundle(s.Package, s.Channel, s.StartingCSV, s.Catalog)
+			if bundle.BundlePath != nil {
+				e.gen.AddPendingOperator(LaunchBundleImageInfo{
+					operatorSourceInfo: &s,
+					image:              bundle.BundlePath,
+				})
+				continue
+			}
 		} else {
 			bundle, key, err = e.querier.FindLatestBundle(s.Package, s.Channel, s.Catalog)
+			if bundle.BundlePath != nil {
+				e.gen.AddPendingOperator(LaunchBundleImageInfo{
+					operatorSourceInfo: &s,
+					image:              bundle.BundlePath,
+				})
+				continue
+			}
 		}
 		if err != nil {
 			// TODO: log or collect warnings
@@ -115,14 +136,22 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 		e.gen.MarkAPIChecked(*api)
 
 		// identify the initialSource
-		initialSource := CatalogKey{}
+		var initialSource *OperatorSourceInfo
 		for _, operator := range e.gen.MissingAPIs()[*api] {
-			initialSource = operator.SourceInfo().Catalog
+			initialSource = operator.SourceInfo()
 			break
 		}
 
 		// attempt to find a bundle that provides that api
-		if bundle, key, err := e.querier.FindProvider(*api, initialSource); err == nil {
+		if bundle, key, err := e.querier.FindProvider(*api, initialSource.Catalog); err == nil {
+			if bundle.BundlePath != nil {
+				e.gen.AddPendingOperator(LaunchBundleImageInfo{
+					operatorSourceInfo: initialSource,
+					image:              bundle.BundlePath,
+				})
+				return nil
+			}
+
 			// add a bundle that provides the api to the generation
 			o, err := NewOperatorFromBundle(bundle, "", *key)
 			if err != nil {
