@@ -145,7 +145,7 @@ func newNginxDeployment(name string) appsv1.DeploymentSpec {
 				Containers: []corev1.Container{
 					{
 						Name:  genName("nginx"),
-						Image: "bitnami/nginx:latest",
+						Image: *dummyImage,
 						Ports: []corev1.ContainerPort{
 							{
 								ContainerPort: 80,

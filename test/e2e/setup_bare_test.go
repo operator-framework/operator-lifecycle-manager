@@ -43,8 +43,13 @@ var (
 		"reference to upstream-community-operators image")
 	
 
-	testNamespace     = ""
-	operatorNamespace = ""
+	dummyImage = flag.String(
+		"dummyImage",
+		"redis",
+		"dummy image to treat as an operator in tests")
+
+	testNamespace           = ""
+	operatorNamespace       = ""
 	communityOperatorsImage = ""
 )
 
