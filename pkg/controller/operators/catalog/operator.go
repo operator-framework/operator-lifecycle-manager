@@ -11,6 +11,7 @@ import (
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/connectivity"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
+	"github.com/operator-framework/operator-registry/pkg/configmap"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -85,6 +87,8 @@ type Operator struct {
 	catalogSubscriberIndexer map[string]cache.Indexer
 	clientAttenuator         *scoped.ClientAttenuator
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
+	bundleLoader             *configmap.BundleLoader
+	configmapRegistryImage   string
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -140,6 +144,8 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient),
+		bundleLoader:             configmap.NewBundleLoader(),
+		configmapRegistryImage:   configmapRegistryImage,
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
@@ -167,10 +173,13 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		// Wire InstallPlans
 		ipInformer := crInformerFactory.Operators().V1alpha1().InstallPlans()
 		op.lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, ipInformer.Lister())
+		ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/ips", namespace))
+		op.ipQueueSet.Set(namespace, ipQueue)
 		ipQueueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
 			queueinformer.WithMetricsProvider(metrics.NewMetricsInstallPlan(op.client)),
 			queueinformer.WithLogger(op.logger),
+			queueinformer.WithQueue(ipQueue),
 			queueinformer.WithInformer(ipInformer.Informer()),
 			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncInstallPlans).ToSyncer()),
 		)
@@ -772,7 +781,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
+	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
 		return err
 	}
@@ -790,7 +799,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			}
 		}
 
-		installPlanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps)
+		installPlanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps, bundleLookups)
 		if err != nil {
 			logger.WithError(err).Debug("error ensuring installplan")
 			return err
@@ -931,8 +940,8 @@ func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.S
 	return err
 }
 
-func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*corev1.ObjectReference, error) {
-	if len(steps) == 0 {
+func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []*v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
+	if len(steps) == 0 && len(bundleLookups) == 0 {
 		return nil, nil
 	}
 
@@ -978,11 +987,11 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	}
 	logger.Warn("no installplan found with matching manifests, creating new one")
 
-	return o.createInstallPlan(namespace, subs, installPlanApproval, steps)
+	return o.createInstallPlan(namespace, subs, installPlanApproval, steps, bundleLookups)
 }
 
-func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*corev1.ObjectReference, error) {
-	if len(steps) == 0 {
+func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []*v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
+	if len(steps) == 0 && len(bundleLookups) == 0 {
 		return nil, nil
 	}
 
@@ -1027,6 +1036,7 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 		Phase:          phase,
 		Plan:           steps,
 		CatalogSources: catalogSources,
+		BundleLookups:  bundleLookups,
 	}
 	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(res)
 	if err != nil {
@@ -1034,6 +1044,108 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 	}
 
 	return reference.GetReference(res)
+}
+
+func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) {
+	for _, bundleLookup := range plan.Status.BundleLookups {
+		if bundleLookup.BundleJob == nil {
+			configmap, job, err := configmap.LaunchBundleImage(o.opClient.KubernetesInterface(), bundleLookup.Image, o.configmapRegistryImage, o.namespace)
+			if err != nil {
+				return false, err
+			}
+			logrus.Infof("Launched bundle job for image %v", bundleLookup.Image)
+
+			bundleLookup.BundleJob = &v1alpha1.BundleJob{
+				// job condition and completion time will be filled out later (installplan sync)
+				Name:      job.GetName(),
+				Namespace: job.GetNamespace(),
+			}
+			bundleLookup.ConfigMapRef = &v1alpha1.ConfigMapResourceReference{
+				Name:            configmap.GetName(),
+				Namespace:       configmap.GetNamespace(),
+				UID:             configmap.GetUID(),
+				ResourceVersion: configmap.GetResourceVersion(),
+			}
+			_, err = o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(plan)
+			if err != nil {
+				return false, err
+			}
+
+			return false, nil
+		}
+
+		if bundleLookup.BundleJob.CompletionTime != nil {
+			// already processed
+			continue
+		}
+
+		// TODO: instead of doing a get, should just watch all jobs (add ownerref) and update the installplan from there
+		job, err := o.opClient.KubernetesInterface().BatchV1().Jobs(bundleLookup.BundleJob.Namespace).Get(bundleLookup.BundleJob.Name, metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		if len(job.Status.Conditions) == 0 || len(job.Status.Conditions) > 0 && job.Status.Conditions[0].Type != batchv1.JobComplete {
+			logrus.Infof("Job '%v' for '%v' not yet completed", job.GetName(), bundleLookup.Image)
+			return false, nil
+		}
+		bundleLookup.BundleJob.Condition = job.Status.Conditions[0].Type
+		bundleLookup.BundleJob.CompletionTime = job.Status.CompletionTime
+
+		configmap, err := o.lister.CoreV1().ConfigMapLister().ConfigMaps(bundleLookup.ConfigMapRef.Namespace).Get(bundleLookup.ConfigMapRef.Name)
+		if err != nil {
+			return false, err
+		}
+
+		// extract data from configmap and write to install plan
+		manifest, err := o.bundleLoader.Load(configmap)
+		if err != nil {
+			return false, err
+		}
+
+		// combine data from the bundle image into what's already known from the registry
+		bundleLookup.BundleFromRegistry.CsvName = manifest.Bundle.Name
+		bundleLookup.BundleFromRegistry.PackageName = manifest.Bundle.Package
+		bundleLookup.BundleFromRegistry.ChannelName = manifest.Bundle.Channel
+		_, jsonCSV, _, err := manifest.Bundle.Serialize()
+		if err != nil {
+			return false, fmt.Errorf("serialize failed: %s", err.Error())
+		}
+		bundleLookup.BundleFromRegistry.CsvJson = string(jsonCSV)
+		bundleLookup.BundleFromRegistry.Object = []string{string(jsonCSV)}
+		for _, item := range manifest.Bundle.Objects {
+			bytes, err := item.MarshalJSON()
+			if err != nil {
+				return false, fmt.Errorf("marshall failed: %v", err)
+			}
+			bundleLookup.BundleFromRegistry.Object = append(bundleLookup.BundleFromRegistry.Object, string(bytes))
+		}
+
+		var olmCSV v1alpha1.ClusterServiceVersion
+		err = json.Unmarshal(jsonCSV, &olmCSV)
+		if err != nil {
+			return false, fmt.Errorf("csv retrieval failed: %s", err.Error())
+		}
+
+		// TODO: refactor with resolver code (and call the subscription stuff too)
+		bundleSteps, err := resolver.NewStepResourceFromBundle(bundleLookup.BundleFromRegistry, plan.GetNamespace(), olmCSV.Spec.Replaces, bundleLookup.CatalogName, bundleLookup.CatalogNamespace)
+		if err != nil {
+			return false, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
+		}
+
+		// TODO: could this add duplicate steps?
+		for _, s := range bundleSteps {
+			plan.Status.Plan = append(plan.Status.Plan, &v1alpha1.Step{
+				Resolving: olmCSV.GetName(),
+				Resource:  s,
+				Status:    v1alpha1.StepStatusUnknown,
+			})
+		}
+	}
+
+	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(plan); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
@@ -1052,9 +1164,27 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	logger.Info("syncing")
 
-	if len(plan.Status.Plan) == 0 {
+	if len(plan.Status.Plan) == 0 && len(plan.Status.BundleLookups) == 0 {
 		logger.Info("skip processing installplan without status - subscription sync responsible for initial status")
 		return
+	}
+
+	// handle bundle data before trying to install
+	if len(plan.Status.BundleLookups) != 0 {
+		finished, err := o.checkBundleLookups(plan)
+		if err != nil {
+			syncError = fmt.Errorf("checkBundleLookups failed: %v", err)
+			return
+		}
+		if !finished {
+			err := o.ipQueueSet.RequeueAfter(plan.GetNamespace(), plan.GetName(), 5*time.Second)
+			if err != nil {
+				syncError = err
+				return
+			}
+			o.logger.Debug("install plan not yet populated from bundle image, requeueing")
+			return
+		}
 	}
 
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
