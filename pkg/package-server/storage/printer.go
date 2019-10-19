@@ -33,7 +33,7 @@ func addTableHandlers(h printers.PrintHandler) {
 
 }
 
-func printPackage(manifest *operators.PackageManifest, options printers.PrintOptions) ([]metav1beta1.TableRow, error) {
+func printPackage(manifest *operators.PackageManifest, options printers.GenerateOptions) ([]metav1beta1.TableRow, error) {
 	row := metav1beta1.TableRow{
 		Object: runtime.RawExtension{Object: manifest},
 	}
@@ -41,7 +41,7 @@ func printPackage(manifest *operators.PackageManifest, options printers.PrintOpt
 	return []metav1beta1.TableRow{row}, nil
 }
 
-func printPackageList(manifestList *operators.PackageManifestList, options printers.PrintOptions) ([]metav1beta1.TableRow, error) {
+func printPackageList(manifestList *operators.PackageManifestList, options printers.GenerateOptions) ([]metav1beta1.TableRow, error) {
 	rows := make([]metav1beta1.TableRow, 0, len(manifestList.Items))
 	for i := range manifestList.Items {
 		r, err := printPackage(&manifestList.Items[i], options)
