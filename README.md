@@ -83,7 +83,7 @@ Examples: [EtcdCluster CRD](https://github.com/operator-framework/community-oper
 
 OLM introduces the notion of “descriptors” of both `spec` and `status` fields in kubernetes API responses. Descriptors are intended to indicate various properties of a field in order to make decisions about their content. For example, this can drive connecting two operators together (e.g. connecting the connection string from a mysql instance to a consuming application) and be used to drive rich interactions in a UI.
 
-[See an example of a ClusterServiceVersion with descriptors](https://github.com/operator-framework/community-operators/blob/master/community-operators/etcd/etcdoperator.v0.9.2.clusterserviceversion.yaml)
+[See an example of a ClusterServiceVersion with descriptors](https://github.com/operator-framework/community-operators/blob/master/community-operators/etcd/0.9.2/etcdoperator.v0.9.2.clusterserviceversion.yaml)
 
 ## Dependency Resolution
 
