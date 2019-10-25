@@ -96,7 +96,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		if op.Bundle() != nil {
 			bundleSteps, err := NewStepResourceFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to turn bundle into steps %s", err.Error())
+				return nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 			}
 			for _, s := range bundleSteps {
 				steps = append(steps, &v1alpha1.Step{
