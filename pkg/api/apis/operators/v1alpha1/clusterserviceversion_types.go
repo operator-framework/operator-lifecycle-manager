@@ -274,7 +274,7 @@ type ClusterServiceVersionCondition struct {
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
-// OwnsCRD determines whether the current CSV owns a paritcular CRD.
+// OwnsCRD determines whether the current CSV owns a particular CRD.
 func (csv ClusterServiceVersion) OwnsCRD(name string) bool {
 	for _, desc := range csv.Spec.CustomResourceDefinitions.Owned {
 		if desc.Name == name {
@@ -285,7 +285,7 @@ func (csv ClusterServiceVersion) OwnsCRD(name string) bool {
 	return false
 }
 
-// OwnsAPIService determines whether the current CSV owns a paritcular APIService.
+// OwnsAPIService determines whether the current CSV owns a particular APIService.
 func (csv ClusterServiceVersion) OwnsAPIService(name string) bool {
 	for _, desc := range csv.Spec.APIServiceDefinitions.Owned {
 		apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
