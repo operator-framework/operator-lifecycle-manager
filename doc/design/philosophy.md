@@ -16,7 +16,7 @@ The goal of the Operator Lifecycle Manager and Cloud Service Catalog is to manag
 
 **Interaction**
 
- * By standardizing the other three, provide a standard way to interact with cloud services and user-defined open cloud services via both the CLI and the Tectonic Console
+ * By standardizing the other three, provide a standard way to interact with cloud services and user-defined open cloud services via both the CLI and the OpenShift web console. 
 
 # Design
 
@@ -82,9 +82,9 @@ OLM defines packaging formats for operators. These are:
 
  * Has metadata about the package (maintainers, icon, etc)
 
- * Declares managed CRDs
+ * Declares owned CRDs
 
-     * These are the CRDs directly managed by the Operator. `EtcdCluster` is managed by the Etcd `ClusterServiceVersion` but not the Vault `ClusterServiceVersion`
+     * These are the CRDs directly owned by the Operator. `EtcdCluster` is owned by the Etcd `ClusterServiceVersion` but not the Vault `ClusterServiceVersion`
 
  * Declares required CRDs
 
@@ -92,15 +92,17 @@ OLM defines packaging formats for operators. These are:
 
  * Declares cluster requirements
 
-     * An operator may require a pull secret, a config map, the availability of a cluster feature.
+     * An operator may require a pull secret, a config map, or the availability of a cluster feature.
 
  * Provides an Install Strategy 
 
      * The install strategy tells OLM how to actually create resources in the cluster.
 
-     * Currently the only strategy is "deployment", but planned are: image, helm, and <whatever upstream solutions are created>
+     * Currently the only strategy is `deployment`, which specifies a Kubernetes Deployment
+      
+     * Future install strategies include `image`, `helm`, and upstream community strategies
 
- * Roughly equivalent to dpkg - you can install a dpkg manually, but if you do, dependency resolution is up to you.
+ * Roughly equivalent to dpkg - you can install a dpkg manually, but if you do, dependency resolution is up to you. 
 
 ## InstallPlan
 
@@ -136,7 +138,7 @@ We have two major components that handle the resources described above
 
  **OLM Operator**
 
- * Watches for ClusterServiceVersions in a namespace and checks that requirements are met. If so, runs the service install strategy for the ClusterServiceVersion (e.g: installs deployment)
+ * Watches for ClusterServiceVersions in a namespace and checks that requirements are met. If so, runs the service install strategy for the ClusterServiceVersion and installs the resource into the cluster. For example for a `deployment` strategy installation is achieved by creating a Kubernetes Deployment, which gets resolved by the Deployment controller. 
 
  **Service Catalog Operator**
 
@@ -162,7 +164,7 @@ We have two major components that handle the resources described above
 
 If you don't want to write an operator, the thing you want to package probably fits one of the standard shapes of software that can be deployed on a cluster. You can take advantage of OLM by writing a package that binds your application to one of our standard operators, like [helm-app-operator-kit](https://github.com/coreos/helm-app-operator-kit).
 
-If your use-case doesn't fit one of our standard operators, that means you have domain-specific operational knowledge you need to encode into an operator, and you can take advantage of our Operator SDK for common operator tasks.
+If your use-case doesn't fit one of our standard operators, that means you have domain-specific operational knowledge you need to encode into an operator, and you can take advantage of our [Operator SDK](https://github.com/operator-framework/operator-sdk) for common operator tasks.
 
 **Why are dependencies between operators expressed as a dependency on a CRD?**
 
