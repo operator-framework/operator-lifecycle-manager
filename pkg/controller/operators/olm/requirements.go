@@ -16,19 +16,15 @@ import (
 )
 
 func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met bool, statuses []v1alpha1.RequirementStatus) {
+	if minKubeVersion == "" {
+		return true, nil
+	}
+
 	status := v1alpha1.RequirementStatus{
 		Group:   "operators.coreos.com",
 		Version: "v1alpha1",
 		Kind:    "ClusterServiceVersion",
 		Name:    name,
-	}
-
-	if minKubeVersion == "" {
-		status.Status = v1alpha1.RequirementStatusReasonNotPresent
-		status.Message = "CSV missing minimum kube version specification"
-		met = true
-		statuses = append(statuses, status)
-		return
 	}
 
 	// Retrieve server k8s version
@@ -340,6 +336,7 @@ func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyD
 
 // requirementAndPermissionStatus returns the aggregate requirement and permissions statuses for the given CSV
 func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVersion) (bool, []v1alpha1.RequirementStatus, error) {
+	allReqStatuses := []v1alpha1.RequirementStatus{}
 	// Use a StrategyResolver to unmarshal
 	strategyResolver := install.StrategyResolver{}
 	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
@@ -355,8 +352,12 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 
 	// Check kubernetes version requirement between CSV and server
 	minKubeMet, minKubeStatus := a.minKubeVersionStatus(csv.GetName(), csv.Spec.MinKubeVersion)
+	if minKubeStatus != nil {
+		allReqStatuses = append(allReqStatuses, minKubeStatus...)
+	}
+
 	reqMet, reqStatuses := a.requirementStatus(strategyDetailsDeployment, csv.GetAllCRDDescriptions(), csv.GetOwnedAPIServiceDescriptions(), csv.GetRequiredAPIServiceDescriptions(), csv.Spec.NativeAPIs)
-	allReqStatuses := append(minKubeStatus, reqStatuses...)
+	allReqStatuses = append(allReqStatuses, reqStatuses...)
 
 	rbacLister := a.lister.RbacV1()
 	roleLister := rbacLister.RoleLister()
