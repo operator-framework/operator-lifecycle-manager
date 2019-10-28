@@ -98,9 +98,6 @@ spec:
             requests:
               cpu: 10m
               memory: 160Mi
-            
-          
-      
       nodeSelector:
         beta.kubernetes.io/os: linux
         
@@ -155,9 +152,6 @@ spec:
             requests:
               cpu: 10m
               memory: 80Mi
-            
-          
-      
       nodeSelector:
         beta.kubernetes.io/os: linux
         
