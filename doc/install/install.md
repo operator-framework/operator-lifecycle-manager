@@ -73,7 +73,7 @@ catalog:
 
 To configure a release of OLM for installation in a cluster:
 
-1. Create a `my-values.yaml` like the example above with the desired configuration or choose an existing one from this repository. The latest production values can be found in [deploy/tectonic-alm-operator/values.yaml](../../deploy/tectonic-alm-operator/values.yaml).
+1. Create a `my-values.yaml` like the example above with the desired configuration or choose an existing one from this repository. The latest production values can be found in [deploy/upstream/values.yaml](../../deploy/upstream/values.yaml).
 1. Generate deployment files from the templates and the `my-values.yaml` using `package_release.sh`
 
    ```bash
