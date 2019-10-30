@@ -533,7 +533,10 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 	if healthy && in.Status.RegistryServiceStatus != nil {
 		logger.Debug("registry state good")
 		continueSync = true
-		return
+		// Check if registryService is ready for polling update
+		if !out.ReadyToUpdate() {
+			return
+		}
 	}
 
 	// Registry pod hasn't been created or hasn't been updated since the last configmap update, recreate it

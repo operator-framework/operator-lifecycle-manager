@@ -4,7 +4,11 @@ package e2e
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
+	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
@@ -20,6 +24,12 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+)
+
+const (
+	oldsha256   = "sha256:aeb23777c920d98605c4c960f109a9994f5af1aab49bed51c94b88fe8463a919"
+	newsha256   = "sha256:f04cd65be9767684c7399cc0f183af15c0933e91124bc1f8312654e26678dc11"
+	catsrcImage = "docker://quay.io/olmtest/catsrc-update-test:"
 )
 
 func TestCatalogLoadingBetweenRestarts(t *testing.T) {
@@ -691,6 +701,190 @@ func TestDeleteGRPCRegistryPodTriggersRecreation(t *testing.T) {
 	require.NoError(t, err, "error waiting for replacement registry pod")
 	require.NotNil(t, registryPods, "nil replacement registry pods")
 	require.Equal(t, 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
+}
+
+func TestCatalogImageUpdate(t *testing.T) {
+	// Create an image based catalog source from public Quay image
+	// Use a unique tag as identifier
+	// See https://quay.io/repository/olmtest/catsrc-update-test?namespace=olmtest for registry
+	// Push an updated version of the image with the same identifier
+	// Confirm catalog source polling feature is working as expected: a newer version of the catalog source pod comes up
+	// etcd operator updated from 0.9.0 to 0.9.2-clusterwide
+	// Subscription should detect the latest version of the operator in the new catalog source and pull it
+
+	// 0. check old tag to ensure correct image is used
+	image := fmt.Sprint(catsrcImage, "old")
+	tagOk, err := skopeoInspectDigest(image, oldsha256)
+	if err != nil {
+		t.Fatalf("error confirming old catalog image: %s", err)
+	}
+	if !tagOk {
+		t.Fatal("cannot confirm old catalog image integrity")
+	}
+
+	// 1. copy old catalog image into test-specific tag
+	tag := genName("x")
+	oldImage, err := skopeoCopy(catsrcImage, tag, catsrcImage, "old")
+	if err != nil {
+		t.Fatalf("copying old registry file: %s", err)
+	}
+
+	// 2. setup catalog source
+	defer cleaner.NotifyTestComplete(t, true)
+
+	sourceName := genName("catalog-")
+	packageName := "etcd"
+	channelName := "clusterwide-alpha"
+
+	// Create gRPC CatalogSource using an external registry image and poll interval
+	source := &v1alpha1.CatalogSource{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.CatalogSourceKind,
+			APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sourceName,
+			Namespace: testNamespace,
+			Labels:    map[string]string{"olm.catalogSource": sourceName},
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Image:      oldImage[9:], // strip off docker://
+			Poll: v1alpha1.Poll{
+				Interval: metav1.Duration{
+					Duration: 1 * time.Minute},
+			},
+		},
+	}
+
+	crc := newCRClient(t)
+	source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+	}()
+
+	// wait for new catalog source pod to be created
+	// Wait for a new registry pod to be created
+	c := newKubeClient(t)
+	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
+	singlePod := podCount(1)
+	registryPods, err := awaitPods(t, c, source.GetNamespace(), selector.String(), singlePod)
+	require.NoError(t, err, "error awaiting registry pod")
+	require.NotNil(t, registryPods, "nil registry pods")
+	require.Equal(t, 1, len(registryPods.Items), "unexpected number of registry pods found")
+
+	// Create a Subscription for package
+	subscriptionName := genName("sub-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, source.GetNamespace(), subscriptionName, source.GetName(), packageName, channelName, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	// Wait for the Subscription to succeed
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for csv to succeed
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// check new image pod is as we expect
+	image = fmt.Sprint(catsrcImage, "new")
+	tagOk, err = skopeoInspectDigest(image, newsha256)
+	if err != nil {
+		t.Fatalf("error confirming new catalog image: %s", err)
+	}
+	if !tagOk {
+		t.Fatal("cannot confirm new catalog image integrity")
+	}
+
+	registryCheckFunc := func(podList *corev1.PodList) bool {
+		if len(podList.Items) > 1 {
+			return false
+		}
+		return podList.Items[0].Status.ContainerStatuses[0].ImageID != ""
+	}
+	// get old catalog source pod
+	registryPod, err := awaitPods(t, c, source.GetNamespace(), selector.String(), registryCheckFunc)
+	// 3. Update image on registry via skopeo: this should trigger a newly updated version of the catalog source pod
+	// to be deployed after some time
+	_, err = skopeoCopy(catsrcImage, tag, catsrcImage, "new")
+	if err != nil {
+		t.Fatalf("copying new registry file: %s", err)
+	}
+
+	// update catalog source with annotation (to kick resync)
+	source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(source.GetName(), metav1.GetOptions{})
+	require.NoError(t, err, "error awaiting registry pod")
+	source.Annotations = make(map[string]string)
+	source.Annotations["testKey"] = "testValue"
+	_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(source)
+	require.NoError(t, err, "error awaiting registry pod")
+
+	time.Sleep(11 * time.Second)
+
+	// ensure new registry pod container image is as we expect
+	podCheckFunc := func(podList *corev1.PodList) bool {
+		fmt.Printf("pod list length %d\n", len(podList.Items))
+		for _, pod := range podList.Items {
+			fmt.Printf("pod list name %v\n", pod.Name)
+		}
+
+		for _, pod := range podList.Items {
+			fmt.Printf("old image id %s\n new image id %s\n", registryPod.Items[0].Status.ContainerStatuses[0].ImageID,
+				pod.Status.ContainerStatuses[0].ImageID)
+			if pod.Status.ContainerStatuses[0].ImageID != registryPod.Items[0].Status.ContainerStatuses[0].ImageID {
+				return true
+			}
+		}
+		// update catalog source with annotation (to kick resync)
+		source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(source.GetName(), metav1.GetOptions{})
+		require.NoError(t, err, "error getting catalog source pod")
+		source.Annotations["testKey"] = genName("newValue")
+		_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(source)
+		require.NoError(t, err, "error updating catalog source pod with test annotation")
+		return false
+	}
+	// await new catalog source and ensure old one was deleted
+	registryPods, err = awaitPodsWithInterval(t, c, source.GetNamespace(), selector.String(), 30*time.Second, 10*time.Minute, podCheckFunc)
+	require.NoError(t, err, "error awaiting registry pod")
+	require.NotNil(t, registryPods, "nil registry pods")
+	require.Equal(t, 1, len(registryPods.Items), "unexpected number of registry pods found")
+
+	// update catalog source with annotation (to kick resync)
+	source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Get(source.GetName(), metav1.GetOptions{})
+	require.NoError(t, err, "error awaiting registry pod")
+	source.Annotations["testKey"] = "newValue"
+	_, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Update(source)
+	require.NoError(t, err, "error awaiting registry pod")
+
+	subChecker := func(sub *v1alpha1.Subscription) bool {
+		return sub.Status.InstalledCSV == "etcdoperator.v0.9.2-clusterwide"
+	}
+	// Wait for the Subscription to succeed
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Wait for csv to succeed
+	csv, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// check version of running csv to ensure the latest version (0.9.2) was installed onto the cluster
+	v := csv.Spec.Version
+	etcdVersion := semver.Version{
+		Major: 0,
+		Minor: 9,
+		Patch: 2,
+		Pre: []semver.PRVersion{
+			{
+				VersionStr: "clusterwide",
+			},
+		},
+	}
+	if !reflect.DeepEqual(v, version.OperatorVersion{Version: etcdVersion}) {
+		t.Errorf("latest version of operator not installed: catalog souce update failed")
+	}
 }
 
 func getOperatorDeployment(c operatorclient.ClientInterface, namespace string, operatorLabels labels.Set) (*appsv1.Deployment, error) {

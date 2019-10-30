@@ -138,6 +138,29 @@ func awaitPods(t *testing.T, c operatorclient.ClientInterface, namespace, select
 	return fetchedPodList, err
 }
 
+func awaitPodsWithInterval(t *testing.T, c operatorclient.ClientInterface, namespace, selector string, interval time.Duration,
+	duration time.Duration, checkPods podsCheckFunc) (*corev1.PodList, error) {
+	var fetchedPodList *corev1.PodList
+	var err error
+
+	err = wait.Poll(interval, duration, func() (bool, error) {
+		fetchedPodList, err = c.KubernetesInterface().CoreV1().Pods(namespace).List(metav1.ListOptions{
+			LabelSelector: selector,
+		})
+
+		if err != nil {
+			return false, err
+		}
+
+		t.Logf("Waiting for pods matching selector %s to match given conditions", selector)
+
+		return checkPods(fetchedPodList), nil
+	})
+
+	require.NoError(t, err)
+	return fetchedPodList, err
+}
+
 // podsCheckFunc describes a function that true if the given PodList meets some criteria; false otherwise.
 type podsCheckFunc func(pods *corev1.PodList) bool
 

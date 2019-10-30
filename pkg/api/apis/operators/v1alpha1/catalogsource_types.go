@@ -2,9 +2,10 @@ package v1alpha1
 
 import (
 	"fmt"
-
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"time"
 )
 
 const (
@@ -54,6 +55,12 @@ type CatalogSourceSpec struct {
 	// +Optional
 	Image string `json:"image,omitempty"`
 
+	// Poll is used to determine the time interval between checks of the latest catalog source version.
+	// The catalog operator polls to see if a new version of the catalog source is available.
+	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
+	// +Optional
+	Poll Poll `json:"poll,omitempty"`
+
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.
 	// +Optional
@@ -64,6 +71,10 @@ type CatalogSourceSpec struct {
 	Description string `json:"description,omitempty"`
 	Publisher   string `json:"publisher,omitempty"`
 	Icon        Icon   `json:"icon,omitempty"`
+}
+
+type Poll struct {
+	Interval metav1.Duration `json:"interval,omitempty"`
 }
 
 type RegistryServiceStatus struct {
@@ -91,6 +102,9 @@ type CatalogSourceStatus struct {
 	// Reason is the reason the Subscription was transitioned to its current state.
 	// +optional
 	Reason ConditionReason `json:"reason,omitempty"`
+
+	// The last time the CatalogSource image registry has been polled to ensure the image is up-to-date
+	LatestImageRegistryPoll *metav1.Time `json:"latestImageRegistryPoll,omitempty"`
 
 	ConfigMapResource     *ConfigMapResourceReference `json:"configMapReference,omitempty"`
 	RegistryServiceStatus *RegistryServiceStatus      `json:"registryService,omitempty"`
@@ -135,6 +149,52 @@ func (c *CatalogSource) SetError(reason ConditionReason, err error) {
 	if err != nil {
 		c.Status.Message = err.Error()
 	}
+}
+
+func (c *CatalogSource) SetLastUpdateTime() {
+	now := metav1.Now()
+	c.Status.LatestImageRegistryPoll = &now
+}
+
+// Check if it is time to update based on polling setting
+func (c *CatalogSource) ReadyToUpdate() bool {
+	interval := c.Spec.Poll.Interval.Duration
+	logrus.WithField("CatalogSource", c.Name).Infof("polling interval %v", interval)
+	latest := c.Status.LatestImageRegistryPoll
+	if latest == nil {
+		logrus.WithField("CatalogSource", c.Name).Infof("latest poll %v", latest)
+	} else {
+		logrus.WithField("CatalogSource", c.Name).Infof("latest poll %v", *c.Status.LatestImageRegistryPoll)
+	}
+
+
+	logrus.WithField("CatalogSource", c.Name).Infof("polling interval is zero %t", c.Status.LatestImageRegistryPoll.IsZero())
+	if c.Status.LatestImageRegistryPoll.IsZero() {
+		logrus.WithField("CatalogSource", c.Name).Infof("creation interval plus interval before now %t", c.CreationTimestamp.Add(interval).Before(time.Now()))
+		if c.CreationTimestamp.Add(interval).Before(time.Now()) {
+			return true
+		}
+	} else {
+		logrus.WithField("CatalogSource", c.Name).Infof("latest poll plus interval before now %t", c.Status.LatestImageRegistryPoll.Add(interval).Before(time.Now()))
+		if c.Status.LatestImageRegistryPoll.Add(interval).Before(time.Now()) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// CatalogPollingEnabled determines whether the polling feature is enabled on the particular catalog source
+func CatalogPollingEnabled(interval time.Duration, image string) bool {
+	// if polling interval is zero polling will not be done
+	if interval == time.Duration(0)  {
+		return false
+	}
+	// if catalog source is not backed by an image polling will not be done
+	if image == "" {
+		return false
+	}
+	return true
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

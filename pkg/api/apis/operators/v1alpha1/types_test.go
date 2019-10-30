@@ -3,8 +3,10 @@ package v1alpha1
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetAllCRDDescriptions(t *testing.T) {
@@ -100,5 +102,65 @@ func TestOwnsCRD(t *testing.T) {
 
 		// Call OwnsCRD and ensure the result is as expected.
 		require.Equal(t, tt.expected, csv.OwnsCRD(tt.crdName))
+	}
+}
+
+func TestCatalogSource_ReadyToUpdate(t *testing.T) {
+	var table = []struct {
+		description string
+		catsrc      CatalogSource
+		result      bool
+		sleep       time.Duration
+	}{
+		//{
+		//	description: "poll interval set to zero: do not check for updates",
+		//	catsrc:      CatalogSource{Spec: CatalogSourceSpec{Poll: Poll{Interval: metav1.Duration{}}}},
+		//	result:      false,
+		//},
+		//{
+		//	description: "not image based catalog source: do not check for updates",
+		//	catsrc: CatalogSource{Spec: CatalogSourceSpec{Poll: Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+		//		Address: "127.0.0.1:8080"}},
+		//	result: false,
+		//},
+		{
+			description: "polling interval set: last update time zero: update for the first time",
+			catsrc: CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now()}},
+				Spec: CatalogSourceSpec{
+					Poll:  Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+					Image: "mycatsrcimage"}},
+			result: true,
+			sleep:  2 * time.Second,
+		},
+		{
+			description: "polling interval set: time to update based on previous poll timestamp",
+			catsrc: CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now()}},
+				Spec: CatalogSourceSpec{
+					Poll:  Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+					Image: "mycatsrcimage"},
+				Status: CatalogSourceStatus{LatestImageRegistryPoll: &metav1.Time{Time: time.Now()}},
+			},
+			result: true,
+			sleep:  2 * time.Second,
+		},
+		{
+			description: "polling interval set: not time to update based on previous poll timestamp",
+			catsrc: CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now()}},
+				Spec: CatalogSourceSpec{
+					Poll:  Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+					Image: "mycatsrcimage"},
+				Status: CatalogSourceStatus{LatestImageRegistryPoll: &metav1.Time{Time: time.Now()}},
+			},
+			result: true,
+			sleep:  2 * time.Second,
+		},
+	}
+
+	for i, tt := range table {
+		time.Sleep(table[i].sleep)
+		require.Equal(t, tt.result, table[i].catsrc.ReadyToUpdate(), table[i].description)
 	}
 }

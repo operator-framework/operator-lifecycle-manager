@@ -47,6 +47,12 @@ type CatalogSourceSpec struct {
 	// +Optional
 	Image string
 
+	// Poll is used to determine the time interval between checks of the latest catalog source version.
+	// The catalog operator polls to see if a new version of the catalog source is available.
+	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
+	// +Optional
+	Poll Poll
+
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.
 	// +Optional
@@ -57,6 +63,10 @@ type CatalogSourceSpec struct {
 	Description string
 	Publisher   string
 	Icon        Icon
+}
+
+type Poll struct {
+	Interval metav1.Duration
 }
 
 type RegistryServiceStatus struct {
@@ -78,11 +88,12 @@ func (s *RegistryServiceStatus) Address() string {
 }
 
 type CatalogSourceStatus struct {
-	Message               string          `json:"message,omitempty"`
-	Reason                ConditionReason `json:"reason,omitempty"`
-	ConfigMapResource     *ConfigMapResourceReference
-	RegistryServiceStatus *RegistryServiceStatus
-	GRPCConnectionState   *GRPCConnectionState
+	Message                 string          `json:"message,omitempty"`
+	Reason                  ConditionReason `json:"reason,omitempty"`
+	ConfigMapResource       *ConfigMapResourceReference
+	RegistryServiceStatus   *RegistryServiceStatus
+	GRPCConnectionState     *GRPCConnectionState
+	LatestImageRegistryPoll *metav1.Time
 }
 
 type ConfigMapResourceReference struct {

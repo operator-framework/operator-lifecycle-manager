@@ -5,6 +5,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"time"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -87,6 +88,14 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 }
 
 func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
+	// ensure catalog image is pulled always if catalog polling is configured
+	var pullPolicy v1.PullPolicy
+	if source.Spec.Poll.Interval.Duration > time.Duration(0) {
+		pullPolicy = v1.PullAlways
+	} else {
+		pullPolicy = v1.PullIfNotPresent
+	}
+
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: source.GetName() + "-",
@@ -130,6 +139,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 							v1.ResourceMemory: resource.MustParse("50Mi"),
 						},
 					},
+					ImagePullPolicy: pullPolicy,
 				},
 			},
 			Tolerations: []v1.Toleration{
