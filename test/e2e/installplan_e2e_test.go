@@ -2526,3 +2526,13 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 }
+
+func TestInstallPlanFromBundleImage(t *testing.T) {
+	// Create the CatalogSource
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	catalogSourceName := genName("mock-nginx-")
+	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
+	defer cleanupCatalogSource()
+
+}
