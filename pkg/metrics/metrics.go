@@ -14,6 +14,7 @@ const (
 	NAME_LABEL      = "name"
 	INSTALLED_LABEL = "installed"
 	NAMESPACE_LABEL = "namespace"
+	CHANNEL_LABEL   = "channel"
 	VERSION_LABEL   = "version"
 	PHASE_LABEL     = "phase"
 	REASON_LABEL    = "reason"
@@ -148,7 +149,7 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{NAME_LABEL, INSTALLED_LABEL},
+		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL},
 	)
 
 	csvSucceeded = prometheus.NewGaugeVec(
@@ -182,8 +183,8 @@ func RegisterCatalog() {
 	prometheus.MustRegister(SubscriptionSyncCount)
 }
 
-func CounterForSubscription(name, installedCSV string) prometheus.Counter {
-	return SubscriptionSyncCount.WithLabelValues(name, installedCSV)
+func CounterForSubscription(name, installedCSV, channelName string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName)
 }
 
 func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
