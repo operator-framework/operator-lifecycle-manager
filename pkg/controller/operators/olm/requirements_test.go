@@ -46,9 +46,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				nil,
 				v1alpha1.CSVPhasePending,
 			),
-			existingObjs:                nil,
-			existingExtObjs:             nil,
-			met:                         false,
+			existingObjs:    nil,
+			existingExtObjs: nil,
+			met:             false,
 			expectedRequirementStatuses: nil,
 			expectedError:               fmt.Errorf("unexpected end of JSON input"),
 		},
@@ -634,6 +634,104 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 			}
 
 			require.Len(t, test.expectedRequirementStatuses, 0, "not all expected permission requirement statuses were found")
+		})
+	}
+}
+
+func TestMinKubeVersionStatus(t *testing.T) {
+	namespace := "ns"
+	csv := csv("csv1",
+		namespace,
+		"0.0.0",
+		"",
+		v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
+		nil,
+		nil,
+		v1alpha1.CSVPhasePending,
+	)
+
+	tests := []struct {
+		description                 string
+		csvName                     string
+		minKubeVersion              string
+		expectedMet                 bool
+		expectedRequirementStatuses []v1alpha1.RequirementStatus
+	}{
+		{
+			description:                 "minKubeVersion is not specfied",
+			csvName:                     "test1",
+			minKubeVersion:              "",
+			expectedMet:                 true,
+			expectedRequirementStatuses: []v1alpha1.RequirementStatus{},
+		},
+		{
+			description:    "minKubeVersion is met",
+			csvName:        "test2",
+			minKubeVersion: "0.0.0",
+			expectedMet:    true,
+			expectedRequirementStatuses: []v1alpha1.RequirementStatus{
+				v1alpha1.RequirementStatus{
+					Status:  v1alpha1.RequirementStatusReasonPresent,
+					Message: fmt.Sprintf("CSV minKubeVersion (%s) less than server version", "0.0.0"),
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "test2",
+				},
+			},
+		},
+		{
+			description:    "minKubeVersion is unmet",
+			csvName:        "test3",
+			minKubeVersion: "999.999.999",
+			expectedMet:    false,
+			expectedRequirementStatuses: []v1alpha1.RequirementStatus{
+				v1alpha1.RequirementStatus{
+					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
+					Message: fmt.Sprintf("CSV version requirement not met: minKubeVersion (%s)", "999.999.999"),
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "test3",
+				},
+			},
+		},
+		{
+			description:    "minKubeVersion is invalid",
+			csvName:        "test4",
+			minKubeVersion: "a.b.c",
+			expectedMet:    false,
+			expectedRequirementStatuses: []v1alpha1.RequirementStatus{
+				v1alpha1.RequirementStatus{
+					Status:  v1alpha1.RequirementStatusReasonPresentNotSatisfied,
+					Message: "CSV version parsing error",
+					Group:   "operators.coreos.com",
+					Version: "v1alpha1",
+					Kind:    "ClusterServiceVersion",
+					Name:    "test4",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+			op, err := NewFakeOperator(ctx, withNamespaces(namespace), withOperatorNamespace(namespace), withClientObjs(csv))
+			require.NoError(t, err)
+
+			// Get the permission status
+			met, status := op.minKubeVersionStatus(test.csvName, test.minKubeVersion)
+			require.Equal(t, test.expectedMet, met)
+			if len(test.expectedRequirementStatuses) > 0 {
+				require.Equal(t, status[0].Status, test.expectedRequirementStatuses[0].Status)
+				require.Equal(t, status[0].Kind, test.expectedRequirementStatuses[0].Kind)
+				require.Equal(t, status[0].Name, test.expectedRequirementStatuses[0].Name)
+				require.Contains(t, status[0].Message, test.expectedRequirementStatuses[0].Message)
+			} else {
+				require.Equal(t, status, []v1alpha1.RequirementStatus(nil))
+			}
 		})
 	}
 }
