@@ -2,6 +2,7 @@ package reconciler
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -112,7 +113,7 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil
 	// recreate the pod if no existing pod is serving the latest image
-	overwritePod := overwrite || len(c.currentPodsWithCorrectImage(source)) == 0
+	overwritePod := overwrite || len(c.currentPodsWithCorrectImage(source)) == 0 || c.updateRegistryPodByDigest(source)
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	if err := c.ensurePod(source, overwritePod); err != nil {
@@ -166,6 +167,63 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	}
 	_, err := c.OpClient.CreateService(service)
 	return err
+}
+
+// updateRegistryPodByDigest is an internal method that verifies the latest catalog source by comparing image digests.
+// If the digests do not match (i.e. there is a new version of the catalog source) then overwrite the catalog source pod.
+// This is done to only have the container runtime (CRI-O) talk to the container registry.
+func (c *GrpcRegistryReconciler) updateRegistryPodByDigest(source grpcCatalogSourceDecorator) bool {
+	podDigestChan := make(chan string, 1)
+	lastCheckedTimestamp := time.Time{}
+
+	// check digest every poll interval
+	if time.Now().After(lastCheckedTimestamp.Add(source.Spec.Poll.Interval)) &&
+		source.CreationTimestamp.Add(source.Spec.Poll.Interval).Before(time.Now()) {
+		lastCheckedTimestamp = time.Now()
+		go c.getPodDigest(source, podDigestChan)
+	}
+
+	select {
+	case newCatalogSourceImageDigest := <-podDigestChan:
+		if newCatalogSourceImageDigest == source.Pod().Status.ContainerStatuses[0].ImageID {
+			return false
+		}
+		// we have a new imageID in our catalog source container: a new version of the catalog source image exists
+		// update catalog source pod
+		return true
+	default:
+		return false
+	}
+}
+
+// getPodDigest is an internal method that creates a pod using the latest catalog source.
+// Once the pod comes up, it puts the container image digest onto a channel.
+func (c *GrpcRegistryReconciler) getPodDigest(source grpcCatalogSourceDecorator, podChan chan string) {
+	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(source.Pod())
+	if err != nil {
+		logrus.WithField("pod", "catalog-source-pod").Warn("couldn't create new catalog source pod")
+		return
+	}
+
+	var newCatalogSourceImage string
+	// check pod to get container details
+	// we are only interested in the container image id, to see if it matches the old version
+	for i := 0; i < 10; i++ {
+		newCatalogSourceImage = pod.Status.ContainerStatuses[0].ImageID
+		if newCatalogSourceImage == "" {
+			time.Sleep(10 * time.Second)
+			continue
+		} else {
+			break
+		}
+	}
+
+	if newCatalogSourceImage == "" {
+		logrus.WithField("pod", pod.Name).Warn("couldn't run catalog source pod")
+		return
+	}
+
+	podChan <- newCatalogSourceImage
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.

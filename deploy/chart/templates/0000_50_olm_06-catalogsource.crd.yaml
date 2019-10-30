@@ -71,6 +71,16 @@ spec:
               type: string
               description: An image that serves a grpc registry. Only valid for `grpc` sourceType. If both image and address are set, OLM does not use the address field.
 
+            poll:
+              type: object
+              description: Poll represents the duration between successive checks of the catalog to obtain the latest version of the catalogsource
+              required:
+              - interval
+              properties:
+                interval:
+                  type: string
+                  description: The actual time interval. Gets coerced into a time.Time type after unmarshaling.
+
             displayName:
               type: string
               description: Pretty name for display
