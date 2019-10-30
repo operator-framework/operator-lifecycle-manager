@@ -49,11 +49,13 @@ func TestMetricsEndpoint(t *testing.T) {
 	}
 
 	// Verify metrics have been emitted for packageserver csv
-	require.Contains(t, rawOutput, "csv_sync_total")
+	require.Contains(t, rawOutput, "csv_abnormal")
 	require.Contains(t, rawOutput, "name=\""+failingCSV.Name+"\"")
 	require.Contains(t, rawOutput, "phase=\"Failed\"")
 	require.Contains(t, rawOutput, "reason=\"UnsupportedOperatorGroup\"")
 	require.Contains(t, rawOutput, "version=\"0.0.0\"")
+
+	require.Contains(t, rawOutput, "csv_succeeded")
 	log.Info(rawOutput)
 }
 
