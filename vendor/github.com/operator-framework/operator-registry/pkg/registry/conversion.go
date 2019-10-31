@@ -1,36 +1,37 @@
-package api
+package registry
 
 import (
 	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/operator-framework/operator-registry/pkg/registry"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
-func PackageManifestToAPIPackage(manifest *registry.PackageManifest) *Package {
-	channels := []*Channel{}
+func PackageManifestToAPIPackage(manifest *PackageManifest) *api.Package {
+	channels := []*api.Channel{}
 	for _, c := range manifest.Channels {
 		channels = append(channels, PackageChannelToAPIChannel(&c))
 	}
-	return &Package{
+	return &api.Package{
 		Name:               manifest.PackageName,
 		DefaultChannelName: manifest.DefaultChannelName,
 		Channels:           channels,
 	}
 }
 
-func PackageChannelToAPIChannel(channel *registry.PackageChannel) *Channel {
-	return &Channel{
+func PackageChannelToAPIChannel(channel *PackageChannel) *api.Channel {
+	return &api.Channel{
 		Name:    channel.Name,
 		CsvName: channel.CurrentCSVName,
 	}
 }
 
-func ChannelEntryToAPIChannelEntry(entry *registry.ChannelEntry) *ChannelEntry {
-	return &ChannelEntry{
+func ChannelEntryToAPIChannelEntry(entry *ChannelEntry) *api.ChannelEntry {
+	return &api.ChannelEntry{
 		PackageName: entry.PackageName,
 		ChannelName: entry.ChannelName,
 		BundleName:  entry.BundleName,
@@ -55,12 +56,12 @@ func BundleStringToObjectStrings(bundleString string) ([]string, error) {
 	return objs, nil
 }
 
-func BundleStringToAPIBundle(bundleString string, entry *registry.ChannelEntry) (*Bundle, error) {
+func BundleStringToAPIBundle(bundleString string) (*api.Bundle, error) {
 	objs, err := BundleStringToObjectStrings(bundleString)
 	if err != nil {
 		return nil, err
 	}
-	out := &Bundle{
+	out := &api.Bundle{
 		Object: objs,
 	}
 	for _, o := range objs {
@@ -78,7 +79,5 @@ func BundleStringToAPIBundle(bundleString string, entry *registry.ChannelEntry) 
 	if out.CsvName == "" {
 		return nil, fmt.Errorf("no csv in bundle")
 	}
-	out.ChannelName = entry.ChannelName
-	out.PackageName = entry.PackageName
 	return out, nil
 }

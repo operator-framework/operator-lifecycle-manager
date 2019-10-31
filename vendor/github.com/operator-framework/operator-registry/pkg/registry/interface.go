@@ -2,6 +2,8 @@ package registry
 
 import (
 	"context"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 type Load interface {
@@ -13,16 +15,22 @@ type Query interface {
 	ListTables(ctx context.Context) ([]string, error)
 	ListPackages(ctx context.Context) ([]string, error)
 	GetPackage(ctx context.Context, name string) (*PackageManifest, error)
-	GetBundle(ctx context.Context, pkgName, channelName, csvName string) (string, error)
-	GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (string, error)
+	GetBundle(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error)
+	GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (*api.Bundle, error)
 	// Get all channel entries that say they replace this one
 	GetChannelEntriesThatReplace(ctx context.Context, name string) (entries []*ChannelEntry, err error)
 	// Get the bundle in a package/channel that replace this one
-	GetBundleThatReplaces(ctx context.Context, name, pkgName, channelName string) (string, error)
+	GetBundleThatReplaces(ctx context.Context, name, pkgName, channelName string) (*api.Bundle, error)
 	// Get all channel entries that provide an api
 	GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*ChannelEntry, err error)
 	// Get latest channel entries that provide an api
 	GetLatestChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*ChannelEntry, err error)
 	// Get the the latest bundle that provides the API in a default channel
-	GetBundleThatProvides(ctx context.Context, group, version, kind string) (string, *ChannelEntry, error)
+	GetBundleThatProvides(ctx context.Context, group, version, kind string) (*api.Bundle, error)
+	// List all images in the database
+	ListImages(ctx context.Context) ([]string, error)
+	// List all images for a particular bundle
+	GetImagesForBundle(ctx context.Context, bundleName string) ([]string, error)
+	// Get Provided and Required APIs for a particular bundle
+	GetApisForEntry(ctx context.Context, entryId int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error)
 }

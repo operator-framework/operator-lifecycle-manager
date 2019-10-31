@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
@@ -71,9 +72,6 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 		requiredAPISet[r] = struct{}{}
 	}
 	b := bundle(name, pkg, channel, replaces, providedCRDAPISet, requiredCRDAPISet, providedAPIServiceAPISet, requiredAPIServiceAPISet)
-	// force bundle cache to fill
-	_, _ = b.ClusterServiceVersion()
-	_, _ = b.CustomResourceDefinitions()
 
 	return &Operator{
 		providedAPIs: providedAPISet,
@@ -218,25 +216,86 @@ func u(object runtime.Object) *unstructured.Unstructured {
 	return &unstructured.Unstructured{Object: unst}
 }
 
-func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet) *opregistry.Bundle {
-	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))}
-	for p := range providedCRDs {
-		bundleObjs = append(bundleObjs, u(crd(p)))
+func apiSetToGVk(crds, apis APISet) (out []*api.GroupVersionKind) {
+	out = make([]*api.GroupVersionKind, 0)
+	for a := range crds {
+		out = append(out, &api.GroupVersionKind{
+			Group:   a.Group,
+			Version: a.Version,
+			Kind:    a.Kind,
+			Plural:  a.Plural,
+		})
 	}
-	return opregistry.NewBundle(name, pkg, channel, bundleObjs...)
+	for a := range apis {
+		out = append(out, &api.GroupVersionKind{
+			Group:   a.Group,
+			Version: a.Version,
+			Kind:    a.Kind,
+			Plural:  a.Plural,
+		})
+	}
+	return
 }
 
-func withBundleObject(bundle *opregistry.Bundle, obj *unstructured.Unstructured) *opregistry.Bundle {
-	bundle.Add(obj)
+func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet) *api.Bundle {
+	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, nil, nil))
+	if err != nil {
+		panic(err)
+	}
+
+	objs := []string{string(csvJson)}
+	for p := range providedCRDs {
+		crdJson, err := json.Marshal(crd(p))
+		if err != nil {
+			panic(err)
+		}
+		objs = append(objs, string(crdJson))
+	}
+
+	return &api.Bundle{
+		CsvName:      name,
+		PackageName:  pkg,
+		ChannelName:  channel,
+		CsvJson:      string(csvJson),
+		Object:       objs,
+		ProvidedApis: apiSetToGVk(providedCRDs, providedAPIServices),
+		RequiredApis: apiSetToGVk(requiredCRDs, requiredAPIServices),
+	}
+}
+
+func withBundleObject(bundle *api.Bundle, obj *unstructured.Unstructured) *api.Bundle {
+	j, err := json.Marshal(obj)
+	if err != nil {
+		panic(err)
+	}
+	bundle.Object = append(bundle.Object, string(j))
 	return bundle
 }
 
-func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions) *opregistry.Bundle {
-	bundleObjs := []*unstructured.Unstructured{u(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))}
-	for p := range providedCRDs {
-		bundleObjs = append(bundleObjs, u(crd(p)))
+func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions) *api.Bundle {
+	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))
+	if err != nil {
+		panic(err)
 	}
-	return opregistry.NewBundle(name, pkg, channel, bundleObjs...)
+
+	objs := []string{string(csvJson)}
+	for p := range providedCRDs {
+		crdJson, err := json.Marshal(crd(p))
+		if err != nil {
+			panic(err)
+		}
+		objs = append(objs, string(crdJson))
+	}
+
+	return &api.Bundle{
+		CsvName:      name,
+		PackageName:  pkg,
+		ChannelName:  channel,
+		CsvJson:      string(csvJson),
+		Object:       objs,
+		ProvidedApis: apiSetToGVk(providedCRDs, providedAPIServices),
+		RequiredApis: apiSetToGVk(requiredCRDs, requiredAPIServices),
+	}
 }
 
 func withReplaces(operator *Operator, replaces string) *Operator {
@@ -244,72 +303,15 @@ func withReplaces(operator *Operator, replaces string) *Operator {
 	return operator
 }
 
-// TestBundle verifies that the bundle stubbing works as expected
-func TestBundleStub(t *testing.T) {
-	tests := []struct {
-		name             string
-		bundle           *opregistry.Bundle
-		wantProvidedAPIs APISet
-		wantRequiredAPIs APISet
-	}{
-		{
-			name:   "RequiredCRDs",
-			bundle: bundle("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
-			wantRequiredAPIs: APISet{
-				opregistry.APIKey{"g", "v", "k", "ks"}: {},
-			},
-		},
-		{
-			name:   "ProvidedCRDs",
-			bundle: bundle("provider.v1", "provider", "channel", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
-			wantProvidedAPIs: APISet{
-				opregistry.APIKey{"g", "v", "k", "ks"}: {},
-			},
-		},
-		{
-			name:   "RequiredAPIs",
-			bundle: bundle("depender.v1", "depender", "channel", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}),
-			wantRequiredAPIs: APISet{
-				opregistry.APIKey{"g", "v", "k", "ks"}: {},
-			},
-		},
-		{
-			name:   "ProvidedAPIs",
-			bundle: bundle("provider.v1", "provider", "channel", "", EmptyAPISet(), EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet()),
-			wantProvidedAPIs: APISet{
-				opregistry.APIKey{"g", "v", "k", "ks"}: {},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.wantProvidedAPIs != nil {
-				provided, err := tt.bundle.ProvidedAPIs()
-				require.NoError(t, err)
-				require.EqualValues(t, tt.wantProvidedAPIs, provided)
-			}
-			if tt.wantRequiredAPIs != nil {
-				required, err := tt.bundle.RequiredAPIs()
-				require.NoError(t, err)
-				require.EqualValues(t, tt.wantRequiredAPIs, required)
-			}
-		})
-	}
-
-}
-
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) *NamespaceSourceQuerier {
+func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*api.Bundle) *NamespaceSourceQuerier {
 	sources := map[CatalogKey]client.Interface{}
 	for catKey, bundles := range bundlesByCatalog {
 		source := &fakes.FakeInterface{}
-		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*opregistry.Bundle, error) {
+		source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 			for _, b := range bundles {
-				apis, err := b.ProvidedAPIs()
-				if err != nil {
-					return nil, err
-				}
-				for api := range apis {
+				apis := b.GetProvidedApis()
+				for _, api := range apis {
 					if api.Version == version && api.Kind == kind && strings.Contains(groupOrName, api.Group) && strings.Contains(groupOrName, api.Plural) {
 						return b, nil
 					}
@@ -318,35 +320,32 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 			return nil, fmt.Errorf("no bundle found")
 		}
 		// note: this only allows for one bundle per package/channel, which may be enough for tests
-		source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*opregistry.Bundle, error) {
+		source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*api.Bundle, error) {
 			for _, b := range bundles {
-				if b.Channel == channelName && b.Package == packageName {
+				if b.ChannelName == channelName && b.PackageName == packageName {
 					return b, nil
 				}
 			}
 			return nil, fmt.Errorf("no bundle found")
 		}
 
-		source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*opregistry.Bundle, error) {
+		source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*api.Bundle, error) {
 			for _, b := range bundles {
-				if b.Channel == channelName && b.Package == packageName && b.Name == csvName {
+				if b.ChannelName == channelName && b.PackageName == packageName && b.CsvName == csvName {
 					return b, nil
 				}
 			}
 			return nil, fmt.Errorf("no bundle found")
 		}
 
-		source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*opregistry.Bundle, error) {
+		source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*api.Bundle, error) {
 			for _, b := range bundles {
-				csv, err := b.ClusterServiceVersion()
+				csv, err := V1alpha1CSVFromBundle(b)
 				if err != nil {
 					panic(err)
 				}
-				replaces, err := csv.GetReplaces()
-				if err != nil {
-					panic(err)
-				}
-				if replaces == bundleName && b.Channel == channelName && b.Package == packageName {
+				replaces := csv.Spec.Replaces
+				if replaces == bundleName && b.ChannelName == channelName && b.PackageName == packageName {
 					return b, nil
 				}
 			}
@@ -358,19 +357,19 @@ func NewFakeSourceQuerier(bundlesByCatalog map[CatalogKey][]*opregistry.Bundle) 
 }
 
 // NewFakeSourceQuerier builds a querier that talks to fake registry stubs for testing
-func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *opregistry.Bundle) *NamespaceSourceQuerier {
+func NewFakeSourceQuerierCustomReplacement(catKey CatalogKey, bundle *api.Bundle) *NamespaceSourceQuerier {
 	sources := map[CatalogKey]client.Interface{}
 	source := &fakes.FakeInterface{}
-	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*opregistry.Bundle, error) {
+	source.GetBundleThatProvidesStub = func(ctx context.Context, groupOrName, version, kind string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
 	}
-	source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*opregistry.Bundle, error) {
+	source.GetBundleInPackageChannelStub = func(ctx context.Context, packageName, channelName string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
 	}
-	source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*opregistry.Bundle, error) {
+	source.GetBundleStub = func(ctx context.Context, packageName, channelName, csvName string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("no bundle found")
 	}
-	source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*opregistry.Bundle, error) {
+	source.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, packageName, channelName string) (*api.Bundle, error) {
 		return bundle, nil
 	}
 	sources[catKey] = source

@@ -2,14 +2,17 @@ package resolver
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -89,20 +92,15 @@ func NewSubscriptionStepResource(namespace string, info OperatorSourceInfo) (v1a
 	}, info.Catalog.Name, info.Catalog.Namespace)
 }
 
-func V1alpha1CSVFromBundle(bundle *registry.Bundle) (*v1alpha1.ClusterServiceVersion, error) {
-	for _, o := range bundle.Objects {
-		if o.GetObjectKind().GroupVersionKind().Kind == "ClusterServiceVersion" {
-			csv := &v1alpha1.ClusterServiceVersion{}
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(o.UnstructuredContent(), csv); err != nil {
-				return nil, err
-			}
-			return csv, nil
-		}
+func V1alpha1CSVFromBundle(bundle *api.Bundle) (*v1alpha1.ClusterServiceVersion, error) {
+	csv := &v1alpha1.ClusterServiceVersion{}
+	if err := json.Unmarshal([]byte(bundle.CsvJson), csv); err != nil {
+		return nil, err
 	}
-	return nil, fmt.Errorf("no csv found in bundle")
+	return csv, nil
 }
 
-func NewStepResourceFromBundle(bundle *registry.Bundle, namespace, replaces, catalogSourceName, catalogSourceNamespace string) ([]v1alpha1.StepResource, error) {
+func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogSourceName, catalogSourceNamespace string) ([]v1alpha1.StepResource, error) {
 	csv, err := V1alpha1CSVFromBundle(bundle)
 	if err != nil {
 		return nil, err
@@ -117,11 +115,17 @@ func NewStepResourceFromBundle(bundle *registry.Bundle, namespace, replaces, cat
 	}
 	steps := []v1alpha1.StepResource{step}
 
-	for _, object := range bundle.Objects {
-		if object.GetObjectKind().GroupVersionKind().Kind == v1alpha1.ClusterServiceVersionKind {
+	for _, object := range bundle.Object {
+		dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(object), 10)
+		unst := &unstructured.Unstructured{}
+		if err := dec.Decode(unst); err != nil {
+			return nil, err
+		}
+
+		if unst.GetObjectKind().GroupVersionKind().Kind == v1alpha1.ClusterServiceVersionKind {
 			continue
 		}
-		step, err := NewStepResourceFromObject(object, catalogSourceName, catalogSourceNamespace)
+		step, err := NewStepResourceFromObject(unst, catalogSourceName, catalogSourceNamespace)
 		if err != nil {
 			return nil, err
 		}

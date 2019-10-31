@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/operator-framework/operator-registry/pkg/api"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 )
@@ -36,7 +37,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 		{
 			name: "NoRequiredAPIs",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("csv1", "p", "c", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
 					},
@@ -48,7 +49,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 		{
 			name: "NoNewRequiredAPIs",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("csv1", "p", "c", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
 						bundle("nothing.v1", "nothing", "channel", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
@@ -75,7 +76,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 		{
 			name: "NoNewRequiredAPIs/StartingCSV",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("csv1", "p", "c", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
 						bundle("nothing.v1", "nothing", "channel", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
@@ -104,7 +105,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 		{
 			name: "NoNewRequiredAPIs/StartingCSV/NotFound",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("csv1", "p", "c", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
 						bundle("nothing.v2", "nothing", "channel", "", EmptyAPISet(), EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
@@ -134,7 +135,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// this should contract back to the original set
 			name: "NewRequiredAPIs/NoProviderFound",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
 					},
@@ -157,7 +158,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// this should contract back to the original set
 			name: "NewRequiredAPIs/NoProviderFound/NonEmptyStartingGeneration",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g2", "v2", "k2", "k2s"}: {}}, EmptyAPISet(), EmptyAPISet()),
 					},
@@ -184,7 +185,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// this should produce a set with the new provider
 			name: "NewRequiredAPIs/FoundProvider",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
 						bundle("provider.v1", "provider", "channel", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
@@ -212,7 +213,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// this should contract back to the original set
 			name: "NewRequiredAPIs/FoundProvider/ProviderRequired/NoSecondaryProvider",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(),
 							APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
@@ -240,7 +241,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// this should produce a set with three new providers
 			name: "NewRequiredAPIs/FoundProvider/ProviderRequired/SecondaryProviderFound",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(),
 							APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
@@ -276,7 +277,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// tests dependency between crd and apiservice provided apis as a sanity check - evolver shouldn't care
 			name: "NewRequiredCRDAPIs/FoundCRDProvider/ProviderAPIRequired/SecondaryAPIProviderFound",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(),
 							APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
@@ -308,7 +309,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 		{
 			name: "NewRequiredAPIs/FoundProvider/ProviderRequired/SecondaryProviderFound/RequiresAlreadyProvidedAPIs",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "",
 							EmptyAPISet(),
@@ -347,7 +348,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// this should produce a set with the new provider
 			name: "UpdateRequired/NewRequiredAPIs/FoundProvider",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("depender.v1", "depender", "channel", "", EmptyAPISet(), APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet()),
 						bundle("provider.v1", "provider", "channel", "", APISet{opregistry.APIKey{"g", "v", "k", "ks"}: {}}, EmptyAPISet(), EmptyAPISet(), EmptyAPISet()),
@@ -378,7 +379,7 @@ func TestNamespaceGenerationEvolver(t *testing.T) {
 			// a single evolution should update to next, not latest
 			name: "UpdateRequired/MultipleUpdates",
 			fields: fields{
-				querier: NewFakeSourceQuerier(map[CatalogKey][]*opregistry.Bundle{
+				querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
 					CatalogKey{"catsrc", "catsrc-namespace"}: {
 						bundle("updated", "o", "c", "original", nil, nil, nil, nil),
 						bundle("updated.v2", "o", "c", "updated", nil, nil, nil, nil),

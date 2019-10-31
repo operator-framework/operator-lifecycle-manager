@@ -7,6 +7,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
@@ -23,6 +24,10 @@ func NewSQLLiteQuerier(dbFilename string) (*SQLQuerier, error) {
 	}
 
 	return &SQLQuerier{db}, nil
+}
+
+func NewSQLLiteQuerierFromDb(db *sql.DB) *SQLQuerier {
+	return &SQLQuerier{db}
 }
 
 func (s *SQLQuerier) ListTables(ctx context.Context) ([]string, error) {
@@ -103,42 +108,89 @@ func (s *SQLQuerier) GetPackage(ctx context.Context, name string) (*registry.Pac
 	return pkg, nil
 }
 
-func (s *SQLQuerier) GetBundle(ctx context.Context, pkgName, channelName, csvName string) (string, error) {
-	query := `SELECT DISTINCT operatorbundle.bundle
+func (s *SQLQuerier) GetBundle(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error) {
+	query := `SELECT DISTINCT channel_entry.entry_id, operatorbundle.name, operatorbundle.bundle, operatorbundle.bundlepath 
 			  FROM operatorbundle INNER JOIN channel_entry ON operatorbundle.name=channel_entry.operatorbundle_name
-			  WHERE channel_entry.package_name=? AND channel_entry.channel_name=? AND operatorbundle.name=? LIMIT 1`
+              WHERE channel_entry.package_name=? AND channel_entry.channel_name=? AND operatorbundle_name=? LIMIT 1`
 	rows, err := s.db.QueryContext(ctx, query, pkgName, channelName, csvName)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if !rows.Next() {
-		return "", fmt.Errorf("no bundle found for csv %s", csvName)
+		return nil,  fmt.Errorf("no entry found for %s %s %s", pkgName, channelName, csvName)
 	}
-	var bundleStringSQL sql.NullString
-	if err := rows.Scan(&bundleStringSQL); err != nil {
-		return "", err
+	var entryId sql.NullInt64
+	var name sql.NullString
+	var bundle sql.NullString
+	var bundlePath sql.NullString
+	if err := rows.Scan(&entryId, &name, &bundle, &bundlePath); err != nil {
+		return nil, err
 	}
-	return bundleStringSQL.String, nil
+
+	out := &api.Bundle{}
+	if bundle.Valid && bundle.String != "" {
+		out, err = registry.BundleStringToAPIBundle(bundle.String)
+		if err != nil {
+			return nil, err
+		}
+	}
+	out.CsvName = name.String
+	out.PackageName = pkgName
+	out.ChannelName = channelName
+	out.BundlePath = bundlePath.String
+
+	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	if err != nil {
+		return nil, err
+	}
+	out.ProvidedApis = provided
+	out.RequiredApis = required
+
+	return out, nil
 }
 
-func (s *SQLQuerier) GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (string, error) {
-	query := `SELECT DISTINCT operatorbundle.bundle
-              FROM channel INNER JOIN operatorbundle ON channel.head_operatorbundle_name=operatorbundle.name
+func (s *SQLQuerier) GetBundleForChannel(ctx context.Context, pkgName string, channelName string) (*api.Bundle, error) {
+	query := `SELECT DISTINCT channel_entry.entry_id, operatorbundle.name, operatorbundle.bundle, operatorbundle.bundlepath FROM channel 
+              INNER JOIN operatorbundle ON channel.head_operatorbundle_name=operatorbundle.name
+              INNER JOIN channel_entry ON (channel_entry.channel_name = channel.name and channel_entry.package_name=channel.package_name and channel_entry.operatorbundle_name=operatorbundle.name)
               WHERE channel.package_name=? AND channel.name=? LIMIT 1`
 	rows, err := s.db.QueryContext(ctx, query, pkgName, channelName)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if !rows.Next() {
-		return "", fmt.Errorf("no bundle found for %s %s", pkgName, channelName)
+		return nil,  fmt.Errorf("no entry found for %s %s", pkgName, channelName)
 	}
+	var entryId sql.NullInt64
+	var name sql.NullString
 	var bundle sql.NullString
-	if err := rows.Scan(&bundle); err != nil {
-		return "", err
+	var bundlePath sql.NullString
+	if err := rows.Scan(&entryId, &name, &bundle, &bundlePath); err != nil {
+		return nil, err
 	}
-	return bundle.String, nil
+
+	out := &api.Bundle{}
+	if bundle.Valid && bundle.String != "" {
+		out, err = registry.BundleStringToAPIBundle(bundle.String)
+		if err != nil {
+			return nil, err
+		}
+	}
+	out.CsvName = name.String
+	out.PackageName = pkgName
+	out.ChannelName = channelName
+	out.BundlePath = bundlePath.String
+
+	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	if err != nil {
+		return nil, err
+	}
+	out.ProvidedApis = provided
+	out.RequiredApis = required
+
+	return out, nil
 }
 
 func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name string) (entries []*registry.ChannelEntry, err error) {
@@ -175,25 +227,48 @@ func (s *SQLQuerier) GetChannelEntriesThatReplace(ctx context.Context, name stri
 	return
 }
 
-func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, channelName string) (string, error) {
-	query := `SELECT DISTINCT operatorbundle.bundle
+func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, channelName string) (*api.Bundle, error) {
+	query := `SELECT DISTINCT replaces.entry_id, operatorbundle.name, operatorbundle.bundle, operatorbundle.bundlepath
               FROM channel_entry
 			  LEFT  OUTER JOIN channel_entry replaces ON replaces.replaces = channel_entry.entry_id
 			  INNER JOIN operatorbundle ON replaces.operatorbundle_name = operatorbundle.name
 			  WHERE channel_entry.operatorbundle_name = ? AND channel_entry.package_name = ? AND channel_entry.channel_name = ? LIMIT 1`
 	rows, err := s.db.QueryContext(ctx, query, name, pkgName, channelName)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if !rows.Next() {
-		return "", fmt.Errorf("no bundle found that replaces %s", name)
+		return nil,  fmt.Errorf("no entry found for %s %s", pkgName, channelName)
 	}
+	var entryId sql.NullInt64
+	var outName sql.NullString
 	var bundle sql.NullString
-	if err := rows.Scan(&bundle); err != nil {
-		return "", err
+	var bundlePath sql.NullString
+	if err := rows.Scan(&entryId, &outName, &bundle, &bundlePath); err != nil {
+		return nil, err
 	}
-	return bundle.String, nil
+
+	out := &api.Bundle{}
+	if bundle.Valid && bundle.String != "" {
+		out, err = registry.BundleStringToAPIBundle(bundle.String)
+		if err != nil {
+			return nil, err
+		}
+	}
+	out.CsvName = outName.String
+	out.PackageName = pkgName
+	out.ChannelName = channelName
+	out.BundlePath = bundlePath.String
+
+	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	if err != nil {
+		return nil, err
+	}
+	out.ProvidedApis = provided
+	out.RequiredApis = required
+
+	return out, nil
 }
 
 func (s *SQLQuerier) GetChannelEntriesThatProvide(ctx context.Context, group, version, kind string) (entries []*registry.ChannelEntry, err error) {
@@ -273,8 +348,8 @@ func (s *SQLQuerier) GetLatestChannelEntriesThatProvide(ctx context.Context, gro
 }
 
 // Get the the latest bundle that provides the API in a default channel, error unless there is ONLY one
-func (s *SQLQuerier) GetBundleThatProvides(ctx context.Context, group, version, kind string) (string, *registry.ChannelEntry, error) {
-	query := `SELECT DISTINCT operatorbundle.bundle, MIN(channel_entry.depth), channel_entry.operatorbundle_name, channel_entry.package_name, channel_entry.channel_name, channel_entry.replaces
+func (s *SQLQuerier) GetBundleThatProvides(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
+	query := `SELECT DISTINCT channel_entry.entry_id, operatorbundle.bundle, operatorbundle.bundlepath, MIN(channel_entry.depth), channel_entry.operatorbundle_name, channel_entry.package_name, channel_entry.channel_name, channel_entry.replaces
           FROM channel_entry
           INNER JOIN api_provider ON channel_entry.entry_id = api_provider.channel_entry_id
 		  INNER JOIN operatorbundle ON operatorbundle.name = channel_entry.operatorbundle_name
@@ -284,30 +359,146 @@ func (s *SQLQuerier) GetBundleThatProvides(ctx context.Context, group, version, 
 
 	rows, err := s.db.QueryContext(ctx, query, group, version, kind)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
 	if !rows.Next() {
-		return "", nil, fmt.Errorf("no bundle found that provides %s %s %s", group, version, kind)
+		return nil, fmt.Errorf("no entry found that provides %s %s %s", group, version, kind)
 	}
-
+	var entryId sql.NullInt64
 	var bundle sql.NullString
+	var bundlePath sql.NullString
 	var min_depth sql.NullInt64
 	var bundleName sql.NullString
 	var pkgName sql.NullString
 	var channelName sql.NullString
 	var replaces sql.NullString
-	if err := rows.Scan(&bundle, &min_depth, &bundleName, &pkgName, &channelName, &replaces); err != nil {
-		return "", nil, err
+	if err := rows.Scan(&entryId, &bundle, &bundlePath, &min_depth, &bundleName, &pkgName, &channelName, &replaces); err != nil {
+		return nil, err
 	}
 
 	if !bundle.Valid {
-		return "", nil, fmt.Errorf("no bundle found that provides %s %s %s", group, version, kind)
+		return nil, fmt.Errorf("no entry found that provides %s %s %s", group, version, kind)
 	}
-	entry := &registry.ChannelEntry{
-		PackageName: pkgName.String,
-		ChannelName: channelName.String,
-		BundleName:  bundleName.String,
+
+	out := &api.Bundle{}
+	if bundle.Valid && bundle.String != "" {
+		out, err = registry.BundleStringToAPIBundle(bundle.String)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return bundle.String, entry, nil
+	out.CsvName = bundleName.String
+	out.PackageName = pkgName.String
+	out.ChannelName = channelName.String
+	out.BundlePath = bundlePath.String
+
+	provided, required, err := s.GetApisForEntry(ctx, entryId.Int64)
+	if err != nil {
+		return nil, err
+	}
+	out.ProvidedApis = provided
+	out.RequiredApis = required
+
+	return out, nil
+}
+
+func (s *SQLQuerier) ListImages(ctx context.Context) ([]string, error) {
+	query := "SELECT DISTINCT image FROM related_image"
+	rows, err := s.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	images := []string{}
+	for rows.Next() {
+		var imgName sql.NullString
+		if err := rows.Scan(&imgName); err != nil {
+			return nil, err
+		}
+		if imgName.Valid {
+			images = append(images, imgName.String)
+		}
+	}
+	return images, nil
+}
+
+func (s *SQLQuerier) GetImagesForBundle(ctx context.Context, csvName string) ([]string, error) {
+	query := "SELECT DISTINCT image FROM related_image WHERE operatorbundle_name=?"
+	rows, err := s.db.QueryContext(ctx, query, csvName)
+	if err != nil {
+		return nil, err
+	}
+	images := []string{}
+	for rows.Next() {
+		var imgName sql.NullString
+		if err := rows.Scan(&imgName); err != nil {
+			return nil, err
+		}
+		if imgName.Valid {
+			images = append(images, imgName.String)
+		}
+	}
+	return images, nil
+}
+
+func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryId int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error) {
+	providedQuery := `SELECT DISTINCT api.group_name, api.version, api.kind, api.plural FROM api
+		 	  		  INNER JOIN api_provider ON (api.group_name=api_provider.group_name AND api.version=api_provider.version AND api.kind=api_provider.kind)
+			  		  WHERE api_provider.channel_entry_id=?`
+
+	providedRows, err := s.db.QueryContext(ctx, providedQuery, entryId)
+	if err != nil {
+		return nil,nil, err
+	}
+	provided = []*api.GroupVersionKind{}
+	for providedRows.Next() {
+		var groupName sql.NullString
+		var versionName sql.NullString
+		var kindName sql.NullString
+		var pluralName sql.NullString
+
+		if err := providedRows.Scan(&groupName, &versionName, &kindName, &pluralName); err != nil {
+			return nil, nil, err
+		}
+		if !groupName.Valid || !versionName.Valid || !kindName.Valid || !pluralName.Valid {
+			return nil, nil, err
+		}
+		provided = append(provided, &api.GroupVersionKind{
+			Group:  groupName.String,
+			Version: versionName.String,
+			Kind:   kindName.String,
+			Plural:   pluralName.String,
+		})
+	}
+
+	requiredQuery := `SELECT DISTINCT api.group_name, api.version, api.kind, api.plural FROM api
+		 	  		  INNER JOIN api_requirer ON (api.group_name=api_requirer.group_name AND api.version=api_requirer.version AND api.kind=api_requirer.kind)
+			  		  WHERE api_requirer.channel_entry_id=?`
+
+	requiredRows, err := s.db.QueryContext(ctx, requiredQuery, entryId)
+	if err != nil {
+		return nil,nil, err
+	}
+	required = []*api.GroupVersionKind{}
+	for requiredRows.Next() {
+		var groupName sql.NullString
+		var versionName sql.NullString
+		var kindName sql.NullString
+		var pluralName sql.NullString
+
+		if err := requiredRows.Scan(&groupName, &versionName, &kindName, &pluralName); err != nil {
+			return nil, nil, err
+		}
+		if !groupName.Valid || !versionName.Valid || !kindName.Valid || !pluralName.Valid {
+			return nil, nil, err
+		}
+		required = append(required, &api.GroupVersionKind{
+			Group:  groupName.String,
+			Version: versionName.String,
+			Kind:   kindName.String,
+			Plural:   pluralName.String,
+		})
+	}
+
+	return
 }

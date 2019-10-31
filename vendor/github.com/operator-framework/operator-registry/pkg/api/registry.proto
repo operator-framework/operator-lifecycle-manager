@@ -30,12 +30,22 @@ message Package{
 	string defaultChannelName = 3;
 }
 
+message GroupVersionKind{
+	string group = 1;
+	string version = 2;
+	string kind = 3;
+	string plural = 4;
+}
+
 message Bundle{
 	string csvName = 1;
 	string packageName = 2;
 	string channelName = 3;
 	string csvJson = 4;
 	repeated string object = 5;
+	string bundlePath = 6;
+	repeated GroupVersionKind providedApis = 7;
+	repeated GroupVersionKind requiredApis = 8;
 }
 
 message ChannelEntry{

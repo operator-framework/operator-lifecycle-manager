@@ -1,6 +1,7 @@
 package resolver
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -9,6 +10,8 @@ import (
 	"github.com/blang/semver"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -220,7 +223,7 @@ type OperatorSurface interface {
 	Replaces() string
 	Version() *semver.Version
 	SourceInfo() *OperatorSourceInfo
-	Bundle() *opregistry.Bundle
+	Bundle() *api.Bundle
 }
 
 type Operator struct {
@@ -229,23 +232,18 @@ type Operator struct {
 	providedAPIs APISet
 	requiredAPIs APISet
 	version      *semver.Version
-	bundle       *opregistry.Bundle
+	bundle       *api.Bundle
 	sourceInfo   *OperatorSourceInfo
 }
 
 var _ OperatorSurface = &Operator{}
 
-func NewOperatorFromBundle(bundle *opregistry.Bundle, replaces string, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
-	csv, err := bundle.ClusterServiceVersion()
-	if err != nil {
-		return nil, err
+func NewOperatorFromBundle(bundle *api.Bundle, replaces string, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
+	if bundle.CsvJson == "" {
+		return nil, fmt.Errorf("no csv json found")
 	}
-	providedAPIs, err := bundle.ProvidedAPIs()
-	if err != nil {
-		return nil, err
-	}
-	requiredAPIs, err := bundle.RequiredAPIs()
-	if err != nil {
+	csv := &registry.ClusterServiceVersion{}
+	if err := json.Unmarshal([]byte(bundle.CsvJson), csv); err != nil {
 		return nil, err
 	}
 	r := replaces
@@ -260,16 +258,25 @@ func NewOperatorFromBundle(bundle *opregistry.Bundle, replaces string, startingC
 		v = nil
 	}
 
+	provided := APISet{}
+	for _, gvk := range bundle.ProvidedApis {
+		provided[registry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+	}
+	required := APISet{}
+	for _, gvk := range bundle.RequiredApis {
+		required[registry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+	}
+
 	return &Operator{
 		name:         csv.GetName(),
 		replaces:     r,
 		version:      v,
-		providedAPIs: providedAPIs,
-		requiredAPIs: requiredAPIs,
+		providedAPIs: provided,
+		requiredAPIs: required,
 		bundle:       bundle,
 		sourceInfo: &OperatorSourceInfo{
-			Package:     bundle.Package,
-			Channel:     bundle.Channel,
+			Package:     bundle.PackageName,
+			Channel:     bundle.ChannelName,
 			StartingCSV: startingCSV,
 			Catalog:     sourceKey,
 		},
@@ -328,14 +335,14 @@ func (o *Operator) Replaces() string {
 }
 
 func (o *Operator) Package() string {
-	return o.bundle.Package
+	return o.bundle.PackageName
 }
 
 func (o *Operator) SourceInfo() *OperatorSourceInfo {
 	return o.sourceInfo
 }
 
-func (o *Operator) Bundle() *opregistry.Bundle {
+func (o *Operator) Bundle() *api.Bundle {
 	return o.bundle
 }
 

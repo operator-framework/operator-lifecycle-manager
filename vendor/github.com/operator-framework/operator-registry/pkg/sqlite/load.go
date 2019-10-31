@@ -1,6 +1,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -15,69 +16,35 @@ import (
 )
 
 type SQLLoader struct {
-	db *sql.DB
+	db       *sql.DB
+	migrator Migrator
 }
 
 var _ registry.Load = &SQLLoader{}
 
-func NewSQLLiteLoader(outFilename string) (*SQLLoader, error) {
-	db, err := sql.Open("sqlite3", outFilename) // TODO: ?immutable=true
+func NewSQLLiteLoader(db *sql.DB, opts ...DbOption) (*SQLLoader, error) {
+	options := defaultDBOptions()
+	for _, o := range opts {
+		o(options)
+	}
+
+	if _, err := db.Exec("PRAGMA foreign_keys = ON", nil); err != nil {
+		return nil, err
+	}
+
+	migrator, err := options.MigratorBuilder(db)
 	if err != nil {
 		return nil, err
 	}
 
-	createTable := `
-	CREATE TABLE IF NOT EXISTS operatorbundle (
-		name TEXT PRIMARY KEY,  
-		csv TEXT UNIQUE, 
-		bundle TEXT
-	);
-	CREATE TABLE IF NOT EXISTS package (
-		name TEXT PRIMARY KEY,
-		default_channel TEXT,
-		FOREIGN KEY(default_channel) REFERENCES channel(name)
-	);
-	CREATE TABLE IF NOT EXISTS channel (
-		name TEXT, 
-		package_name TEXT, 
-		head_operatorbundle_name TEXT,
-		PRIMARY KEY(name, package_name),
-		FOREIGN KEY(package_name) REFERENCES package(name),
-		FOREIGN KEY(head_operatorbundle_name) REFERENCES operatorbundle(name)
-	);
-	CREATE TABLE IF NOT EXISTS channel_entry (
-		entry_id INTEGER PRIMARY KEY,
-		channel_name TEXT,
-		package_name TEXT,
-		operatorbundle_name TEXT,
-		replaces INTEGER,
-		depth INTEGER,
-		FOREIGN KEY(replaces) REFERENCES channel_entry(entry_id)  DEFERRABLE INITIALLY DEFERRED, 
-		FOREIGN KEY(channel_name) REFERENCES channel(name),
-		FOREIGN KEY(package_name) REFERENCES channel(package_name),
-		FOREIGN KEY(operatorbundle_name) REFERENCES operatorbundle(name)
-	);
-	CREATE TABLE IF NOT EXISTS api (
-		group_name TEXT,
-		version TEXT,
-		kind TEXT,
-		plural TEXT NOT NULL,
-		PRIMARY KEY(group_name, version, kind)
-	);
-	CREATE TABLE IF NOT EXISTS api_provider (
-		group_name TEXT,
-		version TEXT,
-		kind TEXT,
-		channel_entry_id INTEGER,
-		FOREIGN KEY(channel_entry_id) REFERENCES channel_entry(entry_id),
-		FOREIGN KEY(group_name, version, kind) REFERENCES api(group_name, version, kind) 
-	);
-	`
+	return &SQLLoader{db: db, migrator: migrator}, nil
+}
 
-	if _, err = db.Exec(createTable); err != nil {
-		return nil, err
+func (s *SQLLoader) Migrate(ctx context.Context) error {
+	if s.migrator == nil {
+		return fmt.Errorf("no migrator configured")
 	}
-	return &SQLLoader{db}, nil
+	return s.migrator.Migrate(ctx)
 }
 
 func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
@@ -89,11 +56,17 @@ func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 		tx.Rollback()
 	}()
 
-	stmt, err := tx.Prepare("insert into operatorbundle(name, csv, bundle) values(?, ?, ?)")
+	stmt, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath) values(?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
+
+	addImage, err := tx.Prepare("insert into related_image(image, operatorbundle_name) values(?,?)")
+	if err != nil {
+		return err
+	}
+	defer addImage.Close()
 
 	csvName, csvBytes, bundleBytes, err := bundle.Serialize()
 	if err != nil {
@@ -104,8 +77,19 @@ func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 		return fmt.Errorf("csv name not found")
 	}
 
-	if _, err := stmt.Exec(csvName, csvBytes, bundleBytes); err != nil {
+	if _, err := stmt.Exec(csvName, csvBytes, bundleBytes, nil); err != nil {
 		return err
+	}
+
+	imgs, err := bundle.Images()
+	if err != nil {
+		return err
+	}
+	// TODO: bulk insert
+	for img := range imgs {
+		if _, err := addImage.Exec(img, csvName); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit()
@@ -149,18 +133,6 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 		return err
 	}
 	defer addReplaces.Close()
-
-	addAPI, err := tx.Prepare("insert or replace into api(group_name, version, kind, plural) values(?, ?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer addAPI.Close()
-
-	addAPIProvider, err := tx.Prepare("insert into api_provider(group_name, version, kind, channel_entry_id) values(?, ?, ?, ?)")
-	if err != nil {
-		return err
-	}
-	defer addAPIProvider.Close()
 
 	if _, err := addPackage.Exec(manifest.PackageName); err != nil {
 		// This should be terminal
@@ -209,7 +181,7 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 				break
 			}
 
-			if err := s.addProvidedAPIs(tx, channelEntryCSV, currentID); err != nil {
+			if err := s.addAPIs(tx, channelEntryCSV, currentID); err != nil {
 				errs = append(errs, err)
 			}
 
@@ -250,7 +222,7 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 					continue
 				}
 
-				if err := s.addProvidedAPIs(tx, channelEntryCSV, synthesizedID); err != nil {
+				if err := s.addAPIs(tx, channelEntryCSV, synthesizedID); err != nil {
 					errs = append(errs, err)
 					continue
 				}
@@ -302,10 +274,6 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 	return utilerrors.NewAggregate(errs)
 }
 
-func (s *SQLLoader) Close() error {
-	return s.db.Close()
-}
-
 func SplitCRDName(crdName string) (plural, group string, err error) {
 	pluralGroup := strings.SplitN(crdName, ".", 2)
 	if len(pluralGroup) != 2 {
@@ -354,7 +322,7 @@ func (s *SQLLoader) getCSV(tx *sql.Tx, csvName string) (*registry.ClusterService
 	return csv, nil
 }
 
-func (s *SQLLoader) addProvidedAPIs(tx *sql.Tx, csv *registry.ClusterServiceVersion, channelEntryId int64) error {
+func (s *SQLLoader) addAPIs(tx *sql.Tx, csv *registry.ClusterServiceVersion, channelEntryId int64) error {
 	addAPI, err := tx.Prepare("insert or replace into api(group_name, version, kind, plural) values(?, ?, ?, ?)")
 	if err != nil {
 		return err
@@ -367,7 +335,13 @@ func (s *SQLLoader) addProvidedAPIs(tx *sql.Tx, csv *registry.ClusterServiceVers
 	}
 	defer addAPIProvider.Close()
 
-	ownedCRDs, _, err := csv.GetCustomResourceDefintions()
+	addApiRequirer, err := tx.Prepare("insert into api_requirer(group_name, version, kind, channel_entry_id) values(?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer addApiRequirer.Close()
+
+	ownedCRDs, requiredCRDs, err := csv.GetCustomResourceDefintions()
 	for _, crd := range ownedCRDs {
 		plural, group, err := SplitCRDName(crd.Name)
 		if err != nil {
@@ -380,9 +354,29 @@ func (s *SQLLoader) addProvidedAPIs(tx *sql.Tx, csv *registry.ClusterServiceVers
 			return err
 		}
 	}
+	for _, crd := range requiredCRDs {
+		plural, group, err := SplitCRDName(crd.Name)
+		if err != nil {
+			return err
+		}
+		if _, err := addAPI.Exec(group, crd.Version, crd.Kind, plural); err != nil {
+			return err
+		}
+		if _, err := addApiRequirer.Exec(group, crd.Version, crd.Kind, channelEntryId); err != nil {
+			return err
+		}
+	}
 
-	ownedAPIs, _, err := csv.GetApiServiceDefinitions()
+	ownedAPIs, requiredAPIs, err := csv.GetApiServiceDefinitions()
 	for _, api := range ownedAPIs {
+		if _, err := addAPI.Exec(api.Group, api.Version, api.Kind, api.Name); err != nil {
+			return err
+		}
+		if _, err := addAPIProvider.Exec(api.Group, api.Version, api.Kind, channelEntryId); err != nil {
+			return err
+		}
+	}
+	for _, api := range requiredAPIs {
 		if _, err := addAPI.Exec(api.Group, api.Version, api.Kind, api.Name); err != nil {
 			return err
 		}
