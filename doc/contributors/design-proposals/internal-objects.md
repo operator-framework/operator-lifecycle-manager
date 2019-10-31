@@ -1,4 +1,4 @@
-# Related Images
+# Hiding Internal or Data-only Objects
 
 Status: Pending
 
