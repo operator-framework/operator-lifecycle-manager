@@ -930,8 +930,6 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 	})
 	logger.Debug("syncing CSV")
 
-	metrics.EmitCSVMetric(clusterServiceVersion)
-
 	if a.csvNotification != nil {
 		a.csvNotification.OnAddOrUpdate(clusterServiceVersion)
 	}
@@ -964,6 +962,8 @@ func (a *Operator) syncClusterServiceVersion(obj interface{}) (syncError error) 
 			} else {
 				syncError = fmt.Errorf("error transitioning ClusterServiceVersion: %s and error updating CSV status: %s", syncError, updateErr)
 			}
+		} else {
+			metrics.EmitCSVMetric(clusterServiceVersion, outCSV)
 		}
 	}
 
