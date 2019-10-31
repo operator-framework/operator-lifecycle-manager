@@ -2,8 +2,6 @@ package v1alpha1
 
 import (
 	"fmt"
-	"time"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -74,7 +72,7 @@ type CatalogSourceSpec struct {
 }
 
 type Poll struct {
-	Interval time.Duration `json:"interval,omitempty"`
+	Interval metav1.Duration `json:"interval,omitempty"`
 }
 
 type RegistryServiceStatus struct {

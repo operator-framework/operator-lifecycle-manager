@@ -2,7 +2,6 @@ package operators
 
 import (
 	"fmt"
-	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -67,7 +66,7 @@ type CatalogSourceSpec struct {
 }
 
 type Poll struct {
-	Interval time.Duration
+	Interval metav1.Duration
 }
 
 type RegistryServiceStatus struct {

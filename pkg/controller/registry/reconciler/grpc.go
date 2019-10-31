@@ -175,10 +175,17 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 func (c *GrpcRegistryReconciler) updateRegistryPodByDigest(source grpcCatalogSourceDecorator) bool {
 	podDigestChan := make(chan string, 1)
 	lastCheckedTimestamp := time.Time{}
+	interval := source.Spec.Poll.Interval.Duration
+
+	// check poll value is not zero (default poll value)
+	// if polling interval is zero polling will not be done
+	if interval == time.Duration(0) {
+		return false
+	}
 
 	// check digest every poll interval
-	if time.Now().After(lastCheckedTimestamp.Add(source.Spec.Poll.Interval)) &&
-		source.CreationTimestamp.Add(source.Spec.Poll.Interval).Before(time.Now()) {
+	if time.Now().After(lastCheckedTimestamp.Add(interval)) &&
+		source.CreationTimestamp.Add(interval).Before(time.Now()) {
 		lastCheckedTimestamp = time.Now()
 		go c.getPodDigest(source, podDigestChan)
 	}
@@ -199,7 +206,11 @@ func (c *GrpcRegistryReconciler) updateRegistryPodByDigest(source grpcCatalogSou
 // getPodDigest is an internal method that creates a pod using the latest catalog source.
 // Once the pod comes up, it puts the container image digest onto a channel.
 func (c *GrpcRegistryReconciler) getPodDigest(source grpcCatalogSourceDecorator, podChan chan string) {
-	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(source.Pod())
+	// remove label from pod to ensure service does accidentally route traffic to the pod
+	p := source.Pod()
+	p.Labels[CatalogSourceLabelKey] = ""
+
+	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
 	if err != nil {
 		logrus.WithField("pod", "catalog-source-pod").Warn("couldn't create new catalog source pod")
 		return
@@ -222,6 +233,10 @@ func (c *GrpcRegistryReconciler) getPodDigest(source grpcCatalogSourceDecorator,
 		logrus.WithField("pod", pod.Name).Warn("couldn't run catalog source pod")
 		return
 	}
+
+
+	logrus.WithField("pod", pod.Spec.Containers[0].Image).Info(fmt.Sprintf("found new image digest %s",
+		pod.Status.ContainerStatuses[0].ImageID))
 
 	podChan <- newCatalogSourceImage
 }

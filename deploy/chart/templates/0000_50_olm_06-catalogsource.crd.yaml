@@ -79,7 +79,7 @@ spec:
               properties:
                 interval:
                   type: string
-                  description: The actual time interval. Gets coerced into a time.Time type after unmarshaling.
+                  description: The actual time interval between checks. Gets coerced into a time.Duration type after unmarshaling.
 
             displayName:
               type: string
