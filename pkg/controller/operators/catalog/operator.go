@@ -32,6 +32,8 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
+	"github.com/operator-framework/operator-registry/pkg/configmap"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -86,7 +88,7 @@ type Operator struct {
 	clientAttenuator       *scoped.ClientAttenuator
 	serviceAccountQuerier  *scoped.UserDefinedServiceAccountQuerier
 
-	bundleLoader *registry.BundleLoader // 92
+	bundleLoader *configmap.BundleLoader
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -141,7 +143,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		csvProvidedAPIsIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:       scoped.NewClientAttenuator(logger, config, opClient, crClient),
-		bundleLoader:           registry.NewBundleLoader(), // 92
+		bundleLoader:           configmap.NewBundleLoader(),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
@@ -869,7 +871,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 			return nil, false, err
 		}
 		bundle, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
-		if bundle != nil || bundle.BundlePath != nil {
+		if bundle != nil || bundle.BundlePath != "" {
 			o.logger.Tracef("replacement %s bundle found for current bundle %s", bundle.CsvName, sub.Status.CurrentCSV)
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 		} else {
@@ -1020,15 +1022,17 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 }
 
 func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) {
-	allFinished := true
+	//allFinished := true
 	for _, bundleLookup := range plan.Status.BundleLookups {
 		job, err := o.opClient.KubernetesInterface().BatchV1().Jobs(bundleLookup.BundleJob.Namespace).Get(bundleLookup.BundleJob.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 		if len(job.Status.Conditions) > 0 && job.Status.Conditions[0].Type != batchv1.JobComplete {
-			allFinished = false
-			continue
+			// TODO: could write steps for each bundle image as ready
+			//allFinished = false
+			//continue
+			return false, nil
 		}
 		bundleLookup.BundleJob.Condition = job.Status.Conditions[0].Type
 		bundleLookup.BundleJob.CompletionTime = job.Status.CompletionTime
@@ -1037,15 +1041,52 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 		if err != nil {
 			return false, err
 		}
-		// JPEELER HERE
-		// extract data from configmap and write to install plan
-		// depends on https://github.com/operator-framework/operator-registry/pull/92/
-		manifest, err := o.bundleLoader.Load(configmap)
-		// will i need to do anything besides call NewStepResourceFromBundle and inject into installplan?
 
+		// extract data from configmap and write to install plan
+		manifest, err := o.bundleLoader.Load(configmap)
+		if err != nil {
+			return false, err
+		}
+
+		// combine data from the bundle image into what's already known from the registry
+		bundleLookup.BundleFromRegistry.CsvName = manifest.Bundle.Name
+		bundleLookup.BundleFromRegistry.PackageName = manifest.Bundle.Package
+		bundleLookup.BundleFromRegistry.ChannelName = manifest.Bundle.Channel
+		_, jsonCSV, _, err := manifest.Bundle.Serialize()
+		if err != nil {
+			return false, fmt.Errorf("serialize failed: %s", err.Error())
+		}
+		bundleLookup.BundleFromRegistry.CsvJson = string(jsonCSV)
+		bundleLookup.BundleFromRegistry.Object, err = registry.BundleStringToObjectStrings(bundleLookup.BundleFromRegistry.CsvJson)
+		if err != nil {
+			return false, fmt.Errorf("toStrings failed: %s", err.Error())
+		}
+
+		var olmCSV *v1alpha1.ClusterServiceVersion
+		err = json.Unmarshal(jsonCSV, olmCSV)
+		if err != nil {
+			return false, fmt.Errorf("csv retrieval failed: %s", err.Error())
+		}
+
+		// TODO: refactor with resolver code
+		bundleSteps, err := resolver.NewStepResourceFromBundle(bundleLookup.BundleFromRegistry, plan.GetNamespace(), olmCSV.Spec.Replaces, bundleLookup.CatalogName, bundleLookup.CatalogNamespace)
+		if err != nil {
+			return false, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
+		}
+
+		for _, s := range bundleSteps {
+			plan.Status.Plan = append(plan.Status.Plan, &v1alpha1.Step{
+				Resolving: olmCSV.GetName(),
+				Resource:  s,
+				Status:    v1alpha1.StepStatusUnknown,
+			})
+		}
 	}
 
-	return allFinished, nil
+	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(plan); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {

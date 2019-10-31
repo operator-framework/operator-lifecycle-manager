@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/operator-framework/operator-registry/pkg/configmap"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	v1alpha1listers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
@@ -138,9 +140,9 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	bundleLookups := []*v1alpha1.BundleLookup{}
 	for bundleImageInfo := range gen.PendingOperators() {
 		// TODO: switch image to standalone image, but this image can be used upstream as well
-		configmap, job, err := LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/openshift/origin-operator-registry:lastest", r.operatorNamespace)
+		configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/openshift/origin-operator-registry:lastest", r.operatorNamespace)
 		if err != nil {
-			return err
+			return nil, nil, nil, err
 		}
 		gen.RemovePendingOperator(bundleImageInfo)
 
@@ -156,7 +158,10 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 				UID:             configmap.GetUID(),
 				ResourceVersion: configmap.GetResourceVersion(),
 			},
-			Image: bundleImageInfo.image,
+			Image:              bundleImageInfo.image,
+			BundleFromRegistry: bundleImageInfo.bundle,
+			CatalogName:        bundleImageInfo.operatorSourceInfo.Catalog.Name,
+			CatalogNamespace:   bundleImageInfo.operatorSourceInfo.Catalog.Namespace,
 		})
 
 		existingSubscription, subExists := subMap[*bundleImageInfo.operatorSourceInfo]
