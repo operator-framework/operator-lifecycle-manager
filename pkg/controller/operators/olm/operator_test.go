@@ -40,6 +40,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
@@ -263,6 +264,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 			apiReconciler:     resolver.APIIntersectionReconcileFunc(resolver.ReconcileAPIIntersection),
 			apiLabeler:        labeler.Func(resolver.LabelSetsFor),
 			restConfig:        &rest.Config{},
+			csvAdmitQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvAdmit"),
 		},
 		recorder: &record.FakeRecorder{},
 		// default expected namespaces

@@ -38,6 +38,7 @@ USER 1001
 
 EXPOSE 8080
 EXPOSE 5443
+EXPOSE 6789
 
 # Apply labels as needed. ART build automation fills in others required for
 # shipping, including component NVR (name-version-release) and image name. OSBS

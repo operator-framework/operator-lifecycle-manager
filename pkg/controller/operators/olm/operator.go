@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -29,16 +27,19 @@ import (
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	kagg "k8s.io/kube-aggregator/pkg/client/informers/externalversions"
 
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/certs"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/admission"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	csvutility "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/csv"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/event"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubestate"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/labeler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
@@ -80,6 +81,8 @@ type Operator struct {
 	serviceAccountSyncer  *scoped.UserDefinedServiceAccountSyncer
 	clientAttenuator      *scoped.ClientAttenuator
 	serviceAccountQuerier *scoped.UserDefinedServiceAccountQuerier
+	csvAdmitQueue         workqueue.RateLimitingInterface
+	rbacGenerator         *admission.RBACGenerationController
 }
 
 func NewOperator(ctx context.Context, options ...OperatorOption) (*Operator, error) {
@@ -134,6 +137,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		serviceAccountSyncer:  scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
 		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient, config.externalClient),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
+		csvAdmitQueue:         config.csvAdmitQueue,
 	}
 
 	// Set up syncing for namespace-scoped resources
@@ -473,13 +477,25 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		if err != nil {
 			return nil, err
 		}
-		op.RegisterQueueInformer(informer)
+		if err := op.RegisterQueueInformer(informer); err != nil {
+			return nil, err
+		}
 	}
 
 	overridesBuilderFunc := overrides.NewDeploymentInitializer(op.logger, proxyQuerierInUse, op.lister)
 	op.resolver = &install.StrategyResolver{
 		OverridesBuilderFunc: overridesBuilderFunc.GetDeploymentInitializer,
 	}
+
+	op.rbacGenerator, err = admission.NewRBACGenerationController(
+		op.lister,
+		op.opClient.KubernetesInterface(),
+		admission.WithLogger(op.logger),
+		admission.WithQueue(op.csvAdmitQueue))
+	if err != nil {
+		return nil, err
+	}
+	op.rbacGenerator.Start(ctx)
 
 	return op, nil
 }

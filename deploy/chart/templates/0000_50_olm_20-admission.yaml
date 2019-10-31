@@ -1,23 +1,39 @@
-apiVersion: admissionregistration.k8s.io/v1beta1
+{{ if .Values.local }}
+{{- $ca := genCA "admission-ca" 365 -}}
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: olm-admission-certs
+  namespace: {{ .Values.namespace }}
+data:
+  {{- $altNames := list ( printf "olm-admission.%s" .Values.namespace ) ( printf "olm-admission.%s.svc" .Values.namespace ) -}}
+  {{- $cert := genSignedCert "olm-admission" nil $altNames 365 $ca }}
+  tls.crt: {{ $cert.Cert | b64enc | quote }}
+  tls.key: {{ $cert.Key | b64enc | quote }}
+---
+apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: olm-admission
 webhooks:
-  - name: csv.operators.olm.com
-    rules:
-      - apiGroups:
-          - "operators.olm.com"
-        apiVersions:
-          - v1alpha1
-        operations:
-          - CREATE
-        resources:
-          - clusterserviceversions
-        scope: "Namespaced"
-    clientConfig:
-      service:
-        namespace: {{ .Values.namespace }}
-        name: olm-admission
-    admissionReviewVersions:
-      - v1beta1
-    timeoutSeconds: 1
+- name: csv.operators.coreos.com
+  rules:
+    - apiGroups:
+        - "operators.coreos.com"
+      apiVersions:
+        - v1alpha1
+      operations:
+        - CREATE
+      resources:
+        - clusterserviceversions
+      scope: "Namespaced"
+  clientConfig:
+    service:
+      namespace: {{ .Values.namespace }}
+      name: olm-admission
+      path: "/operator-admit"
+    caBundle: {{ $ca.Cert | b64enc | quote }}
+  failurePolicy: Fail
+  timeoutSeconds: 1
+{{ end }}

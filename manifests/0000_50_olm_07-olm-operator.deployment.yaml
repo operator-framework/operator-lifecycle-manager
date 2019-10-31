@@ -41,9 +41,6 @@ spec:
             - containerPort: 8081
               name: metrics
               protocol: TCP
-            - containerPort: 6789
-              name: admission
-              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
@@ -69,13 +66,13 @@ spec:
               cpu: 10m
               memory: 160Mi
             
-          
           volumeMounts:
+          
           - mountPath: /var/run/secrets/serving-cert
             name: serving-cert
           
-      
       volumes:
+      
       - name: serving-cert
         secret:
           secretName: olm-operator-serving-cert

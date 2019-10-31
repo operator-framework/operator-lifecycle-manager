@@ -26,4 +26,5 @@ COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
 EXPOSE 8080
 EXPOSE 5443
+EXPOSE 6789
 CMD ["/bin/olm"]

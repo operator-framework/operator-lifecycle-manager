@@ -36,7 +36,6 @@ metadata:
   labels:
     app: catalog-operator
 spec:
-  jobLabel: k8s-app
   endpoints:
   - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 30s

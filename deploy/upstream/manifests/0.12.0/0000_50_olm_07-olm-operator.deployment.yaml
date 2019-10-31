@@ -58,7 +58,9 @@ spec:
               cpu: 10m
               memory: 160Mi
             
+          volumeMounts:
           
+      volumes:
       
       nodeSelector:
         beta.kubernetes.io/os: linux

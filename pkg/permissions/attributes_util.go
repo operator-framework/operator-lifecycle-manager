@@ -1,4 +1,4 @@
-package install
+package permissions
 
 import (
 	log "github.com/sirupsen/logrus"

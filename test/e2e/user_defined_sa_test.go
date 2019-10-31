@@ -58,7 +58,7 @@ func TestUserDefinedServiceAccountWithNoPermission(t *testing.T) {
 	require.NotNil(t, subscription)
 
 	// We expect the InstallPlan to be in status: Failed.
-	ipName := subscription.Status.Install.Name
+	ipName := subscription.Status.InstallPlanRef.Name
 	ipPhaseCheckerFunc := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed)
 	ipGot, err := fetchInstallPlanWithNamespace(t, crclient, ipName, namespace, ipPhaseCheckerFunc)
 	require.NoError(t, err)

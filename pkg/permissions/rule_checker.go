@@ -1,4 +1,4 @@
-package install
+package permissions
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	crbacv1 "k8s.io/client-go/listers/rbac/v1"
 	rbacauthorizer "k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
@@ -19,6 +20,10 @@ type RuleChecker interface {
 	// RuleSatisfied determines whether a PolicyRule is satisfied for a ServiceAccount
 	// by existing Roles and ClusterRoles
 	RuleSatisfied(sa *corev1.ServiceAccount, namespace string, rule rbacv1.PolicyRule) (bool, error)
+
+	// RuleSatisfied determines whether a PolicyRule is satisfied for a User
+	// by existing Roles and ClusterRoles
+	RuleSatisfiedUser(user, namespace string, rule rbacv1.PolicyRule) error
 }
 
 // CSVRuleChecker determines whether a PolicyRule is satisfied for a ServiceAccount
@@ -38,7 +43,7 @@ func NewCSVRuleChecker(roleLister crbacv1.RoleLister, roleBindingLister crbacv1.
 		roleBindingLister:        roleBindingLister,
 		clusterRoleLister:        clusterRoleLister,
 		clusterRoleBindingLister: clusterRoleBindingLister,
-		csv:                      csv.DeepCopy(),
+		csv: csv.DeepCopy(),
 	}
 }
 
@@ -54,6 +59,31 @@ func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace stri
 	user := toDefaultInfo(sa)
 	attributesSet := toAttributesSet(user, namespace, rule)
 
+	return c.attributeSetSatisfied(attributesSet)
+}
+
+// RuleSatisfied returns true if a ServiceAccount is authorized to perform all actions described by a PolicyRule in a namespace
+// returns nil if the user can create
+func (c *CSVRuleChecker) RuleSatisfiedUser(username, namespace string, rule rbacv1.PolicyRule) error {
+	// check if the rule is valid
+	err := ruleValid(rule)
+	if err != nil {
+		return fmt.Errorf("user cannot create invalid rule (%s): %s", rule, err.Error())
+	}
+
+	// get attributes set for the given Role and ServiceAccount
+	attributesSet := toAttributesSet(&user.DefaultInfo{Name: username}, namespace, rule)
+	allowed, err := c.attributeSetSatisfied(attributesSet)
+	if err != nil {
+		return err
+	}
+	if allowed == false {
+		return fmt.Errorf("user cannot create rule %s", rule)
+	}
+	return nil
+}
+
+func (c *CSVRuleChecker) attributeSetSatisfied(attributesSet []authorizer.Attributes) (bool, error) {
 	// create a new RBACAuthorizer
 	rbacAuthorizer := rbacauthorizer.New(c, c, c, c)
 

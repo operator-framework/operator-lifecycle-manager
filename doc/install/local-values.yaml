@@ -5,6 +5,7 @@ writeStatusName: '""'
 catalog_namespace: olm
 operator_namespace: operators
 debug: true
+local: true
 
 olm:
   replicaCount: 1

@@ -61,9 +61,11 @@ spec:
             - containerPort: 8081
               name: metrics
               protocol: TCP
+            {{- if .Values.local }}
             - containerPort: 6789
               name: admission
               protocol: TCP
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
@@ -88,18 +90,27 @@ spec:
           resources:
 {{ toYaml .Values.olm.resources | indent 12 }}
           {{- end}}
-          {{ if and .Values.installType (eq .Values.installType "ocp") }}
           volumeMounts:
+          {{ if and .Values.installType (eq .Values.installType "ocp") }}
           - mountPath: /var/run/secrets/serving-cert
             name: serving-cert
           {{ end }}
-      {{ if and .Values.installType (eq .Values.installType "ocp") }}
+          {{- if .Values.local }}
+          - mountPath: /var/run/secrets/admission-certs
+            name: admission-cert
+          {{ end }}
       volumes:
+      {{ if and .Values.installType (eq .Values.installType "ocp") }}
       - name: serving-cert
         secret:
           secretName: olm-operator-serving-cert
       {{ end }}
-    {{- if .Values.olm.nodeSelector }}
+      {{- if .Values.local }}
+      - name: admission-cert
+        secret:
+          secretName: olm-admission-certs
+      {{- end}}
+  {{- if .Values.olm.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.olm.nodeSelector | indent 8 }}
     {{- end }}

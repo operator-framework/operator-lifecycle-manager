@@ -7,22 +7,21 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 	"k8s.io/api/admission/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apiserver/pkg/authentication/serviceaccount"
-	"k8s.io/klog"
-	// TODO: try this library to see if it generates correct json patch
-	// https://github.com/mattbaird/jsonpatch
-
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/admission"
 )
 
 var scheme = runtime.NewScheme()
@@ -125,25 +124,30 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	}
 }
 
-func ServeAdmitOperator(w http.ResponseWriter, r *http.Request) {
-	serve(w, r, admitCustomResource)
+func AdmitHandlerFunc(csvAdmitQueue workqueue.RateLimitingInterface) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		serve(w, r, admitCSVFunc(csvAdmitQueue))
+	}
 }
 
-func admitCustomResource(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-	logrus.Info("admitting operator")
+func admitCSVFunc(csvAdmitQueue workqueue.RateLimitingInterface) admitFunc {
+	return func(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+		logger := logrus.WithFields(logrus.Fields{
+			"name": ar.Request.Name,
+			"ns":   ar.Request.Namespace,
+			"user": ar.Request.UserInfo.Username})
+		logger.Info("admitting operator")
 
-	username := ar.Request.UserInfo.Username
+		// Add to the admission queue for processing - if the user has enough permission, this will automatically
+		// create the requried serviceaccounts and rbac for the operator
+		csvAdmitQueue.AddAfter(admission.CSVAdmissionRequest{
+			Name:      ar.Request.Name,
+			Namespace: ar.Request.Namespace,
+			User:      ar.Request.UserInfo.Username,
+		}, time.Second)
 
-	// If the user is a serviceaccount, allow the request but don't do any additional processing
-	if strings.HasPrefix(username, serviceaccount.ServiceAccountUsernamePrefix) {
 		return &v1beta1.AdmissionResponse{
 			Allowed: true,
 		}
-	}
-
-	// TODO: enqueue for a check if the user has a superset of the permissions required by the operator
-
-	return &v1beta1.AdmissionResponse{
-		Allowed: true,
 	}
 }

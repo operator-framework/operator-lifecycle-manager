@@ -27,11 +27,11 @@ This project does not:
 ## Prerequisites
 
 - [git][git_tool]
-- [go][go_tool] version v1.12+.
+- [go][go_tool] version v1.13+.
 - [docker][docker_tool] version 17.03+.
   - Alternatively [podman][podman_tool] `v1.2.0+` or [buildah][buildah_tool] `v1.7+`
-- [kubectl][kubectl_tool] version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+- [kubectl][kubectl_tool] version v1.16+.
+- Access to a Kubernetes v1.16+ cluster.
 
 ## Getting Started 
 

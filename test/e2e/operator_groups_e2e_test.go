@@ -26,6 +26,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/permissions"
 )
 
 func checkOperatorGroupAnnotations(obj metav1.Object, op *v1.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
@@ -161,7 +162,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
-	permissions := []install.StrategyDeploymentPermissions{
+	depPermissions := []install.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{
@@ -176,7 +177,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	// Create a new NamedInstallStrategy
 	deploymentName := genName("operator-deployment")
-	namedStrategy := newNginxInstallStrategy(deploymentName, permissions, nil)
+	namedStrategy := newNginxInstallStrategy(deploymentName, depPermissions, nil)
 
 	aCSV := newCSV(csvName, opGroupNamespace, "", semver.MustParse("0.0.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, namedStrategy)
 	createdCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(opGroupNamespace).Create(&aCSV)
@@ -197,7 +198,7 @@ func TestOperatorGroup(t *testing.T) {
 			Namespace: opGroupNamespace,
 			Name:      serviceAccountName + "-role",
 		},
-		Rules: permissions[0].Rules,
+		Rules: depPermissions[0].Rules,
 	}
 	ownerutil.AddNonBlockingOwner(role, createdCSV)
 	err = ownerutil.AddOwnerLabels(role, createdCSV)
@@ -335,11 +336,11 @@ func TestOperatorGroup(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	ruleChecker := install.NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), &aCSV)
+	ruleChecker := permissions.NewCSVRuleChecker(roleInformer.Lister(), roleBindingInformer.Lister(), clusterRoleInformer.Lister(), clusterRoleBindingInformer.Lister(), &aCSV)
 
 	log("Waiting for operator to have rbac in target namespace")
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-		for _, perm := range permissions {
+		for _, perm := range depPermissions {
 			sa, err := c.GetServiceAccount(opGroupNamespace, perm.ServiceAccountName)
 			require.NoError(t, err)
 			for _, rule := range perm.Rules {

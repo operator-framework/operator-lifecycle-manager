@@ -68,13 +68,13 @@ spec:
               cpu: 10m
               memory: 160Mi
             
-          
           volumeMounts:
+          
           - mountPath: /var/run/secrets/serving-cert
             name: serving-cert
           
-      
       volumes:
+      
       - name: serving-cert
         secret:
           secretName: olm-operator-serving-cert

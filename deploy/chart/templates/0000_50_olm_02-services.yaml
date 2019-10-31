@@ -37,6 +37,7 @@ spec:
   selector:
     app: catalog-operator
 {{ end }}
+{{ if .Values.local }}
 ---
 apiVersion: v1
 kind: Service
@@ -46,8 +47,9 @@ metadata:
 spec:
   ports:
     - name: admission
-      port: 6789
+      port: 443
       protocol: TCP
       targetPort: admission
   selector:
     app: olm-operator
+{{ end }}

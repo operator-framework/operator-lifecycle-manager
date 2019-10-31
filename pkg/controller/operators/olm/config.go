@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/workqueue"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/internalversion"
@@ -34,6 +35,7 @@ type operatorConfig struct {
 	apiLabeler        labeler.Labeler
 	restConfig        *rest.Config
 	configClient      configv1client.Interface
+	csvAdmitQueue     workqueue.RateLimitingInterface
 }
 
 func (o *operatorConfig) apply(options []OperatorOption) {
@@ -166,5 +168,11 @@ func WithRestConfig(restConfig *rest.Config) OperatorOption {
 func WithConfigClient(configClient configv1client.Interface) OperatorOption {
 	return func(config *operatorConfig) {
 		config.configClient = configClient
+	}
+}
+
+func WithCSVAdmissionQueue(queue workqueue.RateLimitingInterface) OperatorOption {
+	return func(config *operatorConfig) {
+		config.csvAdmitQueue = queue
 	}
 }

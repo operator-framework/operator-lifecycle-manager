@@ -15,6 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/admission"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -174,6 +175,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("error configuring client: %s", err.Error())
 	}
+	csvAdmitQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csvAdmit")
 
 	cleanup(logger, opClient, crClient)
 
@@ -187,6 +189,7 @@ func main() {
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
 		olm.WithConfigClient(versionedConfigClient),
+		olm.WithCSVAdmissionQueue(csvAdmitQueue),
 	)
 	if err != nil {
 		log.WithError(err).Fatalf("error configuring operator")
@@ -213,10 +216,12 @@ func main() {
 		go monitor.Run(op.Done())
 	}
 
+	logger.Info("configuring admission")
+
 	admissionMux := http.NewServeMux()
-	admissionMux.HandleFunc("/operator-admit", admission.ServeAdmitOperator)
+	admissionMux.HandleFunc("/operator-admit", admission.AdmitHandlerFunc(csvAdmitQueue))
 	go func() {
-		err := http.ListenAndServe(":6789", admissionMux)
+		err := http.ListenAndServeTLS(":6789", "/var/run/secrets/admission-certs/tls.crt", "/var/run/secrets/admission-certs/tls.key", admissionMux)
 		if err != nil {
 			logger.Errorf("Admission Webhook serving failed: %v", err)
 		}

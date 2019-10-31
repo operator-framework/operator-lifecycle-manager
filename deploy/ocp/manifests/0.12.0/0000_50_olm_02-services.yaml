@@ -39,3 +39,4 @@ spec:
   selector:
     app: catalog-operator
 
+
