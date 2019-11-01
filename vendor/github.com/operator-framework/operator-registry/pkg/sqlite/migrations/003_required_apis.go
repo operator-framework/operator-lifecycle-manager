@@ -13,7 +13,7 @@ const RequiredApiMigrationKey = 3
 
 // Register this migration
 func init() {
-	migrations[RequiredApiMigrationKey] = requiredApiMigration
+	registerMigration(RequiredApiMigrationKey, requiredApiMigration)
 }
 
 var requiredApiMigration = &Migration{

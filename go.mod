@@ -25,7 +25,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30 // indirect
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
-	github.com/operator-framework/operator-registry v1.5.1
+	github.com/operator-framework/operator-registry v1.5.3
 	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	github.com/sirupsen/logrus v1.4.2

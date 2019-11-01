@@ -69,9 +69,14 @@ func (m *SQLLiteMigrator) Up(ctx context.Context, migrations migrations.Migratio
 	if err != nil {
 		return err
 	}
+	var commitErr error
 	defer func() {
+		if commitErr == nil {
+			return
+		}
+		logrus.WithError(commitErr).Warningf("tx commit failed")
 		if err := tx.Rollback(); err != nil {
-			logrus.WithError(err).Debugf("couldn't rollback - this is expected if the transaction committed")
+			logrus.WithError(err).Warningf("couldn't rollback after failed commit")
 		}
 	}()
 
@@ -97,10 +102,8 @@ func (m *SQLLiteMigrator) Up(ctx context.Context, migrations migrations.Migratio
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	return nil
+	commitErr = tx.Commit()
+	return commitErr
 }
 
 func (m *SQLLiteMigrator) Down(ctx context.Context, migrations migrations.Migrations) error {
@@ -108,9 +111,14 @@ func (m *SQLLiteMigrator) Down(ctx context.Context, migrations migrations.Migrat
 	if err != nil {
 		return err
 	}
+	var commitErr error
 	defer func() {
+		if commitErr == nil {
+			return
+		}
+		logrus.WithError(commitErr).Warningf("tx commit failed")
 		if err := tx.Rollback(); err != nil {
-			logrus.WithError(err).Debugf("couldn't rollback - this is expected if the transaction committed")
+			logrus.WithError(err).Warningf("couldn't rollback after failed commit")
 		}
 	}()
 	if err := m.ensureMigrationTable(ctx, tx); err != nil {
@@ -135,10 +143,8 @@ func (m *SQLLiteMigrator) Down(ctx context.Context, migrations migrations.Migrat
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	return nil
+	commitErr = tx.Commit()
+	return commitErr
 }
 
 func (m *SQLLiteMigrator) ensureMigrationTable(ctx context.Context, tx *sql.Tx) error {
