@@ -2,16 +2,16 @@ package resolver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/blang/semver"
+	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
@@ -108,19 +108,19 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 	fakeSource := fakes.FakeInterface{}
 	fakeSource2 := fakes.FakeInterface{}
 	sources := map[CatalogKey]client.Interface{
-		CatalogKey{"test", "ns"}: &fakeSource,
+		CatalogKey{"test", "ns"}:  &fakeSource,
 		CatalogKey{"test2", "ns"}: &fakeSource2,
 	}
 
-	bundle := opregistry.NewBundle("test", "testPkg", "testChannel")
-	bundle2 := opregistry.NewBundle("test2", "testPkg2", "testChannel2")
-	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*opregistry.Bundle, error) {
+	bundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
+	bundle2 := &api.Bundle{CsvName: "test2", PackageName: "testPkg2", ChannelName: "testChannel2"}
+	fakeSource.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
 		if group != "group" || version != "version" || kind != "kind" {
 			return nil, fmt.Errorf("Not Found")
 		}
 		return bundle, nil
 	}
-	fakeSource2.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*opregistry.Bundle, error) {
+	fakeSource2.GetBundleThatProvidesStub = func(ctx context.Context, group, version, kind string) (*api.Bundle, error) {
 		if group != "group2" || version != "version2" || kind != "kind2" {
 			return nil, fmt.Errorf("Not Found")
 		}
@@ -131,11 +131,11 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 		sources map[CatalogKey]client.Interface
 	}
 	type args struct {
-		api opregistry.APIKey
+		api        opregistry.APIKey
 		catalogKey CatalogKey
 	}
 	type out struct {
-		bundle *opregistry.Bundle
+		bundle *api.Bundle
 		key    *CatalogKey
 		err    error
 	}
@@ -150,7 +150,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 				sources: sources,
 			},
 			args: args{
-				api: opregistry.APIKey{"group", "version", "kind", "plural"},
+				api:        opregistry.APIKey{"group", "version", "kind", "plural"},
 				catalogKey: CatalogKey{},
 			},
 			out: out{
@@ -164,7 +164,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 				sources: nil,
 			},
 			args: args{
-				api: opregistry.APIKey{"group", "version", "kind", "plural"},
+				api:        opregistry.APIKey{"group", "version", "kind", "plural"},
 				catalogKey: CatalogKey{},
 			},
 			out: out{
@@ -178,7 +178,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 				sources: sources,
 			},
 			args: args{
-				api: opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
+				api:        opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
 				catalogKey: CatalogKey{Name: "test2", Namespace: "ns"},
 			},
 			out: out{
@@ -192,7 +192,7 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 				sources: sources,
 			},
 			args: args{
-				api: opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
+				api:        opregistry.APIKey{"group2", "version2", "kind2", "plural2"},
 				catalogKey: CatalogKey{Name: "test3", Namespace: "ns"},
 			},
 			out: out{
@@ -218,23 +218,23 @@ func TestNamespaceSourceQuerier_FindProvider(t *testing.T) {
 func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 	initialSource := fakes.FakeInterface{}
 	otherSource := fakes.FakeInterface{}
-	initalBundle := opregistry.NewBundle("test", "testPkg", "testChannel")
-	startingBundle := opregistry.NewBundle("starting-test", "testPkg", "testChannel")
-	otherBundle := opregistry.NewBundle("other", "otherPkg", "otherChannel")
-	initialSource.GetBundleStub = func(ctx context.Context, pkgName, channelName, csvName string) (*opregistry.Bundle, error) {
-		if csvName != startingBundle.Name {
+	initalBundle := &api.Bundle{CsvName: "test", PackageName: "testPkg", ChannelName: "testChannel"}
+	startingBundle := &api.Bundle{CsvName: "starting-test", PackageName: "testPkg", ChannelName: "testChannel"}
+	otherBundle := &api.Bundle{CsvName: "other", PackageName: "otherPkg", ChannelName: "otherChannel"}
+	initialSource.GetBundleStub = func(ctx context.Context, pkgName, channelName, csvName string) (*api.Bundle, error) {
+		if csvName != startingBundle.CsvName {
 			return nil, fmt.Errorf("not found")
 		}
 		return startingBundle, nil
 	}
-	initialSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
-		if pkgName != initalBundle.Name {
+	initialSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*api.Bundle, error) {
+		if pkgName != initalBundle.CsvName {
 			return nil, fmt.Errorf("not found")
 		}
 		return initalBundle, nil
 	}
-	otherSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
-		if pkgName != otherBundle.Name {
+	otherSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*api.Bundle, error) {
+		if pkgName != otherBundle.CsvName {
 			return nil, fmt.Errorf("not found")
 		}
 		return otherBundle, nil
@@ -256,7 +256,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 		initialSource CatalogKey
 	}
 	type out struct {
-		bundle *opregistry.Bundle
+		bundle *api.Bundle
 		key    *CatalogKey
 		err    error
 	}
@@ -308,7 +308,7 @@ func TestNamespaceSourceQuerier_FindPackage(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
 			}
-			var got *opregistry.Bundle
+			var got *api.Bundle
 			var key *CatalogKey
 			var err error
 			if tt.args.startingCSV != "" {
@@ -356,45 +356,45 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 			Version: version.OperatorVersion{latestVersion},
 		},
 	}
-	csvUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
+	csvJson, err := json.Marshal(csv)
 	require.NoError(t, err)
 
-	nextBundle := opregistry.NewBundle("test.v1", "testPkg", "testChannel")
-	latestBundle := opregistry.NewBundle("latest", "testPkg", "testChannel", &unstructured.Unstructured{Object: csvUnst})
+	nextBundle := &api.Bundle{CsvName: "test.v1", PackageName: "testPkg", ChannelName: "testChannel"}
+	latestBundle := &api.Bundle{CsvName: "latest", PackageName: "testPkg", ChannelName: "testChannel", CsvJson: string(csvJson), Object: []string{string(csvJson)}}
 
 	csv.SetAnnotations(map[string]string{})
-	csvUnstNoAnnotation, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
+	csvUnstNoAnnotationJson, err := json.Marshal(csv)
 	require.NoError(t, err)
-	latestBundleNoAnnotation := opregistry.NewBundle("latest", "testPkg", "testChannel", &unstructured.Unstructured{Object: csvUnstNoAnnotation})
+	latestBundleNoAnnotation := &api.Bundle{CsvName: "latest", PackageName: "testPkg", ChannelName: "testChannel", CsvJson: string(csvUnstNoAnnotationJson), Object: []string{string(csvUnstNoAnnotationJson)}}
 
-	initialSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*opregistry.Bundle, error) {
+	initialSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*api.Bundle, error) {
 		return nil, fmt.Errorf("not found")
 	}
-	replacementSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*opregistry.Bundle, error) {
+	replacementSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*api.Bundle, error) {
 		return nextBundle, nil
 	}
-	initialSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
-		if pkgName != latestBundle.Package {
+	initialSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*api.Bundle, error) {
+		if pkgName != latestBundle.PackageName {
 			return nil, fmt.Errorf("not found")
 		}
 		return latestBundle, nil
 	}
-	otherSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
-		if pkgName != latestBundle.Package {
+	otherSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*api.Bundle, error) {
+		if pkgName != latestBundle.PackageName {
 			return nil, fmt.Errorf("not found")
 		}
 		return latestBundle, nil
 	}
-	replacementAndLatestSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*opregistry.Bundle, error) {
+	replacementAndLatestSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*api.Bundle, error) {
 		return nextBundle, nil
 	}
-	replacementAndLatestSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
+	replacementAndLatestSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*api.Bundle, error) {
 		return latestBundle, nil
 	}
-	replacementAndNoAnnotationLatestSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*opregistry.Bundle, error) {
+	replacementAndNoAnnotationLatestSource.GetReplacementBundleInPackageChannelStub = func(ctx context.Context, bundleName, pkgName, channelName string) (*api.Bundle, error) {
 		return nextBundle, nil
 	}
-	replacementAndNoAnnotationLatestSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*opregistry.Bundle, error) {
+	replacementAndNoAnnotationLatestSource.GetBundleInPackageChannelStub = func(ctx context.Context, pkgName, channelName string) (*api.Bundle, error) {
 		return latestBundleNoAnnotation, nil
 	}
 
@@ -426,7 +426,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 		initialSource  CatalogKey
 	}
 	type out struct {
-		bundle *opregistry.Bundle
+		bundle *api.Bundle
 		key    *CatalogKey
 		err    error
 	}
@@ -484,7 +484,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 			q := &NamespaceSourceQuerier{
 				sources: tt.fields.sources,
 			}
-			var got *opregistry.Bundle
+			var got *api.Bundle
 			var key *CatalogKey
 			var err error
 			got, key, err = q.FindReplacement(tt.args.currentVersion, tt.args.bundleName, tt.args.pkgName, tt.args.channelName, tt.args.initialSource)

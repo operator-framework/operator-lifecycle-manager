@@ -2,9 +2,9 @@
 package operatorlisterfakes
 
 import (
-	"sync"
+	sync "sync"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	operatorlister "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
 type FakeOperatorLister struct {

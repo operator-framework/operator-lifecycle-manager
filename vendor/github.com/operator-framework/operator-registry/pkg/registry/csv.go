@@ -3,6 +3,7 @@ package registry
 import (
 	"encoding/json"
 
+	v1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -28,6 +29,9 @@ const (
 	// The yaml attribute that specifies the version of the ClusterServiceVersion
 	// expected to be semver and parseable by blang/semver
 	version = "version"
+
+	// The yaml attribute that specifies the related images of the ClusterServiceVersion
+	relatedImages = "relatedImages"
 )
 
 // ClusterServiceVersion is a structured representation of cluster service
@@ -186,4 +190,75 @@ func (csv *ClusterServiceVersion) GetApiServiceDefinitions() (owned []*Definitio
 	owned = definitions.Owned
 	required = definitions.Required
 	return
+}
+
+// GetRelatedImage returns the list of associated images for the operator
+func (csv *ClusterServiceVersion) GetRelatedImages() (imageSet map[string]struct{}, err error) {
+	var objmap map[string]*json.RawMessage
+	imageSet = make(map[string]struct{})
+
+	if err = json.Unmarshal(csv.Spec, &objmap); err != nil {
+		return
+	}
+
+	rawValue, ok := objmap[relatedImages]
+	if !ok || rawValue == nil {
+		return
+	}
+
+	type relatedImage struct {
+		Name string `json:"name"`
+		Ref  string `json:"image"`
+	}
+	var relatedImages []relatedImage
+	if err = json.Unmarshal(*rawValue, &relatedImages); err != nil {
+		return
+	}
+
+	for _, img := range relatedImages {
+		imageSet[img.Ref] = struct{}{}
+	}
+
+	return
+}
+
+// GetOperatorImages returns a list of any images used to run the operator.
+// Currently this pulls any images in the pod specs of operator deployments.
+func (csv *ClusterServiceVersion) GetOperatorImages() (map[string]struct{}, error) {
+	type dep struct {
+		Name string
+		Spec v1.DeploymentSpec
+	}
+	type strategySpec struct {
+		Deployments []dep
+	}
+	type strategy struct {
+		Name string       `json:"strategy"`
+		Spec strategySpec `json:"spec"`
+	}
+	type csvSpec struct {
+		Install strategy
+	}
+
+	var spec csvSpec
+	if err := json.Unmarshal(csv.Spec, &spec); err != nil {
+		return nil, err
+	}
+
+	// this is the only install strategy we know about
+	if spec.Install.Name != "deployment" {
+		return nil, nil
+	}
+
+	images := map[string]struct{}{}
+	for _, d := range spec.Install.Spec.Deployments {
+		for _, c := range d.Spec.Template.Spec.Containers {
+			images[c.Image] = struct{}{}
+		}
+		for _, c := range d.Spec.Template.Spec.InitContainers {
+			images[c.Image] = struct{}{}
+		}
+	}
+
+	return images, nil
 }

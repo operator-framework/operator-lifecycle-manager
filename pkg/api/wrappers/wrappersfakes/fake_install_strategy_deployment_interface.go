@@ -2,14 +2,14 @@
 package wrappersfakes
 
 import (
-	"sync"
+	sync "sync"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	wrappers "github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
+	ownerutil "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	v1 "k8s.io/api/apps/v1"
-	v1b "k8s.io/api/core/v1"
-	v1a "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	v1a "k8s.io/api/core/v1"
+	v1b "k8s.io/api/rbac/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
 )
 
 type FakeInstallStrategyDeploymentInterface struct {
@@ -39,30 +39,30 @@ type FakeInstallStrategyDeploymentInterface struct {
 		result1 *v1.Deployment
 		result2 error
 	}
-	CreateRoleStub        func(*v1a.Role) (*v1a.Role, error)
+	CreateRoleStub        func(*v1b.Role) (*v1b.Role, error)
 	createRoleMutex       sync.RWMutex
 	createRoleArgsForCall []struct {
-		arg1 *v1a.Role
+		arg1 *v1b.Role
 	}
 	createRoleReturns struct {
-		result1 *v1a.Role
+		result1 *v1b.Role
 		result2 error
 	}
 	createRoleReturnsOnCall map[int]struct {
-		result1 *v1a.Role
+		result1 *v1b.Role
 		result2 error
 	}
-	CreateRoleBindingStub        func(*v1a.RoleBinding) (*v1a.RoleBinding, error)
+	CreateRoleBindingStub        func(*v1b.RoleBinding) (*v1b.RoleBinding, error)
 	createRoleBindingMutex       sync.RWMutex
 	createRoleBindingArgsForCall []struct {
-		arg1 *v1a.RoleBinding
+		arg1 *v1b.RoleBinding
 	}
 	createRoleBindingReturns struct {
-		result1 *v1a.RoleBinding
+		result1 *v1b.RoleBinding
 		result2 error
 	}
 	createRoleBindingReturnsOnCall map[int]struct {
-		result1 *v1a.RoleBinding
+		result1 *v1b.RoleBinding
 		result2 error
 	}
 	DeleteDeploymentStub        func(string) error
@@ -76,18 +76,18 @@ type FakeInstallStrategyDeploymentInterface struct {
 	deleteDeploymentReturnsOnCall map[int]struct {
 		result1 error
 	}
-	EnsureServiceAccountStub        func(*v1b.ServiceAccount, ownerutil.Owner) (*v1b.ServiceAccount, error)
+	EnsureServiceAccountStub        func(*v1a.ServiceAccount, ownerutil.Owner) (*v1a.ServiceAccount, error)
 	ensureServiceAccountMutex       sync.RWMutex
 	ensureServiceAccountArgsForCall []struct {
-		arg1 *v1b.ServiceAccount
+		arg1 *v1a.ServiceAccount
 		arg2 ownerutil.Owner
 	}
 	ensureServiceAccountReturns struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}
 	ensureServiceAccountReturnsOnCall map[int]struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}
 	FindAnyDeploymentsMatchingLabelsStub        func(labels.Selector) ([]*v1.Deployment, error)
@@ -116,17 +116,17 @@ type FakeInstallStrategyDeploymentInterface struct {
 		result1 []*v1.Deployment
 		result2 error
 	}
-	GetServiceAccountByNameStub        func(string) (*v1b.ServiceAccount, error)
+	GetServiceAccountByNameStub        func(string) (*v1a.ServiceAccount, error)
 	getServiceAccountByNameMutex       sync.RWMutex
 	getServiceAccountByNameArgsForCall []struct {
 		arg1 string
 	}
 	getServiceAccountByNameReturns struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}
 	getServiceAccountByNameReturnsOnCall map[int]struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}
 	invocations      map[string][][]interface{}
@@ -259,11 +259,11 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateOrUpdateDeploymentRetu
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRole(arg1 *v1a.Role) (*v1a.Role, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRole(arg1 *v1b.Role) (*v1b.Role, error) {
 	fake.createRoleMutex.Lock()
 	ret, specificReturn := fake.createRoleReturnsOnCall[len(fake.createRoleArgsForCall)]
 	fake.createRoleArgsForCall = append(fake.createRoleArgsForCall, struct {
-		arg1 *v1a.Role
+		arg1 *v1b.Role
 	}{arg1})
 	fake.recordInvocation("CreateRole", []interface{}{arg1})
 	fake.createRoleMutex.Unlock()
@@ -283,50 +283,50 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleCallCount() int {
 	return len(fake.createRoleArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleCalls(stub func(*v1a.Role) (*v1a.Role, error)) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleCalls(stub func(*v1b.Role) (*v1b.Role, error)) {
 	fake.createRoleMutex.Lock()
 	defer fake.createRoleMutex.Unlock()
 	fake.CreateRoleStub = stub
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleArgsForCall(i int) *v1a.Role {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleArgsForCall(i int) *v1b.Role {
 	fake.createRoleMutex.RLock()
 	defer fake.createRoleMutex.RUnlock()
 	argsForCall := fake.createRoleArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturns(result1 *v1a.Role, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturns(result1 *v1b.Role, result2 error) {
 	fake.createRoleMutex.Lock()
 	defer fake.createRoleMutex.Unlock()
 	fake.CreateRoleStub = nil
 	fake.createRoleReturns = struct {
-		result1 *v1a.Role
+		result1 *v1b.Role
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturnsOnCall(i int, result1 *v1a.Role, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleReturnsOnCall(i int, result1 *v1b.Role, result2 error) {
 	fake.createRoleMutex.Lock()
 	defer fake.createRoleMutex.Unlock()
 	fake.CreateRoleStub = nil
 	if fake.createRoleReturnsOnCall == nil {
 		fake.createRoleReturnsOnCall = make(map[int]struct {
-			result1 *v1a.Role
+			result1 *v1b.Role
 			result2 error
 		})
 	}
 	fake.createRoleReturnsOnCall[i] = struct {
-		result1 *v1a.Role
+		result1 *v1b.Role
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBinding(arg1 *v1a.RoleBinding) (*v1a.RoleBinding, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBinding(arg1 *v1b.RoleBinding) (*v1b.RoleBinding, error) {
 	fake.createRoleBindingMutex.Lock()
 	ret, specificReturn := fake.createRoleBindingReturnsOnCall[len(fake.createRoleBindingArgsForCall)]
 	fake.createRoleBindingArgsForCall = append(fake.createRoleBindingArgsForCall, struct {
-		arg1 *v1a.RoleBinding
+		arg1 *v1b.RoleBinding
 	}{arg1})
 	fake.recordInvocation("CreateRoleBinding", []interface{}{arg1})
 	fake.createRoleBindingMutex.Unlock()
@@ -346,41 +346,41 @@ func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingCallCount()
 	return len(fake.createRoleBindingArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingCalls(stub func(*v1a.RoleBinding) (*v1a.RoleBinding, error)) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingCalls(stub func(*v1b.RoleBinding) (*v1b.RoleBinding, error)) {
 	fake.createRoleBindingMutex.Lock()
 	defer fake.createRoleBindingMutex.Unlock()
 	fake.CreateRoleBindingStub = stub
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingArgsForCall(i int) *v1a.RoleBinding {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingArgsForCall(i int) *v1b.RoleBinding {
 	fake.createRoleBindingMutex.RLock()
 	defer fake.createRoleBindingMutex.RUnlock()
 	argsForCall := fake.createRoleBindingArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturns(result1 *v1a.RoleBinding, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturns(result1 *v1b.RoleBinding, result2 error) {
 	fake.createRoleBindingMutex.Lock()
 	defer fake.createRoleBindingMutex.Unlock()
 	fake.CreateRoleBindingStub = nil
 	fake.createRoleBindingReturns = struct {
-		result1 *v1a.RoleBinding
+		result1 *v1b.RoleBinding
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturnsOnCall(i int, result1 *v1a.RoleBinding, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) CreateRoleBindingReturnsOnCall(i int, result1 *v1b.RoleBinding, result2 error) {
 	fake.createRoleBindingMutex.Lock()
 	defer fake.createRoleBindingMutex.Unlock()
 	fake.CreateRoleBindingStub = nil
 	if fake.createRoleBindingReturnsOnCall == nil {
 		fake.createRoleBindingReturnsOnCall = make(map[int]struct {
-			result1 *v1a.RoleBinding
+			result1 *v1b.RoleBinding
 			result2 error
 		})
 	}
 	fake.createRoleBindingReturnsOnCall[i] = struct {
-		result1 *v1a.RoleBinding
+		result1 *v1b.RoleBinding
 		result2 error
 	}{result1, result2}
 }
@@ -445,11 +445,11 @@ func (fake *FakeInstallStrategyDeploymentInterface) DeleteDeploymentReturnsOnCal
 	}{result1}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccount(arg1 *v1b.ServiceAccount, arg2 ownerutil.Owner) (*v1b.ServiceAccount, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccount(arg1 *v1a.ServiceAccount, arg2 ownerutil.Owner) (*v1a.ServiceAccount, error) {
 	fake.ensureServiceAccountMutex.Lock()
 	ret, specificReturn := fake.ensureServiceAccountReturnsOnCall[len(fake.ensureServiceAccountArgsForCall)]
 	fake.ensureServiceAccountArgsForCall = append(fake.ensureServiceAccountArgsForCall, struct {
-		arg1 *v1b.ServiceAccount
+		arg1 *v1a.ServiceAccount
 		arg2 ownerutil.Owner
 	}{arg1, arg2})
 	fake.recordInvocation("EnsureServiceAccount", []interface{}{arg1, arg2})
@@ -470,41 +470,41 @@ func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountCallCoun
 	return len(fake.ensureServiceAccountArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountCalls(stub func(*v1b.ServiceAccount, ownerutil.Owner) (*v1b.ServiceAccount, error)) {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountCalls(stub func(*v1a.ServiceAccount, ownerutil.Owner) (*v1a.ServiceAccount, error)) {
 	fake.ensureServiceAccountMutex.Lock()
 	defer fake.ensureServiceAccountMutex.Unlock()
 	fake.EnsureServiceAccountStub = stub
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountArgsForCall(i int) (*v1b.ServiceAccount, ownerutil.Owner) {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountArgsForCall(i int) (*v1a.ServiceAccount, ownerutil.Owner) {
 	fake.ensureServiceAccountMutex.RLock()
 	defer fake.ensureServiceAccountMutex.RUnlock()
 	argsForCall := fake.ensureServiceAccountArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturns(result1 *v1b.ServiceAccount, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturns(result1 *v1a.ServiceAccount, result2 error) {
 	fake.ensureServiceAccountMutex.Lock()
 	defer fake.ensureServiceAccountMutex.Unlock()
 	fake.EnsureServiceAccountStub = nil
 	fake.ensureServiceAccountReturns = struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturnsOnCall(i int, result1 *v1b.ServiceAccount, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) EnsureServiceAccountReturnsOnCall(i int, result1 *v1a.ServiceAccount, result2 error) {
 	fake.ensureServiceAccountMutex.Lock()
 	defer fake.ensureServiceAccountMutex.Unlock()
 	fake.EnsureServiceAccountStub = nil
 	if fake.ensureServiceAccountReturnsOnCall == nil {
 		fake.ensureServiceAccountReturnsOnCall = make(map[int]struct {
-			result1 *v1b.ServiceAccount
+			result1 *v1a.ServiceAccount
 			result2 error
 		})
 	}
 	fake.ensureServiceAccountReturnsOnCall[i] = struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}{result1, result2}
 }
@@ -640,7 +640,7 @@ func (fake *FakeInstallStrategyDeploymentInterface) FindAnyDeploymentsMatchingNa
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByName(arg1 string) (*v1b.ServiceAccount, error) {
+func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByName(arg1 string) (*v1a.ServiceAccount, error) {
 	fake.getServiceAccountByNameMutex.Lock()
 	ret, specificReturn := fake.getServiceAccountByNameReturnsOnCall[len(fake.getServiceAccountByNameArgsForCall)]
 	fake.getServiceAccountByNameArgsForCall = append(fake.getServiceAccountByNameArgsForCall, struct {
@@ -664,7 +664,7 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameCallC
 	return len(fake.getServiceAccountByNameArgsForCall)
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameCalls(stub func(string) (*v1b.ServiceAccount, error)) {
+func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameCalls(stub func(string) (*v1a.ServiceAccount, error)) {
 	fake.getServiceAccountByNameMutex.Lock()
 	defer fake.getServiceAccountByNameMutex.Unlock()
 	fake.GetServiceAccountByNameStub = stub
@@ -677,28 +677,28 @@ func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameArgsF
 	return argsForCall.arg1
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameReturns(result1 *v1b.ServiceAccount, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameReturns(result1 *v1a.ServiceAccount, result2 error) {
 	fake.getServiceAccountByNameMutex.Lock()
 	defer fake.getServiceAccountByNameMutex.Unlock()
 	fake.GetServiceAccountByNameStub = nil
 	fake.getServiceAccountByNameReturns = struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameReturnsOnCall(i int, result1 *v1b.ServiceAccount, result2 error) {
+func (fake *FakeInstallStrategyDeploymentInterface) GetServiceAccountByNameReturnsOnCall(i int, result1 *v1a.ServiceAccount, result2 error) {
 	fake.getServiceAccountByNameMutex.Lock()
 	defer fake.getServiceAccountByNameMutex.Unlock()
 	fake.GetServiceAccountByNameStub = nil
 	if fake.getServiceAccountByNameReturnsOnCall == nil {
 		fake.getServiceAccountByNameReturnsOnCall = make(map[int]struct {
-			result1 *v1b.ServiceAccount
+			result1 *v1a.ServiceAccount
 			result2 error
 		})
 	}
 	fake.getServiceAccountByNameReturnsOnCall[i] = struct {
-		result1 *v1b.ServiceAccount
+		result1 *v1a.ServiceAccount
 		result2 error
 	}{result1, result2}
 }

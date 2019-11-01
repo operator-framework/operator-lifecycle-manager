@@ -4,12 +4,17 @@ package resolver
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/blang/semver"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/yaml"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/errors"
 )
 
 const SkipPackageAnnotationKey = "olm.skipRange"
@@ -22,10 +27,10 @@ type SourceRef struct {
 }
 
 type SourceQuerier interface {
-	FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
-	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
-	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
-	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error)
+	FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
+	FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error)
 	Queryable() error
 }
 
@@ -48,7 +53,7 @@ func (q *NamespaceSourceQuerier) Queryable() error {
 	return nil
 }
 
-func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if ok {
@@ -71,7 +76,7 @@ func (q *NamespaceSourceQuerier) FindProvider(api opregistry.APIKey, initialSour
 	return nil, nil, fmt.Errorf("%s not provided by a package in any CatalogSource", api)
 }
 
-func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if !ok {
@@ -94,7 +99,7 @@ func (q *NamespaceSourceQuerier) FindBundle(pkgName, channelName, bundleName str
 	return nil, nil, fmt.Errorf("%s/%s/%s not found in any available CatalogSource", pkgName, channelName, bundleName)
 }
 
-func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
 	if initialSource.Name != "" && initialSource.Namespace != "" {
 		source, ok := q.sources[initialSource]
 		if !ok {
@@ -117,7 +122,7 @@ func (q *NamespaceSourceQuerier) FindLatestBundle(pkgName, channelName string, i
 	return nil, nil, fmt.Errorf("%s/%s not found in any available CatalogSource", pkgName, channelName)
 }
 
-func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*opregistry.Bundle, *CatalogKey, error) {
+func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version, bundleName, pkgName, channelName string, initialSource CatalogKey) (*api.Bundle, *CatalogKey, error) {
 	errs := []error{}
 
 	if initialSource.Name != "" && initialSource.Namespace != "" {
@@ -165,7 +170,7 @@ func (q *NamespaceSourceQuerier) FindReplacement(currentVersion *semver.Version,
 	return nil, nil, errors.NewAggregate(errs)
 }
 
-func (q *NamespaceSourceQuerier) findChannelHead(currentVersion *semver.Version, pkgName, channelName string, source client.Interface) (*opregistry.Bundle, error) {
+func (q *NamespaceSourceQuerier) findChannelHead(currentVersion *semver.Version, pkgName, channelName string, source client.Interface) (*api.Bundle, error) {
 	if currentVersion == nil {
 		return nil, nil
 	}
@@ -175,15 +180,17 @@ func (q *NamespaceSourceQuerier) findChannelHead(currentVersion *semver.Version,
 		return nil, err
 	}
 
-	csv, err := latest.ClusterServiceVersion()
-	if err != nil {
-		return nil, err
-	}
-	if csv == nil {
+	if latest.CsvJson == "" {
 		return nil, nil
 	}
 
-	skipRange, ok := csv.GetAnnotations()[SkipPackageAnnotationKey]
+	dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(latest.CsvJson), 10)
+	unst := &unstructured.Unstructured{}
+	if err := dec.Decode(unst); err != nil {
+		return nil, err
+	}
+
+	skipRange, ok := unst.GetAnnotations()[SkipPackageAnnotationKey]
 	if !ok {
 		return nil, nil
 	}

@@ -9,7 +9,7 @@ import (
 type HealthServer struct {
 }
 
-var _ health.HealthServer= &HealthServer{}
+var _ health.HealthServer = &HealthServer{}
 
 func NewHealthServer() *HealthServer {
 	return &HealthServer{}

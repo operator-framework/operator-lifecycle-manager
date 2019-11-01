@@ -2,9 +2,9 @@
 package fakes
 
 import (
-	"sync"
+	sync "sync"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	resolver "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 )
 
 type FakeAPIIntersectionReconciler struct {

@@ -1,18 +1,18 @@
 package resolver
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/blang/semver"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	opver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	"github.com/operator-framework/operator-registry/pkg/api"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 func TestGVKStringToProvidedAPISet(t *testing.T) {
@@ -910,11 +910,16 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			Version: version,
 		},
 	}
-	csvUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
-	require.NoError(t, err)
 
-	bundleNoAPIs := opregistry.NewBundle("testBundle", "testPackage", "testChannel",
-		&unstructured.Unstructured{Object: csvUnst})
+	csvJson, err := json.Marshal(csv)
+	require.NoError(t, err)
+	bundleNoAPIs := &api.Bundle{
+		CsvName:     "testBundle",
+		PackageName: "testPackage",
+		ChannelName: "testChannel",
+		CsvJson:     string(csvJson),
+		Object:      []string{string(csvJson)},
+	}
 
 	csv.Spec.CustomResourceDefinitions.Owned = []v1alpha1.CRDDescription{
 		{
@@ -947,7 +952,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		},
 	}
 
-	csvUnstWithAPIs, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&csv)
+	csvJsonWithApis, err := json.Marshal(csv)
 	require.NoError(t, err)
 
 	crd := v1beta1.CustomResourceDefinition{
@@ -975,13 +980,47 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			},
 		},
 	}
-	crdUnst, err := runtime.DefaultUnstructuredConverter.ToUnstructured(&crd)
+	crdJson, err := json.Marshal(crd)
 	require.NoError(t, err)
-	bundleWithAPIs := opregistry.NewBundle("testBundle", "testPackage", "testChannel",
-		&unstructured.Unstructured{Object: csvUnstWithAPIs}, &unstructured.Unstructured{Object: crdUnst})
+
+	bundleWithAPIs := &api.Bundle{
+		CsvName:     "testBundle",
+		PackageName: "testPackage",
+		ChannelName: "testChannel",
+		CsvJson:     string(csvJsonWithApis),
+		Object:      []string{string(csvJsonWithApis), string(crdJson)},
+		ProvidedApis: []*api.GroupVersionKind{
+			{
+				Group:   "crd.group.com",
+				Version: "v1",
+				Kind:    "OwnedCRD",
+				Plural:  "owneds",
+			},
+			{
+				Plural:  "ownedapis",
+				Group:   "apis.group.com",
+				Version: "v1",
+				Kind:    "OwnedAPI",
+			},
+		},
+		RequiredApis: []*api.GroupVersionKind{
+			{
+				Group:   "crd.group.com",
+				Version: "v1",
+				Kind:    "RequiredCRD",
+				Plural:  "requireds",
+			},
+			{
+				Plural:  "requiredapis",
+				Group:   "apis.group.com",
+				Version: "v1",
+				Kind:    "RequiredAPI",
+			},
+		},
+	}
 
 	type args struct {
-		bundle    *opregistry.Bundle
+		bundle    *api.Bundle
 		sourceKey CatalogKey
 		replaces  string
 	}

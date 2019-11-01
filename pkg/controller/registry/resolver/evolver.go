@@ -1,8 +1,9 @@
 package resolver
 
 import (
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/pkg/errors"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 // TODO: this should take a cancellable context for killing long resolution
@@ -76,7 +77,7 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 
 func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]struct{}) error {
 	for s := range add {
-		var bundle *opregistry.Bundle
+		var bundle *api.Bundle
 		var key *CatalogKey
 		var err error
 		if s.StartingCSV != "" {
