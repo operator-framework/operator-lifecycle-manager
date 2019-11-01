@@ -139,6 +139,9 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	if err := c.ensurePod(source, overwritePod); err != nil {
 		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod().GetName())
 	}
+	if err := c.ensureUpdatePod(source); err != nil {
+		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod().GetName())
+	}
 	if err := c.ensureService(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
 	}
@@ -174,45 +177,56 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 		return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetGenerateName())
 	}
 
+	return nil
+}
+
+// ensureUpdatePod checks that for the same catalog source version the same imageID is running
+func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator) error {
+	currentLivePods := c.currentPods(source)
 	//currentUpdatePods refers to test instances of the catalog source, checking if the catalog source has been updated
 	currentUpdatePods := c.currentUpdatePods(source)
 	if len(currentUpdatePods) > 0 {
+		for _, updatePod := range currentUpdatePods {
+			if updatePodByDigest(updatePod, source) {
+				// there exists an update updatePod with a new digest
+				// route traffic to that updatePod and delete the old catalog source updatePod
+				updatePod.Labels[CatalogSourceLabelKey] = source.GetName()
+				updatePod.Labels[CatalogSourceUpdateKey] = ""
+
+				for _, p := range currentLivePods {
+					if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+						return errors.Wrapf(err, "error deleting old updatePod: %s", p.GetName())
+					}
+				}
+				return nil
+			}
+		}
+
 		if source.ReadyToUpdate() {
 			// delete old update pods
 			for _, p := range currentUpdatePods {
 				if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
-					return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
+					return errors.Wrapf(err, "error deleting old updatePod: %s", p.GetName())
 				}
 			}
-			// make new updated catalog source pod
+			// make new updated catalog source updatePod
 			source.SetLastUpdateTime()
-			pod, err := c.createUpdatePod(source)
+			err := c.createUpdatePod(source)
 			if err != nil {
-				return errors.Wrapf(err, "error creating update catalog source pod")
-			}
-			if updatePodByDigest(pod, source) {
-				// there exists an update pod with a new digest
-				// route traffic to that pod and delete the old catalog source pod
-				pod.Labels[CatalogSourceLabelKey] = source.GetName()
-				pod.Labels[CatalogSourceUpdateKey] = ""
-
-				for _, p := range currentLivePods {
-					if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
-						return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
-					}
-				}
+				return errors.Wrapf(err, "error creating update catalog source updatePod")
 			}
 		}
 	}
 
-	// need to make a new update pod
+	// no existing update pods: need to make an update pod
 	if source.ReadyToUpdate() {
 		source.SetLastUpdateTime()
-		_ , err := c.createUpdatePod(source)
+		err := c.createUpdatePod(source)
 		if err != nil {
 			return errors.Wrapf(err, "error creating update catalog source pod")
 		}
 	}
+
 	return nil
 }
 
@@ -231,19 +245,19 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 }
 
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
-func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator) (*corev1.Pod, error) {
+func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator) error {
 	// remove label from pod to ensure service does accidentally route traffic to the pod
 	p := source.Pod()
 	p.Labels[CatalogSourceLabelKey] = ""
 	p.Labels[CatalogSourceUpdateKey] = source.Name
 
-	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
 	if err != nil {
 		logrus.WithField("pod", "catalog-source-pod").Warn("couldn't create new catalog source pod")
-		return nil, err
+		return err
 	}
 
-	return pod, nil
+	return nil
 }
 
 // checkUpdatePodDigest checks update pod to get Image ID and see if it matches the old version
