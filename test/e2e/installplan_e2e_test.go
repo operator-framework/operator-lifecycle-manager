@@ -2581,38 +2581,6 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 	_, err = c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Create(rbacBinding)
 	require.NoError(t, err)
 
-	// crd := apiextensions.CustomResourceDefinition{
-	// 	ObjectMeta: metav1.ObjectMeta{
-	// 		Name: "kialis.kialio.io",
-	// 	},
-	// 	Spec: apiextensions.CustomResourceDefinitionSpec{
-	// 		Group:   "kiali.io",
-	// 		Version: "v1alpha1",
-	// 		Names: apiextensions.CustomResourceDefinitionNames{
-	// 			Plural:   "kialis",
-	// 			Singular: "kiali",
-	// 			Kind:     "Kiali",
-	// 			ListKind: "KialiList",
-	// 		},
-	// 		Scope: "Namespaced",
-	// 	},
-	// }
-
-	//packageName := "kiali-operator.v1.4.2"
-	// annotations := map[string]string{
-	// 	bundle.MediatypeLabel:                 "registry+v1",
-	// 	bundle.ManifestsLabel:                 "/manifests/",
-	// 	bundle.MetadataLabel:                  "/metadata/",
-	// 	bundle.PackageLabel:                   packageName,
-	// 	bundle.ChannelsLabel:                  "alpha,stable",
-	// 	bundle.ChannelDefaultLabel:            stableChannel,
-	// 	configmap.ConfigMapImageAnnotationKey: "bundle-image-ubi:latest",
-	// }
-
-	// manifests and csvs are intentionally set to nil
-	//_, cleanupCatalogSource := createInternalCatalogSourceWithAnnotations(t, c, crc, catalogSourceName, testNamespace, nil, []apiextensions.CustomResourceDefinition{crd}, nil, annotations)
-	//defer cleanupCatalogSource()
-
 	grpcCatalogSource := &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      catalogSourceName,
@@ -2637,10 +2605,25 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
 	defer cleanupSubscription()
 
-	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAny)
+	//subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
-	installPlanName := subscription.Status.Install.Name
+	//installPlanName := subscription.Status.Install.Name
+
+	// until subscription references are fixed...
+TRYAGAIN:
+	var installPlanName string
+	ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	for _, ip := range ips.Items {
+		if ip.GetOwnerReferences()[0].Name == subscriptionName {
+			installPlanName = ip.GetName()
+		}
+	}
+	if installPlanName == "" {
+		goto TRYAGAIN
+	}
 
 	// get InstallPlan
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
@@ -2648,19 +2631,15 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 	require.NotEqual(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
 
 	// verify steps
-	t.Logf("installPlan=%#v", fetchedInstallPlan)
-
-	// Expect correct RBAC resources to be resolved and created
+	operatorName := "kiali-operator"
 	expectedSteps := map[registry.ResourceKey]struct{}{
-		//registry.ResourceKey{Name: crd.Name, Kind: "CustomResourceDefinition"}:   {},
-		registry.ResourceKey{Name: "kiali-operator.v.1.4.2", Kind: "ClusterServiceVersion"}: {},
-		registry.ResourceKey{Name: "kiali-operator", Kind: "ServiceAccount"}:                {},
-		registry.ResourceKey{Name: "kiali-operator", Kind: "Role"}:                          {},
-		registry.ResourceKey{Name: "kiali-operator", Kind: "RoleBinding"}:                   {},
-		registry.ResourceKey{Name: "kiali-operator", Kind: "ClusterRole"}:                   {},
-		registry.ResourceKey{Name: "kiali-operator", Kind: "ClusterRoleBinding"}:            {},
+		registry.ResourceKey{Name: operatorName, Kind: "ClusterServiceVersion"}:                                  {},
+		registry.ResourceKey{Name: "kialis.kiali.io", Kind: "CustomResourceDefinition"}:                          {},
+		registry.ResourceKey{Name: "monitoringdashboards.monitoring.kiali.io", Kind: "CustomResourceDefinition"}: {},
+		registry.ResourceKey{Name: operatorName, Kind: "ServiceAccount"}:                                         {},
+		registry.ResourceKey{Name: operatorName, Kind: "ClusterRole"}:                                            {},
+		registry.ResourceKey{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
 	}
-
 	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
 
 	for _, step := range fetchedInstallPlan.Status.Plan {
@@ -2669,45 +2648,17 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 			Kind: step.Resource.Kind,
 		}
 		for expected := range expectedSteps {
-			if expected == key {
+			if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
 				delete(expectedSteps, expected)
-			} else if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
-				delete(expectedSteps, expected)
+				break
 			} else {
 				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 			}
 		}
-
-		// This operator was installed into a global operator group, so the roles should have been lifted to clusterroles
-		if step.Resource.Kind == "Role" {
-			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-				_, err = c.GetClusterRole(step.Resource.Name)
-				if err != nil {
-					if k8serrors.IsNotFound(err) {
-						return false, nil
-					}
-					return false, err
-				}
-				return true, nil
-			})
-		}
-		if step.Resource.Kind == "RoleBinding" {
-			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
-				_, err = c.GetClusterRoleBinding(step.Resource.Name)
-				if err != nil {
-					if k8serrors.IsNotFound(err) {
-						return false, nil
-					}
-					return false, err
-				}
-				return true, nil
-			})
-		}
 	}
-
-	// Should have removed every matching step
 	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
 
 	// check CSV installed successfully
-
+	_, err = fetchCSV(t, crc, "kiali-operator.v1.4.2", testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
 }

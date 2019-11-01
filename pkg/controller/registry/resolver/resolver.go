@@ -140,7 +140,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		}
 	}
 
-	// process other operators first
+	// allow other operators to be processed first, then process ones that require copying data out of image
 	bundleLookups := []*v1alpha1.BundleLookup{}
 
 	// prune operators that have in progress bundle image jobs

@@ -33,7 +33,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
-	"github.com/operator-framework/operator-registry/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -1024,12 +1023,16 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 
 func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) {
 	for _, bundleLookup := range plan.Status.BundleLookups {
+		if bundleLookup.IsInstallPlanUpdated == true {
+			continue
+		}
+
 		job, err := o.opClient.KubernetesInterface().BatchV1().Jobs(bundleLookup.BundleJob.Namespace).Get(bundleLookup.BundleJob.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
 		if len(job.Status.Conditions) == 0 || len(job.Status.Conditions) > 0 && job.Status.Conditions[0].Type != batchv1.JobComplete {
-			logrus.Infof("Job '%v' not yet completed", job.GetName())
+			logrus.Infof("Job '%v' for '%v' not yet completed", job.GetName(), bundleLookup.Image)
 			return false, nil
 		}
 		bundleLookup.BundleJob.Condition = job.Status.Conditions[0].Type
@@ -1055,9 +1058,13 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 			return false, fmt.Errorf("serialize failed: %s", err.Error())
 		}
 		bundleLookup.BundleFromRegistry.CsvJson = string(jsonCSV)
-		bundleLookup.BundleFromRegistry.Object, err = registry.BundleStringToObjectStrings(bundleLookup.BundleFromRegistry.CsvJson)
-		if err != nil {
-			return false, fmt.Errorf("toStrings failed: %s", err.Error())
+		bundleLookup.BundleFromRegistry.Object = []string{string(jsonCSV)}
+		for _, item := range manifest.Bundle.Objects {
+			bytes, err := item.MarshalJSON()
+			if err != nil {
+				return false, fmt.Errorf("marshall failed: %v", err)
+			}
+			bundleLookup.BundleFromRegistry.Object = append(bundleLookup.BundleFromRegistry.Object, string(bytes))
 		}
 
 		var olmCSV v1alpha1.ClusterServiceVersion
@@ -1066,7 +1073,7 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 			return false, fmt.Errorf("csv retrieval failed: %s", err.Error())
 		}
 
-		// TODO: refactor with resolver code
+		// TODO: refactor with resolver code (and call the subscription stuff too)
 		bundleSteps, err := resolver.NewStepResourceFromBundle(bundleLookup.BundleFromRegistry, plan.GetNamespace(), olmCSV.Spec.Replaces, bundleLookup.CatalogName, bundleLookup.CatalogNamespace)
 		if err != nil {
 			return false, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
@@ -1079,6 +1086,7 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 				Status:    v1alpha1.StepStatusUnknown,
 			})
 		}
+		bundleLookup.IsInstallPlanUpdated = true
 	}
 
 	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(plan); err != nil {
