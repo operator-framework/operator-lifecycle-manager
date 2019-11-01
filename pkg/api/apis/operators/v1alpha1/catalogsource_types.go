@@ -2,6 +2,8 @@ package v1alpha1
 
 import (
 	"fmt"
+	"time"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -101,6 +103,9 @@ type CatalogSourceStatus struct {
 	// +optional
 	Reason ConditionReason `json:"reason,omitempty"`
 
+	// The last time catalogsource has been checked to ensure the image is up-to-date
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+
 	ConfigMapResource     *ConfigMapResourceReference `json:"configMapReference,omitempty"`
 	RegistryServiceStatus *RegistryServiceStatus      `json:"registryService,omitempty"`
 	GRPCConnectionState   *GRPCConnectionState        `json:"connectionState,omitempty"`
@@ -143,6 +148,33 @@ func (c *CatalogSource) SetError(reason ConditionReason, err error) {
 	if err != nil {
 		c.Status.Message = err.Error()
 	}
+}
+
+func (c *CatalogSource) SetLastUpdateTime() {
+	c.Status.LastUpdateTime = metav1.Now()
+}
+
+// Check if it is time to update based on polling setting
+func (c *CatalogSource) ReadyToUpdate() bool {
+	interval := c.Spec.Poll.Interval.Duration
+
+	// check poll value is not zero (default poll value)
+	// if polling interval is zero polling will not be done
+	if interval == time.Duration(0) {
+		return false
+	}
+
+	if c.Status.LastUpdateTime.IsZero() {
+		if c.CreationTimestamp.Add(interval).Before(time.Now()) {
+			return true
+		}
+	} else {
+		if c.Status.LastUpdateTime.Add(interval).Before(time.Now()) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

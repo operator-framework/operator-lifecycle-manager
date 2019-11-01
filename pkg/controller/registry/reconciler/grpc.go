@@ -2,7 +2,6 @@ package reconciler
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -174,21 +173,8 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 // This is done to only have the container runtime (CRI-O) talk to the container registry.
 func (c *GrpcRegistryReconciler) updateRegistryPodByDigest(source grpcCatalogSourceDecorator) bool {
 	podDigestChan := make(chan string, 1)
-	lastCheckedTimestamp := time.Time{}
-	interval := source.Spec.Poll.Interval.Duration
 
-	// check poll value is not zero (default poll value)
-	// if polling interval is zero polling will not be done
-	if interval == time.Duration(0) {
-		return false
-	}
-
-	// check digest every poll interval
-	if time.Now().After(lastCheckedTimestamp.Add(interval)) &&
-		source.CreationTimestamp.Add(interval).Before(time.Now()) {
-		lastCheckedTimestamp = time.Now()
-		go c.getPodDigest(source, podDigestChan)
-	}
+	go c.getPodDigest(source, podDigestChan)
 
 	select {
 	case newCatalogSourceImageDigest := <-podDigestChan:
@@ -220,10 +206,8 @@ func (c *GrpcRegistryReconciler) getPodDigest(source grpcCatalogSourceDecorator,
 	// check pod to get container details
 	// we are only interested in the container image id, to see if it matches the old version
 	for i := 0; i < 10; i++ {
-		newCatalogSourceImage = pod.Status.ContainerStatuses[0].ImageID
-		if newCatalogSourceImage == "" {
-			time.Sleep(10 * time.Second)
-			continue
+		if pod.Status.ContainerStatuses != nil {
+			newCatalogSourceImage = pod.Status.ContainerStatuses[0].ImageID
 		} else {
 			break
 		}
@@ -233,7 +217,6 @@ func (c *GrpcRegistryReconciler) getPodDigest(source grpcCatalogSourceDecorator,
 		logrus.WithField("pod", pod.Name).Warn("couldn't run catalog source pod")
 		return
 	}
-
 
 	logrus.WithField("pod", pod.Spec.Containers[0].Image).Info(fmt.Sprintf("found new image digest %s",
 		pod.Status.ContainerStatuses[0].ImageID))
