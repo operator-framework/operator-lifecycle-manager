@@ -221,7 +221,7 @@ func main() {
 	admissionMux := http.NewServeMux()
 	admissionMux.HandleFunc("/operator-admit", admission.AdmitHandlerFunc(csvAdmitQueue))
 	go func() {
-		err := http.ListenAndServeTLS(":6789", "/var/run/secrets/admission-certs/tls.crt", "/var/run/secrets/admission-certs/tls.key", admissionMux)
+		err := http.ListenAndServeTLS(":6789", "/webhook.local.config/certificates/webhook.crt", "/webhook.local.config/certificates/webhook.key", admissionMux)
 		if err != nil {
 			logger.Errorf("Admission Webhook serving failed: %v", err)
 		}

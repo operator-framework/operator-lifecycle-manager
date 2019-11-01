@@ -1,0 +1,64 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: olm
+  namespace: {{ .Values.namespace }}
+  labels:
+    olm.version: {{ .Chart.Version }}
+spec:
+  displayName: Operator Lifecycle Manager
+  description: later
+  minKubeVersion: {{ .Values.minKubeVersion }}
+  keywords: ['operat', 'olm', 'lifecycle']
+  maintainers:
+    - name: Red Hat
+      email: openshift-operators@redhat.com
+  provider:
+    name: Red Hat
+  installModes:
+    - type: OwnNamespace
+      supported: true
+    - type: SingleNamespace
+      supported: true
+    - type: MultiNamespace
+      supported: true
+    - type: AllNamespaces
+      supported: true
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+        - serviceAccountName: olm-operator-serviceaccount
+          rules:
+            - apiGroups: ["*"]
+              resources: ["*"]
+              verbs: ["*"]
+            - nonResourceURLs: ["*"]
+              verbs: ["*"]
+      deployments:
+      - name: olm-operator
+        {{- include "olm.deployment-spec" . | nindent 8 }}
+  maturity: alpha
+  version: {{ .Chart.Version }}
+  webhookdefinitions:
+    - name: csv.operators.coreos.com
+      type: ValidatingAdmissionWebhook
+      deploymentName: olm-operator
+      webhookPath: "/operator-admit"
+      containerPort: 6789
+      sideEffects: "None"
+      failurePolicy: Fail
+      admissionReviewVersions:
+        - "v1"
+        - "v1beta1"
+      rules:
+        - apiGroups:
+            - "operators.coreos.com"
+          apiVersions:
+            - v1alpha1
+          operations:
+            - CREATE
+          resources:
+            - clusterserviceversions
+          scope: "Namespaced"
+      timeoutSeconds: 1

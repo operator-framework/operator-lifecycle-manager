@@ -1,16 +1,14 @@
 package admission
 
 import (
-	"crypto/tls"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-	"k8s.io/api/admission/v1beta1"
+	admissionv1 "k8s.io/api/admission/v1"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -18,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	"k8s.io/apiserver/pkg/authentication/serviceaccount"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
 
@@ -33,40 +32,15 @@ func init() {
 
 func addToScheme(scheme *runtime.Scheme) {
 	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(admissionv1.AddToScheme(scheme))
 	utilruntime.Must(admissionv1beta1.AddToScheme(scheme))
 	utilruntime.Must(admissionregistrationv1beta1.AddToScheme(scheme))
 }
 
-// Config contains the server (the webhook) cert and key.
-type Config struct {
-	CertFile string
-	KeyFile  string
-}
-
-func (c *Config) addFlags() {
-	flag.StringVar(&c.CertFile, "tls-cert-file", c.CertFile, ""+
-		"File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated "+
-		"after server cert).")
-	flag.StringVar(&c.KeyFile, "tls-private-key-file", c.KeyFile, ""+
-		"File containing the default x509 private key matching --tls-cert-file.")
-}
-
-func configTLS(config Config) *tls.Config {
-	sCert, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
-	if err != nil {
-		klog.Fatal(err)
-	}
-	return &tls.Config{
-		Certificates: []tls.Certificate{sCert},
-		// TODO: uses mutual tls after we agree on what cert the apiserver should use.
-		// ClientAuth:   tls.RequireAndVerifyClientCert,
-	}
-}
-
 // toAdmissionResponse is a helper function to create an AdmissionResponse
 // with an embedded error
-func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
-	return &v1beta1.AdmissionResponse{
+func toAdmissionResponse(err error) *admissionv1.AdmissionResponse {
+	return &admissionv1.AdmissionResponse{
 		Result: &metav1.Status{
 			Message: err.Error(),
 		},
@@ -74,7 +48,7 @@ func toAdmissionResponse(err error) *v1beta1.AdmissionResponse {
 }
 
 // admitFunc is the type we use for all of our validators and mutators
-type admitFunc func(v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+type admitFunc func(admissionv1.AdmissionReview) *admissionv1.AdmissionResponse
 
 // serve handles the http portion of a request prior to handing to an admit
 // function
@@ -96,10 +70,15 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitFunc) {
 	klog.V(2).Info(fmt.Sprintf("handling request: %s", body))
 
 	// The AdmissionReview that was sent to the webhook
-	requestedAdmissionReview := v1beta1.AdmissionReview{}
+	requestedAdmissionReview := admissionv1.AdmissionReview{}
 
 	// The AdmissionReview that will be returned
-	responseAdmissionReview := v1beta1.AdmissionReview{}
+	responseAdmissionReview := admissionv1.AdmissionReview{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "AdmissionReview",
+			APIVersion: "admission.k8s.io/v1",
+		},
+	}
 
 	deserializer := codecs.UniversalDeserializer()
 	if _, _, err := deserializer.Decode(body, nil, &requestedAdmissionReview); err != nil {
@@ -131,12 +110,12 @@ func AdmitHandlerFunc(csvAdmitQueue workqueue.RateLimitingInterface) http.Handle
 }
 
 func admitCSVFunc(csvAdmitQueue workqueue.RateLimitingInterface) admitFunc {
-	return func(ar v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
-		logger := logrus.WithFields(logrus.Fields{
-			"name": ar.Request.Name,
-			"ns":   ar.Request.Namespace,
-			"user": ar.Request.UserInfo.Username})
-		logger.Info("admitting operator")
+	return func(ar admissionv1.AdmissionReview) *admissionv1.AdmissionResponse {
+		if strings.HasPrefix(ar.Request.UserInfo.Username, serviceaccount.ServiceAccountUsernamePrefix) {
+			return &admissionv1.AdmissionResponse{
+				Allowed: true,
+			}
+		}
 
 		// Add to the admission queue for processing - if the user has enough permission, this will automatically
 		// create the requried serviceaccounts and rbac for the operator
@@ -146,7 +125,7 @@ func admitCSVFunc(csvAdmitQueue workqueue.RateLimitingInterface) admitFunc {
 			User:      ar.Request.UserInfo.Username,
 		}, time.Second)
 
-		return &v1beta1.AdmissionResponse{
+		return &admissionv1.AdmissionResponse{
 			Allowed: true,
 		}
 	}
