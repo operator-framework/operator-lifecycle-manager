@@ -93,6 +93,7 @@ type CatalogSourceStatus struct {
 	ConfigMapResource     *ConfigMapResourceReference
 	RegistryServiceStatus *RegistryServiceStatus
 	GRPCConnectionState   *GRPCConnectionState
+	LastUpdateTime        metav1.Time `json:"lastUpdateTime,omitempty"`
 }
 
 type ConfigMapResourceReference struct {
