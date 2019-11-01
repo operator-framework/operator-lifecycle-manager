@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -16,6 +17,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
+const CatalogSourceUpdateKey = "olm.catalogSource.update"
+
 // grpcCatalogSourceDecorator wraps CatalogSource to add additional methods
 type grpcCatalogSourceDecorator struct {
 	*v1alpha1.CatalogSource
@@ -24,6 +27,12 @@ type grpcCatalogSourceDecorator struct {
 func (s *grpcCatalogSourceDecorator) Selector() labels.Selector {
 	return labels.SelectorFromValidatedSet(map[string]string{
 		CatalogSourceLabelKey: s.GetName(),
+	})
+}
+
+func (s *grpcCatalogSourceDecorator) UpdateSelector() labels.Selector {
+	return labels.SelectorFromValidatedSet(map[string]string{
+		CatalogSourceUpdateKey: s.GetName(),
 	})
 }
 
@@ -90,6 +99,18 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 	return pods
 }
 
+func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecorator) []*v1.Pod {
+	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.UpdateSelector())
+	if err != nil {
+		logrus.WithError(err).Warn("couldn't find pod in cache")
+		return nil
+	}
+	if len(pods) > 1 {
+		logrus.WithField("selector", source.Selector()).Warn("multiple pods found for selector")
+	}
+	return pods
+}
+
 func (c *GrpcRegistryReconciler) currentPodsWithCorrectImage(source grpcCatalogSourceDecorator) []*v1.Pod {
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
@@ -112,7 +133,7 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 	// if service status is nil, we force create every object to ensure they're created the first time
 	overwrite := source.Status.RegistryServiceStatus == nil
 	// recreate the pod if no existing pod is serving the latest image
-	overwritePod := overwrite || len(c.currentPodsWithCorrectImage(source)) == 0 || c.updateRegistryPodByDigest(source)
+	overwritePod := overwrite || len(c.currentPodsWithCorrectImage(source)) == 0
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	if err := c.ensurePod(source, overwritePod); err != nil {
@@ -136,22 +157,62 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 }
 
 func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, overwrite bool) error {
-	currentPods := c.currentPods(source)
-	if len(currentPods) > 0 {
+	// currentLivePods refers to the currently live instances of the catalog source
+	currentLivePods := c.currentPods(source)
+	if len(currentLivePods) > 0 {
 		if !overwrite {
 			return nil
 		}
-		for _, p := range currentPods {
+		for _, p := range currentLivePods {
 			if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
 				return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
 			}
 		}
 	}
 	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(source.Pod())
-	if err == nil {
-		return nil
+	if err != nil {
+		return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetGenerateName())
 	}
-	return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetGenerateName())
+
+	//currentUpdatePods refers to test instances of the catalog source, checking if the catalog source has been updated
+	currentUpdatePods := c.currentUpdatePods(source)
+	if len(currentUpdatePods) > 0 {
+		if source.ReadyToUpdate() {
+			// delete old update pods
+			for _, p := range currentUpdatePods {
+				if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+					return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
+				}
+			}
+			// make new updated catalog source pod
+			source.SetLastUpdateTime()
+			pod, err := c.createUpdatePod(source)
+			if err != nil {
+				return errors.Wrapf(err, "error creating update catalog source pod")
+			}
+			if updatePodByDigest(pod, source) {
+				// there exists an update pod with a new digest
+				// route traffic to that pod and delete the old catalog source pod
+				pod.Labels[CatalogSourceLabelKey] = source.GetName()
+				pod.Labels[CatalogSourceUpdateKey] = ""
+
+				for _, p := range currentLivePods {
+					if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
+						return errors.Wrapf(err, "error deleting old pod: %s", p.GetName())
+					}
+				}
+			}
+		}
+	}
+
+	// need to make a new update pod
+	if source.ReadyToUpdate() {
+		_ , err := c.createUpdatePod(source)
+		if err != nil {
+			return errors.Wrapf(err, "error creating update catalog source pod")
+		}
+	}
+	return nil
 }
 
 func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator, overwrite bool) error {
@@ -168,60 +229,35 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 	return err
 }
 
-// updateRegistryPodByDigest is an internal method that verifies the latest catalog source by comparing image digests.
-// If the digests do not match (i.e. there is a new version of the catalog source) then overwrite the catalog source pod.
-// This is done to only have the container runtime (CRI-O) talk to the container registry.
-func (c *GrpcRegistryReconciler) updateRegistryPodByDigest(source grpcCatalogSourceDecorator) bool {
-	podDigestChan := make(chan string, 1)
-
-	go c.getPodDigest(source, podDigestChan)
-
-	select {
-	case newCatalogSourceImageDigest := <-podDigestChan:
-		if newCatalogSourceImageDigest == source.Pod().Status.ContainerStatuses[0].ImageID {
-			return false
-		}
-		// we have a new imageID in our catalog source container: a new version of the catalog source image exists
-		// update catalog source pod
-		return true
-	default:
-		return false
-	}
-}
-
-// getPodDigest is an internal method that creates a pod using the latest catalog source.
-// Once the pod comes up, it puts the container image digest onto a channel.
-func (c *GrpcRegistryReconciler) getPodDigest(source grpcCatalogSourceDecorator, podChan chan string) {
+// createUpdatePod is an internal method that creates a pod using the latest catalog source.
+func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator) (*corev1.Pod, error) {
 	// remove label from pod to ensure service does accidentally route traffic to the pod
 	p := source.Pod()
 	p.Labels[CatalogSourceLabelKey] = ""
+	p.Labels[CatalogSourceUpdateKey] = source.Name
 
 	pod, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
 	if err != nil {
 		logrus.WithField("pod", "catalog-source-pod").Warn("couldn't create new catalog source pod")
-		return
+		return nil, err
 	}
 
+	return pod, nil
+}
+
+// checkUpdatePodDigest checks update pod to get Image ID and see if it matches the old version
+func updatePodByDigest(pod *corev1.Pod, source grpcCatalogSourceDecorator) bool {
 	var newCatalogSourceImage string
-	// check pod to get container details
-	// we are only interested in the container image id, to see if it matches the old version
-	for i := 0; i < 10; i++ {
-		if pod.Status.ContainerStatuses != nil {
-			newCatalogSourceImage = pod.Status.ContainerStatuses[0].ImageID
-		} else {
-			break
-		}
-	}
-
-	if newCatalogSourceImage == "" {
-		logrus.WithField("pod", pod.Name).Warn("couldn't run catalog source pod")
-		return
+	if pod.Status.ContainerStatuses != nil {
+		newCatalogSourceImage = pod.Status.ContainerStatuses[0].ImageID
+	} else {
+		return false
 	}
 
 	logrus.WithField("pod", pod.Spec.Containers[0].Image).Info(fmt.Sprintf("found new image digest %s",
 		pod.Status.ContainerStatuses[0].ImageID))
 
-	podChan <- newCatalogSourceImage
+	return newCatalogSourceImage == source.Pod().Status.ContainerStatuses[0].ImageID
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.

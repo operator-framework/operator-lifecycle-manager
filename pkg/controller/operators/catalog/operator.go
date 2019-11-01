@@ -515,10 +515,7 @@ func (o *Operator) syncRegistryServer(logger *logrus.Entry, in *v1alpha1.Catalog
 		logger.Debug("registry state good")
 		continueSync = true
 		// Check if registryService is ready for polling update
-		if out.ReadyToUpdate() {
-			// Set the lastUpdateTime to now
-			out.SetLastUpdateTime()
-		} else {
+		if !out.ReadyToUpdate() {
 			return
 		}
 	}
