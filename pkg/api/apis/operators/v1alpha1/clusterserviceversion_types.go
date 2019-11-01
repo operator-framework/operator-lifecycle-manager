@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 )
 
 const (
@@ -108,6 +110,88 @@ type APIServiceDescription struct {
 	ActionDescriptor  []ActionDescriptor     `json:"actionDescriptors,omitempty"`
 }
 
+// WebhookAdmissionType is the type of admission webhooks supported by OLM
+type WebhookAdmissionType string
+
+const (
+	// InstallWebhookValidating is for validating admission webhooks
+	InstallWebhookValidating WebhookAdmissionType = "ValidatingAdmissionWebhook"
+	// InstallWebhookMutating is for mutating admission webhooks
+	InstallWebhookMutating WebhookAdmissionType = "MutatingAdmissionWebhook"
+)
+
+// WebhookDescription provides details to OLM about required webhooks
+// +k8s:openapi-gen=true
+type WebhookDescription struct {
+	Name                    string                                          `json:"name"`
+	Type                    WebhookAdmissionType                            `json:"type"`
+	DeploymentName          string                                          `json:"deploymentName,omitempty"`
+	ContainerPort           int32                                           `json:"containerPort,omitempty"`
+	Rules                   []admissionregistrationv1.RuleWithOperations    `json:"rules"`
+	FailurePolicy           *admissionregistrationv1.FailurePolicyType      `json:"failurePolicy,omitempty"`
+	MatchPolicy             *admissionregistrationv1.MatchPolicyType        `json:"matchPolicy,omitempty"`
+	NamespaceSelector       *metav1.LabelSelector                           `json:"namespaceSelector,omitempty"`
+	ObjectSelector          *metav1.LabelSelector                           `json:"objectSelector,omitempty"`
+	SideEffects             *admissionregistrationv1.SideEffectClass        `json:"sideEffects"`
+	TimeoutSeconds          *int32                                          `json:"timeoutSeconds,omitempty"`
+	AdmissionReviewVersions []string                                        `json:"admissionReviewVersions"`
+	ReinvocationPolicy      *admissionregistrationv1.ReinvocationPolicyType `json:"reinvocationPolicy,omitempty"`
+	WebhookPath             *string                                         `json:"webhookPath,omitempty"`
+}
+
+// GetValidatingWebhook returns a ValidatingWebhook generated from the WebhookDescription
+func (w *WebhookDescription) GetValidatingWebhook(namespace string, caBundle []byte) admissionregistrationv1.ValidatingWebhook {
+	return admissionregistrationv1.ValidatingWebhook{
+		Name:                    w.Name,
+		Rules:                   w.Rules,
+		FailurePolicy:           w.FailurePolicy,
+		MatchPolicy:             w.MatchPolicy,
+		NamespaceSelector:       w.NamespaceSelector,
+		ObjectSelector:          w.ObjectSelector,
+		SideEffects:             w.SideEffects,
+		TimeoutSeconds:          w.TimeoutSeconds,
+		AdmissionReviewVersions: w.AdmissionReviewVersions,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &admissionregistrationv1.ServiceReference{
+				Name:      w.MorphDomainName() + "-svc",
+				Namespace: namespace,
+				Path:      w.WebhookPath,
+			},
+			CABundle: caBundle,
+		},
+	}
+}
+
+// GetMutatingWebhook returns a MutatingWebhook generated from the WebhookDescription
+func (w *WebhookDescription) GetMutatingWebhook(namespace string, caBundle []byte) admissionregistrationv1.MutatingWebhook {
+	return admissionregistrationv1.MutatingWebhook{
+		Name:                    w.Name,
+		Rules:                   w.Rules,
+		FailurePolicy:           w.FailurePolicy,
+		MatchPolicy:             w.MatchPolicy,
+		NamespaceSelector:       w.NamespaceSelector,
+		ObjectSelector:          w.ObjectSelector,
+		SideEffects:             w.SideEffects,
+		TimeoutSeconds:          w.TimeoutSeconds,
+		AdmissionReviewVersions: w.AdmissionReviewVersions,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &admissionregistrationv1.ServiceReference{
+				Name:      w.MorphDomainName() + "-svc",
+				Namespace: namespace,
+				Path:      w.WebhookPath,
+			},
+			CABundle: caBundle,
+		},
+		ReinvocationPolicy: w.ReinvocationPolicy,
+	}
+}
+
+// MorphDomainName returns the result of replacing all periods in the given Webhook name with hyphens
+func (w *WebhookDescription) MorphDomainName() string {
+	// Replace all '.'s with "-"s to convert to a DNS-1035 label
+	return strings.Replace(w.Name, ".", "-", -1)
+}
+
 // APIResourceReference is a Kubernetes resource type used by a custom resource
 // +k8s:openapi-gen=true
 type APIResourceReference struct {
@@ -147,6 +231,7 @@ type ClusterServiceVersionSpec struct {
 	Maturity                  string                    `json:"maturity,omitempty"`
 	CustomResourceDefinitions CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`
 	APIServiceDefinitions     APIServiceDefinitions     `json:"apiservicedefinitions,omitempty"`
+	WebhookDefinitions        []WebhookDescription      `json:"webhookdefinitions,omitempty"`
 	NativeAPIs                []metav1.GroupVersionKind `json:"nativeAPIs,omitempty"`
 	MinKubeVersion            string                    `json:"minKubeVersion,omitempty"`
 	DisplayName               string                    `json:"displayName"`

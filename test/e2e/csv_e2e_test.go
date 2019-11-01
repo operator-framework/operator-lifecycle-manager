@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -1362,6 +1363,186 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 		return false
 	})
 	require.NoError(t, err)
+}
+
+
+func TestCreateCSVWithWebhook(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	depName := genName("hat-server")
+	mockGroup := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	version := "v1alpha1"
+	mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
+	mockKinds := []string{"fez", "fedora"}
+	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
+	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
+
+	// Create CSV for the package-server
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: depName,
+				Spec: depSpec,
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	sideEffects := admissionregistrationv1.SideEffectClassNone
+	failurePolicy := admissionregistrationv1.Ignore
+	webhooks := []v1alpha1.WebhookDescription{
+		v1alpha1.WebhookDescription{
+			Name: apiServiceName,
+			Type: v1alpha1.InstallWebhookValidating,
+			DeploymentName: depName,
+			ContainerPort: 443,
+			NamespaceSelector: &metav1.LabelSelector{},
+			SideEffects: &sideEffects,
+			FailurePolicy: &failurePolicy,
+			AdmissionReviewVersions: []string{"v1beta1"},
+			Rules: []admissionregistrationv1.RuleWithOperations{},
+		},
+	}
+
+	csv := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			WebhookDefinitions: webhooks,
+		},
+	}
+	csv.SetName(depName)
+
+	// Create the APIService CSV
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
+	require.NoError(t, err)
+	defer func() {
+		watcher, err := c.KubernetesInterface().AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Watch(metav1.ListOptions{FieldSelector: "metadata.name=" + apiServiceName})
+		require.NoError(t, err)
+
+		deleted := make(chan struct{})
+		go func() {
+			events := watcher.ResultChan()
+			for {
+				select {
+				case evt := <-events:
+					if evt.Type == watch.Deleted {
+						deleted <- struct{}{}
+						return
+					}
+				case <-time.After(pollDuration):
+					require.FailNow(t, "apiservice not cleaned up after CSV deleted")
+				}
+			}
+		}()
+
+		cleanupCSV()
+		<-deleted
+	}()
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Should create Deployment
+	dep, err := c.GetDeployment(testNamespace, depName)
+	require.NoError(t, err, "error getting expected Deployment")
+
+	// Should create Webhook
+	_, err = c.KubernetesInterface().AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(apiServiceName, metav1.GetOptions{})
+	require.NoError(t, err, "error getting expected APIService")
+
+	// Should create Service
+	_, err = c.GetService(testNamespace, olm.APIServiceNameToServiceName(apiServiceName)+"-svc")
+	require.NoError(t, err, "error getting expected ServiapiServicece")
+
+	// Should create certificate Secret
+	secretName := fmt.Sprintf("%s-cert", olm.APIServiceNameToServiceName(apiServiceName))
+	_, err = c.GetSecret(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret")
+
+	// Should create a Role for the Secret
+	_, err = c.GetRole(testNamespace, secretName)
+	require.NoError(t, err, "error getting expected Secret Role")
+
+	// Should create a RoleBinding for the Secret
+	_, err = c.GetRoleBinding(testNamespace, secretName)
+	require.NoError(t, err, "error getting exptected Secret RoleBinding")
+
+	// Store the ca sha annotation
+	oldCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
+	require.True(t, ok, "expected olm sha annotation not present on existing pod template")
+
+	// Induce a cert rotation
+	fetchedCSV.Status.CertsLastUpdated = metav1.Now()
+	fetchedCSV.Status.CertsRotateAt = metav1.Now()
+	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
+	require.NoError(t, err)
+
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		// Should create deployment
+		dep, err = c.GetDeployment(testNamespace, depName)
+		require.NoError(t, err)
+
+		// Should have a new ca hash annotation
+		newCAAnnotation, ok := dep.Spec.Template.GetAnnotations()[olm.OLMCAHashAnnotationKey]
+		require.True(t, ok, "expected olm sha annotation not present in new pod template")
+
+		if newCAAnnotation != oldCAAnnotation {
+			// Check for success
+			return csvSucceededChecker(csv)
+		}
+
+		return false
+	})
+	require.NoError(t, err, "failed to rotate cert")
+/*
+	// Get the APIService UID
+	oldWebhookUID := webhook.GetUID()
+
+	// Delete the Webhook
+	err = c.KubernetesInterface().AdmissionregistrationV1().ValidatingWebhookConfigurations().Delete(apiServiceName, &metav1.DeleteOptions{})
+	require.NoError(t, err)
+
+	// Wait for CSV success
+	fetchedCSV, err = fetchCSV(t, crc, csv.GetName(), testNamespace, func(csv *v1alpha1.ClusterServiceVersion) bool {
+		// Should create an APIService
+		webhook, err := c.KubernetesInterface().AdmissionregistrationV1beta1().ValidatingWebhookConfigurations().Get(apiServiceName, metav1.GetOptions{})
+		if err != nil {
+			require.True(t, k8serrors.IsNotFound(err))
+			return false
+		}
+
+		if csvSucceededChecker(csv) {
+			require.NotEqual(t, oldWebhookUID, webhook.GetUID())
+			return true
+		}
+
+		return false
+	})
+	require.NoError(t, err)*/
 }
 
 func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
