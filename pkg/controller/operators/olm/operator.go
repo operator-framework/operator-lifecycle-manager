@@ -1344,6 +1344,13 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
+		// Install required Webhooks and update strategy with serving cert data
+		strategy, syncError = a.installWebhookRequirements(out, strategy)
+		if syncError != nil {
+			out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentFailed, fmt.Sprintf("install webhook failed: %s", syncError), now, a.recorder)
+			return
+		}
+
 		if syncError = installer.Install(strategy); syncError != nil {
 			if install.IsErrorUnrecoverable(syncError) {
 				logger.Infof("Setting CSV reason to failed without retry: %v", syncError)
