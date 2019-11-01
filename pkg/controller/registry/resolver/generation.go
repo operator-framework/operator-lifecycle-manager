@@ -29,6 +29,10 @@ type LaunchBundleImageInfo struct {
 
 type BundleImageSet map[LaunchBundleImageInfo]struct{}
 
+func EmptyImageSet() BundleImageSet {
+	return map[LaunchBundleImageInfo]struct{}{}
+}
+
 // NamespaceGeneration represents a generation of operators in a single namespace with methods for managing api checks
 type NamespaceGeneration struct {
 	providedAPIs     APIOwnerSet      // only allow one provider of any api
@@ -41,11 +45,12 @@ type NamespaceGeneration struct {
 
 func NewEmptyGeneration() *NamespaceGeneration {
 	return &NamespaceGeneration{
-		providedAPIs:  EmptyAPIOwnerSet(),
-		requiredAPIs:  EmptyAPIMultiOwnerSet(),
-		uncheckedAPIs: EmptyAPISet(),
-		missingAPIs:   EmptyAPIMultiOwnerSet(),
-		operators:     EmptyOperatorSet(),
+		providedAPIs:     EmptyAPIOwnerSet(),
+		requiredAPIs:     EmptyAPIMultiOwnerSet(),
+		uncheckedAPIs:    EmptyAPISet(),
+		missingAPIs:      EmptyAPIMultiOwnerSet(),
+		operators:        EmptyOperatorSet(),
+		pendingOperators: EmptyImageSet(),
 	}
 }
 

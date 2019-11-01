@@ -100,7 +100,7 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 			}
 		} else {
 			bundle, key, err = e.querier.FindLatestBundle(s.Package, s.Channel, s.Catalog)
-			if bundle.BundlePath != "" {
+			if bundle != nil && bundle.BundlePath != "" {
 				e.gen.AddPendingOperator(LaunchBundleImageInfo{
 					operatorSourceInfo: &s,
 					image:              bundle.BundlePath,

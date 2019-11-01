@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -28,6 +30,7 @@ type Resolver interface {
 type OperatorsV1alpha1Resolver struct {
 	subLister         v1alpha1listers.SubscriptionLister
 	csvLister         v1alpha1listers.ClusterServiceVersionLister
+	ipLister          v1alpha1listers.InstallPlanLister
 	client            versioned.Interface
 	kubeclient        kubernetes.Interface
 	operatorNamespace string
@@ -39,6 +42,7 @@ func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client v
 	return &OperatorsV1alpha1Resolver{
 		subLister:         lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister:         lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		ipLister:          lister.OperatorsV1alpha1().InstallPlanLister(),
 		client:            client,
 		kubeclient:        kubeclient,
 		operatorNamespace: operatorNamespace,
@@ -138,13 +142,34 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 
 	// process other operators first
 	bundleLookups := []*v1alpha1.BundleLookup{}
+
+	// prune operators that have in progress bundle image jobs
 	for bundleImageInfo := range gen.PendingOperators() {
-		// TODO: switch image to standalone image, but this image can be used upstream as well
-		configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/openshift/origin-operator-registry:lastest", r.operatorNamespace)
+		// TODO: this is not ideal...
+		ips, err := r.listInstallPlans(namespace)
 		if err != nil {
 			return nil, nil, nil, err
 		}
-		gen.RemovePendingOperator(bundleImageInfo)
+		for _, ip := range ips {
+			for _, lookup := range ip.Status.BundleLookups {
+				if lookup.Image == bundleImageInfo.image {
+					logrus.Debugf("found existing install plan, skipping bundle image %v", lookup.Image)
+					gen.RemovePendingOperator(bundleImageInfo)
+				}
+			}
+		}
+	}
+
+	for bundleImageInfo := range gen.PendingOperators() {
+		// TODO: switch image to standalone image, but this image can be used upstream as well
+		// change to use configmapRegistryImage
+		//configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/openshift/origin-operator-registry:latest", r.operatorNamespace)
+
+		configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/jpeeler/bundle-init-image:latest", r.operatorNamespace)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		logrus.Infof("Launched bundle job for image %v", bundleImageInfo.image)
 
 		bundleLookups = append(bundleLookups, &v1alpha1.BundleLookup{
 			BundleJob: &v1alpha1.BundleJob{
@@ -163,11 +188,6 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 			CatalogName:        bundleImageInfo.operatorSourceInfo.Catalog.Name,
 			CatalogNamespace:   bundleImageInfo.operatorSourceInfo.Catalog.Namespace,
 		})
-
-		existingSubscription, subExists := subMap[*bundleImageInfo.operatorSourceInfo]
-		if !subExists {
-			updatedSubs = append(updatedSubs, existingSubscription)
-		}
 	}
 
 	return steps, bundleLookups, updatedSubs, nil
@@ -222,6 +242,20 @@ func (r *OperatorsV1alpha1Resolver) listSubscriptions(namespace string) (subs []
 	subs = make([]*v1alpha1.Subscription, 0)
 	for i := range list.Items {
 		subs = append(subs, &list.Items[i])
+	}
+
+	return
+}
+
+func (r *OperatorsV1alpha1Resolver) listInstallPlans(namespace string) (ips []*v1alpha1.InstallPlan, err error) {
+	list, err := r.client.OperatorsV1alpha1().InstallPlans(namespace).List(metav1.ListOptions{})
+	if err != nil {
+		return
+	}
+
+	ips = make([]*v1alpha1.InstallPlan, 0)
+	for i := range list.Items {
+		ips = append(ips, &list.Items[i])
 	}
 
 	return

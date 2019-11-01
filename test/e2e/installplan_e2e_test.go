@@ -17,9 +17,13 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/apis/rbac"
+
+	//"github.com/operator-framework/operator-registry/pkg/configmap"
+	//"github.com/operator-framework/operator-registry/pkg/lib/bundle"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -2528,11 +2532,182 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 }
 
 func TestInstallPlanFromBundleImage(t *testing.T) {
-	// Create the CatalogSource
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	catalogSourceName := genName("mock-nginx-")
-	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-	defer cleanupCatalogSource()
+	catalogSourceName := genName("mock-kiali-")
+
+	// add RBAC for e2e namespace
+	rbacRole := &rbacv1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "olm-e2e-configmap-access",
+			Namespace: testNamespace,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				APIGroups: []string{
+					"",
+				},
+				Verbs: []string{
+					"create", "get", "update",
+				},
+				Resources: []string{
+					"configmaps",
+				},
+			},
+		},
+	}
+	_, err := c.KubernetesInterface().RbacV1().Roles(testNamespace).Create(rbacRole)
+	require.NoError(t, err)
+
+	rbacBinding := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "olm-e2e-configmap-access-binding",
+			Namespace: testNamespace,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      "default",
+				Namespace: testNamespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     rbacRole.GetName(),
+		},
+	}
+	_, err = c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Create(rbacBinding)
+	require.NoError(t, err)
+
+	// crd := apiextensions.CustomResourceDefinition{
+	// 	ObjectMeta: metav1.ObjectMeta{
+	// 		Name: "kialis.kialio.io",
+	// 	},
+	// 	Spec: apiextensions.CustomResourceDefinitionSpec{
+	// 		Group:   "kiali.io",
+	// 		Version: "v1alpha1",
+	// 		Names: apiextensions.CustomResourceDefinitionNames{
+	// 			Plural:   "kialis",
+	// 			Singular: "kiali",
+	// 			Kind:     "Kiali",
+	// 			ListKind: "KialiList",
+	// 		},
+	// 		Scope: "Namespaced",
+	// 	},
+	// }
+
+	//packageName := "kiali-operator.v1.4.2"
+	// annotations := map[string]string{
+	// 	bundle.MediatypeLabel:                 "registry+v1",
+	// 	bundle.ManifestsLabel:                 "/manifests/",
+	// 	bundle.MetadataLabel:                  "/metadata/",
+	// 	bundle.PackageLabel:                   packageName,
+	// 	bundle.ChannelsLabel:                  "alpha,stable",
+	// 	bundle.ChannelDefaultLabel:            stableChannel,
+	// 	configmap.ConfigMapImageAnnotationKey: "bundle-image-ubi:latest",
+	// }
+
+	// manifests and csvs are intentionally set to nil
+	//_, cleanupCatalogSource := createInternalCatalogSourceWithAnnotations(t, c, crc, catalogSourceName, testNamespace, nil, []apiextensions.CustomResourceDefinition{crd}, nil, annotations)
+	//defer cleanupCatalogSource()
+
+	grpcCatalogSource := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      catalogSourceName,
+			Namespace: testNamespace,
+			UID:       types.UID("catalog-uid"),
+			Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			Image:      "quay.io/jpeeler/registry-image:latest",
+			SourceType: v1alpha1.SourceTypeGrpc,
+		},
+	}
+	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(grpcCatalogSource)
+	require.NoError(t, err)
+
+	// wait for catalog source to be ready
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// generate subscription
+	subscriptionName := genName("sub-kiali-")
+	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	installPlanName := subscription.Status.Install.Name
+
+	// get InstallPlan
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	require.NotEqual(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
+
+	// verify steps
+	t.Logf("installPlan=%#v", fetchedInstallPlan)
+
+	// Expect correct RBAC resources to be resolved and created
+	expectedSteps := map[registry.ResourceKey]struct{}{
+		//registry.ResourceKey{Name: crd.Name, Kind: "CustomResourceDefinition"}:   {},
+		registry.ResourceKey{Name: "kiali-operator.v.1.4.2", Kind: "ClusterServiceVersion"}: {},
+		registry.ResourceKey{Name: "kiali-operator", Kind: "ServiceAccount"}:                {},
+		registry.ResourceKey{Name: "kiali-operator", Kind: "Role"}:                          {},
+		registry.ResourceKey{Name: "kiali-operator", Kind: "RoleBinding"}:                   {},
+		registry.ResourceKey{Name: "kiali-operator", Kind: "ClusterRole"}:                   {},
+		registry.ResourceKey{Name: "kiali-operator", Kind: "ClusterRoleBinding"}:            {},
+	}
+
+	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
+
+	for _, step := range fetchedInstallPlan.Status.Plan {
+		key := registry.ResourceKey{
+			Name: step.Resource.Name,
+			Kind: step.Resource.Kind,
+		}
+		for expected := range expectedSteps {
+			if expected == key {
+				delete(expectedSteps, expected)
+			} else if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
+				delete(expectedSteps, expected)
+			} else {
+				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
+			}
+		}
+
+		// This operator was installed into a global operator group, so the roles should have been lifted to clusterroles
+		if step.Resource.Kind == "Role" {
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				_, err = c.GetClusterRole(step.Resource.Name)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			})
+		}
+		if step.Resource.Kind == "RoleBinding" {
+			err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+				_, err = c.GetClusterRoleBinding(step.Resource.Name)
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						return false, nil
+					}
+					return false, err
+				}
+				return true, nil
+			})
+		}
+	}
+
+	// Should have removed every matching step
+	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
+
+	// check CSV installed successfully
 
 }

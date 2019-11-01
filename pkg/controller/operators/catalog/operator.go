@@ -140,6 +140,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		resolver:               resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface(), operatorNamespace),
 		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
+		ipQueueSet:             queueinformer.NewEmptyResourceQueueSet(),
 		csvProvidedAPIsIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:       scoped.NewClientAttenuator(logger, config, opClient, crClient),
@@ -762,7 +763,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	}
 
 	// create installplan if anything updated
-	if len(updatedSubs) > 0 {
+	if len(updatedSubs) > 0 || len(bundleLookups) > 0 {
 		logger.Debug("resolution caused subscription changes, creating installplan")
 		// any subscription in the namespace with manual approval will force generated installplans to be manual
 		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
@@ -1022,16 +1023,13 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 }
 
 func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) {
-	//allFinished := true
 	for _, bundleLookup := range plan.Status.BundleLookups {
 		job, err := o.opClient.KubernetesInterface().BatchV1().Jobs(bundleLookup.BundleJob.Namespace).Get(bundleLookup.BundleJob.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}
-		if len(job.Status.Conditions) > 0 && job.Status.Conditions[0].Type != batchv1.JobComplete {
-			// TODO: could write steps for each bundle image as ready
-			//allFinished = false
-			//continue
+		if len(job.Status.Conditions) == 0 || len(job.Status.Conditions) > 0 && job.Status.Conditions[0].Type != batchv1.JobComplete {
+			logrus.Infof("Job '%v' not yet completed", job.GetName())
 			return false, nil
 		}
 		bundleLookup.BundleJob.Condition = job.Status.Conditions[0].Type
@@ -1062,8 +1060,8 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 			return false, fmt.Errorf("toStrings failed: %s", err.Error())
 		}
 
-		var olmCSV *v1alpha1.ClusterServiceVersion
-		err = json.Unmarshal(jsonCSV, olmCSV)
+		var olmCSV v1alpha1.ClusterServiceVersion
+		err = json.Unmarshal(jsonCSV, &olmCSV)
 		if err != nil {
 			return false, fmt.Errorf("csv retrieval failed: %s", err.Error())
 		}
