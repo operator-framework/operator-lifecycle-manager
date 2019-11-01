@@ -105,7 +105,7 @@ func defaultKeyFunc(obj interface{}) (string, bool) {
 func defaultConfig() *queueInformerConfig {
 	return &queueInformerConfig{
 		provider: metrics.NewMetricsNil(),
-		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "default"),
+		queue:    workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter()),
 		logger:   logrus.New(),
 		keyFunc:  defaultKeyFunc,
 	}

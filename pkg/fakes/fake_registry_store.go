@@ -2,8 +2,8 @@
 package fakes
 
 import (
-	context "context"
-	sync "sync"
+	"context"
+	"sync"
 
 	api "github.com/operator-framework/operator-registry/pkg/api"
 	registry "github.com/operator-framework/operator-registry/pkg/registry"

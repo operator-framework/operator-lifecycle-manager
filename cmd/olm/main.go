@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,12 +11,13 @@ import (
 	configclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/features"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
@@ -34,43 +34,43 @@ const (
 
 // config flags defined globally so that they appear on the test binary as well
 var (
-	kubeConfigPath = flag.String(
-		"kubeconfig", "", "absolute path to the kubeconfig file")
-
-	wakeupInterval = flag.Duration(
+	wakeupInterval = pflag.Duration(
 		"interval", defaultWakeupInterval, "wake up interval")
 
-	watchedNamespaces = flag.String(
+	watchedNamespaces = pflag.String(
 		"watchedNamespaces", "", "comma separated list of namespaces for olm operator to watch. "+
 			"If not set, or set to the empty string (e.g. `-watchedNamespaces=\"\"`), "+
 			"olm operator will watch all namespaces in the cluster.")
 
-	writeStatusName = flag.String(
+	writeStatusName = pflag.String(
 		"writeStatusName", defaultOperatorName, "ClusterOperator name in which to write status, set to \"\" to disable.")
 
-	writePackageServerStatusName = flag.String(
+	writePackageServerStatusName = pflag.String(
 		"writePackageServerStatusName", defaultPackageServerStatusName, "ClusterOperator name in which to write status for package API server, set to \"\" to disable.")
 
-	debug = flag.Bool(
+	debug = pflag.Bool(
 		"debug", false, "use debug log level")
 
-	version = flag.Bool("version", false, "displays olm version")
+	version = pflag.Bool("version", false, "displays olm version")
 
-	tlsKeyPath = flag.String(
+	tlsKeyPath = pflag.String(
 		"tls-key", "", "Path to use for private key (requires tls-cert)")
 
-	tlsCertPath = flag.String(
+	tlsCertPath = pflag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
-	profiling = flag.Bool(
+	profiling = pflag.Bool(
 		"profiling", false, "serve profiling data (on port 8080)")
 
-	namespace = flag.String(
+	namespace = pflag.String(
 		"namespace", "", "namespace where cleanup runs")
 )
 
 func init() {
 	metrics.RegisterOLM()
+
+	// Add feature gates before parsing
+	features.AddFlag(pflag.CommandLine)
 }
 
 // main function - entrypoint to OLM operator
@@ -80,7 +80,7 @@ func main() {
 	defer cancel()
 
 	// Parse the command-line flags.
-	flag.Parse()
+	pflag.Parse()
 
 	// Check if version flag was set
 	if *version {
@@ -101,9 +101,9 @@ func main() {
 	}
 
 	// Set log level to debug if `debug` flag set
-	logger := log.New()
+	logger := logrus.New()
 	if *debug {
-		logger.SetLevel(log.DebugLevel)
+		logger.SetLevel(logrus.DebugLevel)
 	}
 	logger.Infof("log level %s", logger.Level)
 
@@ -154,29 +154,34 @@ func main() {
 		}()
 	}
 
-	// create a config client for operator status
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
+	mgr, err := Manager()
 	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
+		logger.WithError(err).Fatalf("error configuring controller manager")
 	}
+	config := mgr.GetConfig()
+
+	// Create a config client for operator status
 	versionedConfigClient, err := configclientset.NewForConfig(config)
 	if err != nil {
-		err = fmt.Errorf("error configuring OpenShift Proxy client: %v", err)
-		return
+		logger.WithError(err).Fatal("error configuring openshift proxy client")
 	}
 	configClient, err := configv1client.NewForConfig(config)
 	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
+		logger.WithError(err).Fatalf("error configuring config client")
 	}
-	opClient := operatorclient.NewClientFromConfig(*kubeConfigPath, logger)
-	crClient, err := client.NewClient(*kubeConfigPath)
+	opClient, err := operatorclient.NewClientFromRestConfig(config)
 	if err != nil {
-		log.Fatalf("error configuring client: %s", err.Error())
+		logger.WithError(err).Fatal("error configuring operator client")
+	}
+	crClient, err := versioned.NewForConfig(config)
+	if err != nil {
+		logger.WithError(err).Fatal("error configuring custom resource client")
 	}
 
+	// Cleanup artifacts of older OLM versions
 	cleanup(logger, opClient, crClient)
 
-	// Create a new instance of the operator.
+	// Create a new instance of the operator
 	op, err := olm.NewOperator(
 		ctx,
 		olm.WithLogger(logger),
@@ -188,8 +193,7 @@ func main() {
 		olm.WithConfigClient(versionedConfigClient),
 	)
 	if err != nil {
-		log.WithError(err).Fatalf("error configuring operator")
-		return
+		logger.WithError(err).Fatalf("error configuring operator")
 	}
 
 	op.Run(ctx)
@@ -200,7 +204,7 @@ func main() {
 	}
 
 	if *writePackageServerStatusName != "" {
-		logger.Info("Initializing cluster operator monitor for package server")
+		logger.Info("initializing cluster operator monitor for package server")
 
 		names := *writePackageServerStatusName
 		discovery := opClient.KubernetesInterface().Discovery()
@@ -210,6 +214,11 @@ func main() {
 		op.RegisterCSVWatchNotification(handler)
 
 		go monitor.Run(op.Done())
+	}
+
+	// Start the controller manager
+	if err := mgr.Start(ctx.Done()); err != nil {
+		logger.WithError(err).Fatal("controller manager stopped")
 	}
 
 	<-op.Done()

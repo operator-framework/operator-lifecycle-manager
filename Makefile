@@ -7,15 +7,21 @@ PKG   := github.com/operator-framework/operator-lifecycle-manager
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
-CODEGEN_INTERNAL := ./vendor/k8s.io/code-generator/generate_internal_groups.sh
-MOCKGEN := ./scripts/generate_mocks.sh
-# counterfeiter := $(GOBIN)/counterfeiter
-# mockgen := $(GOBIN)/mockgen
+MOCKGEN := ./scripts/update_mockgen.sh
+CODEGEN := ./scripts/update_codegen.sh
+GEN_PATHS := "./pkg/api/apis/operators/v2alpha1/..."
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
+
+# Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
+ifeq (,$(shell go env GOBIN))
+GOBIN=$(shell go env GOPATH)/bin
+else
+GOBIN=$(shell go env GOBIN)
+endif
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -27,7 +33,7 @@ export GO111MODULE=on
 GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
 
 .PHONY: build test run clean vendor schema-check \
-	vendor-update coverage coverage-html e2e .FORCE
+	vendor-update coverage coverage-html e2e manifests controller-gen .FORCE
 
 all: test build
 
@@ -133,49 +139,41 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
-CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
-$(CI):
-	jsonnet fmt -i -n 4 $@
+# Generate manifests for CRDs
+# Use trivialVersions=true to generate CRDs w/o conversion webhooks for now
+manifests: controller-gen
+	$(CONTROLLER_GEN) crd paths=$(GEN_PATHS) output:crd:artifacts:config="config/crd/bases"
 
-gen-ci: $(CI)
-	ffctl gen
+codegen: codegen-v2 codegen-v1
 
-# Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
-# use container-codegen
-codegen: export GO111MODULE := off
-codegen:
-	cp scripts/generate_internal_groups.sh vendor/k8s.io/code-generator/generate_internal_groups.sh
-	mkdir -p vendor/k8s.io/code-generator/hack
-	cp boilerplate.go.txt vendor/k8s.io/code-generator/hack/boilerplate.go.txt
-	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
-	$(CODEGEN_INTERNAL) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
-	$(CODEGEN_INTERNAL) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
+codegen-v1: vendor
+	$(CODEGEN)
 
-container-codegen:
-	docker build -t olm:codegen -f codegen.Dockerfile .
-	docker run --name temp-codegen olm:codegen /bin/true
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/. ./pkg/api/client
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/. ./pkg/api/apis
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/. ./pkg/package-server/apis
-	docker cp temp-codegen:/go/src/github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/. ./pkg/package-server/client
-	docker rm temp-codegen
+codegen-v2: controller-gen
+	$(CONTROLLER_GEN) object:headerFile=boilerplate.go.txt paths=$(GEN_PATHS)
 
-container-mockgen:
-	docker build -t olm:mockgen -f mockgen.Dockerfile . --no-cache
-	docker run --name temp-mockgen olm:mockgen /bin/true
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes/. ./pkg/api/wrappers/wrappersfakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorlister/operatorlisterfakes/. ./pkg/lib/operatorlister/operatorlisterfakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/lib/operatorclient/operatorclientmocks/. ./pkg/lib/operatorclient/operatorclientmocks
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/fakes/. ./pkg/fakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes/. ./pkg/controller/registry/resolver/fakes
-	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/package-server/client/fakes/. ./pkg/package-server/client/fakes
-	docker rm temp-mockgen
+# Find or download controller-gen.
+# Note: v0.2.1 is incompatible with k8s 1.16 deps, so download is broken until controller-tools is bumped.
+controller-gen:
+ifeq (, $(shell which controller-gen))
+	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.2
+CONTROLLER_GEN=$(GOBIN)/controller-gen
+else
+CONTROLLER_GEN=$(shell which controller-gen)
+endif
 
-verify: verify-codegen verify-manifests
-
-# Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 verify-codegen: codegen
 	git diff --exit-code
+
+mockgen:
+	$(MOCKGEN)
+
+verify-mockgen: mockgen
+	git diff --exit-code
+
+verify: verify-codegen verify-mockgen verify-manifests
+
+gen-all: codegen mockgen
 
 # this is here for backwards compatibility with the ci job that calls verify-catalog
 verify-catalog:
@@ -188,15 +186,7 @@ verify-release:
 	rm -rf manifests
 	mkdir manifests
 	./scripts/package_release.sh $(ver) manifests deploy/ocp/values.yaml
-	# requires gnu sed if on mac
-	find ./manifests -type f -exec sed -i "/^#/d" {} \;
-	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 	git diff --exit-code
-
-mockgen:
-	$(MOCKGEN)
-
-gen-all: gen-ci container-codegen container-mockgen
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
@@ -208,9 +198,6 @@ release:
 	rm -rf manifests
 	mkdir manifests
 	cp -R deploy/ocp/manifests/$(ver)/. manifests
-	# requires gnu sed if on mac
-	find ./manifests -type f -exec sed -i "/^#/d" {} \;
-	find ./manifests -type f -exec sed -i "1{/---/d}" {} \;
 
 package: olmref=$(shell docker inspect --format='{{index .RepoDigests 0}}' quay.io/operator-framework/olm:$(ver))
 package:

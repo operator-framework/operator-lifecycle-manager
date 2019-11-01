@@ -2,6 +2,134 @@
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
+  name: catalogsources.operators.coreos.com
+  annotations:
+    displayName: CatalogSource
+    description: A source configured to find packages and updates.
+spec:
+  group: operators.coreos.com
+  version: v1alpha1
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+  scope: Namespaced
+  names:
+    plural: catalogsources
+    singular: catalogsource
+    kind: CatalogSource
+    listKind: CatalogSourceList
+    shortNames:
+    - catsrc
+    categories:
+    - olm
+  additionalPrinterColumns:
+  - name: Display
+    type: string
+    description: The pretty name of the catalog
+    JSONPath: .spec.displayName
+  - name: Type
+    type: string
+    description: The type of the catalog
+    JSONPath: .spec.sourceType
+  - name: Publisher
+    type: string
+    description: The publisher of the catalog
+    JSONPath: .spec.publisher
+  - name: Age
+    type: date
+    JSONPath: .metadata.creationTimestamp
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: A source configured to find packages and updates.
+      properties:
+        spec:
+          type: object
+          description: Spec for a catalog source.
+          required:
+          - sourceType
+          properties:
+            sourceType:
+              type: string
+              description: The type of the source. `configmap` is the new name for `internal`
+              enum:
+              - internal   # deprecated
+              - configmap
+              - grpc
+
+            configMap:
+              type: string
+              description: The name of a ConfigMap that holds the entries for an in-memory catalog.
+
+            address:
+              type: string
+              description: An optional address. When set, directs OLM to connect to use a pre-existing registry server at this address.
+
+            image:
+              type: string
+              description: An image that serves a grpc registry. Only valid for `grpc` sourceType. If both image and address are set, OLM does not use the address field.
+
+            displayName:
+              type: string
+              description: Pretty name for display
+
+            publisher:
+              type: string
+              description: The name of an entity that publishes this catalog
+
+            secrets:
+              type: array
+              description: A set of secrets that can be used to access the contents of the catalog. It is best to keep this list small, since each will need to be tried for every catalog entry.
+              items:
+                type: string
+                description: A name of a secret in the namespace where the CatalogSource is defined.
+        status:
+          type: object
+          description: The status of the CatalogSource
+          properties:
+            configMapReference:
+              type: object
+              description: If sourceType is `internal` or `configmap`, then this holds a reference to the configmap associated with this CatalogSource.
+              properties:
+                name:
+                  type: string
+                  description: name of the configmap
+                namespace:
+                  type: string
+                  description: namespace of the configmap
+                resourceVersion:
+                  type: string
+                  description: resourceVersion of the configmap
+                uid:
+                  type: string
+                  description: uid of the configmap
+            registryService:
+              type: object
+              properties:
+                protocol:
+                  type: string
+                  description: protocol of the registry service
+                  enum:
+                    - grpc
+                serviceName:
+                  type: string
+                  description: name of the registry service
+                serviceNamespace:
+                  type: string
+                  description: namespace of the registry service
+                port:
+                  type: string
+                  description: port of the registry service
+            lastSync:
+                type: string
+                description: the last time the catalog was updated. If this time is less than the last updated time on the object, the catalog will be re-cached.
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
   name: clusterserviceversions.operators.coreos.com
   annotations:
     displayName: Operator Version
@@ -842,6 +970,105 @@ spec:
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
+  name: operatorgroups.operators.coreos.com
+spec:
+  group: operators.coreos.com
+  version: v1
+  versions:
+    - name: v1
+      served: true
+      storage: true
+    - name: v1alpha2
+      served: true
+      storage: false
+  names:
+    plural: operatorgroups
+    singular: operatorgroup
+    kind: OperatorGroup
+    listKind: OperatorGroupList
+    shortNames:
+      - og
+    categories:
+      - olm
+  scope: Namespaced
+  subresources:
+    status: {}
+  validation:
+    openAPIV3Schema:
+      description: A grouping of namespaces for usage with an operator.
+      properties:
+        spec:
+          type: object
+          description: Spec for an OperatorGroup.
+          properties:
+            selector:
+              type: object
+              description: Optional label selector to find resources associated with or managed by the operator
+              anyOf:
+                - properties:
+                    matchLabels:
+                      type: object
+                      description: Label key:value pairs to match directly
+                  required:
+                    - matchLabels
+                - properties:
+                    matchExpressions:
+                      type: array
+                      description: A set of expressions to match against the resource.
+                      items:
+                        allOf:
+                          - type: object
+                            required:
+                            - key
+                            - operator
+                            - values
+                            properties:
+                              key:
+                                type: string
+                                description: the key to match
+                              operator:
+                                type: string
+                                description: the operator for the expression
+                                enum:
+                                - In
+                                - NotIn
+                                - Exists
+                                - DoesNotExist
+                              values:
+                                type: array
+                                description: set of values for the expression
+                  required:
+                    - matchExpressions
+            targetNamespaces:
+              type: array
+              description: Optional list of target namespaces. If set, OLM will ignore selector.
+              items:
+                type: string
+                pattern: ^\S+$
+            serviceAccountName:
+              type: string
+            staticProvidedAPIs:
+              type: boolean
+              description: If true, OLM will not modify the OperatorGroup's providedAPIs annotation.
+        status:
+          type: object
+          description: The status of the OperatorGroup.
+          properties:
+            lastUpdated:
+              format: date-time
+              type: string
+            namespaces:
+              items:
+                type: string
+              type: array
+          required:
+          - lastUpdated
+      required:
+      - metadata
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
   name: subscriptions.operators.coreos.com
   annotations:
     displayName: Subscription
@@ -1022,6 +1249,7 @@ spec:
                             type: boolean
                             description: Specify whether the Secret must be defined
 
+<<<<<<< HEAD
                 volumeMounts:
                   description: List of VolumeMounts to set in the container.
                   items:
@@ -2528,3 +2756,5 @@ spec:
           - lastUpdated
       required:
       - metadata
+=======
+>>>>>>> 0c0105f0ace4efc75a0bedbc2cd01b81801fad32
