@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"sort"
 )
 
@@ -79,4 +80,14 @@ func Only(key int) Migrations {
 // All returns the full set
 func All() MigrationSet {
 	return migrations
+}
+
+func registerMigration(key int, m *Migration) {
+	if _, ok := migrations[key]; ok {
+		panic(fmt.Sprintf("already have a migration registered with id %d", key))
+	}
+	if m.Id != key {
+		panic(fmt.Sprintf("migration has wrong id for key. key: %d,  id: %d", key, m.Id))
+	}
+	migrations[key] = m
 }

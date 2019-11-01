@@ -63,10 +63,11 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 			continue
 		}
 
-		o, err := NewOperatorFromBundle(bundle, op.Identifier(), op.SourceInfo().StartingCSV, *key)
+		o, err := NewOperatorFromBundle(bundle, op.SourceInfo().StartingCSV, *key)
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
+		o.SetReplaces(op.Identifier())
 		if err := e.gen.AddOperator(o); err != nil {
 			return errors.Wrap(err, "error calculating generation changes due to new bundle")
 		}
@@ -90,7 +91,7 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 			return errors.Wrapf(err, "%s not found", s)
 		}
 
-		o, err := NewOperatorFromBundle(bundle, "", s.StartingCSV, *key)
+		o, err := NewOperatorFromBundle(bundle, s.StartingCSV, *key)
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
@@ -123,7 +124,7 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 		// attempt to find a bundle that provides that api
 		if bundle, key, err := e.querier.FindProvider(*api, initialSource); err == nil {
 			// add a bundle that provides the api to the generation
-			o, err := NewOperatorFromBundle(bundle, "", "", *key)
+			o, err := NewOperatorFromBundle(bundle, "", *key)
 			if err != nil {
 				return errors.Wrap(err, "error parsing bundle")
 			}

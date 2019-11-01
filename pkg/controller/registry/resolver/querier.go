@@ -4,13 +4,10 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/blang/semver"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
@@ -180,22 +177,11 @@ func (q *NamespaceSourceQuerier) findChannelHead(currentVersion *semver.Version,
 		return nil, err
 	}
 
-	if latest.CsvJson == "" {
+	if latest.SkipRange == "" {
 		return nil, nil
 	}
 
-	dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(latest.CsvJson), 10)
-	unst := &unstructured.Unstructured{}
-	if err := dec.Decode(unst); err != nil {
-		return nil, err
-	}
-
-	skipRange, ok := unst.GetAnnotations()[SkipPackageAnnotationKey]
-	if !ok {
-		return nil, nil
-	}
-
-	r, err := semver.ParseRange(skipRange)
+	r, err := semver.ParseRange(latest.SkipRange)
 	if err != nil {
 		return nil, err
 	}

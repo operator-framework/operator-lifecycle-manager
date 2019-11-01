@@ -7,6 +7,10 @@ import (
 
 var InitMigrationKey = 0
 
+func init() {
+	registerMigration(InitMigrationKey, initMigration)
+}
+
 var initMigration = &Migration{
 	Id: InitMigrationKey,
 	Up: func(ctx context.Context, tx *sql.Tx) error {
@@ -71,8 +75,4 @@ var initMigration = &Migration{
 
 		return err
 	},
-}
-
-func init() {
-	migrations[InitMigrationKey] = initMigration
 }

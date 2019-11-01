@@ -1040,7 +1040,6 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			want: &Operator{
 				name:         "testCSV",
 				version:      &version.Version,
-				replaces:     "v1",
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
@@ -1059,9 +1058,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				replaces:  "",
 			},
 			want: &Operator{
-				name:     "testCSV",
-				version:  &version.Version,
-				replaces: "v1",
+				name:    "testCSV",
+				version: &version.Version,
 				providedAPIs: APISet{
 					opregistry.APIKey{
 						Group:   "crd.group.com",
@@ -1110,7 +1108,6 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
-				replaces:     "replaced",
 				version:      &version.Version,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
@@ -1122,7 +1119,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromBundle(tt.args.bundle, tt.args.replaces, "", tt.args.sourceKey)
+			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey)
 			require.Equal(t, tt.wantErr, err)
 			require.Equal(t, tt.want, got)
 		})
