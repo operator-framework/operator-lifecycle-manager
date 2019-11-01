@@ -207,6 +207,7 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 
 	// need to make a new update pod
 	if source.ReadyToUpdate() {
+		source.SetLastUpdateTime()
 		_ , err := c.createUpdatePod(source)
 		if err != nil {
 			return errors.Wrapf(err, "error creating update catalog source pod")
