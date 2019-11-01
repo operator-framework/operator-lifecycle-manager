@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 
 	operatorsv2alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v2alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 )
 
 // TestOperatorComponentSelection ensures that an Operator resource can select its components by label and surface them correctly in its status.
@@ -54,7 +55,6 @@ func TestOperatorComponentSelection(t *testing.T) {
 
 	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
 	defer cancel()
-
 	expectedKey := "operators.coreos.com/" + o.GetName()
 	awaitPredicates(deadline, t, w, operatorPredicate(func(op *operatorsv2alpha1.Operator) bool {
 		fmt.Printf("operator: %v\n", op)
@@ -70,6 +70,7 @@ func TestOperatorComponentSelection(t *testing.T) {
 
 		return false
 	}))
+	w.Stop()
 
 	// Create namespaces ns-a and ns-b
 	nsA := &corev1.Namespace{}
@@ -85,8 +86,99 @@ func TestOperatorComponentSelection(t *testing.T) {
 		}(ns.GetName())
 	}
 
-	// TODO: Write remainder of test
+	// Label ns-a with o's component label
+	nsA.SetLabels(map[string]string{expectedKey: ""})
+	_, err = c.KubernetesInterface().CoreV1().Namespaces().Update(nsA)
+	require.NoError(t, err)
 
+	// Ensure o's status.components.refs field eventually contains a reference to ns-a
+	checkPresence(t, crc, nsA.GetName())
+
+	// Create ServiceAccounts sa-a and sa-b in namespaces ns-a and ns-b respectively
+	saA := &corev1.ServiceAccount{}
+	saA.SetName(genName("sa-a-"))
+	saA.SetNamespace(nsA.Name)
+	saB := &corev1.ServiceAccount{}
+	saB.SetName(genName("sa-b-"))
+	saB.SetNamespace(nsB.Name)
+
+	for _, sa := range []*corev1.ServiceAccount{saA, saB} {
+		_, err := c.KubernetesInterface().CoreV1().ServiceAccounts(sa.GetNamespace()).Create(sa)
+		require.NoError(t, err)
+		defer func(namespace, name string) {
+			c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(name, deleteOpts)
+		}(sa.GetNamespace(), sa.GetName())
+	}
+
+	// Label sa-a and sa-b with o's component label
+	saA.SetLabels(map[string]string{expectedKey: ""})
+	_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(saA.GetNamespace()).Update(saA)
+	require.NoError(t, err)
+	saB.SetLabels(map[string]string{expectedKey: ""})
+	_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(saB.GetNamespace()).Update(saB)
+	require.NoError(t, err)
+
+	// Ensure o's status.components.refs field eventually contains references to sa-a and sa-b
+	checkPresence(t, crc, saA.GetName())
+	checkPresence(t, crc, saB.GetName())
+
+	// Remove the component label from sa-b
+	saB.SetLabels(nil)
+	_, err = c.KubernetesInterface().CoreV1().ServiceAccounts(saB.GetNamespace()).Update(saB)
+	require.NoError(t, err)
+
+	// Ensure the reference to sa-b is eventually removed from o's status.components.refs field
+	checkAbsence(t, crc, saB.GetName())
+
+	// Delete ns-b
+	require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(nsB.GetName(), deleteOpts))
+
+	// Ensure the reference to ns-b is eventually removed from o's status.components.refs field
+	checkAbsence(t, crc, nsB.GetName())
+}
+
+func checkPresence(t *testing.T, crc versioned.Interface, refName string) {
+	w, err := crc.OperatorsV2alpha1().Operators().Watch(metav1.ListOptions{})
+	require.NoError(t, err)
+	defer w.Stop()
+
+	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	awaitPredicates(deadline, t, w, operatorPredicate(func(op *operatorsv2alpha1.Operator) bool {
+		if op.Status.Components == nil || op.Status.Components.Refs == nil {
+			return false
+		}
+
+		for _, ref := range op.Status.Components.Refs {
+			if ref.Name == refName {
+				return true
+			}
+		}
+
+		return false
+	}))
+}
+
+func checkAbsence(t *testing.T, crc versioned.Interface, refName string) {
+	w, err := crc.OperatorsV2alpha1().Operators().Watch(metav1.ListOptions{})
+	require.NoError(t, err)
+	defer w.Stop()
+
+	deadline, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancel()
+	awaitPredicates(deadline, t, w, operatorPredicate(func(op *operatorsv2alpha1.Operator) bool {
+		if op.Status.Components == nil || op.Status.Components.Refs == nil {
+			return false
+		}
+
+		for _, ref := range op.Status.Components.Refs {
+			if ref.Name == refName {
+				return false
+			}
+		}
+
+		return true
+	}))
 }
 
 func operatorPredicate(fn func(*operatorsv2alpha1.Operator) bool) predicateFunc {
