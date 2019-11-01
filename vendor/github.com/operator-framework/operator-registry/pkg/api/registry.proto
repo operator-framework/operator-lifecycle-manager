@@ -46,6 +46,8 @@ message Bundle{
 	string bundlePath = 6;
 	repeated GroupVersionKind providedApis = 7;
 	repeated GroupVersionKind requiredApis = 8;
+	string version = 9;
+	string skipRange = 10;
 }
 
 message ChannelEntry{

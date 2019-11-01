@@ -253,6 +253,7 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 		ChannelName:  channel,
 		CsvJson:      string(csvJson),
 		Object:       objs,
+		Version:      "0.0.0",
 		ProvidedApis: apiSetToGVk(providedCRDs, providedAPIServices),
 		RequiredApis: apiSetToGVk(requiredCRDs, requiredAPIServices),
 	}

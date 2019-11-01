@@ -238,24 +238,11 @@ type Operator struct {
 
 var _ OperatorSurface = &Operator{}
 
-func NewOperatorFromBundle(bundle *api.Bundle, replaces string, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
-	if bundle.CsvJson == "" {
-		return nil, fmt.Errorf("no csv json found")
-	}
-	csv := &registry.ClusterServiceVersion{}
-	if err := json.Unmarshal([]byte(bundle.CsvJson), csv); err != nil {
-		return nil, err
-	}
-	r := replaces
-	if r == "" {
-		r, _ = csv.GetReplaces()
-	}
-
-	version, _ := csv.GetVersion()
-	parsedVersion, err := semver.ParseTolerant(version)
-	v := &parsedVersion
+func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
+	parsedVersion, err := semver.ParseTolerant(bundle.Version)
+	version := &parsedVersion
 	if err != nil {
-		v = nil
+		version = nil
 	}
 	provided := APISet{}
 	for _, gvk := range bundle.ProvidedApis {
@@ -290,14 +277,12 @@ func NewOperatorFromBundle(bundle *api.Bundle, replaces string, startingCSV stri
 		}
 		op.sourceInfo = sourceInfo
 		op.bundle = bundle
-		op.replaces = r
 		return op, nil
 	}
 
 	return &Operator{
-		name:         csv.GetName(),
-		replaces:     r,
-		version:      v,
+		name:         bundle.CsvName,
+		version:      version,
 		providedAPIs: provided,
 		requiredAPIs: required,
 		bundle:       bundle,
@@ -333,7 +318,6 @@ func NewOperatorFromV1Alpha1CSV(csv *v1alpha1.ClusterServiceVersion) (*Operator,
 	return &Operator{
 		name:         csv.GetName(),
 		version:      &csv.Spec.Version.Version,
-		replaces:     csv.Spec.Replaces,
 		providedAPIs: providedAPIs,
 		requiredAPIs: requiredAPIs,
 		sourceInfo:   &ExistingOperator,
@@ -354,6 +338,10 @@ func (o *Operator) Identifier() string {
 
 func (o *Operator) Replaces() string {
 	return o.replaces
+}
+
+func (o *Operator) SetReplaces(replacing string) {
+	o.replaces = replacing
 }
 
 func (o *Operator) Package() string {

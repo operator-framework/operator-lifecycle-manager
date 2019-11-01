@@ -360,7 +360,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 	require.NoError(t, err)
 
 	nextBundle := &api.Bundle{CsvName: "test.v1", PackageName: "testPkg", ChannelName: "testChannel"}
-	latestBundle := &api.Bundle{CsvName: "latest", PackageName: "testPkg", ChannelName: "testChannel", CsvJson: string(csvJson), Object: []string{string(csvJson)}}
+	latestBundle := &api.Bundle{CsvName: "latest", PackageName: "testPkg", ChannelName: "testChannel", CsvJson: string(csvJson), Object: []string{string(csvJson)}, SkipRange: ">= 1.0.0-0 < 1.0.0-1556661308", Version: latestVersion.String()}
 
 	csv.SetAnnotations(map[string]string{})
 	csvUnstNoAnnotationJson, err := json.Marshal(csv)
@@ -491,7 +491,7 @@ func TestNamespaceSourceQuerier_FindReplacement(t *testing.T) {
 			if err != nil {
 				t.Log(err.Error())
 			}
-			require.Equal(t, tt.out.err, err)
+			require.Equal(t, tt.out.err, err, "%v", err)
 			require.Equal(t, tt.out.bundle, got)
 			require.Equal(t, tt.out.key, key)
 		})

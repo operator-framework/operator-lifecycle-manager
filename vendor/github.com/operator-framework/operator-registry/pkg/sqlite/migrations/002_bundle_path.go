@@ -9,7 +9,7 @@ const BundlePathMigrationKey = 2
 
 // Register this migration
 func init() {
-	migrations[BundlePathMigrationKey] = bundlePathMigration
+	registerMigration(BundlePathMigrationKey, bundlePathMigration)
 }
 
 var bundlePathMigration = &Migration{
@@ -23,13 +23,13 @@ var bundlePathMigration = &Migration{
 		return err
 	},
 	Down: func(ctx context.Context, tx *sql.Tx) error {
-		foreingKeyOff := `PRAGMA foreign_keys = 0`
+		foreignKeyOff := `PRAGMA foreign_keys = 0`
 		createTempTable := `CREATE TABLE operatorbundle_backup (name TEXT,csv TEXT,bundle TEXT)`
 		backupTargetTable := `INSERT INTO operatorbundle_backup SELECT name,csv,bundle FROM operatorbundle`
 		dropTargetTable := `DROP TABLE operatorbundle`
 		renameBackUpTable := `ALTER TABLE operatorbundle_backup RENAME TO operatorbundle;`
-		foreingKeyOn := `PRAGMA foreign_keys = 1`
-		_, err := tx.ExecContext(ctx, foreingKeyOff)
+		foreignKeyOn := `PRAGMA foreign_keys = 1`
+		_, err := tx.ExecContext(ctx, foreignKeyOff)
 		if err != nil {
 			return err
 		}
@@ -49,7 +49,7 @@ var bundlePathMigration = &Migration{
 		if err != nil {
 			return err
 		}
-		_, err = tx.ExecContext(ctx, foreingKeyOn)
+		_, err = tx.ExecContext(ctx, foreignKeyOn)
 		return err
 	},
 }
