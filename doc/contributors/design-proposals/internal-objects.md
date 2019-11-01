@@ -28,8 +28,8 @@ apiVersion: apiextensions.k8s.io/v1beta1
 metadata:
   name: hivetables.metering.openshift.io
   annotations:
-    apps.kubernetes.io/internal-object:true
-    apps.kubernetes.io/data-object:true
+    operators.operatorframework.io/internal-object:true
+    operators.operatorframework.io/data-object:true
 spec:
   ...
 status
@@ -48,8 +48,8 @@ status
 
 It is a common practice for an Operator to utilize CRDs "under the hood" to internally accomplish a task. For example, a database Operator might have a Replication CRD that is created whenever an end-user creates a Database object with `replication: true`. 
 
-If this Replication CRD is not meant for manipulation by end-users, it can be hidden by submitting it's definition with the `apps.kubernetes.io/internal-object` annotation set to true.
+If this Replication CRD is not meant for manipulation by end-users, it can be hidden by submitting it's definition with the `operators.operatorframework.io/internal-object` annotation set to true.
 
-If there exists a CRD that is only meant for tracking data, it can also be annotated with `apps.kubernetes.io/data-object` set to true. 
+If there exists a CRD that is only meant for tracking data, it can also be annotated with `operators.operatorframework.io/data-object` set to true. 
 
 Before marking one of your CRDs as internal, make sure that any debugging information or configuration that might be required to manage the application is reflected on the CR's status or spec block.
