@@ -3,11 +3,14 @@ package configmap
 import (
 	"errors"
 	"fmt"
-	libbundle "github.com/operator-framework/operator-registry/pkg/lib/bundle"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"strings"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"strings"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 func NewBundleLoader() *BundleLoader {
@@ -21,12 +24,6 @@ func NewBundleLoaderWithLogger(logger *logrus.Entry) *BundleLoader {
 	}
 }
 
-// Manifest contains a bundle and a PackageManifest.
-type Manifest struct {
-	Bundle          *registry.Bundle
-	PackageManifest *registry.PackageManifest
-}
-
 type BundleLoader struct {
 	logger *logrus.Entry
 }
@@ -35,7 +32,7 @@ type BundleLoader struct {
 // creates an operator registry Bundle object.
 // If the Data section has a PackageManifest resource then it is also
 // deserialized and included in the result.
-func (l *BundleLoader) Load(cm *corev1.ConfigMap) (manifest *Manifest, err error) {
+func (l *BundleLoader) Load(cm *corev1.ConfigMap) (bundle *api.Bundle, err error) {
 	if cm == nil {
 		err = errors.New("ConfigMap must not be <nil>")
 		return
@@ -45,48 +42,17 @@ func (l *BundleLoader) Load(cm *corev1.ConfigMap) (manifest *Manifest, err error
 		"configmap": fmt.Sprintf("%s/%s", cm.GetNamespace(), cm.GetName()),
 	})
 
-	bundle, _, bundleErr := loadBundle(logger, cm.Data)
+	bundle, skipped, bundleErr := loadBundle(logger, cm.Data)
 	if bundleErr != nil {
 		err = fmt.Errorf("failed to extract bundle from configmap - %v", bundleErr)
 		return
 	}
-
-	// get package manifest information from required annotations
-	annotations := cm.GetAnnotations()
-	if len(annotations) == 0 {
-		err = fmt.Errorf("missing required annoations on configmap %v", cm.GetName())
-		return
-	}
-
-	switch mediatype := annotations[libbundle.MediatypeLabel]; mediatype {
-	case "registry+v1":
-		// supported, proceed
-	default:
-		err = fmt.Errorf("failed to parse annotations due to unsupported media type %v", mediatype)
-		return
-	}
-
-	var packageChannels []registry.PackageChannel
-	channels := strings.Split(annotations[libbundle.ChannelsLabel], ",")
-	for _, channel := range channels {
-		packageChannels = append(packageChannels, registry.PackageChannel{
-			Name: channel,
-		})
-	}
-
-	manifest = &Manifest{
-		Bundle: bundle,
-		PackageManifest: &registry.PackageManifest{
-			PackageName:        annotations[libbundle.PackageLabel],
-			Channels:           packageChannels,
-			DefaultChannelName: annotations[libbundle.ChannelDefaultLabel],
-		},
-	}
+	l.logger.Debug("couldn't unpack skipped: %#v", skipped)
 	return
 }
 
-func loadBundle(entry *logrus.Entry, data map[string]string) (bundle *registry.Bundle, skipped map[string]string, err error) {
-	bundle = &registry.Bundle{}
+func loadBundle(entry *logrus.Entry, data map[string]string) (bundle *api.Bundle, skipped map[string]string, err error) {
+	bundle = &api.Bundle{Object: []string{}}
 	skipped = map[string]string{}
 
 	// Add kube resources to the bundle.
@@ -106,44 +72,12 @@ func loadBundle(entry *logrus.Entry, data map[string]string) (bundle *registry.B
 			continue
 		}
 
-		// It's a valid kube resource,
-		// could be a crd, csv or other raw kube manifest(s).
-		bundle.Add(resource)
+		if resource.GetKind() == v1alpha1.ClusterServiceVersionKind {
+			bundle.CsvJson = content
+		}
+		bundle.Object = append(bundle.Object, content)
 		logger.Infof("added to bundle, Kind=%s", resource.GetKind())
 	}
 
 	return
-}
-
-func loadPackageManifest(entry *logrus.Entry, resources map[string]string) *registry.PackageManifest {
-	// Let's inspect if any of the skipped non kube resources is a PackageManifest type.
-	// The first one we run into will be selected.
-	for name, content := range resources {
-		logger := entry.WithFields(logrus.Fields{
-			"key": name,
-		})
-
-		// Is it a package yaml file?
-		reader := strings.NewReader(content)
-		packageManifest, decodeErr := registry.DecodePackageManifest(reader)
-		if decodeErr != nil {
-			logger.Infof("skipping, not a PackageManifest type - %v", decodeErr)
-			continue
-		}
-
-		logger.Infof("found a PackageManifest type resource - packageName=%s", packageManifest.PackageName)
-
-		return packageManifest
-	}
-
-	return nil
-}
-
-func extract(data map[string]string) []string {
-	resources := make([]string, 0)
-	for _, v := range data {
-		resources = append(resources, v)
-	}
-
-	return resources
 }

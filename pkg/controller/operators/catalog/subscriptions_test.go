@@ -819,8 +819,8 @@ func TestSyncSubscriptions(t *testing.T) {
 
 			o.sourcesLastUpdate.Set(tt.fields.sourcesLastUpdate.Time)
 			o.resolver = &fakes.FakeResolver{
-				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error) {
-					return tt.fields.resolveSteps, tt.fields.resolveSubs, tt.fields.resolveErr
+				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+					return tt.fields.resolveSteps, nil, tt.fields.resolveSubs, tt.fields.resolveErr
 				},
 			}
 
@@ -951,7 +951,7 @@ func BenchmarkSyncResolvingNamespace(b *testing.B) {
 				},
 			},
 			resolver: &fakes.FakeResolver{
-				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error) {
+				ResolveStepsStub: func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 					steps := []*v1alpha1.Step{
 						{
 							Resolving: "csv.v.2",
@@ -987,7 +987,7 @@ func BenchmarkSyncResolvingNamespace(b *testing.B) {
 						},
 					}
 
-					return steps, subs, nil
+					return steps, nil, subs, nil
 				},
 			},
 		},

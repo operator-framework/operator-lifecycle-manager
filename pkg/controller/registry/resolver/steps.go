@@ -24,8 +24,12 @@ var (
 )
 
 func init() {
-	k8sscheme.AddToScheme(scheme)
-	extScheme.AddToScheme(scheme)
+	if err := k8sscheme.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
+	if err := extScheme.AddToScheme(scheme); err != nil {
+		panic(err)
+	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
 		panic(err)
 	}

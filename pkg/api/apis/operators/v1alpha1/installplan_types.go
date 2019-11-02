@@ -7,8 +7,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/operator-framework/operator-registry/pkg/api"
 )
 
 const (
@@ -176,12 +174,12 @@ type BundleJob struct {
 
 // BundleLookup serves as accounting for tracking a bundle data lookup
 type BundleLookup struct {
-	BundleJob            *BundleJob                  `json:"bundleJob"`
-	ConfigMapRef         *ConfigMapResourceReference `json:"configMapRef"`
-	Image                string                      `json:"image"`
-	BundleFromRegistry   *api.Bundle                 `json:"bundleFromRegistry"`
-	CatalogName          string                      `json:"catalogName"`
-	CatalogNamespace     string                      `json:"catalogNamespace"`
+	BundleJob        *BundleJob                  `json:"bundleJob"`
+	ConfigMapRef     *ConfigMapResourceReference `json:"configMapRef"`
+	Image            string                      `json:"image"`
+	CatalogName      string                      `json:"catalogName"`
+	CatalogNamespace string                      `json:"catalogNamespace"`
+	Replaces         string                      `json:"replaces"`
 }
 
 // ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
