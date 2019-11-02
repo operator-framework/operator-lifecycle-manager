@@ -24,24 +24,22 @@ type Resolver interface {
 }
 
 type OperatorsV1alpha1Resolver struct {
-	subLister         v1alpha1listers.SubscriptionLister
-	csvLister         v1alpha1listers.ClusterServiceVersionLister
-	ipLister          v1alpha1listers.InstallPlanLister
-	client            versioned.Interface
-	kubeclient        kubernetes.Interface
-	operatorNamespace string
+	subLister  v1alpha1listers.SubscriptionLister
+	csvLister  v1alpha1listers.ClusterServiceVersionLister
+	ipLister   v1alpha1listers.InstallPlanLister
+	client     versioned.Interface
+	kubeclient kubernetes.Interface
 }
 
 var _ Resolver = &OperatorsV1alpha1Resolver{}
 
-func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface, operatorNamespace string) *OperatorsV1alpha1Resolver {
+func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface) *OperatorsV1alpha1Resolver {
 	return &OperatorsV1alpha1Resolver{
-		subLister:         lister.OperatorsV1alpha1().SubscriptionLister(),
-		csvLister:         lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
-		ipLister:          lister.OperatorsV1alpha1().InstallPlanLister(),
-		client:            client,
-		kubeclient:        kubeclient,
-		operatorNamespace: operatorNamespace,
+		subLister:  lister.OperatorsV1alpha1().SubscriptionLister(),
+		csvLister:  lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		ipLister:   lister.OperatorsV1alpha1().InstallPlanLister(),
+		client:     client,
+		kubeclient: kubeclient,
 	}
 }
 
@@ -90,6 +88,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	// changes to persist to the cluster and write them out as `steps`
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
+	bundleLookups := []*v1alpha1.BundleLookup{}
 	for name, op := range gen.Operators() {
 		_, isAdded := add[*op.SourceInfo()]
 		existingSubscription, subExists := subMap[*op.SourceInfo()]
@@ -100,7 +99,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		}
 
 		// add steps for any new bundle
-		if op.Bundle() != nil {
+		if op.Bundle().BundlePath == "" {
 			bundleSteps, err := NewStepResourceFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
 			if err != nil {
 				return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
@@ -129,27 +128,20 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 			}
 		}
 
+		if op.Bundle().BundlePath != "" {
+			bundleLookups = append(bundleLookups, &v1alpha1.BundleLookup{
+				Image:            op.Bundle().BundlePath,
+				CatalogName:      op.SourceInfo().Catalog.Name,
+				CatalogNamespace: op.SourceInfo().Catalog.Namespace,
+				Replaces:         op.Replaces(),
+			})
+		}
+
 		// update existing subscriptions status
 		if subExists && existingSubscription.Status.CurrentCSV != op.Identifier() {
 			existingSubscription.Status.CurrentCSV = op.Identifier()
 			updatedSubs = append(updatedSubs, existingSubscription)
 		}
-	}
-
-	// allow other operators to be processed first, then process ones that require copying data out of image
-	bundleLookups := []*v1alpha1.BundleLookup{}
-
-	for bundleImageInfo := range gen.PendingOperators() {
-		// TODO: switch image to standalone image, but this image can be used upstream as well
-		// change to use configmapRegistryImage
-		//configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/openshift/origin-operator-registry:latest", r.operatorNamespace)
-
-		bundleLookups = append(bundleLookups, &v1alpha1.BundleLookup{
-			Image:              bundleImageInfo.image,
-			BundleFromRegistry: bundleImageInfo.bundle,
-			CatalogName:        bundleImageInfo.operatorSourceInfo.Catalog.Name,
-			CatalogNamespace:   bundleImageInfo.operatorSourceInfo.Catalog.Namespace,
-		})
 	}
 
 	return steps, bundleLookups, updatedSubs, nil

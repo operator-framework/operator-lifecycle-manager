@@ -37,10 +37,11 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 				},
 			},
 			want: &NamespaceGeneration{
-				providedAPIs:  EmptyAPIOwnerSet(),
-				requiredAPIs:  EmptyAPIMultiOwnerSet(),
-				uncheckedAPIs: EmptyAPISet(),
-				missingAPIs:   EmptyAPIMultiOwnerSet(),
+				pendingOperators: BundleImageSet{},
+				providedAPIs:     EmptyAPIOwnerSet(),
+				requiredAPIs:     EmptyAPIMultiOwnerSet(),
+				uncheckedAPIs:    EmptyAPISet(),
+				missingAPIs:      EmptyAPIMultiOwnerSet(),
 			},
 		},
 		{
@@ -76,6 +77,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 				},
 			},
 			want: &NamespaceGeneration{
+				pendingOperators: BundleImageSet{},
 				providedAPIs: map[opregistry.APIKey]OperatorSurface{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: &Operator{
 						name: "operator.v1",
@@ -136,7 +138,8 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 				},
 			},
 			want: &NamespaceGeneration{
-				providedAPIs: EmptyAPIOwnerSet(),
+				pendingOperators: BundleImageSet{},
+				providedAPIs:     EmptyAPIOwnerSet(),
 				requiredAPIs: map[opregistry.APIKey]OperatorSet{
 					{Group: "g", Version: "v1", Kind: "APIKind", Plural: "apikinds"}: map[string]OperatorSurface{
 						"operator.v1": &Operator{
@@ -243,6 +246,7 @@ func TestNewGenerationFromCSVs(t *testing.T) {
 				},
 			},
 			want: &NamespaceGeneration{
+				pendingOperators: BundleImageSet{},
 				providedAPIs: map[opregistry.APIKey]OperatorSurface{
 					{Group: "g", Version: "v1", Kind: "APIOwnedKind", Plural: "apiownedkinds"}: &Operator{
 						name: "operator.v1",

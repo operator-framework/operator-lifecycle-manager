@@ -5,14 +5,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+
+	"github.com/operator-framework/operator-registry/pkg/api"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -380,9 +382,10 @@ func TestNamespaceResolver(t *testing.T) {
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
+			kClientFake := k8sfake.NewSimpleClientset()
 
-			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake)
-			steps, subs, err := resolver.ResolveSteps(namespace, tt.querier)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
+			steps, _, subs, err := resolver.ResolveSteps(namespace, tt.querier)
 			require.Equal(t, tt.out.err, err)
 			t.Logf("%#v", steps)
 			RequireStepsEqual(t, expectedSteps, steps)
@@ -449,14 +452,15 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 			for _, steps := range tt.out.steps {
 				expectedSteps = append(expectedSteps, steps...)
 			}
+			kClientFake := k8sfake.NewSimpleClientset()
 			clientFake, informerFactory, _ := StartResolverInformers(namespace, stopc, tt.clusterState...)
 			lister := operatorlister.NewLister()
 			lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, informerFactory.Operators().V1alpha1().Subscriptions().Lister())
 			lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, informerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
 
-			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake)
+			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
 			querier := NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{catalog: tt.bundlesInCatalog})
-			steps, subs, err := resolver.ResolveSteps(namespace, querier)
+			steps, _, subs, err := resolver.ResolveSteps(namespace, querier)
 			require.Equal(t, tt.out.err, err)
 			RequireStepsEqual(t, expectedSteps, steps)
 			require.ElementsMatch(t, tt.out.subs, subs)

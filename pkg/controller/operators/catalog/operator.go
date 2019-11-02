@@ -137,9 +137,10 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
-		resolver:                 resolver.NewOperatorsV1alpha1Resolver(lister, crClient),
+		resolver:                 resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface()),
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
+		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
 		csvProvidedAPIsIndexer:   map[string]cache.Indexer{},
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
@@ -1097,37 +1098,13 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 		}
 
 		// extract data from configmap and write to install plan
-		manifest, err := o.bundleLoader.Load(configmap)
+		bundle, err := o.bundleLoader.Load(configmap)
 		if err != nil {
 			return false, err
 		}
 
-		// combine data from the bundle image into what's already known from the registry
-		bundleLookup.BundleFromRegistry.CsvName = manifest.Bundle.Name
-		bundleLookup.BundleFromRegistry.PackageName = manifest.Bundle.Package
-		bundleLookup.BundleFromRegistry.ChannelName = manifest.Bundle.Channel
-		_, jsonCSV, _, err := manifest.Bundle.Serialize()
-		if err != nil {
-			return false, fmt.Errorf("serialize failed: %s", err.Error())
-		}
-		bundleLookup.BundleFromRegistry.CsvJson = string(jsonCSV)
-		bundleLookup.BundleFromRegistry.Object = []string{string(jsonCSV)}
-		for _, item := range manifest.Bundle.Objects {
-			bytes, err := item.MarshalJSON()
-			if err != nil {
-				return false, fmt.Errorf("marshall failed: %v", err)
-			}
-			bundleLookup.BundleFromRegistry.Object = append(bundleLookup.BundleFromRegistry.Object, string(bytes))
-		}
-
-		var olmCSV v1alpha1.ClusterServiceVersion
-		err = json.Unmarshal(jsonCSV, &olmCSV)
-		if err != nil {
-			return false, fmt.Errorf("csv retrieval failed: %s", err.Error())
-		}
-
 		// TODO: refactor with resolver code (and call the subscription stuff too)
-		bundleSteps, err := resolver.NewStepResourceFromBundle(bundleLookup.BundleFromRegistry, plan.GetNamespace(), olmCSV.Spec.Replaces, bundleLookup.CatalogName, bundleLookup.CatalogNamespace)
+		bundleSteps, err := resolver.NewStepResourceFromBundle(bundle, plan.GetNamespace(), bundleLookup.Replaces, bundleLookup.CatalogName, bundleLookup.CatalogNamespace)
 		if err != nil {
 			return false, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 		}
@@ -1135,7 +1112,7 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 		// TODO: could this add duplicate steps?
 		for _, s := range bundleSteps {
 			plan.Status.Plan = append(plan.Status.Plan, &v1alpha1.Step{
-				Resolving: olmCSV.GetName(),
+				Resolving: bundle.CsvName,
 				Resource:  s,
 				Status:    v1alpha1.StepStatusUnknown,
 			})

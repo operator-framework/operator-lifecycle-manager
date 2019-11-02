@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -83,6 +84,7 @@ type InstallPlanStatus struct {
 	CatalogSources              []string
 	Plan                        []*Step
 	AttenuatedServiceAccountRef *corev1.ObjectReference
+	BundleLookups               []*BundleLookup
 }
 
 // InstallPlanCondition represents the overall status of the execution of
@@ -155,6 +157,24 @@ type Step struct {
 	Resolving string
 	Resource  StepResource
 	Status    StepStatus
+}
+
+// BundleJob tracks the job status for a given bundle
+type BundleJob struct {
+	Name           string                   `json:"name,omitempty"`
+	Namespace      string                   `json:"namespace,omitempty"`
+	Condition      batchv1.JobConditionType `json:"condition,omitempty"`
+	CompletionTime *metav1.Time             `json:"completionTime,omitempty"`
+}
+
+// BundleLookup serves as accounting for tracking a bundle data lookup
+type BundleLookup struct {
+	BundleJob        *BundleJob                  `json:"bundleJob"`
+	ConfigMapRef     *ConfigMapResourceReference `json:"configMapRef"`
+	Image            string                      `json:"image"`
+	CatalogName      string                      `json:"catalogName"`
+	CatalogNamespace string                      `json:"catalogNamespace"`
+	Replaces         string                      `json:"replaces"`
 }
 
 // ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps
