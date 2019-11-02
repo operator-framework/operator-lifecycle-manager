@@ -12,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
+	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 
@@ -24,11 +25,9 @@ var (
 )
 
 func init() {
-	k8sscheme.AddToScheme(scheme)
-	extScheme.AddToScheme(scheme)
-	if err := v1alpha1.AddToScheme(scheme); err != nil {
-		panic(err)
-	}
+	utilruntime.Must(k8sscheme.AddToScheme(scheme))
+	utilruntime.Must(extScheme.AddToScheme(scheme))
+	utilruntime.Must(v1alpha1.AddToScheme(scheme))
 }
 
 // NewStepResourceForObject returns a new StepResource for the provided object

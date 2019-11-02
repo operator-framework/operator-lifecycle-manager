@@ -66,8 +66,9 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 			e.gen.AddPendingOperator(LaunchBundleImageInfo{
 				operatorSourceInfo: op.SourceInfo(),
 				image:              bundle.BundlePath,
-				bundle:             bundle,
+				replaces:           op.Identifier(),
 			})
+			return nil
 		}
 
 		o, err := NewOperatorFromBundle(bundle, op.SourceInfo().StartingCSV, *key)
@@ -97,22 +98,13 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 			// TODO: log or collect warnings
 			return errors.Wrapf(err, "%s not found", s)
 		}
-		if bundle.BundlePath != "" {
-			e.gen.AddPendingOperator(LaunchBundleImageInfo{
-				operatorSourceInfo: &s,
-				image:              bundle.BundlePath,
-				bundle:             bundle,
-			})
-		}
 
 		o, err := NewOperatorFromBundle(bundle, s.StartingCSV, *key)
 		if err != nil {
 			return errors.Wrap(err, "error parsing bundle")
 		}
 		if err := e.gen.AddOperator(o); err != nil {
-			if err != nil {
-				return errors.Wrap(err, "error calculating generation changes due to new bundle")
-			}
+			return errors.Wrap(err, "error calculating generation changes due to new bundle")
 		}
 	}
 	return nil
@@ -137,15 +129,6 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 
 		// attempt to find a bundle that provides that api
 		if bundle, key, err := e.querier.FindProvider(*api, initialSource.Catalog); err == nil {
-			if bundle.BundlePath != "" {
-				e.gen.AddPendingOperator(LaunchBundleImageInfo{
-					operatorSourceInfo: initialSource,
-					image:              bundle.BundlePath,
-					bundle:             bundle,
-				})
-				return nil
-			}
-
 			// add a bundle that provides the api to the generation
 			o, err := NewOperatorFromBundle(bundle, "", *key)
 			if err != nil {
