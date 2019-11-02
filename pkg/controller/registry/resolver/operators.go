@@ -1,7 +1,6 @@
 package resolver
 
 import (
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -239,19 +238,10 @@ type Operator struct {
 var _ OperatorSurface = &Operator{}
 
 func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey CatalogKey) (*Operator, error) {
-	if bundle.CsvJson == "" {
-		return nil, fmt.Errorf("no csv json found")
-	}
-	csv := &registry.ClusterServiceVersion{}
-	if err := json.Unmarshal([]byte(bundle.CsvJson), csv); err != nil {
-		return nil, err
-	}
-
-	version, _ := csv.GetVersion()
-	parsedVersion, err := semver.ParseTolerant(version)
-	v := &parsedVersion
+	parsedVersion, err := semver.ParseTolerant(bundle.Version)
+	version := &parsedVersion
 	if err != nil {
-		v = nil
+		version = nil
 	}
 
 	provided := APISet{}
@@ -264,8 +254,8 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 	}
 
 	return &Operator{
-		name:         csv.GetName(),
-		version:      v,
+		name:         bundle.CsvName,
+		version:      version,
 		providedAPIs: provided,
 		requiredAPIs: required,
 		bundle:       bundle,

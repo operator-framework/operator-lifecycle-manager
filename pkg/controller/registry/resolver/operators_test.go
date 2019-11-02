@@ -917,6 +917,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
+		Version:     version.String(),
 		CsvJson:     string(csvJson),
 		Object:      []string{string(csvJson)},
 	}
@@ -987,6 +988,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
+		Version:     version.String(),
 		CsvJson:     string(csvJsonWithApis),
 		Object:      []string{string(csvJsonWithApis), string(crdJson)},
 		ProvidedApis: []*api.GroupVersionKind{
@@ -1038,7 +1040,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				replaces:  "",
 			},
 			want: &Operator{
-				name:         "testCSV",
+				name:         "testBundle",
 				version:      &version.Version,
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
@@ -1058,7 +1060,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				replaces:  "",
 			},
 			want: &Operator{
-				name:    "testCSV",
+				name:    "testBundle",
 				version: &version.Version,
 				providedAPIs: APISet{
 					opregistry.APIKey{
@@ -1104,7 +1106,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				replaces:  "replaced",
 			},
 			want: &Operator{
-				name:         "testCSV",
+				name:         "testBundle",
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
