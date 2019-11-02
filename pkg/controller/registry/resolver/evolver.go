@@ -60,14 +60,14 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 
 		bundle, key, err := e.querier.FindReplacement(op.Version(), op.Identifier(), op.SourceInfo().Package, op.SourceInfo().Channel, op.SourceInfo().Catalog)
 		if err != nil || bundle == nil {
-			if bundle.BundlePath != "" {
-				e.gen.AddPendingOperator(LaunchBundleImageInfo{
-					operatorSourceInfo: op.SourceInfo(),
-					image:              bundle.BundlePath,
-					bundle:             bundle,
-				})
-			}
 			continue
+		}
+		if bundle.BundlePath != "" {
+			e.gen.AddPendingOperator(LaunchBundleImageInfo{
+				operatorSourceInfo: op.SourceInfo(),
+				image:              bundle.BundlePath,
+				bundle:             bundle,
+			})
 		}
 
 		o, err := NewOperatorFromBundle(bundle, op.SourceInfo().StartingCSV, *key)
@@ -90,28 +90,19 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 		var err error
 		if s.StartingCSV != "" {
 			bundle, key, err = e.querier.FindBundle(s.Package, s.Channel, s.StartingCSV, s.Catalog)
-			if bundle.BundlePath != "" {
-				e.gen.AddPendingOperator(LaunchBundleImageInfo{
-					operatorSourceInfo: &s,
-					image:              bundle.BundlePath,
-					bundle:             bundle,
-				})
-				continue
-			}
 		} else {
 			bundle, key, err = e.querier.FindLatestBundle(s.Package, s.Channel, s.Catalog)
-			if bundle != nil && bundle.BundlePath != "" {
-				e.gen.AddPendingOperator(LaunchBundleImageInfo{
-					operatorSourceInfo: &s,
-					image:              bundle.BundlePath,
-					bundle:             bundle,
-				})
-				continue
-			}
 		}
 		if err != nil {
 			// TODO: log or collect warnings
 			return errors.Wrapf(err, "%s not found", s)
+		}
+		if bundle.BundlePath != "" {
+			e.gen.AddPendingOperator(LaunchBundleImageInfo{
+				operatorSourceInfo: &s,
+				image:              bundle.BundlePath,
+				bundle:             bundle,
+			})
 		}
 
 		o, err := NewOperatorFromBundle(bundle, s.StartingCSV, *key)

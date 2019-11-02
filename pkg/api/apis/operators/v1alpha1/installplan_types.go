@@ -182,7 +182,6 @@ type BundleLookup struct {
 	BundleFromRegistry   *api.Bundle                 `json:"bundleFromRegistry"`
 	CatalogName          string                      `json:"catalogName"`
 	CatalogNamespace     string                      `json:"catalogNamespace"`
-	IsInstallPlanUpdated bool                        `json:"isInstallPlanUpdated"`
 }
 
 // ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps

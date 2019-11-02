@@ -6,14 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
-
-	"github.com/operator-framework/operator-registry/pkg/configmap"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -143,46 +139,12 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	// allow other operators to be processed first, then process ones that require copying data out of image
 	bundleLookups := []*v1alpha1.BundleLookup{}
 
-	// prune operators that have in progress bundle image jobs
-	for bundleImageInfo := range gen.PendingOperators() {
-		// TODO: this is not ideal...
-		ips, err := r.listInstallPlans(namespace)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		for _, ip := range ips {
-			for _, lookup := range ip.Status.BundleLookups {
-				if lookup.Image == bundleImageInfo.image {
-					logrus.Debugf("found existing install plan, skipping bundle image %v", lookup.Image)
-					gen.RemovePendingOperator(bundleImageInfo)
-				}
-			}
-		}
-	}
-
 	for bundleImageInfo := range gen.PendingOperators() {
 		// TODO: switch image to standalone image, but this image can be used upstream as well
 		// change to use configmapRegistryImage
 		//configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/openshift/origin-operator-registry:latest", r.operatorNamespace)
 
-		configmap, job, err := configmap.LaunchBundleImage(r.kubeclient, bundleImageInfo.image, "quay.io/jpeeler/bundle-init-image:latest", r.operatorNamespace)
-		if err != nil {
-			return nil, nil, nil, err
-		}
-		logrus.Infof("Launched bundle job for image %v", bundleImageInfo.image)
-
 		bundleLookups = append(bundleLookups, &v1alpha1.BundleLookup{
-			BundleJob: &v1alpha1.BundleJob{
-				// job condition and completion time will be filled out later (installplan sync)
-				Name:      job.GetName(),
-				Namespace: job.GetNamespace(),
-			},
-			ConfigMapRef: &v1alpha1.ConfigMapResourceReference{
-				Name:            configmap.GetName(),
-				Namespace:       configmap.GetNamespace(),
-				UID:             configmap.GetUID(),
-				ResourceVersion: configmap.GetResourceVersion(),
-			},
 			Image:              bundleImageInfo.image,
 			BundleFromRegistry: bundleImageInfo.bundle,
 			CatalogName:        bundleImageInfo.operatorSourceInfo.Catalog.Name,

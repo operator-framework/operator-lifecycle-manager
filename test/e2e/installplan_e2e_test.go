@@ -2605,25 +2605,10 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
 	defer cleanupSubscription()
 
-	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAny)
-	//subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
-	//installPlanName := subscription.Status.Install.Name
-
-	// until subscription references are fixed...
-TRYAGAIN:
-	var installPlanName string
-	ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
-	require.NoError(t, err)
-	for _, ip := range ips.Items {
-		if ip.GetOwnerReferences()[0].Name == subscriptionName {
-			installPlanName = ip.GetName()
-		}
-	}
-	if installPlanName == "" {
-		goto TRYAGAIN
-	}
+	installPlanName := subscription.Status.Install.Name
 
 	// get InstallPlan
 	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
@@ -2640,7 +2625,8 @@ TRYAGAIN:
 		registry.ResourceKey{Name: operatorName, Kind: "ClusterRole"}:                                            {},
 		registry.ResourceKey{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
 	}
-	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed")
+
+	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed: %v", fetchedInstallPlan.Status.Plan)
 
 	for _, step := range fetchedInstallPlan.Status.Plan {
 		key := registry.ResourceKey{
@@ -2650,7 +2636,6 @@ TRYAGAIN:
 		for expected := range expectedSteps {
 			if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
 				delete(expectedSteps, expected)
-				break
 			} else {
 				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 			}

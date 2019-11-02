@@ -762,7 +762,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	}
 
 	// create installplan if anything updated
-	if len(updatedSubs) > 0 || len(bundleLookups) > 0 {
+	if len(updatedSubs) > 0 {
 		logger.Debug("resolution caused subscription changes, creating installplan")
 		// any subscription in the namespace with manual approval will force generated installplans to be manual
 		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
@@ -871,7 +871,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 			return nil, false, err
 		}
 		bundle, _, _ := querier.FindReplacement(&csv.Spec.Version.Version, sub.Status.CurrentCSV, sub.Spec.Package, sub.Spec.Channel, resolver.CatalogKey{Name: sub.Spec.CatalogSource, Namespace: sub.Spec.CatalogSourceNamespace})
-		if bundle != nil || bundle.BundlePath != "" {
+		if bundle != nil {
 			o.logger.Tracef("replacement %s bundle found for current bundle %s", bundle.CsvName, sub.Status.CurrentCSV)
 			out.Status.State = v1alpha1.SubscriptionStateUpgradeAvailable
 		} else {
@@ -1023,10 +1023,38 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 
 func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) {
 	for _, bundleLookup := range plan.Status.BundleLookups {
-		if bundleLookup.IsInstallPlanUpdated == true {
-			continue
+		if bundleLookup.BundleJob == nil {
+			configmap, job, err := configmap.LaunchBundleImage(o.opClient.KubernetesInterface(), bundleLookup.Image, "quay.io/jpeeler/bundle-init-image:latest", o.namespace)
+			if err != nil {
+				return false, err
+			}
+			logrus.Infof("Launched bundle job for image %v", bundleLookup.Image)
+
+			bundleLookup.BundleJob = &v1alpha1.BundleJob{
+				// job condition and completion time will be filled out later (installplan sync)
+				Name:      job.GetName(),
+				Namespace: job.GetNamespace(),
+			}
+			bundleLookup.ConfigMapRef = &v1alpha1.ConfigMapResourceReference{
+				Name:            configmap.GetName(),
+				Namespace:       configmap.GetNamespace(),
+				UID:             configmap.GetUID(),
+				ResourceVersion: configmap.GetResourceVersion(),
+			}
+			_, err = o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(plan)
+			if err != nil {
+				return false, err
+			}
+
+			return false, nil
 		}
 
+		if bundleLookup.BundleJob.CompletionTime != nil {
+			// already processed
+			return true, nil
+		}
+
+		// TODO: instead of doing a get, should just watch all jobs (add ownerref) and update the installplan from there
 		job, err := o.opClient.KubernetesInterface().BatchV1().Jobs(bundleLookup.BundleJob.Namespace).Get(bundleLookup.BundleJob.Name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
@@ -1079,6 +1107,7 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 			return false, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 		}
 
+		// TODO: could this add duplicate steps?
 		for _, s := range bundleSteps {
 			plan.Status.Plan = append(plan.Status.Plan, &v1alpha1.Step{
 				Resolving: olmCSV.GetName(),
@@ -1086,7 +1115,6 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 				Status:    v1alpha1.StepStatusUnknown,
 			})
 		}
-		bundleLookup.IsInstallPlanUpdated = true
 	}
 
 	if _, err := o.client.OperatorsV1alpha1().InstallPlans(plan.GetNamespace()).UpdateStatus(plan); err != nil {
