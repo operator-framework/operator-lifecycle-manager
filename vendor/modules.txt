@@ -160,7 +160,12 @@ github.com/openshift/client-go/config/listers/config/v1
 github.com/operator-framework/operator-registry/pkg/api
 github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1
 github.com/operator-framework/operator-registry/pkg/client
+<<<<<<< ours
 github.com/operator-framework/operator-registry/pkg/containertools
+=======
+github.com/operator-framework/operator-registry/pkg/configmap
+github.com/operator-framework/operator-registry/pkg/lib/bundle
+>>>>>>> theirs
 github.com/operator-framework/operator-registry/pkg/registry
 github.com/operator-framework/operator-registry/pkg/server
 github.com/operator-framework/operator-registry/pkg/sqlite
