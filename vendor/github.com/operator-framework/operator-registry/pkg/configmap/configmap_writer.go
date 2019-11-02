@@ -164,10 +164,9 @@ func LaunchBundleImage(kubeclient kubernetes.Interface, bundleImage, initImage, 
 					RestartPolicy: corev1.RestartPolicyOnFailure,
 					Containers: []corev1.Container{
 						{
-							Name:            "bundle-image",
-							Image:           bundleImage,
-							ImagePullPolicy: "Never",
-							Command:         []string{"/injected/opm", "alpha", "bundle", "extract", "-n", namespace, "-c", newConfigMap.GetName()},
+							Name:    "bundle-image",
+							Image:   bundleImage,
+							Command: []string{"/injected/opm", "alpha", "bundle", "extract", "-n", namespace, "-c", newConfigMap.GetName()},
 							Env: []corev1.EnvVar{
 								{
 									Name:  EnvContainerImage,
@@ -184,10 +183,9 @@ func LaunchBundleImage(kubeclient kubernetes.Interface, bundleImage, initImage, 
 					},
 					InitContainers: []corev1.Container{
 						{
-							Name:            "copy-binary",
-							Image:           initImage,
-							ImagePullPolicy: "Never",
-							Command:         []string{"/bin/cp", "opm", "/copy-dest"},
+							Name:    "copy-binary",
+							Image:   initImage,
+							Command: []string{"/bin/cp", "/bin/opm", "/copy-dest"},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "copydir",

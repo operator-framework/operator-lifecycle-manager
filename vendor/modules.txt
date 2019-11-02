@@ -156,7 +156,11 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
+<<<<<<< ours
 # github.com/operator-framework/operator-registry v1.5.3
+=======
+# github.com/operator-framework/operator-registry v1.5.2-0.20191101035332-d2b7fe75b79c
+>>>>>>> theirs
 github.com/operator-framework/operator-registry/pkg/api
 github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1
 github.com/operator-framework/operator-registry/pkg/client

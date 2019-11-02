@@ -288,6 +288,7 @@ github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0/go.mod h1:8NvIoxWQoOIhqOTXgf
 github.com/grpc-ecosystem/grpc-gateway v1.3.0/go.mod h1:RSKVYQBd5MCa4OVpNdGskqpgL2+G+NZTnrVHpWWfpdw=
 github.com/grpc-ecosystem/grpc-gateway v1.9.4 h1:5xLhQjsk4zqPf9EHCrja2qFZMx+yBqkO3XgJ14bNnU0=
 github.com/grpc-ecosystem/grpc-gateway v1.9.4/go.mod h1:vNeuVxBJEsws4ogUvrchl83t/GYV9WGTSLVdBhOQFDY=
+github.com/grpc-ecosystem/grpc-health-probe v0.2.1-0.20181220223928-2bf0a5b182db h1:UxmGBzaBcWDQuQh9E1iT1dWKQFbizZ+SpTd1EL4MSqs=
 github.com/grpc-ecosystem/grpc-health-probe v0.2.1-0.20181220223928-2bf0a5b182db/go.mod h1:uBKkC2RbarFsvS5jMJHpVhTLvGlGQj9JJwkaePE3FWI=
 github.com/hailocab/go-hostpool v0.0.0-20160125115350-e80d13ce29ed/go.mod h1:tMWxXQ9wFIaZeTI9F+hmhFiGpFmhOHzyShyFUhRm0H4=
 github.com/hashicorp/errwrap v1.0.0/go.mod h1:YH+1FKiLXxHSkmPseP+kNlulaMuP3n2brvKWEqk/Jc4=
@@ -428,8 +429,13 @@ github.com/operator-framework/operator-registry v1.4.0 h1:yhI7ZeF6d7G588i2egoFjg
 github.com/operator-framework/operator-registry v1.4.0/go.mod h1:3nJcOSX6TKPpAbmGOAVvDxakZWgccyF0WgiJsKjPAzQ=
 github.com/operator-framework/operator-registry v1.5.1 h1:8ruUOG6IBDVTAXYWKsv6hwr4yv/0SFPFPAYGCpcv97E=
 github.com/operator-framework/operator-registry v1.5.1/go.mod h1:agrQlkWOo1q8U1SAaLSS2WQ+Z9vswNT2M2HFib9iuLY=
+<<<<<<< ours
 github.com/operator-framework/operator-registry v1.5.3 h1:az83WDwgB+tHsmVn+tFq72yQBbaUAye8e4+KkDQmzLs=
 github.com/operator-framework/operator-registry v1.5.3/go.mod h1:agrQlkWOo1q8U1SAaLSS2WQ+Z9vswNT2M2HFib9iuLY=
+=======
+github.com/operator-framework/operator-registry v1.5.2-0.20191101035332-d2b7fe75b79c h1:ozT20B/o6SfMeZr2kjGVvSviTYh0xJ4fHxRPjAfvk7E=
+github.com/operator-framework/operator-registry v1.5.2-0.20191101035332-d2b7fe75b79c/go.mod h1:agrQlkWOo1q8U1SAaLSS2WQ+Z9vswNT2M2HFib9iuLY=
+>>>>>>> theirs
 github.com/otiai10/copy v1.0.1 h1:gtBjD8aq4nychvRZ2CyJvFWAw0aja+VHazDdruZKGZA=
 github.com/otiai10/copy v1.0.1/go.mod h1:8bMCJrAqOtN/d9oyh5HR7HhLQMvcGMpGdwRDYsfOCHc=
 github.com/otiai10/curr v0.0.0-20150429015615-9b4961190c95/go.mod h1:9qAhocn7zKJG+0mI8eUu6xqkFDYS2kb2saOteoSB3cE=
