@@ -25,7 +25,7 @@ olm:
 
 catalog:
   replicaCount: 1
-  commandArgs: --configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+  commandArgs: --configmapServerImage=ecordell/configmap-operator-registry:latest
   image:
     ref: quay.io/operator-framework/olm:master
     pullPolicy: Always
