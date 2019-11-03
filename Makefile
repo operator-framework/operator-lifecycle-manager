@@ -153,11 +153,9 @@ codegen-v2: controller-gen
 	$(CONTROLLER_GEN) object:headerFile=boilerplate.go.txt paths=$(GEN_PATHS)
 
 # Find or download controller-gen.
-# Note: v0.2.1 is incompatible with k8s 1.16 deps, so download is broken until controller-tools is bumped.
 controller-gen:
 ifeq (, $(shell which controller-gen))
-	go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.2
-CONTROLLER_GEN=$(GOBIN)/controller-gen
+CONTROLLER_GEN=go run -mod=vendor ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
 else
 CONTROLLER_GEN=$(shell which controller-gen)
 endif
