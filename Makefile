@@ -4,6 +4,8 @@
 
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
+OS := $(shell go env GOOS)
+ARCH := $(shell go env GOARCH)
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
 CMDS  := $(shell go list $(MOD_FLAGS) ./cmd/...)
 TCMDS := $(shell go list $(MOD_FLAGS) ./test/e2e/...)
@@ -33,14 +35,22 @@ endif
 GIT_COMMIT := $(if $(SOURCE_GIT_COMMIT),$(SOURCE_GIT_COMMIT),$(shell git rev-parse HEAD))
 
 .PHONY: build test run clean vendor schema-check \
-	vendor-update coverage coverage-html e2e manifests controller-gen .FORCE
+	vendor-update coverage coverage-html e2e manifests \
+	controller-gen kubebuilder .FORCE
 
 all: test build
 
 test: clean cover.out
 
-unit:
-	go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -tags=json1 -count=1 ./pkg/...
+unit: kubebuilder
+	$(KUBEBUILDER_ENV) go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -tags=json1 -count=1 ./pkg/...
+
+# Install kubebuilder if not found
+kubebuilder:
+ifeq (, $(shell which kubebuilder))
+	@curl -sL https://go.kubebuilder.io/dl/2.0.1/$(OS)/$(ARCH) | tar -xz -C /tmp/
+KUBEBUILDER_ENV := KUBEBUILDER_ASSETS=/tmp/kubebuilder_2.0.1_$(OS)_$(ARCH)/bin
+endif
 
 schema-check:
 
