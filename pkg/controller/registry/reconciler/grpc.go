@@ -203,6 +203,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 		}
 
 		if source.ReadyToUpdate() {
+			logrus.WithField("catalog-update", source.GetName()).Info(fmt.Sprintf("updating catalog source %t", source.ReadyToUpdate()))
 			// delete old update pods
 			for _, p := range currentUpdatePods {
 				if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
@@ -220,6 +221,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 
 	// no existing update pods: need to make an update pod
 	if source.ReadyToUpdate() {
+		logrus.WithField("catalog-update", source.GetName()).Info(fmt.Sprintf("updating catalog source %t", source.ReadyToUpdate()))
 		source.SetLastUpdateTime()
 		err := c.createUpdatePod(source)
 		if err != nil {
@@ -260,7 +262,7 @@ func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorat
 	return nil
 }
 
-// checkUpdatePodDigest checks update pod to get Image ID and see if it matches the old version
+//  updatePodByDigest checks update pod to get Image ID and see if it matches the old version, to decide whether to update
 func updatePodByDigest(pod *corev1.Pod, source grpcCatalogSourceDecorator) bool {
 	var newCatalogSourceImage string
 	if pod.Status.ContainerStatuses != nil {
@@ -269,8 +271,11 @@ func updatePodByDigest(pod *corev1.Pod, source grpcCatalogSourceDecorator) bool 
 		return false
 	}
 
-	logrus.WithField("pod", pod.Spec.Containers[0].Image).Info(fmt.Sprintf("found new image digest %s",
-		pod.Status.ContainerStatuses[0].ImageID))
+	logrus.WithField("pod", pod.Spec.Containers[0].Image).Info(fmt.Sprintf("found new image digest \n %s",
+		newCatalogSourceImage))
+
+	logrus.WithField("pod", source.Pod().GetName()).Info(fmt.Sprintf("old image digest \n %s",
+		source.Pod().Status.ContainerStatuses[0].ImageID))
 
 	return newCatalogSourceImage == source.Pod().Status.ContainerStatuses[0].ImageID
 }
