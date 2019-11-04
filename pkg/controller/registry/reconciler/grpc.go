@@ -30,7 +30,7 @@ func (s *grpcCatalogSourceDecorator) Selector() labels.Selector {
 	})
 }
 
-func (s *grpcCatalogSourceDecorator) UpdateSelector() labels.Selector {
+func (s *grpcCatalogSourceDecorator) SelectorForUpdate() labels.Selector {
 	return labels.SelectorFromValidatedSet(map[string]string{
 		CatalogSourceUpdateKey: s.GetName(),
 	})
@@ -100,7 +100,7 @@ func (c *GrpcRegistryReconciler) currentPods(source grpcCatalogSourceDecorator) 
 }
 
 func (c *GrpcRegistryReconciler) currentUpdatePods(source grpcCatalogSourceDecorator) []*v1.Pod {
-	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.UpdateSelector())
+	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(source.SelectorForUpdate())
 	if err != nil {
 		logrus.WithError(err).Warn("couldn't find pod in cache")
 		return nil
@@ -182,46 +182,50 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 
 // ensureUpdatePod checks that for the same catalog source version the same imageID is running
 func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator) error {
+	var updateFlag bool
 	currentLivePods := c.currentPods(source)
-	//currentUpdatePods refers to test instances of the catalog source, checking if the catalog source has been updated
 	currentUpdatePods := c.currentUpdatePods(source)
-	if len(currentUpdatePods) > 0 {
-		for _, updatePod := range currentUpdatePods {
-			if updatePodByDigest(updatePod, source) {
-				// there exists an update updatePod with a new digest
-				// route traffic to that updatePod and delete the old catalog source updatePod
-				updatePod.Labels[CatalogSourceLabelKey] = source.GetName()
-				updatePod.Labels[CatalogSourceUpdateKey] = ""
 
-				for _, p := range currentLivePods {
-					if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
-						return errors.Wrapf(err, "error deleting old updatePod: %s", p.GetName())
-					}
-				}
-				return nil
-			}
-		}
+	for _, updatePod := range currentUpdatePods {
+		if updatePodByDigest(updatePod, currentLivePods) {
+			logrus.WithField("CatalogSource", source.GetName()).Info("detect image update for catalogsource pod")
 
-		if source.ReadyToUpdate() {
-			// delete old update pods
-			for _, p := range currentUpdatePods {
-				if err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Delete(p.GetName(), metav1.NewDeleteOptions(0)); err != nil {
-					return errors.Wrapf(err, "error deleting old updatePod: %s", p.GetName())
-				}
-			}
-			// make new updated catalog source updatePod
-			source.SetLastUpdateTime()
-			err := c.createUpdatePod(source)
+			updateFlag = true
+			updatePod.Labels[CatalogSourceLabelKey] = source.GetName()
+			updatePod.Labels[CatalogSourceUpdateKey] = ""
+
+			// Update the update pod to promote it to serving pod
+			_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Update(updatePod)
 			if err != nil {
-				return errors.Wrapf(err, "error creating update catalog source updatePod")
+				return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetName())
 			}
+
+			break
 		}
 	}
 
-	// no existing update pods: need to make an update pod
+	if updateFlag {
+		// Clean up outdated serving pod(s)
+		err := c.removePods(currentLivePods, source.GetNamespace())
+		if err != nil {
+			return err
+		}
+
+		return nil
+	} else {
+		logrus.WithField("CatalogSource", source.GetName()).Info("no image update for catalogsource pod")
+	}
+
 	if source.ReadyToUpdate() {
+		// Clean up outdated update pod(s) before creating a new update pod
+		currentUpdatePods = c.currentUpdatePods(source)
+		err := c.removePods(currentUpdatePods, source.GetNamespace())
+		if err != nil {
+			return err
+		}
+
 		source.SetLastUpdateTime()
-		err := c.createUpdatePod(source)
+		err = c.createUpdatePod(source)
 		if err != nil {
 			return errors.Wrapf(err, "error creating update catalog source pod")
 		}
@@ -253,7 +257,7 @@ func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorat
 
 	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
 	if err != nil {
-		logrus.WithField("pod", "catalog-source-pod").Warn("couldn't create new catalog source pod")
+		logrus.WithField("pod", source.Pod().GetName()).Warn("couldn't create new catalogsource pod")
 		return err
 	}
 
@@ -261,18 +265,39 @@ func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorat
 }
 
 // checkUpdatePodDigest checks update pod to get Image ID and see if it matches the old version
-func updatePodByDigest(pod *corev1.Pod, source grpcCatalogSourceDecorator) bool {
-	var newCatalogSourceImage string
-	if pod.Status.ContainerStatuses != nil {
-		newCatalogSourceImage = pod.Status.ContainerStatuses[0].ImageID
-	} else {
-		return false
+func updatePodByDigest(updatePod *corev1.Pod, servingPods []*corev1.Pod) bool {
+	newCatSrcImage := getPodImageID(updatePod)
+
+	if len(servingPods) > 0 {
+		for _, p := range servingPods {
+			if newCatSrcImage != getPodImageID(p) {
+				return true
+			}
+		}
 	}
 
-	logrus.WithField("pod", pod.Spec.Containers[0].Image).Info(fmt.Sprintf("found new image digest %s",
-		pod.Status.ContainerStatuses[0].ImageID))
+	return false
+}
 
-	return newCatalogSourceImage == source.Pod().Status.ContainerStatuses[0].ImageID
+func getPodImageID(pod *corev1.Pod) string {
+	if pod.Status.ContainerStatuses != nil && len(pod.Status.ContainerStatuses) > 0 {
+		return pod.Status.ContainerStatuses[0].ImageID
+	} else {
+		return ""
+	}
+}
+
+func (c *GrpcRegistryReconciler) removePods(pods []*corev1.Pod, namespace string) error {
+	if len(pods) > 0 {
+		for _, p := range pods {
+			err := c.OpClient.KubernetesInterface().CoreV1().Pods(namespace).Delete(p.GetName(), metav1.NewDeleteOptions(0))
+			if err != nil {
+				return errors.Wrapf(err, "error deleting pod: %s", p.GetName())
+			}
+		}
+	}
+
+	return nil
 }
 
 // CheckRegistryServer returns true if the given CatalogSource is considered healthy; false otherwise.
