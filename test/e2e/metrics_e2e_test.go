@@ -89,9 +89,9 @@ func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podN
 	var foundKey bool
 	// assuming -tls-cert and -tls-key aren't used anywhere else as a parameter value
 	for _, param := range olmPod.Spec.Containers[0].Args {
-		if param == "-tls-cert" {
+		if param == "--tls-cert" {
 			foundCert = true
-		} else if param == "-tls-key" {
+		} else if param == "--tls-key" {
 			foundKey = true
 		}
 	}

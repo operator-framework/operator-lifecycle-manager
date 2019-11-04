@@ -57,7 +57,6 @@ func TestOperatorComponentSelection(t *testing.T) {
 	defer cancel()
 	expectedKey := "operators.coreos.com/" + o.GetName()
 	awaitPredicates(deadline, t, w, operatorPredicate(func(op *operatorsv2alpha1.Operator) bool {
-		fmt.Printf("operator: %v\n", op)
 		if op.Status.Components == nil || op.Status.Components.LabelSelector == nil {
 			return false
 		}
