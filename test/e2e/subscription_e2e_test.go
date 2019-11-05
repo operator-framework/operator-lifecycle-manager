@@ -921,6 +921,8 @@ func TestSubscriptionUpdatesExistingInstallPlan(t *testing.T) {
 	// Delete this subscription
 	err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
 	require.NoError(t, err)
+	// Delete orphaned csvB
+	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvB.GetName(), &metav1.DeleteOptions{}))
 
 	// Create an InstallPlan for csvB
 	ip := &v1alpha1.InstallPlan{
