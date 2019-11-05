@@ -20,7 +20,7 @@ import (
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	extScheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/apiserver/pkg/storage/names"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/component-base/featuregate"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -222,7 +223,7 @@ func awaitAnnotations(t *testing.T, query func() (metav1.ObjectMeta, error), exp
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Waiting for annotations to match %v", expected)
 		obj, err := query()
-		if err != nil && !errors.IsNotFound(err) {
+		if err != nil && !apierrors.IsNotFound(err) {
 			return false, err
 		}
 		t.Logf("current annotations: %v", obj.GetAnnotations())
@@ -258,7 +259,7 @@ func waitForDelete(checkResource checkResourceFunc) error {
 	var err error
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		err := checkResource()
-		if errors.IsNotFound(err) {
+		if apierrors.IsNotFound(err) {
 			return true, nil
 		}
 		if err != nil {
@@ -447,7 +448,7 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 
 	t.Logf("Creating catalog source %s in namespace %s...", name, namespace)
 	catalogSource, err := crc.OperatorsV1alpha1().CatalogSources(namespace).Create(catalogSource)
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
 	t.Logf("Catalog source %s created", name)
@@ -499,7 +500,7 @@ func createConfigMapForCatalogData(t *testing.T, c operatorclient.ClientInterfac
 	}
 
 	createdConfigMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Create(catalogConfigMap)
-	if err != nil && !errors.IsAlreadyExists(err) {
+	if err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
 	return createdConfigMap, buildConfigMapCleanupFunc(t, c, namespace, createdConfigMap)
@@ -710,8 +711,10 @@ func toggleFeatureGates(t *testing.T, c operatorclient.ClientInterface, deployme
 		return err
 	}
 
-	_, err = c.KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace()).Update(deployment)
-	if err != nil {
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		_, err := c.KubernetesInterface().AppsV1().Deployments(deployment.GetNamespace()).Update(deployment)
+		return err
+	}); err != nil {
 		return err
 	}
 
@@ -723,8 +726,34 @@ func toggleFeatureGates(t *testing.T, c operatorclient.ClientInterface, deployme
 	return err
 }
 
-func toggleCVO() (func() error, error) {
-	return func() error {
-		return nil
-	}, nil
+const (
+	cvoNamespace      = "openshift-cluster-version"
+	cvoDeploymentName = "cluster-version-operator"
+)
+
+func toggleCVO(t *testing.T, c operatorclient.ClientInterface) error {
+	scale, err := c.KubernetesInterface().AppsV1().Deployments(cvoNamespace).GetScale(cvoDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			// CVO is not enabled
+			err = nil
+		}
+
+		return err
+	}
+
+	if scale.Spec.Replicas > 0 {
+		scale.Spec.Replicas = 0
+	} else {
+		scale.Spec.Replicas = 1
+	}
+
+	if err := retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+		_, err := c.KubernetesInterface().AppsV1().Deployments(cvoNamespace).UpdateScale(cvoDeploymentName, scale)
+		return err
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -31,11 +31,13 @@ import (
 // 11. Delete ns-b
 // 12. Ensure the reference to ns-b is eventually removed from o's status.components.refs field
 func TestOperatorComponentSelection(t *testing.T) {
-	// Toggle v2alpha1 feature-gate for this test.
+	// Toggle v2alpha1 feature-gate for this test
 	c := newKubeClient(t)
+	require.NoError(t, toggleCVO(t, c))
 	require.NoError(t, togglev2alpha1(t, c))
 	defer func() {
 		require.NoError(t, togglev2alpha1(t, c))
+		require.NoError(t, toggleCVO(t, c))
 	}()
 
 	// Create an operator resource, o
