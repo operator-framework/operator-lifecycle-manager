@@ -310,6 +310,75 @@ func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, c
 	return
 }
 
+
+func newCatalogSourceWithDependencies(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []install.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
+	prefixFunc := func(s string) string {
+		return fmt.Sprintf("%s-%s-", prefix, s)
+	}
+
+	// Create CSV
+	packageName1 := genName(prefixFunc("package"))
+	packageName2 := genName(prefixFunc("package"))
+	stableChannel := "stable"
+
+	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
+	csvA := newCSV("nginx-req-dep", namespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
+	csvB := newCSV("nginx-dependency", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+
+	// Create PackageManifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName1,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvA.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+		{
+			PackageName: packageName2,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvB.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	catalogSourceName := genName(prefixFunc("catsrc"))
+	catsrc, cleanup = createInternalCatalogSource(t, kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	require.NotNil(t, catsrc)
+	require.NotNil(t, cleanup)
+
+	subscriptionSpec = &v1alpha1.SubscriptionSpec{
+		CatalogSource:          catsrc.GetName(),
+		CatalogSourceNamespace: catsrc.GetNamespace(),
+		Package:                packageName1,
+		Channel:                stableChannel,
+		StartingCSV:            csvA.GetName(),
+		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+	}
+	return
+}
+
 func mustHaveCondition(t *testing.T, ip *v1alpha1.InstallPlan, conditionType v1alpha1.InstallPlanConditionType) (condition *v1alpha1.InstallPlanCondition) {
 	for i := range ip.Status.Conditions {
 		if ip.Status.Conditions[i].Type == conditionType {
