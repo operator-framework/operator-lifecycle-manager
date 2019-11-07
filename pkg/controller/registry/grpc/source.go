@@ -142,27 +142,30 @@ func (s *SourceStore) watch(ctx context.Context, key resolver.CatalogKey, source
 		case <-ctx.Done():
 			return
 		default:
-			timer, _ := context.WithTimeout(ctx, s.stateTimeout(state))
-			if source.Conn.WaitForStateChange(timer, state) {
-				newState := source.Conn.GetState()
-				state = newState
+			func() {
+				timer, cancel := context.WithTimeout(ctx, s.stateTimeout(state))
+				defer cancel()
+				if source.Conn.WaitForStateChange(timer, state) {
+					newState := source.Conn.GetState()
+					state = newState
 
-				// update connection state
-				src := s.Get(key)
-				if src == nil {
-					// source was removed, cleanup this goroutine
-					return
+					// update connection state
+					src := s.Get(key)
+					if src == nil {
+						// source was removed, cleanup this goroutine
+						return
+					}
+
+					src.LastConnect = metav1.Now()
+					src.ConnectionState = newState
+					s.sourcesLock.Lock()
+					s.sources[key] = *src
+					s.sourcesLock.Unlock()
+
+					// notify subscriber
+					s.notify <- SourceState{Key: key, State: newState}
 				}
-
-				src.LastConnect = metav1.Now()
-				src.ConnectionState = newState
-				s.sourcesLock.Lock()
-				s.sources[key] = *src
-				s.sourcesLock.Unlock()
-
-				// notify subscriber
-				s.notify <- SourceState{Key: key, State: newState}
-			}
+			}()
 		}
 	}
 }
