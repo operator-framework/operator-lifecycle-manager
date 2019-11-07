@@ -2,6 +2,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -2376,16 +2377,14 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	done := make(chan struct{})
-	quit := make(chan struct{})
-	defer close(quit)
+	errExit := make(chan error)
 	go func() {
 		for {
 			select {
-			case <-quit:
-				return
 			case evt, ok := <-crWatcher.ResultChan():
 				if !ok {
-					t.Fatal("cr watch channel closed unexpectedly")
+					errExit <- errors.New("cr watch channel closed unexpectedly")
+					return
 				}
 				if evt.Type == watch.Deleted {
 					cr, ok := evt.Object.(*rbacv1.ClusterRole)
@@ -2395,11 +2394,13 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 					delete(createdClusterRoleNames, cr.GetName())
 					if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
 						done <- struct{}{}
+						return
 					}
 				}
 			case evt, ok := <-crbWatcher.ResultChan():
 				if !ok {
-					t.Fatal("crb watch channel closed unexpectedly")
+					errExit <- errors.New("crb watch channel closed unexpectedly")
+					return
 				}
 				if evt.Type == watch.Deleted {
 					crb, ok := evt.Object.(*rbacv1.ClusterRoleBinding)
@@ -2409,11 +2410,13 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 					delete(createdClusterRoleBindingNames, crb.GetName())
 					if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
 						done <- struct{}{}
+						return
 					}
 				}
 			case evt, ok := <-saWatcher.ResultChan():
 				if !ok {
-					t.Fatal("sa watch channel closed unexpectedly")
+					errExit <- errors.New("sa watch channel closed unexpectedly")
+					return
 				}
 				if evt.Type == watch.Deleted {
 					sa, ok := evt.Object.(*corev1.ServiceAccount)
@@ -2423,17 +2426,24 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 					delete(createdServiceAccountNames, sa.GetName())
 					if len(createdClusterRoleNames) == 0 && len(createdClusterRoleBindingNames) == 0 && len(createdServiceAccountNames) == 0 {
 						done <- struct{}{}
+						return
 					}
 				}
 			case <-time.After(pollDuration):
 				done <- struct{}{}
+				return
 			}
 		}
 	}()
 
 	t.Logf("Deleting CSV '%v' in namespace %v", stableCSVName, testNamespace)
 	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
-	<-done
+	select {
+	case <-done:
+		break
+	case err := <-errExit:
+		t.Fatal(err)
+	}
 
 	require.Emptyf(t, createdClusterRoleNames, "unexpected cluster role remain: %v", createdClusterRoleNames)
 	require.Emptyf(t, createdClusterRoleBindingNames, "unexpected cluster role binding remain: %v", createdClusterRoleBindingNames)
