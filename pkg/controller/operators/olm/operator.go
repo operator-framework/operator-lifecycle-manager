@@ -1252,6 +1252,12 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		if unionedAnnotations == nil {
 			unionedAnnotations = make(map[string]string)
 		}
+		if unionedAnnotations[v1.OperatorGroupProvidedAPIsAnnotationKey] == union.String() {
+			// resolver may think apis need adding with invalid input, so continue when there's no work
+			// to be done so that the CSV can progress far enough to get requirements checked
+			a.logger.Debug("operator group annotations up to date, continuing")
+			break
+		}
 		unionedAnnotations[v1.OperatorGroupProvidedAPIsAnnotationKey] = union.String()
 		operatorGroup.SetAnnotations(unionedAnnotations)
 		if _, err := a.client.OperatorsV1().OperatorGroups(operatorGroup.GetNamespace()).Update(operatorGroup); err != nil && !k8serrors.IsNotFound(err) {

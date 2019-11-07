@@ -4264,7 +4264,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			require.NoError(t, err)
 
 			// Sync csvs enough to get them back to succeeded state
-			for i := 0; i < 8; i++ {
+			for i := 0; i < 16; i++ {
 				opGroupCSVs, err := op.client.OperatorsV1alpha1().ClusterServiceVersions(operatorNamespace).List(metav1.ListOptions{})
 				require.NoError(t, err)
 
@@ -4292,7 +4292,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						require.NoError(t, err)
 					}
 
-					if i == 8 {
+					if i == 16 {
 						err = wait.PollImmediate(1*time.Millisecond, 10*time.Second, func() (bool, error) {
 							for namespace, objects := range tt.final.objects {
 								if err := RequireObjectsInCache(t, op.lister, namespace, objects, true); err != nil {
