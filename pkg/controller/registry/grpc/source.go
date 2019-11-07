@@ -193,6 +193,7 @@ func (s *SourceStore) Remove(key resolver.CatalogKey) error {
 func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[resolver.CatalogKey]client.Interface {
 	refs := map[resolver.CatalogKey]client.Interface{}
 	s.sourcesLock.RLock()
+	defer s.sourcesLock.RUnlock()
 	for key, source := range s.sources {
 		if !(key.Namespace == globalNamespace || key.Namespace == localNamespace) {
 			continue
@@ -202,7 +203,6 @@ func (s *SourceStore) AsClients(globalNamespace, localNamespace string) map[reso
 		}
 		refs[key] = client.NewClientFromConn(source.Conn)
 	}
-	s.sourcesLock.RUnlock()
 
 	// TODO : remove unhealthy
 	return refs
