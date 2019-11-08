@@ -537,10 +537,47 @@ func TestSubscriptionNewConfigMapCatalogSource(t *testing.T) {
 	require.NoError(t, err)
 
 	configMap := oldCM.DeepCopy()
-	//configMap.Data = new data
-	configMap.Data[]
+	// add new CSV to existing configmap
+	alphaPlusCSV := v1alpha1.ClusterServiceVersion{
+		TypeMeta: csvType,
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "myapp-alpha-plus",
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			Replaces: alpha,
+			Version:  version.OperatorVersion{semver.MustParse("0.4.0")},
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: installStrategy,
+		},
+	}
+
+	newCSVList := append(csvList, alphaPlusCSV)
+	csvListRaw, err := yaml.Marshal(newCSVList)
+	if err != nil {
+		return
+	}
+	configMap.Data[registry.ConfigMapCSVName] = string(csvListRaw)
+
 	//POST new configmap
-	newCM, err := c.KubernetesInterface().CoreV1().ConfigMaps(testPackageName).Create(configMap)
+	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(configMap)
+	require.NoError(t, err)
 
 	_, err = fetchCatalogSource(t, crc, dummyCatalogSource.Name, testNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
@@ -549,9 +586,6 @@ func TestSubscriptionNewConfigMapCatalogSource(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Greater(t, newCSV.Spec.Version, oldCSV.Spec.Version)
-
-
-
 }
 
 func TestSubscriptionSkipRange(t *testing.T) {
