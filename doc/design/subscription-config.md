@@ -10,7 +10,7 @@ Currently, the OLM supports the following configurations:
 
 The `Env` field defines a list of environment variables that must exist in all containers in the `pod` created by OLM.
 
-> Note: Values defined here will overwrite existing environment varaibles of the same name.
+> Note: Values defined here will overwrite existing environment variables of the same name.
 
 ### EnvFrom
 
