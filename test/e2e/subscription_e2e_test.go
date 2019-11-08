@@ -3,7 +3,6 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"sync"
 	"testing"
@@ -528,7 +527,7 @@ func TestSubscriptionNewConfigMapCatalogSource(t *testing.T) {
 	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
-	oldCSV, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
 
 	// at this point we have a successful CSV in the cluster from a configmap based catalog source
@@ -576,16 +575,14 @@ func TestSubscriptionNewConfigMapCatalogSource(t *testing.T) {
 	configMap.Data[registry.ConfigMapCSVName] = string(csvListRaw)
 
 	//POST new configmap
-	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(configMap)
+	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Update(configMap)
 	require.NoError(t, err)
 
 	_, err = fetchCatalogSource(t, crc, dummyCatalogSource.Name, testNamespace, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
-	newCSV, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	_, err = fetchCSV(t, crc, alphaPlusCSV.Name, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
-
-	assert.Greater(t, newCSV.Spec.Version, oldCSV.Spec.Version)
 }
 
 func TestSubscriptionSkipRange(t *testing.T) {
