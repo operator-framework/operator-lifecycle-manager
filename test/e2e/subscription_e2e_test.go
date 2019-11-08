@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"strings"
 	"sync"
 	"testing"
@@ -504,6 +505,53 @@ func TestCreateNewSubscriptionExistingCSV(t *testing.T) {
 	require.NotNil(t, subscription)
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
 	require.NoError(t, err)
+}
+
+//   I. Creating a new subscription
+// 		C. Update the configmap-based catalog source with a new config map
+//		   Confirm subscription sees the new catalog source and creates new CSV in a timely manner
+//		   See https://bugzilla.redhat.com/show_bug.cgi?id=1749031 for motivation for this test
+func TestSubscriptionNewConfigMapCatalogSource(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
+
+	require.NoError(t, initCatalog(t, c, crc))
+	// Will be cleaned up by the upgrade process
+
+	subscriptionCleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, alphaChannel, v1alpha1.ApprovalAutomatic)
+	defer subscriptionCleanup()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	oldCSV, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
+
+	// at this point we have a successful CSV in the cluster from a configmap based catalog source
+	// now we update the configmap, which triggers a rebuild of the the catalogsource pod
+	oldCM, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dummyCatalogConfigMap.Name, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	configMap := oldCM.DeepCopy()
+	//configMap.Data = new data
+	configMap.Data[]
+	//POST new configmap
+	newCM, err := c.KubernetesInterface().CoreV1().ConfigMaps(testPackageName).Create(configMap)
+
+	_, err = fetchCatalogSource(t, crc, dummyCatalogSource.Name, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	newCSV, err := fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
+
+	assert.Greater(t, newCSV.Spec.Version, oldCSV.Spec.Version)
+
+
+
 }
 
 func TestSubscriptionSkipRange(t *testing.T) {
