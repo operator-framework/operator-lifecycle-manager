@@ -760,22 +760,30 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 			for _, sub := range subs {
 				ownerWasAdded = ownerWasAdded || !ownerutil.EnsureOwner(installPlan, sub)
 			}
+
+			out := installPlan.DeepCopy()
 			if ownerWasAdded {
-				_, err := o.client.OperatorsV1alpha1().InstallPlans(installPlan.GetNamespace()).Update(installPlan)
+				out, err = o.client.OperatorsV1alpha1().InstallPlans(installPlan.GetNamespace()).Update(installPlan)
 				if err != nil {
 					return nil, err
 				}
 			}
 
-			installPlan.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-			for _, step := range installPlan.Status.Plan {
+			// Use provided `installPlanApproval` to determine the appropreciate
+			// phase
+			if installPlanApproval == v1alpha1.ApprovalAutomatic {
+				out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
+			} else {
+				out.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
+			}
+			for _, step := range out.Status.Plan {
 				step.Status = v1alpha1.StepStatusUnknown
 			}
-			_, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(installPlan)
+			res, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(out)
 			if err != nil {
 				return nil, err
 			}
-			return operators.GetReference(installPlan)
+			return operators.GetReference(res)
 		}
 	}
 	logger.Warn("no installplan found with matching manifests, creating new one")
