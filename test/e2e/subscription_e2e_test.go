@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -410,6 +411,24 @@ func createSubscriptionForCatalog(t *testing.T, crc versioned.Interface, namespa
 			StartingCSV:            startingCSV,
 			InstallPlanApproval:    approval,
 		},
+	}
+
+	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
+	require.NoError(t, err)
+	return buildSubscriptionCleanupFunc(t, crc, subscription)
+}
+
+func createSubscriptionForCatalogWithSpec(t *testing.T, crc versioned.Interface, namespace, name string, spec *v1alpha1.SubscriptionSpec) cleanupFunc {
+	subscription := &v1alpha1.Subscription{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.SubscriptionKind,
+			APIVersion: v1alpha1.SubscriptionCRDAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: namespace,
+			Name:      name,
+		},
+		Spec: spec,
 	}
 
 	subscription, err := crc.OperatorsV1alpha1().Subscriptions(namespace).Create(subscription)
@@ -958,6 +977,173 @@ func TestSubscriptionUpdatesExistingInstallPlan(t *testing.T) {
 	// Wait for csvB to be installed
 	_, err = awaitCSV(t, crc, testNamespace, csvB.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
+}
+
+func TestCreateNewSubscriptionWithDependencies(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	kubeClient := newKubeClient(t)
+	crClient := newCRClient(t)
+
+	permissions := deploymentPermissions(t)
+
+	catsrc, subSpec, catsrcCleanup := newCatalogSourceWithDependencies(t, kubeClient, crClient, "podconfig", testNamespace, permissions)
+	defer catsrcCleanup()
+
+	// Ensure that the catalog source is resolved before we create a subscription.
+	_, err := fetchCatalogSource(t, crClient, catsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create duplicates of the CatalogSource
+	for i := 0; i < 10; i++ {
+		duplicateCatsrc, _, duplicateCatSrcCleanup := newCatalogSourceWithDependencies(t, kubeClient, crClient, "podconfig", testNamespace, permissions)
+		defer duplicateCatSrcCleanup()
+
+		// Ensure that the catalog source is resolved before we create a subscription.
+		_, err = fetchCatalogSource(t, crClient, duplicateCatsrc.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(t, err)
+	}
+
+	// Create a subscription that has a dependency
+	subscriptionName := genName("podconfig-sub-")
+	cleanupSubscription := createSubscriptionForCatalogWithSpec(t, crClient, testNamespace, subscriptionName, subSpec)
+	defer cleanupSubscription()
+
+	subscription, err := fetchSubscription(t, crClient, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Check that a single catalog source was used to resolve the InstallPlan
+	installPlan, err := fetchInstallPlan(t, crClient, subscription.Status.InstallPlanRef.Name, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	require.Len(t, installPlan.Status.CatalogSources, 1)
+
+}
+
+func deploymentPermissions(t *testing.T) []install.StrategyDeploymentPermissions {
+	// Generate permissions
+	serviceAccountName := genName("nginx-sa-")
+	permissions := []install.StrategyDeploymentPermissions{
+		{
+			ServiceAccountName: serviceAccountName,
+			Rules: []rbacv1.PolicyRule{
+				{
+					Verbs:     []string{rbacv1.VerbAll},
+					APIGroups: []string{rbacv1.APIGroupAll},
+					Resources: []string{rbacv1.ResourceAll}},
+			},
+		},
+	}
+
+	return permissions
+}
+
+func newCatalogSourceWithDependencies(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []install.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+
+	crd := apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+
+	prefixFunc := func(s string) string {
+		return fmt.Sprintf("%s-%s-", prefix, s)
+	}
+
+	// Create CSV
+	packageName1 := genName(prefixFunc("package"))
+	packageName2 := genName(prefixFunc("package"))
+	stableChannel := "stable"
+
+	namedStrategy := newNginxInstallStrategy(genName(prefixFunc("dep")), permissions, nil)
+	csvA := newCSV("nginx-req-dep", namespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{crd}, namedStrategy)
+	csvB := newCSV("nginx-dependency", namespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+
+	// Create PackageManifests
+	manifests := []registry.PackageManifest{
+		{
+			PackageName: packageName1,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvA.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+		{
+			PackageName: packageName2,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: csvB.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	catalogSourceName := genName(prefixFunc("catsrc"))
+	catsrc, cleanup = createInternalCatalogSource(t, kubeclient, crclient, catalogSourceName, namespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csvA, csvB})
+	require.NotNil(t, catsrc)
+	require.NotNil(t, cleanup)
+
+	subscriptionSpec = &v1alpha1.SubscriptionSpec{
+		CatalogSource:          catsrc.GetName(),
+		CatalogSourceNamespace: catsrc.GetNamespace(),
+		Package:                packageName1,
+		Channel:                stableChannel,
+		StartingCSV:            csvA.GetName(),
+		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+	}
+	return
+}
+func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar) {
+	resolver := install.StrategyResolver{}
+
+	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
+	require.NoError(t, err)
+
+	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	require.Truef(t, ok, "could not cast install strategy as type %T", strategyDetailsDeployment)
+
+	find := func(envVar []corev1.EnvVar, name string) (env *corev1.EnvVar, found bool) {
+		for i := range envVar {
+			if name == envVar[i].Name {
+				found = true
+				env = &envVar[i]
+
+				break
+			}
+		}
+
+		return
+	}
+
+	check := func(container *corev1.Container) {
+		for _, e := range envVar {
+			existing, found := find(container.Env, e.Name)
+			require.Truef(t, found, "env variable name=%s not injected", e.Name)
+			require.NotNil(t, existing)
+			require.Equalf(t, e.Value, existing.Value, "env variable value does not match %s=%s", e.Name, e.Value)
+		}
+	}
+
+	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		deployment, err := client.KubernetesInterface().AppsV1().Deployments(csv.GetNamespace()).Get(deploymentSpec.Name, metav1.GetOptions{})
+		require.NoError(t, err)
+
+		for i := range deployment.Spec.Template.Spec.Containers {
+			check(&deployment.Spec.Template.Spec.Containers[i])
+		}
+	}
 }
 
 func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalogSourceName, namespace string, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion, packages []registry.PackageManifest) {
