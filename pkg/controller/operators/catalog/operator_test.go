@@ -143,11 +143,11 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "",
-							Version:  "v1",
-							Kind:     "Service",
-							Name:     "service",
-							Manifest: toManifest(service("service", namespace)),
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "Service",
+							Name:                   "service",
+							Manifest:               toManifest(service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -155,17 +155,107 @@ func TestExecutePlan(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "catalog",
 							CatalogSourceNamespace: namespace,
-							Group:    "operators.coreos.com",
-							Version:  "v1alpha1",
-							Kind:     "ClusterServiceVersion",
-							Name:     "csv",
-							Manifest: toManifest(csv("csv", namespace, nil, nil)),
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
 				},
 			),
 			want: []runtime.Object{service("service", namespace), csv("csv", namespace, nil, nil)},
+			err:  nil,
+		},
+		{
+			testName: "CreateServiceAccount",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ServiceAccount",
+							Name:                   "sa",
+							Manifest: toManifest(serviceAccount("sa", namespace, "",
+								objectReference("init secret"))),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{serviceAccount("sa", namespace, "", objectReference("init secret"))},
+			err:  nil,
+		},
+		{
+			testName: "UpdateServiceAccountWithSameFields",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ServiceAccount",
+							Name:                   "sa",
+							Manifest: toManifest(serviceAccount("sa", namespace, "name",
+								objectReference("init secret"))),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ServiceAccount",
+							Name:                   "sa",
+							Manifest:               toManifest(serviceAccount("sa", namespace, "name", nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{serviceAccount("sa", namespace, "name", objectReference("init secret"))},
+			err:  nil,
+		},
+		{
+			testName: "UpdateServiceAccountWithDiffFields",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ServiceAccount",
+							Name:                   "sa",
+							Manifest: toManifest(serviceAccount("sa", namespace, "old_name",
+								objectReference("init secret"))),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "",
+							Version:                "v1",
+							Kind:                   "ServiceAccount",
+							Name:                   "sa",
+							Manifest:               toManifest(serviceAccount("sa", namespace, "new_name", nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			want: []runtime.Object{serviceAccount("sa", namespace, "new_name", objectReference("init secret"))},
 			err:  nil,
 		},
 	}
@@ -196,6 +286,8 @@ func TestExecutePlan(t *testing.T) {
 					fetched, err = op.OpClient.GetRoleBinding(namespace, o.GetName())
 				case *corev1.ServiceAccount:
 					fetched, err = op.OpClient.GetServiceAccount(namespace, o.GetName())
+				case *corev1.Secret:
+					fetched, err = op.OpClient.GetSecret(namespace, o.GetName())
 				case *corev1.Service:
 					fetched, err = op.OpClient.GetService(namespace, o.GetName())
 				case *v1alpha1.ClusterServiceVersion:
@@ -764,6 +856,25 @@ func service(name, namespace string) *corev1.Service {
 			Namespace: namespace,
 		},
 	}
+}
+
+func serviceAccount(name, namespace, generateName string, secretRef *corev1.ObjectReference) *corev1.ServiceAccount {
+	if secretRef == nil {
+		return &corev1.ServiceAccount{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
+		}
+	}
+	return &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, GenerateName: generateName},
+		Secrets:    []corev1.ObjectReference{*secretRef},
+	}
+}
+
+func objectReference(name string) *corev1.ObjectReference {
+	if name == "" {
+		return &corev1.ObjectReference{}
+	}
+	return &corev1.ObjectReference{Name: name}
 }
 
 func toManifest(obj runtime.Object) string {

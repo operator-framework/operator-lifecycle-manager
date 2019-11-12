@@ -21,7 +21,6 @@ require (
 	github.com/go-openapi/runtime v0.17.2 // indirect
 	github.com/go-openapi/spec v0.19.0
 	github.com/go-openapi/swag v0.17.2 // indirect
-	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
 	github.com/google/btree v1.0.0 // indirect

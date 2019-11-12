@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	v1beta1ext "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -23,19 +24,18 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
-	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
+	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -1233,9 +1233,21 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				if k8serrors.IsAlreadyExists(err) {
 					// If it already exists we need to patch the existing SA with the new OwnerReferences
 					sa.SetNamespace(plan.Namespace)
-					_, err = o.OpClient.UpdateServiceAccount(&sa)
-					if err != nil {
-						return errorwrap.Wrapf(err, "error updating service account: %s", sa.GetName())
+
+					// Carrying secrets through the service account update.
+					preSa, getErr := o.OpClient.KubernetesInterface().CoreV1().ServiceAccounts(plan.Namespace).Get(sa.Name,
+						metav1.GetOptions{})
+					if getErr != nil {
+						return errorwrap.Wrapf(getErr, "error getting older version of service account: %s",
+							sa.GetName())
+					}
+					sa.Secrets = preSa.Secrets
+
+					// Use DeepDerivative to check if new SA is the same as the old SA. If no field is changed, we skip the update call.
+					if !apiequality.Semantic.DeepDerivative(sa, preSa) {
+						if _, updateErr := o.OpClient.UpdateServiceAccount(&sa); updateErr != nil {
+							return errorwrap.Wrapf(updateErr, "error updating service account: %s", sa.GetName())
+						}
 					}
 
 					// Mark as present
