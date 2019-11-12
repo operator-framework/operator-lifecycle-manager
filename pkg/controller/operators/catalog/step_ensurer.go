@@ -3,15 +3,17 @@ package catalog
 import (
 	"fmt"
 
+	errorwrap "github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
-	errorwrap "github.com/pkg/errors"
-	corev1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func newStepEnsurer(kubeClient operatorclient.ClientInterface, crClient versioned.Interface) *StepEnsurer {
@@ -116,10 +118,23 @@ func (o *StepEnsurer) EnsureServiceAccount(namespace string, sa *corev1.ServiceA
 		return
 	}
 
-	sa.SetNamespace(namespace)
-	if _, updateErr := o.kubeClient.UpdateServiceAccount(sa); updateErr != nil {
-		err = errorwrap.Wrapf(updateErr, "error updating service account: %s", sa.GetName())
+	// Carrying secrets through the service account update.
+	preSa, getErr := o.kubeClient.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(sa.Name,
+		metav1.GetOptions{})
+	if getErr != nil {
+		err = errorwrap.Wrapf(getErr, "error getting older version of service account: %s", sa.GetName())
 		return
+	}
+	sa.Secrets = preSa.Secrets
+
+	sa.SetNamespace(namespace)
+
+	// Use DeepDerivative to check if new SA is the same as the old SA. If no field is changed, we skip the update call.
+	if !apiequality.Semantic.DeepDerivative(sa, preSa) {
+		if _, updateErr := o.kubeClient.UpdateServiceAccount(sa); updateErr != nil {
+			err = errorwrap.Wrapf(updateErr, "error updating service account: %s", sa.GetName())
+			return
+		}
 	}
 
 	status = v1alpha1.StepStatusPresent

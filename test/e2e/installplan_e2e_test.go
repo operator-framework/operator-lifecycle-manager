@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/blang/semver"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -1610,6 +1611,9 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 			},
 		}
 
+		oldSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(metav1.ListOptions{})
+		require.NoError(t, err, "error listing secrets")
+
 		// Create the catalog sources
 		updatedNamedStrategy := newNginxInstallStrategy(genName("dep-"), updatedPermissions, updatedClusterPermissions)
 		updatedCSV := newCSV(mainPackageStable+"-next", testNamespace, mainCSV.GetName(), semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, updatedNamedStrategy)
@@ -1639,6 +1643,13 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 		// Wait for csv to update
 		_, err = awaitCSV(t, crc, testNamespace, updatedCSV.GetName(), csvSucceededChecker)
 		require.NoError(t, err)
+
+		newSecrets, err := c.KubernetesInterface().CoreV1().Secrets(testNamespace).List(metav1.ListOptions{})
+		require.NoError(t, err, "error listing secrets")
+		// Assert that the number of secrets is not increased from updating service account as part of the install plan,
+		assert.EqualValues(t, len(oldSecrets.Items), len(newSecrets.Items))
+		// And that the secret list is indeed updated.
+		assert.Equal(t, oldSecrets.Items, newSecrets.Items)
 
 		// Wait for ServiceAccount to not have access anymore
 		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
