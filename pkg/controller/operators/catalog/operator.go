@@ -33,6 +33,7 @@ import (
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
@@ -58,16 +59,17 @@ var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 // resolving dependencies in a catalog.
 type Operator struct {
 	*queueinformer.Operator
-	client                versioned.Interface
-	lister                operatorlister.OperatorLister
-	namespace             string
-	sources               *grpc.SourceStore
-	sourcesLastUpdate     sharedtime.SharedTime
-	resolver              resolver.Resolver
-	subQueue              workqueue.RateLimitingInterface
-	catSrcQueueSet        *queueinformer.ResourceQueueSet
-	namespaceResolveQueue workqueue.RateLimitingInterface
-	reconciler            reconciler.RegistryReconcilerFactory
+	client                   versioned.Interface
+	lister                   operatorlister.OperatorLister
+	namespace                string
+	sources                  *grpc.SourceStore
+	sourcesLastUpdate        sharedtime.SharedTime
+	resolver                 resolver.Resolver
+	subQueue                 workqueue.RateLimitingInterface
+	catSrcQueueSet           *queueinformer.ResourceQueueSet
+	namespaceResolveQueue    workqueue.RateLimitingInterface
+	catalogSubscriberIndexer map[string]cache.Indexer
+	reconciler               reconciler.RegistryReconcilerFactory
 }
 
 // NewOperator creates a new Catalog Operator.
@@ -86,22 +88,6 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 	// Create an OperatorLister
 	lister := operatorlister.NewLister()
 
-	// Create an informer for each watched namespace.
-	ipSharedIndexInformers := []cache.SharedIndexInformer{}
-	subSharedIndexInformers := []cache.SharedIndexInformer{}
-	csvSharedIndexInformers := []cache.SharedIndexInformer{}
-	for _, namespace := range watchedNamespaces {
-		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
-		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
-		subSharedIndexInformers = append(subSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().Subscriptions().Informer())
-		csvSharedIndexInformers = append(csvSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
-
-		// resolver needs subscription and csv listers
-		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, nsInformerFactory.Operators().V1alpha1().Subscriptions().Lister())
-		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
-		lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, nsInformerFactory.Operators().V1alpha1().InstallPlans().Lister())
-	}
-
 	// Create a new queueinformer-based operator.
 	queueOperator, err := queueinformer.NewOperator(kubeconfigPath, logger)
 	if err != nil {
@@ -110,15 +96,37 @@ func NewOperator(kubeconfigPath string, logger *logrus.Logger, wakeupInterval ti
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		Operator:       queueOperator,
-		catSrcQueueSet: queueinformer.NewEmptyResourceQueueSet(),
-		client:         crClient,
-		lister:         lister,
-		namespace:      operatorNamespace,
-		resolver:       resolver.NewOperatorsV1alpha1Resolver(lister),
+		Operator:                 queueOperator,
+		catSrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
+		client:                   crClient,
+		lister:                   lister,
+		namespace:                operatorNamespace,
+		catalogSubscriberIndexer: map[string]cache.Indexer{},
+		resolver:                 resolver.NewOperatorsV1alpha1Resolver(lister),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.OpClient, configmapRegistryImage)
+
+	// Create an informer for each watched namespace.
+	ipSharedIndexInformers := []cache.SharedIndexInformer{}
+	subSharedIndexInformers := []cache.SharedIndexInformer{}
+	csvSharedIndexInformers := []cache.SharedIndexInformer{}
+	for _, namespace := range watchedNamespaces {
+		nsInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(crClient, wakeupInterval, externalversions.WithNamespace(namespace))
+		ipSharedIndexInformers = append(ipSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().InstallPlans().Informer())
+		csvSharedIndexInformers = append(csvSharedIndexInformers, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Informer())
+
+		subInformer := nsInformerFactory.Operators().V1alpha1().Subscriptions()
+		lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
+		subInformer.Informer().AddIndexers(cache.Indexers{index.PresentCatalogIndexFuncKey: index.PresentCatalogIndexFunc})
+		subIndexer := subInformer.Informer().GetIndexer()
+		op.catalogSubscriberIndexer[namespace] = subIndexer
+		subSharedIndexInformers = append(subSharedIndexInformers, subInformer.Informer())
+
+		// resolver needs installplan and csv listers
+		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, nsInformerFactory.Operators().V1alpha1().ClusterServiceVersions().Lister())
+		lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, nsInformerFactory.Operators().V1alpha1().InstallPlans().Lister())
+	}
 
 	// Create an informer for each catalog namespace
 	deleteCatSrc := &cache.ResourceEventHandlerFuncs{
@@ -243,6 +251,16 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
+		if o.namespace == state.Key.Namespace {
+			subs, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
+				state.Key.Name, state.Key.Namespace)
+
+			if err == nil {
+				for _, ns := range subs {
+					o.namespaceResolveQueue.Add(ns)
+				}
+			}
+		}
 		o.namespaceResolveQueue.Add(state.Key.Namespace)
 	}
 
