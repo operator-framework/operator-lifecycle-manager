@@ -1,5 +1,19 @@
 # Steps to create a new release
 
+## Step 0: Installing Requirements
+
+Ensure you have `autoconf`, `automake`, and `libtool` installed. On Fedora, you can run
+
+```
+dnf install autoconf automake libtool
+```
+
+Install [pyjq](https://pypi.org/project/pyjq/) using `pip`. Finally install [yq](https://github.com/mikefarah/yq) (using `snap` on Fedora):
+
+```
+snap install yq
+```
+
 ## Step 1: Verify Manifests
 We need to ensure that `./manifests` folder is in sync with the templates in `deploy/chart/templates`.
 * Make sure you have a clean workspace. `git status` should show no change(s) or untracked file.
