@@ -66,24 +66,25 @@ const (
 type Operator struct {
 	queueinformer.Operator
 
-	logger                 *logrus.Logger
-	clock                  utilclock.Clock
-	opClient               operatorclient.ClientInterface
-	client                 versioned.Interface
-	dynamicClient          dynamic.Interface
-	lister                 operatorlister.OperatorLister
-	catsrcQueueSet         *queueinformer.ResourceQueueSet
-	subQueueSet            *queueinformer.ResourceQueueSet
-	ipQueueSet             *queueinformer.ResourceQueueSet
-	nsResolveQueue         workqueue.RateLimitingInterface
-	namespace              string
-	sources                *grpc.SourceStore
-	sourcesLastUpdate      sharedtime.SharedTime
-	resolver               resolver.Resolver
-	reconciler             reconciler.RegistryReconcilerFactory
-	csvProvidedAPIsIndexer map[string]cache.Indexer
-	clientAttenuator       *scoped.ClientAttenuator
-	serviceAccountQuerier  *scoped.UserDefinedServiceAccountQuerier
+	logger                   *logrus.Logger
+	clock                    utilclock.Clock
+	opClient                 operatorclient.ClientInterface
+	client                   versioned.Interface
+	dynamicClient            dynamic.Interface
+	lister                   operatorlister.OperatorLister
+	catsrcQueueSet           *queueinformer.ResourceQueueSet
+	subQueueSet              *queueinformer.ResourceQueueSet
+	ipQueueSet               *queueinformer.ResourceQueueSet
+	nsResolveQueue           workqueue.RateLimitingInterface
+	namespace                string
+	sources                  *grpc.SourceStore
+	sourcesLastUpdate        sharedtime.SharedTime
+	resolver                 resolver.Resolver
+	reconciler               reconciler.RegistryReconcilerFactory
+	csvProvidedAPIsIndexer   map[string]cache.Indexer
+	catalogSubscriberIndexer map[string]cache.Indexer
+	clientAttenuator         *scoped.ClientAttenuator
+	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
@@ -124,20 +125,21 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 
 	// Allocate the new instance of an Operator.
 	op := &Operator{
-		Operator:               queueOperator,
-		logger:                 logger,
-		clock:                  clock,
-		opClient:               opClient,
-		dynamicClient:          dynamicClient,
-		client:                 crClient,
-		lister:                 lister,
-		namespace:              operatorNamespace,
-		resolver:               resolver.NewOperatorsV1alpha1Resolver(lister, crClient),
-		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
-		subQueueSet:            queueinformer.NewEmptyResourceQueueSet(),
-		csvProvidedAPIsIndexer: map[string]cache.Indexer{},
-		serviceAccountQuerier:  scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
-		clientAttenuator:       scoped.NewClientAttenuator(logger, config, opClient, crClient),
+		Operator:                 queueOperator,
+		logger:                   logger,
+		clock:                    clock,
+		opClient:                 opClient,
+		dynamicClient:            dynamicClient,
+		client:                   crClient,
+		lister:                   lister,
+		namespace:                operatorNamespace,
+		resolver:                 resolver.NewOperatorsV1alpha1Resolver(lister, crClient),
+		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
+		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
+		csvProvidedAPIsIndexer:   map[string]cache.Indexer{},
+		catalogSubscriberIndexer: map[string]cache.Indexer{},
+		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
+		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient),
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
@@ -202,6 +204,12 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		// Wire Subscriptions
 		subInformer := crInformerFactory.Operators().V1alpha1().Subscriptions()
 		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
+		if err := subInformer.Informer().AddIndexers(cache.Indexers{index.PresentCatalogIndexFuncKey: index.PresentCatalogIndexFunc}); err != nil {
+			return nil, err
+		}
+		subIndexer := subInformer.Informer().GetIndexer()
+		op.catalogSubscriberIndexer[namespace] = subIndexer
+
 		subQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/subs", namespace))
 		op.subQueueSet.Set(namespace, subQueue)
 		subSyncer, err := subscription.NewSyncer(
@@ -339,6 +347,17 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	switch state.State {
 	case connectivity.Ready:
+		if o.namespace == state.Key.Namespace {
+			subs, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
+				state.Key.Name, state.Key.Namespace)
+
+			if err == nil {
+				for _, ns := range subs {
+					o.nsResolveQueue.Add(ns)
+				}
+			}
+		}
+
 		o.nsResolveQueue.Add(state.Key.Namespace)
 	default:
 		if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
