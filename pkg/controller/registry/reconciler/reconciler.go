@@ -133,6 +133,9 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 					Operator: v1.TolerationOpExists,
 				},
 			},
+			NodeSelector: map[string]string{
+				"beta.kubernetes.io/os": "linux",
+			},
 		},
 	}
 	return pod
