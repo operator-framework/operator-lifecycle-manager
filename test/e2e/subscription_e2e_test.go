@@ -1531,3 +1531,37 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 	})
 	require.NoError(t, err)
 }
+
+// Test subscription to a package that does not exist does not break other subscriptions
+// First create a subscription to a package not found in the catalogsource
+// Then create subscription to a package in the catalogsource
+// Confirm failed first installation sync does not impact second catalog
+func TestSubscriptionMissingPackage(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
+	require.NoError(t, initCatalog(t, c, crc))
+
+	// create sub to non-existent package
+	clean := createSubscription(t, crc, testNamespace, "badsubscription", "badapp", betaChannel, v1alpha1.ApprovalAutomatic)
+	defer clean()
+
+	// create valid subscription
+	cleanup := createSubscription(t, crc, testNamespace, testSubscriptionName, testPackageName, betaChannel, v1alpha1.ApprovalAutomatic)
+	defer cleanup()
+
+	// check bad subscription state - ensure state after not being found in the catalog
+	_, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAny)
+
+	// ensure valid subscription is in a good state
+	subscription, err := fetchSubscription(t, crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
+}
