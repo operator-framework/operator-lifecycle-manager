@@ -19,6 +19,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
@@ -126,7 +127,13 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	groupSurface := resolver.NewOperatorGroup(op)
 	groupProvidedAPIs := groupSurface.ProvidedAPIs()
 	providedAPIsForCSVs := a.providedAPIsFromCSVs(op, logger)
-	providedAPIsForGroup := providedAPIsForCSVs.Union(groupProvidedAPIs)
+	providedAPIsForGroup := make(resolver.APISet)
+	for api := range providedAPIsForCSVs {
+		providedAPIsForGroup[api] = struct{}{}
+	}
+	for api := range groupProvidedAPIs {
+		providedAPIsForGroup[api] = struct{}{}
+	}
 
 	csvs, err := a.findCSVsThatProvideAnyOf(providedAPIsForGroup)
 	if err != nil {
@@ -212,9 +219,9 @@ func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []stri
 	return errors.NewAggregate(updateErrs)
 }
 
-func (a *Operator) providedAPIsFromCSVs(group *v1.OperatorGroup, logger *logrus.Entry) resolver.APISet {
+func (a *Operator) providedAPIsFromCSVs(group *v1.OperatorGroup, logger *logrus.Entry) map[opregistry.APIKey]*v1alpha1.ClusterServiceVersion {
 	set := a.csvSet(group.Namespace, v1alpha1.CSVPhaseAny)
-	providedAPIsFromCSVs := make(resolver.APISet)
+	providedAPIsFromCSVs := make(map[opregistry.APIKey]*v1alpha1.ClusterServiceVersion)
 	for _, csv := range set {
 		// Don't union providedAPIsFromCSVs if the CSV is copied (member of another OperatorGroup)
 		if csv.IsCopied() {
@@ -230,20 +237,40 @@ func (a *Operator) providedAPIsFromCSVs(group *v1.OperatorGroup, logger *logrus.
 			logger.WithError(err).Warn("could not create OperatorSurface from csv")
 			continue
 		}
-		providedAPIsFromCSVs = providedAPIsFromCSVs.Union(operatorSurface.ProvidedAPIs().StripPlural())
+		for providedAPI := range operatorSurface.ProvidedAPIs().StripPlural() {
+			providedAPIsFromCSVs[providedAPI] = csv
+		}
 	}
 	return providedAPIsFromCSVs
 }
 
-func (a *Operator) pruneProvidedAPIs(group *v1.OperatorGroup, groupProvidedAPIs, providedAPIsFromCSVs resolver.APISet, logger *logrus.Entry) {
+func (a *Operator) pruneProvidedAPIs(group *v1.OperatorGroup, groupProvidedAPIs resolver.APISet, providedAPIsFromCSVs map[opregistry.APIKey]*v1alpha1.ClusterServiceVersion, logger *logrus.Entry) {
 	// Don't prune providedAPIsFromCSVs if static
 	if group.Spec.StaticProvidedAPIs {
 		a.logger.Debug("group has static provided apis. skipping provided api pruning")
 		return
 	}
 
+	intersection := make(resolver.APISet)
+	for api := range providedAPIsFromCSVs {
+		if _, ok := groupProvidedAPIs[api]; ok {
+			intersection[api] = struct{}{}
+		} else {
+			csv := providedAPIsFromCSVs[api]
+			_, err := a.lister.OperatorsV1alpha1().ClusterServiceVersionLister().ClusterServiceVersions(csv.GetNamespace()).Get(csv.GetName())
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
+			if csv.DeletionTimestamp == nil && (csv.Status.Phase == v1alpha1.CSVPhaseNone || csv.Status.Phase == v1alpha1.CSVPhasePending) {
+				logger.Debugf("aborting operator group provided API update due to CSV %v in phase %v", csv.GetName(), csv.Status.Phase)
+				return
+			}
+		}
+	}
+
 	// Prune providedAPIs annotation if the cluster has fewer providedAPIs (handles CSV deletion)
-	if intersection := groupProvidedAPIs.Intersection(providedAPIsFromCSVs); len(intersection) < len(groupProvidedAPIs) {
+	//if intersection := groupProvidedAPIs.Intersection(providedAPIsFromCSVs); len(intersection) < len(groupProvidedAPIs) {
+	if len(intersection) < len(groupProvidedAPIs) {
 		difference := groupProvidedAPIs.Difference(intersection)
 		logger := logger.WithFields(logrus.Fields{
 			"providedAPIsOnCluster":  providedAPIsFromCSVs,

@@ -3212,3 +3212,117 @@ func TestCreateCSVRequirementsEvents(t *testing.T) {
 }
 
 // TODO: test behavior when replaces field doesn't point to existing CSV
+
+func TestCSVStatusInvalidCSV(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create CRD
+	crdPlural := genName("ins")
+	crdName := crdPlural + ".cluster.com"
+	cleanupCRD, err := createCRD(c, apiextensions.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: apiextensions.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: apiextensions.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	})
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	// create CSV
+	strategy := install.StrategyDetailsDeployment{
+		DeploymentSpecs: []install.StrategyDeploymentSpec{
+			{
+				Name: genName("dep-"),
+				Spec: newNginxDeployment(genName("nginx-")),
+			},
+		},
+	}
+	strategyRaw, err := json.Marshal(strategy)
+	require.NoError(t, err)
+
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName:    install.InstallStrategyNameDeployment,
+				StrategySpecRaw: strategyRaw,
+			},
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "apiextensions.k8s.io/v1alpha1", // purposely invalid, should be just v1alpha1 to match CRD
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster2",
+					},
+				},
+			},
+		},
+	}
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	notServedStatus := v1alpha1.RequirementStatus{
+		Group:   "apiextensions.k8s.io",
+		Version: "v1beta1",
+		Kind:    "CustomResourceDefinition",
+		Name:    crdName,
+		Status:  v1alpha1.RequirementStatusReasonNotPresent,
+		Message: "CRD version not served",
+	}
+	csvCheckPhaseAndRequirementStatus := func(csv *v1alpha1.ClusterServiceVersion) bool {
+		if csv.Status.Phase == v1alpha1.CSVPhasePending {
+			for _, status := range csv.Status.RequirementStatus {
+				if status.Message == notServedStatus.Message {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	fetchedCSV, err := fetchCSV(t, crc, csv.Name, testNamespace, csvCheckPhaseAndRequirementStatus)
+	require.NoError(t, err)
+
+	require.Contains(t, fetchedCSV.Status.RequirementStatus, notServedStatus)
+}
