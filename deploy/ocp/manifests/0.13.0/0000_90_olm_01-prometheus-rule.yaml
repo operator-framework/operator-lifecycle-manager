@@ -1,3 +1,5 @@
+---
+# Source: olm/templates/0000_90_olm_01-prometheus-rule.yaml
 
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule

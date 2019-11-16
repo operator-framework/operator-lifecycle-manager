@@ -70,7 +70,7 @@ spec:
           - $(OPERATOR_NAMESPACE)
           - -writeStatusName
           - ""
-          image: quay.io/operator-framework/olm@sha256:91ac5bf350192e063a3c1be994827f67e254997939eda3d471253777cc840c45
+          image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -133,7 +133,7 @@ spec:
           - '-namespace'
           - olm
           - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
-          image: quay.io/operator-framework/olm@sha256:91ac5bf350192e063a3c1be994827f67e254997939eda3d471253777cc840c45
+          image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -214,7 +214,7 @@ metadata:
   name: packageserver
   namespace: olm
   labels:
-    olm.version: 0.12.0
+    olm.version: 0.13.0
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
@@ -300,7 +300,7 @@ spec:
                 - "5443"
                 - --global-namespace
                 - olm
-                image: quay.io/operator-framework/olm@sha256:91ac5bf350192e063a3c1be994827f67e254997939eda3d471253777cc840c45
+                image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
                 imagePullPolicy: Always
                 ports:
                 - containerPort: 5443
@@ -321,7 +321,7 @@ spec:
                     memory: 50Mi
                   
   maturity: alpha
-  version: 0.12.0
+  version: 0.13.0
   apiservicedefinitions:
     owned:
     - group: packages.operators.coreos.com
