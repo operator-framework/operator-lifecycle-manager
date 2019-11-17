@@ -1,4 +1,69 @@
-# Change Log
+# Changelog
+
+## [0.13.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.13.0) (2019-11-15)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.13.0...0.13.0)
+
+**Other changes:**
+
+- Bug 1767004: defer provided api update in operator groups [\#1114](https://github.com/operator-framework/operator-lifecycle-manager/pull/1114) ([jpeeler](https://github.com/jpeeler))
+
+## [0.13.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.13.0) (2019-11-15)
+
+[Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.12.0...0.13.0)
+
+**Closed issues:**
+
+- Issue 2 [\#1127](https://github.com/operator-framework/operator-lifecycle-manager/issues/1127)
+- Issue 1 [\#1126](https://github.com/operator-framework/operator-lifecycle-manager/issues/1126)
+- Slack channel? [\#1117](https://github.com/operator-framework/operator-lifecycle-manager/issues/1117)
+- InstallPlans not being generated on OpenShift 3.11 with OLM 0.12.0 [\#1113](https://github.com/operator-framework/operator-lifecycle-manager/issues/1113)
+- MinKubeVersion error msg as a requirement can cause misunderstandings  [\#1093](https://github.com/operator-framework/operator-lifecycle-manager/issues/1093)
+- Instances of Clusterwide CRDs are not displayed properly in InstalledOperators [\#1077](https://github.com/operator-framework/operator-lifecycle-manager/issues/1077)
+- CSV required CRDs are resolved from an unpredictable catalog [\#1076](https://github.com/operator-framework/operator-lifecycle-manager/issues/1076)
+- Missing channels from package.yaml definition [\#1072](https://github.com/operator-framework/operator-lifecycle-manager/issues/1072)
+- Security: new CVEs in 0.12.0 release AND in master, new fixes/release coming?  [\#1066](https://github.com/operator-framework/operator-lifecycle-manager/issues/1066)
+- How to troubleshot what is happening with a subscription [\#1063](https://github.com/operator-framework/operator-lifecycle-manager/issues/1063)
+- 0.12.0 release isn't versioned correctly [\#1061](https://github.com/operator-framework/operator-lifecycle-manager/issues/1061)
+
+**Other changes:**
+
+- \[docs\] - update release docs [\#1131](https://github.com/operator-framework/operator-lifecycle-manager/pull/1131) ([gallettilance](https://github.com/gallettilance))
+- \[release\] - version bump [\#1130](https://github.com/operator-framework/operator-lifecycle-manager/pull/1130) ([gallettilance](https://github.com/gallettilance))
+- Fixing doc typo [\#1115](https://github.com/operator-framework/operator-lifecycle-manager/pull/1115) ([bandrade](https://github.com/bandrade))
+- Fix several flaky e2e test cases [\#1111](https://github.com/operator-framework/operator-lifecycle-manager/pull/1111) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- Alerts for failing OLM operators [\#1104](https://github.com/operator-framework/operator-lifecycle-manager/pull/1104) ([anik120](https://github.com/anik120))
+- feat\(resolver\): use provided and required apis from grpc [\#1101](https://github.com/operator-framework/operator-lifecycle-manager/pull/1101) ([ecordell](https://github.com/ecordell))
+- feat\(metrics\) Report subscription channel [\#1100](https://github.com/operator-framework/operator-lifecycle-manager/pull/1100) ([awgreene](https://github.com/awgreene))
+- feat\(metrics\) Limit Cardinality of CSV metrics [\#1099](https://github.com/operator-framework/operator-lifecycle-manager/pull/1099) ([awgreene](https://github.com/awgreene))
+- fix: t.Fatal should be used in main goroutine [\#1096](https://github.com/operator-framework/operator-lifecycle-manager/pull/1096) ([beautytiger](https://github.com/beautytiger))
+- docs: Corrected CSV upgrade version. [\#1095](https://github.com/operator-framework/operator-lifecycle-manager/pull/1095) ([gyliu513](https://github.com/gyliu513))
+- fix\(olm\): No longer report status if minKubeVersion not specified [\#1094](https://github.com/operator-framework/operator-lifecycle-manager/pull/1094) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- fix: refresh architecture and philosophy docs for clarity purposes [\#1092](https://github.com/operator-framework/operator-lifecycle-manager/pull/1092) ([Denton24646](https://github.com/Denton24646))
+- Updated values.yaml location. [\#1089](https://github.com/operator-framework/operator-lifecycle-manager/pull/1089) ([gyliu513](https://github.com/gyliu513))
+- fix: fix particular typo in clusterserviceversion\_types.go [\#1086](https://github.com/operator-framework/operator-lifecycle-manager/pull/1086) ([Denton24646](https://github.com/Denton24646))
+- Fix log message in resolver [\#1085](https://github.com/operator-framework/operator-lifecycle-manager/pull/1085) ([ecordell](https://github.com/ecordell))
+- URL with modified manifest directory structure [\#1083](https://github.com/operator-framework/operator-lifecycle-manager/pull/1083) ([sbose78](https://github.com/sbose78))
+- Bug 1762769: Prioritize APIs from same CatSrc [\#1080](https://github.com/operator-framework/operator-lifecycle-manager/pull/1080) ([awgreene](https://github.com/awgreene))
+- Update Owners [\#1079](https://github.com/operator-framework/operator-lifecycle-manager/pull/1079) ([alecmerdler](https://github.com/alecmerdler))
+- Bug 1761924:  Update PackageManifest table handler [\#1078](https://github.com/operator-framework/operator-lifecycle-manager/pull/1078) ([awgreene](https://github.com/awgreene))
+- bugfix: assignment to nil map will cause panic [\#1071](https://github.com/operator-framework/operator-lifecycle-manager/pull/1071) ([beautytiger](https://github.com/beautytiger))
+- Proposal: RelatedImages [\#1069](https://github.com/operator-framework/operator-lifecycle-manager/pull/1069) ([ecordell](https://github.com/ecordell))
+- Add `apk upgrade` to upstream builder [\#1067](https://github.com/operator-framework/operator-lifecycle-manager/pull/1067) ([ecordell](https://github.com/ecordell))
+- Fix links to console repo for moved packages [\#1065](https://github.com/operator-framework/operator-lifecycle-manager/pull/1065) ([spadgett](https://github.com/spadgett))
+- bug\(install\) Fix packageserver name in install.sh [\#1062](https://github.com/operator-framework/operator-lifecycle-manager/pull/1062) ([awgreene](https://github.com/awgreene))
+- Bug 1758008: Manual approval strategy ignored for subsequent releases [\#1059](https://github.com/operator-framework/operator-lifecycle-manager/pull/1059) ([dinhxuanvu](https://github.com/dinhxuanvu))
+- feat\(subscription\) Config Volume and VolumeMounts [\#1058](https://github.com/operator-framework/operator-lifecycle-manager/pull/1058) ([awgreene](https://github.com/awgreene))
+- Bug: Fix olm chart [\#1056](https://github.com/operator-framework/operator-lifecycle-manager/pull/1056) ([awgreene](https://github.com/awgreene))
+- feat\(metrics\) record CSV failures [\#1055](https://github.com/operator-framework/operator-lifecycle-manager/pull/1055) ([awgreene](https://github.com/awgreene))
+- \[WIP\] \(proposal\) Make bundle accessible to a cluster [\#1054](https://github.com/operator-framework/operator-lifecycle-manager/pull/1054) ([tkashem](https://github.com/tkashem))
+- Bump openshift/client-go version [\#1052](https://github.com/operator-framework/operator-lifecycle-manager/pull/1052) ([njhale](https://github.com/njhale))
+- \(release\) Update changelog [\#1051](https://github.com/operator-framework/operator-lifecycle-manager/pull/1051) ([awgreene](https://github.com/awgreene))
+- \(release\) Generate manifests for 0.12.0 [\#1050](https://github.com/operator-framework/operator-lifecycle-manager/pull/1050) ([awgreene](https://github.com/awgreene))
+- chore\(deps\): bump to kube 1.16 [\#1048](https://github.com/operator-framework/operator-lifecycle-manager/pull/1048) ([ecordell](https://github.com/ecordell))
+- fix\(subscriptionconfig\): add missing merge struct tags [\#996](https://github.com/operator-framework/operator-lifecycle-manager/pull/996) ([njhale](https://github.com/njhale))
+- refactor\(operatorstatus\): make monitor constructor variadic [\#995](https://github.com/operator-framework/operator-lifecycle-manager/pull/995) ([njhale](https://github.com/njhale))
+- feat\(scripts\): add shell lib with some common helper funcs [\#994](https://github.com/operator-framework/operator-lifecycle-manager/pull/994) ([njhale](https://github.com/njhale))
 
 ## [0.12.0](https://github.com/operator-framework/operator-lifecycle-manager/tree/0.12.0) (2019-09-27)
 [Full Changelog](https://github.com/operator-framework/operator-lifecycle-manager/compare/0.12.0...0.12.0)
@@ -703,4 +768,4 @@ Other changes:
 
 
 
-\* *This Change Log was automatically generated by [github_changelog_generator](https://github.com/skywinder/Github-Changelog-Generator)*
+\* *This Changelog was automatically generated by [github_changelog_generator](https://github.com/github-changelog-generator/github-changelog-generator)*
