@@ -15,10 +15,8 @@ func TestPodNodeSelector(t *testing.T) {
 		},
 	}
 
-	expectedCatSrcPodSelector := make(map[string]string)
 	key := "beta.kubernetes.io/os"
 	value := "linux"
-	expectedCatSrcPodSelector[key] = value
 
 	gotCatSrcPod := Pod(catsrc, "hello", "busybox", map[string]string{}, int32(0), int32(0))
 	gotCatSrcPodSelector := gotCatSrcPod.Spec.NodeSelector
