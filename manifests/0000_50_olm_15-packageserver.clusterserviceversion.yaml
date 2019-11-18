@@ -122,6 +122,9 @@ spec:
                     port: 5443
                 terminationMessagePolicy: FallbackToLogsOnError
                 resources:
+                  limits:
+                    cpu: 100m
+                    memory: 100Mi
                   requests:
                     cpu: 10m
                     memory: 50Mi
