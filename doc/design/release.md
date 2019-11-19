@@ -84,7 +84,7 @@ Make sure you have a GitHub API access token. You can generate one from [tokens]
 # <start-semver> is the previous version.
 # <end-semver> is the new release you have made.
 github_changelog_generator -u operator-framework -p operator-lifecycle-manager --since-tag=<start-semver> \
-    --token=<github-api-token> --future-release=<end-semver> --pr-label="**Other changes:**"
+    --token=<github-api-token> --future-release=<end-semver> --pr-label="**Other changes:**" -b CHANGELOG.md
 ```
 * Open a new PR with the changelog.
 
