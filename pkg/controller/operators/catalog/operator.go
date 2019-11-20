@@ -591,6 +591,7 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 
 		// Set connection status and return.
 		updateConnectionStateFunc(out, source)
+		return
 	}
 
 	// connection is already good, but we need to update the sync time
