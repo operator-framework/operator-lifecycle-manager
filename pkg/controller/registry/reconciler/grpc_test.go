@@ -369,3 +369,19 @@ func TestGrpcRegistryChecker(t *testing.T) {
 		})
 	}
 }
+
+func TestGrpcRegistryNodeSelector(t *testing.T) {
+	catsrc := &grpcCatalogSourceDecorator{
+		CatalogSource: &v1alpha1.CatalogSource{
+			TypeMeta:   metav1.TypeMeta{},
+			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "testns", Labels: nil},
+			Spec:       v1alpha1.CatalogSourceSpec{},
+			Status:     v1alpha1.CatalogSourceStatus{},
+		},
+	}
+
+	catsrcPod := catsrc.Pod()
+	if catsrcPod.Spec.NodeSelector["beta.kubernetes.io/os"] != "linux" {
+		t.Error("linux node selector not present on catalog source pod")
+	}
+}

@@ -95,6 +95,9 @@ func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
 					Operator: v1.TolerationOpExists,
 				},
 			},
+			NodeSelector: map[string]string{
+				"beta.kubernetes.io/os": "linux",
+			},
 		},
 	}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)

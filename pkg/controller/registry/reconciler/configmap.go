@@ -134,6 +134,9 @@ func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
 				},
 			},
 			ServiceAccountName: s.GetName() + ConfigMapServerPostfix,
+			NodeSelector: map[string]string{
+				"beta.kubernetes.io/os": "linux",
+			},
 		},
 	}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
