@@ -81,6 +81,114 @@ func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	t.Logf("Catalog source sucessfully loaded after rescale")
 }
 
+func TestGlobalCatalogUpdateTriggersSubscriptionSync(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	globalNS := operatorNamespace
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Determine which namespace is global. Should be `openshift-marketplace` for OCP 4.2+.
+	// Locally it is `olm`
+	namespaces, _ := c.KubernetesInterface().CoreV1().Namespaces().List(metav1.ListOptions{})
+	for _, ns := range namespaces.Items {
+		if ns.GetName() == "openshift-marketplace" {
+			globalNS = "openshift-marketplace"
+		}
+	}
+
+	mainPackageName := genName("nginx-")
+
+	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	mainPackageReplacement := fmt.Sprintf("%s-replacement", mainPackageStable)
+
+	stableChannel := "stable"
+
+	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+	crdPlural := genName("ins-")
+
+	mainCRD := newCRD(crdPlural)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+	replacementCSV := newCSV(mainPackageReplacement, testNamespace, mainPackageStable, semver.MustParse("0.2.0"), []apiextensions.CustomResourceDefinition{mainCRD}, nil, mainNamedStrategy)
+
+	mainCatalogName := genName("mock-ocs-main-")
+
+	// Create separate manifests for each CatalogSource
+	mainManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the initial catalogsource
+	createInternalCatalogSource(t, c, crc, mainCatalogName, globalNS, mainManifests, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV})
+
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionSpec := &v1alpha1.SubscriptionSpec{
+		CatalogSource:          mainCatalogName,
+		CatalogSourceNamespace: globalNS,
+		Package:                mainPackageName,
+		Channel:                stableChannel,
+		StartingCSV:            mainCSV.GetName(),
+		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+	}
+
+	// Create Subscription
+	subscriptionName := genName("sub-")
+	createSubscriptionForCatalogWithSpec(t, crc, testNamespace, subscriptionName, subscriptionSpec)
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+	require.NoError(t, err)
+
+	// Update manifest
+	mainManifests = []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: replacementCSV.GetName()},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Update catalog configmap
+	updateInternalCatalog(t, c, crc, mainCatalogName, globalNS, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, replacementCSV}, mainManifests)
+
+	// Get updated catalogsource
+	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, globalNS, func(catalog *v1alpha1.CatalogSource) bool {
+		registry := catalog.Status.RegistryServiceStatus
+		connState := catalog.Status.GRPCConnectionState
+		if registry != nil && connState != nil && connState.LastObservedState == "READY" && !connState.LastConnectTime.IsZero() {
+			fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
+			return registryPodHealthy(registry.Address())
+		}
+		fmt.Printf("waiting for catalog pod %v to be available (for sync)\n", catalog.GetName())
+		return false
+	})
+	require.NoError(t, err)
+
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradeAvailableChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	// Ensure the timing
+	catalogConnState := fetchedUpdatedCatalog.Status.GRPCConnectionState
+	subUpdatedTime := subscription.Status.LastUpdated
+	timeLapse := subUpdatedTime.Sub(catalogConnState.LastConnectTime.Time).Seconds()
+	require.True(t, timeLapse < 60)
+}
+
 func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
@@ -153,8 +261,8 @@ func TestConfigMapUpdateTriggersRegistryPodRollout(t *testing.T) {
 	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
 		before := fetchedInitialCatalog.Status.ConfigMapResource
 		after := catalog.Status.ConfigMapResource
-		if after != nil && before.LastUpdateTime.Before(&after.LastUpdateTime) && 
-		   after.ResourceVersion != before.ResourceVersion {
+		if after != nil && before.LastUpdateTime.Before(&after.LastUpdateTime) &&
+			after.ResourceVersion != before.ResourceVersion {
 			fmt.Println("catalog updated")
 			return true
 		}
