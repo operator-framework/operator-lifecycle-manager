@@ -123,8 +123,8 @@ spec:
                 terminationMessagePolicy: FallbackToLogsOnError
                 resources:
                   limits:
-                    cpu: 100m
-                    memory: 100Mi
+                    cpu: 200m
+                    memory: 200Mi
                   requests:
                     cpu: 10m
                     memory: 50Mi
