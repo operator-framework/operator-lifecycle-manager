@@ -1151,7 +1151,7 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 	require.NoError(t, err)
 
 	// Get initial configmap
-	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
+	configMap, err := c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Get(fetchedInitialCatalog.Spec.ConfigMap, metav1.GetOptions{})
 	require.NoError(t, err)
 
 	// Update package to point to new csv
@@ -1175,7 +1175,7 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 	configMap.Data[registry.ConfigMapCSVName] = string(csvsRaw)
 
 	// Update configmap
-	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Update(configMap)
+	_, err = c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Update(configMap)
 	require.NoError(t, err)
 
 	// wait for catalog to update
