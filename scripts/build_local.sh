@@ -6,7 +6,7 @@
 set -e
 
 if [ -z "$NO_MINIKUBE" ]; then
-  pgrep -f "[m]inikube" >/dev/null || minikube start --kubernetes-version="v1.14.2" --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
+  pgrep -f "[m]inikube" >/dev/null || minikube start --kubernetes-version="v1.16.2" --extra-config=apiserver.v=4 || { echo 'Cannot start minikube.'; exit 1; }
   eval "$(minikube docker-env)" || { echo 'Cannot switch to minikube docker'; exit 1; }
   kubectl config use-context minikube
 fi
