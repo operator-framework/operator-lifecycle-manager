@@ -512,7 +512,7 @@ func TestSyncCatalogSources(t *testing.T) {
 					Namespace:       "cool-namespace",
 					UID:             types.UID("configmap-uid"),
 					ResourceVersion: "resource-version",
-					LastUpdateTime: now,
+					LastUpdateTime:  now,
 				},
 				RegistryServiceStatus: nil,
 			},
@@ -854,7 +854,7 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 	var sharedInformers []cache.SharedIndexInformer
 	for _, ns := range watchedNamespaces {
 		if ns != namespace {
-			_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
+			_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 			if err != nil {
 				return nil, err
 			}
@@ -917,7 +917,7 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 		reconciler:            config.reconciler,
 		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
-		catsrcQueueSet:         queueinformer.NewEmptyResourceQueueSet(),
+		catsrcQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
 	}
 	op.sources = grpc.NewSourceStore(config.logger, 1*time.Second, 5*time.Second, op.syncSourceState)
 	if op.reconciler == nil {
