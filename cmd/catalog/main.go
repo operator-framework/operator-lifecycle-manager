@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/filemonitor"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorstatus"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/profile"
@@ -138,8 +140,20 @@ func main() {
 	metricsMux := http.NewServeMux()
 	metricsMux.Handle("/metrics", promhttp.Handler())
 	if useTLS {
+		tlsGetCertFn, err := filemonitor.OLMGetCertRotationFn(logger, *tlsCertPath, *tlsKeyPath)
+		if err != nil {
+			logger.Errorf("Certificate monitoring for metrics (https) failed: %v", err)
+		}
+
 		go func() {
-			err := http.ListenAndServeTLS(":8081", *tlsCertPath, *tlsKeyPath, metricsMux)
+			httpsServer := &http.Server{
+				Addr:    ":8081",
+				Handler: metricsMux,
+				TLSConfig: &tls.Config{
+					GetCertificate: tlsGetCertFn,
+				},
+			}
+			err := httpsServer.ListenAndServeTLS("", "")
 			if err != nil {
 				logger.Errorf("Metrics (https) serving failed: %v", err)
 			}
