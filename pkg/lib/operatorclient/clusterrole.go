@@ -3,10 +3,10 @@ package operatorclient
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 // CreateClusterRole creates the ClusterRole.
@@ -26,7 +26,7 @@ func (c *Client) DeleteClusterRole(name string, options *metav1.DeleteOptions) e
 
 // UpdateClusterRole will update the given ClusterRole.
 func (c *Client) UpdateClusterRole(crb *rbacv1.ClusterRole) (*rbacv1.ClusterRole, error) {
-	glog.V(4).Infof("[UPDATE Role]: %s", crb.GetName())
+	klog.V(4).Infof("[UPDATE Role]: %s", crb.GetName())
 	oldCrb, err := c.GetClusterRole(crb.GetName())
 	if err != nil {
 		return nil, err

@@ -3,10 +3,10 @@ package operatorclient
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 // CreateServiceAccount creates the serviceAccount.
@@ -26,7 +26,7 @@ func (c *Client) DeleteServiceAccount(namespace, name string, options *metav1.De
 
 // UpdateServiceAccount will update the given ServiceAccount resource.
 func (c *Client) UpdateServiceAccount(sa *v1.ServiceAccount) (*v1.ServiceAccount, error) {
-	glog.V(4).Infof("[UPDATE ServiceAccount]: %s", sa.GetName())
+	klog.V(4).Infof("[UPDATE ServiceAccount]: %s", sa.GetName())
 	oldSa, err := c.GetServiceAccount(sa.GetNamespace(), sa.GetName())
 	if err != nil {
 		return nil, err
