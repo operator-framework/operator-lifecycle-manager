@@ -3,10 +3,10 @@ package operatorclient
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 // CreateRole creates the role.
@@ -26,7 +26,7 @@ func (c *Client) DeleteRole(namespace, name string, options *metav1.DeleteOption
 
 // UpdateRole will update the given Role resource.
 func (c *Client) UpdateRole(crb *rbacv1.Role) (*rbacv1.Role, error) {
-	glog.V(4).Infof("[UPDATE Role]: %s", crb.GetName())
+	klog.V(4).Infof("[UPDATE Role]: %s", crb.GetName())
 	oldCrb, err := c.GetRole(crb.GetNamespace(), crb.GetName())
 	if err != nil {
 		return nil, err

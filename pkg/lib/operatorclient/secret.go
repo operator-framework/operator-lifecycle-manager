@@ -3,10 +3,10 @@ package operatorclient
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 // CreateSecret creates the Secret.
@@ -26,7 +26,7 @@ func (c *Client) DeleteSecret(namespace, name string, options *metav1.DeleteOpti
 
 // UpdateSecret will update the given Secret resource.
 func (c *Client) UpdateSecret(secret *v1.Secret) (*v1.Secret, error) {
-	glog.V(4).Infof("[UPDATE Secret]: %s", secret.GetName())
+	klog.V(4).Infof("[UPDATE Secret]: %s", secret.GetName())
 	oldSa, err := c.GetSecret(secret.GetNamespace(), secret.GetName())
 	if err != nil {
 		return nil, err

@@ -3,9 +3,9 @@ package operatorclient
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
@@ -26,7 +26,7 @@ func (c *Client) DeleteAPIService(name string, options *metav1.DeleteOptions) er
 
 // UpdateAPIService will update the given APIService resource.
 func (c *Client) UpdateAPIService(apiService *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
-	glog.V(4).Infof("[UPDATE APIService]: %s", apiService.GetName())
+	klog.V(4).Infof("[UPDATE APIService]: %s", apiService.GetName())
 	oldAPIService, err := c.GetAPIService(apiService.GetName())
 	if err != nil {
 		return nil, err

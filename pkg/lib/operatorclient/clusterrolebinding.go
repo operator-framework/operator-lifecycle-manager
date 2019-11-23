@@ -3,10 +3,10 @@ package operatorclient
 import (
 	"fmt"
 
-	"github.com/golang/glog"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog"
 )
 
 // CreateRoleBinding creates the roleBinding.
@@ -26,7 +26,7 @@ func (c *Client) DeleteClusterRoleBinding(name string, options *metav1.DeleteOpt
 
 // UpdateRoleBinding will update the given RoleBinding resource.
 func (c *Client) UpdateClusterRoleBinding(crb *rbacv1.ClusterRoleBinding) (*rbacv1.ClusterRoleBinding, error) {
-	glog.V(4).Infof("[UPDATE RoleBinding]: %s", crb.GetName())
+	klog.V(4).Infof("[UPDATE RoleBinding]: %s", crb.GetName())
 	oldCrb, err := c.GetClusterRoleBinding(crb.GetName())
 	if err != nil {
 		return nil, err
