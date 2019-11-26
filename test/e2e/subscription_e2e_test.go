@@ -1179,7 +1179,7 @@ func updateInternalCatalog(t *testing.T, c operatorclient.ClientInterface, crc v
 	require.NoError(t, err)
 
 	// wait for catalog to update
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, func(catalog *v1alpha1.CatalogSource) bool {
+	_, err = fetchCatalogSource(t, crc, catalogSourceName, namespace, func(catalog *v1alpha1.CatalogSource) bool {
 		if catalog.Status.LastSync != fetchedInitialCatalog.Status.LastSync && catalog.Status.ConfigMapResource.ResourceVersion != fetchedInitialCatalog.Status.ConfigMapResource.ResourceVersion {
 			fmt.Println("catalog updated")
 			return true
