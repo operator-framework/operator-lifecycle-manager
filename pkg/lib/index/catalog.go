@@ -16,23 +16,22 @@ const (
 // PresentCatalogIndexFunc returns index from CatalogSource/CatalogSourceNamespace
 // of the given object (Subscription)
 func PresentCatalogIndexFunc(obj interface{}) ([]string, error) {
-	indicies := []string{}
-
 	sub, ok := obj.(*v1alpha1.Subscription)
 	if !ok {
-		return indicies, fmt.Errorf("invalid object of type: %T", obj)
+		return []string{""}, fmt.Errorf("invalid object of type: %T", obj)
 	}
 
-	indicies = append(indicies, fmt.Sprintf("%s/%s", sub.Spec.CatalogSource,
-		sub.Spec.CatalogSourceNamespace))
+	if sub.Spec.CatalogSource != "" && sub.Spec.CatalogSourceNamespace != "" {
+		return []string{sub.Spec.CatalogSource + "/" + sub.Spec.CatalogSourceNamespace}, nil
+	}
 
-	return indicies, nil
+	return []string{""}, nil
 }
 
-// CatalogSubscriberNamespaces returns the list of Suscriptions' name and namespace
-// (name/namespace as key and namespace as value) that uses the given CatalogSource (name/namespace)
-func CatalogSubscriberNamespaces(indexers map[string]cache.Indexer, name, namespace string) (map[string]string, error) {
-	nsSet := map[string]string{}
+// CatalogSubscriberNamespaces returns the list of namespace (as a map with namespace as key)
+// which has Suscriptions(s) that subscribe(s) to a given CatalogSource (name/namespace)
+func CatalogSubscriberNamespaces(indexers map[string]cache.Indexer, name, namespace string) (map[string]struct{}, error) {
+	nsSet := map[string]struct{}{}
 	index := fmt.Sprintf("%s/%s", name, namespace)
 
 	for _, indexer := range indexers {
@@ -46,8 +45,7 @@ func CatalogSubscriberNamespaces(indexers map[string]cache.Indexer, name, namesp
 				continue
 			}
 			// Add to set
-			key := fmt.Sprintf("%s/%s", s.GetName(), s.GetNamespace())
-			nsSet[key] = s.GetNamespace()
+			nsSet[s.GetNamespace()] = struct{}{}
 		}
 	}
 
