@@ -348,11 +348,11 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 	switch state.State {
 	case connectivity.Ready:
 		if o.namespace == state.Key.Namespace {
-			subs, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
+			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)
 
 			if err == nil {
-				for _, ns := range subs {
+				for ns := range namespaces {
 					o.nsResolveQueue.Add(ns)
 				}
 			}

@@ -138,17 +138,27 @@ func TestGlobalCatalogUpdateTriggersSubscriptionSync(t *testing.T) {
 		Package:                mainPackageName,
 		Channel:                stableChannel,
 		StartingCSV:            mainCSV.GetName(),
-		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
+		InstallPlanApproval:    v1alpha1.ApprovalManual,
 	}
 
 	// Create Subscription
 	subscriptionName := genName("sub-")
 	createSubscriptionForCatalogWithSpec(t, crc, testNamespace, subscriptionName, subscriptionSpec)
 
-	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateAtLatestChecker)
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
-	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+
+	installPlanName := subscription.Status.Install.Name
+	requiresApprovalChecker := buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseRequiresApproval)
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, requiresApprovalChecker)
+	require.NoError(t, err)
+
+	fetchedInstallPlan.Spec.Approved = true
+	_, err = crc.OperatorsV1alpha1().InstallPlans(testNamespace).Update(fetchedInstallPlan)
+	require.NoError(t, err)
+
+	_, err = awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
 	require.NoError(t, err)
 
 	// Update manifest
@@ -166,19 +176,10 @@ func TestGlobalCatalogUpdateTriggersSubscriptionSync(t *testing.T) {
 	updateInternalCatalog(t, c, crc, mainCatalogName, globalNS, []apiextensions.CustomResourceDefinition{mainCRD}, []v1alpha1.ClusterServiceVersion{mainCSV, replacementCSV}, mainManifests)
 
 	// Get updated catalogsource
-	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, globalNS, func(catalog *v1alpha1.CatalogSource) bool {
-		registry := catalog.Status.RegistryServiceStatus
-		connState := catalog.Status.GRPCConnectionState
-		if registry != nil && connState != nil && connState.LastObservedState == "READY" && !connState.LastConnectTime.IsZero() {
-			fmt.Printf("catalog %s pod with address %s\n", catalog.GetName(), registry.Address())
-			return registryPodHealthy(registry.Address())
-		}
-		fmt.Printf("waiting for catalog pod %v to be available (for sync)\n", catalog.GetName())
-		return false
-	})
+	fetchedUpdatedCatalog, err := fetchCatalogSource(t, crc, mainCatalogName, globalNS, catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
-	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradeAvailableChecker)
+	subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionStateUpgradePendingChecker)
 	require.NoError(t, err)
 	require.NotNil(t, subscription)
 
