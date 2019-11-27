@@ -17,7 +17,7 @@ verify_podman_binary() {
 # Add port as 9000:9000 as arg when the SO is MacOS or Win
 add_host_port_arg (){
     args="--net=host"
-    if [[ "$OSTYPE" == "darwin"* ]] || [[ "$(< /proc/version)" == *"@(Microsoft|WSL)"* ]]; then
+    if [[ "$OSTYPE" == "darwin"* ]] || uname -r | grep -q 'Microsoft'; then
       args="-p 9000:9000"
     fi
 }
@@ -34,10 +34,10 @@ run_ocp_console_image (){
     $POD_MANAGER run -dit --rm $args \
       -e BRIDGE_USER_AUTH="disabled" \
       -e BRIDGE_K8S_MODE="off-cluster" \
-      -e BRIDGE_K8S_MODE_OFF_CLUSTER_ENDPOINT=$endpoint \
+      -e BRIDGE_K8S_MODE_OFF_CLUSTER_ENDPOINT="$endpoint" \
       -e BRIDGE_K8S_MODE_OFF_CLUSTER_SKIP_VERIFY_TLS=true \
       -e BRIDGE_K8S_AUTH="bearer-token" \
-      -e BRIDGE_K8S_AUTH_BEARER_TOKEN=$(kubectl get secret "$secretname" --namespace=kube-system -o template --template='{{.data.token}}' | base64 --decode) \
+      -e BRIDGE_K8S_AUTH_BEARER_TOKEN="$(kubectl get secret "$secretname" --namespace=kube-system -o template --template='{{.data.token}}' | base64 --decode)" \
       quay.io/openshift/origin-console:latest &> /dev/null
 }
 
@@ -48,7 +48,7 @@ verify_ocp_console_image (){
       echo -e "${GREEN}The OLM is accessible via web console at:${RESET}"
       echo -e "${GREEN}http://localhost:9000/${RESET}"
       echo -e "${GREEN}Press Ctrl-C to quit${RESET}";
-      $POD_MANAGER attach $container_id
+      $POD_MANAGER attach "$container_id"
     else
       echo -e "${RED}Unable to run the console locally. May this port is in usage already.${RESET}"
       echo -e "${RED}Check if the OLM is not accessible via web console at: http://localhost:9000/${RESET}"
