@@ -589,7 +589,6 @@ spec:
                             value:
                               description: If present, the value of this status is the same for all instances of the CRD and can be found here instead of on the CR.
 
-
             install:
               type: object
               description: Information required to install this specific version of the operator software
@@ -622,27 +621,6 @@ spec:
                     required:
                     - deployments
                     properties:
-                      installModes:
-                        type: array
-                        description: List of supported install modes for the operator
-                        items:
-                          type: object
-                          description: A tuple representing a mode of installation and whether the operator supports it
-                          required:
-                            - type
-                            - supported
-                          properties:
-                            type:
-                              type: string
-                              description: A type of install mode
-                              enum:
-                                - OwnNamespace
-                                - SingleNamespace
-                                - MultiNamespace
-                                - AllNamespaces
-                            supported:
-                              type: boolean
-                              description: Represents if the install mode type is supported
                       deployments:
                         type: array
                         description: List of deployments to create
@@ -763,6 +741,42 @@ spec:
                                       - deletecollection
                                       - initialize
                                       - use
+            installModes:
+              type: array
+              description: List of supported install modes for the operator
+              items:
+                type: object
+                description: A tuple representing a mode of installation and whether the operator supports it
+                required:
+                  - type
+                  - supported
+                properties:
+                  type:
+                    type: string
+                    description: A type of install mode
+                    enum:
+                      - OwnNamespace
+                      - SingleNamespace
+                      - MultiNamespace
+                      - AllNamespaces
+                  supported:
+                    type: boolean
+                    description: Represents if the install mode type is supported
+
+            provider:
+              type: object
+              description: A provider to describe one aspect of the project
+              required:
+              - name
+              properties:
+                name:
+                  type: string
+                  description: Name of the provider
+                url:
+                  type: string
+                  description: URL to which the provider should point
+                  format: uri
+
         status:
           type: object
           description: Status for a ClusterServiceVersion
