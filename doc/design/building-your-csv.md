@@ -1,3 +1,25 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+
+- [Building a Cluster Service Version (CSV) for the Operator Framework](#building-a-cluster-service-version-csv-for-the-operator-framework)
+  - [What is a Cluster Service Version (CSV)?](#what-is-a-cluster-service-version-csv)
+  - [CSV Metadata](#csv-metadata)
+  - [Your Custom Resource Definitions](#your-custom-resource-definitions)
+    - [Owned CRDs](#owned-crds)
+    - [Required CRDs](#required-crds)
+  - [CRD Templates](#crd-templates)
+  - [Your API Services](#your-api-services)
+    - [Owned APIServices](#owned-apiservices)
+    - [APIService Resource Creation](#apiservice-resource-creation)
+    - [APIService Serving Certs](#apiservice-serving-certs)
+    - [Required APIServices](#required-apiservices)
+  - [Operator Metadata](#operator-metadata)
+  - [Operator Install](#operator-install)
+  - [Full Examples](#full-examples)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # Building a Cluster Service Version (CSV) for the Operator Framework
 
 This guide is intended to guide an Operator author to package a version of their Operator to run with the [Operator Lifecycle Manager](https://github.com/operator-framework/operator-lifecycle-manager). This will be a manual method that will walk through each section of the file, what it’s used for and how to populate it.
@@ -246,7 +268,8 @@ The metadata section contains general metadata around the name, version and othe
 
 Here's an example:
 
-```keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
+```yaml
+   keywords: ['etcd', 'key value', 'database', 'coreos', 'open source']
    version: 0.9.2
    maturity: alpha
    replaces: etcdoperator.v0.9.0
