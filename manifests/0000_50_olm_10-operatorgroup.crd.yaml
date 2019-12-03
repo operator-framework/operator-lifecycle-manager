@@ -6,94 +6,155 @@ spec:
   group: operators.coreos.com
   version: v1
   versions:
-    - name: v1
-      served: true
-      storage: true
-    - name: v1alpha2
-      served: true
-      storage: false
+  - name: v1
+    served: true
+    storage: true
   names:
     plural: operatorgroups
     singular: operatorgroup
     kind: OperatorGroup
     listKind: OperatorGroupList
     shortNames:
-      - og
+    - og
     categories:
-      - olm
+    - olm
   scope: Namespaced
+  preserveUnknownFields: false
   subresources:
     # status enables the status subresource.
     status: {}
-  validation:
-    openAPIV3Schema:
-      description: A grouping of namespaces for usage with an operator.
-      properties:
-        spec:
-          type: object
-          description: Spec for an OperatorGroup.
-          properties:
-            selector:
-              type: object
-              description: Optional label selector to find resources associated with or managed by the operator
-              anyOf:
-                - properties:
-                    matchLabels:
-                      type: object
-                      description: Label key:value pairs to match directly
-                  required:
-                    - matchLabels
-                - properties:
-                    matchExpressions:
-                      type: array
-                      description: A set of expressions to match against the resource.
-                      items:
-                        allOf:
-                          - type: object
-                            required:
-                            - key
-                            - operator
-                            - values
-                            properties:
-                              key:
-                                type: string
-                                description: the key to match
-                              operator:
-                                type: string
-                                description: the operator for the expression
-                                enum:
-                                - In
-                                - NotIn
-                                - Exists
-                                - DoesNotExist
-                              values:
-                                type: array
-                                description: set of values for the expression
-                  required:
-                    - matchExpressions
-            targetNamespaces:
-              type: array
-              description: Optional list of target namespaces. If set, OLM will ignore selector.
-              items:
-                type: string
-                pattern: ^\S+$
-            serviceAccountName:
-              type: string
-            staticProvidedAPIs:
-              type: boolean
-              description: If true, OLM will not modify the OperatorGroup's providedAPIs annotation.
-        status:
-          type: object
-          description: The status of the OperatorGroup.
-          properties:
-            lastUpdated:
-              format: date-time
-              type: string
-            namespaces:
-              items:
-                type: string
-              type: array
-          required:
-          - lastUpdated
+  "validation":
+    "openAPIV3Schema":
+      description: OperatorGroup is the unit of multitenancy for OLM managed operators.
+        It constrains the installation of operators in its namespace to a specified
+        set of target namespaces.
+      type: object
       required:
       - metadata
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
+        spec:
+          description: OperatorGroupSpec is the spec for an OperatorGroup resource.
+          type: object
+          properties:
+            selector:
+              description: Selector selects the OperatorGroup's target namespaces.
+              type: object
+              properties:
+                matchExpressions:
+                  description: matchExpressions is a list of label selector requirements.
+                    The requirements are ANDed.
+                  type: array
+                  items:
+                    description: A label selector requirement is a selector that contains
+                      values, a key, and an operator that relates the key and values.
+                    type: object
+                    required:
+                    - key
+                    - operator
+                    properties:
+                      key:
+                        description: key is the label key that the selector applies
+                          to.
+                        type: string
+                      operator:
+                        description: operator represents a key's relationship to a
+                          set of values. Valid operators are In, NotIn, Exists and
+                          DoesNotExist.
+                        type: string
+                      values:
+                        description: values is an array of string values. If the operator
+                          is In or NotIn, the values array must be non-empty. If the
+                          operator is Exists or DoesNotExist, the values array must
+                          be empty. This array is replaced during a strategic merge
+                          patch.
+                        type: array
+                        items:
+                          type: string
+                matchLabels:
+                  description: matchLabels is a map of {key,value} pairs. A single
+                    {key,value} in the matchLabels map is equivalent to an element
+                    of matchExpressions, whose key field is "key", the operator is
+                    "In", and the values array contains only "value". The requirements
+                    are ANDed.
+                  type: object
+                  additionalProperties:
+                    type: string
+            serviceAccountName:
+              description: ServiceAccountName is the admin specified service account
+                which will be used to deploy operator(s) in this operator group.
+              type: string
+            staticProvidedAPIs:
+              description: Static tells OLM not to update the OperatorGroup's providedAPIs
+                annotation
+              type: boolean
+            targetNamespaces:
+              description: TargetNamespaces is an explicit set of namespaces to target.
+                If it is set, Selector is ignored.
+              type: array
+              items:
+                type: string
+        status:
+          description: OperatorGroupStatus is the status for an OperatorGroupResource.
+          type: object
+          required:
+          - lastUpdated
+          properties:
+            lastUpdated:
+              description: LastUpdated is a timestamp of the last time the OperatorGroup's
+                status was Updated.
+              type: string
+              format: date-time
+            namespaces:
+              description: Namespaces is the set of target namespaces for the OperatorGroup.
+              type: array
+              items:
+                type: string
+            serviceAccountRef:
+              description: ServiceAccountRef references the service account object
+                specified.
+              type: object
+              properties:
+                apiVersion:
+                  description: API version of the referent.
+                  type: string
+                fieldPath:
+                  description: 'If referring to a piece of an object instead of an
+                    entire object, this string should contain a valid JSON/Go field
+                    access statement, such as desiredState.manifest.containers[2].
+                    For example, if the object reference is to a container within
+                    a pod, this would take on a value like: "spec.containers{name}"
+                    (where "name" refers to the name of the container that triggered
+                    the event) or if no container name is specified "spec.containers[2]"
+                    (container with index 2 in this pod). This syntax is chosen only
+                    to have some well-defined way of referencing a part of an object.
+                    TODO: this design is not final and this field is subject to change
+                    in the future.'
+                  type: string
+                kind:
+                  description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+                  type: string
+                name:
+                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                  type: string
+                namespace:
+                  description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                  type: string
+                resourceVersion:
+                  description: 'Specific resourceVersion to which this reference is
+                    made, if any. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency'
+                  type: string
+                uid:
+                  description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                  type: string
