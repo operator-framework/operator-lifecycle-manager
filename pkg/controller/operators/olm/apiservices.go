@@ -32,6 +32,8 @@ const (
 	OLMCAHashAnnotationKey = "olmcahash"
 	// Organization is the organization name used in the generation of x509 certs
 	Organization = "Red Hat, Inc."
+	// Name of packageserver API service
+	PackageserverName = "v1.packages.operators.coreos.com"
 )
 
 func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
