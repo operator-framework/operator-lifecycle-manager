@@ -6,12 +6,10 @@ matrix:
       script: scripts/ci.sh
     - go: "1.12.x"
       script: scripts/ci.sh
-    - go: "tip"
-      script: scripts/ci.sh
 
 env:
   - GO111MODULE=on
 
 install: true
 
-sudo: false # uses new containerized infrastructure
+sudo: false

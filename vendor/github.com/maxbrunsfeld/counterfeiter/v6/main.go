@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"go/format"
 	"io/ioutil"
@@ -13,6 +12,7 @@ import (
 	"runtime/pprof"
 
 	"github.com/maxbrunsfeld/counterfeiter/v6/arguments"
+	"github.com/maxbrunsfeld/counterfeiter/v6/command"
 	"github.com/maxbrunsfeld/counterfeiter/v6/generator"
 )
 
@@ -46,38 +46,57 @@ func run() error {
 	if !isDebug() {
 		log.SetOutput(ioutil.Discard)
 	}
-	flag.Parse()
-	args := flag.Args()
-
-	if len(args) < 1 {
-		return errors.New(usage)
-	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.New("Error - couldn't determine current working directory")
 	}
 
-	argumentParser := arguments.NewArgumentParser(
-		fail,
-		cwd,
-		filepath.EvalSymlinks,
-		os.Stat,
-	)
-	parsedArgs := argumentParser.ParseArguments(args...)
-	return generate(cwd, parsedArgs)
+	var cache generator.Cacher
+	if disableCache() {
+		cache = &generator.FakeCache{}
+	} else {
+		cache = &generator.Cache{}
+	}
+	var invocations []command.Invocation
+	var args *arguments.ParsedArguments
+	args, _ = arguments.New(os.Args, cwd, filepath.EvalSymlinks, os.Stat)
+	generateMode := false
+	if args != nil {
+		generateMode = args.GenerateMode
+	}
+	invocations, err = command.Detect(cwd, os.Args, generateMode)
+	if err != nil {
+		return err
+	}
+
+	for i := range invocations {
+		a, err := arguments.New(invocations[i].Args, cwd, filepath.EvalSymlinks, os.Stat)
+		if err != nil {
+			return err
+		}
+		err = generate(cwd, a, cache)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func isDebug() bool {
 	return os.Getenv("COUNTERFEITER_DEBUG") != ""
 }
 
-func generate(workingDir string, args arguments.ParsedArguments) error {
+func disableCache() bool {
+	return os.Getenv("COUNTERFEITER_DISABLECACHE") != ""
+}
+
+func generate(workingDir string, args *arguments.ParsedArguments, cache generator.Cacher) error {
 	if err := reportStarting(workingDir, args.OutputPath, args.FakeImplName); err != nil {
 		return err
 	}
 
-	b, err := doGenerate(workingDir, args)
+	b, err := doGenerate(workingDir, args, cache)
 	if err != nil {
 		return err
 	}
@@ -89,12 +108,12 @@ func generate(workingDir string, args arguments.ParsedArguments) error {
 	return nil
 }
 
-func doGenerate(workingDir string, args arguments.ParsedArguments) ([]byte, error) {
+func doGenerate(workingDir string, args *arguments.ParsedArguments, cache generator.Cacher) ([]byte, error) {
 	mode := generator.InterfaceOrFunction
 	if args.GenerateInterfaceAndShimFromPackageDirectory {
 		mode = generator.Package
 	}
-	f, err := generator.NewFake(mode, args.InterfaceName, args.PackagePath, args.FakeImplName, args.DestinationPackageName, workingDir)
+	f, err := generator.NewFake(mode, args.InterfaceName, args.PackagePath, args.FakeImplName, args.DestinationPackageName, workingDir, cache)
 	if err != nil {
 		return nil, err
 	}
