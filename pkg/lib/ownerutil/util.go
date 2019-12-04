@@ -16,9 +16,10 @@ import (
 )
 
 const (
-	OwnerKey          = "olm.owner"
-	OwnerNamespaceKey = "olm.owner.namespace"
-	OwnerKind         = "olm.owner.kind"
+	OwnerKey           = "olm.owner"
+	OwnerNamespaceKey  = "olm.owner.namespace"
+	OwnerKind          = "olm.owner.kind"
+	OwnerPackageServer = "packageserver"
 )
 
 var (
