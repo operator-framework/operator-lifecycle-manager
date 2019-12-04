@@ -46,6 +46,8 @@ github.com/emicklei/go-restful/log
 github.com/emicklei/go-restful-swagger12
 # github.com/evanphx/json-patch v4.1.0+incompatible => github.com/evanphx/json-patch v0.0.0-20190203023257-5858425f7550
 github.com/evanphx/json-patch
+# github.com/fsnotify/fsnotify v1.4.7
+github.com/fsnotify/fsnotify
 # github.com/ghodss/yaml v1.0.0
 github.com/ghodss/yaml
 # github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8
