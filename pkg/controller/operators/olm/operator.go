@@ -320,6 +320,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 			queueinformer.WithInformer(serviceAccountInformer.Informer()),
 			queueinformer.WithSyncer(k8sSyncer),
 		)
+		if err != nil {
+			return nil, err
+		}
 		if err := op.RegisterQueueInformer(serviceAccountQueueInformer); err != nil {
 			return nil, err
 		}
