@@ -2,6 +2,12 @@
 #  OLM - Build and Test  #
 ##########################
 
+# Undefine GOFLAGS environment variable.
+ifdef GOFLAGS
+$(warning Undefining GOFLAGS set in CI)
+undefine GOFLAGS
+endif
+
 SHELL := /bin/bash
 PKG   := github.com/operator-framework/operator-lifecycle-manager
 MOD_FLAGS := $(shell (go version | grep -q -E "1\.1[1-9]") && echo -mod=vendor)
