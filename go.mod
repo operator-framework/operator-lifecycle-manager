@@ -13,7 +13,6 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.19.2
-	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff // indirect
 	github.com/golang/mock v1.3.1
 	github.com/google/btree v1.0.0 // indirect
@@ -34,6 +33,7 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
+	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gonum.org/v1/gonum v0.0.0-20190710053202-4340aa3071a0 // indirect
 	google.golang.org/grpc v1.23.0
@@ -44,6 +44,7 @@ require (
 	k8s.io/client-go v8.0.0+incompatible
 	k8s.io/code-generator v0.0.0
 	k8s.io/component-base v0.0.0
+	k8s.io/klog v0.4.0
 	k8s.io/kube-aggregator v0.0.0
 	k8s.io/kube-openapi v0.0.0-20190816220812-743ec37842bf
 	k8s.io/kubernetes v1.16.0

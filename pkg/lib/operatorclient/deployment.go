@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog"
 )
 
 const (
@@ -20,19 +20,19 @@ const (
 
 // GetDeployment returns the Deployment object for the given namespace and name.
 func (c *Client) GetDeployment(namespace, name string) (*appsv1.Deployment, error) {
-	glog.V(4).Infof("[GET Deployment]: %s:%s", namespace, name)
+	klog.V(4).Infof("[GET Deployment]: %s:%s", namespace, name)
 	return c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
 }
 
 // CreateDeployment creates the Deployment object.
 func (c *Client) CreateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, error) {
-	glog.V(4).Infof("[CREATE Deployment]: %s:%s", dep.Namespace, dep.Name)
+	klog.V(4).Infof("[CREATE Deployment]: %s:%s", dep.Namespace, dep.Name)
 	return c.AppsV1().Deployments(dep.Namespace).Create(dep)
 }
 
 // DeleteDeployment deletes the Deployment object.
 func (c *Client) DeleteDeployment(namespace, name string, options *metav1.DeleteOptions) error {
-	glog.V(4).Infof("[DELETE Deployment]: %s:%s", namespace, name)
+	klog.V(4).Infof("[DELETE Deployment]: %s:%s", namespace, name)
 	return c.AppsV1().Deployments(namespace).Delete(name, options)
 }
 
@@ -50,7 +50,7 @@ func (c *Client) UpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, b
 // Returns the latest Deployment and true if it was updated, or an error.
 func (c *Client) PatchDeployment(original, modified *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
 	namespace, name := modified.Namespace, modified.Name
-	glog.V(4).Infof("[PATCH Deployment]: %s:%s", namespace, name)
+	klog.V(4).Infof("[PATCH Deployment]: %s:%s", namespace, name)
 
 	current, err := c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -86,7 +86,7 @@ func (c *Client) RollingUpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deploy
 // RollingUpdateDeploymentMigrations will run any before / during / after migrations that have been
 // specified in the upgrade options.
 func (c *Client) RollingUpdateDeploymentMigrations(namespace, name string, f UpdateFunction) (*appsv1.Deployment, bool, error) {
-	glog.V(4).Infof("[ROLLING UPDATE Deployment]: %s:%s", namespace, name)
+	klog.V(4).Infof("[ROLLING UPDATE Deployment]: %s:%s", namespace, name)
 	return c.RollingPatchDeploymentMigrations(namespace, name, updateToPatch(f))
 }
 
@@ -107,7 +107,7 @@ func (c *Client) RollingPatchDeployment(original, modified *appsv1.Deployment) (
 // RollingPatchDeploymentMigrations will run any before / after migrations that have been specified
 // in the upgrade options.
 func (c *Client) RollingPatchDeploymentMigrations(namespace, name string, f PatchFunction) (*appsv1.Deployment, bool, error) {
-	glog.V(4).Infof("[ROLLING PATCH Deployment]: %s:%s", namespace, name)
+	klog.V(4).Infof("[ROLLING PATCH Deployment]: %s:%s", namespace, name)
 
 	current, err := c.AppsV1().Deployments(namespace).Get(name, metav1.GetOptions{})
 	if err != nil {
@@ -163,7 +163,7 @@ func (c *Client) waitForDeploymentRollout(dep *appsv1.Deployment) error {
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			glog.Errorf("error getting Deployment %s during rollout: %v", dep.Name, err)
+			klog.Errorf("error getting Deployment %s during rollout: %v", dep.Name, err)
 			return false, nil
 		}
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
@@ -177,7 +177,7 @@ func (c *Client) waitForDeploymentRollout(dep *appsv1.Deployment) error {
 // already exists, it will update the Deployment and wait for it to rollout. Returns true if the
 // Deployment was created or updated, false if there was no update.
 func (c *Client) CreateOrRollingUpdateDeployment(dep *appsv1.Deployment) (*appsv1.Deployment, bool, error) {
-	glog.V(4).Infof("[CREATE OR ROLLING UPDATE Deployment]: %s:%s", dep.Namespace, dep.Name)
+	klog.V(4).Infof("[CREATE OR ROLLING UPDATE Deployment]: %s:%s", dep.Namespace, dep.Name)
 
 	_, err := c.GetDeployment(dep.Namespace, dep.Name)
 	if err != nil {
@@ -196,7 +196,7 @@ func (c *Client) CreateOrRollingUpdateDeployment(dep *appsv1.Deployment) (*appsv
 // ListDeploymentsWithLabels returns a list of deployments that matches the label selector.
 // An empty list will be returned if no such deployments is found.
 func (c *Client) ListDeploymentsWithLabels(namespace string, labels labels.Set) (*appsv1.DeploymentList, error) {
-	glog.V(4).Infof("[LIST Deployments] in %s, labels: %v", namespace, labels)
+	klog.V(4).Infof("[LIST Deployments] in %s, labels: %v", namespace, labels)
 
 	opts := metav1.ListOptions{LabelSelector: labels.String()}
 	return c.AppsV1().Deployments(namespace).List(opts)
