@@ -126,7 +126,10 @@ func (in *OperatorGroupStatus) DeepCopyInto(out *OperatorGroupStatus) {
 		*out = new(corev1.ObjectReference)
 		**out = **in
 	}
-	in.LastUpdated.DeepCopyInto(&out.LastUpdated)
+	if in.LastUpdated != nil {
+		in, out := &in.LastUpdated, &out.LastUpdated
+		*out = (*in).DeepCopy()
+	}
 	return
 }
 

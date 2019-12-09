@@ -99,7 +99,8 @@ func (s *UserDefinedServiceAccountSyncer) update(in *v1.OperatorGroup, ref *core
 
 	status := out.Status.DeepCopy()
 	status.ServiceAccountRef = ref
-	status.LastUpdated = metav1.NewTime(s.clock.Now())
+	now := metav1.NewTime(s.clock.Now())
+	status.LastUpdated = &now
 
 	out.Status = *status
 

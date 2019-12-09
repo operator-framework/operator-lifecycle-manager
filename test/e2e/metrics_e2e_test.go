@@ -11,7 +11,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/net"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
@@ -30,8 +29,8 @@ func TestMetricsEndpoint(t *testing.T) {
 		},
 		Spec: v1alpha1.ClusterServiceVersionSpec{
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 		},
 	}

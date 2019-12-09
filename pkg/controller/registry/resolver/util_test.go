@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver/fakes"
 )
 
@@ -89,12 +88,12 @@ func NewFakeOperatorSurface(name, pkg, channel, replaces, src, startingCSV strin
 	}
 }
 
-func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
+func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *v1alpha1.ClusterServiceVersion {
 	var singleInstance = int32(1)
-	strategy := install.StrategyDetailsDeployment{
+	strategy := v1alpha1.StrategyDetailsDeployment{
 		Permissions:        permissions,
 		ClusterPermissions: clusterPermissions,
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: name,
 				Spec: appsv1.DeploymentSpec{
@@ -129,14 +128,10 @@ func csv(name, replaces string, ownedCRDs, requiredCRDs, ownedAPIServices, requi
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
-	if err != nil {
-		panic(err)
-	}
 
 	installStrategy := v1alpha1.NamedInstallStrategy{
-		StrategyName:    install.InstallStrategyNameDeployment,
-		StrategySpecRaw: strategyRaw,
+		StrategyName: v1alpha1.InstallStrategyNameDeployment,
+		StrategySpec: strategy,
 	}
 
 	requiredCRDDescs := make([]v1alpha1.CRDDescription, 0)
@@ -272,7 +267,7 @@ func withBundleObject(bundle *api.Bundle, obj *unstructured.Unstructured) *api.B
 	return bundle
 }
 
-func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []install.StrategyDeploymentPermissions) *api.Bundle {
+func bundleWithPermissions(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices APISet, permissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) *api.Bundle {
 	csvJson, err := json.Marshal(csv(name, replaces, providedCRDs, requiredCRDs, providedAPIServices, requiredAPIServices, permissions, clusterPermissions))
 	if err != nil {
 		panic(err)

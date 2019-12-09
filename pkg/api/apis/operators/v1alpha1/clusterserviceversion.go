@@ -50,7 +50,7 @@ var safeToAnnotateOperatorGroupReasons = map[ConditionReason]struct{}{
 }
 
 // SetPhaseWithEventIfChanged emits a Kubernetes event with details of a phase change and sets the current phase if phase, reason, or message would changed
-func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
+func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now *metav1.Time, recorder record.EventRecorder) {
 	if c.Status.Phase == phase && c.Status.Reason == reason && c.Status.Message == message {
 		return
 	}
@@ -59,7 +59,7 @@ func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceV
 }
 
 // SetPhaseWithEvent generates a Kubernetes event with details about the phase change and sets the current phase
-func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
+func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now *metav1.Time, recorder record.EventRecorder) {
 	var eventtype string
 	if phase == CSVPhaseFailed {
 		eventtype = v1.EventTypeWarning
@@ -71,7 +71,7 @@ func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPha
 }
 
 // SetPhase sets the current phase and adds a condition if necessary
-func (c *ClusterServiceVersion) SetPhase(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time) {
+func (c *ClusterServiceVersion) SetPhase(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now *metav1.Time) {
 	newCondition := func() ClusterServiceVersionCondition {
 		return ClusterServiceVersionCondition{
 			Phase:              c.Status.Phase,

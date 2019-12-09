@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -161,7 +160,7 @@ func TestOperatorGroup(t *testing.T) {
 
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{
@@ -529,15 +528,15 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 	mockKinds := []string{"fez", "fedora"}
 	mockNames := []string{"fezs", "fedoras"}
 	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: depName,
 				Spec: depSpec,
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
 	for i, kind := range mockKinds {
 		owned[i] = v1alpha1.APIServiceDescription{
@@ -574,8 +573,8 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Owned: owned,
@@ -1403,7 +1402,7 @@ func TestCSVCopyWatchingAllNamespaces(t *testing.T) {
 	t.Log("Creating CSV")
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{

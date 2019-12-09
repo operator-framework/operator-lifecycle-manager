@@ -117,7 +117,8 @@ type CatalogSource struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   CatalogSourceSpec   `json:"spec"`
+	Spec CatalogSourceSpec `json:"spec"`
+	// +optional
 	Status CatalogSourceStatus `json:"status"`
 }
 

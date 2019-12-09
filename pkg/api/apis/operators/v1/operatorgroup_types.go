@@ -46,7 +46,7 @@ type OperatorGroupStatus struct {
 	ServiceAccountRef *corev1.ObjectReference `json:"serviceAccountRef,omitempty"`
 
 	// LastUpdated is a timestamp of the last time the OperatorGroup's status was Updated.
-	LastUpdated metav1.Time `json:"lastUpdated"`
+	LastUpdated *metav1.Time `json:"lastUpdated"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -58,6 +58,7 @@ type OperatorGroup struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
+	// +optional
 	Spec   OperatorGroupSpec   `json:"spec"`
 	Status OperatorGroupStatus `json:"status,omitempty"`
 }

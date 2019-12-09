@@ -365,7 +365,7 @@ func (a *Operator) ensureRBACInTargetNamespace(csv *v1alpha1.ClusterServiceVersi
 	if err != nil {
 		return err
 	}
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		return fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
 	}
@@ -584,15 +584,7 @@ func (a *Operator) ensureCSVsInNamespaces(csv *v1alpha1.ClusterServiceVersion, o
 		return err
 	}
 
-	strategyResolver := install.StrategyResolver{}
-	strategy, err := strategyResolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
-	if err != nil {
-		return err
-	}
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
-	if !ok {
-		return fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
-	}
+	strategyDetailsDeployment := &csv.Spec.InstallStrategy.StrategySpec
 	ruleChecker := install.NewCSVRuleChecker(a.lister.RbacV1().RoleLister(), a.lister.RbacV1().RoleBindingLister(), a.lister.RbacV1().ClusterRoleLister(), a.lister.RbacV1().ClusterRoleBindingLister(), csv)
 
 	logger := a.logger.WithField("opgroup", operatorGroup.GetName()).WithField("csv", csv.GetName())
