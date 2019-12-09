@@ -70,7 +70,7 @@ func (a *Operator) minKubeVersionStatus(name string, minKubeVersion string) (met
 	return
 }
 
-func (a *Operator) requirementStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
+func (a *Operator) requirementStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, crdDescs []v1alpha1.CRDDescription,
 	ownedAPIServiceDescs []v1alpha1.APIServiceDescription, requiredAPIServiceDescs []v1alpha1.APIServiceDescription,
 	requiredNativeAPIs []metav1.GroupVersionKind) (met bool, statuses []v1alpha1.RequirementStatus) {
 	met = true
@@ -238,10 +238,10 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 }
 
 // permissionStatus checks whether the given CSV's RBAC requirements are met in its namespace
-func (a *Operator) permissionStatus(strategyDetailsDeployment *install.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace, serviceAccountNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
+func (a *Operator) permissionStatus(strategyDetailsDeployment *v1alpha1.StrategyDetailsDeployment, ruleChecker install.RuleChecker, targetNamespace, serviceAccountNamespace string) (bool, []v1alpha1.RequirementStatus, error) {
 	statusesSet := map[string]v1alpha1.RequirementStatus{}
 
-	checkPermissions := func(permissions []install.StrategyDeploymentPermissions, namespace string) (bool, error) {
+	checkPermissions := func(permissions []v1alpha1.StrategyDeploymentPermissions, namespace string) (bool, error) {
 		met := true
 		for _, perm := range permissions {
 			saName := perm.ServiceAccountName
@@ -345,7 +345,7 @@ func (a *Operator) requirementAndPermissionStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		return false, nil, fmt.Errorf("could not cast install strategy as type %T", strategyDetailsDeployment)
 	}

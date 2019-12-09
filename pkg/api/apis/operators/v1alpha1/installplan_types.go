@@ -95,8 +95,8 @@ type InstallPlanStatus struct {
 type InstallPlanCondition struct {
 	Type               InstallPlanConditionType   `json:"type,omitempty"`
 	Status             corev1.ConditionStatus     `json:"status,omitempty"` // True, False, or Unknown
-	LastUpdateTime     metav1.Time                `json:"lastUpdateTime,omitempty"`
-	LastTransitionTime metav1.Time                `json:"lastTransitionTime,omitempty"`
+	LastUpdateTime     *metav1.Time               `json:"lastUpdateTime,omitempty"`
+	LastTransitionTime *metav1.Time               `json:"lastTransitionTime,omitempty"`
 	Reason             InstallPlanConditionReason `json:"reason,omitempty"`
 	Message            string                     `json:"message,omitempty"`
 }
@@ -141,8 +141,8 @@ func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionR
 		Status:             corev1.ConditionFalse,
 		Reason:             reason,
 		Message:            message,
-		LastUpdateTime:     *now,
-		LastTransitionTime: *now,
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
 	}
 }
 
@@ -150,8 +150,8 @@ func ConditionMet(cond InstallPlanConditionType, now *metav1.Time) InstallPlanCo
 	return InstallPlanCondition{
 		Type:               cond,
 		Status:             corev1.ConditionTrue,
-		LastUpdateTime:     *now,
-		LastTransitionTime: *now,
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
 	}
 }
 
@@ -227,7 +227,8 @@ type InstallPlan struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   InstallPlanSpec   `json:"spec"`
+	Spec InstallPlanSpec `json:"spec"`
+	// +optional
 	Status InstallPlanStatus `json:"status"`
 }
 

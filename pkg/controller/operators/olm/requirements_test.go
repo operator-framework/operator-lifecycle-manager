@@ -2,7 +2,6 @@ package olm
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -15,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 )
 
 func TestRequirementAndPermissionStatus(t *testing.T) {
@@ -36,23 +34,6 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 		expectedError               error
 	}{
 		{
-			description: "BadInstallStrategy",
-			csv: csv("csv1",
-				namespace,
-				"0.0.0",
-				"",
-				v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-				nil,
-				nil,
-				v1alpha1.CSVPhasePending,
-			),
-			existingObjs:    nil,
-			existingExtObjs: nil,
-			met:             false,
-			expectedRequirementStatuses: nil,
-			expectedError:               fmt.Errorf("unexpected end of JSON input"),
-		},
-		{
 			description: "AllPermissionsMet",
 			csv: csv("csv1",
 				namespace,
@@ -60,7 +41,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"",
 				installStrategy(
 					"csv1-dep",
-					[]install.StrategyDeploymentPermissions{
+					[]v1alpha1.StrategyDeploymentPermissions{
 						{
 							ServiceAccountName: "sa",
 							Rules: []rbacv1.PolicyRule{
@@ -72,7 +53,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 							},
 						},
 					},
-					[]install.StrategyDeploymentPermissions{
+					[]v1alpha1.StrategyDeploymentPermissions{
 						{
 							ServiceAccountName: "sa",
 							Rules: []rbacv1.PolicyRule{
@@ -198,7 +179,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"",
 				installStrategy(
 					"csv1-dep",
-					[]install.StrategyDeploymentPermissions{
+					[]v1alpha1.StrategyDeploymentPermissions{
 						{
 							ServiceAccountName: "sa",
 							Rules: []rbacv1.PolicyRule{
@@ -210,7 +191,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 							},
 						},
 					},
-					[]install.StrategyDeploymentPermissions{
+					[]v1alpha1.StrategyDeploymentPermissions{
 						{
 							ServiceAccountName: "sa",
 							Rules: []rbacv1.PolicyRule{
@@ -336,7 +317,7 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 				"",
 				installStrategy(
 					"csv1-dep",
-					[]install.StrategyDeploymentPermissions{
+					[]v1alpha1.StrategyDeploymentPermissions{
 						{
 							ServiceAccountName: "sa",
 							Rules: []rbacv1.PolicyRule{
@@ -612,7 +593,9 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 
 			// Get the permission status
 			met, statuses, err := op.requirementAndPermissionStatus(test.csv)
+
 			if test.expectedError != nil {
+				require.Error(t, err)
 				require.EqualError(t, test.expectedError, err.Error())
 			}
 			require.Equal(t, test.met, met)
@@ -644,7 +627,7 @@ func TestMinKubeVersionStatus(t *testing.T) {
 		namespace,
 		"0.0.0",
 		"",
-		v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
+		v1alpha1.NamedInstallStrategy{"deployment", v1alpha1.StrategyDetailsDeployment{}},
 		nil,
 		nil,
 		v1alpha1.CSVPhasePending,

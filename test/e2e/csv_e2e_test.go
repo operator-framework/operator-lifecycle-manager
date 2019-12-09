@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -24,7 +23,6 @@ import (
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
@@ -443,7 +441,7 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 	crc := newCRClient(t)
 
 	saName := genName("dep-")
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: saName,
 			Rules: []rbacv1.PolicyRule{
@@ -456,7 +454,7 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 		},
 	}
 
-	clusterPermissions := []install.StrategyDeploymentPermissions{
+	clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: saName,
 			Rules: []rbacv1.PolicyRule{
@@ -615,7 +613,7 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 	crc := newCRClient(t)
 
 	saName := genName("dep-")
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: saName,
 			Rules: []rbacv1.PolicyRule{
@@ -628,7 +626,7 @@ func TestCreateCSVWithUnmetPermissionsAPIService(t *testing.T) {
 		},
 	}
 
-	clusterPermissions := []install.StrategyDeploymentPermissions{
+	clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: saName,
 			Rules: []rbacv1.PolicyRule{
@@ -763,7 +761,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 	_, err := c.CreateServiceAccount(&sa)
 	require.NoError(t, err, "could not create ServiceAccount %#v", sa)
 
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: sa.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -776,7 +774,7 @@ func TestCreateCSVRequirementsMetCRD(t *testing.T) {
 		},
 	}
 
-	clusterPermissions := []install.StrategyDeploymentPermissions{
+	clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: sa.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -1025,7 +1023,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 	_, err := c.CreateServiceAccount(&sa)
 	require.NoError(t, err, "could not create ServiceAccount")
 
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: sa.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -1038,7 +1036,7 @@ func TestCreateCSVRequirementsMetAPIService(t *testing.T) {
 		},
 	}
 
-	clusterPermissions := []install.StrategyDeploymentPermissions{
+	clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: sa.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -1191,15 +1189,14 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 	// Create CSV for the package-server
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: depName,
 				Spec: depSpec,
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
 
 	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
 	for i, kind := range mockKinds {
@@ -1237,8 +1234,8 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Owned: owned,
@@ -1315,8 +1312,9 @@ func TestCreateCSVWithOwnedAPIService(t *testing.T) {
 	require.True(t, ok, "expected olm sha annotation not present on existing pod template")
 
 	// Induce a cert rotation
-	fetchedCSV.Status.CertsLastUpdated = metav1.Now()
-	fetchedCSV.Status.CertsRotateAt = metav1.Now()
+	now := metav1.Now()
+	fetchedCSV.Status.CertsLastUpdated = &now
+	fetchedCSV.Status.CertsRotateAt = &now
 	fetchedCSV, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).UpdateStatus(fetchedCSV)
 	require.NoError(t, err)
 
@@ -1379,15 +1377,14 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 	// Create CSVs for the hat-server
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: depName,
 				Spec: depSpec,
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
 
 	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
 	for i, kind := range mockKinds {
@@ -1425,8 +1422,8 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Owned: owned,
@@ -1436,7 +1433,7 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 	csv.SetName("csv-hat-1")
 
 	// Create the APIService CSV
-	_, err = createCSV(t, c, crc, csv, testNamespace, false, false)
+	_, err := createCSV(t, c, crc, csv, testNamespace, false, false)
 	require.NoError(t, err)
 
 	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
@@ -1499,8 +1496,8 @@ func TestUpdateCSVWithOwnedAPIService(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Owned: owned,
@@ -1635,15 +1632,14 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 	apiServiceName := strings.Join([]string{version, mockGroup}, ".")
 
 	// Create CSVs for the hat-server
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: depName,
 				Spec: depSpec,
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
 
 	owned := make([]v1alpha1.APIServiceDescription, len(mockKinds))
 	for i, kind := range mockKinds {
@@ -1681,8 +1677,8 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Owned: owned,
@@ -1755,8 +1751,8 @@ func TestCreateSameCSVWithOwnedAPIServiceMultiNamespace(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
 				Owned: owned,
@@ -1867,15 +1863,15 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 
 	// Create "current" CSV
 	nginxName := genName("nginx-")
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(nginxName),
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -1909,8 +1905,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -1940,8 +1936,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 	require.NotNil(t, dep)
 
 	// Create "updated" CSV
-	strategyNew := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				// Same name
 				Name: strategy.DeploymentSpecs[0].Name,
@@ -1950,7 +1946,7 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 			},
 		},
 	}
-	strategyNewRaw, err := json.Marshal(strategyNew)
+
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
@@ -1982,8 +1978,8 @@ func TestUpdateCSVSameDeploymentName(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyNewRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategyNew,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2052,15 +2048,15 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	defer cleanupCRD()
 
 	// create "current" CSV
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
@@ -2092,8 +2088,8 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2123,15 +2119,15 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 	require.NotNil(t, dep)
 
 	// Create "updated" CSV
-	strategyNew := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep2"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyNewRaw, err := json.Marshal(strategyNew)
+
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
@@ -2163,8 +2159,8 @@ func TestUpdateCSVDifferentDeploymentName(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyNewRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategyNew,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2240,15 +2236,15 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	defer cleanupCRD()
 
 	// create "current" CSV
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
@@ -2280,8 +2276,8 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2311,15 +2307,15 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 	require.NotNil(t, dep)
 
 	// Create "updated" CSV
-	strategyNew := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep2"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyNewRaw, err := json.Marshal(strategyNew)
+
 	require.NoError(t, err)
 
 	csvNew := v1alpha1.ClusterServiceVersion{
@@ -2351,8 +2347,8 @@ func TestUpdateCSVMultipleIntermediates(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyNewRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategyNew,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2421,15 +2417,15 @@ func TestUpdateCSVInPlace(t *testing.T) {
 
 	// Create "current" CSV
 	nginxName := genName("nginx-")
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(nginxName),
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	require.NoError(t, err)
@@ -2463,8 +2459,8 @@ func TestUpdateCSVInPlace(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2523,10 +2519,9 @@ func TestUpdateCSVInPlace(t *testing.T) {
 	var five int32 = 5
 	strategyNew.DeploymentSpecs[0].Spec.Replicas = &five
 
-	strategyNewRaw, err := json.Marshal(strategyNew)
 	require.NoError(t, err)
 
-	fetchedCSV.Spec.InstallStrategy.StrategySpecRaw = strategyNewRaw
+	fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
 	// Update CSV directly
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
@@ -2599,15 +2594,15 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	defer cleanupCRD()
 
 	// create initial deployment strategy
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep1-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	// First CSV with owning CRD v1alpha1
@@ -2640,8 +2635,8 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2671,15 +2666,15 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	require.NotNil(t, dep)
 
 	// Create updated deployment strategy
-	strategyNew := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep2-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyNewRaw, err := json.Marshal(strategyNew)
+
 	require.NoError(t, err)
 
 	// Second CSV with owning CRD v1alpha1 and v1alpha2
@@ -2712,8 +2707,8 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyNewRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategyNew,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2757,15 +2752,14 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create updated deployment strategy
-	strategyNew2 := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew2 := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep3-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyNewRaw2, err := json.Marshal(strategyNew2)
 	require.NoError(t, err)
 
 	// Third CSV with owning CRD v1alpha2
@@ -2798,8 +2792,8 @@ func TestUpdateCSVMultipleVersionCRD(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyNewRaw2,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategyNew2,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2870,8 +2864,8 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	defer cleanupCRD()
 
 	// create "current" CSV
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
@@ -2882,7 +2876,7 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
@@ -2913,8 +2907,8 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{
@@ -2947,8 +2941,8 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	require.NotNil(t, dep2)
 
 	// Create "updated" CSV
-	strategyNew := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep3-"),
 				Spec: newNginxDeployment(genName("nginx3-")),
@@ -2959,7 +2953,7 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 			},
 		},
 	}
-	strategyNewRaw, err := json.Marshal(strategyNew)
+
 	require.NoError(t, err)
 
 	// Fetch the current csv
@@ -2967,7 +2961,7 @@ func TestUpdateCSVModifyDeploymentName(t *testing.T) {
 	require.NoError(t, err)
 
 	// Update csv with same strategy with different deployment's name
-	fetchedCSV.Spec.InstallStrategy.StrategySpecRaw = strategyNewRaw
+	fetchedCSV.Spec.InstallStrategy.StrategySpec = strategyNew
 
 	// Update the current csv with the new csv
 	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(fetchedCSV)
@@ -3006,7 +3000,7 @@ func TestCreateCSVRequirementsEvents(t *testing.T) {
 	_, err := c.CreateServiceAccount(&sa)
 	require.NoError(t, err, "could not create ServiceAccount")
 
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: sa.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -3024,7 +3018,7 @@ func TestCreateCSVRequirementsEvents(t *testing.T) {
 		},
 	}
 
-	clusterPermissions := []install.StrategyDeploymentPermissions{
+	clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: sa.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -3242,15 +3236,15 @@ func TestCSVStatusInvalidCSV(t *testing.T) {
 	defer cleanupCRD()
 
 	// create CSV
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
 			},
 		},
 	}
-	strategyRaw, err := json.Marshal(strategy)
+
 	require.NoError(t, err)
 
 	csv := v1alpha1.ClusterServiceVersion{
@@ -3281,8 +3275,8 @@ func TestCSVStatusInvalidCSV(t *testing.T) {
 				},
 			},
 			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName:    install.InstallStrategyNameDeployment,
-				StrategySpecRaw: strategyRaw,
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
 			},
 			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
 				Owned: []v1alpha1.CRDDescription{

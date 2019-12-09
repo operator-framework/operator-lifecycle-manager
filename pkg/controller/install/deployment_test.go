@@ -55,15 +55,15 @@ func testServiceAccount(name string, mockOwner ownerutil.Owner) *corev1.ServiceA
 	return serviceAccount
 }
 
-func strategy(n int, namespace string, mockOwner ownerutil.Owner) *StrategyDetailsDeployment {
-	var deploymentSpecs = []StrategyDeploymentSpec{}
-	var permissions = []StrategyDeploymentPermissions{}
+func strategy(n int, namespace string, mockOwner ownerutil.Owner) *v1alpha1.StrategyDetailsDeployment {
+	var deploymentSpecs = []v1alpha1.StrategyDeploymentSpec{}
+	var permissions = []v1alpha1.StrategyDeploymentPermissions{}
 	for i := 1; i <= n; i++ {
 		dep := testDeployment(fmt.Sprintf("olm-dep-%d", i), namespace, mockOwner)
-		spec := StrategyDeploymentSpec{Name: dep.GetName(), Spec: dep.Spec}
+		spec := v1alpha1.StrategyDeploymentSpec{Name: dep.GetName(), Spec: dep.Spec}
 		deploymentSpecs = append(deploymentSpecs, spec)
 		serviceAccount := testServiceAccount(fmt.Sprintf("olm-sa-%d", i), mockOwner)
-		permissions = append(permissions, StrategyDeploymentPermissions{
+		permissions = append(permissions, v1alpha1.StrategyDeploymentPermissions{
 			ServiceAccountName: serviceAccount.Name,
 			Rules: []rbacv1.PolicyRule{
 				{
@@ -74,7 +74,7 @@ func strategy(n int, namespace string, mockOwner ownerutil.Owner) *StrategyDetai
 			},
 		})
 	}
-	return &StrategyDetailsDeployment{
+	return &v1alpha1.StrategyDetailsDeployment{
 		DeploymentSpecs: deploymentSpecs,
 		Permissions:     permissions,
 	}
@@ -103,7 +103,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 	)
 
 	type inputs struct {
-		strategyDeploymentSpecs []StrategyDeploymentSpec
+		strategyDeploymentSpecs []v1alpha1.StrategyDeploymentSpec
 	}
 	type setup struct {
 		existingDeployments []*appsv1.Deployment
@@ -122,7 +122,7 @@ func TestInstallStrategyDeploymentInstallDeployments(t *testing.T) {
 		{
 			description: "updates/creates correctly",
 			inputs: inputs{
-				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+				strategyDeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
 						Spec: appsv1.DeploymentSpec{},
@@ -358,7 +358,7 @@ func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
 	)
 
 	type inputs struct {
-		strategyDeploymentSpecs []StrategyDeploymentSpec
+		strategyDeploymentSpecs []v1alpha1.StrategyDeploymentSpec
 	}
 	type setup struct {
 		existingDeployments []*appsv1.Deployment
@@ -378,7 +378,7 @@ func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
 		{
 			description: "cleanup successfully",
 			inputs: inputs{
-				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+				strategyDeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
 						Spec: appsv1.DeploymentSpec{},
@@ -410,7 +410,7 @@ func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
 		{
 			description: "cleanup unsuccessfully as no orphaned deployments found",
 			inputs: inputs{
-				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+				strategyDeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
 						Spec: appsv1.DeploymentSpec{},
@@ -430,7 +430,7 @@ func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
 		{
 			description: "cleanup unsuccessfully as unable to look up orphaned deployments",
 			inputs: inputs{
-				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+				strategyDeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
 						Spec: appsv1.DeploymentSpec{},
@@ -450,7 +450,7 @@ func TestInstallStrategyDeploymentCleanupDeployments(t *testing.T) {
 		{
 			description: "cleanup unsuccessfully as unable to delete deployments",
 			inputs: inputs{
-				strategyDeploymentSpecs: []StrategyDeploymentSpec{
+				strategyDeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 					{
 						Name: "test-deployment-1",
 						Spec: appsv1.DeploymentSpec{},

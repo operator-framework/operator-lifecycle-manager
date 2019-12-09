@@ -484,8 +484,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	return op, nil
 }
 
-func (a *Operator) now() metav1.Time {
-	return metav1.NewTime(a.clock.Now().UTC())
+func (a *Operator) now() *metav1.Time {
+	now := metav1.NewTime(a.clock.Now().UTC())
+	return &now
 }
 
 func (a *Operator) syncSubscription(obj interface{}) error {
@@ -1834,7 +1835,7 @@ func (a *Operator) cleanupCSVDeployments(logger *logrus.Entry, csv *v1alpha1.Clu
 	}
 
 	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		logger.Warnf("could not cast install strategy as type %T", strategyDetailsDeployment)
 		return
@@ -1866,7 +1867,7 @@ func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alph
 	}
 
 	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		logger.Warnf("could not cast install strategy as type %T", strategyDetailsDeployment)
 		return nil
