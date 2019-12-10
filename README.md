@@ -71,6 +71,20 @@ ClusterServiceVersions can be collected into `CatalogSource`s which will allow a
 
 Learn more about the components used by OLM by reading about the [architecture] and [philosophy].
 
+# Overall OLM Chart
+
+![OLM](./olm.png)
+
+From the above chart, we can see that there are 2 steps required for a new operator onboard:
+
+1. Develop your operator and push it into the operator repository. You can choose quay.io as an example repository.
+
+2. Use the operator in your kubernetes cluster or openshift cluster. Assume that you have OLM installed.
+
+  - Create `OperatorSource` manually to point to your operator repository. the `marketplace` operator is reposible for creating `CatalogSource`.
+  - Create `OperatorGroup` which is used by `ClusterServiceVersion` and your operator.
+  - Create `Subscription` refered to the `CatalogSource`. the OLM helps to create `InstallPlan`, `ClusterServiceVersion` and Your operator.
+
 # Key Concepts
 
 ## CustomResourceDefinitions
