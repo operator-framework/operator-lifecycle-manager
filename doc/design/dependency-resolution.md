@@ -35,6 +35,19 @@ versions:
     storage: true
 ```
 
+Note: In `apiextensions.k8s.io/v1beta1`, there was a version field instead of versions. The version field is deprecated and optional, but if it is not empty, it must match the first item in the versions field.
+
+```
+version: v1beta1
+versions:
+  - name: v1beta1
+    served: true
+    storage: true
+  - name: v1alpha1
+    served: true
+    storage: false
+```
+
 2. Ensure the referencing version of CRD in CSV is updated if CSV intends to use the new version in `owned` section:
 
 ```
