@@ -3,6 +3,8 @@
 package e2e
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net"
 	"reflect"
@@ -13,16 +15,19 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/connectivity"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/apimachinery/pkg/watch"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
@@ -481,12 +486,11 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	require.NoError(t, err)
 
 	// Replicate catalog pods with no OwnerReferences
-	mainCopy := replicateCatalogPod(t, c, crc, mainSource)
-	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
-	replacementCopy := replicateCatalogPod(t, c, crc, replacementSource)
-	replacementCopy = awaitPod(t, c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
-
 	addressSourceName := genName("address-catalog-")
+	mainCopy := replicateCatalogPod(t, c, crc, mainSource, addressSourceName)
+	mainCopy = awaitPod(t, c, mainCopy.GetNamespace(), mainCopy.GetName(), hasPodIP)
+	replacementCopy := replicateCatalogPod(t, c, crc, replacementSource, addressSourceName)
+	replacementCopy = awaitPod(t, c, replacementCopy.GetNamespace(), replacementCopy.GetName(), hasPodIP)
 
 	// Create a CatalogSource pointing to the grpc pod
 	addressSource := &v1alpha1.CatalogSource{
@@ -938,7 +942,7 @@ func rescaleDeployment(c operatorclient.ClientInterface, deployment *appsv1.Depl
 	return err
 }
 
-func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalog *v1alpha1.CatalogSource) *corev1.Pod {
+func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, catalog *v1alpha1.CatalogSource, name string) *corev1.Pod {
 	initialPods, err := c.KubernetesInterface().CoreV1().Pods(catalog.GetNamespace()).List(metav1.ListOptions{LabelSelector: "olm.catalogSource=" + catalog.GetName()})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(initialPods.Items))
@@ -948,6 +952,7 @@ func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc ver
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: catalog.GetNamespace(),
 			Name:      catalog.GetName() + "-copy",
+			Labels:    map[string]string{reconciler.CatalogSourceLabelKey: name},
 		},
 		Spec: pod.Spec,
 	}
@@ -956,4 +961,97 @@ func replicateCatalogPod(t *testing.T, c operatorclient.ClientInterface, crc ver
 	require.NoError(t, err)
 
 	return copied
+}
+
+func TestGrpcConnectionStateIsNeverTransient(t *testing.T) {
+	// Create gRPC CatalogSource using an external registry image (community-operators)
+	// Wait for a registry pod to be created
+	// Monitor status and report failure if transitions do not progress cleanly (connecting -> connected)
+	// Delete the registry pod (part of cleaning up)
+	defer cleaner.NotifyTestComplete(t, true)
+	sourceName := genName("catalog-")
+
+	// Create gRPC CatalogSource using an external registry image (community-operators)
+	source := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      sourceName,
+			Namespace: testNamespace,
+			Labels:    map[string]string{reconciler.CatalogSourceLabelKey: sourceName},
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			SourceType: v1alpha1.SourceTypeGrpc,
+			Image:      communityOperatorsImage,
+		},
+	}
+
+	crc := newCRClient(t)
+	selector := labels.SelectorFromSet(map[string]string{reconciler.CatalogSourceLabelKey: sourceName})
+	catSrcWatcher, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Watch(metav1.ListOptions{LabelSelector: selector.String()})
+	require.NoError(t, err)
+
+	// Monitor GRPC connection status updates
+	ctx, cancel := context.WithCancel(context.Background())
+	// cancel called in defer func below
+	done := make(chan struct{})
+	errExit := make(chan error)
+	defer close(done)
+	defer close(errExit)
+	go func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt, ok := <-catSrcWatcher.ResultChan():
+				if !ok {
+					errExit <- errors.New("watch channel closed unexpectedly")
+					return
+				}
+				if evt.Type == watch.Modified {
+					catSrc, ok := evt.Object.(*v1alpha1.CatalogSource)
+					if !ok {
+						errExit <- errors.New("watch returned unexpected object type")
+						return
+					}
+					t.Logf("connectionState=%v", catSrc.Status.GRPCConnectionState)
+					if catSrc.Status.GRPCConnectionState != nil {
+						if catSrc.Status.GRPCConnectionState.LastObservedState == connectivity.Ready.String() {
+							done <- struct{}{}
+						}
+						require.NotEqual(t, connectivity.TransientFailure.String(), catSrc.Status.GRPCConnectionState.LastObservedState)
+					}
+				}
+
+			}
+		}
+	}(ctx)
+
+	// Create catalog source and handle clean up
+	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(source)
+	require.NoError(t, err)
+	defer func() {
+		cancel()
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(sourceName, &metav1.DeleteOptions{}))
+	}()
+
+	// Wait for a new registry pod to be created
+	c := newKubeClient(t)
+	singlePod := podCount(1)
+	_, err = awaitPods(t, c, testNamespace, selector.String(), singlePod)
+	require.NoError(t, err, "error awaiting registry pod")
+
+	// Wait for catalog source to achieve a ready state
+	for {
+		select {
+		case err = <-errExit:
+			t.Error(err)
+		case <-done:
+			return
+		case <-time.After(30 * time.Second):
+			catsrc, err := crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(sourceName, metav1.GetOptions{})
+			require.NoError(t, err)
+			t.Errorf("catalog source connection status not successful: %#v", catsrc)
+			t.Errorf("GRPC connection state %#v", catsrc.Status.GRPCConnectionState)
+			return
+		}
+	}
 }
