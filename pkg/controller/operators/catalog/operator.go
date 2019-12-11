@@ -143,7 +143,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundleUnpackerImage:      configmapRegistryImage, // Assume the configmapRegistryImage contains the unpacker for now.
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
-	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
+	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now, op.logger)
 
 	// Wire OLM CR sharedIndexInformers
 	crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod)

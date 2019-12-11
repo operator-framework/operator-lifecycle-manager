@@ -1011,7 +1011,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	}
 	op.sources = grpc.NewSourceStore(config.logger, 1*time.Second, 5*time.Second, op.syncSourceState)
 	if op.reconciler == nil {
-		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now)
+		op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, op.opClient, "test:pod", op.now, op.logger)
 	}
 
 	op.RunInformers(ctx)
@@ -1125,7 +1125,7 @@ func toManifest(obj runtime.Object) string {
 }
 
 func pod(s v1alpha1.CatalogSource) *corev1.Pod {
-	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetLabels(), 5, 10)
+	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetLabels(), 5, 10, false)
 	ownerutil.AddOwner(pod, &s, false, false)
 	return pod
 }

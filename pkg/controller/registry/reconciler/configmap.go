@@ -86,8 +86,8 @@ func (s *configMapCatalogSourceDecorator) Service() *v1.Service {
 	return svc
 }
 
-func (s *configMapCatalogSourceDecorator) Pod(image string) *v1.Pod {
-	pod := Pod(s.CatalogSource, "configmap-registry-server", image, s.Labels(), 1, 2)
+func (s *configMapCatalogSourceDecorator) Pod(image string, debugLogging bool) *v1.Pod {
+	pod := Pod(s.CatalogSource, "configmap-registry-server", image, s.Labels(), 1, 2, debugLogging)
 	pod.Spec.ServiceAccountName = s.GetName() + ConfigMapServerPostfix
 	pod.Spec.Containers[0].Command = []string{"configmap-server", "-c", s.Spec.ConfigMap, "-n", s.GetNamespace()}
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
@@ -152,11 +152,19 @@ type ConfigMapRegistryReconciler struct {
 	Lister   operatorlister.OperatorLister
 	OpClient operatorclient.ClientInterface
 	Image    string
+	logger   *logrus.Logger
 }
 
 var _ RegistryEnsurer = &ConfigMapRegistryReconciler{}
 var _ RegistryChecker = &ConfigMapRegistryReconciler{}
 var _ RegistryReconciler = &ConfigMapRegistryReconciler{}
+
+func (c *ConfigMapRegistryReconciler) isDebugEnabled() bool {
+	if c.logger == nil {
+		return false
+	}
+	return c.logger.IsLevelEnabled(logrus.DebugLevel)
+}
 
 func (c *ConfigMapRegistryReconciler) currentService(source configMapCatalogSourceDecorator) *v1.Service {
 	serviceName := source.Service().GetName()
@@ -199,7 +207,7 @@ func (c *ConfigMapRegistryReconciler) currentRoleBinding(source configMapCatalog
 }
 
 func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
-	podName := source.Pod(image).GetName()
+	podName := source.Pod(image, c.isDebugEnabled()).GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromSet(source.Selector()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
@@ -212,7 +220,7 @@ func (c *ConfigMapRegistryReconciler) currentPods(source configMapCatalogSourceD
 }
 
 func (c *ConfigMapRegistryReconciler) currentPodsWithCorrectResourceVersion(source configMapCatalogSourceDecorator, image string) []*v1.Pod {
-	podName := source.Pod(image).GetName()
+	podName := source.Pod(image, c.isDebugEnabled()).GetName()
 	pods, err := c.Lister.CoreV1().PodLister().Pods(source.GetNamespace()).List(labels.SelectorFromValidatedSet(source.Labels()))
 	if err != nil {
 		logrus.WithField("pod", podName).WithError(err).Debug("couldn't find pod in cache")
@@ -277,7 +285,7 @@ func (c *ConfigMapRegistryReconciler) EnsureRegistryServer(catalogSource *v1alph
 		return errors.Wrapf(err, "error ensuring rolebinding: %s", source.RoleBinding().GetName())
 	}
 	if err := c.ensurePod(source, overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(image).GetName())
+		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(image, c.isDebugEnabled()).GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
@@ -339,7 +347,7 @@ func (c *ConfigMapRegistryReconciler) ensureRoleBinding(source configMapCatalogS
 }
 
 func (c *ConfigMapRegistryReconciler) ensurePod(source configMapCatalogSourceDecorator, overwrite bool) error {
-	pod := source.Pod(c.Image)
+	pod := source.Pod(c.Image, c.isDebugEnabled())
 	currentPods := c.currentPods(source, c.Image)
 	if len(currentPods) > 0 {
 		if !overwrite {

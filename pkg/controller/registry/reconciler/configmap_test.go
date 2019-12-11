@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -109,6 +110,7 @@ func fakeReconcilerFactory(t *testing.T, stopc <-chan struct{}, options ...fakeR
 		OpClient:             opClientFake,
 		Lister:               lister,
 		ConfigMapServerImage: config.configMapServerImage,
+		logger:               logrus.StandardLogger(),
 	}
 
 	var hasSyncedCheckFns []cache.InformerSynced
@@ -170,7 +172,7 @@ func validConfigMapCatalogSource(configMap *corev1.ConfigMap) *v1alpha1.CatalogS
 			Name:      "cool-catalog",
 			Namespace: testNamespace,
 			UID:       types.UID("catalog-uid"),
-			Labels: map[string]string{"olm.catalogSource": "cool-catalog"},
+			Labels:    map[string]string{"olm.catalogSource": "cool-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			ConfigMap:  "cool-configmap",
@@ -193,7 +195,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
 		decorated := configMapCatalogSourceDecorator{catsrc}
 		objs = clientfake.AddSimpleGeneratedNames(
-			clientfake.AddSimpleGeneratedName(decorated.Pod(registryImageName)),
+			clientfake.AddSimpleGeneratedName(decorated.Pod(registryImageName, false)),
 			decorated.Service(),
 			decorated.ServiceAccount(),
 			decorated.Role(),
@@ -203,7 +205,7 @@ func objectsForCatalogSource(catsrc *v1alpha1.CatalogSource) []runtime.Object {
 		if catsrc.Spec.Image != "" {
 			decorated := grpcCatalogSourceDecorator{catsrc}
 			objs = clientfake.AddSimpleGeneratedNames(
-				decorated.Pod(),
+				decorated.Pod(false),
 				decorated.Service(),
 			)
 		}
@@ -439,7 +441,7 @@ func TestConfigMapRegistryReconciler(t *testing.T) {
 			// if no error, the reconciler should create the same set of kube objects every time
 			decorated := configMapCatalogSourceDecorator{tt.in.catsrc}
 
-			pod := decorated.Pod(registryImageName)
+			pod := decorated.Pod(registryImageName, false)
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, err := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(listOptions)
 			require.NoError(t, err)

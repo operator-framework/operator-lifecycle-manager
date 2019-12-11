@@ -5,6 +5,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -46,6 +47,7 @@ type registryReconcilerFactory struct {
 	Lister               operatorlister.OperatorLister
 	OpClient             operatorclient.ClientInterface
 	ConfigMapServerImage string
+	logger               *logrus.Logger
 }
 
 // ReconcilerForSource returns a RegistryReconciler based on the configuration of the given CatalogSource.
@@ -58,6 +60,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 			Lister:   r.Lister,
 			OpClient: r.OpClient,
 			Image:    r.ConfigMapServerImage,
+			logger:   r.logger,
 		}
 	case v1alpha1.SourceTypeGrpc:
 		if source.Spec.Image != "" {
@@ -65,6 +68,7 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 				now:      r.now,
 				Lister:   r.Lister,
 				OpClient: r.OpClient,
+				logger:   r.logger,
 			}
 		} else if source.Spec.Address != "" {
 			return &GrpcAddressRegistryReconciler{
@@ -76,16 +80,17 @@ func (r *registryReconcilerFactory) ReconcilerForSource(source *v1alpha1.Catalog
 }
 
 // NewRegistryReconcilerFactory returns an initialized RegistryReconcilerFactory.
-func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc) RegistryReconcilerFactory {
+func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient operatorclient.ClientInterface, configMapServerImage string, now nowFunc, logger *logrus.Logger) RegistryReconcilerFactory {
 	return &registryReconcilerFactory{
 		now:                  now,
 		Lister:               lister,
 		OpClient:             opClient,
 		ConfigMapServerImage: configMapServerImage,
+		logger:               logger,
 	}
 }
 
-func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
+func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32, debugLogging bool) *v1.Pod {
 	// ensure catalog image is pulled always if catalog polling is configured
 	var pullPolicy v1.PullPolicy
 	if source.Spec.UpdateStrategy != nil {
@@ -149,6 +154,19 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 				"beta.kubernetes.io/os": "linux",
 			},
 		},
+	}
+
+	if debugLogging == true {
+		pod.Spec.Containers[0].Env = []v1.EnvVar{
+			v1.EnvVar{
+				Name:  "GRPC_GO_LOG_SEVERITY_LEVEL",
+				Value: "info",
+			},
+			v1.EnvVar{
+				Name:  "GRPC_GO_LOG_VERBOSITY_LEVEL",
+				Value: "2",
+			},
+		}
 	}
 	return pod
 }

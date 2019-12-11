@@ -187,7 +187,7 @@ func TestGrpcRegistryReconciler(t *testing.T) {
 
 			// Check for resource existence
 			decorated := grpcCatalogSourceDecorator{tt.in.catsrc}
-			pod := decorated.Pod()
+			pod := decorated.Pod(false)
 			service := decorated.Service()
 			listOptions := metav1.ListOptions{LabelSelector: labels.SelectorFromSet(labels.Set{CatalogSourceLabelKey: tt.in.catsrc.GetName()}).String()}
 			outPods, podErr := client.KubernetesInterface().CoreV1().Pods(pod.GetNamespace()).List(listOptions)

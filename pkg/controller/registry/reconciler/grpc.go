@@ -60,8 +60,8 @@ func (s *grpcCatalogSourceDecorator) Service() *v1.Service {
 	return svc
 }
 
-func (s *grpcCatalogSourceDecorator) Pod() *v1.Pod {
-	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, s.Labels(), 5, 10)
+func (s *grpcCatalogSourceDecorator) Pod(debugLogging bool) *v1.Pod {
+	pod := Pod(s.CatalogSource, "registry-server", s.Spec.Image, s.Labels(), 5, 10, debugLogging)
 	ownerutil.AddOwner(pod, s.CatalogSource, false, false)
 	return pod
 }
@@ -70,9 +70,17 @@ type GrpcRegistryReconciler struct {
 	now      nowFunc
 	Lister   operatorlister.OperatorLister
 	OpClient operatorclient.ClientInterface
+	logger   *logrus.Logger
 }
 
 var _ RegistryReconciler = &GrpcRegistryReconciler{}
+
+func (s *GrpcRegistryReconciler) isDebugEnabled() bool {
+	if s.logger == nil {
+		return false
+	}
+	return s.logger.IsLevelEnabled(logrus.DebugLevel)
+}
 
 func (c *GrpcRegistryReconciler) currentService(source grpcCatalogSourceDecorator) *v1.Service {
 	serviceName := source.Service().GetName()
@@ -134,10 +142,10 @@ func (c *GrpcRegistryReconciler) EnsureRegistryServer(catalogSource *v1alpha1.Ca
 
 	//TODO: if any of these error out, we should write a status back (possibly set RegistryServiceStatus to nil so they get recreated)
 	if err := c.ensurePod(source, overwritePod); err != nil {
-		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod().GetName())
+		return errors.Wrapf(err, "error ensuring pod: %s", source.Pod(c.isDebugEnabled()).GetName())
 	}
 	if err := c.ensureUpdatePod(source); err != nil {
-		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod().GetName())
+		return errors.Wrapf(err, "error ensuring updated catalog source pod: %s", source.Pod(c.isDebugEnabled()).GetName())
 	}
 	if err := c.ensureService(source, overwrite); err != nil {
 		return errors.Wrapf(err, "error ensuring service: %s", source.Service().GetName())
@@ -169,9 +177,9 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 			}
 		}
 	}
-	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(source.Pod())
+	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(source.Pod(c.isDebugEnabled()))
 	if err != nil {
-		return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetGenerateName())
+		return errors.Wrapf(err, "error creating new pod: %s", source.Pod(c.isDebugEnabled()).GetGenerateName())
 	}
 
 	return nil
@@ -197,7 +205,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 			// Update the update pod to promote it to serving pod
 			_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Update(updatePod)
 			if err != nil {
-				return errors.Wrapf(err, "error creating new pod: %s", source.Pod().GetName())
+				return errors.Wrapf(err, "error creating new pod: %s", source.Pod(c.isDebugEnabled()).GetName())
 			}
 
 			break
@@ -255,13 +263,13 @@ func (c *GrpcRegistryReconciler) ensureService(source grpcCatalogSourceDecorator
 // createUpdatePod is an internal method that creates a pod using the latest catalog source.
 func (c *GrpcRegistryReconciler) createUpdatePod(source grpcCatalogSourceDecorator) error {
 	// remove label from pod to ensure service does accidentally route traffic to the pod
-	p := source.Pod()
+	p := source.Pod(c.isDebugEnabled())
 	p.Labels[CatalogSourceLabelKey] = ""
 	p.Labels[CatalogSourceUpdateKey] = source.Name
 
 	_, err := c.OpClient.KubernetesInterface().CoreV1().Pods(source.GetNamespace()).Create(p)
 	if err != nil {
-		logrus.WithField("pod", source.Pod().GetName()).Warn("couldn't create new catalogsource pod")
+		logrus.WithField("pod", source.Pod(c.isDebugEnabled()).GetName()).Warn("couldn't create new catalogsource pod")
 		return err
 	}
 
