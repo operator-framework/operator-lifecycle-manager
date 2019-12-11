@@ -5,7 +5,6 @@
 | Requirement | Purpose               | macOS                |
 |-------------|-----------------------|----------------------|
 | Go          | Compiler              | brew install go      |
-| Dep         | Dependency Management | brew install dep     |
 | Docker      | Packaging             | [Docker for Mac]     |
 | jsonnet     | JSON templating tool  | brew install jsonnet |
 | ffctl       | Gitlab CI format      | pip install ffctl    |
