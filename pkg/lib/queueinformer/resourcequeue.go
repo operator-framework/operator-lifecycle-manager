@@ -69,8 +69,6 @@ func (r *ResourceQueueSet) Requeue(namespace, name string) error {
 	return fmt.Errorf("couldn't find queue for resource")
 }
 
-// TODO: this may not actually be required if the requeue is done on the namespace rather than the installplan
-// RequeueAfter requeues the resource in the set with the given name and namespace (just like Requeue), but only does so after duration has passed
 func (r *ResourceQueueSet) RequeueAfter(namespace, name string, duration time.Duration) error {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()

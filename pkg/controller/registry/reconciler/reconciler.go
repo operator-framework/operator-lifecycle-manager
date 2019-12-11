@@ -152,3 +152,9 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 	}
 	return pod
 }
+
+func CatalogSourceLabelForPod(sourceName string) map[string]string {
+	return map[string]string{
+		CatalogSourceLabelKey: sourceName,
+	}
+}

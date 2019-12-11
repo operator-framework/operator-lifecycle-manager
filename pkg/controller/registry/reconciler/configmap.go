@@ -48,9 +48,7 @@ const (
 )
 
 func (s *configMapCatalogSourceDecorator) Labels() map[string]string {
-	labels := map[string]string{
-		CatalogSourceLabelKey: s.GetName(),
-	}
+	labels := CatalogSourceLabelForPod(s.GetName())
 	if s.Spec.SourceType == v1alpha1.SourceTypeInternal || s.Spec.SourceType == v1alpha1.SourceTypeConfigmap {
 		labels[ConfigMapRVLabelKey] = s.Status.ConfigMapResource.ResourceVersion
 	}
@@ -405,7 +403,6 @@ func (c *ConfigMapRegistryReconciler) CheckRegistryServer(catalogSource *v1alpha
 
 	// Check on registry resources
 	// TODO: more complex checks for resources
-	// TODO: add gRPC health check
 	if c.currentServiceAccount(source) == nil ||
 		c.currentRole(source) == nil ||
 		c.currentRoleBinding(source) == nil ||

@@ -36,9 +36,7 @@ func (s *grpcCatalogSourceDecorator) SelectorForUpdate() labels.Selector {
 }
 
 func (s *grpcCatalogSourceDecorator) Labels() map[string]string {
-	return map[string]string{
-		CatalogSourceLabelKey: s.GetName(),
-	}
+	return CatalogSourceLabelForPod(s.GetName())
 }
 
 func (s *grpcCatalogSourceDecorator) Service() *v1.Service {

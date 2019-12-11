@@ -64,7 +64,7 @@ func (s *SourceStore) Start(ctx context.Context) {
 					s.logger.Debug("closing source manager")
 					return
 				case e := <-s.notify:
-					s.logger.Debugf("Got source event: %#v", e)
+					s.logger.Debugf("Got source event: %#v, (state: %s)", e, e.State)
 					s.syncFn(e)
 				}
 			}

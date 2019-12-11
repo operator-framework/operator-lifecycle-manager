@@ -19,6 +19,7 @@ import (
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -363,8 +364,7 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 
 	o.logger.Infof("state.Key.Namespace=%s state.Key.Name=%s state.State=%s", state.Key.Namespace, state.Key.Name, state.State.String())
 
-	switch state.State {
-	case connectivity.Ready:
+	if state.State == connectivity.Ready {
 		if o.namespace == state.Key.Namespace {
 			namespaces, err := index.CatalogSubscriberNamespaces(o.catalogSubscriberIndexer,
 				state.Key.Name, state.Key.Namespace)
@@ -377,11 +377,11 @@ func (o *Operator) syncSourceState(state grpc.SourceState) {
 		}
 
 		o.nsResolveQueue.Add(state.Key.Namespace)
-	default:
-		if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
-			o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
-		}
 	}
+	if err := o.catsrcQueueSet.Requeue(state.Key.Namespace, state.Key.Name); err != nil {
+		o.logger.WithError(err).Info("couldn't requeue catalogsource from catalog status change")
+	}
+	return
 }
 
 func (o *Operator) requeueOwners(obj metav1.Object) {
@@ -631,6 +631,7 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 
 		// Set connection status and return.
 		updateConnectionStateFunc(out, source)
+		return
 	}
 
 	// connection is already good, but we need to update the sync time
@@ -640,6 +641,47 @@ func (o *Operator) syncConnection(logger *logrus.Entry, in *v1alpha1.CatalogSour
 		out.Status.GRPCConnectionState.LastObservedState = source.ConnectionState.String()
 	}
 
+	return
+}
+
+func (o *Operator) checkBackingPodStatus(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
+	if in.Spec.Address != "" {
+		// if this is an imageless source type, there's no backing pod to check
+		return in, true, nil
+	}
+
+	out = in.DeepCopy()
+
+	selector := reconciler.CatalogSourceLabelForPod(in.GetName())
+	pods, err := o.lister.CoreV1().PodLister().Pods(in.GetNamespace()).List(labels.SelectorFromSet(selector))
+	if err != nil {
+		continueSync = false
+		syncError = fmt.Errorf("error while examining catalog source pod: %v", err)
+		return
+	}
+
+	if len(pods) > 0 {
+		// this assumes a 1:1 mapping for catalog sources to pods
+		pod := pods[0]
+		for _, cond := range pod.Status.Conditions {
+			if cond.Type != corev1.ContainersReady {
+				continue
+			}
+
+			if cond.Status == corev1.ConditionTrue {
+				continueSync = true
+			} else {
+				logger.Infof("backing pod '%s' not yet ready", pod.GetName())
+			}
+			break
+		}
+	} else {
+		continueSync = false
+		syncError = fmt.Errorf("did not find expected backing pod")
+		return
+	}
+
+	o.catsrcQueueSet.RequeueAfter(in.GetNamespace(), in.GetName(), 2*time.Second)
 	return
 }
 
@@ -701,6 +743,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	chain := []CatalogSourceSyncFunc{
 		o.syncConfigMap,
 		o.syncRegistryServer,
+		o.checkBackingPodStatus,
 		o.syncConnection,
 	}
 
