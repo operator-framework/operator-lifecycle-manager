@@ -130,7 +130,7 @@ spec:
 
 This will keep the etcd `ClusterServiceVersion` up to date as new versions become available in the catalog.
 
-Catalogs are served internally over a grpc interface to OLM from [operator-registry](https://github.com/operator-framework/operator-registry) pods.
+Catalogs are served internally over a grpc interface to OLM from [operator-registry](https://github.com/operator-framework/operator-registry) pods.  Catalog data such as `bundles` are documented [there](https://github.com/operator-framework/operator-registry#manifest-format) as well.
 
 ## Samples
 
