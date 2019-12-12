@@ -48,7 +48,12 @@ spec:
           description: Spec for a Subscription
           required:
           - source
+          - sourceNamespace
           - name
+          - channel
+          - startingCSV
+          - installPlanApproval
+          - config
           properties:
             source:
               type: string
@@ -57,6 +62,9 @@ spec:
               type: string
               description: The Kubernetes namespace where the CatalogSource used is located
             name:
+              type: string
+              description: Name of the package that defines the application
+            package:
               type: string
               description: Name of the package that defines the application
             channel:
