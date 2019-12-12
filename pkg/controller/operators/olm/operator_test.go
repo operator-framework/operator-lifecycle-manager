@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/big"
@@ -541,10 +540,10 @@ func csvWithStatusReason(csv *v1alpha1.ClusterServiceVersion, reason v1alpha1.Co
 	return csv
 }
 
-func installStrategy(deploymentName string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+func installStrategy(deploymentName string, permissions []v1alpha1.StrategyDeploymentPermissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	var singleInstance = int32(1)
-	strategy := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: deploymentName,
 				Spec: appsv1.DeploymentSpec{
@@ -581,14 +580,10 @@ func installStrategy(deploymentName string, permissions []install.StrategyDeploy
 		Permissions:        permissions,
 		ClusterPermissions: clusterPermissions,
 	}
-	strategyRaw, err := json.Marshal(strategy)
-	if err != nil {
-		panic(err)
-	}
 
 	return v1alpha1.NamedInstallStrategy{
-		StrategyName:    install.InstallStrategyNameDeployment,
-		StrategySpecRaw: strategyRaw,
+		StrategyName: v1alpha1.InstallStrategyNameDeployment,
+		StrategySpec: strategy,
 	}
 }
 
@@ -656,13 +651,13 @@ func withConditionReason(csv *v1alpha1.ClusterServiceVersion, reason v1alpha1.Co
 }
 
 func withPhase(csv *v1alpha1.ClusterServiceVersion, phase v1alpha1.ClusterServiceVersionPhase, reason v1alpha1.ConditionReason, message string, now metav1.Time) *v1alpha1.ClusterServiceVersion {
-	csv.SetPhase(phase, reason, message, now)
+	csv.SetPhase(phase, reason, message, &now)
 	return csv
 }
 
 func withCertInfo(csv *v1alpha1.ClusterServiceVersion, rotateAt metav1.Time, lastUpdated metav1.Time) *v1alpha1.ClusterServiceVersion {
-	csv.Status.CertsRotateAt = rotateAt
-	csv.Status.CertsLastUpdated = lastUpdated
+	csv.Status.CertsRotateAt = &rotateAt
+	csv.Status.CertsLastUpdated = &lastUpdated
 	return csv
 }
 
@@ -916,31 +911,6 @@ func TestTransitionCSV(t *testing.T) {
 			},
 		},
 		{
-			name: "SingleCSVPendingToFailed/BadStrategy",
-			initial: initial{
-				csvs: []runtime.Object{
-					csvWithAnnotations(csv("csv1",
-						namespace,
-						"0.0.0",
-						"",
-						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
-						[]*v1beta1.CustomResourceDefinition{},
-						v1alpha1.CSVPhasePending,
-					), defaultTemplateAnnotations),
-				},
-				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
-				crds: []runtime.Object{
-					crd("c1", "v1", "g1"),
-				},
-			},
-			expected: expected{
-				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
-				},
-			},
-		},
-		{
 			name: "SingleCSVPendingToFailed/BadStrategyPermissions",
 			initial: initial{
 				csvs: []runtime.Object{
@@ -950,7 +920,7 @@ func TestTransitionCSV(t *testing.T) {
 						"",
 						installStrategy("csv1-dep1",
 							nil,
-							[]install.StrategyDeploymentPermissions{
+							[]v1alpha1.StrategyDeploymentPermissions{
 								{
 									ServiceAccountName: "sa",
 									Rules: []rbacv1.PolicyRule{
@@ -1290,31 +1260,6 @@ func TestTransitionCSV(t *testing.T) {
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhasePending, reason: v1alpha1.CSVReasonRequirementsNotMet},
-				},
-			},
-		},
-		{
-			name: "SingleCSVFailedToFailed/BadStrategy",
-			initial: initial{
-				csvs: []runtime.Object{
-					csvWithAnnotations(csv("csv1",
-						namespace,
-						"0.0.0",
-						"",
-						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
-						[]*v1beta1.CustomResourceDefinition{},
-						v1alpha1.CSVPhaseFailed,
-					), defaultTemplateAnnotations),
-				},
-				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1.OperatorGroupProvidedAPIsAnnotationKey, "c1.v1.g1")},
-				objs: []runtime.Object{
-					deployment("a1", namespace, "sa", defaultTemplateAnnotations),
-				},
-			},
-			expected: expected{
-				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed, reason: v1alpha1.CSVReasonInvalidStrategy},
 				},
 			},
 		},
@@ -2218,31 +2163,6 @@ func TestTransitionCSV(t *testing.T) {
 			expected: expected{
 				csvStates: map[string]csvState{
 					"csv1": {exists: true, phase: v1alpha1.CSVPhaseSucceeded, reason: v1alpha1.CSVReasonInstallSuccessful},
-				},
-			},
-		},
-		{
-			name: "SingleCSVInstallReadyToFailed/BadStrategy",
-			initial: initial{
-				csvs: []runtime.Object{
-					csvWithAnnotations(csv("csv1",
-						namespace,
-						"0.0.0",
-						"",
-						v1alpha1.NamedInstallStrategy{"deployment", json.RawMessage{}},
-						[]*v1beta1.CustomResourceDefinition{crd("c1", "v1", "g1")},
-						[]*v1beta1.CustomResourceDefinition{},
-						v1alpha1.CSVPhaseInstallReady,
-					), defaultTemplateAnnotations),
-				},
-				clientObjs: []runtime.Object{defaultOperatorGroup},
-				crds: []runtime.Object{
-					crd("c1", "v1", "g1"),
-				},
-			},
-			expected: expected{
-				csvStates: map[string]csvState{
-					"csv1": {exists: true, phase: v1alpha1.CSVPhaseFailed},
 				},
 			},
 		},
@@ -3345,7 +3265,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	serviceAccount := serviceAccount("sa", operatorNamespace)
 
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccount.GetName(),
 			Rules: []rbacv1.PolicyRule{
@@ -3375,8 +3295,8 @@ func TestSyncOperatorGroups(t *testing.T) {
 	operatorCSVFinal.Status.Phase = v1alpha1.CSVPhaseSucceeded
 	operatorCSVFinal.Status.Message = "install strategy completed with no errors"
 	operatorCSVFinal.Status.Reason = v1alpha1.CSVReasonInstallSuccessful
-	operatorCSVFinal.Status.LastUpdateTime = now
-	operatorCSVFinal.Status.LastTransitionTime = now
+	operatorCSVFinal.Status.LastUpdateTime = &now
+	operatorCSVFinal.Status.LastTransitionTime = &now
 	operatorCSVFinal.Status.RequirementStatus = []v1alpha1.RequirementStatus{
 		{
 			Group:   "operators.coreos.com",
@@ -3416,29 +3336,29 @@ func TestSyncOperatorGroups(t *testing.T) {
 			Phase:              v1alpha1.CSVPhasePending,
 			Reason:             v1alpha1.CSVReasonRequirementsUnknown,
 			Message:            "requirements not yet checked",
-			LastUpdateTime:     now,
-			LastTransitionTime: now,
+			LastUpdateTime:     &now,
+			LastTransitionTime: &now,
 		},
 		{
 			Phase:              v1alpha1.CSVPhaseInstallReady,
 			Reason:             v1alpha1.CSVReasonRequirementsMet,
 			Message:            "all requirements found, attempting install",
-			LastUpdateTime:     now,
-			LastTransitionTime: now,
+			LastUpdateTime:     &now,
+			LastTransitionTime: &now,
 		},
 		{
 			Phase:              v1alpha1.CSVPhaseInstalling,
 			Reason:             v1alpha1.CSVReasonInstallSuccessful,
 			Message:            "waiting for install components to report healthy",
-			LastUpdateTime:     now,
-			LastTransitionTime: now,
+			LastUpdateTime:     &now,
+			LastTransitionTime: &now,
 		},
 		{
 			Phase:              v1alpha1.CSVPhaseSucceeded,
 			Reason:             v1alpha1.CSVReasonInstallSuccessful,
 			Message:            "install strategy completed with no errors",
-			LastUpdateTime:     now,
-			LastTransitionTime: now,
+			LastUpdateTime:     &now,
+			LastTransitionTime: &now,
 		},
 	}
 
@@ -3447,15 +3367,15 @@ func TestSyncOperatorGroups(t *testing.T) {
 	operatorCSVFailedNoTargetNS.Status.Phase = v1alpha1.CSVPhaseFailed
 	operatorCSVFailedNoTargetNS.Status.Message = "no targetNamespaces are matched operatorgroups namespace selection"
 	operatorCSVFailedNoTargetNS.Status.Reason = v1alpha1.CSVReasonNoTargetNamespaces
-	operatorCSVFailedNoTargetNS.Status.LastUpdateTime = now
-	operatorCSVFailedNoTargetNS.Status.LastTransitionTime = now
+	operatorCSVFailedNoTargetNS.Status.LastUpdateTime = &now
+	operatorCSVFailedNoTargetNS.Status.LastTransitionTime = &now
 	operatorCSVFailedNoTargetNS.Status.Conditions = []v1alpha1.ClusterServiceVersionCondition{
 		{
 			Phase:              v1alpha1.CSVPhaseFailed,
 			Reason:             v1alpha1.CSVReasonNoTargetNamespaces,
 			Message:            "no targetNamespaces are matched operatorgroups namespace selection",
-			LastUpdateTime:     now,
-			LastTransitionTime: now,
+			LastUpdateTime:     &now,
+			LastTransitionTime: &now,
 		},
 	}
 
@@ -3463,7 +3383,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 	targetCSV.SetNamespace(targetNamespace)
 	targetCSV.Status.Reason = v1alpha1.CSVReasonCopied
 	targetCSV.Status.Message = "The operator is running in operator-ns but is managing this namespace"
-	targetCSV.Status.LastUpdateTime = now
+	targetCSV.Status.LastUpdateTime = &now
 
 	ownerutil.AddNonBlockingOwner(serviceAccount, operatorCSV)
 
@@ -3647,7 +3567,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{targetNamespace},
-				LastUpdated: now,
+				LastUpdated: &now,
 			},
 		},
 		{
@@ -3688,7 +3608,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{operatorNamespace, targetNamespace},
-				LastUpdated: now,
+				LastUpdated: &now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -3790,7 +3710,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{operatorNamespace, targetNamespace},
-				LastUpdated: now,
+				LastUpdated: &now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -3895,133 +3815,12 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: now,
+				LastUpdated: &now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
 					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1.OperatorGroupTargetsAnnotationKey: "", v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
 					annotatedGlobalDeployment,
-				},
-				"": {
-					&rbacv1.ClusterRole{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "ClusterRole",
-							APIVersion: rbacv1.GroupName,
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "csv-role",
-							Labels: map[string]string{
-								"olm.owner":           "csv1",
-								"olm.owner.namespace": "operator-ns",
-								"olm.owner.kind":      "ClusterServiceVersion",
-							},
-						},
-						Rules: append(permissions[0].Rules, rbacv1.PolicyRule{
-							Verbs:     ViewVerbs,
-							APIGroups: []string{corev1.GroupName},
-							Resources: []string{"namespaces"},
-						}),
-					},
-					&rbacv1.ClusterRoleBinding{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "ClusterRoleBinding",
-							APIVersion: rbacv1.GroupName,
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Name: "csv-rolebinding",
-							Labels: map[string]string{
-								"olm.owner":           "csv1",
-								"olm.owner.namespace": "operator-ns",
-								"olm.owner.kind":      "ClusterServiceVersion",
-							},
-						},
-						Subjects: []rbacv1.Subject{
-							{
-								Kind:      rbacv1.ServiceAccountKind,
-								Name:      serviceAccount.GetName(),
-								Namespace: operatorNamespace,
-							},
-						},
-						RoleRef: rbacv1.RoleRef{
-							APIGroup: rbacv1.GroupName,
-							Kind:     "ClusterRole",
-							Name:     "csv-role",
-						},
-					},
-				},
-				targetNamespace: {
-					withLabels(
-						withAnnotations(targetCSV.DeepCopy(), map[string]string{v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
-						labels.Merge(targetCSV.GetLabels(), map[string]string{v1alpha1.CopiedLabelKey: operatorNamespace}),
-					),
-				},
-			}},
-		},
-		{
-			name:          "AllNamespaces/CSVPresent/Found/PruneMissingProvidedAPI",
-			expectedEqual: true,
-			initial: initial{
-				operatorGroup: &v1.OperatorGroup{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "operator-group-1",
-						Namespace: operatorNamespace,
-						Labels:    map[string]string{"app": "app-a"},
-						Annotations: map[string]string{
-							v1.OperatorGroupProvidedAPIsAnnotationKey: "c1.v1.fake.api.group,missing.v1.fake.api.group",
-						},
-					},
-					Spec: v1.OperatorGroupSpec{},
-				},
-				clientObjs: []runtime.Object{operatorCSV},
-				k8sObjs: []runtime.Object{
-					&corev1.Namespace{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:        operatorNamespace,
-							Labels:      map[string]string{"app": "app-a"},
-							Annotations: map[string]string{"test": "annotation"},
-						},
-					},
-					&corev1.Namespace{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:        targetNamespace,
-							Labels:      map[string]string{"app": "app-a"},
-							Annotations: map[string]string{"test": "annotation"},
-						},
-					},
-					ownedDeployment,
-					serviceAccount,
-					role,
-					roleBinding,
-				},
-				crds: []runtime.Object{crd},
-			},
-			expectedStatus: v1.OperatorGroupStatus{
-				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: now,
-			},
-			final: final{objects: map[string][]runtime.Object{
-				operatorNamespace: {
-					withAnnotations(operatorCSVFinal.DeepCopy(), map[string]string{v1.OperatorGroupTargetsAnnotationKey: "", v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace}),
-					annotatedGlobalDeployment,
-					&v1.OperatorGroup{
-						TypeMeta: metav1.TypeMeta{
-							Kind:       v1.OperatorGroupKind,
-							APIVersion: strings.Join([]string{v1.GroupName, v1.GroupVersion}, "/"),
-						},
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "operator-group-1",
-							Namespace: operatorNamespace,
-							Labels:    map[string]string{"app": "app-a"},
-							Annotations: map[string]string{
-								v1.OperatorGroupProvidedAPIsAnnotationKey: "c1.v1.fake.api.group",
-							},
-						},
-						Spec: v1.OperatorGroupSpec{},
-						Status: v1.OperatorGroupStatus{
-							Namespaces:  []string{corev1.NamespaceAll},
-							LastUpdated: now,
-						},
-					},
 				},
 				"": {
 					&rbacv1.ClusterRole{
@@ -4107,7 +3906,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: now,
+				LastUpdated: &now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {
@@ -4125,7 +3924,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 						},
 						Status: v1.OperatorGroupStatus{
 							Namespaces:  []string{corev1.NamespaceAll},
-							LastUpdated: now,
+							LastUpdated: &now,
 						},
 					},
 				},
@@ -4172,7 +3971,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 			},
 			expectedStatus: v1.OperatorGroupStatus{
 				Namespaces:  []string{corev1.NamespaceAll},
-				LastUpdated: now,
+				LastUpdated: &now,
 			},
 			final: final{objects: map[string][]runtime.Object{
 				operatorNamespace: {

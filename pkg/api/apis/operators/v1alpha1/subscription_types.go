@@ -76,7 +76,7 @@ type SubscriptionConfig struct {
 	// +patchStrategy=merge
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty" patchMergeKey:"name" patchStrategy:"merge"`
-	
+
 	// List of Volumes to set in the podSpec.
 	// +optional
 	Volumes []corev1.Volume `json:"volumes,omitempty"`
@@ -282,7 +282,8 @@ type Subscription struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   *SubscriptionSpec  `json:"spec"`
+	Spec *SubscriptionSpec `json:"spec"`
+	// +optional
 	Status SubscriptionStatus `json:"status"`
 }
 

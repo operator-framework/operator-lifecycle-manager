@@ -20,6 +20,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.1.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.9.4 // indirect
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.1
+	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0
 	github.com/munnerz/goautoneg v0.0.0-20190414153302-2ae31c8b6b30 // indirect
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
@@ -33,7 +34,6 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/tmc/grpc-websocket-proxy v0.0.0-20190109142713-0ad062ec5ee5 // indirect
 	github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2 // indirect
-	golang.org/x/sync v0.0.0-20190423024810-112230192c58
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	gonum.org/v1/gonum v0.0.0-20190710053202-4340aa3071a0 // indirect
 	google.golang.org/grpc v1.23.0
@@ -48,6 +48,7 @@ require (
 	k8s.io/kube-aggregator v0.0.0
 	k8s.io/kube-openapi v0.0.0-20190816220812-743ec37842bf
 	k8s.io/kubernetes v1.16.0
+	sigs.k8s.io/controller-tools v0.2.4
 )
 
 replace (

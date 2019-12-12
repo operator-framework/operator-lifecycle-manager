@@ -56,7 +56,8 @@ func TestSetPhase(t *testing.T) {
 					Conditions: tt.currentConditions,
 				},
 			}
-			csv.SetPhase(tt.inPhase, "test", "test", metav1.Now())
+			now := metav1.Now()
+			csv.SetPhase(tt.inPhase, "test", "test", &now)
 			require.EqualValues(t, tt.outPhase, csv.Status.Phase)
 		})
 	}
@@ -337,13 +338,13 @@ func TestSetPhaseWithConditions(t *testing.T) {
 			oldConditionsWant := csv.Status.Conditions[tt.startIndex:]
 			lastAddedConditionWant := ClusterServiceVersionCondition{
 				Phase:              ClusterServiceVersionPhase("Pending"),
-				LastTransitionTime: now,
-				LastUpdateTime:     now,
+				LastTransitionTime: &now,
+				LastUpdateTime:     &now,
 				Message:            "message",
 				Reason:             ConditionReason("reason"),
 			}
 
-			csv.SetPhase("Pending", "reason", "message", now)
+			csv.SetPhase("Pending", "reason", "message", &now)
 
 			conditionsGot := csv.Status.Conditions
 			assert.Equal(t, tt.limit, len(conditionsGot))
@@ -364,8 +365,8 @@ func helperNewConditions(count int) []ClusterServiceVersionCondition {
 		now := metav1.Now()
 		condition := ClusterServiceVersionCondition{
 			Phase:              ClusterServiceVersionPhase(fmt.Sprintf("phase-%d", i)),
-			LastTransitionTime: now,
-			LastUpdateTime:     now,
+			LastTransitionTime: &now,
+			LastUpdateTime:     &now,
 			Message:            fmt.Sprintf("message-%d", i),
 			Reason:             ConditionReason(fmt.Sprintf("reason-%d", i)),
 		}

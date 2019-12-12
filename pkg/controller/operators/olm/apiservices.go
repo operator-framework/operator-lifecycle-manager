@@ -282,7 +282,7 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	})
 
 	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		return nil, fmt.Errorf("unsupported InstallStrategy type")
 	}
@@ -329,8 +329,10 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	}
 
 	// Set CSV cert status
-	csv.Status.CertsLastUpdated = metav1.Now()
-	csv.Status.CertsRotateAt = metav1.NewTime(rotateAt)
+	now := metav1.Now()
+	rotateTime := metav1.NewTime(rotateAt)
+	csv.Status.CertsLastUpdated = &now
+	csv.Status.CertsRotateAt = &rotateTime
 
 	return strategyDetailsDeployment, nil
 }
@@ -708,7 +710,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			logger.WithFields(log.Fields{"obj": "apiService", "labels": apiService.GetLabels()}).Errorf("adoption check failed - %v", err)
 		}
 
-		if !adoptable{
+		if !adoptable {
 			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
 		}
 	}
@@ -768,7 +770,7 @@ func (a *Operator) isAPIServiceAdoptable(target *v1alpha1.ClusterServiceVersion,
 
 	if err := ownerutil.InferGroupVersionKind(target); err != nil {
 		a.logger.Warn(err.Error())
-	}	
+	}
 
 	targetKind := target.GetObjectKind().GroupVersionKind().Kind
 	if ownerKind != targetKind {
@@ -793,8 +795,7 @@ func (a *Operator) isAPIServiceAdoptable(target *v1alpha1.ClusterServiceVersion,
 	if replacing != nil {
 		owners = append(owners, replacing)
 	}
-	if currentOwnerCSV != nil && (
-		currentOwnerCSV.Status.Phase == v1alpha1.CSVPhaseReplacing || currentOwnerCSV.Status.Phase == v1alpha1.CSVPhaseDeleting) {
+	if currentOwnerCSV != nil && (currentOwnerCSV.Status.Phase == v1alpha1.CSVPhaseReplacing || currentOwnerCSV.Status.Phase == v1alpha1.CSVPhaseDeleting) {
 		owners = append(owners, currentOwnerCSV)
 	}
 

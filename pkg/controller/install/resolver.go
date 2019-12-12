@@ -4,7 +4,6 @@
 package install
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -34,12 +33,8 @@ type StrategyResolver struct {
 
 func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (strategy Strategy, err error) {
 	switch s.StrategyName {
-	case InstallStrategyNameDeployment:
-		strategy = &StrategyDetailsDeployment{}
-		if err := json.Unmarshal(s.StrategySpecRaw, strategy); err != nil {
-			return nil, err
-		}
-		return
+	case v1alpha1.InstallStrategyNameDeployment:
+		return &s.StrategySpec, nil
 	}
 	err = fmt.Errorf("unrecognized install strategy")
 	return
@@ -47,7 +42,7 @@ func (r *StrategyResolver) UnmarshalStrategy(s v1alpha1.NamedInstallStrategy) (s
 
 func (r *StrategyResolver) InstallerForStrategy(strategyName string, opClient operatorclient.ClientInterface, opLister operatorlister.OperatorLister, owner ownerutil.Owner, annotations map[string]string, previousStrategy Strategy) StrategyInstaller {
 	switch strategyName {
-	case InstallStrategyNameDeployment:
+	case v1alpha1.InstallStrategyNameDeployment:
 		strategyClient := wrappers.NewInstallStrategyDeploymentClient(opClient, opLister, owner.GetNamespace())
 
 		initializers := []DeploymentInitializerFunc{}

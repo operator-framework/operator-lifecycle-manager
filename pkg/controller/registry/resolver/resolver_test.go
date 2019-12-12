@@ -18,7 +18,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 )
 
@@ -400,7 +399,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 	namespace := "catsrc-namespace"
 	catalog := CatalogKey{"catsrc", namespace}
 
-	simplePermissions := []install.StrategyDeploymentPermissions{
+	simplePermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: "test-sa",
 			Rules: []rbacv1.PolicyRule{

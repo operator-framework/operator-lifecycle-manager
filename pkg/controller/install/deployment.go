@@ -5,7 +5,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	rbac "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -15,30 +14,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-const (
-	InstallStrategyNameDeployment = "deployment"
-)
-
-// StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy
-type StrategyDeploymentPermissions struct {
-	ServiceAccountName string            `json:"serviceAccountName"`
-	Rules              []rbac.PolicyRule `json:"rules"`
-}
-
-// StrategyDeploymentSpec contains the name and spec for the deployment ALM should create
-type StrategyDeploymentSpec struct {
-	Name string                `json:"name"`
-	Spec appsv1.DeploymentSpec `json:"spec"`
-}
-
-// StrategyDetailsDeployment represents the parsed details of a Deployment
-// InstallStrategy.
-type StrategyDetailsDeployment struct {
-	DeploymentSpecs    []StrategyDeploymentSpec        `json:"deployments"`
-	Permissions        []StrategyDeploymentPermissions `json:"permissions,omitempty"`
-	ClusterPermissions []StrategyDeploymentPermissions `json:"clusterPermissions,omitempty"`
-}
-
 type StrategyDeploymentInstaller struct {
 	strategyClient      wrappers.InstallStrategyDeploymentInterface
 	owner               ownerutil.Owner
@@ -47,11 +22,7 @@ type StrategyDeploymentInstaller struct {
 	initializers        DeploymentInitializerFuncChain
 }
 
-func (d *StrategyDetailsDeployment) GetStrategyName() string {
-	return InstallStrategyNameDeployment
-}
-
-var _ Strategy = &StrategyDetailsDeployment{}
+var _ Strategy = &v1alpha1.StrategyDetailsDeployment{}
 var _ StrategyInstaller = &StrategyDeploymentInstaller{}
 
 // DeploymentInitializerFunc takes a deployment object and appropriately
@@ -95,7 +66,7 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 	}
 }
 
-func (i *StrategyDeploymentInstaller) installDeployments(deps []StrategyDeploymentSpec) error {
+func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.StrategyDeploymentSpec) error {
 	for _, d := range deps {
 		deployment, err := i.deploymentForSpec(d.Name, d.Spec)
 		if err != nil {
@@ -137,7 +108,7 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 	return
 }
 
-func (i *StrategyDeploymentInstaller) cleanupPrevious(current *StrategyDetailsDeployment, previous *StrategyDetailsDeployment) error {
+func (i *StrategyDeploymentInstaller) cleanupPrevious(current *v1alpha1.StrategyDetailsDeployment, previous *v1alpha1.StrategyDetailsDeployment) error {
 	previousDeploymentsMap := map[string]struct{}{}
 	for _, d := range previous.DeploymentSpecs {
 		previousDeploymentsMap[d.Name] = struct{}{}
@@ -155,7 +126,7 @@ func (i *StrategyDeploymentInstaller) cleanupPrevious(current *StrategyDetailsDe
 }
 
 func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
-	strategy, ok := s.(*StrategyDetailsDeployment)
+	strategy, ok := s.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		return fmt.Errorf("attempted to install %s strategy with deployment installer", strategy.GetStrategyName())
 	}
@@ -174,7 +145,7 @@ func (i *StrategyDeploymentInstaller) Install(s Strategy) error {
 // CheckInstalled can return nil (installed), or errors
 // Errors can indicate: some component missing (keep installing), unable to query (check again later), or unrecoverable (failed in a way we know we can't recover from)
 func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (installed bool, err error) {
-	strategy, ok := s.(*StrategyDetailsDeployment)
+	strategy, ok := s.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
 		return false, StrategyError{Reason: StrategyErrReasonInvalidStrategy, Message: fmt.Sprintf("attempted to check %s strategy with deployment installer", strategy.GetStrategyName())}
 	}
@@ -186,7 +157,7 @@ func (i *StrategyDeploymentInstaller) CheckInstalled(s Strategy) (installed bool
 	return true, nil
 }
 
-func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []StrategyDeploymentSpec) error {
+func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1alpha1.StrategyDeploymentSpec) error {
 	var depNames []string
 	for _, dep := range deploymentSpecs {
 		depNames = append(depNames, dep.Name)
@@ -275,7 +246,7 @@ func (i *StrategyDeploymentInstaller) equalDeployments(calculated, onCluster *ap
 }
 
 // Clean up orphaned deployments after reinstalling deployments process
-func (i *StrategyDeploymentInstaller) cleanupOrphanedDeployments(deploymentSpecs []StrategyDeploymentSpec) error {
+func (i *StrategyDeploymentInstaller) cleanupOrphanedDeployments(deploymentSpecs []v1alpha1.StrategyDeploymentSpec) error {
 	// Map of deployments
 	depNames := map[string]string{}
 	for _, dep := range deploymentSpecs {

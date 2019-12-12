@@ -90,8 +90,8 @@ type InstallPlanStatus struct {
 type InstallPlanCondition struct {
 	Type               InstallPlanConditionType
 	Status             corev1.ConditionStatus // True, False, or Unknown
-	LastUpdateTime     metav1.Time
-	LastTransitionTime metav1.Time
+	LastUpdateTime     *metav1.Time
+	LastTransitionTime *metav1.Time
 	Reason             InstallPlanConditionReason
 	Message            string
 }
@@ -136,8 +136,8 @@ func ConditionFailed(cond InstallPlanConditionType, reason InstallPlanConditionR
 		Status:             corev1.ConditionFalse,
 		Reason:             reason,
 		Message:            message,
-		LastUpdateTime:     *now,
-		LastTransitionTime: *now,
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
 	}
 }
 
@@ -145,8 +145,8 @@ func ConditionMet(cond InstallPlanConditionType, now *metav1.Time) InstallPlanCo
 	return InstallPlanCondition{
 		Type:               cond,
 		Status:             corev1.ConditionTrue,
-		LastUpdateTime:     *now,
-		LastTransitionTime: *now,
+		LastUpdateTime:     now,
+		LastTransitionTime: now,
 	}
 }
 
