@@ -1019,6 +1019,14 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		},
 	}
 
+	bundleWithAPIsUnextracted := &api.Bundle{
+		CsvName:     "testBundle",
+		PackageName: "testPackage",
+		ChannelName: "testChannel",
+		CsvJson:     string(csvJsonWithApis),
+		Object:      []string{string(csvJsonWithApis), string(crdJson)},
+	}
+
 	type args struct {
 		bundle    *api.Bundle
 		sourceKey CatalogKey
@@ -1112,6 +1120,53 @@ func TestNewOperatorFromBundle(t *testing.T) {
 				bundle:       bundleNoAPIs,
 				replaces:     "replaced",
 				version:      &version.Version,
+				sourceInfo: &OperatorSourceInfo{
+					Package: "testPackage",
+					Channel: "testChannel",
+					Catalog: CatalogKey{"source", "testNamespace"},
+				},
+			},
+		},
+		{
+			name: "BundleCsvFallback",
+			args: args{
+				bundle:    bundleWithAPIsUnextracted,
+				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
+				replaces:  "replaced",
+			},
+			want: &Operator{
+				name: "testCSV",
+				providedAPIs: APISet{
+					opregistry.APIKey{
+						Group:   "crd.group.com",
+						Version: "v1",
+						Kind:    "OwnedCRD",
+						Plural:  "owneds",
+					}: struct{}{},
+					opregistry.APIKey{
+						Group:   "apis.group.com",
+						Version: "v1",
+						Kind:    "OwnedAPI",
+						Plural:  "ownedapis",
+					}: struct{}{},
+				},
+				requiredAPIs: APISet{
+					opregistry.APIKey{
+						Group:   "crd.group.com",
+						Version: "v1",
+						Kind:    "RequiredCRD",
+						Plural:  "requireds",
+					}: struct{}{},
+					opregistry.APIKey{
+						Group:   "apis.group.com",
+						Version: "v1",
+						Kind:    "RequiredAPI",
+						Plural:  "requiredapis",
+					}: struct{}{},
+				},
+				bundle:   bundleWithAPIsUnextracted,
+				replaces: "replaced",
+				version:  &version.Version,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
