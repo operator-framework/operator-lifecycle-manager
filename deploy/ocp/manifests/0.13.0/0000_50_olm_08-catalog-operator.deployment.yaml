@@ -57,6 +57,9 @@ spec:
             value: "0.0.1-snapshot"
           
           resources:
+            limits:
+              cpu: 200m
+              memory: 300Mi
             requests:
               cpu: 10m
               memory: 80Mi
