@@ -1625,6 +1625,7 @@ func Convert_operators_SubscriptionList_To_v1alpha1_SubscriptionList(in *operato
 func autoConvert_v1alpha1_SubscriptionSpec_To_operators_SubscriptionSpec(in *SubscriptionSpec, out *operators.SubscriptionSpec, s conversion.Scope) error {
 	out.CatalogSource = in.CatalogSource
 	out.CatalogSourceNamespace = in.CatalogSourceNamespace
+	out.Name = in.Name
 	out.Package = in.Package
 	out.Channel = in.Channel
 	out.StartingCSV = in.StartingCSV
@@ -1643,6 +1644,7 @@ func Convert_v1alpha1_SubscriptionSpec_To_operators_SubscriptionSpec(in *Subscri
 func autoConvert_operators_SubscriptionSpec_To_v1alpha1_SubscriptionSpec(in *operators.SubscriptionSpec, out *SubscriptionSpec, s conversion.Scope) error {
 	out.CatalogSource = in.CatalogSource
 	out.CatalogSourceNamespace = in.CatalogSourceNamespace
+	out.Name = in.Name
 	out.Package = in.Package
 	out.Channel = in.Channel
 	out.StartingCSV = in.StartingCSV
