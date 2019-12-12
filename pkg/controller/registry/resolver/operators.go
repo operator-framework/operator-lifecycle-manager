@@ -257,7 +257,6 @@ func NewOperatorFromBundle(bundle *api.Bundle, replaces string, startingCSV stri
 	if err != nil {
 		v = nil
 	}
-
 	provided := APISet{}
 	for _, gvk := range bundle.ProvidedApis {
 		provided[registry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
@@ -265,6 +264,34 @@ func NewOperatorFromBundle(bundle *api.Bundle, replaces string, startingCSV stri
 	required := APISet{}
 	for _, gvk := range bundle.RequiredApis {
 		required[registry.APIKey{Plural: gvk.Plural, Group: gvk.Group, Kind: gvk.Kind, Version: gvk.Version}] = struct{}{}
+	}
+	sourceInfo := &OperatorSourceInfo{
+		Package:     bundle.PackageName,
+		Channel:     bundle.ChannelName,
+		StartingCSV: startingCSV,
+		Catalog:     sourceKey,
+	}
+
+	// legacy support - if the grpc api doesn't contain the information we need, fallback to csv parsing
+	if len(required) == 0 && len(provided) == 0 {
+		// fallback to csv parsing
+		if bundle.CsvJson == "" {
+			return nil, fmt.Errorf("couldn't parse bundle")
+		}
+
+		csv := &v1alpha1.ClusterServiceVersion{}
+		if err := json.Unmarshal([]byte(bundle.CsvJson), csv); err != nil {
+			return nil, err
+		}
+
+		op, err := NewOperatorFromV1Alpha1CSV(csv)
+		if err != nil {
+			return nil, err
+		}
+		op.sourceInfo = sourceInfo
+		op.bundle = bundle
+		op.replaces = r
+		return op, nil
 	}
 
 	return &Operator{
@@ -274,12 +301,7 @@ func NewOperatorFromBundle(bundle *api.Bundle, replaces string, startingCSV stri
 		providedAPIs: provided,
 		requiredAPIs: required,
 		bundle:       bundle,
-		sourceInfo: &OperatorSourceInfo{
-			Package:     bundle.PackageName,
-			Channel:     bundle.ChannelName,
-			StartingCSV: startingCSV,
-			Catalog:     sourceKey,
-		},
+		sourceInfo:   sourceInfo,
 	}, nil
 }
 
