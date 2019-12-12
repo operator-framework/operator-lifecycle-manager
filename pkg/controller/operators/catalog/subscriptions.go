@@ -19,7 +19,7 @@ const (
 
 func labelsForSubscription(sub *v1alpha1.Subscription) map[string]string {
 	return map[string]string{
-		PackageLabel:          sub.Spec.Package,
+		PackageLabel:          sub.Package(),
 		CatalogLabel:          sub.Spec.CatalogSource,
 		CatalogNamespaceLabel: sub.Spec.CatalogSourceNamespace,
 		ChannelLabel:          sub.Spec.Channel,
@@ -29,7 +29,7 @@ func labelsForSubscription(sub *v1alpha1.Subscription) map[string]string {
 // TODO remove this once UI no longer needs them
 func legacyLabelsForSubscription(sub *v1alpha1.Subscription) map[string]string {
 	return map[string]string{
-		"alm-package": sub.Spec.Package,
+		"alm-package": sub.Package(),
 		"alm-catalog": sub.Spec.CatalogSource,
 		"alm-channel": sub.Spec.Channel,
 	}

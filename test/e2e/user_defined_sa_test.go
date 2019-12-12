@@ -49,7 +49,7 @@ func TestUserDefinedServiceAccountWithNoPermission(t *testing.T) {
 	require.NoError(t, err)
 
 	subscriptionName := genName("scoped-sub-")
-	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.SpecPackage(), subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 	defer cleanupSubscription()
 
 	// Wait until an install plan is created.
@@ -106,7 +106,7 @@ func TestUserDefinedServiceAccountWithPermission(t *testing.T) {
 	require.NoError(t, err)
 
 	subscriptionName := genName("scoped-sub-")
-	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.SpecPackage(), subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 	defer cleanupSubscription()
 
 	// Wait until an install plan is created.
@@ -160,7 +160,7 @@ func TestUserDefinedServiceAccountWithRetry(t *testing.T) {
 	require.NoError(t, err)
 
 	subscriptionName := genName("scoped-sub-")
-	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.Package, subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
+	cleanupSubscription := createSubscriptionForCatalog(t, crclient, namespace, subscriptionName, catsrc.GetName(), subSpec.SpecPackage(), subSpec.Channel, subSpec.StartingCSV, subSpec.InstallPlanApproval)
 	defer cleanupSubscription()
 
 	// Wait until an install plan is created.
@@ -303,13 +303,13 @@ func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, c
 		CatalogSource:          catsrc.GetName(),
 		CatalogSourceNamespace: catsrc.GetNamespace(),
 		Package:                packageName,
+		Name:                   packageName,
 		Channel:                stableChannel,
 		StartingCSV:            csvB.GetName(),
 		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,
 	}
 	return
 }
-
 
 func newCatalogSourceWithDependencies(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []install.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
 	crdPlural := genName("ins")
@@ -372,6 +372,7 @@ func newCatalogSourceWithDependencies(t *testing.T, kubeclient operatorclient.Cl
 		CatalogSource:          catsrc.GetName(),
 		CatalogSourceNamespace: catsrc.GetNamespace(),
 		Package:                packageName1,
+		Name:                   packageName1,
 		Channel:                stableChannel,
 		StartingCSV:            csvA.GetName(),
 		InstallPlanApproval:    v1alpha1.ApprovalAutomatic,

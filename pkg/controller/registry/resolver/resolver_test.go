@@ -497,6 +497,7 @@ func newSub(namespace, pkg, channel string, catalog CatalogKey) *v1alpha1.Subscr
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			Package:                pkg,
+			Name:                   pkg,
 			Channel:                channel,
 			CatalogSource:          catalog.Name,
 			CatalogSourceNamespace: catalog.Namespace,
@@ -512,6 +513,7 @@ func updatedSub(namespace, operatorName, pkg, channel string, catalog CatalogKey
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			Package:                pkg,
+			Name:                   pkg,
 			Channel:                channel,
 			CatalogSource:          catalog.Name,
 			CatalogSourceNamespace: catalog.Namespace,
@@ -530,6 +532,7 @@ func existingSub(namespace, operatorName, pkg, channel string, catalog CatalogKe
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			Package:                pkg,
+			Name:                   pkg,
 			Channel:                channel,
 			CatalogSource:          catalog.Name,
 			CatalogSourceNamespace: catalog.Namespace,
@@ -579,6 +582,7 @@ func subSteps(namespace, operatorName, pkgName, channelName string, catalog Cata
 		},
 		Spec: &v1alpha1.SubscriptionSpec{
 			Package:                pkgName,
+			Name:                   pkgName,
 			Channel:                channelName,
 			CatalogSource:          catalog.Name,
 			CatalogSourceNamespace: catalog.Namespace,

@@ -29,6 +29,7 @@ const (
 type SubscriptionSpec struct {
 	CatalogSource          string
 	CatalogSourceNamespace string
+	Name                   string
 	Package                string
 	Channel                string
 	StartingCSV            string

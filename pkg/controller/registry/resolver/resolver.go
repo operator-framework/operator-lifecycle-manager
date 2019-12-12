@@ -162,8 +162,9 @@ func (r *OperatorsV1alpha1Resolver) sourceInfoToSubscriptions(subs []*v1alpha1.S
 		} else {
 			sourceNamespace = s.Spec.CatalogSourceNamespace
 		}
+
 		add[OperatorSourceInfo{
-			Package:     s.Spec.Package,
+			Package:     s.Package(),
 			Channel:     s.Spec.Channel,
 			StartingCSV: startingCSV,
 			Catalog:     CatalogKey{Name: s.Spec.CatalogSource, Namespace: sourceNamespace},

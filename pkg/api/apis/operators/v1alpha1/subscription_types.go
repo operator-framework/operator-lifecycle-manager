@@ -29,13 +29,25 @@ const (
 
 // SubscriptionSpec defines an Application that can be installed
 type SubscriptionSpec struct {
-	CatalogSource          string             `json:"source"`
-	CatalogSourceNamespace string             `json:"sourceNamespace"`
-	Package                string             `json:"name"`
-	Channel                string             `json:"channel,omitempty"`
-	StartingCSV            string             `json:"startingCSV,omitempty"`
-	InstallPlanApproval    Approval           `json:"installPlanApproval,omitempty"`
-	Config                 SubscriptionConfig `json:"config,omitempty"`
+	CatalogSource          string `json:"source"`
+	CatalogSourceNamespace string `json:"sourceNamespace"`
+	// Name is deprecated, prefer Package.
+	Name string `json:"name"`
+	// Package is the name of the package to subscribe to.
+	// +optional
+	Package             string             `json:"package,omitempty"`
+	Channel             string             `json:"channel,omitempty"`
+	StartingCSV         string             `json:"startingCSV,omitempty"`
+	InstallPlanApproval Approval           `json:"installPlanApproval,omitempty"`
+	Config              SubscriptionConfig `json:"config,omitempty"`
+}
+
+func (s *SubscriptionSpec) SpecPackage() string {
+	// prioritize the Package field
+	if s.Package == "" {
+		return s.Name
+	}
+	return s.Package
 }
 
 // SubscriptionConfig contains configuration specified for a subscription.
@@ -76,7 +88,7 @@ type SubscriptionConfig struct {
 	// +patchStrategy=merge
 	// +optional
 	Env []corev1.EnvVar `json:"env,omitempty" patchMergeKey:"name" patchStrategy:"merge"`
-	
+
 	// List of Volumes to set in the podSpec.
 	// +optional
 	Volumes []corev1.Volume `json:"volumes,omitempty"`
@@ -302,6 +314,14 @@ func (s *Subscription) GetInstallPlanApproval() Approval {
 		return ApprovalManual
 	}
 	return ApprovalAutomatic
+}
+
+func (s *Subscription) Package() string {
+	// prioritize the Package field
+	if s.Spec.Package == "" {
+		return s.Spec.Name
+	}
+	return s.Spec.Package
 }
 
 // NewInstallPlanReference returns an InstallPlanReference for the given ObjectReference.

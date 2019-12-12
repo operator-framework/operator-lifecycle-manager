@@ -136,6 +136,7 @@ func TestGlobalCatalogUpdateTriggersSubscriptionSync(t *testing.T) {
 		CatalogSource:          mainCatalogName,
 		CatalogSourceNamespace: globalNS,
 		Package:                mainPackageName,
+		Name:                   mainPackageName,
 		Channel:                stableChannel,
 		StartingCSV:            mainCSV.GetName(),
 		InstallPlanApproval:    v1alpha1.ApprovalManual,
