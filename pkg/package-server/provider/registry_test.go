@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -55,7 +56,7 @@ func server() {
 		logrus.Fatal(err)
 	}
 
-	loader := sqlite.NewSQLLoaderForDirectory(load, "manifests")
+	loader := sqlite.NewSQLLoaderForDirectory(load, filepath.Join("testdata", "manifests"))
 	if err := loader.Populate(); err != nil {
 		logrus.Fatal(err)
 	}
@@ -74,7 +75,7 @@ func server() {
 	}
 }
 
-func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k8sObjs []runtime.Object, watchedNamespaces []string, globalNamespace string) (*RegistryProvider, error) {
+func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k8sObjs []runtime.Object, globalNamespace string) (*RegistryProvider, error) {
 	clientFake := fake.NewSimpleClientset(clientObjs...)
 	k8sClientFake := k8sfake.NewSimpleClientset(k8sObjs...)
 	opClientFake := operatorclient.NewClient(k8sClientFake, nil, nil)
@@ -86,7 +87,7 @@ func NewFakeRegistryProvider(ctx context.Context, clientObjs []runtime.Object, k
 
 	resyncInterval := 5 * time.Minute
 
-	return NewRegistryProvider(ctx, clientFake, op, resyncInterval, watchedNamespaces, globalNamespace)
+	return NewRegistryProvider(ctx, clientFake, op, resyncInterval, globalNamespace)
 }
 
 func catalogSource(name, namespace string) *operatorsv1alpha1.CatalogSource {
@@ -349,12 +350,12 @@ func TestToPackageManifest(t *testing.T) {
 			clientFake := &fakes.FakeRegistryClient{}
 			clientFake.GetBundleForChannelReturnsOnCall(0, test.bundle, nil)
 
-			client := registryClient{
+			client := &registryClient{
 				RegistryClient: clientFake,
-				source:         test.catalogSource,
+				catsrc:         test.catalogSource,
 			}
 
-			packageManifest, err := toPackageManifest(logrus.NewEntry(logrus.New()), test.apiPkg, client)
+			packageManifest, err := newPackageManifest(context.Background(), logrus.NewEntry(logrus.New()), test.apiPkg, client)
 			if test.expectedErr != "" {
 				require.Error(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
@@ -539,14 +540,12 @@ func TestRegistryProviderGet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
-			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.namespaces, test.globalNS)
+			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.globalNS)
 			require.NoError(t, err)
 
 			for _, cs := range test.catalogSources {
-				catsrc := (cs).(*operatorsv1alpha1.CatalogSource)
-				conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithInsecure())
-				require.NoError(t, err, "could not set up test grpc connection")
-				provider.clients[sourceKey{catsrc.GetName(), catsrc.GetNamespace()}] = newRegistryClient(catsrc, conn)
+				catsrc := cs.(*operatorsv1alpha1.CatalogSource)
+				require.NoError(t, provider.refreshCache(ctx, newTestRegistryClient(t, catsrc)))
 			}
 
 			packageManifest, err := provider.Get(test.request.packageNamespace, test.request.packageName)
@@ -565,26 +564,23 @@ func TestRegistryProviderGet(t *testing.T) {
 func TestRegistryProviderList(t *testing.T) {
 	tests := []struct {
 		name             string
-		namespaces       []string
 		globalNS         string
-		registryClients  []registryClient
+		registryClients  []*registryClient
 		requestNamespace string
 		expectedErr      string
 		expected         *operators.PackageManifestList
 	}{
 		{
 			name:             "NoPackages",
-			namespaces:       []string{"ns"},
 			globalNS:         "ns",
 			requestNamespace: "wisconsin",
 			expectedErr:      "",
 			expected:         &operators.PackageManifestList{Items: []operators.PackageManifest{}},
 		},
 		{
-			name:       "PackagesFound",
-			namespaces: []string{"ns"},
-			globalNS:   "ns",
-			registryClients: []registryClient{
+			name:     "PackagesFound",
+			globalNS: "ns",
+			registryClients: []*registryClient{
 				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
 			},
 			requestNamespace: "ns",
@@ -657,10 +653,9 @@ func TestRegistryProviderList(t *testing.T) {
 			}},
 		},
 		{
-			name:       "TwoCatalogs/OneBadConnection/PackagesFound",
-			namespaces: []string{"ns"},
-			globalNS:   "ns",
-			registryClients: []registryClient{
+			name:     "TwoCatalogs/OneBadConnection/PackagesFound",
+			globalNS: "ns",
+			registryClients: []*registryClient{
 				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
 				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("not-so-cool-operators", "ns"), "grpc", "not-so-cool-operators", "ns", "50052", metav1.NewTime(time.Now()))),
 			},
@@ -734,12 +729,11 @@ func TestRegistryProviderList(t *testing.T) {
 			}},
 		},
 		{
-			name:       "OneCatalog/ManyPackages/OneMissingBundle/Elided",
-			namespaces: []string{"ns"},
-			globalNS:   "ns",
-			registryClients: []registryClient{
-				func() registryClient {
-					source := catalogSource("cool-operators", "ns")
+			name:     "OneCatalog/ManyPackages/OneMissingBundle/Elided",
+			globalNS: "ns",
+			registryClients: []*registryClient{
+				func() *registryClient {
+					catsrc := catalogSource("cool-operators", "ns")
 					listFake := &fakes.FakeRegistry_ListPackagesClient{}
 					listFake.RecvReturnsOnCall(0, &api.PackageName{Name: "no-bundle"}, nil)
 					listFake.RecvReturnsOnCall(1, &api.PackageName{Name: "has-bundle"}, nil)
@@ -781,7 +775,7 @@ func TestRegistryProviderList(t *testing.T) {
 						},
 					}, nil)
 
-					return registryClient{clientFake, source, nil}
+					return &registryClient{clientFake, catsrc, nil}
 				}(),
 			},
 			requestNamespace: "ns",
@@ -827,11 +821,11 @@ func TestRegistryProviderList(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
-			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.namespaces, test.globalNS)
+			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.globalNS)
 			require.NoError(t, err)
 
 			for _, c := range test.registryClients {
-				provider.clients[sourceKey{c.source.GetName(), c.source.GetNamespace()}] = c
+				require.NoError(t, provider.refreshCache(ctx, c))
 			}
 
 			packageManifestList, err := provider.List(test.requestNamespace)
@@ -848,8 +842,8 @@ func TestRegistryProviderList(t *testing.T) {
 	}
 }
 
-func newTestRegistryClient(t *testing.T, source *operatorsv1alpha1.CatalogSource) registryClient {
-	conn, err := grpc.Dial(address+source.Status.RegistryServiceStatus.Port, grpc.WithInsecure())
+func newTestRegistryClient(t *testing.T, catsrc *operatorsv1alpha1.CatalogSource) *registryClient {
+	conn, err := grpc.Dial(address+catsrc.Status.RegistryServiceStatus.Port, grpc.WithInsecure())
 	require.NoError(t, err, "could not set up test grpc connection")
-	return newRegistryClient(source, conn)
+	return newRegistryClient(catsrc, conn)
 }

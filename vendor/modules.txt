@@ -78,8 +78,6 @@ github.com/gogo/protobuf/sortkeys
 # github.com/golang-migrate/migrate/v4 v4.6.2
 github.com/golang-migrate/migrate/v4/source
 github.com/golang-migrate/migrate/v4/source/file
-# github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
-github.com/golang/glog
 # github.com/golang/groupcache v0.0.0-20181024230925-c65c006176ff
 github.com/golang/groupcache/lru
 # github.com/golang/mock v1.3.1
@@ -228,6 +226,8 @@ golang.org/x/net/websocket
 # golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
+# golang.org/x/sync v0.0.0-20190423024810-112230192c58
+golang.org/x/sync/errgroup
 # golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb
 golang.org/x/sys/cpu
 golang.org/x/sys/unix
