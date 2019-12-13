@@ -7,12 +7,17 @@ replace (
 	github.com/openshift/api => github.com/openshift/api v3.9.1-0.20190717200738-0390d1e77d64+incompatible
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20190627172412-c44a8b61b9f4
 
+	// https://github.com/ugorji/go/issues/303
+	github.com/ugorji/go => github.com/ugorji/go/codec v1.1.7
+
 	// Pin kube version to 1.14
 	k8s.io/api => k8s.io/api v0.0.0-20190704095032-f4ca3d3bdf1d
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20190704104557-6209bbe9f7a9
 	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190704094733-8f6ac2502e51
 	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20190704101451-e5f5c6e528cd
 	k8s.io/client-go => k8s.io/client-go v11.0.1-0.20190521191137-11646d1007e0+incompatible
+	// kubernetes-1.14.5-beta.0
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.0.0-20190708183300-967b4e90bbea
 	k8s.io/code-generator => k8s.io/code-generator v0.0.0-20190704094409-6c2a4329ac29
 	k8s.io/component-base => k8s.io/component-base v0.0.0-20190704100636-f0322db00a10
 	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.0.0-20190704101955-e796fd6d55e0
@@ -28,10 +33,10 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/emicklei/go-restful v2.9.6+incompatible // indirect
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.19.2
 	github.com/go-openapi/validate v0.19.2 // indirect
-	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.3.1
 	github.com/google/btree v1.0.0 // indirect
@@ -61,6 +66,7 @@ require (
 	k8s.io/apimachinery v0.0.0-20190717022731-0bb8574e0887
 	k8s.io/apiserver v0.0.0-20181026151315-13cfe3978170
 	k8s.io/client-go v8.0.0+incompatible
+	k8s.io/cloud-provider v0.0.0-00010101000000-000000000000 // indirect
 	k8s.io/code-generator v0.0.0-20181203235156-f8cba74510f3
 	k8s.io/component-base v0.0.0-20190717023551-b4f50308a616
 	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a // indirect

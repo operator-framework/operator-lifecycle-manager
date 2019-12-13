@@ -13,7 +13,6 @@ import (
 	_ "k8s.io/code-generator/cmd/import-boss"
 	_ "k8s.io/code-generator/cmd/informer-gen"
 	_ "k8s.io/code-generator/cmd/lister-gen"
-	_ "k8s.io/code-generator/cmd/openapi-gen"
 	_ "k8s.io/code-generator/cmd/set-gen"
 	_ "k8s.io/kube-openapi/cmd/openapi-gen"
 )
