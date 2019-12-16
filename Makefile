@@ -141,13 +141,6 @@ clean:
 	@rm -rf test/e2e/log
 	@rm -rf e2e.namespace
 
-CI := $(shell find . -iname "*.jsonnet") $(shell find . -iname "*.libsonnet")
-$(CI):
-	jsonnet fmt -i -n 4 $@
-
-gen-ci: $(CI)
-	ffctl gen
-
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 # use container-codegen
 codegen: export GO111MODULE := off
@@ -181,17 +174,11 @@ container-mockgen:
 	docker cp temp-mockgen:/operator-lifecycle-manager/pkg/package-server/client/fakes/. ./pkg/package-server/client/fakes
 	docker rm temp-mockgen
 
-verify: verify-codegen verify-manifests
+verify: verify-codegen
 
 # Must be run in gopath: https://github.com/kubernetes/kubernetes/issues/67566
 verify-codegen: codegen
 	git diff --exit-code
-
-# this is here for backwards compatibility with the ci job that calls verify-catalog
-verify-catalog:
-
-# this is here for backwards compatibility with the ci job that calls verify-manifests
-verify-manifests:
 
 verify-release: ver=$(shell cat OLM_VERSION)
 verify-release:
@@ -206,7 +193,7 @@ verify-release:
 mockgen:
 	$(MOCKGEN)
 
-gen-all: gen-ci container-codegen container-mockgen
+gen-all: container-codegen container-mockgen
 
 # before running release, bump the version in OLM_VERSION and push to master,
 # then tag those builds in quay with the version in OLM_VERSION
