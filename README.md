@@ -71,19 +71,19 @@ ClusterServiceVersions can be collected into `CatalogSource`s which will allow a
 
 Learn more about the components used by OLM by reading about the [architecture] and [philosophy].
 
-# Overall OLM Chart
+# Component Diagram
 
-![OLM](./olm.png)
+![Component Diagram](./component_diagram.png)
 
-From the above chart, we can see that there are 2 steps required for a new operator onboard:
+From the above diagram, we can see that there are 2 parts: out-of-cluster and in-cluster.
 
-1. Develop your operator and push it into the operator repository. You can choose quay.io as an example repository.
+Out-of-cluster: develops your operator and push the operator manifests to a quay.io application registry.
 
-2. Use the operator in your kubernetes cluster or openshift cluster. Assume that you have OLM installed.
+In-cluster: shows the different components that make up the OLM, including:
 
-  - Create `OperatorSource` manually to point to your operator repository. the `marketplace` operator is reposible for creating `CatalogSource`.
-  - Create `OperatorGroup` which is used by `ClusterServiceVersion` and your operator.
-  - Create `Subscription` refered to the `CatalogSource`. the OLM helps to create `InstallPlan`, `ClusterServiceVersion` and Your operator.
+  - [`CatalogSource`](/doc/design/philosophy.md#catalogsource): specifies how to communicate with the operator repository.
+  - [`Subscription`](https://github.com/operator-framework/community-operators/blob/master/docs/testing-operators.md#7-create-a-subscription): links a particular [CSV](/doc/design/building-your-csv.md) channel to a CatalogSource, indicating from which CatalogSource OLM should pull an Operator.
+  - [`OperatorGroup`](/doc/design/operatorgroups.md): provides rudimentary multitenant configuration to OLM installed operators.
 
 # Key Concepts
 
@@ -105,7 +105,7 @@ To minimize the effort required to run an application on kubernetes, OLM handles
 
 This is achieved through additional metadata on the application definition. Each operator must define:
 
- - The CRDs that it is responsible for managing. 
+ - The CRDs that it is responsible for managing.
    - e.g., the etcd operator manages `EtcdCluster`.
  - The CRDs that it depends on. 
    - e.g., the vault operator depends on `EtcdCluster`, because Vault is backed by etcd.
@@ -119,7 +119,7 @@ Dependency resolution is driven through the `(Group, Version, Kind)` of CRDs. Th
 There is no way to express a dependency on a particular version of an operator (e.g. `etcd-operator v0.9.0`) or application instance (e.g. `etcd v3.2.1`). This encourages application authors to depend on the interface and not the implementation.
 
 ## Discovery, Catalogs, and Automated Upgrades
-OLM has the concept of catalogs, which are repositories of application definitions and CRDs. 	
+OLM has the concept of catalogs, which are repositories of application definitions and CRDs.
 
 Catalogs contain a set of Packages, which map “channels” to a particular application definition. Channels allow package authors to write different upgrade paths for different users (e.g. alpha vs. stable).
 
