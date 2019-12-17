@@ -21,6 +21,7 @@ package versioned
 import (
 	"fmt"
 
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/client/versioned/typed/monitoring/v1"
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/typed/operators/v1alpha1"
 	discovery "k8s.io/client-go/discovery"
@@ -32,6 +33,7 @@ type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Interface
 	OperatorsV1() operatorsv1.OperatorsV1Interface
+	MonitoringV1() monitoringv1.MonitoringV1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
@@ -40,11 +42,17 @@ type Clientset struct {
 	*discovery.DiscoveryClient
 	operatorsV1alpha1 *operatorsv1alpha1.OperatorsV1alpha1Client
 	operatorsV1       *operatorsv1.OperatorsV1Client
+	monitoringV1      *monitoringv1.MonitoringV1Client
 }
 
 // OperatorsV1alpha1 retrieves the OperatorsV1alpha1Client
 func (c *Clientset) OperatorsV1alpha1() operatorsv1alpha1.OperatorsV1alpha1Interface {
 	return c.operatorsV1alpha1
+}
+
+// MonitoringV1 retrieves the MonitoringV1Client
+func (c *Clientset) MonitoringV1() monitoringv1.MonitoringV1Interface {
+	return c.monitoringV1
 }
 
 // OperatorsV1 retrieves the OperatorsV1Client
@@ -78,6 +86,10 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 		return nil, err
 	}
 	cs.operatorsV1, err = operatorsv1.NewForConfig(&configShallowCopy)
+	if err != nil {
+		return nil, err
+	}
+	cs.monitoringV1, err = monitoringv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
 	}

@@ -47,6 +47,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
 const (
@@ -1554,7 +1556,28 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				plan.Status.Plan[i].Status = status
+			case monitoringv1.ServiceMonitorKindKey:
+				// Marshal the manifest into a Service instance
+				var s monitoringv1.ServiceMonitor
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+				}
 
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error generating ownerrefs for service: %s", s.GetName())
+				}
+				s.SetOwnerReferences(updated)
+				s.SetNamespace(namespace)
+
+				status, err := ensurer.EnsureServiceMonitor(namespace, &s)
+				if err != nil {
+					return err
+				}
+
+				plan.Status.Plan[i].Status = status
 			default:
 				return v1alpha1.ErrInvalidInstallPlan
 			}

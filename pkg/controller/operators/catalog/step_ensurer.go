@@ -14,6 +14,8 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 )
 
 func newStepEnsurer(kubeClient operatorclient.ClientInterface, crClient versioned.Interface) *StepEnsurer {
@@ -157,6 +159,29 @@ func (o *StepEnsurer) EnsureService(namespace string, service *corev1.Service) (
 	service.SetNamespace(namespace)
 	if _, updateErr := o.kubeClient.UpdateService(service); updateErr != nil {
 		err = errorwrap.Wrapf(updateErr, "error updating service: %s", service.GetName())
+		return
+	}
+
+	status = v1alpha1.StepStatusPresent
+	return
+}
+
+// EnsureServiceMonitor writes the specified ServiceMonitor object to the cluster.
+func (o *StepEnsurer) EnsureServiceMonitor(namespace string, serviceMonitor *monitoringv1.ServiceMonitor) (status v1alpha1.StepStatus, err error) {
+	_, createErr := o.crClient.MonitoringV1().ServiceMonitors(namespace).Create(serviceMonitor)
+	if createErr == nil {
+		status = v1alpha1.StepStatusCreated
+		return
+	}
+
+	if !k8serrors.IsAlreadyExists(createErr) {
+		err = errorwrap.Wrapf(createErr, "error updating service: %s", serviceMonitor.GetName())
+		return
+	}
+
+	serviceMonitor.SetNamespace(namespace)
+	if _, updateErr := o.crClient.MonitoringV1().ServiceMonitors(namespace).Update(serviceMonitor); updateErr != nil {
+		err = errorwrap.Wrapf(updateErr, "error updating service: %s", serviceMonitor.GetName())
 		return
 	}
 
