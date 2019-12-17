@@ -136,7 +136,7 @@ github.com/mattn/go-isatty
 github.com/mattn/go-sqlite3
 # github.com/matttproud/golang_protobuf_extensions v1.0.1
 github.com/matttproud/golang_protobuf_extensions/pbutil
-# github.com/maxbrunsfeld/counterfeiter/v6 v6.2.1
+# github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 github.com/maxbrunsfeld/counterfeiter/v6
 github.com/maxbrunsfeld/counterfeiter/v6/arguments
 github.com/maxbrunsfeld/counterfeiter/v6/command
@@ -168,7 +168,7 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
-# github.com/operator-framework/operator-registry v1.5.3
+# github.com/operator-framework/operator-registry v1.5.5
 github.com/operator-framework/operator-registry/pkg/api
 github.com/operator-framework/operator-registry/pkg/api/grpc_health_v1
 github.com/operator-framework/operator-registry/pkg/client
@@ -226,7 +226,7 @@ golang.org/x/crypto/nacl/secretbox
 golang.org/x/crypto/poly1305
 golang.org/x/crypto/salsa20/salsa
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20190812203447-cdfb69ac37fc
+# golang.org/x/net v0.0.0-20191004110552-13f9640d40b9
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/http/httpguts
@@ -343,11 +343,11 @@ gopkg.in/inf.v0
 gopkg.in/natefinch/lumberjack.v2
 # gopkg.in/op/go-logging.v1 v1.0.0-20160211212156-b2cb9fa56473
 gopkg.in/op/go-logging.v1
-# gopkg.in/yaml.v2 v2.2.2
+# gopkg.in/yaml.v2 v2.2.4
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20190905181640-827449938966
 gopkg.in/yaml.v3
-# k8s.io/api v0.0.0 => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
+# k8s.io/api v0.17.0 => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
@@ -407,7 +407,7 @@ k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensio
 k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/internalinterfaces
 k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1
-# k8s.io/apimachinery v0.0.0 => k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
+# k8s.io/apimachinery v0.17.0 => k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -814,7 +814,7 @@ k8s.io/gengo/generator
 k8s.io/gengo/namer
 k8s.io/gengo/parser
 k8s.io/gengo/types
-# k8s.io/klog v0.4.0
+# k8s.io/klog v1.0.0
 k8s.io/klog
 # k8s.io/kube-aggregator v0.0.0 => k8s.io/kube-aggregator v0.0.0-20190918161219-8c8f079fddc3
 k8s.io/kube-aggregator/pkg/apis/apiregistration

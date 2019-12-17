@@ -21,13 +21,15 @@ type ImageLoader struct {
 	store     registry.Load
 	image     string
 	directory string
+	containerTool string
 }
 
-func NewSQLLoaderForImage(store registry.Load, image string) *ImageLoader {
+func NewSQLLoaderForImage(store registry.Load, image, containerTool string) *ImageLoader {
 	return &ImageLoader{
 		store:     store,
 		image:     image,
 		directory: "",
+		containerTool: containerTool,
 	}
 }
 
@@ -42,9 +44,9 @@ func (i *ImageLoader) Populate() error {
 	defer os.RemoveAll(workingDir)
 
 	// Pull the image and get the manifests
-	reader := containertools.NewBundleReader()
+	reader := containertools.NewImageReader(i.containerTool, log)
 
-	err = reader.GetBundle(i.image, workingDir)
+	err = reader.GetImageData(i.image, workingDir)
 	if err != nil {
 		return err
 	}
