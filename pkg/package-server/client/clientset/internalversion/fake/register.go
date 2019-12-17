@@ -19,7 +19,6 @@ limitations under the License.
 package fake
 
 import (
-	appsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps"
 	operatorsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -32,7 +31,6 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 var parameterCodec = runtime.NewParameterCodec(scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
-	appsinternalversion.AddToScheme,
 	operatorsinternalversion.AddToScheme,
 }
 

@@ -21,7 +21,6 @@ package versioned
 import (
 	"fmt"
 
-	appsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/apps/v1alpha1"
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/versioned/typed/operators/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -30,7 +29,6 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	AppsV1alpha1() appsv1alpha1.AppsV1alpha1Interface
 	OperatorsV1() operatorsv1.OperatorsV1Interface
 }
 
@@ -38,13 +36,7 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	appsV1alpha1 *appsv1alpha1.AppsV1alpha1Client
-	operatorsV1  *operatorsv1.OperatorsV1Client
-}
-
-// AppsV1alpha1 retrieves the AppsV1alpha1Client
-func (c *Clientset) AppsV1alpha1() appsv1alpha1.AppsV1alpha1Interface {
-	return c.appsV1alpha1
+	operatorsV1 *operatorsv1.OperatorsV1Client
 }
 
 // OperatorsV1 retrieves the OperatorsV1Client
@@ -73,10 +65,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	}
 	var cs Clientset
 	var err error
-	cs.appsV1alpha1, err = appsv1alpha1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
 	cs.operatorsV1, err = operatorsv1.NewForConfig(&configShallowCopy)
 	if err != nil {
 		return nil, err
@@ -93,7 +81,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 // panics if there is an error in the config.
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
-	cs.appsV1alpha1 = appsv1alpha1.NewForConfigOrDie(c)
 	cs.operatorsV1 = operatorsv1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
@@ -103,7 +90,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.appsV1alpha1 = appsv1alpha1.New(c)
 	cs.operatorsV1 = operatorsv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

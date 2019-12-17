@@ -6,8 +6,6 @@
 |-------------|-----------------------|----------------------|
 | Go          | Compiler              | brew install go      |
 | Docker      | Packaging             | [Docker for Mac]     |
-| jsonnet     | JSON templating tool  | brew install jsonnet |
-| ffctl       | Gitlab CI format      | pip install ffctl    |
 
 [Docker for Mac]: https://store.docker.com/editions/community/docker-ce-desktop-mac
 

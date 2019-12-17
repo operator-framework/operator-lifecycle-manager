@@ -21,7 +21,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/informers"
 
-	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/openapi"
+	generatedopenapi "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/openapi"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apiserver/generic"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/version"
 )
