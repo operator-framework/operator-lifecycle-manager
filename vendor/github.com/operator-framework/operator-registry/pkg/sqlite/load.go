@@ -56,7 +56,7 @@ func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 		tx.Rollback()
 	}()
 
-	stmt, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath) values(?, ?, ?, ?)")
+	stmt, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath, version, skiprange) values(?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,16 @@ func (s *SQLLoader) AddOperatorBundle(bundle *registry.Bundle) error {
 		return fmt.Errorf("csv name not found")
 	}
 
-	if _, err := stmt.Exec(csvName, csvBytes, bundleBytes, bundleImage); err != nil {
+	version, err := bundle.Version()
+	if err != nil {
+		return err
+	}
+	skiprange, err := bundle.SkipRange()
+	if err != nil {
+		return err
+	}
+
+	if _, err := stmt.Exec(csvName, csvBytes, bundleBytes, bundleImage, version, skiprange); err != nil {
 		return err
 	}
 
@@ -618,7 +627,7 @@ func (s *SQLLoader) AddBundlePackageChannels(manifest registry.PackageManifest, 
 		tx.Rollback()
 	}()
 
-	stmt, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath) values(?, ?, ?, ?)")
+	stmt, err := tx.Prepare("insert into operatorbundle(name, csv, bundle, bundlepath, version, skiprange) values(?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
@@ -639,7 +648,16 @@ func (s *SQLLoader) AddBundlePackageChannels(manifest registry.PackageManifest, 
 		return fmt.Errorf("csv name not found")
 	}
 
-	if _, err := stmt.Exec(csvName, csvBytes, bundleBytes, bundleImage); err != nil {
+	version, err := bundle.Version()
+	if err != nil {
+		return err
+	}
+	skiprange, err := bundle.SkipRange()
+	if err != nil {
+		return err
+	}
+
+	if _, err := stmt.Exec(csvName, csvBytes, bundleBytes, bundleImage, version, skiprange); err != nil {
 		return err
 	}
 
@@ -788,7 +806,11 @@ func (s *SQLLoader) updatePackageChannels(tx *sql.Tx, manifest registry.PackageM
 		// because this is caught by primary key of operatorbundle table
 
 		channelEntryCSV, err := s.getCSV(tx, c.CurrentCSVName)
-
+		if err != nil {
+			errs = append(errs, err)
+			break
+		}
+		
 		// check replaces
 		replaces, err := channelEntryCSV.GetReplaces()
 		if err != nil {

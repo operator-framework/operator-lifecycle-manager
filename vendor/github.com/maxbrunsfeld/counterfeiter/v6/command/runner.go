@@ -88,7 +88,34 @@ func invocations(cwd string, generateMode bool) ([]Invocation, error) {
 	return result, nil
 }
 
-var re = regexp.MustCompile(`(?mi)^//(go:generate|counterfeiter:generate)\s*(?:go run github\.com/maxbrunsfeld/counterfeiter/v6|gobin -m -run github\.com/maxbrunsfeld/counterfeiter/v6|counterfeiter|counterfeiter.exe)?\s*(.*)?\s*$`)
+var directive = regexp.MustCompile(`(?mi)^//(go:generate|counterfeiter:generate)\s*(.*)?\s*$`)
+var args = regexp.MustCompile(`(?mi)^(?:go run github\.com/maxbrunsfeld/counterfeiter/v6|gobin -m -run github\.com/maxbrunsfeld/counterfeiter/v6|counterfeiter|counterfeiter.exe)\s*(.*)?\s*$`)
+
+type match struct {
+	directive string
+	args      []string
+}
+
+func matchForString(s string) *match {
+	m := directive.FindStringSubmatch(s)
+	if m == nil {
+		return nil
+	}
+	if m[1] == "counterfeiter:generate" {
+		return &match{
+			directive: m[1],
+			args:      stringToArgs(m[2]),
+		}
+	}
+	m2 := args.FindStringSubmatch(m[2])
+	if m2 == nil {
+		return nil
+	}
+	return &match{
+		directive: m[1],
+		args:      stringToArgs(m2[1]),
+	}
+}
 
 func open(dir string, file string, generateMode bool) ([]Invocation, error) {
 	str, err := ioutil.ReadFile(filepath.Join(dir, file))
@@ -101,20 +128,20 @@ func open(dir string, file string, generateMode bool) ([]Invocation, error) {
 	line := 0
 	for i := range lines {
 		line++
-		match := re.FindStringSubmatch(lines[i])
+		match := matchForString(lines[i])
 		if match == nil {
 			continue
 		}
-		inv, err := NewInvocation(file, line, stringToArgs(match[2]))
+		inv, err := NewInvocation(file, line, match.args)
 		if err != nil {
 			return nil, err
 		}
 
-		if generateMode && match[1] == "counterfeiter:generate" {
+		if generateMode && match.directive == "counterfeiter:generate" {
 			result = append(result, inv)
 		}
 
-		if !generateMode && match[1] == "go:generate" {
+		if !generateMode && match.directive == "go:generate" {
 			if len(inv.Args) == 2 && strings.EqualFold(strings.TrimSpace(inv.Args[1]), "-generate") {
 				continue
 			}
@@ -126,16 +153,10 @@ func open(dir string, file string, generateMode bool) ([]Invocation, error) {
 }
 
 func stringToArgs(s string) []string {
-	a := strings.Split(s, " ")
+	a := strings.Fields(s)
 	result := []string{
 		"counterfeiter",
 	}
-	for i := range a {
-		item := strings.TrimSpace(a[i])
-		if item == "" {
-			continue
-		}
-		result = append(result, item)
-	}
+	result = append(result, a...)
 	return result
 }
