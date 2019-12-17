@@ -19,7 +19,6 @@ limitations under the License.
 package scheme
 
 import (
-	apps "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/install"
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/install"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -38,6 +37,5 @@ func init() {
 
 // Install registers the API group and adds types to a scheme
 func Install(scheme *runtime.Scheme) {
-	apps.Install(scheme)
 	operators.Install(scheme)
 }

@@ -20,8 +20,6 @@ package fake
 
 import (
 	clientset "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion"
-	appsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/typed/apps/internalversion"
-	fakeappsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/typed/apps/internalversion/fake"
 	operatorsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/typed/operators/internalversion"
 	fakeoperatorsinternalversion "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/clientset/internalversion/typed/operators/internalversion/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -77,11 +75,6 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 }
 
 var _ clientset.Interface = &Clientset{}
-
-// Apps retrieves the AppsClient
-func (c *Clientset) Apps() appsinternalversion.AppsInterface {
-	return &fakeappsinternalversion.FakeApps{Fake: &c.Fake}
-}
 
 // Operators retrieves the OperatorsClient
 func (c *Clientset) Operators() operatorsinternalversion.OperatorsInterface {
