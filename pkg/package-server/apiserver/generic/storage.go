@@ -23,10 +23,8 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	generic "k8s.io/apiserver/pkg/server"
 
-	apps "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/apps/v1alpha1"
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/install"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
+	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/storage"
 )
@@ -40,7 +38,6 @@ var (
 
 func init() {
 	operators.Install(Scheme)
-	apps.Install(Scheme)
 
 	// we need to add the options to empty v1
 	// TODO fix the server code to avoid this
@@ -65,28 +62,17 @@ type ProviderConfig struct {
 // BuildStorage constructs APIGroupInfo for the packages.apps.redhat.com and packages.operators.coreos.com API groups.
 func BuildStorage(providers *ProviderConfig) []generic.APIGroupInfo {
 	// Build storage for packages.operators.coreos.com
-	operatorInfo := generic.NewDefaultAPIGroupInfo(v1.Group, Scheme, metav1.ParameterCodec, Codecs)
-	operatorStorage := storage.NewStorage(v1.Resource("packagemanifests"), providers.Provider, Scheme)
-	iconStorage := storage.NewLogoStorage(v1.Resource("packagemanifests/icon"), providers.Provider)
+	operatorInfo := generic.NewDefaultAPIGroupInfo(operatorsv1.Group, Scheme, metav1.ParameterCodec, Codecs)
+	operatorStorage := storage.NewStorage(operatorsv1.Resource("packagemanifests"), providers.Provider, Scheme)
+	iconStorage := storage.NewLogoStorage(operatorsv1.Resource("packagemanifests/icon"), providers.Provider)
 	operatorResources := map[string]rest.Storage{
 		"packagemanifests":      operatorStorage,
 		"packagemanifests/icon": iconStorage,
 	}
-	operatorInfo.VersionedResourcesStorageMap[v1.Version] = operatorResources
-
-	// Build storage for packages.apps.redhat.com
-	appInfo := generic.NewDefaultAPIGroupInfo(v1alpha1.Group, Scheme, metav1.ParameterCodec, Codecs)
-
-	// Use storage for package.operators.coreos.com since types are identical
-	appResources := map[string]rest.Storage{
-		"packagemanifests":      operatorStorage,
-		"packagemanifests/icon": iconStorage,
-	}
-	appInfo.VersionedResourcesStorageMap[v1alpha1.Version] = appResources
+	operatorInfo.VersionedResourcesStorageMap[operatorsv1.Version] = operatorResources
 
 	return []generic.APIGroupInfo{
 		operatorInfo,
-		appInfo,
 	}
 }
 
