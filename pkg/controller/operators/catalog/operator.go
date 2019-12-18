@@ -1556,8 +1556,9 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				plan.Status.Plan[i].Status = status
-			case monitoringv1.ServiceMonitorKindKey:
+			case "ServiceMonitor":
 				// Marshal the manifest into a Service instance
+				logrus.Info("made it to ServiceMonitor")
 				var s monitoringv1.ServiceMonitor
 				err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
 				if err != nil {
@@ -1579,6 +1580,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 
 				plan.Status.Plan[i].Status = status
 			default:
+				logrus.Info("Type not supported %s", step.Resource.Kind)
 				return v1alpha1.ErrInvalidInstallPlan
 			}
 
