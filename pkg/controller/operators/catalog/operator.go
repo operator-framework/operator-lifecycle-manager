@@ -1556,7 +1556,7 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				}
 
 				plan.Status.Plan[i].Status = status
-			case "ServiceMonitor":
+			case monitoringv1.ServiceMonitorsKind:
 				// Marshal the manifest into a Service instance
 				logrus.Info("made it to ServiceMonitor")
 				var s monitoringv1.ServiceMonitor
@@ -1574,6 +1574,29 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				s.SetNamespace(namespace)
 
 				status, err := ensurer.EnsureServiceMonitor(namespace, &s)
+				if err != nil {
+					return err
+				}
+
+				plan.Status.Plan[i].Status = status
+			case monitoringv1.PrometheusRuleKind:
+				// Marshal the manifest into a Service instance
+				logrus.Info("made it to PrometheusRule")
+				var s monitoringv1.PrometheusRule
+				err := json.Unmarshal([]byte(step.Resource.Manifest), &s)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error parsing step manifest: %s", step.Resource.Name)
+				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(s.OwnerReferences, plan.Namespace)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error generating ownerrefs for service: %s", s.GetName())
+				}
+				s.SetOwnerReferences(updated)
+				s.SetNamespace(namespace)
+
+				status, err := ensurer.EnsurePrometheusRule(namespace, &s)
 				if err != nil {
 					return err
 				}

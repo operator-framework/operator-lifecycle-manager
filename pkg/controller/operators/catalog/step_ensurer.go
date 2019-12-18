@@ -189,6 +189,29 @@ func (o *StepEnsurer) EnsureServiceMonitor(namespace string, serviceMonitor *mon
 	return
 }
 
+// EnsurePrometheusRule writes the specified PrometheusRule object to the cluster.
+func (o *StepEnsurer) EnsurePrometheusRule(namespace string, prometheusRule *monitoringv1.PrometheusRule) (status v1alpha1.StepStatus, err error) {
+	_, createErr := o.crClient.MonitoringV1().PrometheusRules(namespace).Create(prometheusRule)
+	if createErr == nil {
+		status = v1alpha1.StepStatusCreated
+		return
+	}
+
+	if !k8serrors.IsAlreadyExists(createErr) {
+		err = errorwrap.Wrapf(createErr, "error updating service: %s", prometheusRule.GetName())
+		return
+	}
+
+	prometheusRule.SetNamespace(namespace)
+	if _, updateErr := o.crClient.MonitoringV1().PrometheusRules(namespace).Update(prometheusRule); updateErr != nil {
+		err = errorwrap.Wrapf(updateErr, "error updating service: %s", prometheusRule.GetName())
+		return
+	}
+
+	status = v1alpha1.StepStatusPresent
+	return
+}
+
 // EnsureClusterRole writes the specified ClusterRole object to the cluster.
 func (o *StepEnsurer) EnsureClusterRole(cr *rbacv1.ClusterRole, step *v1alpha1.Step) (status v1alpha1.StepStatus, err error) {
 	_, createErr := o.kubeClient.KubernetesInterface().RbacV1().ClusterRoles().Create(cr)
