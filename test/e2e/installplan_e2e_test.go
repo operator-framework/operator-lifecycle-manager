@@ -2638,7 +2638,7 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 			Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
-			Image:      "quay.io/jpeeler/registry-image:latest",
+			Image:      "quay.io/olmtest/installplan_e2e-registry-image:latest",
 			SourceType: v1alpha1.SourceTypeGrpc,
 		},
 	}
