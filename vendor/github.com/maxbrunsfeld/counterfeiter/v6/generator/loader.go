@@ -2,8 +2,10 @@ package generator
 
 import (
 	"fmt"
+	"go/build"
 	"go/types"
 	"log"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -11,13 +13,27 @@ import (
 	"golang.org/x/tools/imports"
 )
 
-func (f *Fake) loadPackages(workingDir string) error {
+func (f *Fake) loadPackages(c Cacher, workingDir string) error {
 	log.Println("loading packages...")
+	p, ok := c.Load(f.TargetPackage)
+	if ok {
+		f.Packages = p
+		log.Printf("loaded %v packages from cache\n", len(f.Packages))
+		return nil
+	}
+	importPath := f.TargetPackage
+	if !filepath.IsAbs(importPath) {
+		bp, err := build.Import(f.TargetPackage, workingDir, build.FindOnly)
+		if err != nil {
+			return err
+		}
+		importPath = bp.ImportPath
+	}
 	p, err := packages.Load(&packages.Config{
-		Mode:  packages.LoadSyntax,
+		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes,
 		Dir:   workingDir,
 		Tests: true,
-	}, f.TargetPackage)
+	}, importPath)
 	if err != nil {
 		return err
 	}
@@ -35,6 +51,7 @@ func (f *Fake) loadPackages(workingDir string) error {
 		return err
 	}
 	f.Packages = p
+	c.Store(f.TargetPackage, p)
 	log.Printf("loaded %v packages\n", len(f.Packages))
 	return nil
 }
@@ -124,6 +141,10 @@ func (f *Fake) addImportsFor(typ types.Type) {
 		return
 	case *types.Signature:
 		f.addTypesForMethod(t)
+	case *types.Struct:
+		for i := 0; i < t.NumFields(); i++ {
+			f.addImportsFor(t.Field(i).Type())
+		}
 	default:
 		log.Printf("!!! WARNING: Missing case for type %s\n", reflect.TypeOf(typ).String())
 	}

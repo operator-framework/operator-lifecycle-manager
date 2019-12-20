@@ -26,24 +26,6 @@ _testmain.go
 .envrc
 
 /counterfeiter
-arguments/argumentsfakes/
-fixtures/alias_import_name/test/testfakes/
-fixtures/aliased_package/aliased_packagefakes/
-fixtures/another_package/another_packagefakes/
-fixtures/dup_packages/a/afakes/
-fixtures/dup_packages/a/foo/foofakes/
-fixtures/dup_packages/b/foo/foofakes/
-fixtures/dup_packages/dup_packagesfakes/
-fixtures/dup_packages/foo/foofakes/
-fixtures/dup_packages/foo/foofakes/
-fixtures/fixturesfakes/
-fixtures/hyphenated_package_same_name/some_package/some_packagefakes/
-fixtures/packagegen/packagegenfakes
-fixtures/symlinked_fixturesfakes/
-fixtures/sync/syncfakes/
-fixtures/vendored/bar/barfakes
-fixtures/vendored/baz/bazfakes
-fixtures/vendored/vendoredfakes
 integration/testdata/output
 *.profile
 *.bench

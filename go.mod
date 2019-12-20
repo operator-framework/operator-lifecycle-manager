@@ -11,6 +11,7 @@ require (
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v0.7.3-0.20190409004836-2e1cfbca03da // indirect
 	github.com/emicklei/go-restful v2.9.3+incompatible // indirect
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/globalsign/mgo v0.0.0-20181015135952-eeefdecb41b8 // indirect
 	github.com/go-openapi/analysis v0.17.2 // indirect
@@ -21,7 +22,6 @@ require (
 	github.com/go-openapi/runtime v0.17.2 // indirect
 	github.com/go-openapi/spec v0.19.0
 	github.com/go-openapi/swag v0.17.2 // indirect
-	github.com/gogo/protobuf v1.2.0 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/mock v1.2.1-0.20190329180013-73dc87cad333
 	github.com/google/btree v1.0.0 // indirect
@@ -29,8 +29,7 @@ require (
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.8.5 // indirect
 	github.com/json-iterator/go v1.1.6 // indirect
-	github.com/maxbrunsfeld/counterfeiter/v6 v6.0.2
-	github.com/onsi/ginkgo v1.8.0 // indirect
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/openshift/api v3.9.1-0.20190424152011-77b8897ec79a+incompatible
 	github.com/openshift/client-go v0.0.0-20190401163519-84c2b942258a
 	github.com/operator-framework/operator-registry v1.1.0
@@ -41,7 +40,6 @@ require (
 	github.com/stretchr/testify v1.2.2
 	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/crypto v0.0.0-20190404164418-38d8ce5564a5 // indirect
-	golang.org/x/text v0.3.1-0.20181227161524-e6919f6577db // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
 	google.golang.org/appengine v1.5.0 // indirect
 	google.golang.org/grpc v1.23.0
@@ -62,8 +60,11 @@ require (
 )
 
 replace (
-	// pin kube dependencies to release-1.12 branch
 	github.com/evanphx/json-patch => github.com/evanphx/json-patch v0.0.0-20190203023257-5858425f7550
+	// https://github.com/ugorji/go/issues/303
+	github.com/ugorji/go => github.com/ugorji/go/codec v1.1.7
+
+	// pin kube dependencies to release-1.12 branch
 	k8s.io/api => k8s.io/api v0.0.0-20181128191700-6db15a15d2d3
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20190221101132-cda7b6cfba78
 	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20190221084156-01f179d85dbc

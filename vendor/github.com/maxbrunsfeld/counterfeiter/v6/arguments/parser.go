@@ -1,8 +1,10 @@
 package arguments
 
 import (
-	"go/build"
-	"log"
+	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -10,115 +12,171 @@ import (
 	"unicode"
 )
 
-//go:generate counterfeiter . ArgumentParser
-type ArgumentParser interface {
-	ParseArguments(...string) ParsedArguments
-}
-
-func NewArgumentParser(
-	failHandler FailHandler,
-	currentWorkingDir string,
-	symlinkEvaler SymlinkEvaler,
-	fileStatReader FileStatReader,
-) ArgumentParser {
-	return &argumentParser{
-		failHandler:       failHandler,
-		currentWorkingDir: currentWorkingDir,
-		symlinkEvaler:     symlinkEvaler,
-		fileStatReader:    fileStatReader,
-	}
-}
-
-func (argParser *argumentParser) ParseArguments(args ...string) ParsedArguments {
-	if *packageFlag {
-		return argParser.parsePackageArgs(args...)
-	} else {
-		return argParser.parseInterfaceArgs(args...)
-	}
-}
-
-func (argParser *argumentParser) parseInterfaceArgs(args ...string) ParsedArguments {
-	var interfaceName string
-	var outputPathFlagValue string
-	var rootDestinationDir string
-	var sourcePackageDir string
-	var packagePath string
-
-	if outputPathFlag != nil {
-		outputPathFlagValue = *outputPathFlag
+func New(args []string, workingDir string, evaler Evaler, stater Stater) (*ParsedArguments, error) {
+	if len(args) == 0 {
+		return nil, errors.New("argument parsing requires at least one argument")
 	}
 
-	if len(args) > 1 {
-		interfaceName = args[1]
-		sourcePackageDir = argParser.getSourceDir(args[0])
-		rootDestinationDir = sourcePackageDir
-	} else {
-		fullyQualifiedInterface := strings.Split(args[0], ".")
-		interfaceName = fullyQualifiedInterface[len(fullyQualifiedInterface)-1]
-		rootDestinationDir = argParser.currentWorkingDir
-		packagePath = strings.Join(fullyQualifiedInterface[:len(fullyQualifiedInterface)-1], ".")
-	}
-
-	fakeImplName := getFakeName(interfaceName, *fakeNameFlag)
-
-	outputPath := argParser.getOutputPath(
-		rootDestinationDir,
-		fakeImplName,
-		outputPathFlagValue,
+	fs := flag.NewFlagSet("counterfeiter", flag.ContinueOnError)
+	fakeNameFlag := fs.String(
+		"fake-name",
+		"",
+		"The name of the fake struct",
 	)
 
-	packageName := restrictToValidPackageName(filepath.Base(filepath.Dir(outputPath)))
-	if packagePath == "" {
-		packagePath = sourcePackageDir
+	outputPathFlag := fs.String(
+		"o",
+		"",
+		"The file or directory to which the generated fake will be written",
+	)
+
+	packageFlag := fs.Bool(
+		"p",
+		false,
+		"Whether or not to generate a package shim",
+	)
+	generateFlag := fs.Bool(
+		"generate",
+		false,
+		"Identify all //counterfeiter:generate directives in the current working directory and generate fakes for them",
+	)
+	helpFlag := fs.Bool(
+		"help",
+		false,
+		"Display this help",
+	)
+
+	err := fs.Parse(args[1:])
+	if err != nil {
+		return nil, err
 	}
-	if strings.HasPrefix(packagePath, build.Default.GOPATH) {
-		packagePath = strings.Replace(packagePath, build.Default.GOPATH+"/src/", "", -1)
+	if *helpFlag {
+		return nil, errors.New(usage)
+	}
+	if len(fs.Args()) == 0 && !*generateFlag {
+		return nil, errors.New(usage)
 	}
 
-	log.Printf("Parsed Arguments:\nInterface Name: %s\nPackage Path: %s\nDestination Package Name: %s", interfaceName, packagePath, packageName)
-	return ParsedArguments{
-		GenerateInterfaceAndShimFromPackageDirectory: false,
-		SourcePackageDir: sourcePackageDir,
-		OutputPath:       outputPath,
-		PackagePath:      packagePath,
-
-		InterfaceName:          interfaceName,
-		DestinationPackageName: packageName,
-		FakeImplName:           fakeImplName,
-
+	packageMode := *packageFlag
+	result := &ParsedArguments{
 		PrintToStdOut: any(args, "-"),
+		GenerateInterfaceAndShimFromPackageDirectory: packageMode,
+		GenerateMode: *generateFlag,
 	}
+	if *generateFlag {
+		return result, nil
+	}
+	err = result.parseSourcePackageDir(packageMode, workingDir, evaler, stater, fs.Args())
+	if err != nil {
+		return nil, err
+	}
+	result.parseInterfaceName(packageMode, fs.Args())
+	result.parseFakeName(packageMode, *fakeNameFlag, fs.Args())
+	result.parseOutputPath(packageMode, workingDir, *outputPathFlag, fs.Args())
+	result.parseDestinationPackageName(packageMode, fs.Args())
+	result.parsePackagePath(packageMode, fs.Args())
+	return result, nil
 }
 
-func (argParser *argumentParser) parsePackageArgs(args ...string) ParsedArguments {
-	packagePath := args[0]
-	packageName := path.Base(packagePath) + "shim"
+func (a *ParsedArguments) PrettyPrint() {
+	b, _ := json.Marshal(a)
+	fmt.Println(string(b))
+}
 
-	var outputPath string
-	if *outputPathFlag != "" {
-		// TODO: sensible checking of dirs and symlinks
-		outputPath = *outputPathFlag
+func (a *ParsedArguments) parseInterfaceName(packageMode bool, args []string) {
+	if packageMode {
+		a.InterfaceName = ""
+		return
+	}
+	if len(args) == 1 {
+		fullyQualifiedInterface := strings.Split(args[0], ".")
+		a.InterfaceName = fullyQualifiedInterface[len(fullyQualifiedInterface)-1]
 	} else {
-		outputPath = path.Join(argParser.currentWorkingDir, packageName)
-	}
-
-	log.Printf("Parsed Arguments:\nPackage Name: %s\nDestination Package Name: %s", packagePath, packageName)
-	return ParsedArguments{
-		GenerateInterfaceAndShimFromPackageDirectory: true,
-		SourcePackageDir:       packagePath,
-		OutputPath:             outputPath,
-		PackagePath:            packagePath,
-		DestinationPackageName: packageName,
-		FakeImplName:           strings.ToUpper(path.Base(packagePath))[:1] + path.Base(packagePath)[1:],
-		PrintToStdOut:          any(args, "-"),
+		a.InterfaceName = args[1]
 	}
 }
 
-type argumentParser struct {
-	failHandler       FailHandler
-	currentWorkingDir string
-	symlinkEvaler     SymlinkEvaler
-	fileStatReader    FileStatReader
+func (a *ParsedArguments) parseSourcePackageDir(packageMode bool, workingDir string, evaler Evaler, stater Stater, args []string) error {
+	if packageMode {
+		a.SourcePackageDir = args[0]
+		return nil
+	}
+	if len(args) <= 1 {
+		return nil
+	}
+	s, err := getSourceDir(args[0], workingDir, evaler, stater)
+	if err != nil {
+		return err
+	}
+	a.SourcePackageDir = s
+	return nil
+}
+
+func (a *ParsedArguments) parseFakeName(packageMode bool, fakeName string, args []string) {
+	if packageMode {
+		a.parsePackagePath(packageMode, args)
+		a.FakeImplName = strings.ToUpper(path.Base(a.PackagePath))[:1] + path.Base(a.PackagePath)[1:]
+		return
+	}
+	if fakeName == "" {
+		fakeName = "Fake" + fixupUnexportedNames(a.InterfaceName)
+	}
+	a.FakeImplName = fakeName
+}
+
+func (a *ParsedArguments) parseOutputPath(packageMode bool, workingDir string, outputPath string, args []string) {
+	if outputPath != "" && packageMode {
+		a.OutputPath = outputPath
+		return
+	}
+
+	if outputPath != "" {
+		if !filepath.IsAbs(outputPath) {
+			outputPath = filepath.Join(workingDir, outputPath)
+		}
+		a.OutputPath = outputPath
+		return
+	}
+
+	if packageMode {
+		a.parseDestinationPackageName(packageMode, args)
+		a.OutputPath = path.Join(workingDir, a.DestinationPackageName)
+		return
+	}
+
+	snakeCaseName := strings.ToLower(camelRegexp.ReplaceAllString(a.FakeImplName, "${1}_${2}"))
+	d := workingDir
+	if len(args) > 1 {
+		d = a.SourcePackageDir
+	}
+	a.OutputPath = filepath.Join(d, packageNameForPath(d), snakeCaseName+".go")
+}
+
+func (a *ParsedArguments) parseDestinationPackageName(packageMode bool, args []string) {
+	if packageMode {
+		a.parsePackagePath(packageMode, args)
+		a.DestinationPackageName = path.Base(a.PackagePath) + "shim"
+		return
+	}
+
+	a.DestinationPackageName = restrictToValidPackageName(filepath.Base(filepath.Dir(a.OutputPath)))
+}
+
+func (a *ParsedArguments) parsePackagePath(packageMode bool, args []string) {
+	if packageMode {
+		a.PackagePath = args[0]
+		return
+	}
+	if len(args) == 1 {
+		fullyQualifiedInterface := strings.Split(args[0], ".")
+		a.PackagePath = strings.Join(fullyQualifiedInterface[:len(fullyQualifiedInterface)-1], ".")
+	} else {
+		a.InterfaceName = args[1]
+	}
+
+	if a.PackagePath == "" {
+		a.PackagePath = a.SourcePackageDir
+	}
 }
 
 type ParsedArguments struct {
@@ -134,6 +192,7 @@ type ParsedArguments struct {
 	FakeImplName  string // the name of the struct implementing the given interface
 
 	PrintToStdOut bool
+	GenerateMode  bool
 }
 
 func fixupUnexportedNames(interfaceName string) string {
@@ -145,54 +204,32 @@ func fixupUnexportedNames(interfaceName string) string {
 	return string(asRunes)
 }
 
-func getFakeName(interfaceName, arg string) string {
-	if arg == "" {
-		interfaceName = fixupUnexportedNames(interfaceName)
-		return "Fake" + interfaceName
-	} else {
-		return arg
-	}
-}
-
 var camelRegexp = regexp.MustCompile("([a-z])([A-Z])")
-
-func (argParser *argumentParser) getOutputPath(rootDestinationDir, fakeName, outputPathFlagValue string) string {
-	if outputPathFlagValue == "" {
-		snakeCaseName := strings.ToLower(camelRegexp.ReplaceAllString(fakeName, "${1}_${2}"))
-		return filepath.Join(rootDestinationDir, packageNameForPath(rootDestinationDir), snakeCaseName+".go")
-	} else {
-		if !filepath.IsAbs(outputPathFlagValue) {
-			outputPathFlagValue = filepath.Join(argParser.currentWorkingDir, outputPathFlagValue)
-		}
-		return outputPathFlagValue
-	}
-}
 
 func packageNameForPath(pathToPackage string) string {
 	_, packageName := filepath.Split(pathToPackage)
 	return packageName + "fakes"
 }
 
-func (argParser *argumentParser) getSourceDir(path string) string {
+func getSourceDir(path string, workingDir string, evaler Evaler, stater Stater) (string, error) {
 	if !filepath.IsAbs(path) {
-		path = filepath.Join(argParser.currentWorkingDir, path)
+		path = filepath.Join(workingDir, path)
 	}
 
-	evaluatedPath, err := argParser.symlinkEvaler(path)
+	evaluatedPath, err := evaler(path)
 	if err != nil {
-		argParser.failHandler("No such file/directory/package: '%s'", path)
+		return "", fmt.Errorf("No such file/directory/package [%s]: %v", path, err)
 	}
 
-	stat, err := argParser.fileStatReader(evaluatedPath)
+	stat, err := stater(evaluatedPath)
 	if err != nil {
-		argParser.failHandler("No such file/directory/package: '%s'", path)
+		return "", fmt.Errorf("No such file/directory/package [%s]: %v", path, err)
 	}
 
 	if !stat.IsDir() {
-		return filepath.Dir(path)
-	} else {
-		return path
+		return filepath.Dir(path), nil
 	}
+	return path, nil
 }
 
 func any(slice []string, needle string) bool {
@@ -214,5 +251,3 @@ func restrictToValidPackageName(input string) string {
 		}
 	}, input)
 }
-
-type FailHandler func(string, ...interface{})

@@ -13,8 +13,6 @@ MOCKGEN := ./scripts/generate_mocks.sh
 # mockgen := $(GOBIN)/mockgen
 IMAGE_REPO := quay.io/operator-framework/olm
 IMAGE_TAG ?= "dev"
-KUBE_DEPS := api apiserver apimachinery apiextensions-apiserver kube-aggregator code-generator cli-runtime
-KUBE_RELEASE := release-1.12
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -103,12 +101,6 @@ e2e-bare: setup-bare
 e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
-
-# kube dependencies all should be at the same release and should match up with client go
-# go.mod currently doesn't support specifying a branch name to track, and kube isn't publishing good version tags
-$(KUBE_DEPS):
-	go get -m k8s.io/kubernetes@v`echo $(KUBE_RELEASE) | cut -d "-" -f2`
-	go get -m k8s.io/$@@$(KUBE_RELEASE)
 
 vendor: $(KUBE_DEPS)
 	go mod tidy
