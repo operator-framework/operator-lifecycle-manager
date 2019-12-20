@@ -1056,6 +1056,18 @@ func (o *Operator) checkBundleLookups(plan *v1alpha1.InstallPlan) (bool, error) 
 			}
 			logrus.Infof("Launched bundle job for image %v", bundleLookup.Image)
 
+			ownerutil.AddOwner(job, plan, false, false)
+			ownerutil.AddOwner(configmap, plan, false, false)
+			// TODO: fix this, maybe?
+			// catSrc, err := o.lister.OperatorsV1alpha1().CatalogSourceLister().CatalogSources(plan.Spec.CatalogSourceNamespace).Get(plan.Spec.CatalogSource)
+			// if err != nil {
+			// 	return false, err
+			// }
+			// err = ownerutil.AddOwnerLabels(configmap, catSrc)
+			// if err != nil {
+			// 	return false, err
+			// }
+
 			bundleLookup.BundleJob = &v1alpha1.BundleJob{
 				// job condition and completion time will be filled out later (installplan sync)
 				Name:      job.GetName(),
