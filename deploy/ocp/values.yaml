@@ -32,9 +32,6 @@ olm:
   tlsCertPath: /var/run/secrets/serving-cert/tls.crt
   tlsKeyPath: /var/run/secrets/serving-cert/tls.key
   resources:
-    limits:
-      cpu: 400m
-      memory: 400Mi
     requests:
       cpu: 10m
       memory: 160Mi
@@ -61,9 +58,6 @@ catalog:
     effect: NoExecute
     tolerationSeconds: 120
   resources:
-    limits:
-      cpu: 200m
-      memory: 300Mi
     requests:
       cpu: 10m
       memory: 80Mi
@@ -90,9 +84,6 @@ package:
     effect: NoExecute
     tolerationSeconds: 120
   resources:
-    limits:
-      cpu: 400m
-      memory: 400Mi
     requests:
       cpu: 10m
       memory: 50Mi
