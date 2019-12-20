@@ -962,8 +962,8 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			require.NoError(t, err)
 
 			subscriptionName := genName("sub-nginx-alpha-")
-			// this subscription will be cleaned up below without the clean up function
-			createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+			cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+			defer cleanupSubscription()
 
 			subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
 			require.NoError(t, err)
@@ -1010,15 +1010,18 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			// Attempt to get the catalog source before creating install plan(s)
 			_, err = fetchCatalogSource(t, crc, mainCatalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
 			require.NoError(t, err)
+
 			// Update the subscription resource to point to the beta CSV
-			err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(metav1.NewDeleteOptions(0), metav1.ListOptions{})
+			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			require.NoError(t, err)
+			require.NotNil(t, subscription)
+
+			subscription.Spec.Channel = betaChannel
+			subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
 			require.NoError(t, err)
 
-			// existing cleanup should remove this
-			subscriptionName = genName("sub-nginx-beta")
-			createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogSourceName, mainPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
-
-			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+			// Wait for subscription to have a new installplan
+			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
 			require.NoError(t, err)
 			require.NotNil(t, subscription)
 

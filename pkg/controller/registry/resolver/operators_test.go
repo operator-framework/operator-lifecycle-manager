@@ -917,6 +917,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
+		Version:     version.String(),
 		CsvJson:     string(csvJson),
 		Object:      []string{string(csvJson)},
 	}
@@ -987,6 +988,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 		CsvName:     "testBundle",
 		PackageName: "testPackage",
 		ChannelName: "testChannel",
+		Version:     version.String(),
 		CsvJson:     string(csvJsonWithApis),
 		Object:      []string{string(csvJsonWithApis), string(crdJson)},
 		ProvidedApis: []*api.GroupVersionKind{
@@ -1043,12 +1045,11 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			args: args{
 				bundle:    bundleNoAPIs,
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
-				replaces:  "",
 			},
 			want: &Operator{
+				// lack of full api response falls back to csv name
 				name:         "testCSV",
 				version:      &version.Version,
-				replaces:     "v1",
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
@@ -1064,12 +1065,10 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			args: args{
 				bundle:    bundleWithAPIs,
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
-				replaces:  "",
 			},
 			want: &Operator{
-				name:     "testCSV",
-				version:  &version.Version,
-				replaces: "v1",
+				name:    "testBundle",
+				version: &version.Version,
 				providedAPIs: APISet{
 					opregistry.APIKey{
 						Group:   "crd.group.com",
@@ -1111,14 +1110,13 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			args: args{
 				bundle:    bundleNoAPIs,
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
-				replaces:  "replaced",
 			},
 			want: &Operator{
+				// lack of full api response falls back to csv name
 				name:         "testCSV",
 				providedAPIs: EmptyAPISet(),
 				requiredAPIs: EmptyAPISet(),
 				bundle:       bundleNoAPIs,
-				replaces:     "replaced",
 				version:      &version.Version,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
@@ -1132,7 +1130,6 @@ func TestNewOperatorFromBundle(t *testing.T) {
 			args: args{
 				bundle:    bundleWithAPIsUnextracted,
 				sourceKey: CatalogKey{Name: "source", Namespace: "testNamespace"},
-				replaces:  "replaced",
 			},
 			want: &Operator{
 				name: "testCSV",
@@ -1164,9 +1161,8 @@ func TestNewOperatorFromBundle(t *testing.T) {
 						Plural:  "requiredapis",
 					}: struct{}{},
 				},
-				bundle:   bundleWithAPIsUnextracted,
-				replaces: "replaced",
-				version:  &version.Version,
+				bundle:  bundleWithAPIsUnextracted,
+				version: &version.Version,
 				sourceInfo: &OperatorSourceInfo{
 					Package: "testPackage",
 					Channel: "testChannel",
@@ -1177,7 +1173,7 @@ func TestNewOperatorFromBundle(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewOperatorFromBundle(tt.args.bundle, tt.args.replaces, "", tt.args.sourceKey)
+			got, err := NewOperatorFromBundle(tt.args.bundle, "", tt.args.sourceKey)
 			require.Equal(t, tt.wantErr, err)
 			require.Equal(t, tt.want, got)
 		})

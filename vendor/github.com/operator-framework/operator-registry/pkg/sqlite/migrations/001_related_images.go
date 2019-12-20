@@ -14,7 +14,7 @@ import (
 const RelatedImagesMigrationKey = 1
 
 func init() {
-	migrations[RelatedImagesMigrationKey] = relatedImagesMigration
+	registerMigration(RelatedImagesMigrationKey, relatedImagesMigration)
 }
 
 // listBundles returns a list of operatorbundles as strings
