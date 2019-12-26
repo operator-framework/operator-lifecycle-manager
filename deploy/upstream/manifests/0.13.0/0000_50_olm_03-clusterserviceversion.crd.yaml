@@ -91,9 +91,6 @@ spec:
                     type: string
                     description: Maintainer's email address
                     format: email
-                optionalProperties:
-                  type: string
-                  description: "Any additional key-value metadata you wish to expose about the maintainer, e.g. github: <username>"
 
             links:
               type: array
