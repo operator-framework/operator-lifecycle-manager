@@ -107,6 +107,7 @@ setup-bare: clean e2e.namespace
 
 e2e:
 	echo $PATH
+	yum install -y skopeo
 	skopeo
 
 e2e-local: build-linux build-wait
