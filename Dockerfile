@@ -1,6 +1,6 @@
 FROM openshift/origin-release:golang-1.12 as builder
 RUN yum update -y
-RUN yum install -y make git
+RUN yum install -y make git skopeo
 
 ENV GO111MODULE auto
 ENV GOPATH /go
