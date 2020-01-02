@@ -106,8 +106,8 @@ setup-bare: clean e2e.namespace
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
 e2e:
-    echo $PATH
-    skopeo
+	echo $PATH
+	skopeo
 
 e2e-local: build-linux build-wait
 	. ./scripts/build_local.sh
