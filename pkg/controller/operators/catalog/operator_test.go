@@ -920,7 +920,7 @@ func withFakeClientOptions(options ...clientfake.Option) fakeOperatorOption {
 }
 
 // NewFakeOperator creates a new operator using fake clients.
-func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
+func NewFakeOperator(ctx context.Context, namespace string, namespaces []string, fakeOptions ...fakeOperatorOption) (*Operator, error) {
 	// Apply options to default config
 	config := &fakeOperatorConfig{
 		logger:   logrus.StandardLogger(),
@@ -944,45 +944,43 @@ func NewFakeOperator(ctx context.Context, namespace string, watchedNamespaces []
 	wakeupInterval := 5 * time.Minute
 	lister := operatorlister.NewLister()
 	var sharedInformers []cache.SharedIndexInformer
-	for _, ns := range watchedNamespaces {
+	for _, ns := range namespaces {
 		if ns != namespace {
 			_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: ns}})
 			if err != nil {
 				return nil, err
 			}
 		}
-
-		// Create informers and register listers
-		operatorsFactory := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(ns))
-		catsrcInformer := operatorsFactory.Operators().V1alpha1().CatalogSources()
-		subInformer := operatorsFactory.Operators().V1alpha1().Subscriptions()
-		ipInformer := operatorsFactory.Operators().V1alpha1().InstallPlans()
-		csvInformer := operatorsFactory.Operators().V1alpha1().ClusterServiceVersions()
-		sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer())
-
-		lister.OperatorsV1alpha1().RegisterCatalogSourceLister(ns, catsrcInformer.Lister())
-		lister.OperatorsV1alpha1().RegisterSubscriptionLister(ns, subInformer.Lister())
-		lister.OperatorsV1alpha1().RegisterInstallPlanLister(ns, ipInformer.Lister())
-		lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(ns, csvInformer.Lister())
-
-		factory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(ns))
-		roleInformer := factory.Rbac().V1().Roles()
-		roleBindingInformer := factory.Rbac().V1().RoleBindings()
-		serviceAccountInformer := factory.Core().V1().ServiceAccounts()
-		serviceInformer := factory.Core().V1().Services()
-		podInformer := factory.Core().V1().Pods()
-		configMapInformer := factory.Core().V1().ConfigMaps()
-		sharedInformers = append(sharedInformers, roleInformer.Informer(), roleBindingInformer.Informer(), serviceAccountInformer.Informer(), serviceInformer.Informer(), podInformer.Informer(), configMapInformer.Informer())
-
-		lister.RbacV1().RegisterRoleLister(ns, roleInformer.Lister())
-		lister.RbacV1().RegisterRoleBindingLister(ns, roleBindingInformer.Lister())
-		lister.CoreV1().RegisterServiceAccountLister(ns, serviceAccountInformer.Lister())
-		lister.CoreV1().RegisterServiceLister(ns, serviceInformer.Lister())
-		lister.CoreV1().RegisterPodLister(ns, podInformer.Lister())
-		lister.CoreV1().RegisterConfigMapLister(ns, configMapInformer.Lister())
-
 	}
 
+	// Create informers and register listers
+	operatorsFactory := externalversions.NewSharedInformerFactoryWithOptions(clientFake, wakeupInterval, externalversions.WithNamespace(metav1.NamespaceAll))
+	catsrcInformer := operatorsFactory.Operators().V1alpha1().CatalogSources()
+	subInformer := operatorsFactory.Operators().V1alpha1().Subscriptions()
+	ipInformer := operatorsFactory.Operators().V1alpha1().InstallPlans()
+	csvInformer := operatorsFactory.Operators().V1alpha1().ClusterServiceVersions()
+	sharedInformers = append(sharedInformers, catsrcInformer.Informer(), subInformer.Informer(), ipInformer.Informer(), csvInformer.Informer())
+
+	lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
+	lister.OperatorsV1alpha1().RegisterSubscriptionLister(metav1.NamespaceAll, subInformer.Lister())
+	lister.OperatorsV1alpha1().RegisterInstallPlanLister(metav1.NamespaceAll, ipInformer.Lister())
+	lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformer.Lister())
+
+	factory := informers.NewSharedInformerFactoryWithOptions(opClientFake.KubernetesInterface(), wakeupInterval, informers.WithNamespace(metav1.NamespaceAll))
+	roleInformer := factory.Rbac().V1().Roles()
+	roleBindingInformer := factory.Rbac().V1().RoleBindings()
+	serviceAccountInformer := factory.Core().V1().ServiceAccounts()
+	serviceInformer := factory.Core().V1().Services()
+	podInformer := factory.Core().V1().Pods()
+	configMapInformer := factory.Core().V1().ConfigMaps()
+	sharedInformers = append(sharedInformers, roleInformer.Informer(), roleBindingInformer.Informer(), serviceAccountInformer.Informer(), serviceInformer.Informer(), podInformer.Informer(), configMapInformer.Informer())
+
+	lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
+	lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
+	lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
+	lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
+	lister.CoreV1().RegisterPodLister(metav1.NamespaceAll, podInformer.Lister())
+	lister.CoreV1().RegisterConfigMapLister(metav1.NamespaceAll, configMapInformer.Lister())
 	logger := logrus.New()
 
 	// Create the new operator

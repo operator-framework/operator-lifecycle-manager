@@ -190,8 +190,10 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 
 		channelEntryCSVName := c.CurrentCSVName
 		depth := 1
-		for {
 
+		// Since this loop depends on following 'replaces', keep track of where it's been
+		replaceCycle := map[string]bool{channelEntryCSVName: true}
+		for {
 			// Get CSV for current entry
 			channelEntryCSV, err := s.getCSV(tx, channelEntryCSVName)
 			if err != nil {
@@ -265,6 +267,14 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 				errs = append(errs, err)
 				break
 			}
+
+			// If we find 'replaces' in the circuit list then we've seen it already, break out
+			if _, ok := replaceCycle[replaces]; ok {
+			        errs = append(errs, fmt.Errorf("Cycle detected, %s replaces %s", channelEntryCSVName, replaces))
+				break
+			}
+			replaceCycle[replaces] = true
+
 			replacedID, err := replacedChannelEntry.LastInsertId()
 			if err != nil {
 				errs = append(errs, err)

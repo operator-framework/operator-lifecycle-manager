@@ -139,6 +139,24 @@ func NewStepResourceFromBundle(bundle *api.Bundle, namespace, replaces, catalogS
 	return steps, nil
 }
 
+func NewStepsFromBundle(bundle *api.Bundle, namespace, replaces, catalogSourceName, catalogSourceNamespace string) ([]*v1alpha1.Step, error) {
+	bundleSteps, err := NewStepResourceFromBundle(bundle, namespace, replaces, catalogSourceName, catalogSourceNamespace)
+	if err != nil {
+		return nil, err
+	}
+
+	var steps []*v1alpha1.Step
+	for _, s := range bundleSteps {
+		steps = append(steps, &v1alpha1.Step{
+			Resolving: bundle.CsvName,
+			Resource:  s,
+			Status:    v1alpha1.StepStatusUnknown,
+		})
+	}
+
+	return steps, nil
+}
+
 // NewServiceAccountStepResources returns a list of step resources required to satisfy the RBAC requirements of the given CSV's InstallStrategy
 func NewServiceAccountStepResources(csv *v1alpha1.ClusterServiceVersion, catalogSourceName, catalogSourceNamespace string) ([]v1alpha1.StepResource, error) {
 	var rbacSteps []v1alpha1.StepResource

@@ -11,8 +11,6 @@ import (
 type Generation interface {
 	AddOperator(o OperatorSurface) error
 	RemoveOperator(o OperatorSurface)
-	AddPendingOperator(l LaunchBundleImageInfo)
-	RemovePendingOperator(l LaunchBundleImageInfo)
 	ResetUnchecked()
 	MissingAPIs() APIMultiOwnerSet
 	Operators() OperatorSet
@@ -20,36 +18,22 @@ type Generation interface {
 	UncheckedAPIs() APISet
 }
 
-type LaunchBundleImageInfo struct {
-	operatorSourceInfo *OperatorSourceInfo
-	image              string
-	replaces           string
-}
-
-type BundleImageSet map[LaunchBundleImageInfo]struct{}
-
-func EmptyImageSet() BundleImageSet {
-	return map[LaunchBundleImageInfo]struct{}{}
-}
-
 // NamespaceGeneration represents a generation of operators in a single namespace with methods for managing api checks
 type NamespaceGeneration struct {
-	providedAPIs     APIOwnerSet      // only allow one provider of any api
-	requiredAPIs     APIMultiOwnerSet // multiple operators may require the same api
-	uncheckedAPIs    APISet           // required apis that haven't been checked yet
-	missingAPIs      APIMultiOwnerSet
-	operators        OperatorSet
-	pendingOperators BundleImageSet
+	providedAPIs  APIOwnerSet      // only allow one provider of any api
+	requiredAPIs  APIMultiOwnerSet // multiple operators may require the same api
+	uncheckedAPIs APISet           // required apis that haven't been checked yet
+	missingAPIs   APIMultiOwnerSet
+	operators     OperatorSet
 }
 
 func NewEmptyGeneration() *NamespaceGeneration {
 	return &NamespaceGeneration{
-		providedAPIs:     EmptyAPIOwnerSet(),
-		requiredAPIs:     EmptyAPIMultiOwnerSet(),
-		uncheckedAPIs:    EmptyAPISet(),
-		missingAPIs:      EmptyAPIMultiOwnerSet(),
-		operators:        EmptyOperatorSet(),
-		pendingOperators: EmptyImageSet(),
+		providedAPIs:  EmptyAPIOwnerSet(),
+		requiredAPIs:  EmptyAPIMultiOwnerSet(),
+		uncheckedAPIs: EmptyAPISet(),
+		missingAPIs:   EmptyAPIMultiOwnerSet(),
+		operators:     EmptyOperatorSet(),
 	}
 }
 
@@ -81,16 +65,6 @@ func NewGenerationFromCluster(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1
 		}
 	}
 	return g, nil
-}
-
-func (g *NamespaceGeneration) AddPendingOperator(l LaunchBundleImageInfo) {
-	g.pendingOperators[l] = struct{}{}
-}
-
-func (g *NamespaceGeneration) RemovePendingOperator(l LaunchBundleImageInfo) {
-	for pendingOperator := range g.pendingOperators {
-		delete(g.pendingOperators, pendingOperator)
-	}
 }
 
 func (g *NamespaceGeneration) AddOperator(o OperatorSurface) error {
@@ -172,8 +146,4 @@ func (g *NamespaceGeneration) UncheckedAPIs() APISet {
 
 func (g *NamespaceGeneration) Operators() OperatorSet {
 	return g.operators
-}
-
-func (g *NamespaceGeneration) PendingOperators() BundleImageSet {
-	return g.pendingOperators
 }

@@ -259,12 +259,23 @@ func bundle(name, pkg, channel, replaces string, providedCRDs, requiredCRDs, pro
 	}
 }
 
+func stripManifests(bundle *api.Bundle) *api.Bundle {
+	bundle.CsvJson = ""
+	bundle.Object = nil
+	return bundle
+}
+
 func withBundleObject(bundle *api.Bundle, obj *unstructured.Unstructured) *api.Bundle {
 	j, err := json.Marshal(obj)
 	if err != nil {
 		panic(err)
 	}
 	bundle.Object = append(bundle.Object, string(j))
+	return bundle
+}
+
+func withBundlePath(bundle *api.Bundle, path string) *api.Bundle {
+	bundle.BundlePath = path
 	return bundle
 }
 

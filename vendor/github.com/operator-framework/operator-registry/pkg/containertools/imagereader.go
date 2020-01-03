@@ -58,16 +58,17 @@ func (b ImageLayerReader) GetImageData(image, outputDir string, opts ...GetImage
 		return err
 	}
 
-	workingDir := options.WorkingDir
-	if workingDir == "" {
+	rootTarfile := filepath.Join(options.WorkingDir, "bundle.tar")
+
+	if options.WorkingDir == "" {
 		workingDir, err := ioutil.TempDir("./", "bundle_staging_")
 		if err != nil {
 			return err
 		}
 		defer os.RemoveAll(workingDir)
-	}
 
-	rootTarfile := filepath.Join(workingDir, "bundle.tar")
+		rootTarfile = filepath.Join(workingDir, "bundle.tar")
+	}
 
 	err = b.Cmd.Save(image, rootTarfile)
 	if err != nil {

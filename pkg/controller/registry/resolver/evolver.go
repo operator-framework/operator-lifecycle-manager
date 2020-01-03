@@ -62,14 +62,6 @@ func (e *NamespaceGenerationEvolver) checkForUpdates() error {
 		if err != nil || bundle == nil {
 			continue
 		}
-		if bundle.BundlePath != "" {
-			e.gen.AddPendingOperator(LaunchBundleImageInfo{
-				operatorSourceInfo: op.SourceInfo(),
-				image:              bundle.BundlePath,
-				replaces:           op.Identifier(),
-			})
-			return nil
-		}
 
 		o, err := NewOperatorFromBundle(bundle, op.SourceInfo().StartingCSV, *key)
 		if err != nil {
@@ -95,7 +87,6 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 			bundle, key, err = e.querier.FindLatestBundle(s.Package, s.Channel, s.Catalog)
 		}
 		if err != nil {
-			// TODO: log or collect warnings
 			return errors.Wrapf(err, "%s not found", s)
 		}
 

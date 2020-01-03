@@ -18,7 +18,6 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/kubernetes/pkg/apis/rbac"
@@ -2570,71 +2569,27 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
 }
 
-func TestInstallPlanFromBundleImage(t *testing.T) {
+func TestInstallPlanUnpacksBundleImage(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
-	catalogSourceName := genName("mock-kiali-")
 
-	// expect to execute in the same namespace OLM is operating in
-	testNamespace := strings.TrimSuffix(testNamespace, "-operator")
-
-	// add RBAC for e2e namespace
-	rbacRole := &rbacv1.Role{
+	ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "olm-e2e-configmap-access",
-			Namespace: testNamespace,
+			Name: genName("ns-"),
 		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				APIGroups: []string{
-					"",
-				},
-				Verbs: []string{
-					"create", "get", "update",
-				},
-				Resources: []string{
-					"configmaps",
-				},
-			},
-		},
-	}
-	_, err := c.KubernetesInterface().RbacV1().Roles(testNamespace).Create(rbacRole)
+	})
 	require.NoError(t, err)
+
+	deleteOpts := &metav1.DeleteOptions{}
 	defer func() {
-		require.NoError(t, c.KubernetesInterface().RbacV1().Roles(testNamespace).Delete(rbacRole.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), deleteOpts))
 	}()
 
-	rbacBinding := &rbacv1.RoleBinding{
+	catsrc := &v1alpha1.CatalogSource{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "olm-e2e-configmap-access-binding",
-			Namespace: testNamespace,
-		},
-		Subjects: []rbacv1.Subject{
-			{
-				Kind:      "ServiceAccount",
-				APIGroup:  "",
-				Name:      "default",
-				Namespace: testNamespace,
-			},
-		},
-		RoleRef: rbacv1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "Role",
-			Name:     rbacRole.GetName(),
-		},
-	}
-	_, err = c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Create(rbacBinding)
-	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, c.KubernetesInterface().RbacV1().RoleBindings(testNamespace).Delete(rbacBinding.GetName(), &metav1.DeleteOptions{}))
-	}()
-
-	grpcCatalogSource := &v1alpha1.CatalogSource{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      catalogSourceName,
-			Namespace: testNamespace,
-			UID:       types.UID("catalog-uid"),
+			Name:      genName("kiali-"),
+			Namespace: ns.GetName(),
 			Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
@@ -2642,32 +2597,32 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 			SourceType: v1alpha1.SourceTypeGrpc,
 		},
 	}
-	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(grpcCatalogSource)
+	catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(catsrc)
 	require.NoError(t, err)
+
 	defer func() {
-		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(testNamespace).Delete(grpcCatalogSource.GetName(), &metav1.DeleteOptions{}))
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(catsrc.GetName(), deleteOpts))
 	}()
 
-	// wait for catalog source to be ready
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
+	// Wait for the CatalogSource to be ready
+	catsrc, err = fetchCatalogSource(t, crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
 	require.NoError(t, err)
 
-	// generate subscription
-	subscriptionName := genName("sub-kiali-")
-	cleanupSubscription := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, catalogSourceName, "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
-	defer cleanupSubscription()
+	// Generate a Subscription
+	subName := genName("kiali-")
+	cleanupSub := createSubscriptionForCatalog(t, crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSub()
 
-	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	sub, err := fetchSubscription(t, crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)
-	require.NotNil(t, subscription)
-	installPlanName := subscription.Status.InstallPlanRef.Name
 
-	// get InstallPlan
-	fetchedInstallPlan, err := waitForInstallPlan(t, crc, installPlanName, testNamespace, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
+	// Wait for the expected InstallPlan's execution to either fail or succeed
+	ipName := sub.Status.InstallPlanRef.Name
+	ip, err := waitForInstallPlan(t, crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
 	require.NoError(t, err)
-	require.NotEqual(t, v1alpha1.InstallPlanPhaseFailed, fetchedInstallPlan.Status.Phase, "InstallPlan failed")
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, ip.Status.Phase, "InstallPlan not complete")
 
-	// verify steps
+	// Ensure the InstallPlan contains the steps resolved from the bundle image
 	operatorName := "kiali-operator"
 	expectedSteps := map[registry.ResourceKey]struct{}{
 		registry.ResourceKey{Name: operatorName, Kind: "ClusterServiceVersion"}:                                  {},
@@ -2677,10 +2632,9 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 		registry.ResourceKey{Name: operatorName, Kind: "ClusterRole"}:                                            {},
 		registry.ResourceKey{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
 	}
+	require.Lenf(t, ip.Status.Plan, len(expectedSteps), "number of expected steps does not match installed: %v", ip.Status.Plan)
 
-	require.Equal(t, len(expectedSteps), len(fetchedInstallPlan.Status.Plan), "number of expected steps does not match installed: %v", fetchedInstallPlan.Status.Plan)
-
-	for _, step := range fetchedInstallPlan.Status.Plan {
+	for _, step := range ip.Status.Plan {
 		key := registry.ResourceKey{
 			Name: step.Resource.Name,
 			Kind: step.Resource.Kind,
@@ -2688,16 +2642,8 @@ func TestInstallPlanFromBundleImage(t *testing.T) {
 		for expected := range expectedSteps {
 			if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
 				delete(expectedSteps, expected)
-			} else {
-				t.Logf("%v, %v: %v && %v", key, expected, strings.HasPrefix(key.Name, expected.Name), key.Kind == expected.Kind)
 			}
 		}
 	}
-	require.Equal(t, 0, len(expectedSteps), "Actual resource steps do not match expected: %#v", expectedSteps)
-
-	// check CSV installed successfully
-	csvName := "kiali-operator.v1.4.2"
-	_, err = fetchCSV(t, crc, csvName, testNamespace, csvSucceededChecker)
-	require.NoError(t, err)
-	require.NoError(t, crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(csvName, &metav1.DeleteOptions{}))
+	require.Lenf(t, expectedSteps, 0, "Actual resource steps do not match expected: %#v", expectedSteps)
 }

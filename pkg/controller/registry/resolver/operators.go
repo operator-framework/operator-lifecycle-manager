@@ -224,6 +224,7 @@ type OperatorSurface interface {
 	Version() *semver.Version
 	SourceInfo() *OperatorSourceInfo
 	Bundle() *api.Bundle
+	Inline() bool
 }
 
 type Operator struct {
@@ -263,7 +264,11 @@ func NewOperatorFromBundle(bundle *api.Bundle, startingCSV string, sourceKey Cat
 	if len(required) == 0 && len(provided) == 0 {
 		// fallback to csv parsing
 		if bundle.CsvJson == "" {
-			return nil, fmt.Errorf("couldn't parse bundle")
+			if bundle.GetBundlePath() != "" {
+				return nil, fmt.Errorf("couldn't parse bundle path, missing provided and required apis")
+			}
+
+			return nil, fmt.Errorf("couldn't parse bundle, missing provided and required apis")
 		}
 
 		csv := &v1alpha1.ClusterServiceVersion{}
@@ -358,4 +363,8 @@ func (o *Operator) Bundle() *api.Bundle {
 
 func (o *Operator) Version() *semver.Version {
 	return o.version
+}
+
+func (o *Operator) Inline() bool {
+	return o.bundle != nil && o.bundle.GetBundlePath() == ""
 }

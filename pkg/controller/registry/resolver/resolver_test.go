@@ -45,13 +45,15 @@ func TestNamespaceResolver(t *testing.T) {
 	namespace := "catsrc-namespace"
 	catalog := CatalogKey{"catsrc", namespace}
 	type out struct {
-		steps [][]*v1alpha1.Step
-		subs  []*v1alpha1.Subscription
-		err   error
+		steps   [][]*v1alpha1.Step
+		lookups []v1alpha1.BundleLookup
+		subs    []*v1alpha1.Subscription
+		err     error
 	}
 	nothing := out{
-		steps: [][]*v1alpha1.Step{},
-		subs:  []*v1alpha1.Subscription{},
+		steps:   [][]*v1alpha1.Step{},
+		lookups: []v1alpha1.BundleLookup{},
+		subs:    []*v1alpha1.Subscription{},
 	}
 	tests := []struct {
 		name         string
@@ -94,6 +96,36 @@ func TestNamespaceResolver(t *testing.T) {
 					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
 					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, "", catalog),
 					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "SingleNewSubscription/ResolveOne/BundlePath",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			querier: NewFakeSourceQuerier(map[CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+					stripManifests(withBundlePath(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), "quay.io/test/bundle@sha256:abcd")),
+				},
+			}),
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
+					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				lookups: []v1alpha1.BundleLookup{
+					{
+						Path: "quay.io/test/bundle@sha256:abcd",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: catalog.Namespace,
+							Name:      catalog.Name,
+						},
+					},
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
@@ -184,6 +216,30 @@ func TestNamespaceResolver(t *testing.T) {
 			out: out{
 				steps: [][]*v1alpha1.Step{
 					bundleSteps(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), namespace, "", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
+				},
+			},
+		},
+		{
+			name: "InstalledSub/UpdateAvailable/FromBundlePath",
+			clusterState: []runtime.Object{
+				existingSub(namespace, "a.v1", "a", "alpha", catalog),
+				existingOperator(namespace, "a.v1", "a", "alpha", "", Provides1, nil, nil, nil),
+			},
+			querier: NewFakeSourceQuerierCustomReplacement(catalog, stripManifests(withBundlePath(bundle("a.v2", "a", "alpha", "a.v1", Provides1, nil, nil, nil), "quay.io/test/bundle@sha256:abcd"))),
+			out: out{
+				steps: [][]*v1alpha1.Step{},
+				lookups: []v1alpha1.BundleLookup{
+					{
+						Path:     "quay.io/test/bundle@sha256:abcd",
+						Replaces: "a.v1",
+						CatalogSourceRef: &corev1.ObjectReference{
+							Namespace: catalog.Namespace,
+							Name:      catalog.Name,
+						},
+					},
 				},
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
@@ -385,10 +441,11 @@ func TestNamespaceResolver(t *testing.T) {
 			kClientFake := k8sfake.NewSimpleClientset()
 
 			resolver := NewOperatorsV1alpha1Resolver(lister, clientFake, kClientFake)
-			steps, _, subs, err := resolver.ResolveSteps(namespace, tt.querier)
+			steps, lookups, subs, err := resolver.ResolveSteps(namespace, tt.querier)
 			require.Equal(t, tt.out.err, err)
 			t.Logf("%#v", steps)
 			RequireStepsEqual(t, expectedSteps, steps)
+			require.ElementsMatch(t, tt.out.lookups, lookups)
 			require.ElementsMatch(t, tt.out.subs, subs)
 		})
 	}

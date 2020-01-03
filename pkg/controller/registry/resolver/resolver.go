@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,7 +21,7 @@ import (
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type Resolver interface {
-	ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
+	ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 }
 
 type OperatorsV1alpha1Resolver struct {
@@ -43,7 +44,7 @@ func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client v
 	}
 }
 
-func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
+func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	if err := sourceQuerier.Queryable(); err != nil {
 		return nil, nil, nil, err
 	}
@@ -88,7 +89,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	// changes to persist to the cluster and write them out as `steps`
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
-	bundleLookups := []*v1alpha1.BundleLookup{}
+	bundleLookups := []v1alpha1.BundleLookup{}
 	for name, op := range gen.Operators() {
 		_, isAdded := add[*op.SourceInfo()]
 		existingSubscription, subExists := subMap[*op.SourceInfo()]
@@ -99,20 +100,24 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		}
 
 		// add steps for any new bundle
-		if op.Bundle().BundlePath == "" {
-			bundleSteps, err := NewStepResourceFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
-			if err != nil {
-				return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
-			}
-			for _, s := range bundleSteps {
-				steps = append(steps, &v1alpha1.Step{
-					Resolving: name,
-					Resource:  s,
-					Status:    v1alpha1.StepStatusUnknown,
+		if op.Bundle() != nil {
+			if op.Inline() {
+				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
+				}
+				steps = append(steps, bundleSteps...)
+			} else {
+				bundleLookups = append(bundleLookups, v1alpha1.BundleLookup{
+					Path:     op.Bundle().GetBundlePath(),
+					Replaces: op.Replaces(),
+					CatalogSourceRef: &corev1.ObjectReference{
+						Namespace: op.SourceInfo().Catalog.Namespace,
+						Name:      op.SourceInfo().Catalog.Name,
+					},
 				})
 			}
 
-			// add steps for subscriptions for bundles that were added through resolution
 			if !subExists {
 				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
 				op.SourceInfo().StartingCSV = op.Identifier()
@@ -128,17 +133,9 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 			}
 		}
 
-		if op.Bundle().BundlePath != "" {
-			bundleLookups = append(bundleLookups, &v1alpha1.BundleLookup{
-				Image:            op.Bundle().BundlePath,
-				CatalogName:      op.SourceInfo().Catalog.Name,
-				CatalogNamespace: op.SourceInfo().Catalog.Namespace,
-				Replaces:         op.Replaces(),
-			})
-		}
-
-		// update existing subscriptions status
+		// add steps for subscriptions for bundles that were added through resolution
 		if subExists && existingSubscription.Status.CurrentCSV != op.Identifier() {
+			// update existing subscription status
 			existingSubscription.Status.CurrentCSV = op.Identifier()
 			updatedSubs = append(updatedSubs, existingSubscription)
 		}
