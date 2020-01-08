@@ -20,8 +20,8 @@ IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
-CONTROLLER_GEN := go run -mod=vendor ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
-YQ_INTERNAL := go run ./vendor/github.com/mikefarah/yq/v2/
+CONTROLLER_GEN := go run $(MOD_FLAGS) ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
+YQ_INTERNAL := go run $(MOD_FLAGS) ./vendor/github.com/mikefarah/yq/v2/
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
