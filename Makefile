@@ -73,14 +73,16 @@ build-linux: clean $(CMDS)
 build-wait: clean bin/wait
 
 bin/wait:
-	CGO_ENABLED=1 CGO_DEBUG=1 GOOS=linux GOARCH=386 go build -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=386 go build -o $@ $(PKG)/test/e2e/wait
 
 $(CMDS): version_flags=-ldflags "-X $(PKG)/pkg/version.GitCommit=$(GIT_COMMIT) -X $(PKG)/pkg/version.OLMVersion=`cat OLM_VERSION`"
 $(CMDS):
-	CGO_ENABLED=1 CGO_DEBUG=1 $(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
+	$(arch_flags) go $(build_cmd) $(MOD_FLAGS) $(version_flags) -o bin/$(shell basename $@) $@
+
+build: clean $(CMDS)
 
 $(TCMDS):
-	CGO_ENABLED=0 go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
+	go test -c $(BUILD_TAGS) $(MOD_FLAGS) -o bin/$(shell basename $@) $@
 
 run-local: build-linux build-wait
 	rm -rf build
