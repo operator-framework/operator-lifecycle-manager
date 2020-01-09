@@ -51,7 +51,7 @@ type CatalogSourceSpec struct {
 	// The catalog operator polls to see if a new version of the catalog source is available.
 	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
 	// +Optional
-	Poll Poll
+	Poll *Poll
 
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.

@@ -59,7 +59,7 @@ type CatalogSourceSpec struct {
 	// The catalog operator polls to see if a new version of the catalog source is available.
 	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
 	// +Optional
-	Poll Poll `json:"poll,omitempty"`
+	Poll *Poll `json:"poll,omitempty"`
 
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.
@@ -158,6 +158,9 @@ func (c *CatalogSource) SetLastUpdateTime() {
 
 // Check if it is time to update based on polling setting
 func (c *CatalogSource) ReadyToUpdate() bool {
+	if !c.PollingEnabled() {
+		return false
+	}
 	interval := c.Spec.Poll.Interval.Duration
 	logrus.WithField("CatalogSource", c.Name).Infof("polling interval %v", interval)
 	latest := c.Status.LatestImageRegistryPoll
@@ -185,13 +188,17 @@ func (c *CatalogSource) ReadyToUpdate() bool {
 }
 
 // CatalogPollingEnabled determines whether the polling feature is enabled on the particular catalog source
-func CatalogPollingEnabled(interval time.Duration, image string) bool {
+func (c *CatalogSource) PollingEnabled() bool {
 	// if polling interval is zero polling will not be done
-	if interval == time.Duration(0)  {
+	if c.Spec.Poll == nil {
 		return false
 	}
 	// if catalog source is not backed by an image polling will not be done
-	if image == "" {
+	if c.Spec.Image == "" {
+		return false
+	}
+	// if image is not type gRPC polling will not be done
+	if c.Spec.SourceType != SourceTypeGrpc {
 		return false
 	}
 	return true

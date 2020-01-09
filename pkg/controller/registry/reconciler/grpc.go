@@ -181,7 +181,7 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 
 // ensureUpdatePod checks that for the same catalog source version the same imageID is running
 func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator) error {
-	if !v1alpha1.CatalogPollingEnabled(source.Spec.Poll.Interval.Duration, source.Spec.Image) {
+	if !source.PollingEnabled() {
 		return nil
 	}
 	var updateFlag bool

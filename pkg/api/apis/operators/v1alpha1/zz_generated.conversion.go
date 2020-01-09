@@ -756,9 +756,7 @@ func autoConvert_v1alpha1_CatalogSourceSpec_To_operators_CatalogSourceSpec(in *C
 	out.ConfigMap = in.ConfigMap
 	out.Address = in.Address
 	out.Image = in.Image
-	if err := Convert_v1alpha1_Poll_To_operators_Poll(&in.Poll, &out.Poll, s); err != nil {
-		return err
-	}
+	out.Poll = (*operators.Poll)(unsafe.Pointer(in.Poll))
 	out.Secrets = *(*[]string)(unsafe.Pointer(&in.Secrets))
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
@@ -779,9 +777,7 @@ func autoConvert_operators_CatalogSourceSpec_To_v1alpha1_CatalogSourceSpec(in *o
 	out.ConfigMap = in.ConfigMap
 	out.Address = in.Address
 	out.Image = in.Image
-	if err := Convert_operators_Poll_To_v1alpha1_Poll(&in.Poll, &out.Poll, s); err != nil {
-		return err
-	}
+	out.Poll = (*Poll)(unsafe.Pointer(in.Poll))
 	out.Secrets = *(*[]string)(unsafe.Pointer(&in.Secrets))
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
