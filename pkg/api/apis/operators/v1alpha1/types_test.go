@@ -105,7 +105,7 @@ func TestOwnsCRD(t *testing.T) {
 	}
 }
 
-func TestCatalogSource_ReadyToUpdate(t *testing.T) {
+func TestCatalogSource_Update(t *testing.T) {
 	var table = []struct {
 		description string
 		catsrc      CatalogSource
@@ -117,7 +117,11 @@ func TestCatalogSource_ReadyToUpdate(t *testing.T) {
 			catsrc: CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now()}},
 				Spec: CatalogSourceSpec{
-					Poll:       &Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+					UpdateStrategy: &UpdateStrategy{
+						RegistryPoll: &RegistryPoll{
+							Interval: &metav1.Duration{Duration: 1 * time.Second},
+						},
+					},
 					Image:      "mycatsrcimage",
 					SourceType: SourceTypeGrpc},
 			},
@@ -129,7 +133,11 @@ func TestCatalogSource_ReadyToUpdate(t *testing.T) {
 			catsrc: CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now()}},
 				Spec: CatalogSourceSpec{
-					Poll:       &Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+					UpdateStrategy: &UpdateStrategy{
+						RegistryPoll: &RegistryPoll{
+							Interval: &metav1.Duration{Duration: 1 * time.Second},
+						},
+					},
 					Image:      "mycatsrcimage",
 					SourceType: SourceTypeGrpc,
 				},
@@ -143,7 +151,11 @@ func TestCatalogSource_ReadyToUpdate(t *testing.T) {
 			catsrc: CatalogSource{
 				ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.Time{Time: time.Now()}},
 				Spec: CatalogSourceSpec{
-					Poll:       &Poll{Interval: metav1.Duration{Duration: 1 * time.Second}},
+					UpdateStrategy: &UpdateStrategy{
+						RegistryPoll: &RegistryPoll{
+							Interval: &metav1.Duration{Duration: 1 * time.Second},
+						},
+					},
 					Image:      "mycatsrcimage",
 					SourceType: SourceTypeGrpc,
 				},
@@ -156,11 +168,11 @@ func TestCatalogSource_ReadyToUpdate(t *testing.T) {
 
 	for i, tt := range table {
 		time.Sleep(table[i].sleep)
-		require.Equal(t, tt.result, table[i].catsrc.ReadyToUpdate(), table[i].description)
+		require.Equal(t, tt.result, table[i].catsrc.Update(), table[i].description)
 	}
 }
 
-func TestCatalogSource_PollingEnabled(t *testing.T) {
+func TestCatalogSource_Poll(t *testing.T) {
 	var table = []struct {
 		description string
 		catsrc      CatalogSource
@@ -182,14 +194,17 @@ func TestCatalogSource_PollingEnabled(t *testing.T) {
 			catsrc: CatalogSource{Spec: CatalogSourceSpec{
 				Image:      "my-image",
 				SourceType: SourceTypeGrpc,
-				Poll: &Poll{Interval: metav1.Duration{
-					Duration: 1 * time.Minute,
-				}}},
+				UpdateStrategy: &UpdateStrategy{
+					RegistryPoll: &RegistryPoll{
+						Interval: &metav1.Duration{Duration: 1 * time.Second},
+					},
+				},
+			},
 			},
 			result: true,
 		},
 	}
 	for i, tt := range table {
-		require.Equal(t, tt.result, table[i].catsrc.PollingEnabled(), table[i].description)
+		require.Equal(t, tt.result, table[i].catsrc.Poll(), table[i].description)
 	}
 }

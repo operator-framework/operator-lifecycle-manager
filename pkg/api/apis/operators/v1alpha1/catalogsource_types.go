@@ -55,11 +55,10 @@ type CatalogSourceSpec struct {
 	// +Optional
 	Image string `json:"image,omitempty"`
 
-	// Poll is used to determine the time interval between checks of the latest catalog source version.
-	// The catalog operator polls to see if a new version of the catalog source is available.
-	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
+	// UpdateStrategy defines how updated catalog source images can be discovered
+	// Consists of an interval that defines polling duration and an embedded strategy type
 	// +Optional
-	Poll *Poll `json:"poll,omitempty"`
+	UpdateStrategy *UpdateStrategy `json:"updateStrategy,omitempty"`
 
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.
@@ -73,8 +72,17 @@ type CatalogSourceSpec struct {
 	Icon        Icon   `json:"icon,omitempty"`
 }
 
-type Poll struct {
-	Interval metav1.Duration `json:"interval,omitempty"`
+// UpdateStrategy holds all the different types of catalog source update strategies
+// Currently only registry polling strategy is implemented
+type UpdateStrategy struct {
+	*RegistryPoll `json:"registryPoll,omitempty"`
+}
+
+type RegistryPoll struct {
+	// Interval is used to determine the time interval between checks of the latest catalog source version.
+	// The catalog operator polls to see if a new version of the catalog source is available.
+	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
+	Interval *metav1.Duration `json:"interval,omitempty"`
 }
 
 type RegistryServiceStatus struct {
@@ -157,28 +165,26 @@ func (c *CatalogSource) SetLastUpdateTime() {
 }
 
 // Check if it is time to update based on polling setting
-func (c *CatalogSource) ReadyToUpdate() bool {
-	if !c.PollingEnabled() {
+func (c *CatalogSource) Update() bool {
+	if !c.Poll() {
 		return false
 	}
-	interval := c.Spec.Poll.Interval.Duration
-	logrus.WithField("CatalogSource", c.Name).Infof("polling interval %v", interval)
+	interval := c.Spec.UpdateStrategy.Interval.Duration
 	latest := c.Status.LatestImageRegistryPoll
 	if latest == nil {
-		logrus.WithField("CatalogSource", c.Name).Infof("latest poll %v", latest)
+		logrus.WithField("CatalogSource", c.Name).Debugf("latest poll %v", latest)
 	} else {
-		logrus.WithField("CatalogSource", c.Name).Infof("latest poll %v", *c.Status.LatestImageRegistryPoll)
+		logrus.WithField("CatalogSource", c.Name).Debugf("latest poll %v", *c.Status.LatestImageRegistryPoll)
 	}
 
 
-	logrus.WithField("CatalogSource", c.Name).Infof("polling interval is zero %t", c.Status.LatestImageRegistryPoll.IsZero())
 	if c.Status.LatestImageRegistryPoll.IsZero() {
-		logrus.WithField("CatalogSource", c.Name).Infof("creation interval plus interval before now %t", c.CreationTimestamp.Add(interval).Before(time.Now()))
+		logrus.WithField("CatalogSource", c.Name).Debugf("creation timestamp plus interval before now %t", c.CreationTimestamp.Add(interval).Before(time.Now()))
 		if c.CreationTimestamp.Add(interval).Before(time.Now()) {
 			return true
 		}
 	} else {
-		logrus.WithField("CatalogSource", c.Name).Infof("latest poll plus interval before now %t", c.Status.LatestImageRegistryPoll.Add(interval).Before(time.Now()))
+		logrus.WithField("CatalogSource", c.Name).Debugf("latest poll plus interval before now %t", c.Status.LatestImageRegistryPoll.Add(interval).Before(time.Now()))
 		if c.Status.LatestImageRegistryPoll.Add(interval).Before(time.Now()) {
 			return true
 		}
@@ -187,10 +193,13 @@ func (c *CatalogSource) ReadyToUpdate() bool {
 	return false
 }
 
-// CatalogPollingEnabled determines whether the polling feature is enabled on the particular catalog source
-func (c *CatalogSource) PollingEnabled() bool {
+// Poll determines whether the polling feature is enabled on the particular catalog source
+func (c *CatalogSource) Poll() bool {
+	if c.Spec.UpdateStrategy == nil {
+		return false
+	}
 	// if polling interval is zero polling will not be done
-	if c.Spec.Poll == nil {
+	if c.Spec.UpdateStrategy.RegistryPoll == nil {
 		return false
 	}
 	// if catalog source is not backed by an image polling will not be done

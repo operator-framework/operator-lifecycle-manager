@@ -47,11 +47,10 @@ type CatalogSourceSpec struct {
 	// +Optional
 	Image string
 
-	// Poll is used to determine the time interval between checks of the latest catalog source version.
-	// The catalog operator polls to see if a new version of the catalog source is available.
-	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
+	// UpdateStrategy defines how updated catalog source images can be discovered
+	// Consists of an interval that defines polling duration and an embedded strategy type
 	// +Optional
-	Poll *Poll
+	UpdateStrategy *UpdateStrategy
 
 	// Secrets represent set of secrets that can be used to access the contents of the catalog.
 	// It is best to keep this list small, since each will need to be tried for every catalog entry.
@@ -65,8 +64,17 @@ type CatalogSourceSpec struct {
 	Icon        Icon
 }
 
-type Poll struct {
-	Interval metav1.Duration
+// UpdateStrategy holds all the different types of catalog source update strategies
+// Currently only registry polling strategy is implemented
+type UpdateStrategy struct {
+	*RegistryPoll
+}
+
+type RegistryPoll struct {
+	// Interval is used to determine the time interval between checks of the latest catalog source version.
+	// The catalog operator polls to see if a new version of the catalog source is available.
+	// If available, the latest image is pulled and gRPC traffic is directed to the latest catalog source.
+	Interval *metav1.Duration
 }
 
 type RegistryServiceStatus struct {

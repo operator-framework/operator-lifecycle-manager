@@ -88,7 +88,7 @@ func NewRegistryReconcilerFactory(lister operatorlister.OperatorLister, opClient
 func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[string]string, readinessDelay int32, livenessDelay int32) *v1.Pod {
 	// ensure catalog image is pulled always if catalog polling is configured
 	var pullPolicy v1.PullPolicy
-	if source.Spec.Poll != nil {
+	if source.Spec.UpdateStrategy != nil {
 		pullPolicy = v1.PullAlways
 	} else {
 		pullPolicy = v1.PullIfNotPresent
