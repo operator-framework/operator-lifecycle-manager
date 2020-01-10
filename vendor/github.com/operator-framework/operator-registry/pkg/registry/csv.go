@@ -32,6 +32,9 @@ const (
 
 	// The yaml attribute that specifies the related images of the ClusterServiceVersion
 	relatedImages = "relatedImages"
+
+	// The yaml attribute that specifies the skipRange of the ClusterServiceVersion
+	skipRangeAnnotationKey = "olm.skipRange"
 )
 
 // ClusterServiceVersion is a structured representation of cluster service
@@ -93,6 +96,17 @@ func (csv *ClusterServiceVersion) GetVersion() (string, error) {
 	}
 
 	return v, nil
+}
+
+// GetSkipRange returns the skiprange of the CSV
+//
+// If not defined, the function returns an empty string.
+func (csv *ClusterServiceVersion) GetSkipRange() string {
+	skipRange, ok := csv.Annotations[skipRangeAnnotationKey]
+	if !ok {
+		return ""
+	}
+	return skipRange
 }
 
 // GetSkips returns the name of the older ClusterServiceVersion objects that

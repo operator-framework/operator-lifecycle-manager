@@ -26,10 +26,6 @@ spec:
           command:
           - /bin/catalog
           args:
-          {{- if .Values.watchedNamespaces }}
-          - -watchedNamespaces
-          - {{ .Values.watchedNamespaces }}
-          {{- end }}
           - '-namespace'
           - {{ .Values.catalog_namespace }}
           {{- if .Values.debug }}

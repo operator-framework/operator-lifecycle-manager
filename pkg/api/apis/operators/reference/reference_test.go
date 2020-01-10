@@ -2,7 +2,6 @@ package reference
 
 import (
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,14 +34,6 @@ func TestGetReference(t *testing.T) {
 			want: want{
 				ref: nil,
 				err: fmt.Errorf("can't reference a nil object"),
-			},
-		},
-		{
-			name: "v1/Pod/NotRegistered/Error",
-			args: args{&corev1.Pod{}},
-			want: want{
-				ref: nil,
-				err: runtime.NewNotRegisteredErrForType(scheme.Name(), reflect.TypeOf(corev1.Pod{})),
 			},
 		},
 		{

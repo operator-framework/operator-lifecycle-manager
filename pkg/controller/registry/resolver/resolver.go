@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -19,34 +21,38 @@ import (
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
 
 type Resolver interface {
-	ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error)
+	ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 }
 
 type OperatorsV1alpha1Resolver struct {
-	subLister v1alpha1listers.SubscriptionLister
-	csvLister v1alpha1listers.ClusterServiceVersionLister
-	client    versioned.Interface
+	subLister  v1alpha1listers.SubscriptionLister
+	csvLister  v1alpha1listers.ClusterServiceVersionLister
+	ipLister   v1alpha1listers.InstallPlanLister
+	client     versioned.Interface
+	kubeclient kubernetes.Interface
 }
 
 var _ Resolver = &OperatorsV1alpha1Resolver{}
 
-func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface) *OperatorsV1alpha1Resolver {
+func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client versioned.Interface, kubeclient kubernetes.Interface) *OperatorsV1alpha1Resolver {
 	return &OperatorsV1alpha1Resolver{
-		subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
-		csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
-		client:    client,
+		subLister:  lister.OperatorsV1alpha1().SubscriptionLister(),
+		csvLister:  lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		ipLister:   lister.OperatorsV1alpha1().InstallPlanLister(),
+		client:     client,
+		kubeclient: kubeclient,
 	}
 }
 
-func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error) {
+func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	if err := sourceQuerier.Queryable(); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// create a generation - a representation of the current set of installed operators and their provided/required apis
 	allCSVs, err := r.csvLister.ClusterServiceVersions(namespace).List(labels.Everything())
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// TODO: build this index ahead of time
@@ -60,12 +66,12 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 
 	subs, err := r.listSubscriptions(namespace)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	gen, err := NewGenerationFromCluster(csvs, subs)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// create a map of operatorsourceinfo (subscription+catalogsource data) to the original subscriptions
@@ -76,13 +82,14 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 	// evolve a generation by resolving the set of subscriptions (in `add`) by querying with `source`
 	// and taking the current generation (in `gen`) into account
 	if err := NewNamespaceGenerationEvolver(sourceQuerier, gen).Evolve(add); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	// if there's no error, we were able to satsify all constraints in the subscription set, so we calculate what
 	// changes to persist to the cluster and write them out as `steps`
 	steps := []*v1alpha1.Step{}
 	updatedSubs := []*v1alpha1.Subscription{}
+	bundleLookups := []v1alpha1.BundleLookup{}
 	for name, op := range gen.Operators() {
 		_, isAdded := add[*op.SourceInfo()]
 		existingSubscription, subExists := subMap[*op.SourceInfo()]
@@ -94,25 +101,29 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 
 		// add steps for any new bundle
 		if op.Bundle() != nil {
-			bundleSteps, err := NewStepResourceFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
-			}
-			for _, s := range bundleSteps {
-				steps = append(steps, &v1alpha1.Step{
-					Resolving: name,
-					Resource:  s,
-					Status:    v1alpha1.StepStatusUnknown,
+			if op.Inline() {
+				bundleSteps, err := NewStepsFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
+				if err != nil {
+					return nil, nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
+				}
+				steps = append(steps, bundleSteps...)
+			} else {
+				bundleLookups = append(bundleLookups, v1alpha1.BundleLookup{
+					Path:     op.Bundle().GetBundlePath(),
+					Replaces: op.Replaces(),
+					CatalogSourceRef: &corev1.ObjectReference{
+						Namespace: op.SourceInfo().Catalog.Namespace,
+						Name:      op.SourceInfo().Catalog.Name,
+					},
 				})
 			}
 
-			// add steps for subscriptions for bundles that were added through resolution
 			if !subExists {
 				// explicitly track the resolved CSV as the starting CSV on the resolved subscriptions
 				op.SourceInfo().StartingCSV = op.Identifier()
 				subStep, err := NewSubscriptionStepResource(namespace, *op.SourceInfo())
 				if err != nil {
-					return nil, nil, err
+					return nil, nil, nil, err
 				}
 				steps = append(steps, &v1alpha1.Step{
 					Resolving: name,
@@ -122,14 +133,15 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 			}
 		}
 
-		// update existing subscriptions status
+		// add steps for subscriptions for bundles that were added through resolution
 		if subExists && existingSubscription.Status.CurrentCSV != op.Identifier() {
+			// update existing subscription status
 			existingSubscription.Status.CurrentCSV = op.Identifier()
 			updatedSubs = append(updatedSubs, existingSubscription)
 		}
 	}
 
-	return steps, updatedSubs, nil
+	return steps, bundleLookups, updatedSubs, nil
 }
 
 func (r *OperatorsV1alpha1Resolver) sourceInfoForNewSubscriptions(namespace string, subs map[OperatorSourceInfo]*v1alpha1.Subscription) (add map[OperatorSourceInfo]struct{}) {

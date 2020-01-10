@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
@@ -62,6 +63,29 @@ func (r *ResourceQueueSet) Requeue(namespace, name string) error {
 
 	if queue, ok := r.queueSet[namespace]; ok {
 		queue.Add(event)
+		return nil
+	}
+
+	return fmt.Errorf("couldn't find queue for resource")
+}
+
+// TODO: this may not actually be required if the requeue is done on the namespace rather than the installplan
+// RequeueAfter requeues the resource in the set with the given name and namespace (just like Requeue), but only does so after duration has passed
+func (r *ResourceQueueSet) RequeueAfter(namespace, name string, duration time.Duration) error {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	// We can build the key directly, will need to change if queue uses different key scheme
+	key := fmt.Sprintf("%s/%s", namespace, name)
+	event := kubestate.NewResourceEvent(kubestate.ResourceUpdated, key)
+
+	if queue, ok := r.queueSet[metav1.NamespaceAll]; len(r.queueSet) == 1 && ok {
+		queue.AddAfter(event, duration)
+		return nil
+	}
+
+	if queue, ok := r.queueSet[namespace]; ok {
+		queue.AddAfter(event, duration)
 		return nil
 	}
 

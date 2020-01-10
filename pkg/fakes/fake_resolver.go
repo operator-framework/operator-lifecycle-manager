@@ -9,7 +9,7 @@ import (
 )
 
 type FakeResolver struct {
-	ResolveStepsStub        func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error)
+	ResolveStepsStub        func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)
 	resolveStepsMutex       sync.RWMutex
 	resolveStepsArgsForCall []struct {
 		arg1 string
@@ -17,19 +17,21 @@ type FakeResolver struct {
 	}
 	resolveStepsReturns struct {
 		result1 []*v1alpha1.Step
-		result2 []*v1alpha1.Subscription
-		result3 error
+		result2 []v1alpha1.BundleLookup
+		result3 []*v1alpha1.Subscription
+		result4 error
 	}
 	resolveStepsReturnsOnCall map[int]struct {
 		result1 []*v1alpha1.Step
-		result2 []*v1alpha1.Subscription
-		result3 error
+		result2 []v1alpha1.BundleLookup
+		result3 []*v1alpha1.Subscription
+		result4 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeResolver) ResolveSteps(arg1 string, arg2 resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error) {
+func (fake *FakeResolver) ResolveSteps(arg1 string, arg2 resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error) {
 	fake.resolveStepsMutex.Lock()
 	ret, specificReturn := fake.resolveStepsReturnsOnCall[len(fake.resolveStepsArgsForCall)]
 	fake.resolveStepsArgsForCall = append(fake.resolveStepsArgsForCall, struct {
@@ -42,10 +44,10 @@ func (fake *FakeResolver) ResolveSteps(arg1 string, arg2 resolver.SourceQuerier)
 		return fake.ResolveStepsStub(arg1, arg2)
 	}
 	if specificReturn {
-		return ret.result1, ret.result2, ret.result3
+		return ret.result1, ret.result2, ret.result3, ret.result4
 	}
 	fakeReturns := fake.resolveStepsReturns
-	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3
+	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3, fakeReturns.result4
 }
 
 func (fake *FakeResolver) ResolveStepsCallCount() int {
@@ -54,7 +56,7 @@ func (fake *FakeResolver) ResolveStepsCallCount() int {
 	return len(fake.resolveStepsArgsForCall)
 }
 
-func (fake *FakeResolver) ResolveStepsCalls(stub func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []*v1alpha1.Subscription, error)) {
+func (fake *FakeResolver) ResolveStepsCalls(stub func(string, resolver.SourceQuerier) ([]*v1alpha1.Step, []v1alpha1.BundleLookup, []*v1alpha1.Subscription, error)) {
 	fake.resolveStepsMutex.Lock()
 	defer fake.resolveStepsMutex.Unlock()
 	fake.ResolveStepsStub = stub
@@ -67,33 +69,36 @@ func (fake *FakeResolver) ResolveStepsArgsForCall(i int) (string, resolver.Sourc
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeResolver) ResolveStepsReturns(result1 []*v1alpha1.Step, result2 []*v1alpha1.Subscription, result3 error) {
+func (fake *FakeResolver) ResolveStepsReturns(result1 []*v1alpha1.Step, result2 []v1alpha1.BundleLookup, result3 []*v1alpha1.Subscription, result4 error) {
 	fake.resolveStepsMutex.Lock()
 	defer fake.resolveStepsMutex.Unlock()
 	fake.ResolveStepsStub = nil
 	fake.resolveStepsReturns = struct {
 		result1 []*v1alpha1.Step
-		result2 []*v1alpha1.Subscription
-		result3 error
-	}{result1, result2, result3}
+		result2 []v1alpha1.BundleLookup
+		result3 []*v1alpha1.Subscription
+		result4 error
+	}{result1, result2, result3, result4}
 }
 
-func (fake *FakeResolver) ResolveStepsReturnsOnCall(i int, result1 []*v1alpha1.Step, result2 []*v1alpha1.Subscription, result3 error) {
+func (fake *FakeResolver) ResolveStepsReturnsOnCall(i int, result1 []*v1alpha1.Step, result2 []v1alpha1.BundleLookup, result3 []*v1alpha1.Subscription, result4 error) {
 	fake.resolveStepsMutex.Lock()
 	defer fake.resolveStepsMutex.Unlock()
 	fake.ResolveStepsStub = nil
 	if fake.resolveStepsReturnsOnCall == nil {
 		fake.resolveStepsReturnsOnCall = make(map[int]struct {
 			result1 []*v1alpha1.Step
-			result2 []*v1alpha1.Subscription
-			result3 error
+			result2 []v1alpha1.BundleLookup
+			result3 []*v1alpha1.Subscription
+			result4 error
 		})
 	}
 	fake.resolveStepsReturnsOnCall[i] = struct {
 		result1 []*v1alpha1.Step
-		result2 []*v1alpha1.Subscription
-		result3 error
-	}{result1, result2, result3}
+		result2 []v1alpha1.BundleLookup
+		result3 []*v1alpha1.Subscription
+		result4 error
+	}{result1, result2, result3, result4}
 }
 
 func (fake *FakeResolver) Invocations() map[string][][]interface{} {

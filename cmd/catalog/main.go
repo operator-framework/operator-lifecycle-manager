@@ -7,13 +7,11 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -43,9 +41,6 @@ var (
 
 	wakeupInterval = flag.Duration(
 		"interval", defaultWakeupInterval, "wakeup interval")
-
-	watchedNamespaces = flag.String(
-		"watchedNamespaces", "", "comma separated list of namespaces that catalog watches, leave empty to watch all namespaces")
 
 	catalogNamespace = flag.String(
 		"namespace", defaultCatalogNamespace, "namespace where catalog will run and install catalog resources")
@@ -89,16 +84,6 @@ func main() {
 
 		// Exit early
 		os.Exit(0)
-	}
-
-	// `namespaces` will always contain at least one entry: if `*watchedNamespaces` is
-	// the empty string, the resulting array will be `[]string{""}`.
-	namespaces := strings.Split(*watchedNamespaces, ",")
-	for _, ns := range namespaces {
-		if ns == v1.NamespaceAll {
-			namespaces = []string{v1.NamespaceAll}
-			break
-		}
 	}
 
 	logger := log.New()
@@ -183,7 +168,7 @@ func main() {
 	}
 
 	// Create a new instance of the operator.
-	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace, namespaces...)
+	op, err := catalog.NewOperator(ctx, *kubeConfigPath, utilclock.RealClock{}, logger, *wakeupInterval, *configmapServerImage, *catalogNamespace)
 	if err != nil {
 		log.Panicf("error configuring operator: %s", err.Error())
 	}

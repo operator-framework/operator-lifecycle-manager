@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/dynamic"
@@ -29,15 +30,14 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
-	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
-
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/bundle"
 	olmerrors "github.com/operator-framework/operator-lifecycle-manager/pkg/controller/errors"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/catalog/subscription"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/grpc"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/reconciler"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	index "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/index"
@@ -46,6 +46,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
+	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
 )
 
@@ -85,17 +86,14 @@ type Operator struct {
 	catalogSubscriberIndexer map[string]cache.Indexer
 	clientAttenuator         *scoped.ClientAttenuator
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
+	bundleUnpacker           bundle.Unpacker
+	bundleUnpackerImage      string
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resyncPeriod time.Duration, configmapRegistryImage, operatorNamespace string, watchedNamespaces ...string) (*Operator, error) {
-	// Default to watching all namespaces.
-	if len(watchedNamespaces) == 0 {
-		watchedNamespaces = []string{metav1.NamespaceAll}
-	}
-
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resyncPeriod time.Duration, configmapRegistryImage, operatorNamespace string) (*Operator, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -133,168 +131,188 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		client:                   crClient,
 		lister:                   lister,
 		namespace:                operatorNamespace,
-		resolver:                 resolver.NewOperatorsV1alpha1Resolver(lister, crClient),
+		resolver:                 resolver.NewOperatorsV1alpha1Resolver(lister, crClient, opClient.KubernetesInterface()),
 		catsrcQueueSet:           queueinformer.NewEmptyResourceQueueSet(),
 		subQueueSet:              queueinformer.NewEmptyResourceQueueSet(),
+		ipQueueSet:               queueinformer.NewEmptyResourceQueueSet(),
 		csvProvidedAPIsIndexer:   map[string]cache.Indexer{},
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient),
+		bundleUnpackerImage:      configmapRegistryImage, // Assume the configmapRegistryImage contains the unpacker for now.
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
 
-	// Set up syncing for namespace-scoped resources
-	for _, namespace := range watchedNamespaces {
-		// Wire OLM CR sharedIndexInformers
-		crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod, externalversions.WithNamespace(namespace))
+	// Wire OLM CR sharedIndexInformers
+	crInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, resyncPeriod)
 
-		// Wire CSVs
-		csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
-		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
-		if err := op.RegisterInformer(csvInformer.Informer()); err != nil {
-			return nil, err
-		}
+	// Wire CSVs
+	csvInformer := crInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
+	op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(metav1.NamespaceAll, csvInformer.Lister())
+	if err := op.RegisterInformer(csvInformer.Informer()); err != nil {
+		return nil, err
+	}
 
-		if err := csvInformer.Informer().AddIndexers(cache.Indexers{index.ProvidedAPIsIndexFuncKey: index.ProvidedAPIsIndexFunc}); err != nil {
-			return nil, err
-		}
-		csvIndexer := csvInformer.Informer().GetIndexer()
-		op.csvProvidedAPIsIndexer[namespace] = csvIndexer
+	if err := csvInformer.Informer().AddIndexers(cache.Indexers{index.ProvidedAPIsIndexFuncKey: index.ProvidedAPIsIndexFunc}); err != nil {
+		return nil, err
+	}
+	csvIndexer := csvInformer.Informer().GetIndexer()
+	op.csvProvidedAPIsIndexer[metav1.NamespaceAll] = csvIndexer
 
-		// TODO: Add namespace resolve sync
+	// TODO: Add namespace resolve sync
 
-		// Wire InstallPlans
-		ipInformer := crInformerFactory.Operators().V1alpha1().InstallPlans()
-		op.lister.OperatorsV1alpha1().RegisterInstallPlanLister(namespace, ipInformer.Lister())
-		ipQueueInformer, err := queueinformer.NewQueueInformer(
+	// Wire InstallPlans
+	ipInformer := crInformerFactory.Operators().V1alpha1().InstallPlans()
+	op.lister.OperatorsV1alpha1().RegisterInstallPlanLister(metav1.NamespaceAll, ipInformer.Lister())
+	ipQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "ips")
+	op.ipQueueSet.Set(metav1.NamespaceAll, ipQueue)
+	ipQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithMetricsProvider(metrics.NewMetricsInstallPlan(op.client)),
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(ipQueue),
+		queueinformer.WithInformer(ipInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncInstallPlans).ToSyncer()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(ipQueueInformer); err != nil {
+		return nil, err
+	}
+
+	// Wire CatalogSources
+	catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
+	op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
+	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catsrcs")
+	op.catsrcQueueSet.Set(metav1.NamespaceAll, catsrcQueue)
+	catsrcQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithMetricsProvider(metrics.NewMetricsCatalogSource(op.client)),
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(catsrcQueue),
+		queueinformer.WithInformer(catsrcInformer.Informer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCatalogSources).ToSyncerWithDelete(op.handleCatSrcDeletion)),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(catsrcQueueInformer); err != nil {
+		return nil, err
+	}
+
+	// Wire Subscriptions
+	subInformer := crInformerFactory.Operators().V1alpha1().Subscriptions()
+	op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(metav1.NamespaceAll, subInformer.Lister())
+	if err := subInformer.Informer().AddIndexers(cache.Indexers{index.PresentCatalogIndexFuncKey: index.PresentCatalogIndexFunc}); err != nil {
+		return nil, err
+	}
+	subIndexer := subInformer.Informer().GetIndexer()
+	op.catalogSubscriberIndexer[metav1.NamespaceAll] = subIndexer
+
+	subQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "subs")
+	op.subQueueSet.Set(metav1.NamespaceAll, subQueue)
+	subSyncer, err := subscription.NewSyncer(
+		ctx,
+		subscription.WithLogger(op.logger),
+		subscription.WithClient(op.client),
+		subscription.WithOperatorLister(op.lister),
+		subscription.WithSubscriptionInformer(subInformer.Informer()),
+		subscription.WithCatalogInformer(catsrcInformer.Informer()),
+		subscription.WithInstallPlanInformer(ipInformer.Informer()),
+		subscription.WithSubscriptionQueue(subQueue),
+		subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
+		subscription.WithRegistryReconcilerFactory(op.reconciler),
+		subscription.WithGlobalCatalogNamespace(op.namespace),
+	)
+	if err != nil {
+		return nil, err
+	}
+	subQueueInformer, err := queueinformer.NewQueueInformer(
+		ctx,
+		queueinformer.WithMetricsProvider(metrics.NewMetricsSubscription(op.client)),
+		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(subQueue),
+		queueinformer.WithInformer(subInformer.Informer()),
+		queueinformer.WithSyncer(subSyncer),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := op.RegisterQueueInformer(subQueueInformer); err != nil {
+		return nil, err
+	}
+
+	// Wire k8s sharedIndexInformers
+	k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod)
+	sharedIndexInformers := []cache.SharedIndexInformer{}
+
+	// Wire Roles
+	roleInformer := k8sInformerFactory.Rbac().V1().Roles()
+	op.lister.RbacV1().RegisterRoleLister(metav1.NamespaceAll, roleInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, roleInformer.Informer())
+
+	// Wire RoleBindings
+	roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
+	op.lister.RbacV1().RegisterRoleBindingLister(metav1.NamespaceAll, roleBindingInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, roleBindingInformer.Informer())
+
+	// Wire ServiceAccounts
+	serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
+	op.lister.CoreV1().RegisterServiceAccountLister(metav1.NamespaceAll, serviceAccountInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, serviceAccountInformer.Informer())
+
+	// Wire Services
+	serviceInformer := k8sInformerFactory.Core().V1().Services()
+	op.lister.CoreV1().RegisterServiceLister(metav1.NamespaceAll, serviceInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, serviceInformer.Informer())
+
+	// Wire Pods
+	podInformer := k8sInformerFactory.Core().V1().Pods()
+	op.lister.CoreV1().RegisterPodLister(metav1.NamespaceAll, podInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, podInformer.Informer())
+
+	// Wire ConfigMaps
+	configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
+	op.lister.CoreV1().RegisterConfigMapLister(metav1.NamespaceAll, configMapInformer.Lister())
+	sharedIndexInformers = append(sharedIndexInformers, configMapInformer.Informer())
+
+	// Wire Jobs
+	jobInformer := k8sInformerFactory.Batch().V1().Jobs()
+	sharedIndexInformers = append(sharedIndexInformers, jobInformer.Informer())
+
+	// Generate and register QueueInformers for k8s resources
+	k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
+	for _, informer := range sharedIndexInformers {
+		queueInformer, err := queueinformer.NewQueueInformer(
 			ctx,
-			queueinformer.WithMetricsProvider(metrics.NewMetricsInstallPlan(op.client)),
 			queueinformer.WithLogger(op.logger),
-			queueinformer.WithInformer(ipInformer.Informer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncInstallPlans).ToSyncer()),
+			queueinformer.WithInformer(informer),
+			queueinformer.WithSyncer(k8sSyncer),
 		)
 		if err != nil {
 			return nil, err
 		}
-		if err := op.RegisterQueueInformer(ipQueueInformer); err != nil {
+
+		if err := op.RegisterQueueInformer(queueInformer); err != nil {
 			return nil, err
 		}
+	}
 
-		// Wire CatalogSources
-		catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
-		op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(namespace, catsrcInformer.Lister())
-		catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/catsrcs", namespace))
-		op.catsrcQueueSet.Set(namespace, catsrcQueue)
-		catsrcQueueInformer, err := queueinformer.NewQueueInformer(
-			ctx,
-			queueinformer.WithMetricsProvider(metrics.NewMetricsCatalogSource(op.client)),
-			queueinformer.WithLogger(op.logger),
-			queueinformer.WithQueue(catsrcQueue),
-			queueinformer.WithInformer(catsrcInformer.Informer()),
-			queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncCatalogSources).ToSyncerWithDelete(op.handleCatSrcDeletion)),
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := op.RegisterQueueInformer(catsrcQueueInformer); err != nil {
-			return nil, err
-		}
-
-		// Wire Subscriptions
-		subInformer := crInformerFactory.Operators().V1alpha1().Subscriptions()
-		op.lister.OperatorsV1alpha1().RegisterSubscriptionLister(namespace, subInformer.Lister())
-		if err := subInformer.Informer().AddIndexers(cache.Indexers{index.PresentCatalogIndexFuncKey: index.PresentCatalogIndexFunc}); err != nil {
-			return nil, err
-		}
-		subIndexer := subInformer.Informer().GetIndexer()
-		op.catalogSubscriberIndexer[namespace] = subIndexer
-
-		subQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/subs", namespace))
-		op.subQueueSet.Set(namespace, subQueue)
-		subSyncer, err := subscription.NewSyncer(
-			ctx,
-			subscription.WithLogger(op.logger),
-			subscription.WithClient(op.client),
-			subscription.WithOperatorLister(op.lister),
-			subscription.WithSubscriptionInformer(subInformer.Informer()),
-			subscription.WithCatalogInformer(catsrcInformer.Informer()),
-			subscription.WithInstallPlanInformer(ipInformer.Informer()),
-			subscription.WithSubscriptionQueue(subQueue),
-			subscription.WithAppendedReconcilers(subscription.ReconcilerFromLegacySyncHandler(op.syncSubscriptions, nil)),
-			subscription.WithRegistryReconcilerFactory(op.reconciler),
-			subscription.WithGlobalCatalogNamespace(op.namespace),
-		)
-		if err != nil {
-			return nil, err
-		}
-		subQueueInformer, err := queueinformer.NewQueueInformer(
-			ctx,
-			queueinformer.WithMetricsProvider(metrics.NewMetricsSubscription(op.client)),
-			queueinformer.WithLogger(op.logger),
-			queueinformer.WithQueue(subQueue),
-			queueinformer.WithInformer(subInformer.Informer()),
-			queueinformer.WithSyncer(subSyncer),
-		)
-		if err != nil {
-			return nil, err
-		}
-		if err := op.RegisterQueueInformer(subQueueInformer); err != nil {
-			return nil, err
-		}
-
-		// Wire k8s sharedIndexInformers
-		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), resyncPeriod, informers.WithNamespace(namespace))
-		sharedIndexInformers := []cache.SharedIndexInformer{}
-
-		// Wire Roles
-		roleInformer := k8sInformerFactory.Rbac().V1().Roles()
-		op.lister.RbacV1().RegisterRoleLister(namespace, roleInformer.Lister())
-		sharedIndexInformers = append(sharedIndexInformers, roleInformer.Informer())
-
-		// Wire RoleBindings
-		roleBindingInformer := k8sInformerFactory.Rbac().V1().RoleBindings()
-		op.lister.RbacV1().RegisterRoleBindingLister(namespace, roleBindingInformer.Lister())
-		sharedIndexInformers = append(sharedIndexInformers, roleBindingInformer.Informer())
-
-		// Wire ServiceAccounts
-		serviceAccountInformer := k8sInformerFactory.Core().V1().ServiceAccounts()
-		op.lister.CoreV1().RegisterServiceAccountLister(namespace, serviceAccountInformer.Lister())
-		sharedIndexInformers = append(sharedIndexInformers, serviceAccountInformer.Informer())
-
-		// Wire Services
-		serviceInformer := k8sInformerFactory.Core().V1().Services()
-		op.lister.CoreV1().RegisterServiceLister(namespace, serviceInformer.Lister())
-		sharedIndexInformers = append(sharedIndexInformers, serviceInformer.Informer())
-
-		// Wire Pods
-		podInformer := k8sInformerFactory.Core().V1().Pods()
-		op.lister.CoreV1().RegisterPodLister(namespace, podInformer.Lister())
-		sharedIndexInformers = append(sharedIndexInformers, podInformer.Informer())
-
-		// Wire ConfigMaps
-		configMapInformer := k8sInformerFactory.Core().V1().ConfigMaps()
-		op.lister.CoreV1().RegisterConfigMapLister(namespace, configMapInformer.Lister())
-		sharedIndexInformers = append(sharedIndexInformers, configMapInformer.Informer())
-
-		// Generate and register QueueInformers for k8s resources
-		k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
-		for _, informer := range sharedIndexInformers {
-			queueInformer, err := queueinformer.NewQueueInformer(
-				ctx,
-				queueinformer.WithLogger(op.logger),
-				queueinformer.WithInformer(informer),
-				queueinformer.WithSyncer(k8sSyncer),
-			)
-			if err != nil {
-				return nil, err
-			}
-
-			if err := op.RegisterQueueInformer(queueInformer); err != nil {
-				return nil, err
-			}
-		}
-
+	// Setup the BundleUnpacker
+	op.bundleUnpacker, err = bundle.NewConfigmapUnpacker(
+		bundle.WithClient(op.opClient.KubernetesInterface()),
+		bundle.WithCatalogSourceLister(catsrcInformer.Lister()),
+		bundle.WithConfigMapLister(configMapInformer.Lister()),
+		bundle.WithJobLister(jobInformer.Lister()),
+		bundle.WithRoleLister(roleInformer.Lister()),
+		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
+		bundle.WithCopyImage(op.bundleUnpackerImage),
+		bundle.WithNow(op.now),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// Register CustomResourceDefinition QueueInformer
@@ -732,7 +750,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 
 	// TODO: parallel
 	subscriptionUpdated := false
-	for _, sub := range subs {
+	for i, sub := range subs {
 		logger := logger.WithFields(logrus.Fields{
 			"sub":     sub.GetName(),
 			"source":  sub.Spec.CatalogSource,
@@ -754,6 +772,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		}
 
 		subscriptionUpdated = subscriptionUpdated || changedCSV
+		subs[i] = sub
 	}
 	if subscriptionUpdated {
 		logger.Debug("subscriptions were updated, wait for a new resolution")
@@ -772,7 +791,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	logger.Debug("resolving subscriptions in namespace")
 
 	// resolve a set of steps to apply to a cluster, a set of subscriptions to create/update, and any errors
-	steps, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
+	steps, bundleLookups, updatedSubs, err := o.resolver.ResolveSteps(namespace, querier)
 	if err != nil {
 		return err
 	}
@@ -790,7 +809,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			}
 		}
 
-		installPlanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps)
+		installPlanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps, bundleLookups)
 		if err != nil {
 			logger.WithError(err).Debug("error ensuring installplan")
 			return err
@@ -799,7 +818,6 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			logger.WithError(err).Debug("error ensuring subscription installplan state")
 			return err
 		}
-		return nil
 	}
 
 	return nil
@@ -931,8 +949,8 @@ func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.S
 	return err
 }
 
-func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*corev1.ObjectReference, error) {
-	if len(steps) == 0 {
+func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
+	if len(steps) == 0 && len(bundleLookups) == 0 {
 		return nil, nil
 	}
 
@@ -959,8 +977,7 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 				}
 			}
 
-			// Use provided `installPlanApproval` to determine the appropreciate
-			// phase
+			// Use provided `installPlanApproval` to determine the appropriate phase
 			if installPlanApproval == v1alpha1.ApprovalAutomatic {
 				out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
 			} else {
@@ -978,11 +995,11 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	}
 	logger.Warn("no installplan found with matching manifests, creating new one")
 
-	return o.createInstallPlan(namespace, subs, installPlanApproval, steps)
+	return o.createInstallPlan(namespace, subs, installPlanApproval, steps, bundleLookups)
 }
 
-func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step) (*corev1.ObjectReference, error) {
-	if len(steps) == 0 {
+func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
+	if len(steps) == 0 && len(bundleLookups) == 0 {
 		return nil, nil
 	}
 
@@ -1027,6 +1044,7 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 		Phase:          phase,
 		Plan:           steps,
 		CatalogSources: catalogSources,
+		BundleLookups:  bundleLookups,
 	}
 	res, err = o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(res)
 	if err != nil {
@@ -1034,6 +1052,50 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 	}
 
 	return reference.GetReference(res)
+}
+
+func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.InstallPlan, error) {
+	out := plan.DeepCopy()
+	unpacked := true
+
+	var errs []error
+	for i := 0; i < len(out.Status.BundleLookups); i++ {
+		lookup := out.Status.BundleLookups[i]
+		res, err := o.bundleUnpacker.UnpackBundle(&lookup)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		if res == nil {
+			unpacked = false
+			continue
+		}
+
+		out.Status.BundleLookups[i] = *res.BundleLookup
+		if res.Bundle() == nil || len(res.Bundle().GetObject()) == 0 {
+			unpacked = false
+			continue
+		}
+
+		steps, err := resolver.NewStepsFromBundle(res.Bundle(), out.GetNamespace(), res.Replaces, res.CatalogSourceRef.Name, res.CatalogSourceRef.Namespace)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("failed to turn bundle into steps: %s", err.Error()))
+			unpacked = false
+			continue
+		}
+
+		// Add steps and remove resolved bundle lookup
+		out.Status.Plan = append(out.Status.Plan, steps...)
+		out.Status.BundleLookups = append(out.Status.BundleLookups[:i], out.Status.BundleLookups[i+1:]...)
+		i--
+	}
+
+	if err := utilerrors.NewAggregate(errs); err != nil {
+		return false, nil, err
+	}
+
+	return unpacked, out, nil
 }
 
 func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
@@ -1052,9 +1114,40 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 
 	logger.Info("syncing")
 
-	if len(plan.Status.Plan) == 0 {
+	if len(plan.Status.Plan) == 0 && len(plan.Status.BundleLookups) == 0 {
 		logger.Info("skip processing installplan without status - subscription sync responsible for initial status")
 		return
+	}
+
+	// Attempt to unpack bundles before installing
+	// Note: This should probably use the attenuated client to prevent users from resolving resources they otherwise don't have access to.
+	if len(plan.Status.BundleLookups) > 0 {
+		unpacked, out, err := o.unpackBundles(plan)
+		if err != nil {
+			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
+			return
+		}
+
+		if !reflect.DeepEqual(plan.Status, out.Status) {
+			logger.Warnf("status not equal, updating...")
+			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).UpdateStatus(out); err != nil {
+				syncError = fmt.Errorf("failed to update installplan bundle lookups: %v", err)
+			}
+
+			return
+		}
+
+		// TODO: Remove in favor of job and configmap informer requeuing
+		if !unpacked {
+			err := o.ipQueueSet.RequeueAfter(plan.GetNamespace(), plan.GetName(), 5*time.Second)
+			if err != nil {
+				syncError = err
+				return
+			}
+			logger.Debug("install plan not yet populated from bundle image, requeueing")
+
+			return
+		}
 	}
 
 	querier := o.serviceAccountQuerier.NamespaceQuerier(plan.GetNamespace())
@@ -1095,11 +1188,13 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		if owners := ownerutil.GetOwnersByKind(plan, v1alpha1.SubscriptionKind); len(owners) > 0 {
 			for _, owner := range owners {
 				logger.WithField("owner", owner).Debug("requeueing installplan owner")
-				o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name)
+				if err := o.subQueueSet.Requeue(plan.GetNamespace(), owner.Name); err != nil {
+					logger.WithError(err).Warn("error requeuing installplan owner")
+				}
 			}
-		} else {
-			logger.Trace("no installplan owner subscriptions found to requeue")
+			return
 		}
+		logger.Trace("no installplan owner subscriptions found to requeue")
 	}()
 
 	// Update InstallPlan with status of transition. Log errors if we can't write them to the status.

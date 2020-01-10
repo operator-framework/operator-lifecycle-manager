@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -98,6 +99,22 @@ func fetchInstallPlanWithNamespace(t *testing.T, c versioned.Interface, name str
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(name, metav1.GetOptions{})
 		if err != nil || fetchedInstallPlan == nil {
+			return false, err
+		}
+
+		return checkPhase(fetchedInstallPlan), nil
+	})
+	return fetchedInstallPlan, err
+}
+
+// do not return an error if the installplan has not been created yet
+func waitForInstallPlan(t *testing.T, c versioned.Interface, name string, namespace string, checkPhase checkInstallPlanFunc) (*v1alpha1.InstallPlan, error) {
+	var fetchedInstallPlan *v1alpha1.InstallPlan
+	var err error
+
+	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		fetchedInstallPlan, err = c.OperatorsV1alpha1().InstallPlans(namespace).Get(name, metav1.GetOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
 			return false, err
 		}
 
@@ -1012,13 +1029,16 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			require.NoError(t, err)
 
 			// Update the subscription resource to point to the beta CSV
-			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(t, err)
-			require.NotNil(t, subscription)
+			err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+				require.NoError(t, err)
+				require.NotNil(t, subscription)
 
-			subscription.Spec.Channel = betaChannel
-			subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
-			require.NoError(t, err)
+				subscription.Spec.Channel = betaChannel
+				subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
+
+				return err
+			})
 
 			// Wait for subscription to have a new installplan
 			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
@@ -2551,4 +2571,83 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 	t.Logf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase)
 
 	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+}
+
+func TestInstallPlanUnpacksBundleImage(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("ns-"),
+		},
+	})
+	require.NoError(t, err)
+
+	deleteOpts := &metav1.DeleteOptions{}
+	defer func() {
+		require.NoError(t, c.KubernetesInterface().CoreV1().Namespaces().Delete(ns.GetName(), deleteOpts))
+	}()
+
+	catsrc := &v1alpha1.CatalogSource{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("kiali-"),
+			Namespace: ns.GetName(),
+			Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
+		},
+		Spec: v1alpha1.CatalogSourceSpec{
+			Image:      "quay.io/olmtest/installplan_e2e-registry-image:latest",
+			SourceType: v1alpha1.SourceTypeGrpc,
+		},
+	}
+	catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(catsrc)
+	require.NoError(t, err)
+
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(catsrc.GetName(), deleteOpts))
+	}()
+
+	// Wait for the CatalogSource to be ready
+	catsrc, err = fetchCatalogSource(t, crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Generate a Subscription
+	subName := genName("kiali-")
+	cleanupSub := createSubscriptionForCatalog(t, crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer cleanupSub()
+
+	sub, err := fetchSubscription(t, crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+
+	// Wait for the expected InstallPlan's execution to either fail or succeed
+	ipName := sub.Status.InstallPlanRef.Name
+	ip, err := waitForInstallPlan(t, crc, ipName, sub.GetNamespace(), buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseFailed, v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, ip.Status.Phase, "InstallPlan not complete")
+
+	// Ensure the InstallPlan contains the steps resolved from the bundle image
+	operatorName := "kiali-operator"
+	expectedSteps := map[registry.ResourceKey]struct{}{
+		registry.ResourceKey{Name: operatorName, Kind: "ClusterServiceVersion"}:                                  {},
+		registry.ResourceKey{Name: "kialis.kiali.io", Kind: "CustomResourceDefinition"}:                          {},
+		registry.ResourceKey{Name: "monitoringdashboards.monitoring.kiali.io", Kind: "CustomResourceDefinition"}: {},
+		registry.ResourceKey{Name: operatorName, Kind: "ServiceAccount"}:                                         {},
+		registry.ResourceKey{Name: operatorName, Kind: "ClusterRole"}:                                            {},
+		registry.ResourceKey{Name: operatorName, Kind: "ClusterRoleBinding"}:                                     {},
+	}
+	require.Lenf(t, ip.Status.Plan, len(expectedSteps), "number of expected steps does not match installed: %v", ip.Status.Plan)
+
+	for _, step := range ip.Status.Plan {
+		key := registry.ResourceKey{
+			Name: step.Resource.Name,
+			Kind: step.Resource.Kind,
+		}
+		for expected := range expectedSteps {
+			if strings.HasPrefix(key.Name, expected.Name) && key.Kind == expected.Kind {
+				delete(expectedSteps, expected)
+			}
+		}
+	}
+	require.Lenf(t, expectedSteps, 0, "Actual resource steps do not match expected: %#v", expectedSteps)
 }

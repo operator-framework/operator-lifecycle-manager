@@ -2,8 +2,10 @@ package generator
 
 import (
 	"fmt"
+	"go/build"
 	"go/types"
 	"log"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -19,11 +21,19 @@ func (f *Fake) loadPackages(c Cacher, workingDir string) error {
 		log.Printf("loaded %v packages from cache\n", len(f.Packages))
 		return nil
 	}
+	importPath := f.TargetPackage
+	if !filepath.IsAbs(importPath) {
+		bp, err := build.Import(f.TargetPackage, workingDir, build.FindOnly)
+		if err != nil {
+			return err
+		}
+		importPath = bp.ImportPath
+	}
 	p, err := packages.Load(&packages.Config{
 		Mode:  packages.NeedName | packages.NeedFiles | packages.NeedImports | packages.NeedDeps | packages.NeedTypes,
 		Dir:   workingDir,
 		Tests: true,
-	}, f.TargetPackage)
+	}, importPath)
 	if err != nil {
 		return err
 	}

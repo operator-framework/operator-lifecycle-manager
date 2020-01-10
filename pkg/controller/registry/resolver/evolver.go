@@ -87,7 +87,6 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 			bundle, key, err = e.querier.FindLatestBundle(s.Package, s.Channel, s.Catalog)
 		}
 		if err != nil {
-			// TODO: log or collect warnings
 			return errors.Wrapf(err, "%s not found", s)
 		}
 
@@ -96,9 +95,7 @@ func (e *NamespaceGenerationEvolver) addNewOperators(add map[OperatorSourceInfo]
 			return errors.Wrap(err, "error parsing bundle")
 		}
 		if err := e.gen.AddOperator(o); err != nil {
-			if err != nil {
-				return errors.Wrap(err, "error calculating generation changes due to new bundle")
-			}
+			return errors.Wrap(err, "error calculating generation changes due to new bundle")
 		}
 	}
 	return nil
@@ -115,14 +112,14 @@ func (e *NamespaceGenerationEvolver) queryForRequiredAPIs() error {
 		e.gen.MarkAPIChecked(*api)
 
 		// identify the initialSource
-		initialSource := CatalogKey{}
+		var initialSource *OperatorSourceInfo
 		for _, operator := range e.gen.MissingAPIs()[*api] {
-			initialSource = operator.SourceInfo().Catalog
+			initialSource = operator.SourceInfo()
 			break
 		}
 
 		// attempt to find a bundle that provides that api
-		if bundle, key, err := e.querier.FindProvider(*api, initialSource); err == nil {
+		if bundle, key, err := e.querier.FindProvider(*api, initialSource.Catalog); err == nil {
 			// add a bundle that provides the api to the generation
 			o, err := NewOperatorFromBundle(bundle, "", *key)
 			if err != nil {

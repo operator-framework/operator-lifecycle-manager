@@ -75,6 +75,20 @@ func (b *Bundle) ClusterServiceVersion() (*ClusterServiceVersion, error) {
 	return b.csv, nil
 }
 
+func (b *Bundle) Version() (string, error) {
+	if err := b.cache(); err != nil {
+		return "", err
+	}
+	return b.csv.GetVersion()
+}
+
+func (b *Bundle) SkipRange() (string, error) {
+	if err := b.cache(); err != nil {
+		return "", err
+	}
+	return b.csv.GetSkipRange(), nil
+}
+
 func (b *Bundle) CustomResourceDefinitions() ([]*v1beta1.CustomResourceDefinition, error) {
 	if err := b.cache(); err != nil {
 		return nil, err
