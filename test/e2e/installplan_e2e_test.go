@@ -20,6 +20,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/kubernetes/pkg/apis/rbac"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -1028,13 +1029,16 @@ func TestInstallPlanWithCRDSchemaChange(t *testing.T) {
 			require.NoError(t, err)
 
 			// Update the subscription resource to point to the beta CSV
-			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
-			require.NoError(t, err)
-			require.NotNil(t, subscription)
+			err = retry.RetryOnConflict(retry.DefaultBackoff, func() error {
+				subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+				require.NoError(t, err)
+				require.NotNil(t, subscription)
 
-			subscription.Spec.Channel = betaChannel
-			subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
-			require.NoError(t, err)
+				subscription.Spec.Channel = betaChannel
+				subscription, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(subscription)
+
+				return err
+			})
 
 			// Wait for subscription to have a new installplan
 			subscription, err = fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanDifferentChecker(fetchedInstallPlan.GetName()))
