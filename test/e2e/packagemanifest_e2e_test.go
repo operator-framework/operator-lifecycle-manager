@@ -66,6 +66,7 @@ func TestPackageManifestLoading(t *testing.T) {
 	catalogSourceName := genName("mock-ocs")
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
+
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	pmc := newPMClient(t)
@@ -110,79 +111,6 @@ func TestPackageManifestLoading(t *testing.T) {
 
 	// Get a PackageManifestList and ensure it has the correct items
 	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
-	require.NoError(t, err, "could not access package manifests list meta")
-	require.NotNil(t, pmList.ListMeta, "package manifest list metadata empty")
-	require.NotNil(t, pmList.Items)
-}
-
-func TestPackageManifestLoading(t *testing.T) {
-	defer cleaner.NotifyTestComplete(t, true)
-
-	// create a simple catalogsource
-	packageName := genName("nginx")
-	stableChannel := "stable"
-	packageStable := packageName + "-stable"
-	manifests := []registry.PackageManifest{
-		{
-			PackageName: packageName,
-			Channels: []registry.PackageChannel{
-				{Name: stableChannel, CurrentCSVName: packageStable},
-			},
-			DefaultChannelName: stableChannel,
-		},
-	}
-
-	crdPlural := genName("ins")
-	crd := newCRD(crdPlural)
-	catalogSourceName := genName("mock-ocs")
-	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
-	csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-	csv.SetLabels(map[string]string{"projected": "label"})
-	c := newKubeClient(t)
-	crc := newCRClient(t)
-	pmc := newPMClient(t)
-
-	expectedStatus := packagev1.PackageManifestStatus{
-		CatalogSource:          catalogSourceName,
-		CatalogSourceNamespace: testNamespace,
-		PackageName:            packageName,
-		Channels: []packagev1.PackageChannel{
-			{
-				Name:           stableChannel,
-				CurrentCSV:     packageStable,
-				CurrentCSVDesc: packagev1.CreateCSVDescription(&csv),
-			},
-		},
-		DefaultChannel: stableChannel,
-	}
-
-	// Wait for package-server to be ready
-	err := wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
-		t.Logf("Polling package-server...")
-		_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
-		if err == nil {
-			return true, nil
-		}
-		return false, nil
-	})
-	require.NoError(t, err, "package-server not available")
-
-	_, cleanupCatalogSource := createInternalCatalogSource(t, c, crc, catalogSourceName, testNamespace, manifests, []apiextensions.CustomResourceDefinition{crd}, []v1alpha1.ClusterServiceVersion{csv})
-	require.NoError(t, err)
-	defer cleanupCatalogSource()
-
-	_, err = fetchCatalogSource(t, crc, catalogSourceName, testNamespace, catalogSourceRegistryPodSynced)
-	require.NoError(t, err)
-
-	pm, err := fetchPackageManifest(t, pmc, testNamespace, packageName, packageManifestHasStatus)
-	require.NoError(t, err, "error getting package manifest")
-	require.NotNil(t, pm)
-	require.Equal(t, packageName, pm.GetName())
-	require.Equal(t, expectedStatus, pm.Status)
-	require.Contains(t, pm.GetLabels(), map[string]string{"projected": "label"})
-
-	// Filter PackageManifestList and ensure it has the correct items
-	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{LabelSelector: "projected=label"})
 	require.NoError(t, err, "could not access package manifests list meta")
 	require.NotNil(t, pmList.ListMeta, "package manifest list metadata empty")
 	require.NotNil(t, pmList.Items)

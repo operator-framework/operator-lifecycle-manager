@@ -370,7 +370,7 @@ func (p *RegistryProvider) Get(namespace, name string) (*operators.PackageManife
 		"namespace": namespace,
 	})
 
-	pkgs, err := p.List(namespace, labels.Everything())
+	pkgs, err := p.List(namespace)
 	if err != nil {
 		return nil, fmt.Errorf("could not list packages in namespace %s", namespace)
 	}
@@ -385,7 +385,7 @@ func (p *RegistryProvider) Get(namespace, name string) (*operators.PackageManife
 	return nil, nil
 }
 
-func (p *RegistryProvider) List(namespace string, selector labels.Selector) (*operators.PackageManifestList, error) {
+func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestList, error) {
 	var pkgs []*operators.PackageManifest
 	if namespace == metav1.NamespaceAll {
 		all, err := p.pkgLister.List(labels.Everything())
@@ -394,14 +394,14 @@ func (p *RegistryProvider) List(namespace string, selector labels.Selector) (*op
 		}
 		pkgs = append(pkgs, all...)
 	} else {
-		nsPkgs, err := p.pkgLister.PackageManifests(namespace).List(selector)
+		nsPkgs, err := p.pkgLister.PackageManifests(namespace).List(labels.Everything())
 		if err != nil {
 			return nil, err
 		}
 		pkgs = append(pkgs, nsPkgs...)
 
 		if namespace != p.globalNamespace {
-			globalPkgs, err := p.pkgLister.PackageManifests(p.globalNamespace).List(selector)
+			globalPkgs, err := p.pkgLister.PackageManifests(p.globalNamespace).List(labels.Everything())
 			if err != nil {
 				return nil, err
 			}
@@ -464,11 +464,6 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 			defaultElided = defaultElided || pkgChannel.Name == manifest.Status.DefaultChannel
 			continue
 		}
-		manifestLabels := manifest.GetLabels()
-		for k, v := range csv.GetLabels() {
-			manifestLabels[k] = v
-		}
-		manifest.SetLabels(manifest.GetLabels())
 		manifest.Status.Channels = append(manifest.Status.Channels, operators.PackageChannel{
 			Name:           pkgChannel.GetName(),
 			CurrentCSV:     csv.GetName(),
