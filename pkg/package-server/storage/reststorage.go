@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+
 	"k8s.io/apimachinery/pkg/fields"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -114,7 +115,6 @@ func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *met
 func (m *PackageManifestStorage) NamespaceScoped() bool {
 	return true
 }
-
 
 func nameFor(fs fields.Selector) (string, error) {
 	if fs == nil {

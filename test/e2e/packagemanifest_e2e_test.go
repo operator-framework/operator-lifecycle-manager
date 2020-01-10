@@ -108,10 +108,12 @@ func TestPackageManifestLoading(t *testing.T) {
 	require.NotNil(t, pm)
 	require.Equal(t, packageName, pm.GetName())
 	require.Equal(t, expectedStatus, pm.Status)
-	require.Equal(t, pm.GetLabels()["projected"], "label")
+	require.Equal(t, "label", pm.GetLabels()["projected"])
+	require.Equal(t, "supported", pm.GetLabels()["operatorframework.io/arch.amd64"])
+	require.Equal(t, "supported", pm.GetLabels()["operatorframework.io/os.linux"])
 
-	// Filter PackageManifestList and ensure it has the correct items
-	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{LabelSelector: "projected=label"})
+	// Get a PackageManifestList and ensure it has the correct items
+	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
 	require.NoError(t, err, "could not access package manifests list meta")
 	require.NotNil(t, pmList.ListMeta, "package manifest list metadata empty")
 	require.NotNil(t, pmList.Items)
