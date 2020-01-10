@@ -448,6 +448,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 	var (
 		providerSet   bool
 		defaultElided bool
+		defaultCsv    *operatorsv1alpha1.ClusterServiceVersion
 	)
 	for _, pkgChannel := range pkgChannels {
 		bundle, err := client.GetBundleForChannel(ctx, &api.GetBundleInChannelRequest{PkgName: pkg.GetName(), ChannelName: pkgChannel.GetName()})
@@ -464,11 +465,9 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 			defaultElided = defaultElided || pkgChannel.Name == manifest.Status.DefaultChannel
 			continue
 		}
-		manifestLabels := manifest.GetLabels()
-		for k, v := range csv.GetLabels() {
-			manifestLabels[k] = v
+		if defaultCsv == nil || pkgChannel.GetName() == manifest.Status.DefaultChannel {
+			defaultCsv = &csv
 		}
-		manifest.SetLabels(manifest.GetLabels())
 		manifest.Status.Channels = append(manifest.Status.Channels, operators.PackageChannel{
 			Name:           pkgChannel.GetName(),
 			CurrentCSV:     csv.GetName(),
@@ -494,6 +493,11 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 		logger.Warn("default channel elided, setting as first in packagemanifest")
 		manifest.Status.DefaultChannel = manifest.Status.Channels[0].Name
 	}
-
+	manifestLabels := manifest.GetLabels()
+	for k, v := range defaultCsv.GetLabels() {
+		manifestLabels[k] = v
+	}
+	setDefaultOsArchLabels(manifestLabels)
+	manifest.SetLabels(manifestLabels)
 	return manifest, nil
 }

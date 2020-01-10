@@ -2,6 +2,9 @@ package storage
 
 import (
 	"context"
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/fields"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
@@ -66,12 +69,23 @@ func (m *PackageManifestStorage) List(ctx context.Context, options *metainternal
 		labelSelector = options.LabelSelector
 	}
 
+	name, err := nameFor(options.FieldSelector)
+	if err != nil {
+		return nil, err
+	}
+
 	res, err := m.prov.List(namespace, labelSelector)
 	if err != nil {
 		return nil, k8serrors.NewInternalError(err)
 	}
 
-	filtered := res.Items
+	filtered := []operators.PackageManifest{}
+	for _, manifest := range res.Items {
+		if matches(manifest, name) {
+			filtered = append(filtered, manifest)
+		}
+	}
+
 	for i := range filtered {
 		for j := range filtered[i].Status.Channels {
 			filtered[i].Status.Channels[j].CurrentCSVDesc.Icon = []operators.Icon{}
@@ -100,4 +114,24 @@ func (m *PackageManifestStorage) Get(ctx context.Context, name string, opts *met
 // NamespaceScoped satisfies the Scoper interface
 func (m *PackageManifestStorage) NamespaceScoped() bool {
 	return true
+}
+
+func nameFor(fs fields.Selector) (string, error) {
+	if fs == nil {
+		fs = fields.Everything()
+	}
+	name := ""
+	if value, found := fs.RequiresExactMatch("metadata.name"); found {
+		name = value
+	} else if !fs.Empty() {
+		return "", fmt.Errorf("field label not supported: %s", fs.Requirements()[0].Field)
+	}
+	return name, nil
+}
+
+func matches(pm operators.PackageManifest, name string) bool {
+	if name == "" {
+		name = pm.GetName()
+	}
+	return pm.GetName() == name
 }

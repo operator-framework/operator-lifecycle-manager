@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	port    = "50051"
+	port    = "50054"
 	address = "localhost:"
 	dbName  = "test.db"
 )
@@ -171,10 +171,12 @@ func TestToPackageManifest(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"catalog":           "cool-operators",
-						"catalog-namespace": "ns",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -230,11 +232,13 @@ func TestToPackageManifest(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"test":              "label",
-						"catalog":           "cool-operators",
-						"catalog-namespace": "ns",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"test":                            "label",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -294,10 +298,12 @@ func TestToPackageManifest(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"catalog":           "cool-operators",
-						"catalog-namespace": "ns",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -357,10 +363,12 @@ func TestToPackageManifest(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"catalog":           "cool-operators",
-						"catalog-namespace": "ns",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -475,10 +483,12 @@ func TestRegistryProviderGet(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"catalog":           "cool-operators",
-						"catalog-namespace": "ns",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -522,10 +532,12 @@ func TestRegistryProviderGet(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"catalog":           "cool-operators",
-						"catalog-namespace": "ns",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "ns",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -568,10 +580,12 @@ func TestRegistryProviderGet(t *testing.T) {
 					Name:      "etcd",
 					Namespace: "ns",
 					Labels: labels.Set{
-						"catalog":           "cool-operators",
-						"catalog-namespace": "global",
-						"provider":          "CoreOS, Inc",
-						"provider-url":      "",
+						"catalog":                         "cool-operators",
+						"catalog-namespace":               "global",
+						"provider":                        "CoreOS, Inc",
+						"provider-url":                    "",
+						"operatorframework.io/arch.amd64": "supported",
+						"operatorframework.io/os.linux":   "supported",
 					},
 				},
 				Status: operators.PackageManifestStatus{
@@ -653,10 +667,12 @@ func TestRegistryProviderList(t *testing.T) {
 						Name:      "prometheus",
 						Namespace: "ns",
 						Labels: labels.Set{
-							"catalog":           "cool-operators",
-							"catalog-namespace": "ns",
-							"provider":          "Red Hat",
-							"provider-url":      "",
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
 						},
 					},
 					Status: operators.PackageManifestStatus{
@@ -685,10 +701,12 @@ func TestRegistryProviderList(t *testing.T) {
 						Name:      "etcd",
 						Namespace: "ns",
 						Labels: labels.Set{
-							"catalog":           "cool-operators",
-							"catalog-namespace": "ns",
-							"provider":          "CoreOS, Inc",
-							"provider-url":      "",
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
 						},
 					},
 					Status: operators.PackageManifestStatus{
@@ -729,10 +747,12 @@ func TestRegistryProviderList(t *testing.T) {
 						Name:      "prometheus",
 						Namespace: "ns",
 						Labels: labels.Set{
-							"catalog":           "cool-operators",
-							"catalog-namespace": "ns",
-							"provider":          "Red Hat",
-							"provider-url":      "",
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
 						},
 					},
 					Status: operators.PackageManifestStatus{
@@ -761,10 +781,12 @@ func TestRegistryProviderList(t *testing.T) {
 						Name:      "etcd",
 						Namespace: "ns",
 						Labels: labels.Set{
-							"catalog":           "cool-operators",
-							"catalog-namespace": "ns",
-							"provider":          "CoreOS, Inc",
-							"provider-url":      "",
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
 						},
 					},
 					Status: operators.PackageManifestStatus{
@@ -848,10 +870,12 @@ func TestRegistryProviderList(t *testing.T) {
 						Name:      "has-bundle",
 						Namespace: "ns",
 						Labels: labels.Set{
-							"catalog":           "cool-operators",
-							"catalog-namespace": "ns",
-							"provider":          "CoreOS, Inc",
-							"provider-url":      "",
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
 						},
 					},
 					Status: operators.PackageManifestStatus{
