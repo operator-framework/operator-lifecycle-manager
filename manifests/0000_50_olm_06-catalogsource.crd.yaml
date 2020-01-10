@@ -12,6 +12,7 @@ spec:
   - name: v1alpha1
     served: true
     storage: true
+  preserveUnknownFields: false
   scope: Namespaced
   names:
     plural: catalogsources
@@ -38,7 +39,6 @@ spec:
   - name: Age
     type: date
     JSONPath: .metadata.creationTimestamp
-  preserveUnknownFields: false
   subresources:
     # status enables the status subresource.
     status: {}
@@ -97,6 +97,16 @@ spec:
                 a registry-server with. Only used when SourceType = SourceTypeGrpc.
                 If present, the address field is ignored.
               type: string
+            poll:
+              description: Poll is used to determine the time interval between checks
+                of the latest catalog source version. The catalog operator polls to
+                see if a new version of the catalog source is available. If available,
+                the latest image is pulled and gRPC traffic is directed to the latest
+                catalog source.
+              type: object
+              properties:
+                interval:
+                  type: string
             publisher:
               type: string
             secrets:
@@ -145,6 +155,11 @@ spec:
                   format: date-time
                 lastObservedState:
                   type: string
+            latestImageRegistryPoll:
+              description: The last time the CatalogSource image registry has been
+                polled to ensure the image is up-to-date
+              type: string
+              format: date-time
             message:
               description: A human readable message indicating details about why the
                 ClusterServiceVersion is in this condition.
