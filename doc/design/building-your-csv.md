@@ -169,16 +169,17 @@ The Lifecycle Manager will check against the available CRDs and Operators in the
       description: Represents a cluster of etcd nodes.
 ```
 ## CRD Templates
-Users of your Operator will need to be aware of which options are required vs optional. You can provide templates for each of your CRDs with a minimum set of configuration as an annotation named `alm-examples`. Compatible UIs will pre-enter this template for users to further customize.
+Users of your Operator will need to be aware of which options are required vs optional. You can provide templates for each of your CRDs with a minimum set of configuration as an annotation named `alm-examples`. Metadata for each template, for exmaple an expanded description, can be included in an annotation named `alm-examples-metadata`, which should match the ordering of the `alm-examples` list. Compatible UIs will pre-enter the `alm-examples` template for users to further customize, and use the `alm-examples-metadata` to help users decide which template to select.
 
 The annotation consists of a list of the `kind`, eg. the CRD name, and the corresponding `metadata` and `spec` of the Kubernetes object. Here’s a full example that provides templates for `EtcdCluster`, `EtcdBackup` and `EtcdRestore`:
 
 ```yaml
 metadata:
   annotations:
+    alm-examples-metadata: >-
+      [{"description":"Example EtcdCluster CR"},{"description":"Example EtcdRestore CR that restores data from S3"},{"description":"Example EtcdBackup CR that stores backups on S3"}]
     alm-examples: >-
       [{"apiVersion":"etcd.database.coreos.com/v1beta2","kind":"EtcdCluster","metadata":{"name":"example","namespace":"default"},"spec":{"size":3,"version":"3.2.13"}},{"apiVersion":"etcd.database.coreos.com/v1beta2","kind":"EtcdRestore","metadata":{"name":"example-etcd-cluster"},"spec":{"etcdCluster":{"name":"example-etcd-cluster"},"backupStorageType":"S3","s3":{"path":"<full-s3-path>","awsSecret":"<aws-secret>"}}},{"apiVersion":"etcd.database.coreos.com/v1beta2","kind":"EtcdBackup","metadata":{"name":"example-etcd-cluster-backup"},"spec":{"etcdEndpoints":["<etcd-cluster-endpoints>"],"storageType":"S3","s3":{"path":"<full-s3-path>","awsSecret":"<aws-secret>"}}}]
-
 ```
 
 ## Your API Services
