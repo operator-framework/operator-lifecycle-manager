@@ -19,6 +19,7 @@ spec:
     categories:
     - olm
   scope: Namespaced
+  preserveUnknownFields: false
   subresources:
     # status enables the status subresource.
     status: {}

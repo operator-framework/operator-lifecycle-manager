@@ -40,6 +40,7 @@ spec:
     served: true
     storage: true
   scope: Namespaced
+  preserveUnknownFields: false
   subresources:
     status: {}
   validation:

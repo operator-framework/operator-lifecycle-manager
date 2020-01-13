@@ -37,6 +37,7 @@ spec:
     type: string
     description: The channel of updates to subscribe to
     JSONPath: .spec.channel
+  preserveUnknownFields: false
   subresources:
     # status enables the status subresource.
     status: {}
