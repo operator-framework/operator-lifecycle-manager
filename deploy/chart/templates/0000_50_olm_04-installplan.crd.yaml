@@ -35,6 +35,7 @@ spec:
   - name: Approved
     type: boolean
     JSONPath: .spec.approved
+  preserveUnknownFields: false
   subresources:
     # status enables the status subresource.
     status: {}
