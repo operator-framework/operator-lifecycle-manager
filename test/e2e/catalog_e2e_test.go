@@ -750,9 +750,10 @@ func TestCatalogImageUpdate(t *testing.T) {
 		Spec: v1alpha1.CatalogSourceSpec{
 			SourceType: v1alpha1.SourceTypeGrpc,
 			Image:      oldImage[9:], // strip off docker://
-			Poll: &v1alpha1.Poll{
-				Interval: metav1.Duration{
-					Duration: 1 * time.Minute},
+			UpdateStrategy: &v1alpha1.UpdateStrategy{
+				RegistryPoll: &v1alpha1.RegistryPoll{
+					Interval: &metav1.Duration{Duration: 1 * time.Minute},
+				},
 			},
 		},
 	}

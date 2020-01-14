@@ -181,7 +181,7 @@ func (c *GrpcRegistryReconciler) ensurePod(source grpcCatalogSourceDecorator, ov
 
 // ensureUpdatePod checks that for the same catalog source version the same imageID is running
 func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorator) error {
-	if !source.PollingEnabled() {
+	if !source.Poll() {
 		return nil
 	}
 	var updateFlag bool
@@ -218,7 +218,7 @@ func (c *GrpcRegistryReconciler) ensureUpdatePod(source grpcCatalogSourceDecorat
 		logrus.WithField("CatalogSource", source.GetName()).Info("no image update for catalogsource pod")
 	}
 
-	if source.ReadyToUpdate() {
+	if source.Update() {
 		logrus.WithField("CatalogSource", source.GetName()).Info("creating new catalog source update pod")
 		// Clean up outdated update pod(s) before creating a new update pod
 		currentUpdatePods = c.currentUpdatePods(source)
