@@ -42,7 +42,6 @@ spec:
   scope: Namespaced
   preserveUnknownFields: false
   subresources:
-    # status enables the status subresource.
     status: {}
   validation:
     openAPIV3Schema:
@@ -824,7 +823,6 @@ spec:
                                     description: 'Standard object''s metadata. More
                                       info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
                                     type: object
-                                    # TODO: Autogen this...
                                     x-kubernetes-preserve-unknown-fields: true
                                   spec:
                                     description: 'Specification of the desired behavior
