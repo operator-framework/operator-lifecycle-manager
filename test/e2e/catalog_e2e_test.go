@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"fmt"
+	"net"
 	"reflect"
 	"testing"
 	"time"
@@ -499,7 +500,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			SourceType: v1alpha1.SourceTypeGrpc,
-			Address:    fmt.Sprintf("%s:%s", mainCopy.Status.PodIP, "50051"),
+			Address:    net.JoinHostPort(mainCopy.Status.PodIP, "50051"),
 		},
 	}
 
@@ -530,7 +531,7 @@ func TestGrpcAddressCatalogSource(t *testing.T) {
 	// Update the catalog's address to point at the other registry pod's cluster ip
 	addressSource, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Get(addressSourceName, metav1.GetOptions{})
 	require.NoError(t, err)
-	addressSource.Spec.Address = fmt.Sprintf("%s:%s", replacementCopy.Status.PodIP, "50051")
+	addressSource.Spec.Address = net.JoinHostPort(replacementCopy.Status.PodIP, "50051")
 	_, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Update(addressSource)
 	require.NoError(t, err)
 
