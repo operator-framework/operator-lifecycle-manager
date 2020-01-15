@@ -753,6 +753,7 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 	}
 
 	// TODO: parallel
+	maxGeneration := 0
 	subscriptionUpdated := false
 	for i, sub := range subs {
 		logger := logger.WithFields(logrus.Fields{
@@ -761,6 +762,10 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			"pkg":     sub.Spec.Package,
 			"channel": sub.Spec.Channel,
 		})
+
+		if sub.Status.InstallPlanGeneration > maxGeneration {
+			maxGeneration = sub.Status.InstallPlanGeneration
+		}
 
 		// ensure the installplan reference is correct
 		sub, changedIP, err := o.ensureSubscriptionInstallPlanState(logger, sub)
@@ -813,12 +818,12 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 			}
 		}
 
-		installPlanReference, err := o.ensureInstallPlan(logger, namespace, subs, installPlanApproval, steps, bundleLookups)
+		installPlanReference, err := o.ensureInstallPlan(logger, namespace, maxGeneration+1, subs, installPlanApproval, steps, bundleLookups)
 		if err != nil {
 			logger.WithError(err).Debug("error ensuring installplan")
 			return err
 		}
-		if err := o.updateSubscriptionStatus(namespace, updatedSubs, installPlanReference); err != nil {
+		if err := o.updateSubscriptionStatus(namespace, maxGeneration+1, updatedSubs, installPlanReference); err != nil {
 			logger.WithError(err).Debug("error ensuring subscription installplan state")
 			return err
 		}
@@ -936,7 +941,7 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 	return updatedSub, true, nil
 }
 
-func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.Subscription, installPlanRef *corev1.ObjectReference) error {
+func (o *Operator) updateSubscriptionStatus(namespace string, gen int, subs []*v1alpha1.Subscription, installPlanRef *corev1.ObjectReference) error {
 	// TODO: parallel, sync waitgroup
 	var err error
 	for _, sub := range subs {
@@ -945,6 +950,7 @@ func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.S
 			sub.Status.InstallPlanRef = installPlanRef
 			sub.Status.Install = v1alpha1.NewInstallPlanReference(installPlanRef)
 			sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
+			sub.Status.InstallPlanGeneration = gen
 		}
 		if _, subErr := o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(sub); subErr != nil {
 			err = subErr
@@ -953,7 +959,7 @@ func (o *Operator) updateSubscriptionStatus(namespace string, subs []*v1alpha1.S
 	return err
 }
 
-func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
+func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen int, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
 	if len(steps) == 0 && len(bundleLookups) == 0 {
 		return nil, nil
 	}
@@ -965,44 +971,16 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, sub
 	}
 
 	for _, installPlan := range installPlans {
-		if installPlan.Status.CSVManifestsMatch(steps) {
-			logger.Infof("found InstallPlan with matching manifests: %s", installPlan.GetName())
-
-			ownerWasAdded := false
-			for _, sub := range subs {
-				ownerWasAdded = ownerWasAdded || !ownerutil.EnsureOwner(installPlan, sub)
-			}
-
-			out := installPlan.DeepCopy()
-			if ownerWasAdded {
-				out, err = o.client.OperatorsV1alpha1().InstallPlans(installPlan.GetNamespace()).Update(installPlan)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			// Use provided `installPlanApproval` to determine the appropriate phase
-			if installPlanApproval == v1alpha1.ApprovalAutomatic {
-				out.Status.Phase = v1alpha1.InstallPlanPhaseInstalling
-			} else {
-				out.Status.Phase = v1alpha1.InstallPlanPhaseRequiresApproval
-			}
-			for _, step := range out.Status.Plan {
-				step.Status = v1alpha1.StepStatusUnknown
-			}
-			res, err := o.client.OperatorsV1alpha1().InstallPlans(namespace).UpdateStatus(out)
-			if err != nil {
-				return nil, err
-			}
-			return reference.GetReference(res)
+		if installPlan.Spec.Generation == gen {
+			return reference.GetReference(installPlan)
 		}
 	}
 	logger.Warn("no installplan found with matching manifests, creating new one")
 
-	return o.createInstallPlan(namespace, subs, installPlanApproval, steps, bundleLookups)
+	return o.createInstallPlan(namespace, gen, subs, installPlanApproval, steps, bundleLookups)
 }
 
-func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
+func (o *Operator) createInstallPlan(namespace string, gen int, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
 	if len(steps) == 0 && len(bundleLookups) == 0 {
 		return nil, nil
 	}
@@ -1033,6 +1011,7 @@ func (o *Operator) createInstallPlan(namespace string, subs []*v1alpha1.Subscrip
 			ClusterServiceVersionNames: csvNames,
 			Approval:                   installPlanApproval,
 			Approved:                   installPlanApproval == v1alpha1.ApprovalAutomatic,
+			Generation:                 gen,
 		},
 	}
 	for _, sub := range subs {
