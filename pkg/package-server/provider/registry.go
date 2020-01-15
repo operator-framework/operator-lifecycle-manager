@@ -370,7 +370,7 @@ func (p *RegistryProvider) Get(namespace, name string) (*operators.PackageManife
 		"namespace": namespace,
 	})
 
-	pkgs, err := p.List(namespace)
+	pkgs, err := p.List(namespace, labels.Everything())
 	if err != nil {
 		return nil, fmt.Errorf("could not list packages in namespace %s", namespace)
 	}
@@ -385,7 +385,7 @@ func (p *RegistryProvider) Get(namespace, name string) (*operators.PackageManife
 	return nil, nil
 }
 
-func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestList, error) {
+func (p *RegistryProvider) List(namespace string, selector labels.Selector) (*operators.PackageManifestList, error) {
 	var pkgs []*operators.PackageManifest
 	if namespace == metav1.NamespaceAll {
 		all, err := p.pkgLister.List(labels.Everything())
@@ -394,14 +394,14 @@ func (p *RegistryProvider) List(namespace string) (*operators.PackageManifestLis
 		}
 		pkgs = append(pkgs, all...)
 	} else {
-		nsPkgs, err := p.pkgLister.PackageManifests(namespace).List(labels.Everything())
+		nsPkgs, err := p.pkgLister.PackageManifests(namespace).List(selector)
 		if err != nil {
 			return nil, err
 		}
 		pkgs = append(pkgs, nsPkgs...)
 
 		if namespace != p.globalNamespace {
-			globalPkgs, err := p.pkgLister.PackageManifests(p.globalNamespace).List(labels.Everything())
+			globalPkgs, err := p.pkgLister.PackageManifests(p.globalNamespace).List(selector)
 			if err != nil {
 				return nil, err
 			}
@@ -448,6 +448,7 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 	var (
 		providerSet   bool
 		defaultElided bool
+		defaultCsv    *operatorsv1alpha1.ClusterServiceVersion
 	)
 	for _, pkgChannel := range pkgChannels {
 		bundle, err := client.GetBundleForChannel(ctx, &api.GetBundleInChannelRequest{PkgName: pkg.GetName(), ChannelName: pkgChannel.GetName()})
@@ -463,6 +464,9 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 			logger.WithError(err).WithField("channel", pkgChannel.GetName()).Warn("error unmarshaling csv, eliding channel")
 			defaultElided = defaultElided || pkgChannel.Name == manifest.Status.DefaultChannel
 			continue
+		}
+		if defaultCsv == nil || pkgChannel.GetName() == manifest.Status.DefaultChannel {
+			defaultCsv = &csv
 		}
 		manifest.Status.Channels = append(manifest.Status.Channels, operators.PackageChannel{
 			Name:           pkgChannel.GetName(),
@@ -489,6 +493,11 @@ func newPackageManifest(ctx context.Context, logger *logrus.Entry, pkg *api.Pack
 		logger.Warn("default channel elided, setting as first in packagemanifest")
 		manifest.Status.DefaultChannel = manifest.Status.Channels[0].Name
 	}
-
+	manifestLabels := manifest.GetLabels()
+	for k, v := range defaultCsv.GetLabels() {
+		manifestLabels[k] = v
+	}
+	setDefaultOsArchLabels(manifestLabels)
+	manifest.SetLabels(manifestLabels)
 	return manifest, nil
 }

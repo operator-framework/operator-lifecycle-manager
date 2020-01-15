@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/labels"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
@@ -25,7 +27,7 @@ func (p *fakeProvider) Get(namespace, name string) (*operators.PackageManifest, 
 	return p.packages[0], nil
 }
 
-func (p *fakeProvider) List(namespace string) (*operators.PackageManifestList, error) {
+func (p *fakeProvider) List(namespace string, selector labels.Selector) (*operators.PackageManifestList, error) {
 	return &operators.PackageManifestList{}, nil
 }
 
