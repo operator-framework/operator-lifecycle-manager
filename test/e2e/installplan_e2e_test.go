@@ -2651,3 +2651,132 @@ func TestInstallPlanUnpacksBundleImage(t *testing.T) {
 	}
 	require.Lenf(t, expectedSteps, 0, "Actual resource steps do not match expected: %#v", expectedSteps)
 }
+
+// TestInstallPlanConsistentGeneration verifies that, in cases where there are multiple options to fulfil a dependency
+// across multiple catalogs, we only generate one installplan with one set of resolved resources.
+func TestInstallPlanConsistentGeneration(t *testing.T) {
+
+	// Configure 3 catalogs:
+	//  - one catalog with a package that has a dependency
+	//  - one catalog with a package that satisfies the dependency
+	//  - one catalog with a different package that satisfies the dependency
+	// Install the package from the main catalog
+	// Should see only 1 installplan created
+	// Should see the main CSV installed
+
+	defer cleaner.NotifyTestComplete(t, true)
+
+	log := func(s string) {
+		t.Logf("%s: %s", time.Now().Format("15:04:05.9999"), s)
+	}
+
+	mainPackageName := genName("nginx-")
+	dependentPackageName := genName("nginxdep-")
+	altDependentPackageName := genName("nginxaltdep-")
+
+	mainPackageStable := fmt.Sprintf("%s-stable", mainPackageName)
+	dependentPackageStable := fmt.Sprintf("%s-stable", dependentPackageName)
+	altDependentPackageStable := fmt.Sprintf("%s-stable", altDependentPackageName)
+
+	stableChannel := "stable"
+
+	mainNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+	dependentNamedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
+
+	crdPlural := genName("ins-")
+
+	dependentCRD := newCRD(crdPlural)
+	mainCSV := newCSV(mainPackageStable, testNamespace, "", semver.MustParse("0.1.0"), nil, []apiextensions.CustomResourceDefinition{dependentCRD}, mainNamedStrategy)
+	dependentCSV := newCSV(dependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+	altDependentCSV := newCSV(altDependentPackageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{dependentCRD}, nil, dependentNamedStrategy)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+	defer func() {
+		require.NoError(t, crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
+	}()
+
+	dependentCatalogName := genName("mock-ocs-dependent-")
+	altDependentCatalogName := genName("mock-alt-dependent-")
+	mainCatalogName := genName("mock-ocs-main-")
+
+	// Create separate manifests for each CatalogSource
+	mainManifests := []registry.PackageManifest{
+		{
+			PackageName: mainPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: mainPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	dependentManifests := []registry.PackageManifest{
+		{
+			PackageName: dependentPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: dependentPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	altDependentManifests := []registry.PackageManifest{
+		{
+			PackageName: dependentPackageName,
+			Channels: []registry.PackageChannel{
+				{Name: stableChannel, CurrentCSVName: altDependentPackageStable},
+			},
+			DefaultChannelName: stableChannel,
+		},
+	}
+
+	// Create the dependent catalog source
+	require.NotEqual(t, "", testNamespace)
+	_, cleanupDependentCatalogSource := createInternalCatalogSource(t, c, crc, dependentCatalogName, testNamespace, dependentManifests, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{dependentCSV})
+	defer cleanupDependentCatalogSource()
+	// Attempt to get the catalog source before creating install plan
+	_, err := fetchCatalogSource(t, crc, dependentCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create the alt dependent catalog source
+	require.NotEqual(t, "", testNamespace)
+	_, cleanupAltDependentCatalogSource := createInternalCatalogSource(t, c, crc, altDependentCatalogName, testNamespace, altDependentManifests, []apiextensions.CustomResourceDefinition{dependentCRD}, []v1alpha1.ClusterServiceVersion{altDependentCSV})
+	defer cleanupAltDependentCatalogSource()
+	// Attempt to get the catalog source before creating install plan
+	_, err = fetchCatalogSource(t, crc, altDependentCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	// Create the main catalog source
+	_, cleanupMainCatalogSource := createInternalCatalogSource(t, c, crc, mainCatalogName, testNamespace, mainManifests, nil, []v1alpha1.ClusterServiceVersion{mainCSV})
+	defer cleanupMainCatalogSource()
+	// Attempt to get the catalog source before creating install plan
+	_, err = fetchCatalogSource(t, crc, mainCatalogName, testNamespace, catalogSourceRegistryPodSynced)
+	require.NoError(t, err)
+
+	subscriptionName := genName("sub-nginx-")
+	subscriptionCleanup := createSubscriptionForCatalog(t, crc, testNamespace, subscriptionName, mainCatalogName, mainPackageName, stableChannel, "", v1alpha1.ApprovalAutomatic)
+	defer subscriptionCleanup()
+
+	subscription, err := fetchSubscription(t, crc, testNamespace, subscriptionName, subscriptionHasInstallPlanChecker)
+	require.NoError(t, err)
+	require.NotNil(t, subscription)
+
+	installPlanName := subscription.Status.InstallPlanRef.Name
+
+	// Wait for InstallPlan to be status: Complete before checking resource presence
+	fetchedInstallPlan, err := fetchInstallPlan(t, crc, installPlanName, buildInstallPlanPhaseCheckFunc(v1alpha1.InstallPlanPhaseComplete))
+	require.NoError(t, err)
+	log(fmt.Sprintf("Install plan %s fetched with status %s", fetchedInstallPlan.GetName(), fetchedInstallPlan.Status.Phase))
+
+	require.Equal(t, v1alpha1.InstallPlanPhaseComplete, fetchedInstallPlan.Status.Phase)
+
+	// Verify CSV is created
+	_, err = awaitCSV(t, crc, testNamespace, mainCSV.GetName(), csvSucceededChecker)
+	require.NoError(t, err)
+
+	// ensure there is only one installplan
+	ips, err := crc.OperatorsV1alpha1().InstallPlans(testNamespace).List(metav1.ListOptions{})
+	require.NoError(t, err)
+	require.Equal(t, 1, len(ips.Items), "If this test fails it should be taken seriously and not treated as a flake.")
+}
