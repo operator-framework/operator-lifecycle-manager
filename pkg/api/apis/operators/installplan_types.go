@@ -26,6 +26,7 @@ type InstallPlanSpec struct {
 	ClusterServiceVersionNames []string
 	Approval                   Approval
 	Approved                   bool
+	Generation                 int
 }
 
 // InstallPlanPhase is the current status of a InstallPlan as a whole.
