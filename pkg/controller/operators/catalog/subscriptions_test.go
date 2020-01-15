@@ -18,7 +18,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/clientfake"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func TestSyncSubscriptions(t *testing.T) {
@@ -147,7 +146,8 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: now,
+						LastUpdated:           now,
+						InstallPlanGeneration: 1,
 					},
 				},
 			},
@@ -156,8 +156,9 @@ func TestSyncSubscriptions(t *testing.T) {
 					ClusterServiceVersionNames: []string{
 						"csv.v.1",
 					},
-					Approval: v1alpha1.ApprovalAutomatic,
-					Approved: true,
+					Approval:   v1alpha1.ApprovalAutomatic,
+					Approved:   true,
+					Generation: 1,
 				},
 				Status: v1alpha1.InstallPlanStatus{
 					Phase: v1alpha1.InstallPlanPhaseInstalling,
@@ -278,7 +279,8 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: now,
+						LastUpdated:           now,
+						InstallPlanGeneration: 1,
 					},
 				},
 			},
@@ -287,8 +289,9 @@ func TestSyncSubscriptions(t *testing.T) {
 					ClusterServiceVersionNames: []string{
 						"csv.v.1",
 					},
-					Approval: v1alpha1.ApprovalAutomatic,
-					Approved: true,
+					Approval:   v1alpha1.ApprovalAutomatic,
+					Approved:   true,
+					Generation: 1,
 				},
 				Status: v1alpha1.InstallPlanStatus{
 					Phase: v1alpha1.InstallPlanPhaseInstalling,
@@ -553,7 +556,8 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: now,
+						LastUpdated:           now,
+						InstallPlanGeneration: 1,
 					},
 				},
 			},
@@ -562,8 +566,9 @@ func TestSyncSubscriptions(t *testing.T) {
 					ClusterServiceVersionNames: []string{
 						"csv.v.2",
 					},
-					Approval: v1alpha1.ApprovalAutomatic,
-					Approved: true,
+					Approval:   v1alpha1.ApprovalAutomatic,
+					Approved:   true,
+					Generation: 1,
 				},
 				Status: v1alpha1.InstallPlanStatus{
 					Phase: v1alpha1.InstallPlanPhaseInstalling,
@@ -717,7 +722,8 @@ func TestSyncSubscriptions(t *testing.T) {
 							Kind:       v1alpha1.InstallPlanKind,
 							APIVersion: v1alpha1.InstallPlanAPIVersion,
 						},
-						LastUpdated: now,
+						LastUpdated:           now,
+						InstallPlanGeneration: 1,
 					},
 				},
 			},
@@ -727,8 +733,9 @@ func TestSyncSubscriptions(t *testing.T) {
 						"csv.v.2",
 						"dep.v.1",
 					},
-					Approval: v1alpha1.ApprovalAutomatic,
-					Approved: true,
+					Approval:   v1alpha1.ApprovalAutomatic,
+					Approved:   true,
+					Generation: 1,
 				},
 				Status: v1alpha1.InstallPlanStatus{
 					Phase: v1alpha1.InstallPlanPhaseInstalling,
