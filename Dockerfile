@@ -21,7 +21,7 @@ COPY cmd cmd
 COPY test test
 COPY go.mod go.mod
 COPY go.sum go.sum
-RUN make build
+RUN CGO_ENABLED=1 make build
 
 FROM openshift/origin-base
 
