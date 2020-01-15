@@ -29,7 +29,7 @@ spec:
   image: quay.io/my-catalogs/my-catalog:master
   updateStrategy:
     registryPoll:
-      interval: 2m
+      interval: 45m
 ```
 
 It is required for the catalog source to be sourceType grpc and be backed by an image for polling to work.  
@@ -42,3 +42,4 @@ scheduled onto the cluster. If the cluster is at absolutely maximum capacity, wi
 * OLM checks to see whether the container ImageID has changed between the old and new catalog source image when determining if an upgrade
 is in order. It does not actually parse the image content itself to check for later CSVs. If there is a bad upgrade to the catalog source image,
 simply overwrite the tag with another version and it will be pulled down, or delete and recreate the catalog source. 
+* The polling interval should be reasonably high to ensure the update functionality works as intended. Avoid intervals less than 15m. 
