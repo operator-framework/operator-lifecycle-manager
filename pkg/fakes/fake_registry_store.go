@@ -2,10 +2,10 @@
 package fakes
 
 import (
-	context "context"
-	sync "sync"
+	"context"
+	"sync"
 
-	registry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 type FakeQuery struct {
