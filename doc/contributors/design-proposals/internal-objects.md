@@ -18,18 +18,19 @@ A good example of this is the [Apache CouchDB Operator](https://operatorhub.io/o
 
 ### Implementation
 
-#### New CRD annotation
+#### New CSV annotation
 
-The behavior is straightforward, when a CRD is managed as part of the Operator installation, it can be marked with an annotation which is available for downstream tools to read and hide the CRD where applicable. This should be backwards compatible as a no-op, so it can be considered progressive enhancement.
+The behavior is straightforward, when a CRD is managed as part of the Operator installation, it can be marked as managed by the Operator, but also that it is an internal resource, not to be used by an end-user. This is an annotation on the CSV of `spec.owned.customresourcedefinitions.name` names, which is available for downstream tools to read and hide the CRD where applicable. This should be backwards compatible as a no-op, so it can be considered progressive enhancement.
 
 ```
-kind: CustomResourceDefinition
-apiVersion: apiextensions.k8s.io/v1beta1
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
 metadata:
-  name: hivetables.metering.openshift.io
+  name: couchdb-operator-v1.2.3
   annotations:
-    operators.operatorframework.io/internal-object:true
-    operators.operatorframework.io/data-object:true
+    apps.operatorframework.io/internal-objects:
+      - '(Internal) CouchDB Formation Lock'
+      - '(Internal) CouchDB Recipe'
 spec:
   ...
 status
@@ -48,8 +49,8 @@ status
 
 It is a common practice for an Operator to utilize CRDs "under the hood" to internally accomplish a task. For example, a database Operator might have a Replication CRD that is created whenever an end-user creates a Database object with `replication: true`. 
 
-If this Replication CRD is not meant for manipulation by end-users, it can be hidden by submitting it's definition with the `operators.operatorframework.io/internal-object` annotation set to true.
+If this Replication CRD is not meant for manipulation by end-users, it can be hidden by including its name within the `apps.operatorframework.io/internal-objects` annotation's array of values.
 
-If there exists a CRD that is only meant for tracking data, it can also be annotated with `operators.operatorframework.io/data-object` set to true. 
+If there exists a CRD that is only meant for tracking data, it can also be included within the  `app.operatorframework.io/data-object` array.
 
 Before marking one of your CRDs as internal, make sure that any debugging information or configuration that might be required to manage the application is reflected on the CR's status or spec block.
