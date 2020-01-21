@@ -31,7 +31,7 @@ require (
 	k8s.io/apimachinery v0.17.1
 	k8s.io/apiserver v0.0.0
 	k8s.io/client-go v8.0.0+incompatible
-	k8s.io/code-generator v0.0.0
+	k8s.io/code-generator v0.17.1
 	k8s.io/component-base v0.0.0
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.0.0
@@ -42,7 +42,7 @@ require (
 
 replace (
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
-	github.com/openshift/api => github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
+	github.com/openshift/api => github.com/openshift/api v0.0.0-20200217161739-c99157bc6492
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.0.0-beta.5.0.20200123114618-5e3c7d7eb86a
