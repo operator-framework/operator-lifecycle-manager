@@ -780,7 +780,8 @@ func (o *Operator) syncResolvingNamespace(obj interface{}) error {
 		// any subscription in the namespace with manual approval will force generated installplans to be manual
 		// TODO: this is an odd artifact of the older resolver, and will probably confuse users. approval mode could be on the operatorgroup?
 		installPlanApproval := v1alpha1.ApprovalAutomatic
-		for _, sub := range subs {
+		for _, sub := range updatedSubs {
+			logrus.Infof("JPEELER: looking at updatedSubs: %v", sub.GetName())
 			if sub.Spec.InstallPlanApproval == v1alpha1.ApprovalManual {
 				installPlanApproval = v1alpha1.ApprovalManual
 				break

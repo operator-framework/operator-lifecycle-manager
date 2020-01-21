@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -25,6 +26,7 @@ type Resolver interface {
 type OperatorsV1alpha1Resolver struct {
 	subLister v1alpha1listers.SubscriptionLister
 	csvLister v1alpha1listers.ClusterServiceVersionLister
+	ipLister  v1alpha1listers.InstallPlanLister
 	client    versioned.Interface
 }
 
@@ -34,6 +36,7 @@ func NewOperatorsV1alpha1Resolver(lister operatorlister.OperatorLister, client v
 	return &OperatorsV1alpha1Resolver{
 		subLister: lister.OperatorsV1alpha1().SubscriptionLister(),
 		csvLister: lister.OperatorsV1alpha1().ClusterServiceVersionLister(),
+		ipLister:  lister.OperatorsV1alpha1().InstallPlanLister(),
 		client:    client,
 	}
 }
@@ -92,6 +95,22 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 			continue
 		}
 
+		logrus.Infof("JPEELER1: op=%v (csv=%v)", op.Identifier(), op.Bundle().GetCsvName())
+
+		// ignore steps that are part of a non-approved existing installplan
+		ips, err := r.ipLister.InstallPlans(namespace).List(labels.Everything())
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to list install plans: %v", err)
+		}
+		csvNames := map[string]struct{}{}
+		for _, ip := range ips {
+			if ip.Spec.Approved == false {
+				for _, name := range ip.Spec.ClusterServiceVersionNames {
+					csvNames[name] = struct{}{}
+				}
+			}
+		}
+
 		// add steps for any new bundle
 		if op.Bundle() != nil {
 			bundleSteps, err := NewStepResourceFromBundle(op.Bundle(), namespace, op.Replaces(), op.SourceInfo().Catalog.Name, op.SourceInfo().Catalog.Namespace)
@@ -99,6 +118,11 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 				return nil, nil, fmt.Errorf("failed to turn bundle into steps: %s", err.Error())
 			}
 			for _, s := range bundleSteps {
+				if _, ok := csvNames[name]; ok {
+					logrus.Infof("JPEELER1: skipping bundle step %v for %v", s.Name, name)
+					continue
+				}
+				logrus.Infof("JPEELER1: Adding bundle step %v for %v", s.Name, name)
 				steps = append(steps, &v1alpha1.Step{
 					Resolving: name,
 					Resource:  s,
@@ -114,6 +138,7 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 				if err != nil {
 					return nil, nil, err
 				}
+				logrus.Infof("JPEELER2: Adding bundle step %v for %v", subStep.Name, name)
 				steps = append(steps, &v1alpha1.Step{
 					Resolving: name,
 					Resource:  subStep,
