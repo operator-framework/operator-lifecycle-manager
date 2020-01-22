@@ -6,7 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
+
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/util/yaml"
 
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -48,6 +52,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
 	sharedtime "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/time"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/metrics"
+	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 )
 
 const (
@@ -138,7 +143,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		csvProvidedAPIsIndexer:   map[string]cache.Indexer{},
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
-		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient),
+		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
 		bundleUnpackerImage:      configmapRegistryImage, // Assume the configmapRegistryImage contains the unpacker for now.
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
@@ -1178,9 +1183,8 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		logger = logger.WithField("syncError", syncError)
 	}
 
-	// no changes in status, don't update
-	if outInstallPlan.Status.Phase == plan.Status.Phase {
-		return
+	if outInstallPlan.Status.Phase == v1alpha1.InstallPlanPhaseInstalling {
+		defer o.ipQueueSet.RequeueAfter(outInstallPlan.GetNamespace(), outInstallPlan.GetName(), time.Second*5)
 	}
 
 	defer func() {
@@ -1240,8 +1244,11 @@ func transitionInstallPlanState(log *logrus.Logger, transitioner installPlanTran
 			out.Status.Phase = v1alpha1.InstallPlanPhaseFailed
 			return out, err
 		}
-		out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled, &now))
-		out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
+		// Loop over one final time to check and see if everything is good.
+		if !out.Status.NeedsRequeue() {
+			out.Status.SetCondition(v1alpha1.ConditionMet(v1alpha1.InstallPlanInstalled, &now))
+			out.Status.Phase = v1alpha1.InstallPlanPhaseComplete
+		}
 		return out, nil
 	default:
 		return out, nil
@@ -1383,19 +1390,50 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 	// Does the namespace have an operator group that specifies a user defined
 	// service account? If so, then we should use a scoped client for plan
 	// execution.
-	kubeclient, crclient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(plan.Status.AttenuatedServiceAccountRef)
+	kubeclient, crclient, dynamicClient, err := o.clientAttenuator.AttenuateClientWithServiceAccount(plan.Status.AttenuatedServiceAccountRef)
 	if err != nil {
 		o.logger.Errorf("failed to get a client for plan execution- %v", err)
 		return err
 	}
 
-	ensurer := newStepEnsurer(kubeclient, crclient)
+	ensurer := newStepEnsurer(kubeclient, crclient, dynamicClient)
 
 	for i, step := range plan.Status.Plan {
 		switch step.Status {
 		case v1alpha1.StepStatusPresent, v1alpha1.StepStatusCreated:
 			continue
+		case v1alpha1.StepStatusWaitingForAPI:
+			switch step.Resource.Kind {
+			case crdKind:
+				crd, err := o.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(step.Resource.Name, metav1.GetOptions{})
+				if err != nil {
+					if k8serrors.IsNotFound(err) {
+						plan.Status.Plan[i].Status = v1alpha1.StepStatusNotPresent
+					} else {
+						return errorwrap.Wrapf(err, "error finding the %s CRD", crd.Name)
+					}
+					continue
+				}
 
+				established, namesAccepted := false, false
+				for _, cdt := range crd.Status.Conditions {
+					switch cdt.Type {
+					case v1beta1.Established:
+						if cdt.Status == v1beta1.ConditionTrue {
+							established = true
+						}
+					case v1beta1.NamesAccepted:
+						if cdt.Status == v1beta1.ConditionTrue {
+							namesAccepted = true
+						}
+					}
+				}
+
+				if established && namesAccepted {
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+				}
+				continue
+			}
 		case v1alpha1.StepStatusUnknown, v1alpha1.StepStatusNotPresent:
 			o.logger.WithFields(logrus.Fields{"kind": step.Resource.Kind, "name": step.Resource.Name}).Debug("execute resource")
 			switch step.Resource.Kind {
@@ -1458,10 +1496,11 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					plan.Status.Plan[i].Status = v1alpha1.StepStatusPresent
 					continue
 				} else if err != nil {
+					// Unexpected error creating the CRD.
 					return err
 				} else {
-					// If no error occured, mark the step as Created.
-					plan.Status.Plan[i].Status = v1alpha1.StepStatusCreated
+					// If no error occured, make sure to wait for the API to become available.
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusWaitingForAPI
 					continue
 				}
 
@@ -1654,9 +1693,58 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 				plan.Status.Plan[i].Status = status
 
 			default:
-				return v1alpha1.ErrInvalidInstallPlan
-			}
+				if !isSupported(step.Resource.Kind) {
+					// Not a supported resource
+					plan.Status.Plan[i].Status = v1alpha1.StepStatusUnsupportedResource
+					return v1alpha1.ErrInvalidInstallPlan
+				}
 
+				// Marshal the manifest into an unstructured object
+				dec := yaml.NewYAMLOrJSONDecoder(strings.NewReader(step.Resource.Manifest), 10)
+				unstructuredObject := &unstructured.Unstructured{}
+				if err := dec.Decode(unstructuredObject); err != nil {
+					return errorwrap.Wrapf(err, "error decoding %s object to an unstructured object", step.Resource.Name)
+				}
+
+				// Get the resource from the GVK.
+				gvk := unstructuredObject.GroupVersionKind()
+				r, err := o.apiresourceFromGVK(gvk)
+				if err != nil {
+					return err
+				}
+
+				// Create the GVR
+				gvr := schema.GroupVersionResource{
+					Group:    gvk.Group,
+					Version:  gvk.Version,
+					Resource: r.Name,
+				}
+
+				// Set up the dynamic client ResourceInterface
+				var resourceInterface dynamic.ResourceInterface
+				if r.Namespaced {
+					ownerutil.AddOwner(unstructuredObject, plan, false, false)
+					unstructuredObject.SetNamespace(namespace)
+					resourceInterface = o.dynamicClient.Resource(gvr).Namespace(namespace)
+				} else {
+					resourceInterface = o.dynamicClient.Resource(gvr)
+				}
+
+				// Update UIDs on all CSV OwnerReferences
+				updated, err := o.getUpdatedOwnerReferences(unstructuredObject.GetOwnerReferences(), plan.Namespace)
+				if err != nil {
+					return errorwrap.Wrapf(err, "error generating ownerrefs for unstructured object: %s", unstructuredObject.GetName())
+				}
+				unstructuredObject.SetOwnerReferences(updated)
+
+				// Ensure Unstructured Object
+				status, err := ensurer.EnsureUnstructuredObject(resourceInterface, unstructuredObject)
+				if err != nil {
+					return err
+				}
+
+				plan.Status.Plan[i].Status = status
+			}
 		default:
 			return v1alpha1.ErrInvalidInstallPlan
 		}
@@ -1769,4 +1857,40 @@ func getCSVNameSet(plan *v1alpha1.InstallPlan) map[string]struct{} {
 	}
 
 	return csvNameSet
+}
+
+func (o *Operator) apiresourceFromGVK(gvk schema.GroupVersionKind) (metav1.APIResource, error) {
+	logger := o.logger.WithFields(logrus.Fields{
+		"group":   gvk.Group,
+		"version": gvk.Version,
+		"kind":    gvk.Kind,
+	})
+
+	resources, err := o.opClient.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gvk.GroupVersion().String())
+	if err != nil {
+		logger.WithField("err", err).Info("could not query for GVK in api discovery")
+		return metav1.APIResource{}, err
+	}
+	for _, r := range resources.APIResources {
+		if r.Kind == gvk.Kind {
+			return r, nil
+		}
+	}
+	logger.Info("couldn't find GVK in api discovery")
+	return metav1.APIResource{}, olmerrors.GroupVersionKindNotFoundError{gvk.Group, gvk.Version, gvk.Kind}
+}
+
+const (
+	PrometheusRuleKind = "PrometheusRule"
+	ServiceMonitorKind = "ServiceMonitor"
+)
+
+// isSupported returns true if OLM supports this type of CustomResource.
+func isSupported(kind string) bool {
+	switch kind {
+	case PrometheusRuleKind, ServiceMonitorKind:
+		return true
+	default:
+		return false
+	}
 }

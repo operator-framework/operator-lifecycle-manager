@@ -132,7 +132,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		csvSetGenerator:       csvutility.NewSetGenerator(config.logger, lister),
 		csvReplaceFinder:      csvutility.NewReplaceFinder(config.logger, config.externalClient),
 		serviceAccountSyncer:  scoped.NewUserDefinedServiceAccountSyncer(config.logger, scheme, config.operatorClient, config.externalClient),
-		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient, config.externalClient),
+		clientAttenuator:      scoped.NewClientAttenuator(config.logger, config.restConfig, config.operatorClient, config.externalClient, nil),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(config.logger, config.externalClient),
 	}
 

@@ -141,6 +141,8 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 		}
 	}
 
+	// Order Steps
+	steps = v1alpha1.OrderSteps(steps)
 	return steps, bundleLookups, updatedSubs, nil
 }
 
