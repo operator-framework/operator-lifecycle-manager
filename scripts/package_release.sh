@@ -1,8 +1,13 @@
 #!/usr/bin/env bash
 
-# requires helm to be installed
+# requires helm v3 to be installed
+# the output of "helm template" is not stable between versions 2 and 3
+if helm version 2>/dev/null | grep -v -q -E 'Version:"v3\.'; then
+    echo "error: helm version 3 is required"
+    exit 1
+fi
 
-if [[ ${#@} < 3 ]]; then
+if [[ ${#@} -lt 3 ]]; then
     echo "Usage: $0 semver chart values"
     echo "* semver: semver-formatted version for this package"
     echo "* chart: the directory to output the chart"

@@ -83,7 +83,6 @@ spec:
               nodeSelector:
                 beta.kubernetes.io/os: linux
                 node-role.kubernetes.io/master: ""
-                
               tolerations:
               - effect: NoSchedule
                 key: node-role.kubernetes.io/master
@@ -96,7 +95,6 @@ spec:
                 key: node.kubernetes.io/not-ready
                 operator: Exists
                 tolerationSeconds: 120
-              
               containers:
               - name: packageserver
                 command:
@@ -125,7 +123,6 @@ spec:
                   requests:
                     cpu: 10m
                     memory: 50Mi
-                  
   maturity: alpha
   version: 0.13.0
   apiservicedefinitions:
