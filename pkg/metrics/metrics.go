@@ -12,6 +12,12 @@ import (
 const (
 	NAME_LABEL      = "name"
 	INSTALLED_LABEL = "installed"
+	NAMESPACE_LABEL = "namespace"
+	CHANNEL_LABEL   = "channel"
+	VERSION_LABEL   = "version"
+	PHASE_LABEL     = "phase"
+	REASON_LABEL    = "reason"
+	PACKAGE_LABEL   = "package"
 )
 
 // TODO(alecmerdler): Can we use this to emit Kubernetes events?
@@ -143,7 +149,27 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
+<<<<<<< HEAD
 		[]string{NAME_LABEL, INSTALLED_LABEL},
+=======
+		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL, PACKAGE_LABEL},
+	)
+
+	csvSucceeded = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "csv_succeeded",
+			Help: "Successful CSV install",
+		},
+		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL},
+	)
+
+	csvAbnormal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "csv_abnormal",
+			Help: "CSV is not installed",
+		},
+		[]string{NAMESPACE_LABEL, NAME_LABEL, VERSION_LABEL, PHASE_LABEL, REASON_LABEL},
+>>>>>>> 3b860365... Bug 1809294: Update subscription_sync_count to include the package name
 	)
 )
 
@@ -159,6 +185,35 @@ func RegisterCatalog() {
 	prometheus.MustRegister(SubscriptionSyncCount)
 }
 
+<<<<<<< HEAD
 func CounterForSubscription(name, installedCSV string) prometheus.Counter {
 	return SubscriptionSyncCount.WithLabelValues(name, installedCSV)
+=======
+func CounterForSubscription(name, installedCSV, channelName, packageName string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName)
+}
+
+func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
+	if oldCSV == nil || newCSV == nil {
+		return
+	}
+
+	// Don't update the metric for copies
+	if newCSV.Status.Reason == olmv1alpha1.CSVReasonCopied {
+		return
+	}
+
+	// Delete the old CSV metrics
+	csvAbnormal.DeleteLabelValues(oldCSV.Namespace, oldCSV.Name, oldCSV.Spec.Version.String(), string(oldCSV.Status.Phase), string(oldCSV.Status.Reason))
+
+	// Get the phase of the new CSV
+	newCSVPhase := string(newCSV.Status.Phase)
+	csvSucceededGauge := csvSucceeded.WithLabelValues(newCSV.Namespace, newCSV.Name, newCSV.Spec.Version.String())
+	if newCSVPhase == string(olmv1alpha1.CSVPhaseSucceeded) {
+		csvSucceededGauge.Set(1)
+	} else {
+		csvSucceededGauge.Set(0)
+		csvAbnormal.WithLabelValues(newCSV.Namespace, newCSV.Name, newCSV.Spec.Version.String(), string(newCSV.Status.Phase), string(newCSV.Status.Reason)).Set(1)
+	}
+>>>>>>> 3b860365... Bug 1809294: Update subscription_sync_count to include the package name
 }
