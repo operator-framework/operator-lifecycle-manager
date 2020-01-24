@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/pkg/errors"
 	"sigs.k8s.io/yaml"
@@ -141,8 +142,17 @@ func Save(c *chart.Chart, outDir string) (string, error) {
 func writeTarContents(out *tar.Writer, c *chart.Chart, prefix string) error {
 	base := filepath.Join(prefix, c.Name())
 
+	// Pull out the dependencies of a v1 Chart, since there's no way
+	// to tell the serializer to skip a field for just this use case
+	savedDependencies := c.Metadata.Dependencies
+	if c.Metadata.APIVersion == chart.APIVersionV1 {
+		c.Metadata.Dependencies = nil
+	}
 	// Save Chart.yaml
 	cdata, err := yaml.Marshal(c.Metadata)
+	if c.Metadata.APIVersion == chart.APIVersionV1 {
+		c.Metadata.Dependencies = savedDependencies
+	}
 	if err != nil {
 		return err
 	}
@@ -198,9 +208,10 @@ func writeTarContents(out *tar.Writer, c *chart.Chart, prefix string) error {
 func writeToTar(out *tar.Writer, name string, body []byte) error {
 	// TODO: Do we need to create dummy parent directory names if none exist?
 	h := &tar.Header{
-		Name: name,
-		Mode: 0644,
-		Size: int64(len(body)),
+		Name:    name,
+		Mode:    0644,
+		Size:    int64(len(body)),
+		ModTime: time.Now(),
 	}
 	if err := out.WriteHeader(h); err != nil {
 		return err
