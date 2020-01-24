@@ -452,3 +452,5 @@ e2e.namespace
 minikube.kubeconfig
 apiserver.crt
 apiserver.key
+
+!vendor/**
