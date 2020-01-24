@@ -32,6 +32,35 @@ subjects:
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
+  name: olm-operator
+  namespace: openshift-operator-lifecycle-manager
+  labels:
+    app: olm-operator
+spec:
+  endpoints:
+  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    metricRelabelings:
+    - action: drop
+      regex: etcd_(debugging|disk|request|server).*
+      sourceLabels:
+      - __name__
+    port: https-metrics
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: olm-operator-metrics.openshift-operator-lifecycle-manager.svc
+  jobLabel: component
+  namespaceSelector:
+    matchNames:
+    - openshift-operator-lifecycle-manager
+  selector:
+    matchLabels:
+      app: olm-operator
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
   name: catalog-operator
   namespace: openshift-operator-lifecycle-manager
   labels:
@@ -58,32 +87,3 @@ spec:
   selector:
     matchLabels:
       app: catalog-operator
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: olm-operator
-  namespace: openshift-operator-lifecycle-manager
-  labels:
-    app: olm-operator
-spec:
-  endpoints:
-  - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
-    interval: 30s
-    metricRelabelings:
-    - action: drop
-      regex: etcd_(debugging|disk|request|server).*
-      sourceLabels:
-      - __name__
-    port: https-metrics
-    scheme: https
-    tlsConfig:
-      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
-      serverName: olm-operator-metrics.openshift-operator-lifecycle-manager.svc
-  jobLabel: component
-  namespaceSelector:
-    matchNames:
-    - openshift-operator-lifecycle-manager
-  selector:
-    matchLabels:
-      app: olm-operator

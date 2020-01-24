@@ -1,7 +1,7 @@
 apiVersion: config.openshift.io/v1
 kind: ClusterOperator
 metadata:
-  name: operator-lifecycle-manager-catalog
+  name: operator-lifecycle-manager
 status:
   versions:
     - name: operator
@@ -10,7 +10,7 @@ status:
 apiVersion: config.openshift.io/v1
 kind: ClusterOperator
 metadata:
-  name: operator-lifecycle-manager
+  name: operator-lifecycle-manager-catalog
 status:
   versions:
     - name: operator
