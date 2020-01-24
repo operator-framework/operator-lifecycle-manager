@@ -18,6 +18,7 @@ const (
 	VERSION_LABEL   = "version"
 	PHASE_LABEL     = "phase"
 	REASON_LABEL    = "reason"
+	PACKAGE_LABEL   = "package"
 )
 
 // TODO(alecmerdler): Can we use this to emit Kubernetes events?
@@ -149,7 +150,7 @@ var (
 			Name: "subscription_sync_total",
 			Help: "Monotonic count of subscription syncs",
 		},
-		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL},
+		[]string{NAME_LABEL, INSTALLED_LABEL, CHANNEL_LABEL, PACKAGE_LABEL},
 	)
 
 	csvSucceeded = prometheus.NewGaugeVec(
@@ -184,7 +185,7 @@ func RegisterCatalog() {
 }
 
 func CounterForSubscription(name, installedCSV, channelName string) prometheus.Counter {
-	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName)
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, PACKAGE_LABEL)
 }
 
 func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
