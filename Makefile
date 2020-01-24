@@ -107,8 +107,9 @@ setup-bare: clean e2e.namespace
 	. ./scripts/package_release.sh 1.0.0 test/e2e/resources test/e2e/e2e-bare-values.yaml
 	. ./scripts/install_bare.sh $(shell cat ./e2e.namespace) test/e2e/resources
 
+# e2e test exculding the rh-operators directory which tests rh-operators and their metric cardinality.
 e2e:
-	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/e2e/... -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
+	go test -v $(MOD_FLAGS) -failfast -timeout 70m `go list ./test/e2e/... | grep -v /rh-operators` -namespace=openshift-operators -kubeconfig=${KUBECONFIG} -olmNamespace=openshift-operator-lifecycle-manager -dummyImage=bitnami/nginx:latest
 
 e2e-local: build-linux build-wait
 	. ./scripts/build_local.sh
@@ -120,6 +121,9 @@ e2e-bare: setup-bare
 e2e-local-docker:
 	. ./scripts/build_local.sh
 	. ./scripts/run_e2e_docker.sh $(TEST)
+
+e2e-operator-metrics:
+	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/e2e/rh-operators
 
 vendor:
 	go mod tidy
