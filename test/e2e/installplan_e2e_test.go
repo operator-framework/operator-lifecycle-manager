@@ -2574,7 +2574,6 @@ func TestInstallPlanCRDValidation(t *testing.T) {
 }
 
 func TestInstallPlanUnpacksBundleImage(t *testing.T) {
-	defer cleaner.NotifyTestComplete(t, true)
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 
@@ -2597,16 +2596,12 @@ func TestInstallPlanUnpacksBundleImage(t *testing.T) {
 			Labels:    map[string]string{"olm.catalogSource": "kaili-catalog"},
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
-			Image:      "quay.io/olmtest/installplan_e2e-registry-image:latest",
+			Image:      "quay.io/olmtest/single-bundle-index:1.0.0",
 			SourceType: v1alpha1.SourceTypeGrpc,
 		},
 	}
 	catsrc, err = crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Create(catsrc)
 	require.NoError(t, err)
-
-	defer func() {
-		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(catsrc.GetNamespace()).Delete(catsrc.GetName(), deleteOpts))
-	}()
 
 	// Wait for the CatalogSource to be ready
 	catsrc, err = fetchCatalogSource(t, crc, catsrc.GetName(), catsrc.GetNamespace(), catalogSourceRegistryPodSynced)
@@ -2614,8 +2609,7 @@ func TestInstallPlanUnpacksBundleImage(t *testing.T) {
 
 	// Generate a Subscription
 	subName := genName("kiali-")
-	cleanupSub := createSubscriptionForCatalog(t, crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
-	defer cleanupSub()
+	createSubscriptionForCatalog(t, crc, catsrc.GetNamespace(), subName, catsrc.GetName(), "kiali", stableChannel, "", v1alpha1.ApprovalAutomatic)
 
 	sub, err := fetchSubscription(t, crc, catsrc.GetNamespace(), subName, subscriptionHasInstallPlanChecker)
 	require.NoError(t, err)

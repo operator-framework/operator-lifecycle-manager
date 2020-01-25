@@ -313,7 +313,7 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundle.WithJobLister(jobInformer.Lister()),
 		bundle.WithRoleLister(roleInformer.Lister()),
 		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
-		bundle.WithCopyImage(op.bundleUnpackerImage),
+		bundle.WithOPMImage(op.bundleUnpackerImage),
 		bundle.WithNow(op.now),
 	)
 	if err != nil {
