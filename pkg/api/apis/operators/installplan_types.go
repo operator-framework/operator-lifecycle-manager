@@ -63,10 +63,12 @@ const (
 type StepStatus string
 
 const (
-	StepStatusUnknown    StepStatus = "Unknown"
-	StepStatusNotPresent StepStatus = "NotPresent"
-	StepStatusPresent    StepStatus = "Present"
-	StepStatusCreated    StepStatus = "Created"
+	StepStatusUnknown             StepStatus = "Unknown"
+	StepStatusNotPresent          StepStatus = "NotPresent"
+	StepStatusPresent             StepStatus = "Present"
+	StepStatusCreated             StepStatus = "Created"
+	StepStatusWaitingForAPI       StepStatus = "WaitingForApi"
+	StepStatusUnsupportedResource StepStatus = "UnsupportedResource"
 )
 
 // ErrInvalidInstallPlan is the error returned by functions that operate on
@@ -168,6 +170,8 @@ type BundleLookupConditionType string
 const (
 	// BundleLookupPending describes BundleLookups that are not complete.
 	BundleLookupPending BundleLookupConditionType = "BundleLookupPending"
+
+	crdKind = "CustomResourceDefinition"
 )
 
 type BundleLookupCondition struct {
@@ -246,6 +250,58 @@ func (b *BundleLookup) SetCondition(cond BundleLookupCondition) BundleLookupCond
 	b.Conditions = append(b.Conditions, cond)
 
 	return cond
+}
+
+func OrderSteps(steps []*Step) []*Step {
+	// CSVs must be applied first
+	csvList := []*Step{}
+
+	// CRDs must be applied second
+	crdList := []*Step{}
+
+	// Other resources may be applied in any order
+	remainingResources := []*Step{}
+	for _, step := range steps {
+		switch step.Resource.Kind {
+		case crdKind:
+			crdList = append(crdList, step)
+		case ClusterServiceVersionKind:
+			csvList = append(csvList, step)
+		default:
+			remainingResources = append(remainingResources, step)
+		}
+	}
+
+	result := make([]*Step, len(steps))
+	i := 0
+
+	for j := range csvList {
+		result[i] = csvList[j]
+		i++
+	}
+
+	for j := range crdList {
+		result[i] = crdList[j]
+		i++
+	}
+
+	for j := range remainingResources {
+		result[i] = remainingResources[j]
+		i++
+	}
+
+	return result
+}
+
+func (s InstallPlanStatus) NeedsRequeue() bool {
+	for _, step := range s.Plan {
+		switch step.Status {
+		case StepStatusWaitingForAPI:
+			return true
+		}
+	}
+
+	return false
 }
 
 // ManifestsMatch returns true if the CSV manifests in the StepResources of the given list of steps

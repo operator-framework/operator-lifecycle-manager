@@ -23,11 +23,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	k8sjson "k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apiserver/pkg/storage/names"
+	"k8s.io/client-go/dynamic"
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
@@ -103,6 +106,13 @@ func newCRClient(t *testing.T) versioned.Interface {
 	crclient, err := client.NewClient(*kubeConfigPath)
 	require.NoError(t, err)
 	return crclient
+}
+
+func newDynamicClient(t *testing.T, config *rest.Config) dynamic.Interface {
+	// TODO: impersonate ALM serviceaccount
+	dynamicClient, err := dynamic.NewForConfig(config)
+	require.NoError(t, err)
+	return dynamicClient
 }
 
 func newPMClient(t *testing.T) pmversioned.Interface {
@@ -302,6 +312,19 @@ func waitForEmptyList(checkList func() (int, error)) error {
 	})
 
 	return err
+}
+
+func waitForGVR(dynamicClient dynamic.Interface, gvr schema.GroupVersionResource, name, namespace string) error {
+	return wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		_, err := dynamicClient.Resource(gvr).Namespace(namespace).Get(name, metav1.GetOptions{})
+		if err != nil {
+			if errors.IsNotFound(err) {
+				return false, nil
+			}
+			return false, err
+		}
+		return true, nil
+	})
 }
 
 type catalogSourceCheckFunc func(*v1alpha1.CatalogSource) bool

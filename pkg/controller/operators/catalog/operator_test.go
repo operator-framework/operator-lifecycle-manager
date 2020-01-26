@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
@@ -518,6 +520,88 @@ func TestExecutePlan(t *testing.T) {
 	}
 }
 
+func TestSupportedDynamicResources(t *testing.T) {
+	tests := []struct {
+		testName       string
+		resource       v1alpha1.StepResource
+		expectedResult bool
+	}{
+		{
+			testName: "UnsupportedObject",
+			resource: v1alpha1.StepResource{
+				Kind: "UnsupportedKind",
+			},
+			expectedResult: false,
+		},
+		{
+			testName: "ServiceMonitorResource",
+			resource: v1alpha1.StepResource{
+				Kind: "ServiceMonitor",
+			},
+			expectedResult: true,
+		},
+		{
+			testName: "UnsupportedObject",
+			resource: v1alpha1.StepResource{
+				Kind: "PrometheusRule",
+			},
+			expectedResult: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			require.Equal(t, tt.expectedResult, isSupported(tt.resource.Kind))
+		})
+	}
+}
+
+func TestExecutePlanDynamicResources(t *testing.T) {
+	namespace := "ns"
+	unsupportedYaml, err := yamlFromFilePath("testdata/unsupportedkind.cr.yaml")
+	require.NoError(t, err)
+
+	tests := []struct {
+		testName string
+		in       *v1alpha1.InstallPlan
+		err      error
+	}{
+		{
+			testName: "UnsupportedObject",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "some.unsupported.group",
+							Version:                "v1",
+							Kind:                   "UnsupportedKind",
+							Name:                   "unsupportedkind",
+							Manifest:               unsupportedYaml,
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			err: v1alpha1.ErrInvalidInstallPlan,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace})
+			require.NoError(t, err)
+
+			err = op.ExecutePlan(tt.in)
+			require.Equal(t, tt.err, err)
+		})
+	}
+}
+
 func TestSyncCatalogSources(t *testing.T) {
 	clockFake := utilclock.NewFakeClock(time.Date(2018, time.January, 26, 20, 40, 0, 0, time.UTC))
 	now := metav1.NewTime(clockFake.Now())
@@ -934,6 +1018,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	// Create client fakes
 	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.clientOptions...)
 	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(config.k8sObjs...), apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
+	dynamicClientFake := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme())
 
 	// Create operator namespace
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
@@ -990,13 +1075,14 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	}
 
 	op := &Operator{
-		Operator:  queueOperator,
-		clock:     config.clock,
-		logger:    config.logger,
-		opClient:  opClientFake,
-		client:    clientFake,
-		lister:    lister,
-		namespace: namespace,
+		Operator:      queueOperator,
+		clock:         config.clock,
+		logger:        config.logger,
+		opClient:      opClientFake,
+		dynamicClient: dynamicClientFake,
+		client:        clientFake,
+		lister:        lister,
+		namespace:     namespace,
 		nsResolveQueue: workqueue.NewNamedRateLimitingQueue(
 			workqueue.NewMaxOfRateLimiter(
 				workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 1000*time.Second),
@@ -1005,7 +1091,7 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 			), "resolver"),
 		resolver:              config.resolver,
 		reconciler:            config.reconciler,
-		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake),
+		clientAttenuator:      scoped.NewClientAttenuator(logger, &rest.Config{}, opClientFake, clientFake, dynamicClientFake),
 		serviceAccountQuerier: scoped.NewUserDefinedServiceAccountQuerier(logger, clientFake),
 		catsrcQueueSet:        queueinformer.NewEmptyResourceQueueSet(),
 	}
@@ -1117,6 +1203,15 @@ func objectReference(name string) *corev1.ObjectReference {
 		return &corev1.ObjectReference{}
 	}
 	return &corev1.ObjectReference{Name: name}
+}
+
+func yamlFromFilePath(fileName string) (string, error) {
+	yaml, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return "", err
+	}
+
+	return string(yaml), nil
 }
 
 func toManifest(obj runtime.Object) string {

@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -28,6 +29,7 @@ func TestScopedClient(t *testing.T) {
 
 	kubeclient := newKubeClient(t)
 	crclient := newCRClient(t)
+	dynamicclient := newDynamicClient(t, config)
 
 	logger := logrus.New()
 
@@ -81,7 +83,7 @@ func TestScopedClient(t *testing.T) {
 
 			waitForServiceAccountSecretAvailable(t, kubeclient, sa.GetNamespace(), sa.GetName())
 
-			strategy := scoped.NewClientAttenuator(logger, config, kubeclient, crclient)
+			strategy := scoped.NewClientAttenuator(logger, config, kubeclient, crclient, dynamicclient)
 			getter := func() (reference *corev1.ObjectReference, err error) {
 				reference = &corev1.ObjectReference{
 					Namespace: namespace,
@@ -97,7 +99,7 @@ func TestScopedClient(t *testing.T) {
 			}
 
 			// We expect to get scoped client instance(s).
-			kubeclientGot, crclientGot, errGot := strategy.AttenuateClient(getter)
+			kubeclientGot, crclientGot, dynamicClientGot, errGot := strategy.AttenuateClient(getter)
 			require.NoError(t, errGot)
 			require.NotNil(t, kubeclientGot)
 			require.NotNil(t, crclientGot)
@@ -107,6 +109,11 @@ func TestScopedClient(t *testing.T) {
 			tt.assertFunc(errGot)
 
 			_, errGot = crclientGot.OperatorsV1alpha1().CatalogSources(namespace).Get(genName("does-not-exist-"), metav1.GetOptions{})
+			require.Error(t, errGot)
+			tt.assertFunc(errGot)
+
+			gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "ConfigMap"}
+			_, errGot = dynamicClientGot.Resource(gvr).Namespace(namespace).Get(genName("does-not-exist-"), metav1.GetOptions{})
 			require.Error(t, errGot)
 			tt.assertFunc(errGot)
 		})

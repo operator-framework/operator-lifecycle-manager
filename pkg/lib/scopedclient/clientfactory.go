@@ -1,6 +1,7 @@
 package scopedclient
 
 import (
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -36,6 +37,14 @@ func (f *Factory) NewKubernetesClient(token string) (client versioned.Interface,
 	scoped := copy(f.config, token)
 	client, err = versioned.NewForConfig(scoped)
 
+	return
+}
+
+// NewDynamicClient return a new instance of the Dynamic Client from the bearer
+// token specified.
+func (f *Factory) NewDynamicClient(token string) (dynamicClient dynamic.Interface, err error) {
+	scoped := copy(f.config, token)
+	dynamicClient, err = dynamic.NewForConfig(scoped)
 	return
 }
 

@@ -9,6 +9,8 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/client-go/dynamic"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -16,17 +18,19 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-func newStepEnsurer(kubeClient operatorclient.ClientInterface, crClient versioned.Interface) *StepEnsurer {
+func newStepEnsurer(kubeClient operatorclient.ClientInterface, crClient versioned.Interface, dynamicClient dynamic.Interface) *StepEnsurer {
 	return &StepEnsurer{
-		kubeClient: kubeClient,
-		crClient:   crClient,
+		kubeClient:    kubeClient,
+		crClient:      crClient,
+		dynamicClient: dynamicClient,
 	}
 }
 
 // StepEnsurer ensures that resource(s) specified in install plan exist in cluster.
 type StepEnsurer struct {
-	kubeClient operatorclient.ClientInterface
-	crClient   versioned.Interface
+	kubeClient    operatorclient.ClientInterface
+	crClient      versioned.Interface
+	dynamicClient dynamic.Interface
 }
 
 // EnsureClusterServiceVersion writes the specified ClusterServiceVersion
@@ -258,6 +262,38 @@ func (o *StepEnsurer) EnsureRoleBinding(namespace string, rb *rbacv1.RoleBinding
 	rb.SetNamespace(namespace)
 	if _, updateErr := o.kubeClient.UpdateRoleBinding(rb); updateErr != nil {
 		err = errorwrap.Wrapf(updateErr, "error updating rolebinding %s", rb.GetName())
+		return
+	}
+
+	status = v1alpha1.StepStatusPresent
+	return
+}
+
+// EnsureUnstructuredObject writes the unspecified resource object to the cluster.
+func (o *StepEnsurer) EnsureUnstructuredObject(client dynamic.ResourceInterface, obj *unstructured.Unstructured) (status v1alpha1.StepStatus, err error) {
+	_, createErr := client.Create(obj, metav1.CreateOptions{})
+	if createErr == nil {
+		status = v1alpha1.StepStatusCreated
+		return
+	}
+
+	if !k8serrors.IsAlreadyExists(createErr) {
+		err = errorwrap.Wrapf(createErr, "error creating unstructured object %s", obj.GetName())
+		return
+	}
+
+	original, getError := client.Get(obj.GetName(), metav1.GetOptions{})
+	if getError != nil {
+		err = errorwrap.Wrapf(getError, "error getting unstructured object %s", obj.GetName())
+		return
+	}
+
+	// Set the objects resource version
+	obj.SetResourceVersion(original.GetResourceVersion())
+
+	_, updateError := client.Update(obj, metav1.UpdateOptions{})
+	if err != nil {
+		err = errorwrap.Wrapf(updateError, "error updating unstructured object %s", obj.GetName())
 		return
 	}
 
