@@ -184,8 +184,8 @@ func RegisterCatalog() {
 	prometheus.MustRegister(SubscriptionSyncCount)
 }
 
-func CounterForSubscription(name, installedCSV, channelName string) prometheus.Counter {
-	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, PACKAGE_LABEL)
+func CounterForSubscription(name, installedCSV, channelName, packageName string) prometheus.Counter {
+	return SubscriptionSyncCount.WithLabelValues(name, installedCSV, channelName, packageName)
 }
 
 func EmitCSVMetric(oldCSV *olmv1alpha1.ClusterServiceVersion, newCSV *olmv1alpha1.ClusterServiceVersion) {
