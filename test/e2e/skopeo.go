@@ -1,80 +1,110 @@
 package e2e
 
 import (
-	"encoding/json"
 	"fmt"
 	"os/exec"
-	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	// robot credentials to access the catsrc-update-test quay repository
-	// these are write-only and checks are made to ensure only the intended images are allowed to run
-	creds       = "--screds=olmtest+e2etest:V1YASVAXKBCMX6FFKRXJ74T0XMWUEVLF8YYOX3V4BLXSR0LFZI5NDL2V16MNI813"
-	dcreds      = "--dcreds=olmtest+e2etest:V1YASVAXKBCMX6FFKRXJ74T0XMWUEVLF8YYOX3V4BLXSR0LFZI5NDL2V16MNI813"
-	deletecreds = "--creds=olmtest+e2etest:V1YASVAXKBCMX6FFKRXJ74T0XMWUEVLF8YYOX3V4BLXSR0LFZI5NDL2V16MNI813"
 	insecure    = "--insecure-policy=true"
 	skopeo      = "skopeo"
 	debug       = "--debug"
+	skipTLS     = "--dest-tls-verify=false"
+	skipCreds   = "--dest-no-creds=true"
+	destCreds   = "--dest-creds="
+	v2format    = "--format=v2s2"
+	skopeoImage = "quay.io/olmtest/skopeo:0.1.40"
+	BuilderServiceAccount = "builder"
 )
 
-func skopeoCopy(newImage, newTag string, oldImage, oldTag string) (string, error) {
-	newImageName := fmt.Sprint(newImage, newTag)
-	oldImageName := fmt.Sprint(oldImage, oldTag)
-	cmd := exec.Command(skopeo, debug, insecure, "copy", creds, dcreds, oldImageName, newImageName)
-
-	out, err := cmd.Output()
+func openshiftRegistryAuth(client operatorclient.ClientInterface, namespace string) (string, error) {
+	sa, err := client.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Get(BuilderServiceAccount, metav1.GetOptions{})
 	if err != nil {
-		return "", fmt.Errorf("failed to exec %#v: %v", cmd.Args, err)
+		return "", err
 	}
-	fmt.Println(string(out))
 
-	return newImageName, nil
+	secretName := sa.ImagePullSecrets[0].Name
+	secret, err := client.KubernetesInterface().CoreV1().Secrets(namespace).Get(secretName, metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+	annotations := secret.Annotations
+	if annotations == nil {
+		return "", fmt.Errorf("annotations not present on builder secret")
+	}
+
+	user := annotations["openshift.io/token-secret.name"]
+	pass := annotations["openshift.io/token-secret.value"]
+
+	return fmt.Sprint(user, ":", pass), nil
 }
 
-func skopeoDelete(image string) error {
-	cmd := exec.Command(skopeo, "delete", deletecreds, image)
+func skopeoCopyCmd(newImage, newTag, oldImage, oldTag, auth string) []string {
+	newImageName := fmt.Sprint(newImage, newTag)
+	oldImageName := fmt.Sprint(oldImage, oldTag)
 
-	out, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to exec %#v: %v", cmd.Args, err)
+	var creds string
+	if auth == "" {
+		creds = skipCreds
+	} else {
+		creds = fmt.Sprint(destCreds, auth)
 	}
-	fmt.Println(string(out))
 
+	cmd := []string{debug, insecure, "copy", skipTLS, v2format, creds, oldImageName, newImageName}
+
+	return cmd
+}
+
+func createSkopeoPod(client operatorclient.ClientInterface, args []string, namespace string) error {
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      skopeo,
+			Namespace: namespace,
+			Labels:    map[string]string{"name": skopeo},
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  skopeo,
+					Image: skopeoImage,
+					Args:  args,
+				},
+			},
+			RestartPolicy: corev1.RestartPolicyNever,
+			// ServiceAccountName: "builder",
+		},
+	}
+
+	_, err := client.KubernetesInterface().CoreV1().Pods(namespace).Create(pod)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-type Digest string
-
-// inspectOutput is the output format of (skopeo inspect), primarily so that we can format it with a simple json.MarshalIndent.
-type inspectOutput struct {
-	Name          string `json:",omitempty"`
-	Tag           string `json:",omitempty"`
-	Digest        Digest
-	RepoTags      []string
-	Created       *time.Time
-	DockerVersion string
-	Labels        map[string]string
-	Architecture  string
-	Os            string
-	Layers        []string
-	Env           []string
+func deleteSkopeoPod(client operatorclient.ClientInterface, namespace string) error {
+	err := client.KubernetesInterface().CoreV1().Pods(namespace).Delete(skopeo, &metav1.DeleteOptions{})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
-func skopeoInspectDigest(image string, sha string) (bool, error) {
-	cmd := exec.Command(skopeo, debug, "inspect", image)
+func skopeoLocalCopy(newImage, newTag string, oldImage, oldTag string) (string, error) {
+	newImageName := fmt.Sprint(newImage, newTag)
+	oldImageName := fmt.Sprint(oldImage, oldTag)
+	cmd := exec.Command(skopeo, debug, insecure, "copy", skipTLS, v2format, skipCreds, oldImageName, newImageName)
+
 	out, err := cmd.Output()
+	fmt.Println(string(out))
 	if err != nil {
-		return false, fmt.Errorf("failed to exec %#v: %v", cmd.Args, err)
-	}
-	var skopeoOutput inspectOutput
-	if err := json.Unmarshal(out, &skopeoOutput); err != nil {
-		return false, err
-	}
-	if string(skopeoOutput.Digest) != sha {
-		fmt.Printf("skopeoInspectDigest: expected: %s got: %s", sha, skopeoOutput.Digest)
-		return false, nil
+		return "", fmt.Errorf("failed to exec %#v: %v", cmd.Args, err)
 	}
 
-	return true, nil
+	return newImageName, nil
 }

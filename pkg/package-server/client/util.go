@@ -10,8 +10,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-// getConfig returns a kubernetes config for configuring a client from a kubeconfig string
-func getConfig(kubeconfig string) (*rest.Config, error) {
+// GetConfig returns a kubernetes config for configuring a client from a kubeconfig string
+func GetConfig(kubeconfig string) (*rest.Config, error) {
 	if len(kubeconfig) == 0 {
 		// Work around https://github.com/kubernetes/kubernetes/issues/40973
 		// See https://github.com/coreos/etcd-operator/issues/731#issuecomment-283804819

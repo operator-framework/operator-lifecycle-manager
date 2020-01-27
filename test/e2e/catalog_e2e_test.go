@@ -27,12 +27,6 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
-const (
-	oldsha256   = "sha256:aeb23777c920d98605c4c960f109a9994f5af1aab49bed51c94b88fe8463a919"
-	newsha256   = "sha256:f04cd65be9767684c7399cc0f183af15c0933e91124bc1f8312654e26678dc11"
-	catsrcImage = "docker://quay.io/olmtest/catsrc-update-test:"
-)
-
 func TestCatalogLoadingBetweenRestarts(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
@@ -704,6 +698,11 @@ func TestDeleteGRPCRegistryPodTriggersRecreation(t *testing.T) {
 	require.Equal(t, 1, len(registryPods.Items), "unexpected number of replacement registry pods found")
 }
 
+const (
+	openshiftregistryFQDN = "image-registry.openshift-image-registry.svc:5000/openshift-operators"
+	catsrcImage           = "docker://quay.io/olmtest/catsrc-update-test:"
+)
+
 func TestCatalogImageUpdate(t *testing.T) {
 	// Create an image based catalog source from public Quay image
 	// Use a unique tag as identifier
@@ -713,21 +712,68 @@ func TestCatalogImageUpdate(t *testing.T) {
 	// etcd operator updated from 0.9.0 to 0.9.2-clusterwide
 	// Subscription should detect the latest version of the operator in the new catalog source and pull it
 
-	// 0. check old tag to ensure correct image is used
-	image := fmt.Sprint(catsrcImage, "old")
-	tagOk, err := skopeoInspectDigest(image, oldsha256)
+	// create internal registry for purposes of pushing/pulling IF running e2e test locally
+	// registry is insecure and for purposes of this test only
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	local, err := Local(c)
 	if err != nil {
-		t.Fatalf("error confirming old catalog image: %s", err)
-	}
-	if !tagOk {
-		t.Fatal("cannot confirm old catalog image integrity")
+		t.Fatalf("cannot determine if test running locally or on CI: %s", err)
 	}
 
-	// 1. copy old catalog image into test-specific tag
+	var registryURL string
+	var registryAuth string
+	if local {
+		registryURL, err = createDockerRegistry(c, testNamespace)
+		if err != nil {
+			t.Fatalf("error creating container registry: %s", err)
+		}
+		defer deleteDockerRegistry(c, testNamespace)
+
+		// ensure registry pod is ready before attempting port-forwarding
+		_ = awaitPod(t, c, testNamespace, registryName, podReady)
+		
+		err = registryPortForward(testNamespace)
+		if err != nil {
+			t.Fatalf("port-forwarding local registry: %s", err)
+		}
+	} else {
+		registryURL = openshiftregistryFQDN
+		registryAuth, err = openshiftRegistryAuth(c, testNamespace)
+		if err != nil {
+			t.Fatalf("error getting openshift registry authentication: %s", err)
+		}
+	}
+
+	// testImage is the name of the image used throughout the test - the image overwritten by skopeo
+	// the tag is generated randomly and appended to the end of the testImage
+	testImage := fmt.Sprint("docker://", registryURL, "/catsrc-update", ":")
 	tag := genName("x")
-	oldImage, err := skopeoCopy(catsrcImage, tag, catsrcImage, "old")
-	if err != nil {
-		t.Fatalf("copying old registry file: %s", err)
+
+	// 1. copy old catalog image into test-specific tag in internal docker registry
+	// create skopeo pod to actually do the work of copying (on openshift) or exec out to local skopeo
+	if local {
+		_, err := skopeoLocalCopy(testImage, tag, catsrcImage, "old")
+		if err != nil {
+			t.Fatalf("error copying old registry file: %s", err)
+		}
+	} else {
+		skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "old", registryAuth)
+		err = createSkopeoPod(c, skopeoArgs, testNamespace)
+		if err != nil {
+			t.Fatalf("error creating skopeo pod: %s", err)
+		}
+
+		// wait for skopeo pod to exit successfully
+		awaitPod(t, c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			return pod.Status.Phase == corev1.PodSucceeded
+		})
+
+		err = deleteSkopeoPod(c, testNamespace)
+		if err != nil {
+			t.Fatalf("error deleting skopeo pod: %s", err)
+		}
 	}
 
 	// 2. setup catalog source
@@ -738,6 +784,10 @@ func TestCatalogImageUpdate(t *testing.T) {
 	channelName := "clusterwide-alpha"
 
 	// Create gRPC CatalogSource using an external registry image and poll interval
+	var image string
+	image = testImage[9:] // strip off docker://
+	image = fmt.Sprint(image, tag)
+
 	source := &v1alpha1.CatalogSource{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       v1alpha1.CatalogSourceKind,
@@ -750,7 +800,7 @@ func TestCatalogImageUpdate(t *testing.T) {
 		},
 		Spec: v1alpha1.CatalogSourceSpec{
 			SourceType: v1alpha1.SourceTypeGrpc,
-			Image:      oldImage[9:], // strip off docker://
+			Image:      image,
 			UpdateStrategy: &v1alpha1.UpdateStrategy{
 				RegistryPoll: &v1alpha1.RegistryPoll{
 					Interval: &metav1.Duration{Duration: 1 * time.Minute},
@@ -759,7 +809,6 @@ func TestCatalogImageUpdate(t *testing.T) {
 		},
 	}
 
-	crc := newCRClient(t)
 	source, err = crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
 	require.NoError(t, err)
 	defer func() {
@@ -768,7 +817,6 @@ func TestCatalogImageUpdate(t *testing.T) {
 
 	// wait for new catalog source pod to be created
 	// Wait for a new registry pod to be created
-	c := newKubeClient(t)
 	selector := labels.SelectorFromSet(map[string]string{"olm.catalogSource": source.GetName()})
 	singlePod := podCount(1)
 	registryPods, err := awaitPods(t, c, source.GetNamespace(), selector.String(), singlePod)
@@ -790,16 +838,6 @@ func TestCatalogImageUpdate(t *testing.T) {
 	_, err = fetchCSV(t, crc, subscription.Status.CurrentCSV, subscription.GetNamespace(), csvSucceededChecker)
 	require.NoError(t, err)
 
-	// check new image pod is as we expect
-	image = fmt.Sprint(catsrcImage, "new")
-	tagOk, err = skopeoInspectDigest(image, newsha256)
-	if err != nil {
-		t.Fatalf("error confirming new catalog image: %s", err)
-	}
-	if !tagOk {
-		t.Fatal("cannot confirm new catalog image integrity")
-	}
-
 	registryCheckFunc := func(podList *corev1.PodList) bool {
 		if len(podList.Items) > 1 {
 			return false
@@ -810,9 +848,28 @@ func TestCatalogImageUpdate(t *testing.T) {
 	registryPod, err := awaitPods(t, c, source.GetNamespace(), selector.String(), registryCheckFunc)
 	// 3. Update image on registry via skopeo: this should trigger a newly updated version of the catalog source pod
 	// to be deployed after some time
-	_, err = skopeoCopy(catsrcImage, tag, catsrcImage, "new")
-	if err != nil {
-		t.Fatalf("copying new registry file: %s", err)
+	// Make another skopeo pod to do the work of copying the image
+	if local {
+		_, err := skopeoLocalCopy(testImage, tag, catsrcImage, "new")
+		if err != nil {
+			t.Fatalf("error copying new registry file: %s", err)
+		}
+	} else {
+		skopeoArgs := skopeoCopyCmd(testImage, tag, catsrcImage, "new", registryAuth)
+		err = createSkopeoPod(c, skopeoArgs, testNamespace)
+		if err != nil {
+			t.Fatalf("error creating skopeo pod: %s", err)
+		}
+
+		// wait for skopeo pod to exit successfully
+		awaitPod(t, c, testNamespace, skopeo, func(pod *corev1.Pod) bool {
+			return pod.Status.Phase == corev1.PodSucceeded
+		})
+
+		err = deleteSkopeoPod(c, testNamespace)
+		if err != nil {
+			t.Fatalf("error deleting skopeo pod: %s", err)
+		}
 	}
 
 	// update catalog source with annotation (to kick resync)
