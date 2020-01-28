@@ -3,9 +3,16 @@
 approvers:
   - ecordell
   - njhale
-  - jpeeler 
+  - dinhxuanvu
 # review == this code is good /lgtm
 reviewers:
   - ecordell
   - njhale
-  - jpeeler 
+  - dinhxuanvu
+  - kevinrizza
+  - gallettilance
+  - anik120
+  - exdx
+  - awgreene
+  - Bowenislandsong
+  - benluddy 
