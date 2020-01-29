@@ -124,7 +124,7 @@ func (s *SQLQuerier) GetBundle(ctx context.Context, pkgName, channelName, csvNam
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil,  fmt.Errorf("no entry found for %s %s %s", pkgName, channelName, csvName)
+		return nil, fmt.Errorf("no entry found for %s %s %s", pkgName, channelName, csvName)
 	}
 	var entryId sql.NullInt64
 	var name sql.NullString
@@ -172,7 +172,7 @@ func (s *SQLQuerier) GetBundleForChannel(ctx context.Context, pkgName string, ch
 	defer rows.Close()
 
 	if !rows.Next() {
-		return nil,  fmt.Errorf("no entry found for %s %s", pkgName, channelName)
+		return nil, fmt.Errorf("no entry found for %s %s", pkgName, channelName)
 	}
 	var entryId sql.NullInt64
 	var name sql.NullString
@@ -255,9 +255,8 @@ func (s *SQLQuerier) GetBundleThatReplaces(ctx context.Context, name, pkgName, c
 	}
 	defer rows.Close()
 
-
 	if !rows.Next() {
-		return nil,  fmt.Errorf("no entry found for %s %s", pkgName, channelName)
+		return nil, fmt.Errorf("no entry found for %s %s", pkgName, channelName)
 	}
 	var entryId sql.NullInt64
 	var outName sql.NullString
@@ -473,14 +472,14 @@ func (s *SQLQuerier) GetImagesForBundle(ctx context.Context, csvName string) ([]
 	return images, nil
 }
 
-func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryId int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error) {
+func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryID int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error) {
 	providedQuery := `SELECT DISTINCT api.group_name, api.version, api.kind, api.plural FROM api
 		 	  		  INNER JOIN api_provider ON (api.group_name=api_provider.group_name AND api.version=api_provider.version AND api.kind=api_provider.kind)
 			  		  WHERE api_provider.channel_entry_id=?`
 
-	providedRows, err := s.db.QueryContext(ctx, providedQuery, entryId)
+	providedRows, err := s.db.QueryContext(ctx, providedQuery, entryID)
 	if err != nil {
-		return nil,nil, err
+		return nil, nil, err
 	}
 
 	provided = []*api.GroupVersionKind{}
@@ -497,10 +496,10 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryId int64) (provid
 			return nil, nil, err
 		}
 		provided = append(provided, &api.GroupVersionKind{
-			Group:  groupName.String,
+			Group:   groupName.String,
 			Version: versionName.String,
-			Kind:   kindName.String,
-			Plural:   pluralName.String,
+			Kind:    kindName.String,
+			Plural:  pluralName.String,
 		})
 	}
 	if err := providedRows.Close(); err != nil {
@@ -511,9 +510,9 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryId int64) (provid
 		 	  		  INNER JOIN api_requirer ON (api.group_name=api_requirer.group_name AND api.version=api_requirer.version AND api.kind=api_requirer.kind)
 			  		  WHERE api_requirer.channel_entry_id=?`
 
-	requiredRows, err := s.db.QueryContext(ctx, requiredQuery, entryId)
+	requiredRows, err := s.db.QueryContext(ctx, requiredQuery, entryID)
 	if err != nil {
-		return nil,nil, err
+		return nil, nil, err
 	}
 	required = []*api.GroupVersionKind{}
 	for requiredRows.Next() {
@@ -529,10 +528,10 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryId int64) (provid
 			return nil, nil, err
 		}
 		required = append(required, &api.GroupVersionKind{
-			Group:  groupName.String,
+			Group:   groupName.String,
 			Version: versionName.String,
-			Kind:   kindName.String,
-			Plural:   pluralName.String,
+			Kind:    kindName.String,
+			Plural:  pluralName.String,
 		})
 	}
 	if err := requiredRows.Close(); err != nil {
@@ -540,4 +539,107 @@ func (s *SQLQuerier) GetApisForEntry(ctx context.Context, entryId int64) (provid
 	}
 
 	return
+}
+
+func (s *SQLQuerier) GetBundleVersion(ctx context.Context, image string) (string, error) {
+	query := `SELECT version FROM operatorbundle WHERE bundlepath=? LIMIT 1`
+	rows, err := s.db.QueryContext(ctx, query, image)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var version sql.NullString
+	if rows.Next() {
+		if err := rows.Scan(&version); err != nil {
+			return "", err
+		}
+	}
+	if version.Valid {
+		return version.String, nil
+	}
+	return "", fmt.Errorf("bundle %s not found", image)
+}
+
+func (s *SQLQuerier) GetBundlePathsForPackage(ctx context.Context, pkgName string) ([]string, error) {
+	query := `SELECT DISTINCT bundlepath FROM operatorbundle 
+	INNER JOIN channel_entry ON operatorbundle.name=channel_entry.operatorbundle_name
+	WHERE channel_entry.package_name=?`
+	rows, err := s.db.QueryContext(ctx, query, pkgName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	images := []string{}
+	for rows.Next() {
+		var imgName sql.NullString
+		if err := rows.Scan(&imgName); err != nil {
+			return nil, err
+		}
+		if imgName.Valid && imgName.String != "" {
+			images = append(images, imgName.String)
+		} else {
+			return nil, fmt.Errorf("Index malformed: cannot find paths to bundle images")
+		}
+	}
+	return images, nil
+}
+
+func (s *SQLQuerier) GetDefaultChannelForPackage(ctx context.Context, pkgName string) (string, error) {
+	query := `SELECT DISTINCT default_channel FROM package WHERE name=? LIMIT 1`
+	rows, err := s.db.QueryContext(ctx, query, pkgName)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+
+	var defaultChannel sql.NullString
+	if rows.Next() {
+		if err := rows.Scan(&defaultChannel); err != nil {
+			return "", err
+		}
+	}
+	if defaultChannel.Valid {
+		return defaultChannel.String, nil
+	}
+	return "", nil
+}
+
+func (s *SQLQuerier) ListChannels(ctx context.Context, pkgName string) ([]string, error) {
+	query := `SELECT DISTINCT name FROM channel WHERE channel.package_name=?`
+	rows, err := s.db.QueryContext(ctx, query, pkgName)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	channels := []string{}
+	for rows.Next() {
+		var chName sql.NullString
+		if err := rows.Scan(&chName); err != nil {
+			return nil, err
+		}
+		if chName.Valid {
+			channels = append(channels, chName.String)
+		}
+	}
+	return channels, nil
+}
+
+func (s *SQLQuerier) GetCurrentCSVNameForChannel(ctx context.Context, pkgName, channel string) (string, error) {
+	query := `SELECT DISTINCT head_operatorbundle_name FROM channel WHERE channel.package_name=? AND channel.name=?`
+	rows, err := s.db.QueryContext(ctx, query, pkgName, channel)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	var csvName sql.NullString
+	if rows.Next() {
+		if err := rows.Scan(&csvName); err != nil {
+			return "", err
+		}
+	}
+	if csvName.Valid {
+		return csvName.String, nil
+	}
+	return "", nil
 }

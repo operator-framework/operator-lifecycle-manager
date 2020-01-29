@@ -10,7 +10,6 @@ import (
 
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/operator-framework/operator-registry/pkg/registry"
-	"github.com/operator-framework/operator-registry/pkg/sqlite"
 )
 
 func NewBundleLoader() *BundleLoader {
@@ -72,7 +71,7 @@ func loadBundle(entry *logrus.Entry, data map[string]string) (bundle *api.Bundle
 			continue
 		}
 
-		if resource.GetKind() == sqlite.ClusterServiceVersionKind {
+		if resource.GetKind() == "ClusterServiceVersion" {
 			csvBytes, err := resource.MarshalJSON()
 			if err != nil {
 				return nil, nil, err

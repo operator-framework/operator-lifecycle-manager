@@ -14,7 +14,10 @@ type BundleImageValidator interface {
 	PullBundleImage(imageTag string, directory string) error
 	// Validate bundle takes a directory containing the contents of a bundle image
 	// and validates that the format is correct
-	ValidateBundle(directory string) error
+	ValidateBundleFormat(directory string) error
+	// Validate bundle takes a directory containing the contents of a bundle image
+	// and validates that the content is correct
+	ValidateBundleContent(directory string) error
 }
 
 // NewImageValidator is a constructor that returns an ImageValidator

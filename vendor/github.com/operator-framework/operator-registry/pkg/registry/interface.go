@@ -35,5 +35,15 @@ type Query interface {
 	// List all images for a particular bundle
 	GetImagesForBundle(ctx context.Context, bundleName string) ([]string, error)
 	// Get Provided and Required APIs for a particular bundle
-	GetApisForEntry(ctx context.Context, entryId int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error)
+	GetApisForEntry(ctx context.Context, entryID int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error)
+	// Get Version of a Bundle Image
+	GetBundleVersion(ctx context.Context, image string) (string, error)
+	// List Images for Package
+	GetBundlePathsForPackage(ctx context.Context, pkgName string) ([]string, error)
+	// Get DefaultChannel for Package
+	GetDefaultChannelForPackage(ctx context.Context, pkgName string) (string, error)
+	// List channels for package
+	ListChannels(ctx context.Context, pkgName string) ([]string, error)
+	// Get CurrentCSV name for channel and package
+	GetCurrentCSVNameForChannel(ctx context.Context, pkgName, channel string) (string, error)
 }
