@@ -188,7 +188,8 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 	}
 
 	// Wire CatalogSources
-	catsrcInformer := crInformerFactory.Operators().V1alpha1().CatalogSources()
+	// TODO: CatalogSources require a resync interval to periodically poll for updates to catalog images - remove this requirement
+	catsrcInformer := externalversions.NewSharedInformerFactoryWithOptions(op.client, 15*time.Minute).Operators().V1alpha1().CatalogSources()
 	op.lister.OperatorsV1alpha1().RegisterCatalogSourceLister(metav1.NamespaceAll, catsrcInformer.Lister())
 	catsrcQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "catsrcs")
 	op.catsrcQueueSet.Set(metav1.NamespaceAll, catsrcQueue)

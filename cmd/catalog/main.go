@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -28,7 +27,7 @@ import (
 
 const (
 	catalogNamespaceEnvVarName  = "GLOBAL_CATALOG_NAMESPACE"
-	defaultWakeupInterval       = 15 * time.Minute
+	defaultWakeupInterval       = 0
 	defaultCatalogNamespace     = "openshift-operator-lifecycle-manager"
 	defaultConfigMapServerImage = "quay.io/operatorframework/configmap-operator-registry:latest"
 	defaultOperatorName         = ""

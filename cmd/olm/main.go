@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	configclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
@@ -29,7 +28,7 @@ import (
 )
 
 const (
-	defaultWakeupInterval          = 5 * time.Minute
+	defaultWakeupInterval          = 0
 	defaultOperatorName            = ""
 	defaultPackageServerStatusName = ""
 )

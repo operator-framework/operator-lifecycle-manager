@@ -200,7 +200,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		}
 
 		// Wire OperatorGroup reconciliation
-		operatorGroupInformer := extInformerFactory.Operators().V1().OperatorGroups()
+		operatorGroupInformer := externalversions.NewSharedInformerFactoryWithOptions(op.client, 5*time.Minute).Operators().V1().OperatorGroups()
 		op.lister.OperatorsV1().RegisterOperatorGroupLister(namespace, operatorGroupInformer.Lister())
 		ogQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/og", namespace))
 		op.ogQueueSet.Set(namespace, ogQueue)
