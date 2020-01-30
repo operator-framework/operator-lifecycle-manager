@@ -18,17 +18,17 @@ import (
 
 // ImageLoader loads a bundle image of resources into the database
 type ImageLoader struct {
-	store     registry.Load
-	image     string
-	directory string
+	store         registry.Load
+	image         string
+	directory     string
 	containerTool string
 }
 
 func NewSQLLoaderForImage(store registry.Load, image, containerTool string) *ImageLoader {
 	return &ImageLoader{
-		store:     store,
-		image:     image,
-		directory: "",
+		store:         store,
+		image:         image,
+		directory:     "",
 		containerTool: containerTool,
 	}
 }

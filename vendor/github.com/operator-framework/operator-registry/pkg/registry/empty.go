@@ -54,7 +54,6 @@ func (EmptyQuery) GetBundleThatProvides(ctx context.Context, group, version, kin
 
 func (EmptyQuery) ListImages(ctx context.Context) ([]string, error) {
 	return nil, errors.New("empty querier: cannot get image list")
-
 }
 
 func (EmptyQuery) GetImagesForBundle(ctx context.Context, bundleName string) ([]string, error) {
@@ -63,6 +62,26 @@ func (EmptyQuery) GetImagesForBundle(ctx context.Context, bundleName string) ([]
 
 func (EmptyQuery) GetApisForEntry(ctx context.Context, entryId int64) (provided []*api.GroupVersionKind, required []*api.GroupVersionKind, err error) {
 	return nil, nil, errors.New("empty querier: cannot apis")
+}
+
+func (EmptyQuery) GetBundleVersion(ctx context.Context, image string) (string, error) {
+	return "", errors.New("empty querier: cannot get version")
+}
+
+func (EmptyQuery) GetBundlePathsForPackage(ctx context.Context, pkgName string) ([]string, error) {
+	return nil, errors.New("empty querier: cannot get images")
+}
+
+func (EmptyQuery) GetDefaultChannelForPackage(ctx context.Context, pkgName string) (string, error) {
+	return "", errors.New("empty querier: cannot get default channel")
+}
+
+func (EmptyQuery) ListChannels(ctx context.Context, pkgName string) ([]string, error) {
+	return nil, errors.New("empty querier: cannot list channels")
+}
+
+func (EmptyQuery) GetCurrentCSVNameForChannel(ctx context.Context, pkgName, channel string) (string, error) {
+	return "", errors.New("empty querier: cannot get csv name for package and channel")
 }
 
 var _ Query = &EmptyQuery{}
