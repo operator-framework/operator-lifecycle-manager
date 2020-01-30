@@ -183,6 +183,9 @@ func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []stri
 	targetNamespaceSet := resolver.NewNamespaceSet(targetNamespaces)
 
 	for _, csv := range a.csvSet(group.GetNamespace(), v1alpha1.CSVPhaseAny) {
+		if csv.IsCopied() {
+			continue
+		}
 		logger := logger.WithField("csv", csv.GetName())
 
 		originalNamespacesAnnotation, _ := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)[v1.OperatorGroupTargetsAnnotationKey]
