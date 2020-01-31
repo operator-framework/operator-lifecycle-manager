@@ -910,6 +910,11 @@ func (a *Operator) removeDanglingChildCSVs(csv *v1alpha1.ClusterServiceVersion) 
 		}
 	}
 
+	if parent.GetNamespace() == csv.GetNamespace() {
+		logger.Debug("deleting copied CSV since it has incorrect parent annotations")
+		return a.deleteChild(csv, logger)
+	}
+
 	return nil
 }
 
