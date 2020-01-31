@@ -10,11 +10,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
+	apiregv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	operatorsfake "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
 
 func TestCrossOwnerReferenceRemoval(t *testing.T) {
@@ -352,8 +354,9 @@ func TestCleanupOwnerReferences(t *testing.T) {
 	clusterRoleKind := "ClusterRole"
 
 	type fields struct {
-		k8sObjs    []runtime.Object
-		clientObjs []runtime.Object
+		k8sObjs     []runtime.Object
+		clientObjs  []runtime.Object
+		apiServices []runtime.Object
 	}
 	type expected struct {
 		err                 error
@@ -362,6 +365,7 @@ func TestCleanupOwnerReferences(t *testing.T) {
 		clusterRoleBindings []rbacv1.ClusterRoleBinding
 		roles               []rbacv1.Role
 		roleBindings        []rbacv1.RoleBinding
+		apiServices         []apiregv1.APIService
 	}
 	tests := []struct {
 		description string
@@ -381,6 +385,9 @@ func TestCleanupOwnerReferences(t *testing.T) {
 					newClusterServiceVersion("ns-b", "csv-b", "csv-b-uid"),
 					newClusterServiceVersion("ns-a", "csv-a", "csv-a-uid", newOwnerReference(v1alpha1.ClusterServiceVersionKind, "csv-b-uid")),
 				},
+				apiServices: []runtime.Object{
+					newAPIService("apisvc", "apisvc-a-uid", nil, newOwnerReference(v1alpha1.ClusterServiceVersionKind, "csv-b-uid")),
+				},
 			},
 			expected: expected{
 				csvs: []v1alpha1.ClusterServiceVersion{
@@ -398,6 +405,9 @@ func TestCleanupOwnerReferences(t *testing.T) {
 				},
 				roleBindings: []rbacv1.RoleBinding{
 					*newRoleBinding("ns-a", "rb", "rb-a-uid"),
+				},
+				apiServices: []apiregv1.APIService{
+					*newAPIService("apisvc", "apisvc-a-uid", nil),
 				},
 			},
 		},
@@ -462,7 +472,7 @@ func TestCleanupOwnerReferences(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.description, func(t *testing.T) {
 			k8sClient := k8sfake.NewSimpleClientset(tt.fields.k8sObjs...)
-			c := operatorclient.NewClient(k8sClient, apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset())
+			c := operatorclient.NewClient(k8sClient, apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset(tt.fields.apiServices...))
 			crc := operatorsfake.NewSimpleClientset(tt.fields.clientObjs...)
 			require.Equal(t, tt.expected.err, cleanupOwnerReferences(c, crc))
 
@@ -486,8 +496,109 @@ func TestCleanupOwnerReferences(t *testing.T) {
 			roleBindings, err := c.KubernetesInterface().RbacV1().RoleBindings(metav1.NamespaceAll).List(listOpts)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.expected.roleBindings, roleBindings.Items)
+
+			apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(listOpts)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.expected.apiServices, apiService.Items)
 		})
 	}
+}
+
+func TestCheckAPIServiceLabels(t *testing.T) {
+	type fields struct {
+		apiServices []runtime.Object
+	}
+
+	type expected struct {
+		err         error
+		apiServices []apiregv1.APIService
+	}
+
+	tests := []struct {
+		description string
+		fields      fields
+		expected    expected
+	}{
+		{
+			description: "NoLabel/UpdateAPIService",
+			fields: fields{
+				apiServices: []runtime.Object{
+					newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{}),
+				},
+			},
+			expected: expected{
+				apiServices: []apiregv1.APIService{
+					*newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: ownerutil.OwnerPackageServer}),
+				},
+			},
+		},
+		{
+			description: "WrongLabel/UpdateAPIService",
+			fields: fields{
+				apiServices: []runtime.Object{
+					newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: "banana"}),
+				},
+			},
+			expected: expected{
+				apiServices: []apiregv1.APIService{
+					*newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: ownerutil.OwnerPackageServer}),
+				},
+			},
+		},
+		{
+			description: "CorrectLabel/NoUpdate",
+			fields: fields{
+				apiServices: []runtime.Object{
+					newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: ownerutil.OwnerPackageServer}),
+				},
+			},
+			expected: expected{
+				apiServices: []apiregv1.APIService{
+					*newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: ownerutil.OwnerPackageServer}),
+				},
+			},
+		},
+		{
+			description: "WrongAPIService/NoUpdate",
+			fields: fields{
+				apiServices: []runtime.Object{
+					newAPIService("banana", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: "banana"}),
+				},
+			},
+			expected: expected{
+				apiServices: []apiregv1.APIService{
+					*newAPIService("banana", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: "banana"}),
+				},
+			},
+		},
+		{
+			description: "NoLabels/Update",
+			fields: fields{
+				apiServices: []runtime.Object{
+					newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", nil),
+				},
+			},
+			expected: expected{
+				apiServices: []apiregv1.APIService{
+					*newAPIService("v1.packages.operators.coreos.com", "apisvc-a-uid", map[string]string{ownerutil.OwnerKey: ownerutil.OwnerPackageServer}),
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.description, func(t *testing.T) {
+			listOpts := metav1.ListOptions{}
+			k8sClient := k8sfake.NewSimpleClientset()
+			c := operatorclient.NewClient(k8sClient, apiextensionsfake.NewSimpleClientset(), apiregistrationfake.NewSimpleClientset(tt.fields.apiServices...))
+			require.Equal(t, tt.expected.err, ensureAPIServiceLabels(c.ApiregistrationV1Interface()))
+
+			apiService, err := c.ApiregistrationV1Interface().ApiregistrationV1().APIServices().List(listOpts)
+			require.NoError(t, err)
+			require.ElementsMatch(t, tt.expected.apiServices, apiService.Items)
+		})
+	}
+
 }
 
 func newOwnerReference(kind string, uid types.UID) metav1.OwnerReference {
@@ -539,4 +650,13 @@ func newRoleBinding(namespace, name string, uid types.UID, ownerRefs ...metav1.O
 	roleBinding.SetName(name)
 	roleBinding.SetOwnerReferences(ownerRefs)
 	return roleBinding
+}
+
+func newAPIService(name string, uid types.UID, labels map[string]string, ownerRefs ...metav1.OwnerReference) *apiregv1.APIService {
+	apiService := &apiregv1.APIService{}
+	apiService.SetUID(uid)
+	apiService.SetName(name)
+	apiService.SetOwnerReferences(ownerRefs)
+	apiService.SetLabels(labels)
+	return apiService
 }
