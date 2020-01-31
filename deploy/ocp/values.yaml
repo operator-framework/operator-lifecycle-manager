@@ -10,7 +10,7 @@ writePackageServerStatusName: operator-lifecycle-manager-packageserver
 olm:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+    ref: quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -38,7 +38,7 @@ olm:
 catalog:
   replicaCount: 1
   image:
-    ref: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+    ref: quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
     pullPolicy: IfNotPresent
   service:
     internalPort: 8080
@@ -64,7 +64,7 @@ catalog:
 package:
   replicaCount: 2
   image:
-    ref: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+    ref: quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
     pullPolicy: IfNotPresent
   service:
     internalPort: 5443

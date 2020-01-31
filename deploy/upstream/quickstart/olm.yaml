@@ -3,13 +3,17 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: olm
-  
 ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: operators
-  
+---
+kind: ServiceAccount
+apiVersion: v1
+metadata:
+  name: olm-operator-serviceaccount
+  namespace: olm
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -21,12 +25,6 @@ rules:
   verbs: ["*"]
 - nonResourceURLs: ["*"]
   verbs: ["*"]
----
-kind: ServiceAccount
-apiVersion: v1
-metadata:
-  name: olm-operator-serviceaccount
-  namespace: olm
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -70,7 +68,7 @@ spec:
           - $(OPERATOR_NAMESPACE)
           - -writeStatusName
           - ""
-          image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+          image: quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -98,12 +96,10 @@ spec:
             requests:
               cpu: 10m
               memory: 160Mi
-            
           
       
       nodeSelector:
         beta.kubernetes.io/os: linux
-        
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -133,7 +129,7 @@ spec:
           - '-namespace'
           - olm
           - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
-          image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+          image: quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
@@ -155,12 +151,10 @@ spec:
             requests:
               cpu: 10m
               memory: 80Mi
-            
           
       
       nodeSelector:
         beta.kubernetes.io/os: linux
-        
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
@@ -214,7 +208,7 @@ metadata:
   name: packageserver
   namespace: olm
   labels:
-    olm.version: 0.13.0
+    olm.version: 0.14.1
 spec:
   displayName: Package Server
   description: Represents an Operator package that is available from a given CatalogSource which will resolve to a ClusterServiceVersion.
@@ -290,7 +284,6 @@ spec:
               serviceAccountName: olm-operator-serviceaccount
               nodeSelector:
                 beta.kubernetes.io/os: linux
-                
               containers:
               - name: packageserver
                 command:
@@ -300,7 +293,7 @@ spec:
                 - "5443"
                 - --global-namespace
                 - olm
-                image: quay.io/operator-framework/olm@sha256:73d60e4f2adbc70ed8df93245fb2d83c9e0062489a22110d897b83c21918e101
+                image: quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
                 imagePullPolicy: Always
                 ports:
                 - containerPort: 5443
@@ -319,9 +312,8 @@ spec:
                   requests:
                     cpu: 10m
                     memory: 50Mi
-                  
   maturity: alpha
-  version: 0.13.0
+  version: 0.14.1
   apiservicedefinitions:
     owned:
     - group: packages.operators.coreos.com
