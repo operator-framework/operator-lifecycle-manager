@@ -2,12 +2,12 @@
 package fakes
 
 import (
-	context "context"
-	sync "sync"
-	time "time"
+	"context"
+	"sync"
+	"time"
 
-	api "github.com/operator-framework/operator-registry/pkg/api"
-	client "github.com/operator-framework/operator-registry/pkg/client"
+	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/operator-registry/pkg/client"
 )
 
 type FakeInterface struct {
