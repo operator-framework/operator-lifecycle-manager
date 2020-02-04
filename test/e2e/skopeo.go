@@ -10,9 +10,9 @@ import (
 const (
 	// robot credentials to access the catsrc-update-test quay repository
 	// these are write-only and checks are made to ensure only the intended images are allowed to run
-	creds       = "--screds=olmtest+e2etest:3GIQMPN3CKT49LRBL2IP9Q2OTLHP4RHZQ6QYCEYDJQIW8KO8LYZQ38BHNR4FD2TA"
-	dcreds      = "--dcreds=olmtest+e2etest:3GIQMPN3CKT49LRBL2IP9Q2OTLHP4RHZQ6QYCEYDJQIW8KO8LYZQ38BHNR4FD2TA"
-	deletecreds = "--creds=olmtest+e2etest:3GIQMPN3CKT49LRBL2IP9Q2OTLHP4RHZQ6QYCEYDJQIW8KO8LYZQ38BHNR4FD2TA"
+	creds       = "--screds=olmtest+e2etest:V1YASVAXKBCMX6FFKRXJ74T0XMWUEVLF8YYOX3V4BLXSR0LFZI5NDL2V16MNI813"
+	dcreds      = "--dcreds=olmtest+e2etest:V1YASVAXKBCMX6FFKRXJ74T0XMWUEVLF8YYOX3V4BLXSR0LFZI5NDL2V16MNI813"
+	deletecreds = "--creds=olmtest+e2etest:V1YASVAXKBCMX6FFKRXJ74T0XMWUEVLF8YYOX3V4BLXSR0LFZI5NDL2V16MNI813"
 	insecure    = "--insecure-policy=true"
 	skopeo      = "skopeo"
 	debug       = "--debug"
