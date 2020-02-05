@@ -161,7 +161,7 @@ func WithSyncer(syncer kubestate.Syncer) Option {
 }
 
 type operatorConfig struct {
-	discovery      discovery.DiscoveryInterface
+	serverVersion  discovery.ServerVersionInterface
 	queueInformers []*QueueInformer
 	informers      []cache.SharedIndexInformer
 	logger         *logrus.Logger
@@ -217,7 +217,7 @@ func WithNumWorkers(numWorkers int) OperatorOption {
 // validate returns an error if the config isn't valid.
 func (c *operatorConfig) validate() (err error) {
 	switch config := c; {
-	case config.discovery == nil:
+	case config.serverVersion == nil:
 		err = newInvalidOperatorConfigError("discovery client nil")
 	case config.numWorkers < 1:
 		err = newInvalidOperatorConfigError("must specify at least one worker per queue")
