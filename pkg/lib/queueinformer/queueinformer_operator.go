@@ -46,7 +46,7 @@ type Operator interface {
 }
 
 type operator struct {
-	discovery        discovery.DiscoveryInterface
+	serverVersion    discovery.ServerVersionInterface
 	queueInformers   []*QueueInformer
 	informers        []cache.SharedIndexInformer
 	hasSynced        cache.InformerSynced
@@ -161,26 +161,34 @@ func (o *operator) RunInformers(ctx context.Context) {
 // Run starts the operator's control loops.
 func (o *operator) Run(ctx context.Context) {
 	o.reconcileOnce.Do(func() {
-		go o.run(ctx)
+		go func() {
+			defer func() {
+				for _, queueInformer := range o.queueInformers {
+					queueInformer.queue.ShutDown()
+				}
+				close(o.atLevel)
+				close(o.done)
+			}()
+			o.start(ctx)
+			<-ctx.Done()
+		}()
 	})
 }
 
-func (o *operator) run(ctx context.Context) {
-	defer func() {
-		close(o.atLevel)
-		close(o.done)
-	}()
+func (o *operator) start(ctx context.Context) {
+	defer close(o.ready)
 
-	for _, queueInformer := range o.queueInformers {
-		defer queueInformer.queue.ShutDown()
-	}
-
+	// goroutine will be unnecessary after https://github.com/kubernetes/enhancements/pull/1503
 	errs := make(chan error)
 	go func() {
 		defer close(errs)
-		v, err := o.discovery.ServerVersion()
+		v, err := o.serverVersion.ServerVersion()
 		if err != nil {
-			errs <- errors.Wrap(err, "communicating with server failed")
+			select {
+			case errs <- errors.Wrap(err, "communicating with server failed"):
+			case <-ctx.Done():
+				// don't block send forever on cancellation
+			}
 			return
 		}
 		o.logger.Infof("connection established. cluster-version: %v", v)
@@ -212,9 +220,6 @@ func (o *operator) run(ctx context.Context) {
 			go o.worker(ctx, queueInformer)
 		}
 	}
-
-	close(o.ready)
-	<-ctx.Done()
 }
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
@@ -293,10 +298,10 @@ func (o *operator) processNextWorkItem(ctx context.Context, loop *QueueInformer)
 	return true
 }
 
-// NewOperator returns a new Operator configured to manage the cluster with the given discovery client.
-func NewOperator(disc discovery.DiscoveryInterface, options ...OperatorOption) (Operator, error) {
+// NewOperator returns a new Operator configured to manage the cluster with the given server version client.
+func NewOperator(sv discovery.ServerVersionInterface, options ...OperatorOption) (Operator, error) {
 	config := defaultOperatorConfig()
-	config.discovery = disc
+	config.serverVersion = sv
 	config.apply(options)
 	if err := config.validate(); err != nil {
 		return nil, err
@@ -306,14 +311,14 @@ func NewOperator(disc discovery.DiscoveryInterface, options ...OperatorOption) (
 
 }
 
-func newOperatorFromConfig(config *operatorConfig) (Operator, error) {
+func newOperatorFromConfig(config *operatorConfig) (*operator, error) {
 	op := &operator{
-		discovery:  config.discovery,
-		numWorkers: config.numWorkers,
-		logger:     config.logger,
-		ready:      make(chan struct{}),
-		done:       make(chan struct{}),
-		atLevel:    make(chan error, 25),
+		serverVersion: config.serverVersion,
+		numWorkers:    config.numWorkers,
+		logger:        config.logger,
+		ready:         make(chan struct{}),
+		done:          make(chan struct{}),
+		atLevel:       make(chan error, 25),
 	}
 	op.syncCh = op.atLevel
 
