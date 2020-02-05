@@ -39,9 +39,6 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	if err := flag.Set("logtostderr", "true"); err != nil {
-		panic(err)
-	}
 	flag.Parse()
 
 	testNamespace = *namespace
