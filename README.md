@@ -7,22 +7,25 @@
 
 ## Overview
 
-This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://coreos.com/blog/introducing-operator-framework).
+This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://operatorhub.io/what-is-an-operator).
 
-OLM extends Kubernetes to provide a declarative way to install, manage, and upgrade operators and their dependencies in a cluster.
+OLM extends Kubernetes to provide a declarative way to install, manage, and upgrade Operators and their dependencies in a cluster. It provides the following features:
 
-It also enforces some constraints on the components it manages in order to ensure a good user experience.
+### Over-the-Air Updates and Catalogs
+Kubernetes clusters are being kept up to date using elaborate update mechanisms today, more often automatically and in the background. Operators, being cluster extensions, should follow that. OLM has a concept of catalogs from which Operators are available to install and being kept up to date. In this model OLM allows maintainers granular authoring of the update path and gives commercial vendors a flexible publishing mechanism using channels.
 
-This project enables users to do the following:
+### Dependency Model
+With OLMs packaging format Operators can express dependencies on the platform and on other Operators. They can rely on OLM to respect these requirements as long as the cluster is up. In this way, OLMs dependency model ensures Operators stay working during their long lifecycle across multiple updates of the platform or other Operators.
 
-* Define applications as a single Kubernetes resource that encapsulates requirements and metadata
-* Install applications automatically with dependency resolution or manually with nothing but `kubectl`
-* Upgrade applications automatically with different approval policies
+### Discoverability
+OLM advertises installed Operators and their services into the namespaces of tenants. They can discover which managed services are available and which Operator provides them. Administrators can rely on catalog content projected into a cluster, enabling discovery of Operators available to install.
 
-This project does not:
+### Cluster Stability
+Operators must claim ownership of their APIs. OLM will prevent conflicting Operators owning the same APIs being installed, ensuring cluster stability.
 
-* Replace [Helm](https://github.com/kubernetes/helm)
-* Turn Kubernetes into a [PaaS](https://en.wikipedia.org/wiki/Platform_as_a_service)
+### Declarative UI controls
+Operators can behave like managed service providers. Their user interface on the command line are APIs. For graphical consoles OLM annotates those APIs with descriptors that drive the creation of rich interfaces and forms for users to interact with the Operator in a natural, cloud-like way.
+
 
 ## Prerequisites
 
