@@ -600,3 +600,28 @@ func buildCRCleanupFunc(c operatorclient.ClientInterface, apiGroup, version, nam
 		})
 	}
 }
+
+// Local determines whether test is running locally or in a container on openshift-CI.
+// Queries for a clusterversion object specific to OpenShift.
+func Local(client operatorclient.ClientInterface) (bool, error) {
+	const ClusterVersionGroup = "config.openshift.io"
+	const ClusterVersionVersion = "v1"
+	const ClusterVersionKind = "ClusterVersion"
+	gv := metav1.GroupVersion{Group: ClusterVersionGroup, Version: ClusterVersionVersion}.String()
+
+	groups, err := client.KubernetesInterface().Discovery().ServerResourcesForGroupVersion(gv)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return true, nil
+		}
+		return true, fmt.Errorf("checking if cluster is local: checking server groups: %s", err)
+	}
+
+	for _, group := range groups.APIResources {
+		if group.Kind == ClusterVersionKind {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
