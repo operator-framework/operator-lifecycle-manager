@@ -27,6 +27,7 @@ const (
 	etcdCluster = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdclusters.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdCluster\",\"listKind\":\"EtcdClusterList\",\"plural\":\"etcdclusters\",\"shortNames\":[\"etcdclus\",\"etcd\"],\"singular\":\"etcdcluster\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	etcdRestore = "{\"apiVersion\":\"apiextensions.k8s.io/v1beta1\",\"kind\":\"CustomResourceDefinition\",\"metadata\":{\"name\":\"etcdrestores.etcd.database.coreos.com\"},\"spec\":{\"group\":\"etcd.database.coreos.com\",\"names\":{\"kind\":\"EtcdRestore\",\"listKind\":\"EtcdRestoreList\",\"plural\":\"etcdrestores\",\"singular\":\"etcdrestore\"},\"scope\":\"Namespaced\",\"version\":\"v1beta2\"}}"
 	opmImage    = "opm-image"
+	utilImage   = "util-image"
 	bundlePath  = "bundle-path"
 )
 
@@ -198,28 +199,28 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 									InitContainers: []corev1.Container{
 										{
-											Name:    "tools",
-											Image:   "busybox",
-											Command: []string{"/bin/cp", "-Rv", "/bin/cp", "/tools/cp"},
+											Name:    "util",
+											Image:   utilImage,
+											Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
 											VolumeMounts: []corev1.VolumeMount{
 												{
-													Name:      "tools",
-													MountPath: "/tools",
+													Name:      "util",
+													MountPath: "/util",
 												},
 											},
 										},
 										{
 											Name:    "pull",
 											Image:   bundlePath,
-											Command: []string{"/tools/cp", "-Rv", "/manifests", "/metadata", "/bundle"},
+											Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
 													Name:      "bundle",
 													MountPath: "/bundle",
 												},
 												{
-													Name:      "tools",
-													MountPath: "/tools",
+													Name:      "util",
+													MountPath: "/util",
 												},
 											},
 										},
@@ -232,7 +233,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 										{
-											Name: "tools",
+											Name: "util",
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
@@ -354,28 +355,28 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 									InitContainers: []corev1.Container{
 										{
-											Name:    "tools",
-											Image:   "busybox",
-											Command: []string{"/bin/cp", "-Rv", "/bin/cp", "/tools/cp"},
+											Name:    "util",
+											Image:   utilImage,
+											Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
 											VolumeMounts: []corev1.VolumeMount{
 												{
-													Name:      "tools",
-													MountPath: "/tools",
+													Name:      "util",
+													MountPath: "/util",
 												},
 											},
 										},
 										{
 											Name:    "pull",
 											Image:   bundlePath,
-											Command: []string{"/tools/cp", "-Rv", "/manifests", "/metadata", "/bundle"},
+											Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
 													Name:      "bundle",
 													MountPath: "/bundle",
 												},
 												{
-													Name:      "tools",
-													MountPath: "/tools",
+													Name:      "util",
+													MountPath: "/util",
 												},
 											},
 										},
@@ -388,7 +389,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 										{
-											Name: "tools",
+											Name: "util",
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
@@ -549,28 +550,28 @@ func TestConfigMapUnpacker(t *testing.T) {
 									},
 									InitContainers: []corev1.Container{
 										{
-											Name:    "tools",
-											Image:   "busybox",
-											Command: []string{"/bin/cp", "-Rv", "/bin/cp", "/tools/cp"},
+											Name:    "util",
+											Image:   utilImage,
+											Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
 											VolumeMounts: []corev1.VolumeMount{
 												{
-													Name:      "tools",
-													MountPath: "/tools",
+													Name:      "util",
+													MountPath: "/util",
 												},
 											},
 										},
 										{
 											Name:    "pull",
 											Image:   bundlePath,
-											Command: []string{"/tools/cp", "-Rv", "/manifests", "/metadata", "/bundle"},
+											Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 											VolumeMounts: []corev1.VolumeMount{
 												{
 													Name:      "bundle",
 													MountPath: "/bundle",
 												},
 												{
-													Name:      "tools",
-													MountPath: "/tools",
+													Name:      "util",
+													MountPath: "/util",
 												},
 											},
 										},
@@ -583,7 +584,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 											},
 										},
 										{
-											Name: "tools",
+											Name: "util",
 											VolumeSource: corev1.VolumeSource{
 												EmptyDir: &corev1.EmptyDirVolumeSource{},
 											},
@@ -705,6 +706,7 @@ func TestConfigMapUnpacker(t *testing.T) {
 				WithRoleLister(roleLister),
 				WithRoleBindingLister(rbLister),
 				WithOPMImage(opmImage),
+				WithUtilImage(utilImage),
 				WithNow(now),
 			)
 			require.NoError(t, err)

@@ -92,13 +92,12 @@ type Operator struct {
 	clientAttenuator         *scoped.ClientAttenuator
 	serviceAccountQuerier    *scoped.UserDefinedServiceAccountQuerier
 	bundleUnpacker           bundle.Unpacker
-	bundleUnpackerImage      string
 }
 
 type CatalogSourceSyncFunc func(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error)
 
 // NewOperator creates a new Catalog Operator.
-func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resyncPeriod time.Duration, configmapRegistryImage, operatorNamespace string) (*Operator, error) {
+func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clock, logger *logrus.Logger, resyncPeriod time.Duration, configmapRegistryImage, utilImage string, operatorNamespace string) (*Operator, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigPath)
 	if err != nil {
 		return nil, err
@@ -144,7 +143,6 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		catalogSubscriberIndexer: map[string]cache.Indexer{},
 		serviceAccountQuerier:    scoped.NewUserDefinedServiceAccountQuerier(logger, crClient),
 		clientAttenuator:         scoped.NewClientAttenuator(logger, config, opClient, crClient, dynamicClient),
-		bundleUnpackerImage:      configmapRegistryImage, // Assume the configmapRegistryImage contains the unpacker for now.
 	}
 	op.sources = grpc.NewSourceStore(logger, 10*time.Second, 10*time.Minute, op.syncSourceState)
 	op.reconciler = reconciler.NewRegistryReconcilerFactory(lister, opClient, configmapRegistryImage, op.now)
@@ -313,7 +311,8 @@ func NewOperator(ctx context.Context, kubeconfigPath string, clock utilclock.Clo
 		bundle.WithJobLister(jobInformer.Lister()),
 		bundle.WithRoleLister(roleInformer.Lister()),
 		bundle.WithRoleBindingLister(roleBindingInformer.Lister()),
-		bundle.WithOPMImage(op.bundleUnpackerImage),
+		bundle.WithOPMImage(configmapRegistryImage),
+		bundle.WithUtilImage(utilImage),
 		bundle.WithNow(op.now),
 	)
 	if err != nil {

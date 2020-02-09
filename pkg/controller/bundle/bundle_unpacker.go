@@ -73,28 +73,28 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 					},
 					InitContainers: []corev1.Container{
 						{
-							Name:    "tools",
-							Image:   "busybox",
-							Command: []string{"/bin/cp", "-Rv", "/bin/cp", "/tools/cp"}, // Copy tooling for the bundle container to use
+							Name:    "util",
+							Image:   c.utilImage,
+							Command: []string{"/bin/cp", "-Rv", "/bin/cpb", "/util/cpb"}, // Copy tooling for the bundle container to use
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      "tools",
-									MountPath: "/tools",
+									Name:      "util",
+									MountPath: "/util",
 								},
 							},
 						},
 						{
 							Name:    "pull",
 							Image:   bundlePath,
-							Command: []string{"/tools/cp", "-Rv", "/manifests", "/metadata", "/bundle"}, // Copy bundle content to its mount
+							Command: []string{"/util/cpb", "/bundle"}, // Copy bundle content to its mount
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "bundle",
 									MountPath: "/bundle",
 								},
 								{
-									Name:      "tools",
-									MountPath: "/tools",
+									Name:      "util",
+									MountPath: "/util",
 								},
 							},
 						},
@@ -107,7 +107,7 @@ func (c *ConfigMapUnpacker) job(cmRef *corev1.ObjectReference, bundlePath string
 							},
 						},
 						{
-							Name: "tools", // Used to share tool
+							Name: "util", // Used to share utils
 							VolumeSource: corev1.VolumeSource{
 								EmptyDir: &corev1.EmptyDirVolumeSource{},
 							},
@@ -132,6 +132,7 @@ type Unpacker interface {
 
 type ConfigMapUnpacker struct {
 	opmImage   string
+	utilImage  string
 	client     kubernetes.Interface
 	csLister   listersoperatorsv1alpha1.CatalogSourceLister
 	cmLister   listerscorev1.ConfigMapLister
@@ -160,6 +161,12 @@ func NewConfigmapUnpacker(options ...ConfigMapUnpackerOption) (*ConfigMapUnpacke
 func WithOPMImage(opmImage string) ConfigMapUnpackerOption {
 	return func(unpacker *ConfigMapUnpacker) {
 		unpacker.opmImage = opmImage
+	}
+}
+
+func WithUtilImage(utilImage string) ConfigMapUnpackerOption {
+	return func(unpacker *ConfigMapUnpacker) {
+		unpacker.utilImage = utilImage
 	}
 }
 
@@ -214,7 +221,9 @@ func (c *ConfigMapUnpacker) apply(options ...ConfigMapUnpackerOption) {
 func (c *ConfigMapUnpacker) validate() (err error) {
 	switch {
 	case c.opmImage == "":
-		err = fmt.Errorf("no copy image given")
+		err = fmt.Errorf("no opm image given")
+	case c.utilImage == "":
+		err = fmt.Errorf("no util image given")
 	case c.client == nil:
 		err = fmt.Errorf("client is nil")
 	case c.csLister == nil:
