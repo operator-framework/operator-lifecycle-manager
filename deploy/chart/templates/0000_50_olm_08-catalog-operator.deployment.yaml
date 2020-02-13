@@ -34,6 +34,8 @@ spec:
           {{- if .Values.catalog.commandArgs }}
           - {{ .Values.catalog.commandArgs }}
           {{- end }}
+          - -util-image
+          -  {{ .Values.catalog.image.ref }}
           {{- if .Values.writeStatusNameCatalog }}
           - -writeStatusName
           - {{ .Values.writeStatusNameCatalog }}

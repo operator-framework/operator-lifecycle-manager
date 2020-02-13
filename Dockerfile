@@ -18,10 +18,12 @@ COPY OLM_VERSION OLM_VERSION
 COPY pkg pkg
 COPY vendor vendor
 COPY cmd cmd
+COPY util util
 COPY test test
 COPY go.mod go.mod
 COPY go.sum go.sum
 RUN CGO_ENABLED=1 make build
+RUN make build-util
 
 FROM openshift/origin-base
 
@@ -32,6 +34,7 @@ LABEL io.openshift.release.operator=true
 COPY --from=builder /build/bin/olm /bin/olm
 COPY --from=builder /build/bin/catalog /bin/catalog
 COPY --from=builder /build/bin/package-server /bin/package-server
+COPY --from=builder /build/bin/cpb /bin/cpb
 
 # This image doesn't need to run as root user.
 USER 1001

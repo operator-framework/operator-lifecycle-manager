@@ -27,6 +27,8 @@ spec:
           - '-namespace'
           - openshift-marketplace
           - -configmapServerImage=quay.io/operator-framework/configmap-operator-registry:latest
+          - -util-image
+          -  quay.io/operator-framework/olm@sha256:0d15ffb5d10a176ef6e831d7865f98d51255ea5b0d16403618c94a004d049373
           - -writeStatusName
           - operator-lifecycle-manager-catalog
           - -tls-cert
