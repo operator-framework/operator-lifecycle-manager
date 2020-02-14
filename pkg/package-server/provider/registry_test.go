@@ -813,6 +813,154 @@ func TestRegistryProviderList(t *testing.T) {
 			}},
 		},
 		{
+			name:     "TwoCatalogs/SameNamespace/DuplicatePackages/PackagesFound",
+			globalNS: "ns",
+			registryClients: []*registryClient{
+				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
+				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators-2", "ns"), "grpc", "cool-operators-2", "ns", port, metav1.NewTime(time.Now()))),
+			},
+			requestNamespace: "ns",
+			expectedErr:      "",
+			expected: &operators.PackageManifestList{Items: []operators.PackageManifest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "prometheus",
+						Provider: operators.AppLink{
+							Name: "Red Hat",
+						},
+						DefaultChannel: "preview",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "preview",
+								CurrentCSV: "prometheusoperator.0.22.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "etcd",
+						Provider: operators.AppLink{
+							Name: "CoreOS, Inc",
+						},
+						DefaultChannel: "alpha",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "alpha",
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators-2",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators-2",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "prometheus",
+						Provider: operators.AppLink{
+							Name: "Red Hat",
+						},
+						DefaultChannel: "preview",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "preview",
+								CurrentCSV: "prometheusoperator.0.22.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators-2",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators-2",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "etcd",
+						Provider: operators.AppLink{
+							Name: "CoreOS, Inc",
+						},
+						DefaultChannel: "alpha",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "alpha",
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+			}},
+		},
+		{
 			name:     "OneCatalog/ManyPackages/OneMissingBundle/Elided",
 			globalNS: "ns",
 			registryClients: []*registryClient{
