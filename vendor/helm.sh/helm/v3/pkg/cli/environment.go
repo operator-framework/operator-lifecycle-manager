@@ -52,7 +52,7 @@ type EnvSettings struct {
 	RegistryConfig string
 	// RepositoryConfig is the path to the repositories file.
 	RepositoryConfig string
-	// RepositoryCache is the path to the repository cache directory.
+	// Repositoryache is the path to the repository cache directory.
 	RepositoryCache string
 	// PluginsDirectory is the path to the plugins directory.
 	PluginsDirectory string

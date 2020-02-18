@@ -44,7 +44,7 @@ type Secrets struct {
 	Log  func(string, ...interface{})
 }
 
-// NewSecrets initializes a new Secrets wrapping an implementation of
+// NewSecrets initializes a new Secrets wrapping an implmenetation of
 // the kubernetes SecretsInterface.
 func NewSecrets(impl corev1.SecretInterface) *Secrets {
 	return &Secrets{

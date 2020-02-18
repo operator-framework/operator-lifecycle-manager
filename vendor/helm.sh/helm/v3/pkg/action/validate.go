@@ -33,8 +33,7 @@ func existingResourceConflict(resources kube.ResourceList) error {
 		}
 
 		helper := resource.NewHelper(info.Client, info.Mapping)
-		existing, err := helper.Get(info.Namespace, info.Name, info.Export)
-		if err != nil {
+		if _, err := helper.Get(info.Namespace, info.Name, info.Export); err != nil {
 			if apierrors.IsNotFound(err) {
 				return nil
 			}
@@ -42,7 +41,7 @@ func existingResourceConflict(resources kube.ResourceList) error {
 			return errors.Wrap(err, "could not get information about the resource")
 		}
 
-		return fmt.Errorf("existing resource conflict: namespace: %s, name: %s, existing_kind: %s, new_kind: %s", info.Namespace, info.Name, existing.GetObjectKind().GroupVersionKind(), info.Mapping.GroupVersionKind)
+		return fmt.Errorf("existing resource conflict: kind: %s, namespace: %s, name: %s", info.Mapping.GroupVersionKind.Kind, info.Namespace, info.Name)
 	})
 	return err
 }

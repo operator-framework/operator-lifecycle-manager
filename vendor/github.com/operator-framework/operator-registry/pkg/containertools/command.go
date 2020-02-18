@@ -2,7 +2,6 @@
 package containertools
 
 import (
-	"fmt"
 	"os/exec"
 
 	"github.com/sirupsen/logrus"
@@ -24,15 +23,15 @@ type CommandRunner interface {
 	Inspect(image string) ([]byte, error)
 }
 
-// ContainerCommandRunner is configured to select a container cli tool and
-// execute commands with that tooling.
+// ContainerCommandRunner is configured to select a container cli tool and execute commands with that
+// tooling.
 type ContainerCommandRunner struct {
 	logger        *logrus.Entry
 	containerTool string
 }
 
-// NewCommandRunner takes the containerTool as an input string and returns a
-// CommandRunner to run commands with that cli tool
+// NewCommandRunner takes the containerTool as an input string and returns a CommandRunner to
+// run commands with that cli tool
 func NewCommandRunner(containerTool string, logger *logrus.Entry) CommandRunner {
 	r := ContainerCommandRunner{
 		logger: logger,
@@ -55,8 +54,8 @@ func (r *ContainerCommandRunner) GetToolName() string {
 	return r.containerTool
 }
 
-// Pull takes a container image path hosted on a container registry and runs the
-// pull command to download it onto the local environment
+// Pull takes a container image path hosted on a container registry and runs the pull command to
+// download it onto the local environment
 func (r *ContainerCommandRunner) Pull(image string) error {
 	args := []string{"pull", image}
 
@@ -65,10 +64,10 @@ func (r *ContainerCommandRunner) Pull(image string) error {
 	r.logger.Infof("running %s pull", r.containerTool)
 	r.logger.Debugf("%s", command.Args)
 
-	out, err := command.CombinedOutput()
+	out, err := command.Output()
 	if err != nil {
 		r.logger.Errorf(string(out))
-		return fmt.Errorf("error pulling image: %s. %v", string(out), err)
+		return err
 	}
 
 	return nil
@@ -89,17 +88,17 @@ func (r *ContainerCommandRunner) Build(dockerfile, tag string) error {
 	r.logger.Infof("running %s build", r.containerTool)
 	r.logger.Infof("%s", command.Args)
 
-	out, err := command.CombinedOutput()
+	out, err := command.Output()
 	if err != nil {
 		r.logger.Errorf(string(out))
-		return fmt.Errorf("error building image: %s. %v", string(out), err)
+		return err
 	}
 
 	return nil
 }
 
-// Save takes a local container image and runs the save commmand to convert the
-// image into a specified tarball and push it to the local directory
+// Save takes a local container image and runs the save commmand to convert the image into a specified
+// tarball and push it to the local directory
 func (r *ContainerCommandRunner) Save(image, tarFile string) error {
 	args := []string{"save", image, "-o", tarFile}
 
@@ -108,17 +107,17 @@ func (r *ContainerCommandRunner) Save(image, tarFile string) error {
 	r.logger.Infof("running %s save", r.containerTool)
 	r.logger.Debugf("%s", command.Args)
 
-	out, err := command.CombinedOutput()
+	out, err := command.Output()
 	if err != nil {
 		r.logger.Errorf(string(out))
-		return fmt.Errorf("error saving image: %s. %v", string(out), err)
+		return err
 	}
 
 	return nil
 }
 
-// Inspect runs the 'inspect' command to get image metadata of a local container
-// image and returns a byte array of the command's output
+// Inspect runs the 'inspect' command to get image metadata of a local container image
+// and returns a byte array of the command's output
 func (r *ContainerCommandRunner) Inspect(image string) ([]byte, error) {
 	args := []string{"inspect", image}
 

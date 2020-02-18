@@ -24,7 +24,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"helm.sh/helm/v3/internal/completion"
 	"helm.sh/helm/v3/pkg/plugin"
 )
 
@@ -34,7 +33,6 @@ type pluginUninstallOptions struct {
 
 func newPluginUninstallCmd(out io.Writer) *cobra.Command {
 	o := &pluginUninstallOptions{}
-
 	cmd := &cobra.Command{
 		Use:     "uninstall <plugin>...",
 		Aliases: []string{"rm", "remove"},
@@ -46,15 +44,6 @@ func newPluginUninstallCmd(out io.Writer) *cobra.Command {
 			return o.run(out)
 		},
 	}
-
-	// Function providing dynamic auto-completion
-	completion.RegisterValidArgsFunc(cmd, func(cmd *cobra.Command, args []string, toComplete string) ([]string, completion.BashCompDirective) {
-		if len(args) != 0 {
-			return nil, completion.BashCompDirectiveNoFileComp
-		}
-		return compListPlugins(toComplete), completion.BashCompDirectiveNoFileComp
-	})
-
 	return cmd
 }
 

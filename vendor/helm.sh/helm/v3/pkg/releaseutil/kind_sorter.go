@@ -31,12 +31,12 @@ var InstallOrder KindSortOrder = []string{
 	"LimitRange",
 	"PodSecurityPolicy",
 	"PodDisruptionBudget",
-	"ServiceAccount",
 	"Secret",
 	"ConfigMap",
 	"StorageClass",
 	"PersistentVolume",
 	"PersistentVolumeClaim",
+	"ServiceAccount",
 	"CustomResourceDefinition",
 	"ClusterRole",
 	"ClusterRoleList",
@@ -85,12 +85,12 @@ var UninstallOrder KindSortOrder = []string{
 	"ClusterRoleList",
 	"ClusterRole",
 	"CustomResourceDefinition",
+	"ServiceAccount",
 	"PersistentVolumeClaim",
 	"PersistentVolume",
 	"StorageClass",
 	"ConfigMap",
 	"Secret",
-	"ServiceAccount",
 	"PodDisruptionBudget",
 	"PodSecurityPolicy",
 	"LimitRange",
@@ -101,10 +101,10 @@ var UninstallOrder KindSortOrder = []string{
 
 // sortByKind does an in-place sort of manifests by Kind.
 //
-// Results are sorted by 'ordering', keeping order of items with equal kind/priority
+// Results are sorted by 'ordering'
 func sortByKind(manifests []Manifest, ordering KindSortOrder) []Manifest {
 	ks := newKindSorter(manifests, ordering)
-	sort.Stable(ks)
+	sort.Sort(ks)
 	return ks.manifests
 }
 
@@ -134,13 +134,12 @@ func (k *kindSorter) Less(i, j int) bool {
 	b := k.manifests[j]
 	first, aok := k.ordering[a.Head.Kind]
 	second, bok := k.ordering[b.Head.Kind]
-
-	if !aok && !bok {
-		// if both are unknown then sort alphabetically by kind, keep original order if same kind
-		if a.Head.Kind != b.Head.Kind {
+	if first == second {
+		// if both are unknown and of different kind sort by kind alphabetically
+		if !aok && !bok && a.Head.Kind != b.Head.Kind {
 			return a.Head.Kind < b.Head.Kind
 		}
-		return first < second
+		return a.Name < b.Name
 	}
 	// unknown kind is last
 	if !aok {
@@ -149,6 +148,6 @@ func (k *kindSorter) Less(i, j int) bool {
 	if !bok {
 		return true
 	}
-	// sort different kinds, keep original order if same priority
+	// sort different kinds
 	return first < second
 }

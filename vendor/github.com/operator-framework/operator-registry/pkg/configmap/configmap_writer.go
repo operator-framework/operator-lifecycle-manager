@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/ghodss/yaml"
+	_ "github.com/mattn/go-sqlite3"
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	batchv1 "k8s.io/api/batch/v1"

@@ -6,22 +6,27 @@ import (
 )
 
 // ValidationError is an imlementation of the Error type
-// that defines a list of errors when validating the bundle
+// that defines a set of errors when validating the bundle
 type ValidationError struct {
-	Errors []error
+	AnnotationErrors []error
+	FormatErrors     []error
 }
 
 func (v ValidationError) Error() string {
 	var errs []string
-	for _, err := range v.Errors {
+	for _, err := range v.AnnotationErrors {
+		errs = append(errs, err.Error())
+	}
+	for _, err := range v.FormatErrors {
 		errs = append(errs, err.Error())
 	}
 	return fmt.Sprintf("Bundle validation errors: %s",
 		strings.Join(errs, ","))
 }
 
-func NewValidationError(errs []error) ValidationError {
+func NewValidationError(annotationErrs, formatErrs []error) ValidationError {
 	return ValidationError{
-		Errors: errs,
+		AnnotationErrors: annotationErrs,
+		FormatErrors:     formatErrs,
 	}
 }

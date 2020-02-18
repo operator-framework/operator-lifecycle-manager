@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"helm.sh/helm/v3/cmd/helm/require"
-	"helm.sh/helm/v3/internal/completion"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli/output"
 	"helm.sh/helm/v3/pkg/release"
@@ -98,13 +97,13 @@ func newListCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	f.BoolVarP(&client.ByDate, "date", "d", false, "sort by release date")
 	f.BoolVarP(&client.SortReverse, "reverse", "r", false, "reverse the sort order")
 	f.BoolVarP(&client.All, "all", "a", false, "show all releases without any filter applied")
-	f.BoolVar(&client.Uninstalled, "uninstalled", false, "show uninstalled releases (if 'helm uninstall --keep-history' was used)")
+	f.BoolVar(&client.Uninstalled, "uninstalled", false, "show uninstalled releases")
 	f.BoolVar(&client.Superseded, "superseded", false, "show superseded releases")
 	f.BoolVar(&client.Uninstalling, "uninstalling", false, "show releases that are currently being uninstalled")
 	f.BoolVar(&client.Deployed, "deployed", false, "show deployed releases. If no other is specified, this will be automatically enabled")
 	f.BoolVar(&client.Failed, "failed", false, "show failed releases")
 	f.BoolVar(&client.Pending, "pending", false, "show pending releases")
-	f.BoolVarP(&client.AllNamespaces, "all-namespaces", "A", false, "list releases across all namespaces")
+	f.BoolVar(&client.AllNamespaces, "all-namespaces", false, "list releases across all namespaces")
 	f.IntVarP(&client.Limit, "max", "m", 256, "maximum number of releases to fetch")
 	f.IntVar(&client.Offset, "offset", 0, "next release name in the list, used to offset from start value")
 	f.StringVarP(&client.Filter, "filter", "f", "", "a regular expression (Perl compatible). Any releases that match the expression will be included in the results")
@@ -164,27 +163,4 @@ func (r *releaseListWriter) WriteJSON(out io.Writer) error {
 
 func (r *releaseListWriter) WriteYAML(out io.Writer) error {
 	return output.EncodeYAML(out, r.releases)
-}
-
-// Provide dynamic auto-completion for release names
-func compListReleases(toComplete string, cfg *action.Configuration) ([]string, completion.BashCompDirective) {
-	completion.CompDebugln(fmt.Sprintf("compListReleases with toComplete %s", toComplete))
-
-	client := action.NewList(cfg)
-	client.All = true
-	client.Limit = 0
-	client.Filter = fmt.Sprintf("^%s", toComplete)
-
-	client.SetStateMask()
-	results, err := client.Run()
-	if err != nil {
-		return nil, completion.BashCompDirectiveDefault
-	}
-
-	var choices []string
-	for _, res := range results {
-		choices = append(choices, res.Name)
-	}
-
-	return choices, completion.BashCompDirectiveNoFileComp
 }

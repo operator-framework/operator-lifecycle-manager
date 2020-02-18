@@ -37,7 +37,6 @@ type Uninstall struct {
 	DryRun       bool
 	KeepHistory  bool
 	Timeout      time.Duration
-	Description  string
 }
 
 // NewUninstall creates a new Uninstall object with the given configuration.
@@ -119,11 +118,7 @@ func (u *Uninstall) Run(name string) (*release.UninstallReleaseResponse, error) 
 	}
 
 	rel.Info.Status = release.StatusUninstalled
-	if len(u.Description) > 0 {
-		rel.Info.Description = u.Description
-	} else {
-		rel.Info.Description = "Uninstallation complete"
-	}
+	rel.Info.Description = "Uninstallation complete"
 
 	if !u.KeepHistory {
 		u.cfg.Log("purge requested for %s", name)

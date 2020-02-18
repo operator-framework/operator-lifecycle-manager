@@ -1,4 +1,5 @@
 language: go
+dist: xenial
 
 go:
   - 1.6.x
@@ -15,7 +16,8 @@ before_script:
   - svn --version
   # Need a more up to date verion of mercurial to handle TLS with
   # bitbucket properly. Also need python greater than 2.7.9.
-  - pyenv global 2.7.14
+  - pyenv versions && pyenv rehash && pyenv versions
+  - pyenv global 2.7.15
   - openssl ciphers -v | awk '{print $2}' | sort | uniq
   - sudo pip install mercurial --upgrade
   # The below is a complete hack to have hg use the pyenv version of python

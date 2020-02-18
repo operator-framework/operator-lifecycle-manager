@@ -79,7 +79,6 @@ type Install struct {
 	ReleaseName      string
 	GenerateName     bool
 	NameTemplate     string
-	Description      string
 	OutputDir        string
 	Atomic           bool
 	SkipCRDs         bool
@@ -87,8 +86,6 @@ type Install struct {
 	// APIVersions allows a manual set of supported API Versions to be passed
 	// (for things like templating). These are ignored if ClientOnly is false
 	APIVersions chartutil.VersionSet
-	// Used by helm template to render charts with .Release.IsUpgrade. Ignored if Dry-Run is false
-	IsUpgrade bool
 }
 
 // ChartPathOptions captures common options used for controlling chart paths
@@ -129,7 +126,7 @@ func (i *Install) installCRDs(crds []*chart.File) error {
 				i.cfg.Log("CRD %s is already present. Skipping.", crdName)
 				continue
 			}
-			return errors.Wrapf(err, "failed to install CRD %s", obj.Name)
+			return errors.Wrapf(err, "failed to instal CRD %s", obj.Name)
 		}
 		totalItems = append(totalItems, res...)
 	}
@@ -200,14 +197,11 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 		return nil, err
 	}
 
-	//special case for helm template --is-upgrade
-	isUpgrade := i.IsUpgrade && i.DryRun
 	options := chartutil.ReleaseOptions{
 		Name:      i.ReleaseName,
 		Namespace: i.Namespace,
 		Revision:  1,
-		IsInstall: !isUpgrade,
-		IsUpgrade: isUpgrade,
+		IsInstall: true,
 	}
 	valuesToRender, err := chartutil.ToRenderValues(chrt, vals, options, caps)
 	if err != nil {
@@ -243,7 +237,7 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 	// we'll end up in a state where we will delete those resources upon
 	// deleting the release because the manifest will be pointing at that
 	// resource
-	if !i.ClientOnly && !isUpgrade {
+	if !i.ClientOnly {
 		if err := existingResourceConflict(resources); err != nil {
 			return nil, errors.Wrap(err, "rendered manifests contain a resource that already exists. Unable to continue with install")
 		}
@@ -298,11 +292,7 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 		}
 	}
 
-	if len(i.Description) > 0 {
-		rel.SetStatus(release.StatusDeployed, i.Description)
-	} else {
-		rel.SetStatus(release.StatusDeployed, "Install complete")
-	}
+	rel.SetStatus(release.StatusDeployed, "Install complete")
 
 	// This is a tricky case. The release has been created, but the result
 	// cannot be recorded. The truest thing to tell the user is that the
@@ -311,9 +301,7 @@ func (i *Install) Run(chrt *chart.Chart, vals map[string]interface{}) (*release.
 	//
 	// One possible strategy would be to do a timed retry to see if we can get
 	// this stored in the future.
-	if err := i.recordRelease(rel); err != nil {
-		i.cfg.Log("failed to record the release: %s", err)
-	}
+	i.recordRelease(rel)
 
 	return rel, nil
 }
@@ -436,20 +424,8 @@ func (c *Configuration) renderResources(ch *chart.Chart, values chartutil.Values
 		}
 	}
 
-	var files map[string]string
-	var err2 error
-
-	if c.RESTClientGetter != nil {
-		rest, err := c.RESTClientGetter.ToRESTConfig()
-		if err != nil {
-			return hs, b, "", err
-		}
-		files, err2 = engine.RenderWithClient(ch, values, rest)
-	} else {
-		files, err2 = engine.Render(ch, values)
-	}
-
-	if err2 != nil {
+	files, err := engine.Render(ch, values)
+	if err != nil {
 		return hs, b, "", err
 	}
 
@@ -565,10 +541,6 @@ func (i *Install) NameAndChart(args []string) (string, string, error) {
 			return errors.New("cannot set --name-template and also specify a name")
 		}
 		return nil
-	}
-
-	if len(args) > 2 {
-		return args[0], args[1], errors.Errorf("expected at most two arguments, unexpected arguments: %v", strings.Join(args[2:], ", "))
 	}
 
 	if len(args) == 2 {

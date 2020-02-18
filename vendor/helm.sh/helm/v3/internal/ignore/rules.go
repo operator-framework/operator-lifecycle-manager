@@ -73,7 +73,7 @@ func Parse(file io.Reader) (*Rules, error) {
 	return r, s.Err()
 }
 
-// Ignore evaluates the file at the given path, and returns true if it should be ignored.
+// Ignore evalutes the file at the given path, and returns true if it should be ignored.
 //
 // Ignore evaluates path against the rules in order. Evaluation stops when a match
 // is found. Matching a negative rule will stop evaluation.
