@@ -244,11 +244,5 @@ func (in *JSONSchemaProps) DeepCopy() *JSONSchemaProps {
 		}
 	}
 
-	if in.XMapType != nil {
-		in, out := &in.XMapType, &out.XMapType
-		*out = new(string)
-		**out = **in
-	}
-
 	return out
 }

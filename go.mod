@@ -18,7 +18,7 @@ require (
 	github.com/docker/docker v1.4.2-0.20200203170920-46ec8731fbce // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
-	github.com/go-openapi/spec v0.19.6
+	github.com/go-openapi/spec v0.19.4
 	github.com/golang/mock v1.3.1
 	github.com/golang/protobuf v1.3.3 // indirect
 	github.com/google/go-cmp v0.4.0 // indirect
@@ -67,7 +67,7 @@ replace (
 
 	// Pin to kube v0.17.2
 	k8s.io/api => k8s.io/api v0.17.2
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.17.2
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.0.0-20190918161926-8f644eb6e783
 	k8s.io/apimachinery => k8s.io/apimachinery v0.17.2
 	k8s.io/apiserver => k8s.io/apiserver v0.17.2
 	k8s.io/cli-runtime => k8s.io/cli-runtime v0.17.2
