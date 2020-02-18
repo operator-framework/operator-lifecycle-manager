@@ -270,7 +270,7 @@ func (s *SQLLoader) AddPackageChannels(manifest registry.PackageManifest) error 
 
 			// If we find 'replaces' in the circuit list then we've seen it already, break out
 			if _, ok := replaceCycle[replaces]; ok {
-				errs = append(errs, fmt.Errorf("Cycle detected, %s replaces %s", channelEntryCSVName, replaces))
+			        errs = append(errs, fmt.Errorf("Cycle detected, %s replaces %s", channelEntryCSVName, replaces))
 				break
 			}
 			replaceCycle[replaces] = true
@@ -820,7 +820,7 @@ func (s *SQLLoader) updatePackageChannels(tx *sql.Tx, manifest registry.PackageM
 			errs = append(errs, err)
 			break
 		}
-
+		
 		// check replaces
 		replaces, err := channelEntryCSV.GetReplaces()
 		if err != nil {
