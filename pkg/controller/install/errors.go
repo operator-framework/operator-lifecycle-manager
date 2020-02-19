@@ -1,7 +1,5 @@
 package install
 
-import "fmt"
-
 const (
 	StrategyErrReasonComponentMissing   = "ComponentMissing"
 	StrategyErrReasonAnnotationsMissing = "AnnotationsMissing"
@@ -32,7 +30,7 @@ var _ error = StrategyError{}
 
 // Error implements the Error interface.
 func (e StrategyError) Error() string {
-	return fmt.Sprintf("%s: %s", e.Reason, e.Message)
+	return e.Message
 }
 
 // IsErrorUnrecoverable reports if a given strategy error is one of the predefined unrecoverable types

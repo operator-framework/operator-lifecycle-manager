@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/kubernetes/pkg/util/labels"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	clientfakes "github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers/wrappersfakes"
@@ -306,6 +307,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			dep := testDeployment("olm-dep-1", namespace, &mockOwner)
 			dep.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
+			dep.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(dep.Spec)))
 			fakeClient.FindAnyDeploymentsMatchingLabelsReturns(
 				[]*appsv1.Deployment{
 					&dep,
@@ -321,6 +323,7 @@ func TestInstallStrategyDeploymentCheckInstallErrors(t *testing.T) {
 
 			deployment := testDeployment("olm-dep-1", namespace, &mockOwner)
 			deployment.Spec.Template.SetAnnotations(map[string]string{"test": "annotation"})
+			deployment.SetLabels(labels.CloneAndAddLabel(dep.ObjectMeta.GetLabels(), DeploymentSpecHashLabelKey, HashDeploymentSpec(deployment.Spec)))
 			fakeClient.CreateOrUpdateDeploymentReturns(&deployment, tt.createDeploymentErr)
 			defer func() {
 				require.Equal(t, &deployment, fakeClient.CreateOrUpdateDeploymentArgsForCall(0))

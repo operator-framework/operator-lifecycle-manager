@@ -99,6 +99,11 @@ func ownerLabelFromCSV(name, namespace string) map[string]string {
 	}
 }
 
+func addDepSpecHashLabel(labels map[string]string, strat v1alpha1.NamedInstallStrategy) map[string]string {
+	labels[install.DeploymentSpecHashLabelKey] = install.HashDeploymentSpec(strat.StrategySpec.DeploymentSpecs[0].Spec)
+	return labels
+}
+
 func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
 	apis := []*metav1.APIResourceList{}
 	for _, o := range objs {
@@ -584,6 +589,36 @@ func installStrategy(deploymentName string, permissions []v1alpha1.StrategyDeplo
 		StrategyName: v1alpha1.InstallStrategyNameDeployment,
 		StrategySpec: strategy,
 	}
+}
+
+func apiServiceInstallStrategy(deploymentName string, cahash string, permissions []v1alpha1.StrategyDeploymentPermissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+	strategy := installStrategy(deploymentName, permissions, clusterPermissions)
+
+	strategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Annotations = map[string]string{OLMCAHashAnnotationKey: cahash}
+
+	strategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Volumes = []corev1.Volume{{
+		Name: "apiservice-cert",
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: "v1.a1-cert",
+				Items: []corev1.KeyToPath{
+					{
+						Key:  "tls.crt",
+						Path: "apiserver.crt",
+					},
+					{
+						Key:  "tls.key",
+						Path: "apiserver.key",
+					},
+				},
+			},
+		},
+	}}
+	strategy.StrategySpec.DeploymentSpecs[0].Spec.Template.Spec.Containers[0].VolumeMounts = []corev1.VolumeMount{{
+		Name:      "apiservice-cert",
+		MountPath: "/apiserver.local.config/certificates",
+	}}
+	return strategy
 }
 
 func csv(
@@ -1116,7 +1151,7 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), installStrategy("csv1-dep1", nil, nil)),
 					),
 				},
 			},
@@ -1162,7 +1197,7 @@ func TestTransitionCSV(t *testing.T) {
 						deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
 							OLMCAHashAnnotationKey: validCAHash,
 						})),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), apiServiceInstallStrategy("a1", validCAHash, nil, nil)),
 					),
 					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
@@ -2186,7 +2221,7 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), installStrategy("csv1-dep1", nil, nil)),
 					),
 					deployment("extra-dep", namespace, "sa", nil),
 				},
@@ -2221,11 +2256,11 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						map[string]string{
+						addDepSpecHashLabel(map[string]string{
 							ownerutil.OwnerKey:          "csv1",
 							ownerutil.OwnerNamespaceKey: namespace,
 							ownerutil.OwnerKind:         "ClusterServiceVersion",
-						},
+						}, installStrategy("csv1-dep1", nil, nil)),
 					),
 					deployment("extra-dep", namespace, "sa", nil),
 				},
@@ -2329,11 +2364,11 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), installStrategy("csv1-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv2", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv2", namespace), installStrategy("csv2-dep1", nil, nil)),
 					),
 				},
 			},
@@ -2374,11 +2409,11 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), installStrategy("csv1-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv2", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv2", namespace), installStrategy("csv2-dep1", nil, nil)),
 					),
 				},
 			},
@@ -2435,15 +2470,15 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), installStrategy("csv1-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv2", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv2", namespace), installStrategy("csv2-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv3", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv3", namespace), installStrategy("csv3-dep1", nil, nil)),
 					),
 				},
 			},
@@ -2494,15 +2529,15 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv1-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv1", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv1", namespace), installStrategy("csv1-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv2", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv2", namespace), installStrategy("csv2-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv3", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv3", namespace), installStrategy("csv3-dep1", nil, nil)),
 					),
 				},
 			},
@@ -2544,11 +2579,11 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv2", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv2", namespace), installStrategy("csv2-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv3", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv3", namespace), installStrategy("csv3-dep1", nil, nil)),
 					),
 				},
 			},
@@ -2591,11 +2626,11 @@ func TestTransitionCSV(t *testing.T) {
 				objs: []runtime.Object{
 					withLabels(
 						deployment("csv2-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv2", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv2", namespace), installStrategy("csv2-dep1", nil, nil)),
 					),
 					withLabels(
 						deployment("csv3-dep1", namespace, "sa", defaultTemplateAnnotations),
-						ownerLabelFromCSV("csv3", namespace),
+						addDepSpecHashLabel(ownerLabelFromCSV("csv3", namespace), installStrategy("csv3-dep1", nil, nil)),
 					),
 				},
 			},
@@ -3388,6 +3423,9 @@ func TestSyncOperatorGroups(t *testing.T) {
 
 	ownedDeployment := deployment(deploymentName, operatorNamespace, serviceAccount.GetName(), nil)
 	ownerutil.AddNonBlockingOwner(ownedDeployment, operatorCSV)
+	ownedDeployment.SetLabels(map[string]string{
+		install.DeploymentSpecHashLabelKey: install.HashDeploymentSpec(installStrategy(deploymentName, permissions, nil).StrategySpec.DeploymentSpecs[0].Spec),
+	})
 
 	annotatedDeployment := ownedDeployment.DeepCopy()
 	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{v1.OperatorGroupTargetsAnnotationKey: operatorNamespace + "," + targetNamespace, v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
@@ -3395,6 +3433,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		"olm.owner":           "csv1",
 		"olm.owner.namespace": "operator-ns",
 		"olm.owner.kind":      "ClusterServiceVersion",
+		install.DeploymentSpecHashLabelKey: install.HashDeploymentSpec(installStrategy(deploymentName, permissions, nil).StrategySpec.DeploymentSpecs[0].Spec),
 	})
 
 	annotatedGlobalDeployment := ownedDeployment.DeepCopy()
@@ -3403,6 +3442,7 @@ func TestSyncOperatorGroups(t *testing.T) {
 		"olm.owner":           "csv1",
 		"olm.owner.namespace": "operator-ns",
 		"olm.owner.kind":      "ClusterServiceVersion",
+		install.DeploymentSpecHashLabelKey: install.HashDeploymentSpec(installStrategy(deploymentName, permissions, nil).StrategySpec.DeploymentSpecs[0].Spec),
 	})
 
 	role := &rbacv1.Role{

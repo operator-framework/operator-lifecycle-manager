@@ -2,17 +2,21 @@ package install
 
 import (
 	"fmt"
+	"hash/fnv"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/util/diff"
+	hashutil "k8s.io/kubernetes/pkg/util/hash"
 
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 )
+
+const DeploymentSpecHashLabelKey = "olm.deployment-spec-hash"
 
 type StrategyDeploymentInstaller struct {
 	strategyClient      wrappers.InstallStrategyDeploymentInterface
@@ -68,7 +72,7 @@ func NewStrategyDeploymentInstaller(strategyClient wrappers.InstallStrategyDeplo
 
 func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.StrategyDeploymentSpec) error {
 	for _, d := range deps {
-		deployment, err := i.deploymentForSpec(d.Name, d.Spec)
+		deployment, _, err := i.deploymentForSpec(d.Name, d.Spec)
 		if err != nil {
 			return err
 		}
@@ -81,7 +85,7 @@ func (i *StrategyDeploymentInstaller) installDeployments(deps []v1alpha1.Strateg
 	return nil
 }
 
-func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) (deployment *appsv1.Deployment, err error) {
+func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1.DeploymentSpec) (deployment *appsv1.Deployment, hash string, err error) {
 	dep := &appsv1.Deployment{Spec: spec}
 	dep.SetName(name)
 	dep.SetNamespace(i.owner.GetNamespace())
@@ -104,6 +108,8 @@ func (i *StrategyDeploymentInstaller) deploymentForSpec(name string, spec appsv1
 		return
 	}
 
+	hash = HashDeploymentSpec(dep.Spec)
+	dep.Labels[DeploymentSpecHashLabelKey] = hash
 	deployment = dep
 	return
 }
@@ -204,45 +210,26 @@ func (i *StrategyDeploymentInstaller) checkForDeployments(deploymentSpecs []v1al
 			}
 		}
 
-		// check equality
-		calculated, err := i.deploymentForSpec(spec.Name, spec.Spec)
-		if err != nil {
-			return err
+		// check that the deployment spec hasn't changed since it was created
+		labels := dep.GetLabels()
+		if len(labels) == 0 {
+			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment doesn't have a spec hash, update it")}
+		}
+		existingDeploymentSpecHash, ok := labels[DeploymentSpecHashLabelKey]
+		if !ok {
+			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment doesn't have a spec hash, update it")}
 		}
 
-		if !i.equalDeployments(&calculated.Spec, &dep.Spec) {
-			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment changed, rolling update with patch: %s\n%#v\n%#v", diff.ObjectDiff(dep.Spec.Template.Spec, calculated.Spec.Template.Spec), calculated.Spec.Template.Spec, dep.Spec.Template.Spec)}
+		_, calculatedDeploymentHash, err := i.deploymentForSpec(spec.Name, spec.Spec)
+		if err != nil {
+			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("couldn't calculate deployment spec hash: %v", err)}
+		}
+
+		if existingDeploymentSpecHash != calculatedDeploymentHash {
+			return StrategyError{Reason: StrategyErrDeploymentUpdated, Message: fmt.Sprintf("deployment changed old hash=%s, new hash=%s", existingDeploymentSpecHash, calculatedDeploymentHash)}
 		}
 	}
 	return nil
-}
-
-func (i *StrategyDeploymentInstaller) equalDeployments(calculated, onCluster *appsv1.DeploymentSpec) bool {
-	// ignore template annotations, OLM injects these elsewhere
-	calculated.Template.Annotations = nil
-
-	// DeepDerivative doesn't treat `0` ints as unset. Stripping them here means we miss changes to these values,
-	// but we don't end up getting bitten by the defaulter for deployments.
-	for i, c := range onCluster.Template.Spec.Containers {
-		o := calculated.Template.Spec.Containers[i]
-		if o.ReadinessProbe != nil {
-			o.ReadinessProbe.InitialDelaySeconds = c.ReadinessProbe.InitialDelaySeconds
-			o.ReadinessProbe.TimeoutSeconds = c.ReadinessProbe.TimeoutSeconds
-			o.ReadinessProbe.PeriodSeconds = c.ReadinessProbe.PeriodSeconds
-			o.ReadinessProbe.SuccessThreshold = c.ReadinessProbe.SuccessThreshold
-			o.ReadinessProbe.FailureThreshold = c.ReadinessProbe.FailureThreshold
-		}
-		if o.LivenessProbe != nil {
-			o.LivenessProbe.InitialDelaySeconds = c.LivenessProbe.InitialDelaySeconds
-			o.LivenessProbe.TimeoutSeconds = c.LivenessProbe.TimeoutSeconds
-			o.LivenessProbe.PeriodSeconds = c.LivenessProbe.PeriodSeconds
-			o.LivenessProbe.SuccessThreshold = c.LivenessProbe.SuccessThreshold
-			o.LivenessProbe.FailureThreshold = c.LivenessProbe.FailureThreshold
-		}
-	}
-
-	// DeepDerivative ensures that, for any non-nil, non-empty value in A, the corresponding value is set in B
-	return equality.Semantic.DeepDerivative(calculated, onCluster)
 }
 
 // Clean up orphaned deployments after reinstalling deployments process
@@ -279,4 +266,28 @@ func (i *StrategyDeploymentInstaller) cleanupOrphanedDeployments(deploymentSpecs
 	}
 
 	return nil
+}
+
+// HashDeploymentSpec calculates a hash given a copy of the deployment spec from a CSV, stripping any
+// operatorgroup annotations.
+func HashDeploymentSpec(spec appsv1.DeploymentSpec) string {
+	// TODO: the deployment installer should know about operatorgroups and ca hashes so that it can calculate these
+
+	// Remove operatorgroup annotations for deployment hashing - this simplifies calculation of the deployment hash
+	// because we don't need to worry about the current state of the operatorgroup
+	annotations := spec.Template.GetAnnotations()
+	if annotations != nil {
+		delete(annotations, v1.OperatorGroupAnnotationKey)
+		delete(annotations, v1.OperatorGroupNamespaceAnnotationKey)
+		delete(annotations, v1.OperatorGroupTargetsAnnotationKey)
+	}
+
+	if len(annotations) == 0 {
+		annotations = nil
+	}
+	spec.Template.SetAnnotations(annotations)
+
+	hasher := fnv.New32a()
+	hashutil.DeepHashObject(hasher, &spec)
+	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
 }
