@@ -40,12 +40,12 @@ all: test build
 test: clean cover.out
 
 unit:
-	go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -tags=json1 -count=1 ./pkg/...
+	go test $(MOD_FLAGS) $(SPECIFIC_UNIT_TEST) -v -race -count=1 ./pkg/...
 
 schema-check:
 
 cover.out: schema-check
-	go test $(MOD_FLAGS) -v -race -tags=json1 -coverprofile=cover.out -covermode=atomic \
+	go test $(MOD_FLAGS) -v -race -coverprofile=cover.out -covermode=atomic \
 		-coverpkg ./pkg/controller/... ./pkg/...
 
 coverage: cover.out
