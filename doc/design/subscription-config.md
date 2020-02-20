@@ -8,11 +8,11 @@ Currently, OLM supports the following configurations:
 
 ### Env
 
-The `Env` field defines a list of [Environment Variables](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/#define-an-environment-variable-for-a-container) that must exist in all containers in the Pod created by OLM.
+The `env` field defines a list of [Environment Variables](https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/#define-an-environment-variable-for-a-container) that must exist in all containers in the Pod created by OLM.
 
 > Note: Values defined here will overwrite existing environment variables of the same name.
 
-#### Env Example
+#### Example
 
 Increase log verbosity on an Operator's container that utilizes the `ARGS` variable:
 
@@ -31,11 +31,11 @@ spec:
 
 ### EnvFrom
 
-The `EnvFrom` field defines a [list of sources to populate Environment Variables](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/#configure-all-key-value-pairs-in-a-configmap-as-container-environment-variables) in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence.
+The `envFrom` field defines a [list of sources to populate Environment Variables](https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/#configure-all-key-value-pairs-in-a-configmap-as-container-environment-variables) in the container. The keys defined within a source must be a C_IDENTIFIER. All invalid keys will be reported as an event when the container is starting. When a key exists in multiple sources, the value associated with the last source will take precedence.
 
 > Note: Values defined by an Env with a duplicate key will take precedence.
 
-#### EnvFrom Example
+#### Example
 
 Inject a license key residing in a Secret to unlock Operator features:
 
@@ -54,19 +54,19 @@ spec:
 
 ### Volumes
 
-The `Volumes` field defines a list of [volumes](https://kubernetes.io/docs/concepts/storage/volumes/) that must exist on the Pod created by OLM.
+The `volumes` field defines a list of [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/) that must exist on the Pod created by OLM.
 
 > Note: Volumes defined here will overwrite existing Volumes of the same name.
 
 ### VolumeMounts
 
-The `VolumeMounts` field defines a list of [volumeMounts](https://kubernetes.io/docs/concepts/storage/volumes/) that must exist in all containers in the Pod created by OLM. If a `volumeMount` references a `volume` that does not exist, OLM will fail to deploy the operator.
+The `volumeMounts` field defines a list of [VolumeMounts](https://kubernetes.io/docs/concepts/storage/volumes/) that must exist in all containers in the Pod created by OLM. If a `volumeMount` references a `volume` that does not exist, OLM will fail to deploy the operator.
 
 > Note: VolumeMounts defined here will overwrite existing VolumeMounts of the same name.
 
-#### Volume/VolumeMounts Example
+#### Example
 
-Mount a ConfigMap as a Volume that contains configuration information. Modifications to the content of the ConfigMap should appear within the container's VolumeMount.
+Mount a ConfigMap as a Volume that contains configuration information that can change default Operator behavior. Modifications to the content of the ConfigMap should appear within the container's VolumeMount.
 
 ```
 kind: Subscription
