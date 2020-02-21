@@ -2,7 +2,7 @@
 
 ## Configuring Operators deployed by OLM
 
-It is possible to configure how OLM deploys an Operator via the `config` field in the [Subscription](https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/install/install.md#subscribe-to-a-package-and-channel) object.
+It is possible to configure how OLM deploys an Operator via the `config` field in the [Subscription](https://github.com/operator-framework/olm-book/blob/master/docs/subscriptions.md) object.
 
 Currently, OLM supports the following configurations:
 
