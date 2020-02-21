@@ -7,7 +7,7 @@
 
 ## Overview
 
-This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://operatorhub.io/what-is-an-operator).
+This project is a component of the [Operator Framework](https://github.com/operator-framework), an open source toolkit to manage Kubernetes native applications, called Operators, in an effective, automated, and scalable way. Read more in the [introduction blog post](https://operatorhub.io/what-is-an-operator) and learn about practical use cases at [OLM-Book](https://github.com/operator-framework/olm-book/).
 
 OLM extends Kubernetes to provide a declarative way to install, manage, and upgrade Operators and their dependencies in a cluster. It provides the following features:
 
