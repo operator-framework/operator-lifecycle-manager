@@ -2489,26 +2489,15 @@ func TestUpdateCSVInPlace(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, dep)
 
-	// Create "updated" CSV with a different image
+	// Create "updated" CSV
 	strategyNew := strategy
 	strategyNew.DeploymentSpecs[0].Spec.Template.Spec.Containers = []corev1.Container{
 		{
-			Name:    genName("hat"),
-			Image:   "quay.io/coreos/mock-extension-apiserver:master",
-			Command: []string{"/bin/mock-extension-apiserver"},
-			Args: []string{
-				"-v=4",
-				"--mock-kinds",
-				"fedora",
-				"--mock-group-version",
-				"group.version",
-				"--secure-port",
-				"5443",
-				"--debug",
-			},
+			Name:  genName("nginx-"),
+			Image: *dummyImage,
 			Ports: []corev1.ContainerPort{
 				{
-					ContainerPort: 5443,
+					ContainerPort: 80,
 				},
 			},
 			ImagePullPolicy: corev1.PullIfNotPresent,
