@@ -169,13 +169,16 @@ func (o *operator) Run(ctx context.Context) {
 				close(o.atLevel)
 				close(o.done)
 			}()
-			o.start(ctx)
+			if err := o.start(ctx); err != nil {
+				o.logger.WithError(err).Error("error encountered during startup")
+				return
+			}
 			<-ctx.Done()
 		}()
 	})
 }
 
-func (o *operator) start(ctx context.Context) {
+func (o *operator) start(ctx context.Context) error {
 	defer close(o.ready)
 
 	// goroutine will be unnecessary after https://github.com/kubernetes/enhancements/pull/1503
@@ -197,12 +200,11 @@ func (o *operator) start(ctx context.Context) {
 	select {
 	case err := <-errs:
 		if err != nil {
-			o.logger.Infof("operator not ready: %s", err.Error())
-			return
+			return fmt.Errorf("operator not ready: %s", err.Error())
 		}
 		o.logger.Info("operator ready")
 	case <-ctx.Done():
-		return
+		return nil
 	}
 
 	o.logger.Info("starting informers...")
@@ -210,8 +212,7 @@ func (o *operator) start(ctx context.Context) {
 
 	o.logger.Info("waiting for caches to sync...")
 	if ok := cache.WaitForCacheSync(ctx.Done(), o.hasSynced); !ok {
-		o.logger.Info("failed to wait for caches to sync")
-		return
+		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
 	o.logger.Info("starting workers...")
@@ -220,6 +221,8 @@ func (o *operator) start(ctx context.Context) {
 			go o.worker(ctx, queueInformer)
 		}
 	}
+
+	return nil
 }
 
 // worker runs a worker thread that just dequeues items, processes them, and marks them done.
