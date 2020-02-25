@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"k8s.io/apimachinery/pkg/selection"
 	"net"
 	"os"
 	"path/filepath"
@@ -1063,6 +1064,316 @@ func TestRegistryProviderList(t *testing.T) {
 			}
 
 			packageManifestList, err := provider.List(test.requestNamespace, labels.Everything())
+			if test.expectedErr != "" {
+				require.NotNil(t, err)
+				require.Equal(t, test.expectedErr, err.Error())
+			} else {
+				require.Nil(t, err)
+			}
+
+			require.Equal(t, len(test.expected.Items), len(packageManifestList.Items))
+			require.ElementsMatch(t, test.expected.Items, packageManifestList.Items)
+		})
+	}
+}
+
+type LabelReq struct {
+	key       string
+	op        selection.Operator
+	strValues []string
+}
+
+func TestRegistryProviderListLabels(t *testing.T) {
+	tests := []struct {
+		name             string
+		globalNS         string
+		labelReq         *LabelReq
+		registryClients  []*registryClient
+		requestNamespace string
+		expectedErr      string
+		expected         *operators.PackageManifestList
+	}{
+		{
+			name:     "PackagesFound/LabelsSupported/SingleNS",
+			globalNS: "ns",
+			labelReq: &LabelReq{
+				key: "catalog",
+				op:  selection.Exists,
+			},
+			registryClients: []*registryClient{
+				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
+			},
+			requestNamespace: "ns",
+			expectedErr:      "",
+			expected: &operators.PackageManifestList{Items: []operators.PackageManifest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "prometheus",
+						Provider: operators.AppLink{
+							Name: "Red Hat",
+						},
+						DefaultChannel: "preview",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "preview",
+								CurrentCSV: "prometheusoperator.0.22.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "etcd",
+						Provider: operators.AppLink{
+							Name: "CoreOS, Inc",
+						},
+						DefaultChannel: "alpha",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "alpha",
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+			}},
+		},
+		{
+			name:     "PackagesFound/LabelsSupported/GlobalNS",
+			globalNS: "ns",
+			labelReq: &LabelReq{
+				key: "catalog",
+				op:  selection.Exists,
+			},
+			registryClients: []*registryClient{
+				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
+			},
+			requestNamespace: "",
+			expectedErr:      "",
+			expected: &operators.PackageManifestList{Items: []operators.PackageManifest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "prometheus",
+						Provider: operators.AppLink{
+							Name: "Red Hat",
+						},
+						DefaultChannel: "preview",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "preview",
+								CurrentCSV: "prometheusoperator.0.22.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "etcd",
+						Provider: operators.AppLink{
+							Name: "CoreOS, Inc",
+						},
+						DefaultChannel: "alpha",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "alpha",
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+			}},
+		},
+		{
+			name:     "PackagesNotFound/LabelsNotSupported/GlobalNS",
+			globalNS: "",
+			labelReq: &LabelReq{
+				key: "catalog",
+				op:  selection.DoesNotExist,
+			},
+			registryClients: []*registryClient{
+				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", ""), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
+			},
+			requestNamespace: "",
+			expectedErr:      "",
+			expected:         &operators.PackageManifestList{Items: []operators.PackageManifest{}},
+		},
+		{
+			name:     "PackagesFound/LabelsNotProvided/GlobalNS",
+			globalNS: "",
+			registryClients: []*registryClient{
+				newTestRegistryClient(t, withRegistryServiceStatus(catalogSource("cool-operators", "ns"), "grpc", "cool-operators", "ns", port, metav1.NewTime(time.Now()))),
+			},
+			requestNamespace: "",
+			expectedErr:      "",
+			expected: &operators.PackageManifestList{Items: []operators.PackageManifest{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "prometheus",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "Red Hat",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "prometheus",
+						Provider: operators.AppLink{
+							Name: "Red Hat",
+						},
+						DefaultChannel: "preview",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "preview",
+								CurrentCSV: "prometheusoperator.0.22.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(prometheusCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "etcd",
+						Namespace: "ns",
+						Labels: labels.Set{
+							"catalog":                         "cool-operators",
+							"catalog-namespace":               "ns",
+							"provider":                        "CoreOS, Inc",
+							"provider-url":                    "",
+							"operatorframework.io/arch.amd64": "supported",
+							"operatorframework.io/os.linux":   "supported",
+						},
+					},
+					Status: operators.PackageManifestStatus{
+						CatalogSource:          "cool-operators",
+						CatalogSourceNamespace: "ns",
+						PackageName:            "etcd",
+						Provider: operators.AppLink{
+							Name: "CoreOS, Inc",
+						},
+						DefaultChannel: "alpha",
+						Channels: []operators.PackageChannel{
+							{
+								Name:       "alpha",
+								CurrentCSV: "etcdoperator.v0.9.2",
+								CurrentCSVDesc: func() operators.CSVDescription {
+									csv := operatorsv1alpha1.ClusterServiceVersion{}
+									require.NoError(t, json.Unmarshal([]byte(etcdCSVJSON), &csv))
+									return operators.CreateCSVDescription(&csv)
+								}(),
+							},
+						},
+					},
+				},
+			}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.TODO())
+			defer cancel()
+
+			lab := labels.NewSelector()
+			if test.labelReq != nil {
+				req, err := labels.NewRequirement(test.labelReq.key, test.labelReq.op, test.labelReq.strValues)
+				require.NoError(t, err)
+				lab = lab.Add(*req)
+			}
+
+			provider, err := NewFakeRegistryProvider(ctx, nil, nil, test.globalNS)
+			require.NoError(t, err)
+
+			for _, c := range test.registryClients {
+				require.NoError(t, provider.refreshCache(ctx, c))
+			}
+
+			packageManifestList, err := provider.List(test.requestNamespace, lab)
 			if test.expectedErr != "" {
 				require.NotNil(t, err)
 				require.Equal(t, test.expectedErr, err.Error())
