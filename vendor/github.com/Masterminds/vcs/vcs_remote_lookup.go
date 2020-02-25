@@ -244,7 +244,7 @@ func checkBitbucket(i map[string]string, ul *url.URL) (Type, error) {
 		SCM Type `json:"scm"`
 	}
 
-	u := expand(i, "https://api.bitbucket.org/1.0/repositories/{name}")
+	u := expand(i, "https://api.bitbucket.org/2.0/repositories/{name}?fields=scm")
 	data, err := get(u)
 	if err != nil {
 		return "", err

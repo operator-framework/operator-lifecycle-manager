@@ -53,7 +53,7 @@ func (g *IndexDockerfileGenerator) GenerateIndexDockerfile(binarySourceImage, da
 
 	// Content
 	dockerfile += fmt.Sprintf("COPY %s ./\n", databaseFolder)
-	dockerfile += fmt.Sprintf("COPY --from=builder /build/bin/opm /opm\n")
+	dockerfile += fmt.Sprintf("COPY --from=builder /bin/opm /opm\n")
 	dockerfile += fmt.Sprintf("COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe\n")
 	dockerfile += fmt.Sprintf("EXPOSE 50051\n")
 	dockerfile += fmt.Sprintf("ENTRYPOINT [\"/opm\"]\n")
