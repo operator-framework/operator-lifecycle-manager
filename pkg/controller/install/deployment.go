@@ -3,14 +3,13 @@ package install
 import (
 	"fmt"
 	"hash/fnv"
-	"k8s.io/apimachinery/pkg/util/rand"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/util/rand"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/wrappers"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -271,22 +270,6 @@ func (i *StrategyDeploymentInstaller) cleanupOrphanedDeployments(deploymentSpecs
 // HashDeploymentSpec calculates a hash given a copy of the deployment spec from a CSV, stripping any
 // operatorgroup annotations.
 func HashDeploymentSpec(spec appsv1.DeploymentSpec) string {
-	// TODO: the deployment installer should know about operatorgroups and ca hashes so that it can calculate these
-
-	// Remove operatorgroup annotations for deployment hashing - this simplifies calculation of the deployment hash
-	// because we don't need to worry about the current state of the operatorgroup
-	annotations := spec.Template.GetAnnotations()
-	if annotations != nil {
-		delete(annotations, v1.OperatorGroupAnnotationKey)
-		delete(annotations, v1.OperatorGroupNamespaceAnnotationKey)
-		delete(annotations, v1.OperatorGroupTargetsAnnotationKey)
-	}
-
-	if len(annotations) == 0 {
-		annotations = nil
-	}
-	spec.Template.SetAnnotations(annotations)
-
 	hasher := fnv.New32a()
 	hashutil.DeepHashObject(hasher, &spec)
 	return rand.SafeEncodeString(fmt.Sprint(hasher.Sum32()))
