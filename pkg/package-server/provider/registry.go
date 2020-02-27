@@ -412,7 +412,7 @@ func (p *RegistryProvider) Get(namespace, name string) (*operators.PackageManife
 func (p *RegistryProvider) List(namespace string, selector labels.Selector) (*operators.PackageManifestList, error) {
 	var pkgs []*operators.PackageManifest
 	if namespace == metav1.NamespaceAll {
-		all, err := p.pkgLister.List(labels.Everything())
+		all, err := p.pkgLister.List(selector)
 		if err != nil {
 			return nil, err
 		}
