@@ -59,6 +59,10 @@ func TestSyncSubscriptions(t *testing.T) {
 				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -78,11 +82,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:    v1alpha1.GroupName,
-							Version:  v1alpha1.GroupVersion,
-							Kind:     v1alpha1.ClusterServiceVersionKind,
-							Name:     "csv.v.1",
-							Manifest: "{}",
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "csv.v.1",
+							Manifest:               "{}",
 						},
 					},
 				},
@@ -108,6 +112,10 @@ func TestSyncSubscriptions(t *testing.T) {
 			},
 			args: args{
 				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
 						Namespace: testNamespace,
@@ -171,11 +179,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.ClusterServiceVersionKind,
-								Name:     "csv.v.1",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "csv.v.1",
+								Manifest:               "{}",
 							},
 						},
 					},
@@ -188,6 +196,10 @@ func TestSyncSubscriptions(t *testing.T) {
 				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -208,11 +220,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:    v1alpha1.GroupName,
-							Version:  v1alpha1.GroupVersion,
-							Kind:     v1alpha1.ClusterServiceVersionKind,
-							Name:     "csv.v.1",
-							Manifest: "{}",
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "csv.v.1",
+							Manifest:               "{}",
 						},
 					},
 				},
@@ -239,6 +251,10 @@ func TestSyncSubscriptions(t *testing.T) {
 			},
 			args: args{
 				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
 						Namespace: testNamespace,
@@ -304,11 +320,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.ClusterServiceVersionKind,
-								Name:     "csv.v.1",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "csv.v.1",
+								Manifest:               "{}",
 							},
 						},
 					},
@@ -321,6 +337,10 @@ func TestSyncSubscriptions(t *testing.T) {
 				clientOptions: []clientfake.Option{clientfake.WithSelfLinks(t)},
 				existingOLMObjs: []runtime.Object{
 					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -376,6 +396,10 @@ func TestSyncSubscriptions(t *testing.T) {
 			},
 			args: args{
 				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
 						Namespace: testNamespace,
@@ -467,6 +491,10 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 					},
 					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -487,11 +515,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:    v1alpha1.GroupName,
-							Version:  v1alpha1.GroupVersion,
-							Kind:     v1alpha1.ClusterServiceVersionKind,
-							Name:     "csv.v.2",
-							Manifest: "{}",
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "csv.v.2",
+							Manifest:               "{}",
 						},
 					},
 				},
@@ -518,6 +546,10 @@ func TestSyncSubscriptions(t *testing.T) {
 			},
 			args: args{
 				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
 						Namespace: testNamespace,
@@ -583,11 +615,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.ClusterServiceVersionKind,
-								Name:     "csv.v.2",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "csv.v.2",
+								Manifest:               "{}",
 							},
 						},
 					},
@@ -609,6 +641,10 @@ func TestSyncSubscriptions(t *testing.T) {
 						},
 					},
 					&v1alpha1.Subscription{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.SubscriptionKind,
+							APIVersion: v1alpha1.SchemeGroupVersion.String(),
+						},
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "sub",
 							Namespace: testNamespace,
@@ -629,11 +665,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:    v1alpha1.GroupName,
-							Version:  v1alpha1.GroupVersion,
-							Kind:     v1alpha1.ClusterServiceVersionKind,
-							Name:     "csv.v.2",
-							Manifest: "{}",
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "csv.v.2",
+							Manifest:               "{}",
 						},
 					},
 					{
@@ -641,11 +677,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:    v1alpha1.GroupName,
-							Version:  v1alpha1.GroupVersion,
-							Kind:     v1alpha1.ClusterServiceVersionKind,
-							Name:     "dep.v.1",
-							Manifest: "{}",
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.ClusterServiceVersionKind,
+							Name:                   "dep.v.1",
+							Manifest:               "{}",
 						},
 					},
 					{
@@ -653,11 +689,11 @@ func TestSyncSubscriptions(t *testing.T) {
 						Resource: v1alpha1.StepResource{
 							CatalogSource:          "src",
 							CatalogSourceNamespace: testNamespace,
-							Group:    v1alpha1.GroupName,
-							Version:  v1alpha1.GroupVersion,
-							Kind:     v1alpha1.SubscriptionKind,
-							Name:     "sub-dep",
-							Manifest: "{}",
+							Group:                  v1alpha1.GroupName,
+							Version:                v1alpha1.GroupVersion,
+							Kind:                   v1alpha1.SubscriptionKind,
+							Name:                   "sub-dep",
+							Manifest:               "{}",
 						},
 					},
 				},
@@ -684,6 +720,10 @@ func TestSyncSubscriptions(t *testing.T) {
 			},
 			args: args{
 				obj: &v1alpha1.Subscription{
+					TypeMeta: metav1.TypeMeta{
+						Kind:       v1alpha1.SubscriptionKind,
+						APIVersion: v1alpha1.SchemeGroupVersion.String(),
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "sub",
 						Namespace: testNamespace,
@@ -750,11 +790,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.ClusterServiceVersionKind,
-								Name:     "csv.v.2",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "csv.v.2",
+								Manifest:               "{}",
 							},
 						},
 						{
@@ -762,11 +802,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.ClusterServiceVersionKind,
-								Name:     "dep.v.1",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "dep.v.1",
+								Manifest:               "{}",
 							},
 						},
 						{
@@ -774,11 +814,11 @@ func TestSyncSubscriptions(t *testing.T) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: testNamespace,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.SubscriptionKind,
-								Name:     "sub-dep",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.SubscriptionKind,
+								Name:                   "sub-dep",
+								Manifest:               "{}",
 							},
 						},
 					},
@@ -946,11 +986,11 @@ func BenchmarkSyncResolvingNamespace(b *testing.B) {
 							Resource: v1alpha1.StepResource{
 								CatalogSource:          "src",
 								CatalogSourceNamespace: ns,
-								Group:    v1alpha1.GroupName,
-								Version:  v1alpha1.GroupVersion,
-								Kind:     v1alpha1.ClusterServiceVersionKind,
-								Name:     "csv.v.2",
-								Manifest: "{}",
+								Group:                  v1alpha1.GroupName,
+								Version:                v1alpha1.GroupVersion,
+								Kind:                   v1alpha1.ClusterServiceVersionKind,
+								Name:                   "csv.v.2",
+								Manifest:               "{}",
 							},
 						},
 					}
