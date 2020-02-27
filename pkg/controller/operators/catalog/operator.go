@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
-
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	errorwrap "github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -23,15 +21,18 @@ import (
 	extinf "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/retry"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
@@ -871,7 +872,7 @@ func (o *Operator) ensureSubscriptionInstallPlanState(logger *logrus.Entry, sub 
 		return sub, false, nil
 	}
 
-	ip, err := o.lister.OperatorsV1alpha1().InstallPlanLister().InstallPlans(sub.GetNamespace()).Get(ipName)
+	ip, err := o.client.OperatorsV1alpha1().InstallPlans(sub.GetNamespace()).Get(ipName, metav1.GetOptions{})
 	if err != nil {
 		logger.WithField("installplan", ipName).Warn("unable to get installplan from cache")
 		return nil, false, err
@@ -942,21 +943,48 @@ func (o *Operator) ensureSubscriptionCSVState(logger *logrus.Entry, sub *v1alpha
 }
 
 func (o *Operator) updateSubscriptionStatus(namespace string, gen int, subs []*v1alpha1.Subscription, installPlanRef *corev1.ObjectReference) error {
-	// TODO: parallel, sync waitgroup
-	var err error
+	var (
+		errs        []error
+		mu          sync.Mutex
+		wg          sync.WaitGroup
+		getOpts     = metav1.GetOptions{}
+		lastUpdated = o.now()
+	)
 	for _, sub := range subs {
-		sub.Status.LastUpdated = o.now()
+		sub.Status.LastUpdated = lastUpdated
 		if installPlanRef != nil {
 			sub.Status.InstallPlanRef = installPlanRef
 			sub.Status.Install = v1alpha1.NewInstallPlanReference(installPlanRef)
 			sub.Status.State = v1alpha1.SubscriptionStateUpgradePending
 			sub.Status.InstallPlanGeneration = gen
 		}
-		if _, subErr := o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(sub); subErr != nil {
-			err = subErr
-		}
+
+		wg.Add(1)
+		go func(s v1alpha1.Subscription) {
+			defer wg.Done()
+
+			update := func() error {
+				// Update the status of the latest revision
+				latest, err := o.client.OperatorsV1alpha1().Subscriptions(s.GetNamespace()).Get(s.GetName(), getOpts)
+				if err != nil {
+					return err
+				}
+
+				latest.Status = s.Status
+				_, err = o.client.OperatorsV1alpha1().Subscriptions(namespace).UpdateStatus(latest)
+
+				return err
+			}
+			if err := retry.RetryOnConflict(retry.DefaultRetry, update); err != nil {
+				mu.Lock()
+				defer mu.Unlock()
+				errs = append(errs, err)
+			}
+		}(*sub)
 	}
-	return err
+	wg.Wait()
+
+	return utilerrors.NewAggregate(errs)
 }
 
 func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen int, subs []*v1alpha1.Subscription, installPlanApproval v1alpha1.Approval, steps []*v1alpha1.Step, bundleLookups []v1alpha1.BundleLookup) (*corev1.ObjectReference, error) {
