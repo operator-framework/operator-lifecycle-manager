@@ -1,0 +1,30 @@
+name: test-scripts
+on:
+  pull_request:
+    paths:
+    - 'scripts/**'
+    - 'Makefile'
+  schedule:
+  - cron: '0 0 * * *' # daily to pick up releases
+jobs:
+  run-local-minikube:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        curl -sLo minikube "$(curl -sL https://api.github.com/repos/kubernetes/minikube/releases/latest | jq -r '[.assets[] | select(.name == "minikube-linux-amd64")] | first | .browser_download_url')"
+        chmod +x minikube
+        sudo mv minikube /bin/
+        minikube config set vm-driver none
+        sudo make run-local # vm-driver=none requires root
+  run-local-kind:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - run: |
+        curl -sLo kind "$(curl -sL https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r '[.assets[] | select(.name == "kind-linux-amd64")] | first | .browser_download_url')"
+        chmod +x kind
+        sudo mv kind /bin/
+        kind create cluster
+        kind export kubeconfig
+        make run-local
