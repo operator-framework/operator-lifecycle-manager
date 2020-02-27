@@ -22,6 +22,8 @@ IMAGE_TAG ?= "dev"
 SPECIFIC_UNIT_TEST := $(if $(TEST),-run $(TEST),)
 LOCAL_NAMESPACE := "olm"
 export GO111MODULE=on
+CONTROLLER_GEN := go run ./vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
+YQ_INTERNAL := go run ./vendor/github.com/mikefarah/yq/v2/
 
 # ART builds are performed in dist-git, with content (but not commits) copied 
 # from the source repo. Thus at build time if your code is inspecting the local
@@ -156,7 +158,9 @@ codegen:
 	go run vendor/k8s.io/kube-openapi/cmd/openapi-gen/openapi-gen.go --logtostderr -i ./vendor/k8s.io/apimachinery/pkg/runtime,./vendor/k8s.io/apimachinery/pkg/apis/meta/v1,./vendor/k8s.io/apimachinery/pkg/version,./pkg/package-server/apis/operators/v1,./pkg/package-server/apis/apps/v1alpha1,./pkg/api/apis/operators/v1alpha1,./pkg/lib/version -p $(PKG)/pkg/package-server/apis/openapi -O zz_generated.openapi -h boilerplate.go.txt -r /dev/null
 	$(CODEGEN_INTERNAL) deepcopy,conversion,client,lister,informer $(PKG)/pkg/api/client $(PKG)/pkg/api/apis $(PKG)/pkg/api/apis "operators:v1alpha1,v1"
 	$(CODEGEN_INTERNAL) all $(PKG)/pkg/package-server/client $(PKG)/pkg/package-server/apis $(PKG)/pkg/package-server/apis "operators:v1 apps:v1alpha1"
-
+	$(CONTROLLER_GEN) schemapatch:manifests=./deploy/chart/templates paths=./pkg/api/apis/operators/v1alpha1/... output:dir=./deploy/chart/templates
+	$(CONTROLLER_GEN) schemapatch:manifests=./deploy/chart/templates paths=./pkg/api/apis/operators/v1/... output:dir=./deploy/chart/templates
+	$(YQ_INTERNAL) w --inplace deploy/chart/templates/0000_50_olm_03-clusterserviceversion.crd.yaml spec.validation.openAPIV3Schema.properties.spec.properties.install.properties.spec.properties.deployments.items.properties.spec.properties.template.properties.metadata.x-kubernetes-preserve-unknown-fields true
 container-codegen:
 	docker build -t olm:codegen -f codegen.Dockerfile .
 	docker run --name temp-codegen olm:codegen /bin/true
@@ -226,9 +230,9 @@ endif
 ifndef ver
 	$(error ver is undefined)
 endif
-	yq w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
-	yq w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
-	yq w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
+	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml olm.image.ref $(olmref)
+	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml catalog.image.ref $(olmref)
+	$(YQ_INTERNAL) w -i deploy/$(target)/values.yaml package.image.ref $(olmref)
 	./scripts/package_release.sh $(ver) deploy/$(target)/manifests/$(ver) deploy/$(target)/values.yaml
 	ln -sfFn ./$(ver) deploy/$(target)/manifests/latest
 ifeq ($(quickstart), true)

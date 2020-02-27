@@ -26,6 +26,7 @@ import (
 
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
@@ -386,6 +387,36 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*operators.StepResource)(nil), (*StepResource)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_operators_StepResource_To_v1alpha1_StepResource(a.(*operators.StepResource), b.(*StepResource), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*StrategyDeploymentPermissions)(nil), (*operators.StrategyDeploymentPermissions)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_StrategyDeploymentPermissions_To_operators_StrategyDeploymentPermissions(a.(*StrategyDeploymentPermissions), b.(*operators.StrategyDeploymentPermissions), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.StrategyDeploymentPermissions)(nil), (*StrategyDeploymentPermissions)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_StrategyDeploymentPermissions_To_v1alpha1_StrategyDeploymentPermissions(a.(*operators.StrategyDeploymentPermissions), b.(*StrategyDeploymentPermissions), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*StrategyDeploymentSpec)(nil), (*operators.StrategyDeploymentSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_StrategyDeploymentSpec_To_operators_StrategyDeploymentSpec(a.(*StrategyDeploymentSpec), b.(*operators.StrategyDeploymentSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.StrategyDeploymentSpec)(nil), (*StrategyDeploymentSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_StrategyDeploymentSpec_To_v1alpha1_StrategyDeploymentSpec(a.(*operators.StrategyDeploymentSpec), b.(*StrategyDeploymentSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*StrategyDetailsDeployment)(nil), (*operators.StrategyDetailsDeployment)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1alpha1_StrategyDetailsDeployment_To_operators_StrategyDetailsDeployment(a.(*StrategyDetailsDeployment), b.(*operators.StrategyDetailsDeployment), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*operators.StrategyDetailsDeployment)(nil), (*StrategyDetailsDeployment)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_operators_StrategyDetailsDeployment_To_v1alpha1_StrategyDetailsDeployment(a.(*operators.StrategyDetailsDeployment), b.(*StrategyDetailsDeployment), scope)
 	}); err != nil {
 		return err
 	}
@@ -794,8 +825,8 @@ func autoConvert_v1alpha1_ClusterServiceVersionCondition_To_operators_ClusterSer
 	out.Phase = operators.ClusterServiceVersionPhase(in.Phase)
 	out.Message = in.Message
 	out.Reason = operators.ConditionReason(in.Reason)
-	out.LastUpdateTime = in.LastUpdateTime
-	out.LastTransitionTime = in.LastTransitionTime
+	out.LastUpdateTime = (*v1.Time)(unsafe.Pointer(in.LastUpdateTime))
+	out.LastTransitionTime = (*v1.Time)(unsafe.Pointer(in.LastTransitionTime))
 	return nil
 }
 
@@ -808,8 +839,8 @@ func autoConvert_operators_ClusterServiceVersionCondition_To_v1alpha1_ClusterSer
 	out.Phase = ClusterServiceVersionPhase(in.Phase)
 	out.Message = in.Message
 	out.Reason = ConditionReason(in.Reason)
-	out.LastUpdateTime = in.LastUpdateTime
-	out.LastTransitionTime = in.LastTransitionTime
+	out.LastUpdateTime = (*v1.Time)(unsafe.Pointer(in.LastUpdateTime))
+	out.LastTransitionTime = (*v1.Time)(unsafe.Pointer(in.LastTransitionTime))
 	return nil
 }
 
@@ -916,12 +947,12 @@ func autoConvert_v1alpha1_ClusterServiceVersionStatus_To_operators_ClusterServic
 	out.Phase = operators.ClusterServiceVersionPhase(in.Phase)
 	out.Message = in.Message
 	out.Reason = operators.ConditionReason(in.Reason)
-	out.LastUpdateTime = in.LastUpdateTime
-	out.LastTransitionTime = in.LastTransitionTime
+	out.LastUpdateTime = (*v1.Time)(unsafe.Pointer(in.LastUpdateTime))
+	out.LastTransitionTime = (*v1.Time)(unsafe.Pointer(in.LastTransitionTime))
 	out.Conditions = *(*[]operators.ClusterServiceVersionCondition)(unsafe.Pointer(&in.Conditions))
 	out.RequirementStatus = *(*[]operators.RequirementStatus)(unsafe.Pointer(&in.RequirementStatus))
-	out.CertsLastUpdated = in.CertsLastUpdated
-	out.CertsRotateAt = in.CertsRotateAt
+	out.CertsLastUpdated = (*v1.Time)(unsafe.Pointer(in.CertsLastUpdated))
+	out.CertsRotateAt = (*v1.Time)(unsafe.Pointer(in.CertsRotateAt))
 	return nil
 }
 
@@ -934,12 +965,12 @@ func autoConvert_operators_ClusterServiceVersionStatus_To_v1alpha1_ClusterServic
 	out.Phase = ClusterServiceVersionPhase(in.Phase)
 	out.Message = in.Message
 	out.Reason = ConditionReason(in.Reason)
-	out.LastUpdateTime = in.LastUpdateTime
-	out.LastTransitionTime = in.LastTransitionTime
+	out.LastUpdateTime = (*v1.Time)(unsafe.Pointer(in.LastUpdateTime))
+	out.LastTransitionTime = (*v1.Time)(unsafe.Pointer(in.LastTransitionTime))
 	out.Conditions = *(*[]ClusterServiceVersionCondition)(unsafe.Pointer(&in.Conditions))
 	out.RequirementStatus = *(*[]RequirementStatus)(unsafe.Pointer(&in.RequirementStatus))
-	out.CertsLastUpdated = in.CertsLastUpdated
-	out.CertsRotateAt = in.CertsRotateAt
+	out.CertsLastUpdated = (*v1.Time)(unsafe.Pointer(in.CertsLastUpdated))
+	out.CertsRotateAt = (*v1.Time)(unsafe.Pointer(in.CertsRotateAt))
 	return nil
 }
 
@@ -1131,8 +1162,8 @@ func Convert_operators_InstallPlan_To_v1alpha1_InstallPlan(in *operators.Install
 func autoConvert_v1alpha1_InstallPlanCondition_To_operators_InstallPlanCondition(in *InstallPlanCondition, out *operators.InstallPlanCondition, s conversion.Scope) error {
 	out.Type = operators.InstallPlanConditionType(in.Type)
 	out.Status = corev1.ConditionStatus(in.Status)
-	out.LastUpdateTime = in.LastUpdateTime
-	out.LastTransitionTime = in.LastTransitionTime
+	out.LastUpdateTime = (*v1.Time)(unsafe.Pointer(in.LastUpdateTime))
+	out.LastTransitionTime = (*v1.Time)(unsafe.Pointer(in.LastTransitionTime))
 	out.Reason = operators.InstallPlanConditionReason(in.Reason)
 	out.Message = in.Message
 	return nil
@@ -1146,8 +1177,8 @@ func Convert_v1alpha1_InstallPlanCondition_To_operators_InstallPlanCondition(in 
 func autoConvert_operators_InstallPlanCondition_To_v1alpha1_InstallPlanCondition(in *operators.InstallPlanCondition, out *InstallPlanCondition, s conversion.Scope) error {
 	out.Type = InstallPlanConditionType(in.Type)
 	out.Status = corev1.ConditionStatus(in.Status)
-	out.LastUpdateTime = in.LastUpdateTime
-	out.LastTransitionTime = in.LastTransitionTime
+	out.LastUpdateTime = (*v1.Time)(unsafe.Pointer(in.LastUpdateTime))
+	out.LastTransitionTime = (*v1.Time)(unsafe.Pointer(in.LastTransitionTime))
 	out.Reason = InstallPlanConditionReason(in.Reason)
 	out.Message = in.Message
 	return nil
@@ -1286,7 +1317,9 @@ func Convert_operators_Maintainer_To_v1alpha1_Maintainer(in *operators.Maintaine
 
 func autoConvert_v1alpha1_NamedInstallStrategy_To_operators_NamedInstallStrategy(in *NamedInstallStrategy, out *operators.NamedInstallStrategy, s conversion.Scope) error {
 	out.StrategyName = in.StrategyName
-	out.StrategySpecRaw = *(*json.RawMessage)(unsafe.Pointer(&in.StrategySpecRaw))
+	if err := Convert_v1alpha1_StrategyDetailsDeployment_To_operators_StrategyDetailsDeployment(&in.StrategySpec, &out.StrategySpec, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1297,7 +1330,9 @@ func Convert_v1alpha1_NamedInstallStrategy_To_operators_NamedInstallStrategy(in 
 
 func autoConvert_operators_NamedInstallStrategy_To_v1alpha1_NamedInstallStrategy(in *operators.NamedInstallStrategy, out *NamedInstallStrategy, s conversion.Scope) error {
 	out.StrategyName = in.StrategyName
-	out.StrategySpecRaw = *(*json.RawMessage)(unsafe.Pointer(&in.StrategySpecRaw))
+	if err := Convert_operators_StrategyDetailsDeployment_To_v1alpha1_StrategyDetailsDeployment(&in.StrategySpec, &out.StrategySpec, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1482,6 +1517,74 @@ func autoConvert_operators_StepResource_To_v1alpha1_StepResource(in *operators.S
 // Convert_operators_StepResource_To_v1alpha1_StepResource is an autogenerated conversion function.
 func Convert_operators_StepResource_To_v1alpha1_StepResource(in *operators.StepResource, out *StepResource, s conversion.Scope) error {
 	return autoConvert_operators_StepResource_To_v1alpha1_StepResource(in, out, s)
+}
+
+func autoConvert_v1alpha1_StrategyDeploymentPermissions_To_operators_StrategyDeploymentPermissions(in *StrategyDeploymentPermissions, out *operators.StrategyDeploymentPermissions, s conversion.Scope) error {
+	out.ServiceAccountName = in.ServiceAccountName
+	out.Rules = *(*[]rbacv1.PolicyRule)(unsafe.Pointer(&in.Rules))
+	return nil
+}
+
+// Convert_v1alpha1_StrategyDeploymentPermissions_To_operators_StrategyDeploymentPermissions is an autogenerated conversion function.
+func Convert_v1alpha1_StrategyDeploymentPermissions_To_operators_StrategyDeploymentPermissions(in *StrategyDeploymentPermissions, out *operators.StrategyDeploymentPermissions, s conversion.Scope) error {
+	return autoConvert_v1alpha1_StrategyDeploymentPermissions_To_operators_StrategyDeploymentPermissions(in, out, s)
+}
+
+func autoConvert_operators_StrategyDeploymentPermissions_To_v1alpha1_StrategyDeploymentPermissions(in *operators.StrategyDeploymentPermissions, out *StrategyDeploymentPermissions, s conversion.Scope) error {
+	out.ServiceAccountName = in.ServiceAccountName
+	out.Rules = *(*[]rbacv1.PolicyRule)(unsafe.Pointer(&in.Rules))
+	return nil
+}
+
+// Convert_operators_StrategyDeploymentPermissions_To_v1alpha1_StrategyDeploymentPermissions is an autogenerated conversion function.
+func Convert_operators_StrategyDeploymentPermissions_To_v1alpha1_StrategyDeploymentPermissions(in *operators.StrategyDeploymentPermissions, out *StrategyDeploymentPermissions, s conversion.Scope) error {
+	return autoConvert_operators_StrategyDeploymentPermissions_To_v1alpha1_StrategyDeploymentPermissions(in, out, s)
+}
+
+func autoConvert_v1alpha1_StrategyDeploymentSpec_To_operators_StrategyDeploymentSpec(in *StrategyDeploymentSpec, out *operators.StrategyDeploymentSpec, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Spec = in.Spec
+	return nil
+}
+
+// Convert_v1alpha1_StrategyDeploymentSpec_To_operators_StrategyDeploymentSpec is an autogenerated conversion function.
+func Convert_v1alpha1_StrategyDeploymentSpec_To_operators_StrategyDeploymentSpec(in *StrategyDeploymentSpec, out *operators.StrategyDeploymentSpec, s conversion.Scope) error {
+	return autoConvert_v1alpha1_StrategyDeploymentSpec_To_operators_StrategyDeploymentSpec(in, out, s)
+}
+
+func autoConvert_operators_StrategyDeploymentSpec_To_v1alpha1_StrategyDeploymentSpec(in *operators.StrategyDeploymentSpec, out *StrategyDeploymentSpec, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Spec = in.Spec
+	return nil
+}
+
+// Convert_operators_StrategyDeploymentSpec_To_v1alpha1_StrategyDeploymentSpec is an autogenerated conversion function.
+func Convert_operators_StrategyDeploymentSpec_To_v1alpha1_StrategyDeploymentSpec(in *operators.StrategyDeploymentSpec, out *StrategyDeploymentSpec, s conversion.Scope) error {
+	return autoConvert_operators_StrategyDeploymentSpec_To_v1alpha1_StrategyDeploymentSpec(in, out, s)
+}
+
+func autoConvert_v1alpha1_StrategyDetailsDeployment_To_operators_StrategyDetailsDeployment(in *StrategyDetailsDeployment, out *operators.StrategyDetailsDeployment, s conversion.Scope) error {
+	out.DeploymentSpecs = *(*[]operators.StrategyDeploymentSpec)(unsafe.Pointer(&in.DeploymentSpecs))
+	out.Permissions = *(*[]operators.StrategyDeploymentPermissions)(unsafe.Pointer(&in.Permissions))
+	out.ClusterPermissions = *(*[]operators.StrategyDeploymentPermissions)(unsafe.Pointer(&in.ClusterPermissions))
+	return nil
+}
+
+// Convert_v1alpha1_StrategyDetailsDeployment_To_operators_StrategyDetailsDeployment is an autogenerated conversion function.
+func Convert_v1alpha1_StrategyDetailsDeployment_To_operators_StrategyDetailsDeployment(in *StrategyDetailsDeployment, out *operators.StrategyDetailsDeployment, s conversion.Scope) error {
+	return autoConvert_v1alpha1_StrategyDetailsDeployment_To_operators_StrategyDetailsDeployment(in, out, s)
+}
+
+func autoConvert_operators_StrategyDetailsDeployment_To_v1alpha1_StrategyDetailsDeployment(in *operators.StrategyDetailsDeployment, out *StrategyDetailsDeployment, s conversion.Scope) error {
+	out.DeploymentSpecs = *(*[]StrategyDeploymentSpec)(unsafe.Pointer(&in.DeploymentSpecs))
+	out.Permissions = *(*[]StrategyDeploymentPermissions)(unsafe.Pointer(&in.Permissions))
+	out.ClusterPermissions = *(*[]StrategyDeploymentPermissions)(unsafe.Pointer(&in.ClusterPermissions))
+	return nil
+}
+
+// Convert_operators_StrategyDetailsDeployment_To_v1alpha1_StrategyDetailsDeployment is an autogenerated conversion function.
+func Convert_operators_StrategyDetailsDeployment_To_v1alpha1_StrategyDetailsDeployment(in *operators.StrategyDetailsDeployment, out *StrategyDetailsDeployment, s conversion.Scope) error {
+	return autoConvert_operators_StrategyDetailsDeployment_To_v1alpha1_StrategyDetailsDeployment(in, out, s)
 }
 
 func autoConvert_v1alpha1_Subscription_To_operators_Subscription(in *Subscription, out *operators.Subscription, s conversion.Scope) error {

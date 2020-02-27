@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 
+	appsv1 "k8s.io/api/apps/v1"
+	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
@@ -25,6 +27,8 @@ const (
 	InstallModeTypeMultiNamespace InstallModeType = "MultiNamespace"
 	// InstallModeTypeAllNamespaces indicates that the operator can be a member of an `OperatorGroup` that selects all namespaces (target namespace set is the empty string "").
 	InstallModeTypeAllNamespaces InstallModeType = "AllNamespaces"
+
+	InstallStrategyNameDeployment = "deployment"
 )
 
 // InstallMode associates an InstallModeType with a flag representing if the CSV supports it
@@ -39,8 +43,32 @@ type InstallModeSet map[InstallModeType]bool
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
-	StrategyName    string
-	StrategySpecRaw json.RawMessage
+	StrategyName string
+	StrategySpec StrategyDetailsDeployment
+}
+
+// StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy
+type StrategyDeploymentPermissions struct {
+	ServiceAccountName string
+	Rules              []rbac.PolicyRule
+}
+
+// StrategyDeploymentSpec contains the name and spec for the deployment ALM should create
+type StrategyDeploymentSpec struct {
+	Name string
+	Spec appsv1.DeploymentSpec
+}
+
+// StrategyDetailsDeployment represents the parsed details of a Deployment
+// InstallStrategy.
+type StrategyDetailsDeployment struct {
+	DeploymentSpecs    []StrategyDeploymentSpec
+	Permissions        []StrategyDeploymentPermissions
+	ClusterPermissions []StrategyDeploymentPermissions
+}
+
+func (d *StrategyDetailsDeployment) GetStrategyName() string {
+	return InstallStrategyNameDeployment
 }
 
 // StatusDescriptor describes a field in a status block of a CRD so that OLM can consume it
@@ -254,10 +282,10 @@ type ClusterServiceVersionCondition struct {
 	Reason ConditionReason
 	// Last time we updated the status
 	// +optional
-	LastUpdateTime metav1.Time
+	LastUpdateTime *metav1.Time
 	// Last time the status transitioned from one status to another.
 	// +optional
-	LastTransitionTime metav1.Time
+	LastTransitionTime *metav1.Time
 }
 
 // OwnsCRD determines whether the current CSV owns a paritcular CRD.
@@ -331,20 +359,20 @@ type ClusterServiceVersionStatus struct {
 	Reason ConditionReason
 	// Last time we updated the status
 	// +optional
-	LastUpdateTime metav1.Time
+	LastUpdateTime *metav1.Time
 	// Last time the status transitioned from one status to another.
 	// +optional
-	LastTransitionTime metav1.Time
+	LastTransitionTime *metav1.Time
 	// List of conditions, a history of state transitions
 	Conditions []ClusterServiceVersionCondition
 	// The status of each requirement for this CSV
 	RequirementStatus []RequirementStatus
 	// Last time the owned APIService certs were updated
 	// +optional
-	CertsLastUpdated metav1.Time
+	CertsLastUpdated *metav1.Time
 	// Time the owned APIService certs will rotate next
 	// +optional
-	CertsRotateAt metav1.Time
+	CertsRotateAt *metav1.Time
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -62,8 +62,8 @@ var (
 		APIVersion: v1alpha1.GroupVersion,
 	}
 
-	strategy = install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategy = v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: newNginxDeployment(genName("nginx-")),
@@ -72,8 +72,8 @@ var (
 	}
 	strategyRaw, _  = json.Marshal(strategy)
 	installStrategy = v1alpha1.NamedInstallStrategy{
-		StrategyName:    install.InstallStrategyNameDeployment,
-		StrategySpecRaw: strategyRaw,
+		StrategyName: v1alpha1.InstallStrategyNameDeployment,
+		StrategySpec: strategy,
 	}
 	outdatedCSV = v1alpha1.ClusterServiceVersion{
 		TypeMeta: csvType,
@@ -195,8 +195,8 @@ var (
 	}
 	csvList = []v1alpha1.ClusterServiceVersion{outdatedCSV, stableCSV, betaCSV, alphaCSV}
 
-	strategyNew = install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	strategyNew = v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: genName("dep-"),
 				Spec: appsv1.DeploymentSpec{
@@ -245,12 +245,8 @@ var (
 )
 
 func init() {
-	strategyNewRaw, err := json.Marshal(strategyNew)
-	if err != nil {
-		panic(err)
-	}
 	for i := 0; i < len(csvList); i++ {
-		csvList[i].Spec.InstallStrategy.StrategySpecRaw = strategyNewRaw
+		csvList[i].Spec.InstallStrategy.StrategySpec = strategyNew
 	}
 
 	manifestsRaw, err := yaml.Marshal(dummyManifest)
@@ -1412,7 +1408,7 @@ func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.Cli
 	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
 	require.NoError(t, err)
 
-	strategyDetailsDeployment, ok := strategy.(*install.StrategyDetailsDeployment)
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	require.Truef(t, ok, "could not cast install strategy as type %T", strategyDetailsDeployment)
 
 	findEnvVar := func(envVar []corev1.EnvVar, name string) (foundEnvVar *corev1.EnvVar, found bool) {

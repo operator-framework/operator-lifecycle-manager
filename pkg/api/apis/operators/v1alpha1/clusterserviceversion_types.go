@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sort"
 
+	appsv1 "k8s.io/api/apps/v1"
+	rbac "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
@@ -14,6 +16,7 @@ const (
 	ClusterServiceVersionAPIVersion     = GroupName + "/" + GroupVersion
 	ClusterServiceVersionKind           = "ClusterServiceVersion"
 	OperatorGroupNamespaceAnnotationKey = "olm.operatorNamespace"
+	InstallStrategyNameDeployment       = "deployment"
 )
 
 // InstallModeType is a supported type of install mode for CSV installation
@@ -43,8 +46,32 @@ type InstallModeSet map[InstallModeType]bool
 // NamedInstallStrategy represents the block of an ClusterServiceVersion resource
 // where the install strategy is specified.
 type NamedInstallStrategy struct {
-	StrategyName    string          `json:"strategy"`
-	StrategySpecRaw json.RawMessage `json:"spec,omitempty"`
+	StrategyName string                    `json:"strategy"`
+	StrategySpec StrategyDetailsDeployment `json:"spec,omitempty"`
+}
+
+// StrategyDeploymentPermissions describe the rbac rules and service account needed by the install strategy
+type StrategyDeploymentPermissions struct {
+	ServiceAccountName string            `json:"serviceAccountName"`
+	Rules              []rbac.PolicyRule `json:"rules"`
+}
+
+// StrategyDeploymentSpec contains the name and spec for the deployment ALM should create
+type StrategyDeploymentSpec struct {
+	Name string                `json:"name"`
+	Spec appsv1.DeploymentSpec `json:"spec"`
+}
+
+// StrategyDetailsDeployment represents the parsed details of a Deployment
+// InstallStrategy.
+type StrategyDetailsDeployment struct {
+	DeploymentSpecs    []StrategyDeploymentSpec        `json:"deployments"`
+	Permissions        []StrategyDeploymentPermissions `json:"permissions,omitempty"`
+	ClusterPermissions []StrategyDeploymentPermissions `json:"clusterPermissions,omitempty"`
+}
+
+func (d *StrategyDetailsDeployment) GetStrategyName() string {
+	return InstallStrategyNameDeployment
 }
 
 // StatusDescriptor describes a field in a status block of a CRD so that OLM can consume it
@@ -268,10 +295,10 @@ type ClusterServiceVersionCondition struct {
 	Reason ConditionReason `json:"reason,omitempty"`
 	// Last time we updated the status
 	// +optional
-	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	LastUpdateTime *metav1.Time `json:"lastUpdateTime,omitempty"`
 	// Last time the status transitioned from one status to another.
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
 }
 
 // OwnsCRD determines whether the current CSV owns a particular CRD.
@@ -345,20 +372,20 @@ type ClusterServiceVersionStatus struct {
 	Reason ConditionReason `json:"reason,omitempty"`
 	// Last time we updated the status
 	// +optional
-	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
+	LastUpdateTime *metav1.Time `json:"lastUpdateTime,omitempty"`
 	// Last time the status transitioned from one status to another.
 	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
 	// List of conditions, a history of state transitions
 	Conditions []ClusterServiceVersionCondition `json:"conditions,omitempty"`
 	// The status of each requirement for this CSV
 	RequirementStatus []RequirementStatus `json:"requirementStatus,omitempty"`
 	// Last time the owned APIService certs were updated
 	// +optional
-	CertsLastUpdated metav1.Time `json:"certsLastUpdated,omitempty"`
+	CertsLastUpdated *metav1.Time `json:"certsLastUpdated,omitempty"`
 	// Time the owned APIService certs will rotate next
 	// +optional
-	CertsRotateAt metav1.Time `json:"certsRotateAt,omitempty"`
+	CertsRotateAt *metav1.Time `json:"certsRotateAt,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -369,7 +396,8 @@ type ClusterServiceVersion struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
-	Spec   ClusterServiceVersionSpec   `json:"spec"`
+	Spec ClusterServiceVersionSpec `json:"spec"`
+	// +optional
 	Status ClusterServiceVersionStatus `json:"status"`
 }
 

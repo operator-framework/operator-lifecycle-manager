@@ -163,7 +163,7 @@ func Convert_operators_OperatorGroupSpec_To_v1_OperatorGroupSpec(in *operators.O
 func autoConvert_v1_OperatorGroupStatus_To_operators_OperatorGroupStatus(in *OperatorGroupStatus, out *operators.OperatorGroupStatus, s conversion.Scope) error {
 	out.Namespaces = *(*[]string)(unsafe.Pointer(&in.Namespaces))
 	out.ServiceAccountRef = (*corev1.ObjectReference)(unsafe.Pointer(in.ServiceAccountRef))
-	out.LastUpdated = in.LastUpdated
+	out.LastUpdated = (*metav1.Time)(unsafe.Pointer(in.LastUpdated))
 	return nil
 }
 
@@ -175,7 +175,7 @@ func Convert_v1_OperatorGroupStatus_To_operators_OperatorGroupStatus(in *Operato
 func autoConvert_operators_OperatorGroupStatus_To_v1_OperatorGroupStatus(in *operators.OperatorGroupStatus, out *OperatorGroupStatus, s conversion.Scope) error {
 	out.Namespaces = *(*[]string)(unsafe.Pointer(&in.Namespaces))
 	out.ServiceAccountRef = (*corev1.ObjectReference)(unsafe.Pointer(in.ServiceAccountRef))
-	out.LastUpdated = in.LastUpdated
+	out.LastUpdated = (*metav1.Time)(unsafe.Pointer(in.LastUpdated))
 	return nil
 }
 

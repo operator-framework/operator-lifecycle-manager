@@ -8,7 +8,6 @@ import (
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/stretchr/testify/assert"
@@ -250,7 +249,7 @@ func newOperatorGroupWithServiceAccount(t *testing.T, client versioned.Interface
 	return
 }
 
-func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []install.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
+func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []v1alpha1.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
 
@@ -310,8 +309,7 @@ func newCatalogSource(t *testing.T, kubeclient operatorclient.ClientInterface, c
 	return
 }
 
-
-func newCatalogSourceWithDependencies(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []install.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
+func newCatalogSourceWithDependencies(t *testing.T, kubeclient operatorclient.ClientInterface, crclient versioned.Interface, prefix, namespace string, permissions []v1alpha1.StrategyDeploymentPermissions) (catsrc *v1alpha1.CatalogSource, subscriptionSpec *v1alpha1.SubscriptionSpec, cleanup cleanupFunc) {
 	crdPlural := genName("ins")
 	crdName := crdPlural + ".cluster.com"
 
@@ -391,10 +389,10 @@ func mustHaveCondition(t *testing.T, ip *v1alpha1.InstallPlan, conditionType v1a
 	return
 }
 
-func deploymentPermissions(t *testing.T) []install.StrategyDeploymentPermissions {
+func deploymentPermissions(t *testing.T) []v1alpha1.StrategyDeploymentPermissions {
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa-")
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{

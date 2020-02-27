@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,7 +24,6 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -108,10 +106,10 @@ func fetchInstallPlanWithNamespace(t *testing.T, c versioned.Interface, name str
 	return fetchedInstallPlan, err
 }
 
-func newNginxInstallStrategy(name string, permissions []install.StrategyDeploymentPermissions, clusterPermissions []install.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
+func newNginxInstallStrategy(name string, permissions []v1alpha1.StrategyDeploymentPermissions, clusterPermissions []v1alpha1.StrategyDeploymentPermissions) v1alpha1.NamedInstallStrategy {
 	// Create an nginx details deployment
-	details := install.StrategyDetailsDeployment{
-		DeploymentSpecs: []install.StrategyDeploymentSpec{
+	details := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
 				Name: name,
 				Spec: appsv1.DeploymentSpec{
@@ -138,10 +136,9 @@ func newNginxInstallStrategy(name string, permissions []install.StrategyDeployme
 		Permissions:        permissions,
 		ClusterPermissions: clusterPermissions,
 	}
-	detailsRaw, _ := json.Marshal(details)
 	namedStrategy := v1alpha1.NamedInstallStrategy{
-		StrategyName:    install.InstallStrategyNameDeployment,
-		StrategySpecRaw: detailsRaw,
+		StrategyName: v1alpha1.InstallStrategyNameDeployment,
+		StrategySpec: details,
 	}
 
 	return namedStrategy
@@ -1333,7 +1330,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 
 		// Generate permissions
 		serviceAccountName := genName("nginx-sa")
-		permissions := []install.StrategyDeploymentPermissions{
+		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1346,7 +1343,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 			},
 		}
 		// Generate permissions
-		clusterPermissions := []install.StrategyDeploymentPermissions{
+		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1401,7 +1398,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update CatalogSource with a new CSV with more permissions
-		updatedPermissions := []install.StrategyDeploymentPermissions{
+		updatedPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1418,7 +1415,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 				},
 			},
 		}
-		updatedClusterPermissions := []install.StrategyDeploymentPermissions{
+		updatedClusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1508,7 +1505,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 
 		// Generate permissions
 		serviceAccountName := genName("nginx-sa")
-		permissions := []install.StrategyDeploymentPermissions{
+		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1526,7 +1523,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 			},
 		}
 		// Generate permissions
-		clusterPermissions := []install.StrategyDeploymentPermissions{
+		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1586,7 +1583,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update CatalogSource with a new CSV with more permissions
-		updatedPermissions := []install.StrategyDeploymentPermissions{
+		updatedPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1598,7 +1595,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 				},
 			},
 		}
-		updatedClusterPermissions := []install.StrategyDeploymentPermissions{
+		updatedClusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1718,7 +1715,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 
 		// Generate permissions
 		serviceAccountName := genName("nginx-sa")
-		permissions := []install.StrategyDeploymentPermissions{
+		permissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1731,7 +1728,7 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 			},
 		}
 		// Generate permissions
-		clusterPermissions := []install.StrategyDeploymentPermissions{
+		clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 			{
 				ServiceAccountName: serviceAccountName,
 				Rules: []rbacv1.PolicyRule{
@@ -1787,8 +1784,8 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 		require.NoError(t, err)
 
 		modifiedEnv := []corev1.EnvVar{{Name: "EXAMPLE", Value: "value"}}
-		modifiedDetails := install.StrategyDetailsDeployment{
-			DeploymentSpecs: []install.StrategyDeploymentSpec{
+		modifiedDetails := v1alpha1.StrategyDetailsDeployment{
+			DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 				{
 					Name: deploymentName,
 					Spec: appsv1.DeploymentSpec{
@@ -1816,10 +1813,9 @@ func TestUpdateCatalogForSubscription(t *testing.T) {
 			Permissions:        permissions,
 			ClusterPermissions: clusterPermissions,
 		}
-		detailsRaw, _ := json.Marshal(modifiedDetails)
 		csv.Spec.InstallStrategy = v1alpha1.NamedInstallStrategy{
-			StrategyName:    install.InstallStrategyNameDeployment,
-			StrategySpecRaw: detailsRaw,
+			StrategyName: v1alpha1.InstallStrategyNameDeployment,
+			StrategySpec: modifiedDetails,
 		}
 		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Update(csv)
 		require.NoError(t, err)
@@ -2241,7 +2237,7 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
-	permissions := []install.StrategyDeploymentPermissions{
+	permissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{
@@ -2254,7 +2250,7 @@ func TestCreateInstallPlanWithPermissions(t *testing.T) {
 		},
 	}
 	// Generate permissions
-	clusterPermissions := []install.StrategyDeploymentPermissions{
+	clusterPermissions := []v1alpha1.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{

@@ -38,91 +38,132 @@ spec:
   - name: Age
     type: date
     JSONPath: .metadata.creationTimestamp
+  preserveUnknownFields: false
   subresources:
-  # status enables the status subresource.
+    # status enables the status subresource.
     status: {}
   validation:
     openAPIV3Schema:
-      description: A source configured to find packages and updates.
+      description: CatalogSource is a repository of CSVs, CRDs, and operator packages.
+      type: object
+      required:
+      - metadata
+      - spec
       properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          type: object
         spec:
           type: object
-          description: Spec for a catalog source.
           required:
           - sourceType
           properties:
-            sourceType:
-              type: string
-              description: The type of the source. `configmap` is the new name for `internal`
-              enum:
-              - internal   # deprecated
-              - configmap
-              - grpc
-
-            configMap:
-              type: string
-              description: The name of a ConfigMap that holds the entries for an in-memory catalog.
-
             address:
+              description: 'Address is a host that OLM can use to connect to a pre-existing
+                registry. Format: <registry-host or ip>:<port> Only used when SourceType
+                = SourceTypeGrpc. Ignored when the Image field is set.'
               type: string
-              description: An optional address. When set, directs OLM to connect to use a pre-existing registry server at this address.
-
-            image:
+            configMap:
+              description: ConfigMap is the name of the ConfigMap to be used to back
+                a configmap-server registry. Only used when SourceType = SourceTypeConfigmap
+                or SourceTypeInternal.
               type: string
-              description: An image that serves a grpc registry. Only valid for `grpc` sourceType. If both image and address are set, OLM does not use the address field.
-
+            description:
+              type: string
             displayName:
+              description: Metadata
               type: string
-              description: Pretty name for display
-
+            icon:
+              type: object
+              required:
+              - base64data
+              - mediatype
+              properties:
+                base64data:
+                  type: string
+                mediatype:
+                  type: string
+            image:
+              description: Image is an operator-registry container image to instantiate
+                a registry-server with. Only used when SourceType = SourceTypeGrpc.
+                If present, the address field is ignored.
+              type: string
             publisher:
               type: string
-              description: The name of an entity that publishes this catalog
-
             secrets:
+              description: Secrets represent set of secrets that can be used to access
+                the contents of the catalog. It is best to keep this list small, since
+                each will need to be tried for every catalog entry.
               type: array
-              description: A set of secrets that can be used to access the contents of the catalog. It is best to keep this list small, since each will need to be tried for every catalog entry.
               items:
                 type: string
-                description: A name of a secret in the namespace where the CatalogSource is defined.
+            sourceType:
+              description: SourceType is the type of source
+              type: string
         status:
           type: object
-          description: The status of the CatalogSource
           properties:
             configMapReference:
               type: object
-              description: If sourceType is `internal` or `configmap`, then this holds a reference to the configmap associated with this CatalogSource.
+              required:
+              - name
+              - namespace
               properties:
+                lastUpdateTime:
+                  type: string
+                  format: date-time
                 name:
                   type: string
-                  description: name of the configmap
                 namespace:
                   type: string
-                  description: namespace of the configmap
                 resourceVersion:
                   type: string
-                  description: resourceVersion of the configmap
                 uid:
+                  description: UID is a type that holds unique ID values, including
+                    UUIDs.  Because we don't ONLY use UUIDs, this is an alias to string.  Being
+                    a type captures intent and helps make sure that UIDs and names
+                    do not get conflated.
                   type: string
-                  description: uid of the configmap
+            connectionState:
+              type: object
+              required:
+              - lastObservedState
+              properties:
+                address:
+                  type: string
+                lastConnect:
+                  type: string
+                  format: date-time
+                lastObservedState:
+                  type: string
+            message:
+              description: A human readable message indicating details about why the
+                ClusterServiceVersion is in this condition.
+              type: string
+            reason:
+              description: Reason is the reason the Subscription was transitioned
+                to its current state.
+              type: string
             registryService:
               type: object
               properties:
-                protocol:
+                createdAt:
                   type: string
-                  description: protocol of the registry service
-                  enum:
-                    - grpc
-                serviceName:
-                  type: string
-                  description: name of the registry service
-                serviceNamespace:
-                  type: string
-                  description: namespace of the registry service
+                  format: date-time
                 port:
                   type: string
-                  description: port of the registry service
-            lastSync:
-                type: string
-                description: the last time the catalog was updated. If this time is less than the last updated time on the object, the catalog will be re-cached.
-
+                protocol:
+                  type: string
+                serviceName:
+                  type: string
+                serviceNamespace:
+                  type: string
