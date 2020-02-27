@@ -1003,7 +1003,7 @@ func (o *Operator) ensureInstallPlan(logger *logrus.Entry, namespace string, gen
 			return reference.GetReference(installPlan)
 		}
 	}
-	logger.Warn("no installplan found with matching manifests, creating new one")
+	logger.Warn("no installplan found with matching generation, creating new one")
 
 	return o.createInstallPlan(namespace, gen, subs, installPlanApproval, steps, bundleLookups)
 }
