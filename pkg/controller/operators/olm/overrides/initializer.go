@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"fmt"
+
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorlister"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
@@ -43,7 +44,7 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 	var envVarOverrides, proxyEnvVar, merged []corev1.EnvVar
 	var err error
 
-	envVarOverrides, volumeOverrides, volumeMountOverrides, err := d.config.GetConfigOverrides(ownerCSV)
+	envVarOverrides, volumeOverrides, volumeMountOverrides, tolerationOverrides, resourcesOverride, err := d.config.GetConfigOverrides(ownerCSV)
 	if err != nil {
 		err = fmt.Errorf("failed to get subscription pod configuration - %v", err)
 		return err
@@ -76,6 +77,14 @@ func (d *DeploymentInitializer) initialize(ownerCSV ownerutil.Owner, deployment 
 
 	if err = InjectVolumeMountsIntoDeployment(podSpec, volumeMountOverrides); err != nil {
 		return fmt.Errorf("failed to inject volumeMounts(s) into deployment spec name=%s - %v", deployment.Name, err)
+	}
+
+	if err = InjectTolerationsIntoDeployment(podSpec, tolerationOverrides); err != nil {
+		return fmt.Errorf("failed to inject toleration(s) into deployment spec name=%s - %v", deployment.Name, err)
+	}
+
+	if err = InjectResourcesIntoDeployment(podSpec, resourcesOverride); err != nil {
+		return fmt.Errorf("failed to inject resources into deployment spec name=%s - %v", deployment.Name, err)
 	}
 
 	return nil

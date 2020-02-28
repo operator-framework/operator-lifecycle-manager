@@ -2,6 +2,7 @@ package overrides
 
 import (
 	"errors"
+	"reflect"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -148,4 +149,60 @@ func findVolumeMount(volumeMounts []corev1.VolumeMount, name string) (foundVolum
 	}
 
 	return
+}
+
+// InjectTolerationsIntoDeployment injects provided Tolerations
+// into the given Pod Spec
+//
+// Tolerations will be appended to the existing once if it
+// does not already exist
+func InjectTolerationsIntoDeployment(podSpec *corev1.PodSpec, tolerations []corev1.Toleration) error {
+	if podSpec == nil {
+		return errors.New("no pod spec provided")
+	}
+
+	podSpec.Tolerations = mergeTolerations(podSpec.Tolerations, tolerations)
+	return nil
+}
+
+func mergeTolerations(podTolerations []corev1.Toleration, newTolerations []corev1.Toleration) (mergedTolerations []corev1.Toleration) {
+	mergedTolerations = podTolerations
+	for _, newToleration := range newTolerations {
+		_, found := findToleration(podTolerations, newToleration)
+		if !found {
+			mergedTolerations = append(mergedTolerations, newToleration)
+		}
+	}
+
+	return
+}
+
+func findToleration(tolerations []corev1.Toleration, toleration corev1.Toleration) (foundToleration *corev1.Toleration, found bool) {
+	for i := range tolerations {
+		if reflect.DeepEqual(toleration, tolerations[i]) {
+			found = true
+			foundToleration = &toleration
+
+			break
+		}
+	}
+
+	return
+}
+
+// InjectResourcesIntoDeployment will inject provided Resources
+// into given podSpec
+//
+// If podSpec already defines Resources, it will be overwritten
+func InjectResourcesIntoDeployment(podSpec *corev1.PodSpec, resources corev1.ResourceRequirements) error {
+	if podSpec == nil {
+		return errors.New("no pod spec provided")
+	}
+
+	for i := range podSpec.Containers {
+		container := &podSpec.Containers[i]
+		container.Resources = resources
+	}
+
+	return nil
 }

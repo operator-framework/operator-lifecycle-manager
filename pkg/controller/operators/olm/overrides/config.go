@@ -16,7 +16,7 @@ type operatorConfig struct {
 	logger *logrus.Logger
 }
 
-func (o *operatorConfig) GetConfigOverrides(ownerCSV ownerutil.Owner) (envVarOverrides []corev1.EnvVar, volumeOverrides []corev1.Volume, volumeMountOverrides []corev1.VolumeMount, err error) {
+func (o *operatorConfig) GetConfigOverrides(ownerCSV ownerutil.Owner) (envVarOverrides []corev1.EnvVar, volumeOverrides []corev1.Volume, volumeMountOverrides []corev1.VolumeMount, tolerationOverrides []corev1.Toleration, resourcesOverride corev1.ResourceRequirements, err error) {
 	list, listErr := o.lister.OperatorsV1alpha1().SubscriptionLister().Subscriptions(ownerCSV.GetNamespace()).List(labels.Everything())
 	if listErr != nil {
 		err = fmt.Errorf("failed to list subscription namespace=%s - %v", ownerCSV.GetNamespace(), listErr)
@@ -32,6 +32,8 @@ func (o *operatorConfig) GetConfigOverrides(ownerCSV ownerutil.Owner) (envVarOve
 	envVarOverrides = owner.Spec.Config.Env
 	volumeOverrides = owner.Spec.Config.Volumes
 	volumeMountOverrides = owner.Spec.Config.VolumeMounts
+	tolerationOverrides = owner.Spec.Config.Tolerations
+	resourcesOverride = owner.Spec.Config.Resources
 
 	return
 }
