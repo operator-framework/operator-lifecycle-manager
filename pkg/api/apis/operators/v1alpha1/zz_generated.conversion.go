@@ -1363,6 +1363,7 @@ func autoConvert_v1alpha1_InstallPlanSpec_To_operators_InstallPlanSpec(in *Insta
 	out.ClusterServiceVersionNames = *(*[]string)(unsafe.Pointer(&in.ClusterServiceVersionNames))
 	out.Approval = operators.Approval(in.Approval)
 	out.Approved = in.Approved
+	out.Generation = in.Generation
 	return nil
 }
 
@@ -1377,6 +1378,7 @@ func autoConvert_operators_InstallPlanSpec_To_v1alpha1_InstallPlanSpec(in *opera
 	out.ClusterServiceVersionNames = *(*[]string)(unsafe.Pointer(&in.ClusterServiceVersionNames))
 	out.Approval = Approval(in.Approval)
 	out.Approved = in.Approved
+	out.Generation = in.Generation
 	return nil
 }
 
@@ -1909,6 +1911,7 @@ func autoConvert_v1alpha1_SubscriptionStatus_To_operators_SubscriptionStatus(in 
 	out.Install = (*operators.InstallPlanReference)(unsafe.Pointer(in.Install))
 	out.State = operators.SubscriptionState(in.State)
 	out.Reason = operators.ConditionReason(in.Reason)
+	out.InstallPlanGeneration = in.InstallPlanGeneration
 	out.InstallPlanRef = (*v1.ObjectReference)(unsafe.Pointer(in.InstallPlanRef))
 	out.CatalogHealth = *(*[]operators.SubscriptionCatalogHealth)(unsafe.Pointer(&in.CatalogHealth))
 	out.Conditions = *(*[]operators.SubscriptionCondition)(unsafe.Pointer(&in.Conditions))
@@ -1927,6 +1930,7 @@ func autoConvert_operators_SubscriptionStatus_To_v1alpha1_SubscriptionStatus(in 
 	out.Install = (*InstallPlanReference)(unsafe.Pointer(in.Install))
 	out.State = SubscriptionState(in.State)
 	out.Reason = ConditionReason(in.Reason)
+	out.InstallPlanGeneration = in.InstallPlanGeneration
 	out.InstallPlanRef = (*v1.ObjectReference)(unsafe.Pointer(in.InstallPlanRef))
 	out.CatalogHealth = *(*[]SubscriptionCatalogHealth)(unsafe.Pointer(&in.CatalogHealth))
 	out.Conditions = *(*[]SubscriptionCondition)(unsafe.Pointer(&in.Conditions))
