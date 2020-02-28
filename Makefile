@@ -73,7 +73,7 @@ build-linux: clean $(CMDS)
 build-wait: clean bin/wait
 
 bin/wait:
-	GOOS=linux GOARCH=386 go build -o $@ $(PKG)/test/e2e/wait
+	GOOS=linux GOARCH=386 go build $(MOD_FLAGS) -o $@ $(PKG)/test/e2e/wait
 
 build-util-linux: arch_flags=GOOS=linux GOARCH=386
 build-util-linux: build-util
