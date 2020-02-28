@@ -3,6 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -24,6 +25,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/clientcmd"
@@ -1327,11 +1329,30 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	podVolumeMounts := []corev1.VolumeMount{
 		corev1.VolumeMount{Name: testVolumeName, MountPath: "/test"},
 	}
+	podTolerations := []corev1.Toleration{
+		corev1.Toleration{
+			Key:      "my-toleration-key",
+			Value:    "my-toleration-value",
+			Effect:   corev1.TaintEffectNoSchedule,
+			Operator: corev1.TolerationOpEqual,
+		},
+	}
+	podResources := corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU: resource.MustParse("100m"),
+		},
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("128Mi"),
+		},
+	}
 
 	podConfig := v1alpha1.SubscriptionConfig{
 		Env:          podEnv,
 		Volumes:      podVolumes,
 		VolumeMounts: podVolumeMounts,
+		Tolerations:  podTolerations,
+		Resources:    podResources,
 	}
 
 	permissions := deploymentPermissions(t)
@@ -1358,7 +1379,7 @@ func TestCreateNewSubscriptionWithPodConfig(t *testing.T) {
 	expected := podEnv
 	expected = append(expected, proxyEnv...)
 
-	checkDeploymentWithPodConfiguration(t, kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts)
+	checkDeploymentWithPodConfiguration(t, kubeClient, csv, podConfig.Env, podConfig.Volumes, podConfig.VolumeMounts, podConfig.Tolerations, podConfig.Resources)
 }
 
 func TestCreateNewSubscriptionWithDependencies(t *testing.T) {
@@ -1402,7 +1423,7 @@ func TestCreateNewSubscriptionWithDependencies(t *testing.T) {
 
 }
 
-func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount) {
+func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.ClientInterface, csv *v1alpha1.ClusterServiceVersion, envVar []corev1.EnvVar, volumes []corev1.Volume, volumeMounts []corev1.VolumeMount, tolerations []corev1.Toleration, resources corev1.ResourceRequirements) {
 	resolver := install.StrategyResolver{}
 
 	strategy, err := resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
@@ -1450,6 +1471,28 @@ func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.Cli
 		return
 	}
 
+	findTolerations := func(tolerations []corev1.Toleration, toleration corev1.Toleration) (foundToleration *corev1.Toleration, found bool) {
+		for i := range tolerations {
+			if reflect.DeepEqual(toleration, tolerations[i]) {
+				found = true
+				foundToleration = &toleration
+
+				break
+			}
+		}
+
+		return
+	}
+
+	findResources := func(existingResource corev1.ResourceRequirements, podResource corev1.ResourceRequirements) (foundResource *corev1.ResourceRequirements, found bool) {
+		if reflect.DeepEqual(existingResource, podResource) {
+			found = true
+			foundResource = &podResource
+		}
+
+		return
+	}
+
 	check := func(container *corev1.Container) {
 		for _, e := range envVar {
 			existing, found := findEnvVar(container.Env, e.Name)
@@ -1464,6 +1507,11 @@ func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.Cli
 			require.NotNil(t, existing)
 			require.Equalf(t, v.MountPath, existing.MountPath, "VolumeMount MountPath does not match %s=%s", v.Name, v.MountPath)
 		}
+
+		existing, found := findResources(container.Resources, resources)
+		require.Truef(t, found, "Resources not injected. Resource=%v", resources)
+		require.NotNil(t, existing)
+		require.Equalf(t, *existing, resources, "Resource=%v does not match expected Resource=%v", existing, resources)
 	}
 
 	for _, deploymentSpec := range strategyDetailsDeployment.DeploymentSpecs {
@@ -1474,6 +1522,12 @@ func checkDeploymentWithPodConfiguration(t *testing.T, client operatorclient.Cli
 			require.Truef(t, found, "Volume name=%s not injected", v.Name)
 			require.NotNil(t, existing)
 			require.Equalf(t, v.ConfigMap.LocalObjectReference.Name, existing.ConfigMap.LocalObjectReference.Name, "volume ConfigMap Names does not match %s=%s", v.Name, v.ConfigMap.LocalObjectReference.Name)
+		}
+		for _, toleration := range tolerations {
+			existing, found := findTolerations(deployment.Spec.Template.Spec.Tolerations, toleration)
+			require.Truef(t, found, "Toleration not injected. Toleration=%v", toleration)
+			require.NotNil(t, existing)
+			require.Equalf(t, *existing, toleration, "Toleration=%v does not match expected Toleration=%v", existing, toleration)
 		}
 
 		for i := range deployment.Spec.Template.Spec.Containers {
