@@ -22,7 +22,7 @@ import (
 )
 
 func server(store registry.Query, port int) (func(), func()) {
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", port))
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
 	}

@@ -36,6 +36,10 @@ const (
 	PackageserverName = "v1.packages.operators.coreos.com"
 )
 
+func secretName(apiServiceName string) string {
+	return apiServiceName + "-cert"
+}
+
 func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
 	now := metav1.Now()
 	if !csv.Status.CertsRotateAt.IsZero() && csv.Status.CertsRotateAt.Before(&now) {
@@ -339,6 +343,119 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	return strategyDetailsDeployment, nil
 }
 
+// updateDeploymentSpecsWithApiServiceData transforms an install strategy to include information about apiservices
+// it is used in generating hashes for deployment specs to know when something in the spec has changed,
+// but duplicates a lot of installAPIServiceRequirements and should be refactored.
+func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
+	// Assume the strategy is for a deployment
+	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
+	if !ok {
+		return nil, fmt.Errorf("unsupported InstallStrategy type")
+	}
+
+	apiDescs := csv.GetOwnedAPIServiceDescriptions()
+
+	// Return early if there are no owned APIServices
+	if len(apiDescs) == 0 {
+		return strategyDetailsDeployment, nil
+	}
+
+	depSpecs := make(map[string]appsv1.DeploymentSpec)
+	for _, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		depSpecs[sddSpec.Name] = sddSpec.Spec
+	}
+
+	for _, desc := range apiDescs {
+		apiServiceName := desc.GetName()
+		apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
+		if err != nil {
+			return nil, fmt.Errorf("could not retrieve generated APIService: %v", err)
+		}
+
+		caBundle := apiService.Spec.CABundle
+		caHash := certs.PEMSHA256(caBundle)
+
+		depSpec, ok := depSpecs[desc.DeploymentName]
+		if !ok {
+			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIService %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
+		}
+
+		if depSpec.Template.Spec.ServiceAccountName == "" {
+			depSpec.Template.Spec.ServiceAccountName = "default"
+		}
+
+		// Update deployment with secret volume mount.
+		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName(apiServiceName))
+
+		volume := corev1.Volume{
+			Name: "apiservice-cert",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: secret.GetName(),
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "apiserver.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "apiserver.key",
+						},
+					},
+				},
+			},
+		}
+
+		replaced := false
+		for i, v := range depSpec.Template.Spec.Volumes {
+			if v.Name == volume.Name {
+				depSpec.Template.Spec.Volumes[i] = volume
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			depSpec.Template.Spec.Volumes = append(depSpec.Template.Spec.Volumes, volume)
+		}
+
+		mount := corev1.VolumeMount{
+			Name:      volume.Name,
+			MountPath: "/apiserver.local.config/certificates",
+		}
+		for i, container := range depSpec.Template.Spec.Containers {
+			found := false
+			for j, m := range container.VolumeMounts {
+				if m.Name == mount.Name {
+					found = true
+					break
+				}
+
+				// Replace if mounting to the same location.
+				if m.MountPath == mount.MountPath {
+					container.VolumeMounts[j] = mount
+					found = true
+					break
+				}
+			}
+			if !found {
+				container.VolumeMounts = append(container.VolumeMounts, mount)
+			}
+
+			depSpec.Template.Spec.Containers[i] = container
+		}
+		depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
+		depSpecs[desc.DeploymentName] = depSpec
+	}
+
+	// Replace all matching DeploymentSpecs in the strategy
+	for i, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		if depSpec, ok := depSpecs[sddSpec.Name]; ok {
+			strategyDetailsDeployment.DeploymentSpecs[i].Spec = depSpec
+		}
+	}
+	return strategyDetailsDeployment, nil
+}
+
 func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
 	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
 	logger := log.WithFields(log.Fields{
@@ -413,7 +530,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		},
 		Type: corev1.SecretTypeTLS,
 	}
-	secret.SetName(apiServiceName + "-cert")
+	secret.SetName(secretName(apiServiceName))
 	secret.SetNamespace(csv.GetNamespace())
 
 	// Add olmcasha hash as a label to the
@@ -526,7 +643,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		ownerutil.AddNonBlockingOwner(secretRoleBinding, csv)
 		_, err = a.opClient.CreateRoleBinding(secretRoleBinding)
 		if err != nil {
-			log.Warnf("could not create secret rolebinding with dep spec: %+v", depSpec)
+			log.Warnf("could not create secret rolebinding with dep spec: %#v", depSpec)
 			return nil, err
 		}
 	} else {
