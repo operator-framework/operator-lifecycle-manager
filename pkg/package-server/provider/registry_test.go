@@ -42,7 +42,7 @@ const (
 
 func server() {
 	_ = os.Remove(dbName)
-	lis, err := net.Listen("tcp", ":"+port)
+	lis, err := net.Listen("tcp", "localhost:"+port)
 	if err != nil {
 		logrus.Fatalf("failed to listen: %v", err)
 	}

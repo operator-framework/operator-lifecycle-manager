@@ -1198,10 +1198,6 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		return
 	}
 
-	if err := a.ensureDeploymentAnnotations(logger, out); err != nil {
-		return nil, err
-	}
-
 	modeSet, err := v1alpha1.NewInstallModeSet(out.Spec.InstallModes)
 	if err != nil {
 		syncError = err
@@ -1382,11 +1378,17 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 			return
 		}
 
+		strategy, err := a.updateDeploymentSpecsWithApiServiceData(out, strategy)
+		if err != nil {
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
+			return
+		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseInstalling, v1alpha1.CSVReasonWaiting); installErr == nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Infof("install strategy successful")
 		} else {
 			// Set phase to failed if it's been a long time since the last transition (5 minutes)
-			if metav1.Now().Sub(out.Status.LastTransitionTime.Time) >= 5*time.Minute {
+			if out.Status.LastTransitionTime != nil && a.now().Sub(out.Status.LastTransitionTime.Time) >= 5*time.Minute {
+				logger.Warn("install timed out")
 				out.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonInstallCheckFailed, fmt.Sprintf("install timeout"), now, a.recorder)
 			}
 		}
@@ -1428,6 +1430,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check install status
+		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
+		if err != nil {
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
+			return
+		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonComponentUnhealthy); installErr != nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("unhealthy component: %s", installErr)
 			return
@@ -1501,6 +1508,11 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 		}
 
 		// Check install status
+		strategy, err = a.updateDeploymentSpecsWithApiServiceData(out, strategy)
+		if err != nil {
+			out.SetPhaseWithEvent(v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall, "calculated deployment install is bad", now, a.recorder)
+			return
+		}
 		if installErr := a.updateInstallStatus(out, installer, strategy, v1alpha1.CSVPhasePending, v1alpha1.CSVReasonNeedsReinstall); installErr != nil {
 			logger.WithField("strategy", out.Spec.InstallStrategy.StrategyName).Warnf("needs reinstall: %s", installErr)
 		}
@@ -1643,7 +1655,7 @@ func (a *Operator) parseStrategiesAndUpdateStatus(csv *v1alpha1.ClusterServiceVe
 	}
 
 	strName := strategy.GetStrategyName()
-	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.Annotations, previousStrategy)
+	installer := a.resolver.InstallerForStrategy(strName, kubeclient, a.lister, csv, csv.GetAnnotations(), previousStrategy)
 	return installer, strategy
 }
 
@@ -1859,60 +1871,6 @@ func (a *Operator) cleanupCSVDeployments(logger *logrus.Entry, csv *v1alpha1.Clu
 	}
 }
 
-func (a *Operator) ensureDeploymentAnnotations(logger *logrus.Entry, csv *v1alpha1.ClusterServiceVersion) error {
-	if !csv.IsSafeToUpdateOperatorGroupAnnotations() {
-		return nil
-	}
-
-	// Get csv operatorgroup annotations
-	annotations := a.copyOperatorGroupAnnotations(&csv.ObjectMeta)
-
-	// Extract the InstallStrategy for the deployment
-	strategy, err := a.resolver.UnmarshalStrategy(csv.Spec.InstallStrategy)
-	if err != nil {
-		logger.Warn("could not parse install strategy while cleaning up CSV deployment")
-		return nil
-	}
-
-	// Assume the strategy is for a deployment
-	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
-	if !ok {
-		logger.Warnf("could not cast install strategy as type %T", strategyDetailsDeployment)
-		return nil
-	}
-
-	existingDeployments, err := a.lister.AppsV1().DeploymentLister().Deployments(csv.GetNamespace()).List(ownerutil.CSVOwnerSelector(csv))
-	if err != nil {
-		return err
-	}
-
-	// compare deployments to see if any need to be created/updated
-	updateErrs := []error{}
-	for _, dep := range existingDeployments {
-		if dep.Spec.Template.Annotations == nil {
-			dep.Spec.Template.Annotations = map[string]string{}
-		}
-
-		changed := false
-		for key, value := range annotations {
-			if v, ok := dep.Spec.Template.Annotations[key]; !ok || v != value {
-				dep.Spec.Template.Annotations[key] = value
-				changed = true
-			}
-		}
-
-		if changed {
-			if _, _, err := a.opClient.UpdateDeployment(dep); err != nil {
-				logger.Info("annotations updated!")
-				updateErrs = append(updateErrs, err)
-			}
-		}
-	}
-	logger.Info("updated annotations to match current operatorgroup")
-
-	return utilerrors.NewAggregate(updateErrs)
-}
-
 // ensureLabels merges a label set with a CSV's labels and attempts to update the CSV if the merged set differs from the CSV's original labels.
 func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ...labels.Set) (*v1alpha1.ClusterServiceVersion, error) {
 	csvLabelSet := labels.Set(in.GetLabels())
@@ -1924,7 +1882,8 @@ func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ..
 		return in, nil
 	}
 
-	a.logger.WithField("labels", merged).Info("Labels updated!")
+	logger := a.logger.WithFields(logrus.Fields{"labels": merged, "csv": in.GetName(), "ns": in.GetNamespace()})
+	logger.Info("updated labels")
 
 	out := in.DeepCopy()
 	out.SetLabels(merged)

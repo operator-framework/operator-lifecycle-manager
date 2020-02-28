@@ -59,7 +59,7 @@ func TestOLMGetCertRotationFn(t *testing.T) {
 	require.NoError(t, err)
 
 	// find a free port to listen on and start server
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	freePort := listener.Addr().(*net.TCPAddr).Port
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

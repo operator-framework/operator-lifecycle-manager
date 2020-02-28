@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/retry"
 
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -2099,11 +2100,14 @@ func TestCleanupCsvsWithBadOwnerOperatorGroups(t *testing.T) {
 	require.NoError(t, err)
 
 	// Give copied CSV a bad operatorgroup annotation
-	fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
-	require.NoError(t, err)
-	fetchedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] = fetchedCSV.GetNamespace()
-	_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(fetchedCSV)
-	require.NoError(t, err)
+	updateCSV := func() error {
+		fetchedCSV, err := crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Get(csvName, metav1.GetOptions{})
+		require.NoError(t, err)
+		fetchedCSV.Annotations[v1.OperatorGroupNamespaceAnnotationKey] = fetchedCSV.GetNamespace()
+		_, err = crc.OperatorsV1alpha1().ClusterServiceVersions(otherNamespaceName).Update(fetchedCSV)
+		return err
+	}
+	require.NoError(t, retry.RetryOnConflict(retry.DefaultBackoff, updateCSV))
 
 	// wait for CSV to be gc'd
 	err = wait.Poll(pollInterval, 2*pollDuration, func() (bool, error) {
