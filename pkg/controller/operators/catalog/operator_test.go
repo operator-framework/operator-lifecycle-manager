@@ -6,28 +6,34 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/time/rate"
+	"gopkg.in/yaml.v2"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsfake "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	utilclock "k8s.io/apimachinery/pkg/util/clock"
+	utilyaml "k8s.io/apimachinery/pkg/util/yaml"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 	apiregistrationfake "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/fake"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
@@ -342,6 +348,7 @@ func TestExecutePlan(t *testing.T) {
 	tests := []struct {
 		testName string
 		in       *v1alpha1.InstallPlan
+		extObjs  []runtime.Object
 		want     []runtime.Object
 		err      error
 	}{
@@ -363,7 +370,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "Service",
 							Name:                   "service",
-							Manifest:               toManifest(service("service", namespace)),
+							Manifest:               toManifest(t, service("service", namespace)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -375,7 +382,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1alpha1",
 							Kind:                   "ClusterServiceVersion",
 							Name:                   "csv",
-							Manifest:               toManifest(csv("csv", namespace, nil, nil)),
+							Manifest:               toManifest(t, csv("csv", namespace, nil, nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -396,7 +403,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ServiceAccount",
 							Name:                   "sa",
-							Manifest: toManifest(serviceAccount("sa", namespace, "",
+							Manifest: toManifest(t, serviceAccount("sa", namespace, "",
 								objectReference("init secret"))),
 						},
 						Status: v1alpha1.StepStatusUnknown,
@@ -418,7 +425,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ServiceAccount",
 							Name:                   "sa",
-							Manifest: toManifest(serviceAccount("sa", namespace, "name",
+							Manifest: toManifest(t, serviceAccount("sa", namespace, "name",
 								objectReference("init secret"))),
 						},
 						Status: v1alpha1.StepStatusUnknown,
@@ -431,7 +438,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ServiceAccount",
 							Name:                   "sa",
-							Manifest:               toManifest(serviceAccount("sa", namespace, "name", nil)),
+							Manifest:               toManifest(t, serviceAccount("sa", namespace, "name", nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -452,7 +459,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ServiceAccount",
 							Name:                   "sa",
-							Manifest: toManifest(serviceAccount("sa", namespace, "old_name",
+							Manifest: toManifest(t, serviceAccount("sa", namespace, "old_name",
 								objectReference("init secret"))),
 						},
 						Status: v1alpha1.StepStatusUnknown,
@@ -465,7 +472,7 @@ func TestExecutePlan(t *testing.T) {
 							Version:                "v1",
 							Kind:                   "ServiceAccount",
 							Name:                   "sa",
-							Manifest:               toManifest(serviceAccount("sa", namespace, "new_name", nil)),
+							Manifest:               toManifest(t, serviceAccount("sa", namespace, "new_name", nil)),
 						},
 						Status: v1alpha1.StepStatusUnknown,
 					},
@@ -474,6 +481,48 @@ func TestExecutePlan(t *testing.T) {
 			want: []runtime.Object{serviceAccount("sa", namespace, "new_name", objectReference("init secret"))},
 			err:  nil,
 		},
+		{
+			testName: "DynamicResourcesAreOwnerReferencedToCSV",
+			in: withSteps(installPlan("p", namespace, v1alpha1.InstallPlanPhaseInstalling, "csv"),
+				[]*v1alpha1.Step{
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "operators.coreos.com",
+							Version:                "v1alpha1",
+							Kind:                   "ClusterServiceVersion",
+							Name:                   "csv",
+							Manifest:               toManifest(t, csv("csv", namespace, nil, nil)),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+					{
+						Resolving: "csv",
+						Resource: v1alpha1.StepResource{
+							CatalogSource:          "catalog",
+							CatalogSourceNamespace: namespace,
+							Group:                  "monitoring.coreos.com",
+							Version:                "v1",
+							Kind:                   "PrometheusRule",
+							Name:                   "rule",
+							Manifest:               toManifest(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{})),
+						},
+						Status: v1alpha1.StepStatusUnknown,
+					},
+				},
+			),
+			extObjs: []runtime.Object{decodeFile(t, "./testdata/prometheusrule.crd.yaml", &v1beta1.CustomResourceDefinition{})},
+			want: []runtime.Object{
+				csv("csv", namespace, nil, nil),
+				modify(t, decodeFile(t, "./testdata/prometheusrule.cr.yaml", &unstructured.Unstructured{}),
+					withNamespace(namespace),
+					withOwner(csv("csv", namespace, nil, nil)),
+				),
+			},
+			err: nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -481,12 +530,13 @@ func TestExecutePlan(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.in))
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.in), withExtObjs(tt.extObjs...))
 			require.NoError(t, err)
 
 			err = op.ExecutePlan(tt.in)
 			require.Equal(t, tt.err, err)
 
+			getOpts := metav1.GetOptions{}
 			for _, obj := range tt.want {
 				var err error
 				var fetched runtime.Object
@@ -507,8 +557,29 @@ func TestExecutePlan(t *testing.T) {
 					fetched, err = op.opClient.GetSecret(namespace, o.GetName())
 				case *corev1.Service:
 					fetched, err = op.opClient.GetService(namespace, o.GetName())
+				case *v1beta1.CustomResourceDefinition:
+					fetched, err = op.opClient.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(o.GetName(), getOpts)
 				case *v1alpha1.ClusterServiceVersion:
-					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+					fetched, err = op.client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), getOpts)
+				case *unstructured.Unstructured:
+					// Get the resource from the GVK
+					gvk := o.GroupVersionKind()
+					var r metav1.APIResource
+					r, err = op.apiresourceFromGVK(gvk)
+					require.NoError(t, err)
+
+					gvr := schema.GroupVersionResource{
+						Group:    gvk.Group,
+						Version:  gvk.Version,
+						Resource: r.Name,
+					}
+
+					if r.Namespaced {
+						fetched, err = op.dynamicClient.Resource(gvr).Namespace(namespace).Get(o.GetName(), getOpts)
+						break
+					}
+
+					fetched, err = op.dynamicClient.Resource(gvr).Get(o.GetName(), getOpts)
 				default:
 					require.Failf(t, "couldn't find expected object", "%#v", obj)
 				}
@@ -558,8 +629,7 @@ func TestSupportedDynamicResources(t *testing.T) {
 
 func TestExecutePlanDynamicResources(t *testing.T) {
 	namespace := "ns"
-	unsupportedYaml, err := yamlFromFilePath("testdata/unsupportedkind.cr.yaml")
-	require.NoError(t, err)
+	unsupportedYaml := yamlFromFilePath(t, "testdata/unsupportedkind.cr.yaml")
 
 	tests := []struct {
 		testName string
@@ -593,7 +663,7 @@ func TestExecutePlanDynamicResources(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.TODO())
 			defer cancel()
 
-			op, err := NewFakeOperator(ctx, namespace, []string{namespace})
+			op, err := NewFakeOperator(ctx, namespace, []string{namespace}, withClientObjs(tt.in))
 			require.NoError(t, err)
 
 			err = op.ExecutePlan(tt.in)
@@ -991,7 +1061,7 @@ func withK8sObjs(k8sObjs ...runtime.Object) fakeOperatorOption {
 	}
 }
 
-func extObjs(extObjs ...runtime.Object) fakeOperatorOption {
+func withExtObjs(extObjs ...runtime.Object) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
 		config.extObjs = extObjs
 	}
@@ -1017,8 +1087,13 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 
 	// Create client fakes
 	clientFake := fake.NewReactionForwardingClientsetDecorator(config.clientObjs, config.clientOptions...)
-	opClientFake := operatorclient.NewClient(k8sfake.NewSimpleClientset(config.k8sObjs...), apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
+	// TODO: Using the ReactionForwardingClientsetDecorator for k8s objects causes issues with adding Resources for discovery.
+	// For now, directly use a SimpleClientset instead.
+	k8sClientFake := k8sfake.NewSimpleClientset(config.k8sObjs...)
+	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
+	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	dynamicClientFake := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme())
+	// dynamicClientFake.Resources = k8sClientFake.Resources
 
 	// Create operator namespace
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
@@ -1205,17 +1280,17 @@ func objectReference(name string) *corev1.ObjectReference {
 	return &corev1.ObjectReference{Name: name}
 }
 
-func yamlFromFilePath(fileName string) (string, error) {
+func yamlFromFilePath(t *testing.T, fileName string) string {
 	yaml, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		return "", err
-	}
+	require.NoError(t, err)
 
-	return string(yaml), nil
+	return string(yaml)
 }
 
-func toManifest(obj runtime.Object) string {
-	raw, _ := json.Marshal(obj)
+func toManifest(t *testing.T, obj runtime.Object) string {
+	raw, err := json.Marshal(obj)
+	require.NoError(t, err)
+
 	return string(raw)
 }
 
@@ -1223,4 +1298,111 @@ func pod(s v1alpha1.CatalogSource) *corev1.Pod {
 	pod := reconciler.Pod(&s, "registry-server", s.Spec.Image, s.GetLabels(), 5, 10)
 	ownerutil.AddOwner(pod, &s, false, false)
 	return pod
+}
+
+func decodeFile(t *testing.T, file string, to runtime.Object) runtime.Object {
+	manifest := yamlFromFilePath(t, file)
+	dec := utilyaml.NewYAMLOrJSONDecoder(strings.NewReader(manifest), 10)
+	require.NoError(t, dec.Decode(to))
+
+	return to
+}
+
+type modifierFunc func(t *testing.T, obj runtime.Object) runtime.Object
+
+func modify(t *testing.T, obj runtime.Object, modifiers ...modifierFunc) runtime.Object {
+	o := obj.DeepCopyObject()
+	for _, modifier := range modifiers {
+		o = modifier(t, o)
+	}
+
+	return o
+}
+
+type metaModifierFunc func(m metav1.Object)
+
+func modifyMeta(mf metaModifierFunc) modifierFunc {
+	return func(t *testing.T, obj runtime.Object) runtime.Object {
+		accessor, err := meta.Accessor(obj)
+		require.NoError(t, err)
+
+		mf(accessor)
+
+		return obj
+	}
+}
+
+func withNamespace(namespace string) modifierFunc {
+	return modifyMeta(func(m metav1.Object) {
+		m.SetNamespace(namespace)
+	})
+}
+
+func withOwner(owner ownerutil.Owner) modifierFunc {
+	return modifyMeta(func(m metav1.Object) {
+		ownerutil.AddNonBlockingOwner(m, owner)
+	})
+}
+
+func withObjectMeta(t *testing.T, obj runtime.Object, m *metav1.ObjectMeta) runtime.Object {
+	o := obj.DeepCopyObject()
+	accessor, err := meta.Accessor(o)
+	require.NoError(t, err)
+
+	accessor.SetAnnotations(m.GetAnnotations())
+	accessor.SetClusterName(m.GetClusterName())
+	accessor.SetCreationTimestamp(m.GetCreationTimestamp())
+	accessor.SetDeletionGracePeriodSeconds(m.GetDeletionGracePeriodSeconds())
+	accessor.SetDeletionTimestamp(m.GetDeletionTimestamp())
+	accessor.SetFinalizers(m.GetFinalizers())
+	accessor.SetGenerateName(m.GetGenerateName())
+	accessor.SetGeneration(m.GetGeneration())
+	accessor.SetLabels(m.GetLabels())
+	accessor.SetManagedFields(m.GetManagedFields())
+	accessor.SetName(m.GetName())
+	accessor.SetNamespace(m.GetNamespace())
+	accessor.SetOwnerReferences(m.GetOwnerReferences())
+	accessor.SetResourceVersion(m.GetResourceVersion())
+	accessor.SetSelfLink(m.GetSelfLink())
+	accessor.SetUID(m.GetUID())
+
+	return o
+}
+
+func apiResourcesForObjects(objs []runtime.Object) []*metav1.APIResourceList {
+	apis := []*metav1.APIResourceList{}
+	for _, o := range objs {
+		switch o.(type) {
+		case *v1beta1.CustomResourceDefinition:
+			crd := o.(*v1beta1.CustomResourceDefinition)
+			apis = append(apis, &metav1.APIResourceList{
+				GroupVersion: metav1.GroupVersion{Group: crd.Spec.Group, Version: crd.Spec.Versions[0].Name}.String(),
+				APIResources: []metav1.APIResource{
+					{
+						Name:         crd.GetName(),
+						SingularName: crd.Spec.Names.Singular,
+						Namespaced:   crd.Spec.Scope == v1beta1.NamespaceScoped,
+						Group:        crd.Spec.Group,
+						Version:      crd.Spec.Versions[0].Name,
+						Kind:         crd.Spec.Names.Kind,
+					},
+				},
+			})
+		case *apiregistrationv1.APIService:
+			a := o.(*apiregistrationv1.APIService)
+			names := strings.Split(a.Name, ".")
+			apis = append(apis, &metav1.APIResourceList{
+				GroupVersion: metav1.GroupVersion{Group: names[1], Version: a.Spec.Version}.String(),
+				APIResources: []metav1.APIResource{
+					{
+						Name:    names[1],
+						Group:   names[1],
+						Version: a.Spec.Version,
+						Kind:    names[1] + "Kind",
+					},
+				},
+			})
+		}
+	}
+	return apis
 }
