@@ -18,7 +18,7 @@ func (f versionFunc) ServerVersion() (*version.Info, error) {
 	return (func() (*version.Info, error))(f)()
 }
 
-func TestOperatorRunReadyChannelClosed(t *testing.T) {
+func TestOperatorRunChannelClosure(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		// set up the operator under test and return a cleanup func to be invoked when the test completes
@@ -78,10 +78,16 @@ func TestOperatorRunReadyChannelClosed(t *testing.T) {
 
 			o.Run(ctx)
 
-			select {
-			case <-o.Ready():
-			case <-time.After(time.Second):
-				t.Error("timed out before ready channel closed")
+			timeout := time.After(time.Second)
+			for n, ch := range map[string]<-chan struct{}{
+				"ready": o.Ready(),
+				"done":  o.Done(),
+			} {
+				select {
+				case <-ch:
+				case <-timeout:
+					t.Errorf("timed out before %s channel closed", n)
+				}
 			}
 		})
 	}
