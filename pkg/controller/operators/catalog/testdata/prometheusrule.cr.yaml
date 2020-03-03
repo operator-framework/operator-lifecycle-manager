@@ -2,7 +2,6 @@ apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
   name: rule 
-  # namespace: placeholder
   labels:
     prometheus: alert-rules
     role: alert-rules
