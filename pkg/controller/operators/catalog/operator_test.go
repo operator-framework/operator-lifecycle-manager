@@ -1093,7 +1093,6 @@ func NewFakeOperator(ctx context.Context, namespace string, namespaces []string,
 	k8sClientFake.Resources = apiResourcesForObjects(append(config.extObjs, config.regObjs...))
 	opClientFake := operatorclient.NewClient(k8sClientFake, apiextensionsfake.NewSimpleClientset(config.extObjs...), apiregistrationfake.NewSimpleClientset(config.regObjs...))
 	dynamicClientFake := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme())
-	// dynamicClientFake.Resources = k8sClientFake.Resources
 
 	// Create operator namespace
 	_, err := opClientFake.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: namespace}})
