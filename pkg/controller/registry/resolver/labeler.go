@@ -1,7 +1,7 @@
 package resolver
 
 import (
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry"
 	extv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
 )

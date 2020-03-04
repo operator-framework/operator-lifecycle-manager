@@ -8,10 +8,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-
 	"gopkg.in/yaml.v2"
-	"helm.sh/helm/v3/pkg/chartutil"
-
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
 )
@@ -131,7 +128,7 @@ func GetMediaType(directory string) (string, error) {
 	}
 
 	// Validate if bundle is helm chart type
-	if _, err := chartutil.IsChartDir(directory); err == nil {
+	if _, err := IsChartDir(directory); err == nil {
 		return HelmType, nil
 	}
 

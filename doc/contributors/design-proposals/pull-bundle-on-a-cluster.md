@@ -109,7 +109,7 @@ Notes:
 ## Build a Bundle from ConfigMap
 ```go
 import (
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry"
 	corev1 "k8s.io/api/core/v1"
 )
 

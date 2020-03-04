@@ -1,4 +1,4 @@
-//go:generate counterfeiter -o ../../../fakes/fake_registry_store.go ../../../../vendor/github.com/operator-framework/operator-registry/pkg/registry/interface.go Query
+//go:generate counterfeiter -o ../../../fakes/fake_registry_store.go ../../../../vendor/github.com/operator-framework/api/pkg/registry/interface.go Query
 package grpc
 
 import (
@@ -16,8 +16,8 @@ import (
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/fakes"
-	"github.com/operator-framework/operator-registry/pkg/api"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry/api"
+	"github.com/operator-framework/api/pkg/registry"
 	opserver "github.com/operator-framework/operator-registry/pkg/server"
 )
 

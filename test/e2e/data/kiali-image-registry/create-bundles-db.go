@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/operator-framework/operator-registry/pkg/sqlite"
+	"github.com/operator-framework/api/pkg/sqlite"
 )
 
 func checkErr(err error) {

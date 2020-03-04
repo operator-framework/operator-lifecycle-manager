@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry/api"
+	opregistry "github.com/operator-framework/api/pkg/registry"
 	"github.com/stretchr/testify/require"
 )
 

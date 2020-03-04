@@ -21,7 +21,7 @@ package internalversion
 import (
 	"fmt"
 
-	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators"
+	operators "github.com/operator-framework/api/pkg/operators"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

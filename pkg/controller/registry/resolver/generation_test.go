@@ -5,12 +5,12 @@ import (
 	"testing"
 
 	"github.com/blang/semver"
-	"github.com/operator-framework/operator-registry/pkg/registry"
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry"
+	opregistry "github.com/operator-framework/api/pkg/registry"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/v1alpha1"
 )
 
 var NoVersion = semver.MustParse("0.0.0")

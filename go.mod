@@ -1,6 +1,6 @@
 module github.com/operator-framework/operator-lifecycle-manager
 
-go 1.12
+go 1.13
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -8,30 +8,30 @@ require (
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-openapi/spec v0.19.4
-	github.com/golang/mock v1.3.1
+	github.com/golang/mock v1.4.1
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
 	github.com/mikefarah/yq/v2 v2.4.1
 	github.com/mitchellh/hashstructure v1.0.0
-	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
+	github.com/openshift/api v0.0.0-20200302180901-b4f75e525601
 	github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
-	github.com/operator-framework/operator-registry v1.5.8
-	github.com/otiai10/copy v1.0.1
-	github.com/pkg/errors v0.8.1
+	github.com/operator-framework/api v0.1.0
+	github.com/operator-framework/operator-registry v1.5.11
+	github.com/otiai10/copy v1.0.2
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.2.1
 	github.com/sirupsen/logrus v1.4.2
-	github.com/spf13/cobra v0.0.5
-	github.com/stretchr/testify v1.4.0
-	golang.org/x/sys v0.0.0-20191210023423-ac6580df4449 // indirect
+	github.com/spf13/cobra v0.0.6
+	github.com/stretchr/testify v1.5.1
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
-	google.golang.org/grpc v1.24.0
-	gopkg.in/yaml.v2 v2.2.4
+	google.golang.org/grpc v1.27.1
+	gopkg.in/yaml.v2 v2.2.8
 	helm.sh/helm/v3 v3.0.1
 	k8s.io/api v0.17.1
 	k8s.io/apiextensions-apiserver v0.17.1
 	k8s.io/apimachinery v0.17.1
 	k8s.io/apiserver v0.0.0
 	k8s.io/client-go v8.0.0+incompatible
-	k8s.io/code-generator v0.0.0
+	k8s.io/code-generator v0.17.1
 	k8s.io/component-base v0.0.0
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.0.0
@@ -42,8 +42,8 @@ require (
 
 replace (
 	github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
-	github.com/openshift/api => github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20190923180330-3b6373338c9b
+	github.com/operator-framework/api => ../api
 	github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.0.0-beta.5.0.20200123114618-5e3c7d7eb86a
 

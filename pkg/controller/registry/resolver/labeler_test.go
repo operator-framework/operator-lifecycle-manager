@@ -3,7 +3,7 @@ package resolver
 import (
 	"testing"
 
-	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
+	opregistry "github.com/operator-framework/api/pkg/registry"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/labels"
 )

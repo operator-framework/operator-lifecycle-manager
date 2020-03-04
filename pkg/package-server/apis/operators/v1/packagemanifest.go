@@ -1,6 +1,6 @@
 package v1
 
-import operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+import operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 
 // CreateCSVDescription creates a CSVDescription from a given CSV
 func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescription {

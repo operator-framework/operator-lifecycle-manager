@@ -4,7 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/api/pkg/registry/api"
 	"github.com/operator-framework/operator-registry/pkg/configmap"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -17,8 +17,8 @@ import (
 	listerscorev1 "k8s.io/client-go/listers/core/v1"
 	listersrbacv1 "k8s.io/client-go/listers/rbac/v1"
 
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/reference"
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/operators/reference"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	listersoperatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
 )
 

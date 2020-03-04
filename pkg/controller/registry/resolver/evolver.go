@@ -3,7 +3,7 @@ package resolver
 import (
 	"github.com/pkg/errors"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/api/pkg/registry/api"
 )
 
 // TODO: this should take a cancellable context for killing long resolution

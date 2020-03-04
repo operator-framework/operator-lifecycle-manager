@@ -6,7 +6,7 @@ import (
 	"github.com/operator-framework/api/pkg/validation/errors"
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
 
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry"
 )
 
 var PackageManifestValidator interfaces.Validator = interfaces.ValidatorFunc(validatePackageManifests)

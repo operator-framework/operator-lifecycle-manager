@@ -7,7 +7,7 @@ import (
 	interfaces "github.com/operator-framework/api/pkg/validation/interfaces"
 
 	"github.com/blang/semver"
-	"github.com/operator-framework/operator-registry/pkg/registry"
+	"github.com/operator-framework/api/pkg/registry"
 )
 
 const skipPackageAnnotationKey = "olm.skipRange"

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/api/pkg/registry/api"
 	"github.com/operator-framework/operator-registry/pkg/client"
 )
 

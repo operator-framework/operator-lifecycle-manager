@@ -1,5 +1,5 @@
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_registry_client.go github.com/operator-framework/operator-registry/pkg/api.RegistryClient
-//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_list_packages_client.go github.com/operator-framework/operator-registry/pkg/api.Registry_ListPackagesClient
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_registry_client.go github.com/operator-framework/api/pkg/registry/api.RegistryClient
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 -o ../client/fakes/fake_list_packages_client.go github.com/operator-framework/api/pkg/registry/api.Registry_ListPackagesClient
 package provider
 
 import (
@@ -15,9 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
-	registryserver "github.com/operator-framework/operator-registry/pkg/server"
-	"github.com/operator-framework/operator-registry/pkg/sqlite"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -26,12 +23,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
+	"github.com/operator-framework/api/pkg/registry/api"
+	"github.com/operator-framework/api/pkg/sqlite"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned/fake"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/client/fakes"
+	registryserver "github.com/operator-framework/operator-registry/pkg/server"
 )
 
 const (

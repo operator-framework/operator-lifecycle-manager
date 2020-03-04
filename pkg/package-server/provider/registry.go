@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/operator-framework/operator-registry/pkg/api"
+	"github.com/operator-framework/api/pkg/registry/api"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	utillabels "k8s.io/kubernetes/pkg/util/labels"
 
-	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	operatorsv1alpha1 "github.com/operator-framework/api/pkg/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/informers/externalversions"
 	operatorslisters "github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/listers/operators/v1alpha1"
