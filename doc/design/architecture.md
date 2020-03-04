@@ -133,7 +133,7 @@ The Package Server provides a veneer API over the CatalogSource resources and th
 
 It is not neccessary to run this for OLM to function, but enhances the user experience by providing the information needed for Subscription generation to the user. In a Production scenario where no discovery work is needed and all Subscriptions are predefined, this may be removed.
 
-OpenShift/OKD GUIs will use this API extention to present operator package information such as CSVs, packages and CRDs found in the CatalogSource to users. Additionally, `kubectl` and `oc` users are able to issue commands like `kubectl get PackageManifests` to list out available Operators and then run `kubectl describe` on those resources to find the appropriate data to build a Subscription to it.
+Client GUI interfaces will use this API extention to present operator package information such as CSVs, packages and CRDs found in the CatalogSource to users. Additionally, CLI tools are able to examine the list of PackageManifests to list out available Operators and then examine the specific PackageManifests resources to find the appropriate data to build a Subscription to it.
 
 ## Catalog (Registry) Design
 
