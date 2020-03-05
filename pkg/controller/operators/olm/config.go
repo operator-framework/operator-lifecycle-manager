@@ -1,6 +1,7 @@
 package olm
 
 import (
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"time"
 
 	"github.com/pkg/errors"
@@ -21,7 +22,7 @@ import (
 type OperatorOption func(*operatorConfig)
 
 type operatorConfig struct {
-	resyncPeriod      time.Duration
+	resyncPeriod      func() time.Duration
 	operatorNamespace string
 	watchedNamespaces []string
 	clock             utilclock.Clock
@@ -49,8 +50,8 @@ func newInvalidConfigError(name, msg string) error {
 func (o *operatorConfig) validate() (err error) {
 	// TODO: Add better config validation
 	switch {
-	case o.resyncPeriod < 0:
-		err = newInvalidConfigError("resync period", "must be >= 0")
+	case o.resyncPeriod == nil:
+		err = newInvalidConfigError("resync period", "must not be nil")
 	case o.operatorNamespace == metav1.NamespaceAll:
 		err = newInvalidConfigError("operator namespace", "must be a single namespace")
 	case len(o.watchedNamespaces) == 0:
@@ -80,7 +81,7 @@ func (o *operatorConfig) validate() (err error) {
 
 func defaultOperatorConfig() *operatorConfig {
 	return &operatorConfig{
-		resyncPeriod:      30 * time.Second,
+		resyncPeriod:      queueinformer.ResyncWithJitter(30 * time.Second, 0.2),
 		operatorNamespace: "default",
 		watchedNamespaces: []string{metav1.NamespaceAll},
 		clock:             utilclock.RealClock{},
@@ -91,9 +92,9 @@ func defaultOperatorConfig() *operatorConfig {
 	}
 }
 
-func WithResyncPeriod(period time.Duration) OperatorOption {
+func WithResyncPeriod(resyncPeriod func() time.Duration) OperatorOption {
 	return func(config *operatorConfig) {
-		config.resyncPeriod = period
+		config.resyncPeriod = resyncPeriod
 	}
 }
 

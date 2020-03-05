@@ -8,6 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"fmt"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"math"
 	"math/big"
 	"reflect"
@@ -160,7 +161,7 @@ type fakeOperatorOption func(*fakeOperatorConfig)
 
 func withResyncPeriod(period time.Duration) fakeOperatorOption {
 	return func(config *fakeOperatorConfig) {
-		config.resyncPeriod = period
+		config.resyncPeriod = queueinformer.ResyncWithJitter(period, 0.1)
 	}
 }
 
@@ -257,7 +258,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	// Apply options to default config
 	config := &fakeOperatorConfig{
 		operatorConfig: &operatorConfig{
-			resyncPeriod:      5 * time.Minute,
+			resyncPeriod:      queueinformer.ResyncWithJitter(5 * time.Minute, 0.1),
 			operatorNamespace: "default",
 			watchedNamespaces: []string{metav1.NamespaceAll},
 			clock:             &utilclock.RealClock{},
