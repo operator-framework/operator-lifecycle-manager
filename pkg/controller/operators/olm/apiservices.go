@@ -3,6 +3,7 @@ package olm
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,10 +35,16 @@ const (
 	Organization = "Red Hat, Inc."
 	// Name of packageserver API service
 	PackageserverName = "v1.packages.operators.coreos.com"
+	// Kubernetes System namespace
+	kubeSystem = "kube-system"
 )
 
-func secretName(apiServiceName string) string {
-	return apiServiceName + "-cert"
+func secretName(serviceName string) string {
+	return serviceName + "-cert"
+}
+
+func serviceName(deploymentName string) string {
+	return deploymentName + "-service"
 }
 
 func (a *Operator) shouldRotateCerts(csv *v1alpha1.ClusterServiceVersion) bool {
@@ -102,7 +109,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 			return utilerrors.NewAggregate(errs)
 		}
 
-		serviceName := APIServiceNameToServiceName(apiServiceName)
+		serviceName := serviceName(desc.DeploymentName)
 		service, err := a.lister.CoreV1().ServiceLister().Services(csv.GetNamespace()).Get(serviceName)
 		if err != nil {
 			logger.WithField("service", serviceName).Warnf("could not retrieve generated Service")
@@ -132,7 +139,7 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 		}
 
 		// Check if serving cert is active
-		secretName := apiServiceName + "-cert"
+		secretName := secretName(serviceName)
 		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName)
 		if err != nil {
 			logger.WithField("secret", secretName).Warnf("could not retrieve generated Secret")
@@ -207,18 +214,18 @@ func (a *Operator) checkAPIServiceResources(csv *v1alpha1.ClusterServiceVersion,
 					ResourceNames: []string{secret.GetName()},
 				},
 			},
-			"kube-system":       {},
+			kubeSystem:          {},
 			metav1.NamespaceAll: {},
 		}
 
 		// extension-apiserver-authentication-reader
-		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles("kube-system").Get("extension-apiserver-authentication-reader")
+		authReaderRole, err := a.lister.RbacV1().RoleLister().Roles(kubeSystem).Get("extension-apiserver-authentication-reader")
 		if err != nil {
 			logger.Warnf("could not retrieve Role extension-apiserver-authentication-reader")
 			errs = append(errs, err)
 			continue
 		}
-		rulesMap["kube-system"] = append(rulesMap["kube-system"], authReaderRole.Rules...)
+		rulesMap[kubeSystem] = append(rulesMap[kubeSystem], authReaderRole.Rules...)
 
 		// system:auth-delegator
 		authDelegatorClusterRole, err := a.lister.RbacV1().ClusterRoleLister().Get("system:auth-delegator")
@@ -281,6 +288,16 @@ func (a *Operator) areAPIServicesAvailable(csv *v1alpha1.ClusterServiceVersion) 
 	return true, nil
 }
 
+func apiServiceDescriptionsForDeployment(descs []v1alpha1.APIServiceDescription, deploymentName string) []v1alpha1.APIServiceDescription {
+	result := []v1alpha1.APIServiceDescription{}
+	for _, desc := range descs {
+		if desc.DeploymentName == deploymentName {
+			result = append(result, desc)
+		}
+	}
+	return result
+}
+
 func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
 	logger := log.WithFields(log.Fields{
 		"csv":       csv.GetName(),
@@ -307,31 +324,38 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	}
 	rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
 
-	depSpecs := make(map[string]appsv1.DeploymentSpec)
-	for _, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
-		depSpecs[sddSpec.Name] = sddSpec.Spec
-	}
-
-	// Create all resources required, and update the matching DeploymentSpec's Volume and VolumeMounts
 	apiDescs := csv.GetOwnedAPIServiceDescriptions()
-	for _, desc := range apiDescs {
-		depSpec, ok := depSpecs[desc.DeploymentName]
-		if !ok {
-			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIService %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
+	for i, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
+		descs := apiServiceDescriptionsForDeployment(apiDescs, sddSpec.Name)
+		if len(descs) == 0 {
+			continue
 		}
 
-		newDepSpec, err := a.installAPIServiceRequirements(desc, ca, rotateAt, depSpec, csv)
+		// Update the deployment for each api service desc
+		newDepSpec, err := a.installAPIServiceRequirements(sddSpec.Name, ca, rotateAt, sddSpec.Spec, csv, getServicePorts(descs))
 		if err != nil {
 			return nil, err
 		}
-		depSpecs[desc.DeploymentName] = *newDepSpec
-	}
 
-	// Replace all matching DeploymentSpecs in the strategy
-	for i, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
-		if depSpec, ok := depSpecs[sddSpec.Name]; ok {
-			strategyDetailsDeployment.DeploymentSpecs[i].Spec = depSpec
+		caPEM, _, err := ca.ToPEM()
+		if err != nil {
+			logger.Warnf("unable to convert CA certificate to PEM format for Deployment %s", sddSpec.Name)
+			return nil, err
 		}
+
+		for _, desc := range descs {
+			err = a.createOrUpdateAPIService(caPEM, desc, csv)
+			if err != nil {
+				return nil, err
+			}
+
+			// Cleanup legacy resources
+			err = a.deleteLegacyAPIServiceResources(csv, desc)
+			if err != nil {
+				return nil, err
+			}
+		}
+		strategyDetailsDeployment.DeploymentSpecs[i].Spec = *newDepSpec
 	}
 
 	// Set CSV cert status
@@ -377,7 +401,7 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 
 		depSpec, ok := depSpecs[desc.DeploymentName]
 		if !ok {
-			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIService %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
+			return nil, fmt.Errorf("StrategyDetailsDeployment missing deployment %s for owned APIServices %s", desc.DeploymentName, fmt.Sprintf("%s.%s", desc.Version, desc.Group))
 		}
 
 		if depSpec.Template.Spec.ServiceAccountName == "" {
@@ -385,7 +409,10 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 		}
 
 		// Update deployment with secret volume mount.
-		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName(apiServiceName))
+		secret, err := a.lister.CoreV1().SecretLister().Secrets(csv.GetNamespace()).Get(secretName(serviceName(desc.DeploymentName)))
+		if err != nil {
+			return nil, fmt.Errorf("Unable to get secret %s", secretName(serviceName(desc.DeploymentName)))
+		}
 
 		volume := corev1.Volume{
 			Name: "apiservice-cert",
@@ -456,31 +483,53 @@ func (a *Operator) updateDeploymentSpecsWithApiServiceData(csv *v1alpha1.Cluster
 	return strategyDetailsDeployment, nil
 }
 
-func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescription, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion) (*appsv1.DeploymentSpec, error) {
-	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
-	logger := log.WithFields(log.Fields{
-		"csv":        csv.GetName(),
-		"namespace":  csv.GetNamespace(),
-		"apiservice": apiServiceName,
-	})
+func getServicePorts(descs []v1alpha1.APIServiceDescription) []corev1.ServicePort {
+	result := []corev1.ServicePort{}
+	for _, desc := range descs {
+		if !containsServicePort(result, getServicePort(desc)) {
+			result = append(result, getServicePort(desc))
+		}
+	}
 
-	// Create a service for the deployment
+	return result
+}
+
+func getServicePort(desc v1alpha1.APIServiceDescription) corev1.ServicePort {
 	containerPort := 443
 	if desc.ContainerPort > 0 {
 		containerPort = int(desc.ContainerPort)
 	}
+	return corev1.ServicePort{
+		Name:       strconv.Itoa(containerPort),
+		Port:       int32(containerPort),
+		TargetPort: intstr.FromInt(containerPort),
+	}
+}
+
+func containsServicePort(servicePorts []corev1.ServicePort, targetServicePort corev1.ServicePort) bool {
+	for _, servicePort := range servicePorts {
+		if servicePort == targetServicePort {
+			return true
+		}
+	}
+
+	return false
+}
+func (a *Operator) installAPIServiceRequirements(deploymentName string, ca *certs.KeyPair, rotateAt time.Time, depSpec appsv1.DeploymentSpec, csv *v1alpha1.ClusterServiceVersion, ports []corev1.ServicePort) (*appsv1.DeploymentSpec, error) {
+	logger := log.WithFields(log.Fields{
+		"csv":            csv.GetName(),
+		"namespace":      csv.GetNamespace(),
+		"deploymentName": deploymentName,
+	})
+
+	// Create a service for the deployment
 	service := &corev1.Service{
 		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{
-				{
-					Port:       int32(443),
-					TargetPort: intstr.FromInt(containerPort),
-				},
-			},
+			Ports:    ports,
 			Selector: depSpec.Selector.MatchLabels,
 		},
 	}
-	service.SetName(APIServiceNameToServiceName(apiServiceName))
+	service.SetName(serviceName(deploymentName))
 	service.SetNamespace(csv.GetNamespace())
 	ownerutil.AddNonBlockingOwner(service, csv)
 
@@ -519,7 +568,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	// Create Secret for serving cert
 	certPEM, privPEM, err := servingPair.ToPEM()
 	if err != nil {
-		logger.Warnf("unable to convert serving certificate and private key to PEM format for APIService %s", apiServiceName)
+		logger.Warnf("unable to convert serving certificate and private key to PEM format for Service %s", service.GetName())
 		return nil, err
 	}
 
@@ -530,13 +579,13 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		},
 		Type: corev1.SecretTypeTLS,
 	}
-	secret.SetName(secretName(apiServiceName))
+	secret.SetName(secretName(service.GetName()))
 	secret.SetNamespace(csv.GetNamespace())
 
-	// Add olmcasha hash as a label to the
+	// Add olmcahash as a label to the caPEM
 	caPEM, _, err := ca.ToPEM()
 	if err != nil {
-		logger.Warnf("unable to convert CA certificate to PEM format for APIService %s", apiServiceName)
+		logger.Warnf("unable to convert CA certificate to PEM format for Service %s", service)
 		return nil, err
 	}
 	caHash := certs.PEMSHA256(caPEM)
@@ -666,7 +715,7 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			Name:     "system:auth-delegator",
 		},
 	}
-	authDelegatorClusterRoleBinding.SetName(apiServiceName + "-system:auth-delegator")
+	authDelegatorClusterRoleBinding.SetName(service.GetName() + "-system:auth-delegator")
 
 	existingAuthDelegatorClusterRoleBinding, err := a.lister.RbacV1().ClusterRoleBindingLister().Get(authDelegatorClusterRoleBinding.GetName())
 	if err == nil {
@@ -713,10 +762,10 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 			Name:     "extension-apiserver-authentication-reader",
 		},
 	}
-	authReaderRoleBinding.SetName(apiServiceName + "-auth-reader")
-	authReaderRoleBinding.SetNamespace("kube-system")
+	authReaderRoleBinding.SetName(service.GetName() + "-auth-reader")
+	authReaderRoleBinding.SetNamespace(kubeSystem)
 
-	existingAuthReaderRoleBinding, err := a.lister.RbacV1().RoleBindingLister().RoleBindings("kube-system").Get(authReaderRoleBinding.GetName())
+	existingAuthReaderRoleBinding, err := a.lister.RbacV1().RoleBindingLister().RoleBindings(kubeSystem).Get(authReaderRoleBinding.GetName())
 	if err == nil {
 		// Check if the only owners are this CSV or in this CSV's replacement chain.
 		if ownerutil.AdoptableLabels(existingAuthReaderRoleBinding.GetLabels(), true, csv) {
@@ -806,11 +855,22 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 	// is used by the apiserver if not hot reloading.
 	depSpec.Template.ObjectMeta.SetAnnotations(map[string]string{OLMCAHashAnnotationKey: caHash})
 
+	return &depSpec, nil
+}
+
+func (a *Operator) createOrUpdateAPIService(caPEM []byte, desc v1alpha1.APIServiceDescription, csv *v1alpha1.ClusterServiceVersion) error {
+	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
+	logger := log.WithFields(log.Fields{
+		"csv":        csv.GetName(),
+		"namespace":  csv.GetNamespace(),
+		"apiservice": fmt.Sprintf("%s.%s", desc.Version, desc.Group),
+	})
+
 	exists := true
 	apiService, err := a.lister.APIRegistrationV1().APIServiceLister().Get(apiServiceName)
 	if err != nil {
 		if !k8serrors.IsNotFound(err) {
-			return nil, err
+			return err
 		}
 
 		exists = false
@@ -830,19 +890,25 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 		}
 
 		if !adoptable {
-			return nil, fmt.Errorf("pre-existing APIService %s is not adoptable", apiServiceName)
+			return fmt.Errorf("pre-existing APIService %s.%s is not adoptable", desc.Version, desc.Group)
 		}
 	}
 
 	// Add the CSV as an owner
 	if err := ownerutil.AddOwnerLabels(apiService, csv); err != nil {
-		return nil, err
+		return err
 	}
 
+	// Create a service for the deployment
+	containerPort := int32(443)
+	if desc.ContainerPort > 0 {
+		containerPort = desc.ContainerPort
+	}
 	// update the ServiceReference
 	apiService.Spec.Service = &apiregistrationv1.ServiceReference{
-		Namespace: service.GetNamespace(),
-		Name:      service.GetName(),
+		Namespace: csv.GetNamespace(),
+		Name:      serviceName(desc.DeploymentName),
+		Port:      &containerPort,
 	}
 
 	// create a fresh CA bundle
@@ -859,17 +925,10 @@ func (a *Operator) installAPIServiceRequirements(desc v1alpha1.APIServiceDescrip
 
 	if err != nil {
 		logger.Warnf("could not create or update APIService")
-		return nil, err
+		return err
 	}
 
-	return &depSpec, nil
-}
-
-// APIServiceNameToServiceName returns the result of replacing all
-// periods in the given APIService name with hyphens
-func APIServiceNameToServiceName(apiServiceName string) string {
-	// Replace all '.'s with "-"s to convert to a DNS-1035 label
-	return strings.Replace(apiServiceName, ".", "-", -1)
+	return nil
 }
 
 func (a *Operator) isAPIServiceAdoptable(target *v1alpha1.ClusterServiceVersion, apiService *apiregistrationv1.APIService) (adoptable bool, err error) {
@@ -920,4 +979,136 @@ func (a *Operator) isAPIServiceAdoptable(target *v1alpha1.ClusterServiceVersion,
 
 	adoptable = ownerutil.AdoptableLabels(apiService.GetLabels(), true, owners...)
 	return
+}
+
+// deleteLegacyAPIServiceResources deletes resources that were created by OLM for an APIService that used the old naming convention.
+func (a *Operator) deleteLegacyAPIServiceResources(owner ownerutil.Owner, desc v1alpha1.APIServiceDescription) error {
+	logger := log.WithFields(log.Fields{
+		"ownerName":      owner.GetName(),
+		"ownerNamespace": owner.GetNamespace(),
+		"ownerKind":      owner.GetObjectKind().GroupVersionKind().GroupKind().Kind,
+	})
+	namespace := owner.GetNamespace()
+	apiServiceName := fmt.Sprintf("%s.%s", desc.Version, desc.Group)
+
+	// Handle an edgecase where the legacy resources names matches the new names.
+	// This only occurs when the Group of the description matches the name of the deployment
+	// and the version is equal to "service".
+	if legacyAPIServiceNameToServiceName(apiServiceName) == serviceName(desc.DeploymentName) {
+		return nil
+	}
+
+	// Handle an edgecase where the legacy resources names matches the new names.
+	// This only occurs when the version of the description matches the name of the deployment
+	// and the group is equal to "service"
+	// If the names match, do not delete the service as OLM has already updated it.
+	legacyServiceName := legacyAPIServiceNameToServiceName(apiServiceName)
+	if legacyServiceName != serviceName(desc.DeploymentName) {
+		// Attempt to delete the legacy Service.
+		existingService, err := a.opClient.GetService(namespace, legacyServiceName)
+		if err != nil {
+			if !k8serrors.IsNotFound(err) {
+				return err
+			}
+		} else if ownerutil.AdoptableLabels(existingService.GetLabels(), true, owner) {
+			logger.Infof("Deleting Service with legacy APIService name %s", existingService.Name)
+			err = a.opClient.DeleteService(namespace, legacyServiceName, &metav1.DeleteOptions{})
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return err
+			}
+		} else {
+			logger.Infof("Service with legacy APIService resource name %s not adoptable", existingService.Name)
+		}
+	} else {
+		logger.Infof("New Service name matches legacy APIService resource name %s", legacyServiceName)
+	}
+
+	// Attempt to delete the legacy Secret.
+	existingSecret, err := a.opClient.GetSecret(namespace, secretName(apiServiceName))
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else if ownerutil.AdoptableLabels(existingSecret.GetLabels(), true, owner) {
+		logger.Infof("Deleting Secret with legacy APIService name %s", existingSecret.Name)
+		err = a.opClient.DeleteSecret(namespace, secretName(apiServiceName), &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		logger.Infof("Secret with legacy APIService  %s not adoptable", existingSecret.Name)
+	}
+
+	// Attempt to delete the legacy Role.
+	existingRole, err := a.opClient.GetRole(namespace, secretName(apiServiceName))
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else if ownerutil.AdoptableLabels(existingRole.GetLabels(), true, owner) {
+		logger.Infof("Deleting Role with legacy APIService name %s", existingRole.Name)
+		err = a.opClient.DeleteRole(namespace, secretName(apiServiceName), &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		logger.Infof("Role with legacy APIService name %s not adoptable", existingRole.Name)
+	}
+
+	// Attempt to delete the legacy secret RoleBinding.
+	existingRoleBinding, err := a.opClient.GetRoleBinding(namespace, secretName(apiServiceName))
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else if ownerutil.AdoptableLabels(existingRoleBinding.GetLabels(), true, owner) {
+		logger.Infof("Deleting RoleBinding with legacy APIService name %s", existingRoleBinding.Name)
+		err = a.opClient.DeleteRoleBinding(namespace, secretName(apiServiceName), &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		logger.Infof("RoleBinding with legacy APIService name %s not adoptable", existingRoleBinding.Name)
+	}
+
+	// Attempt to delete the legacy ClusterRoleBinding.
+	existingClusterRoleBinding, err := a.opClient.GetClusterRoleBinding(apiServiceName + "-system:auth-delegator")
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else if ownerutil.AdoptableLabels(existingClusterRoleBinding.GetLabels(), true, owner) {
+		logger.Infof("Deleting ClusterRoleBinding with legacy APIService name %s", existingClusterRoleBinding.Name)
+		err = a.opClient.DeleteClusterRoleBinding(apiServiceName+"-system:auth-delegator", &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		logger.Infof("ClusterRoleBinding with legacy APIService name %s not adoptable", existingClusterRoleBinding.Name)
+	}
+
+	// Attempt to delete the legacy AuthReadingRoleBinding.
+	existingRoleBinding, err = a.opClient.GetRoleBinding(kubeSystem, apiServiceName+"-auth-reader")
+	if err != nil {
+		if !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else if ownerutil.AdoptableLabels(existingRoleBinding.GetLabels(), true, owner) {
+		logger.Infof("Deleting RoleBinding with legacy APIService name %s", existingRoleBinding.Name)
+		err = a.opClient.DeleteRoleBinding(kubeSystem, apiServiceName+"-auth-reader", &metav1.DeleteOptions{})
+		if err != nil && !k8serrors.IsNotFound(err) {
+			return err
+		}
+	} else {
+		logger.Infof("RoleBinding with legacy APIService name %s not adoptable", existingRoleBinding.Name)
+	}
+
+	return nil
+}
+
+// legacyAPIServiceNameToServiceName returns the result of replacing all
+// periods in the given APIService name with hyphens
+func legacyAPIServiceNameToServiceName(apiServiceName string) string {
+	// Replace all '.'s with "-"s to convert to a DNS-1035 label
+	return strings.Replace(apiServiceName, ".", "-", -1)
 }
