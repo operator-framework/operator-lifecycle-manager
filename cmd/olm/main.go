@@ -12,6 +12,7 @@ import (
 
 	configclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/queueinformer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -195,7 +196,7 @@ func main() {
 		ctx,
 		olm.WithLogger(logger),
 		olm.WithWatchedNamespaces(namespaces...),
-		olm.WithResyncPeriod(*wakeupInterval),
+		olm.WithResyncPeriod(queueinformer.ResyncWithJitter(*wakeupInterval, 0.2)),
 		olm.WithExternalClient(crClient),
 		olm.WithOperatorClient(opClient),
 		olm.WithRestConfig(config),
