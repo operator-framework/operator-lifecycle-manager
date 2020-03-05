@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: rule 
+  labels:
+    prometheus: alert-rules
+    role: alert-rules
+spec:
+  groups:
+    - name: olm.failing_operators.rules
+      rules:
+        - alert: SeriousAlert 
+          annotations:
+            message: A serious alert! 
+          expr: alert_status{prioirity="Serious"}
+          labels:
+            severity: warn 

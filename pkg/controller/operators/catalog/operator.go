@@ -1726,22 +1726,38 @@ func (o *Operator) ExecutePlan(plan *v1alpha1.InstallPlan) error {
 					Resource: r.Name,
 				}
 
-				// Set up the dynamic client ResourceInterface
+				if step.Resolving != "" {
+					owner := &v1alpha1.ClusterServiceVersion{}
+					owner.SetNamespace(plan.GetNamespace())
+					owner.SetName(step.Resolving)
+
+					if r.Namespaced {
+						// Set OwnerReferences for namespace-scoped resource
+						ownerutil.AddNonBlockingOwner(unstructuredObject, owner)
+
+						// Update UIDs on all CSV OwnerReferences
+						updated, err := o.getUpdatedOwnerReferences(unstructuredObject.GetOwnerReferences(), plan.Namespace)
+						if err != nil {
+							return errorwrap.Wrapf(err, "error generating ownerrefs for unstructured object: %s", unstructuredObject.GetName())
+						}
+
+						unstructuredObject.SetOwnerReferences(updated)
+					} else {
+						// Add owner labels to cluster-scoped resource
+						if err := ownerutil.AddOwnerLabels(unstructuredObject, owner); err != nil {
+							return err
+						}
+					}
+				}
+
+				// Set up the dynamic client ResourceInterface and set ownerrefs
 				var resourceInterface dynamic.ResourceInterface
 				if r.Namespaced {
-					ownerutil.AddOwner(unstructuredObject, plan, false, false)
 					unstructuredObject.SetNamespace(namespace)
 					resourceInterface = o.dynamicClient.Resource(gvr).Namespace(namespace)
 				} else {
 					resourceInterface = o.dynamicClient.Resource(gvr)
 				}
-
-				// Update UIDs on all CSV OwnerReferences
-				updated, err := o.getUpdatedOwnerReferences(unstructuredObject.GetOwnerReferences(), plan.Namespace)
-				if err != nil {
-					return errorwrap.Wrapf(err, "error generating ownerrefs for unstructured object: %s", unstructuredObject.GetName())
-				}
-				unstructuredObject.SetOwnerReferences(updated)
 
 				// Ensure Unstructured Object
 				status, err := ensurer.EnsureUnstructuredObject(resourceInterface, unstructuredObject)
