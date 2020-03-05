@@ -11,11 +11,12 @@ Each of these Operators is responsible for managing the CRDs that are the basis 
 | CatalogSource         | catsrc         | Catalog | a repository of CSVs, CRDs, and packages that define an application                        |
 | Subscription          | sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
 | OperatorGroup         | og     | OLM     | used to group multiple namespaces and prepare for use by an operator                     |
-| PackageManifest       |        | PackageServer | provides the user with an api presentation of the data a CatalogSource provides |
+
+In addition, a PackageManifest resource provides the user with an API presentation of the data a CatalogSource provides. This is not an actual CRD, but a simpler synthetic aggregated API resource. As a result, it cannot be managed in the same manner as a CRD.
 
 Each of these Operators are also responsible for creating resources:
 
-| Component | Creatable Resources        |
+| Component | Managed Resources          |
 |-----------|----------------------------|
 | OLM       | Deployment                 |
 | Catalog   | Service Account            |
