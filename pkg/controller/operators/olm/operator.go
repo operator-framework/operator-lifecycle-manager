@@ -140,7 +140,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	k8sSyncer := queueinformer.LegacySyncHandler(op.syncObject).ToSyncerWithDelete(op.handleDeletion)
 	for _, namespace := range config.watchedNamespaces {
 		// Wire CSVs
-		extInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, config.resyncPeriod, externalversions.WithNamespace(namespace))
+		extInformerFactory := externalversions.NewSharedInformerFactoryWithOptions(op.client, config.resyncPeriod(), externalversions.WithNamespace(namespace))
 		csvInformer := extInformerFactory.Operators().V1alpha1().ClusterServiceVersions()
 		op.lister.OperatorsV1alpha1().RegisterClusterServiceVersionLister(namespace, csvInformer.Lister())
 		csvQueue := workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("%s/csv", namespace))
@@ -232,7 +232,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		op.RegisterQueueInformer(subQueueInformer)
 
 		// Wire Deployments
-		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod, informers.WithNamespace(namespace))
+		k8sInformerFactory := informers.NewSharedInformerFactoryWithOptions(op.opClient.KubernetesInterface(), config.resyncPeriod(), informers.WithNamespace(namespace))
 		depInformer := k8sInformerFactory.Apps().V1().Deployments()
 		op.lister.AppsV1().RegisterDeploymentLister(namespace, depInformer.Lister())
 		depQueueInformer, err := queueinformer.NewQueueInformer(
@@ -360,7 +360,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 		return nil, err
 	}
 
-	k8sInformerFactory := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod)
+	k8sInformerFactory := informers.NewSharedInformerFactory(op.opClient.KubernetesInterface(), config.resyncPeriod())
 	clusterRoleInformer := k8sInformerFactory.Rbac().V1().ClusterRoles()
 	op.lister.RbacV1().RegisterClusterRoleLister(clusterRoleInformer.Lister())
 	clusterRoleQueueInformer, err := queueinformer.NewQueueInformer(
@@ -414,7 +414,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	// Register APIService QueueInformer
-	apiServiceInformer := kagg.NewSharedInformerFactory(op.opClient.ApiregistrationV1Interface(), config.resyncPeriod).Apiregistration().V1().APIServices()
+	apiServiceInformer := kagg.NewSharedInformerFactory(op.opClient.ApiregistrationV1Interface(), config.resyncPeriod()).Apiregistration().V1().APIServices()
 	op.lister.APIRegistrationV1().RegisterAPIServiceLister(apiServiceInformer.Lister())
 	apiServiceQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
@@ -431,7 +431,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	}
 
 	// Register CustomResourceDefinition QueueInformer
-	crdInformer := extinf.NewSharedInformerFactory(op.opClient.ApiextensionsV1beta1Interface(), config.resyncPeriod).Apiextensions().V1beta1().CustomResourceDefinitions()
+	crdInformer := extinf.NewSharedInformerFactory(op.opClient.ApiextensionsV1beta1Interface(), config.resyncPeriod()).Apiextensions().V1beta1().CustomResourceDefinitions()
 	op.lister.APIExtensionsV1beta1().RegisterCustomResourceDefinitionLister(crdInformer.Lister())
 	crdQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
