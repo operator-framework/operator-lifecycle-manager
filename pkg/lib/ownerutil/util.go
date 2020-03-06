@@ -9,10 +9,13 @@ import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	rbac "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 )
 
 const (
@@ -364,6 +367,24 @@ func InferGroupVersionKind(obj runtime.Object) error {
 			Group:   v1.GroupName,
 			Version: v1.GroupVersion,
 			Kind:    "OperatorGroup",
+		})
+	case *apiregistrationv1.APIService:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   apiregistrationv1.GroupName,
+			Version: apiregistrationv1.SchemeGroupVersion.Version,
+			Kind:    "APIService",
+		})
+	case *apiextensionsv1beta1.CustomResourceDefinition:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   apiextensionsv1beta1.GroupName,
+			Version: apiextensionsv1beta1.SchemeGroupVersion.Version,
+			Kind:    "CustomResourceDefinition",
+		})
+	case *apiextensionsv1.CustomResourceDefinition:
+		objectKind.SetGroupVersionKind(schema.GroupVersionKind{
+			Group:   apiextensionsv1.GroupName,
+			Version: apiextensionsv1.SchemeGroupVersion.Version,
+			Kind:    "CustomResourceDefinition",
 		})
 	default:
 		return fmt.Errorf("could not infer GVK for object: %#v, %#v", obj, objectKind)

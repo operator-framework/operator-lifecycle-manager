@@ -19,15 +19,14 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 	opregistry "github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
-	operatorGroupAggregrationKeyPrefix = "olm.opgroup.permissions/aggregate-to-"
-	kubeRBACAggregationKeyPrefix       = "rbac.authorization.k8s.io/aggregate-to-"
-	AdminSuffix                        = "admin"
-	EditSuffix                         = "edit"
-	ViewSuffix                         = "view"
+	AdminSuffix = "admin"
+	EditSuffix  = "edit"
+	ViewSuffix  = "view"
 )
 
 var (
@@ -41,6 +40,14 @@ var (
 		ViewSuffix:  ViewVerbs,
 	}
 )
+
+func aggregationLabelFromAPIKey(k opregistry.APIKey, suffix string) (string, error) {
+	hash, err := resolver.APIKeyToGVKHash(k)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("olm.opgroup.permissions/aggregate-to-%s-%s", hash, suffix), nil
+}
 
 func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	op, ok := obj.(*v1.OperatorGroup)
@@ -115,12 +122,6 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	}
 	logger.Debug("OperatorGroup CSV annotation completed")
 
-	if err := a.ensureOpGroupClusterRoles(op); err != nil {
-		logger.WithError(err).Warn("failed to ensure operatorgroup clusterroles")
-		return err
-	}
-	logger.Debug("operatorgroup clusterroles ensured")
-
 	// Requeue all CSVs that provide the same APIs (including those removed). This notifies conflicting CSVs in
 	// intersecting groups that their conflict has possibly been resolved, either through resizing or through
 	// deletion of the conflicting CSV.
@@ -134,6 +135,12 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	for api := range groupProvidedAPIs {
 		providedAPIsForGroup[api] = struct{}{}
 	}
+
+	if err := a.ensureOpGroupClusterRoles(op, providedAPIsForGroup); err != nil {
+		logger.WithError(err).Warn("failed to ensure operatorgroup clusterroles")
+		return err
+	}
+	logger.Debug("operatorgroup clusterroles ensured")
 
 	csvs, err := a.findCSVsThatProvideAnyOf(providedAPIsForGroup)
 	if err != nil {
@@ -295,32 +302,43 @@ func (a *Operator) pruneProvidedAPIs(group *v1.OperatorGroup, groupProvidedAPIs 
 }
 
 // ensureProvidedAPIClusterRole ensures that a clusterrole exists (admin, edit, or view) for a single provided API Type
-func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup, csv *v1alpha1.ClusterServiceVersion, namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string) error {
+func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup, csv *v1alpha1.ClusterServiceVersion, namePrefix, suffix string, verbs []string, group, resource string, resourceNames []string, api ownerutil.Owner, key opregistry.APIKey) error {
+	aggregationLabel, err := aggregationLabelFromAPIKey(key, suffix)
+	if err != nil {
+		return err
+	}
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namePrefix + suffix,
 			Labels: map[string]string{
-				kubeRBACAggregationKeyPrefix + suffix:       "true",
-				operatorGroupAggregrationKeyPrefix + suffix: operatorGroup.GetName(),
+				// Matches aggregation rules on the bootstrap ClusterRoles.
+				// https://github.com/kubernetes/kubernetes/blob/61847eab61788fb0543b4cf147773c9da646ed2f/plugin/pkg/auth/authorizer/rbac/bootstrappolicy/policy.go#L232
+				fmt.Sprintf("rbac.authorization.k8s.io/aggregate-to-%s", suffix): "true",
+				aggregationLabel: "true",
 			},
+			OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(api)},
 		},
 		Rules: []rbacv1.PolicyRule{{Verbs: verbs, APIGroups: []string{group}, Resources: []string{resource}, ResourceNames: resourceNames}},
 	}
-	err := ownerutil.AddOwnerLabels(clusterRole, csv)
-	if err != nil {
-		return err
-	}
-	existingCR, err := a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
-	if k8serrors.IsAlreadyExists(err) {
-		if existingCR != nil && reflect.DeepEqual(existingCR.Labels, clusterRole.Labels) && reflect.DeepEqual(existingCR.Rules, clusterRole.Rules) {
+
+	existingCR, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
+	if existingCR == nil {
+		existingCR, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
+		if err == nil {
 			return nil
 		}
-		if _, err = a.opClient.UpdateClusterRole(clusterRole); err != nil {
-			a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
+		if !k8serrors.IsAlreadyExists(err) {
+			a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
 			return err
 		}
-	} else if err != nil {
-		a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
+	}
+
+	if existingCR != nil && reflect.DeepEqual(existingCR.Rules, clusterRole.Rules) && ownerutil.IsOwnedBy(existingCR, api) && labels.Equals(existingCR.Labels, clusterRole.Labels) {
+		return nil
+	}
+
+	if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
+		a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
 		return err
 	}
 	return nil
@@ -329,6 +347,10 @@ func (a *Operator) ensureProvidedAPIClusterRole(operatorGroup *v1.OperatorGroup,
 // ensureClusterRolesForCSV ensures that ClusterRoles for writing and reading provided APIs exist for each operator
 func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion, operatorGroup *v1.OperatorGroup) error {
 	for _, owned := range csv.Spec.CustomResourceDefinitions.Owned {
+		crd, err := a.lister.APIExtensionsV1beta1().CustomResourceDefinitionLister().Get(owned.Name)
+		if err != nil {
+			return fmt.Errorf("crd %q not found: %s", owned.Name, err.Error())
+		}
 		nameGroupPair := strings.SplitN(owned.Name, ".", 2) // -> etcdclusters etcd.database.coreos.com
 		if len(nameGroupPair) != 2 {
 			return fmt.Errorf("invalid parsing of name '%v', got %v", owned.Name, nameGroupPair)
@@ -336,20 +358,26 @@ func (a *Operator) ensureClusterRolesForCSV(csv *v1alpha1.ClusterServiceVersion,
 		plural := nameGroupPair[0]
 		group := nameGroupPair[1]
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
-
+		key := registry.APIKey{Group: group, Version: owned.Version, Kind: owned.Kind, Plural: plural}
 		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, group, plural, nil); err != nil {
+			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, group, plural, nil, crd, key); err != nil {
 				return err
 			}
 		}
-		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}); err != nil {
+		if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix+"crd", ViewSuffix, []string{"get"}, "apiextensions.k8s.io", "customresourcedefinitions", []string{owned.Name}, crd, key); err != nil {
 			return err
 		}
 	}
 	for _, owned := range csv.Spec.APIServiceDefinitions.Owned {
+		svcName := strings.Join([]string{owned.Version, owned.Group}, ".")
+		svc, err := a.lister.APIRegistrationV1().APIServiceLister().Get(svcName)
+		if err != nil {
+			return fmt.Errorf("apiservice %q not found: %s", svcName, err.Error())
+		}
 		namePrefix := fmt.Sprintf("%s-%s-", owned.Name, owned.Version)
+		key := registry.APIKey{Group: owned.Group, Version: owned.Version, Kind: owned.Kind}
 		for suffix, verbs := range VerbsForSuffix {
-			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, owned.Group, owned.Name, nil); err != nil {
+			if err := a.ensureProvidedAPIClusterRole(operatorGroup, csv, namePrefix, suffix, verbs, owned.Group, owned.Name, nil, svc, key); err != nil {
 				return err
 			}
 		}
@@ -853,38 +881,60 @@ func (a *Operator) updateNamespaceList(op *v1.OperatorGroup) ([]string, error) {
 	return namespaceList, nil
 }
 
-func (a *Operator) ensureOpGroupClusterRole(op *v1.OperatorGroup, suffix string) error {
+func (a *Operator) ensureOpGroupClusterRole(op *v1.OperatorGroup, suffix string, apis resolver.APISet) error {
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: strings.Join([]string{op.GetName(), suffix}, "-"),
 		},
-		AggregationRule: &rbacv1.AggregationRule{
-			ClusterRoleSelectors: []metav1.LabelSelector{
-				{
-					MatchLabels: map[string]string{
-						operatorGroupAggregrationKeyPrefix + suffix: op.GetName(),
-					},
-				},
+	}
+	var selectors []metav1.LabelSelector
+	for api := range apis {
+		aggregationLabel, err := aggregationLabelFromAPIKey(api, suffix)
+		if err != nil {
+			return err
+		}
+		selectors = append(selectors, metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				aggregationLabel: "true",
 			},
-		},
+		})
+	}
+	if len(selectors) > 0 {
+		clusterRole.AggregationRule = &rbacv1.AggregationRule{
+			ClusterRoleSelectors: selectors,
+		}
 	}
 	err := ownerutil.AddOwnerLabels(clusterRole, op)
 	if err != nil {
 		return err
 	}
-	_, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
-	if k8serrors.IsAlreadyExists(err) {
+
+	existingRole, err := a.lister.RbacV1().ClusterRoleLister().Get(clusterRole.Name)
+	if existingRole == nil {
+		existingRole, err = a.opClient.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterRole)
+		if err == nil {
+			return nil
+		}
+		if !k8serrors.IsAlreadyExists(err) {
+			a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
+			return err
+		}
+	}
+
+	if existingRole != nil && labels.Equals(existingRole.Labels, clusterRole.Labels) && reflect.DeepEqual(existingRole.AggregationRule, clusterRole.AggregationRule) {
 		return nil
-	} else if err != nil {
-		a.logger.WithError(err).Errorf("Create cluster role failed: %v", clusterRole)
+	}
+
+	if _, err := a.opClient.UpdateClusterRole(clusterRole); err != nil {
+		a.logger.WithError(err).Errorf("Update existing cluster role failed: %v", clusterRole)
 		return err
 	}
 	return nil
 }
 
-func (a *Operator) ensureOpGroupClusterRoles(op *v1.OperatorGroup) error {
+func (a *Operator) ensureOpGroupClusterRoles(op *v1.OperatorGroup, apis resolver.APISet) error {
 	for _, suffix := range Suffices {
-		if err := a.ensureOpGroupClusterRole(op, suffix); err != nil {
+		if err := a.ensureOpGroupClusterRole(op, suffix, apis); err != nil {
 			return err
 		}
 	}

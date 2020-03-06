@@ -74,6 +74,8 @@ type OperatorGroupList struct {
 }
 
 func (o *OperatorGroup) BuildTargetNamespaces() string {
-	sort.Strings(o.Status.Namespaces)
-	return strings.Join(o.Status.Namespaces, ",")
+	ns := make([]string, len(o.Status.Namespaces))
+	copy(ns, o.Status.Namespaces)
+	sort.Strings(ns)
+	return strings.Join(ns, ",")
 }

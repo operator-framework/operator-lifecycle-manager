@@ -1093,7 +1093,7 @@ func (a *Operator) operatorGroupFromAnnotations(logger *logrus.Entry, csv *v1alp
 	}
 
 	// Target namespaces don't match
-	if targets != strings.Join(operatorGroup.Status.Namespaces, ",") {
+	if targets != operatorGroup.BuildTargetNamespaces() {
 		logger.Info("olm.targetNamespaces annotation doesn't match operatorgroup status")
 		return nil
 	}
@@ -1105,21 +1105,21 @@ func (a *Operator) operatorGroupForCSV(csv *v1alpha1.ClusterServiceVersion, logg
 	now := a.now()
 
 	// Attempt to associate an OperatorGroup with the CSV.
-	operatorGroups, err := a.client.OperatorsV1().OperatorGroups(csv.GetNamespace()).List(metav1.ListOptions{})
+	operatorGroups, err := a.lister.OperatorsV1().OperatorGroupLister().OperatorGroups(csv.GetNamespace()).List(labels.Everything())
 	if err != nil {
 		logger.Errorf("error occurred while attempting to associate csv with operatorgroup")
 		return nil, err
 	}
 	var operatorGroup *v1.OperatorGroup
 
-	switch len(operatorGroups.Items) {
+	switch len(operatorGroups) {
 	case 0:
 		err = fmt.Errorf("csv in namespace with no operatorgroups")
 		logger.Warn(err)
 		csv.SetPhaseWithEvent(v1alpha1.CSVPhaseFailed, v1alpha1.CSVReasonNoOperatorGroup, err.Error(), now, a.recorder)
 		return nil, err
 	case 1:
-		operatorGroup = &operatorGroups.Items[0]
+		operatorGroup = operatorGroups[0]
 		logger = logger.WithField("opgroup", operatorGroup.GetName())
 		if a.operatorGroupAnnotationsDiffer(&csv.ObjectMeta, operatorGroup) {
 			a.setOperatorGroupAnnotations(&csv.ObjectMeta, operatorGroup, true)
@@ -1223,13 +1223,16 @@ func (a *Operator) transitionCSVState(in v1alpha1.ClusterServiceVersion) (out *v
 	}
 
 	// Check for intersecting provided APIs in intersecting OperatorGroups
-	options := metav1.ListOptions{
-		FieldSelector: fmt.Sprintf("metadata.name!=%s,metadata.namespace!=%s", operatorGroup.GetName(), operatorGroup.GetNamespace()),
+	allGroups, err := a.lister.OperatorsV1().OperatorGroupLister().List(labels.Everything())
+	otherGroups := make([]v1.OperatorGroup, 0, len(allGroups))
+	for _, g := range allGroups {
+		if g.GetName() != operatorGroup.GetName() || g.GetNamespace() != operatorGroup.GetNamespace() {
+			otherGroups = append(otherGroups, *g)
+		}
 	}
-	otherGroups, err := a.client.OperatorsV1().OperatorGroups(metav1.NamespaceAll).List(options)
 
 	groupSurface := resolver.NewOperatorGroup(operatorGroup)
-	otherGroupSurfaces := resolver.NewOperatorGroupSurfaces(otherGroups.Items...)
+	otherGroupSurfaces := resolver.NewOperatorGroupSurfaces(otherGroups...)
 	providedAPIs := operatorSurface.ProvidedAPIs().StripPlural()
 
 	switch result := a.apiReconciler.Reconcile(providedAPIs, groupSurface, otherGroupSurfaces...); {
