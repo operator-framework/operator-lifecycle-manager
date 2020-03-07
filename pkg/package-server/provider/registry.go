@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -57,6 +58,30 @@ func catalogIndexFunc(obj interface{}) ([]string, error) {
 	return []string{getSourceKey(pkg).String()}, nil
 }
 
+func PackageManifestKeyFunc(obj interface{}) (string, error) {
+	if key, ok := obj.(string); ok {
+		return string(key), nil
+	}
+
+	pkg, ok := obj.(*operators.PackageManifest)
+	if !ok {
+		return "", fmt.Errorf("obj is not a packagemanifest %v", obj)
+	}
+
+	return pkg.Status.CatalogSource + "/" + pkg.GetNamespace() + "/" + pkg.GetName(), nil
+}
+
+func SplitPackageManifestKey(key string) (catsrcname, namespace, name string, err error) {
+	parts := strings.Split(key, "/")
+	switch len(parts) {
+	case 3:
+		// catalogsource name, namespace and packagemanifest name
+		return parts[0], parts[1], parts[2], nil
+	}
+
+	return "", "", "", fmt.Errorf("unexpected key format: %q", key)
+}
+
 type registryClient struct {
 	api.RegistryClient
 	catsrc *operatorsv1alpha1.CatalogSource
@@ -104,7 +129,7 @@ func NewRegistryProvider(ctx context.Context, crClient versioned.Interface, oper
 		Operator: operator,
 
 		globalNamespace: globalNamespace,
-		cache: cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{
+		cache: cache.NewIndexer(PackageManifestKeyFunc, cache.Indexers{
 			cache.NamespaceIndex: cache.MetaNamespaceIndexFunc,
 			catalogIndex:         catalogIndexFunc,
 		}),
@@ -311,14 +336,13 @@ func (p *RegistryProvider) gcPackages(key resolver.CatalogKey, keep map[string]s
 
 	var errs []error
 	for _, storedPkgKey := range storedPkgKeys {
-		_, name, _ := cache.SplitMetaNamespaceKey(storedPkgKey)
+		_, _, name, _ := SplitPackageManifestKey(storedPkgKey)
 		if keep != nil {
 			if _, ok := keep[name]; ok {
 				continue
 			}
 		}
-
-		if err := p.cache.Delete(cache.ExplicitKey(storedPkgKey)); err != nil {
+		if err := p.cache.Delete(string(storedPkgKey)); err != nil {
 			logger.WithField("pkg", name).WithError(err).Warn("failed to delete cache entry")
 			errs = append(errs, err)
 		}
