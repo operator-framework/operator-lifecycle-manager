@@ -84,3 +84,52 @@ spec:
     - mountPath: /config
       name: config-volume
 ```
+
+### Tolerations
+
+The `tolerations` field defines a list of [Tolerations](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/) for the Pod created by OLM.
+
+> Note: Tolerations defined here will be appended to existing Tolerations, if not already present.
+
+#### Example
+
+Inject toleration to tolerate all taints.
+
+```
+kind: Subscription
+metadata:
+  name: my-operator
+spec:
+  package: etcd
+  channel: alpha
+  config:
+    tolerations:
+    - operator: "Exists"
+```
+
+### Resources
+
+The `resources` field defines [Resource Constraints](https://kubernetes.io/docs/concepts/configuration/manage-compute-resources-container/#resource-requests-and-limits-of-pod-and-container) for all the containers in the Pod created by OLM.
+
+> Note: Resource Constraints defined here will overwrite existing resource constraints.
+
+#### Example
+
+Inject a request of 0.25 cpu and 64 MiB of memory, and a limit of 0.5 cpu and 128MiB of memory in each container.
+
+```
+kind: Subscription
+metadata:
+  name: my-operator
+spec:
+  package: etcd
+  channel: alpha
+  config:
+    resources:
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+```
