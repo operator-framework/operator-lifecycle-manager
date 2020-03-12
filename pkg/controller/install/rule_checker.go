@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
@@ -59,7 +60,7 @@ func (c *CSVRuleChecker) RuleSatisfied(sa *corev1.ServiceAccount, namespace stri
 
 	// ensure all attributes are authorized
 	for _, attributes := range attributesSet {
-		decision, _, err := rbacAuthorizer.Authorize(attributes)
+		decision, _, err := rbacAuthorizer.Authorize(context.TODO(), attributes)
 		if err != nil {
 			return false, err
 		}
