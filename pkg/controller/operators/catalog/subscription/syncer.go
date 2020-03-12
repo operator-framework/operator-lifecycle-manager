@@ -86,7 +86,7 @@ func (s *subscriptionSyncer) Sync(ctx context.Context, event kubestate.ResourceE
 }
 
 func (o *subscriptionSyncer) recordMetrics(sub *v1alpha1.Subscription) {
-	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV).Inc()
+	metrics.CounterForSubscription(sub.GetName(), sub.Status.InstalledCSV, sub.Spec.Package).Inc()
 }
 
 func (s *subscriptionSyncer) Notify(event kubestate.ResourceEvent) {
