@@ -174,7 +174,7 @@ func NewClientFromRestConfig(config *rest.Config) (client ClientInterface, err e
 	}
 
 	client = &Client{
-		kubernetes, 
+		kubernetes,
 		apiextensions,
 		apiregistration,
 	}

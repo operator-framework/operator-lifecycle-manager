@@ -1,16 +1,15 @@
-// +build !bare
-
 package e2e
 
 import (
 	"flag"
-	"os"
-	"testing"
-
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"testing"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var (
@@ -38,7 +37,14 @@ var (
 	communityOperatorsImage = ""
 )
 
-func TestMain(m *testing.M) {
+func TestConvert(t *testing.T) {
+	RegisterFailHandler(Fail)
+	RunSpecs(t, "Convert Suite")
+}
+
+// This function initializes a client which is used to create an operator group for a given namespace
+var _ = BeforeSuite(func() {
+
 	flag.Parse()
 
 	testNamespace = *namespace
@@ -66,7 +72,9 @@ func TestMain(m *testing.M) {
 			panic(err)
 		}
 	}
+})
 
-	// run tests
-	os.Exit(m.Run())
-}
+// ToDO: Include clean up code after the tests are run
+var _ = AfterSuite(func() {
+
+})

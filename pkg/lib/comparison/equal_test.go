@@ -15,8 +15,8 @@ type equalitorWants struct {
 }
 type equalitorTest struct {
 	description string
-	args equalitorArgs
-	wants equalitorWants
+	args        equalitorArgs
+	wants       equalitorWants
 }
 
 var (
@@ -34,12 +34,12 @@ var (
 		{
 			description: "Structs/Exported/True",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animal string
 				}{
 					Animal: "hippo",
 				},
-				b: struct{
+				b: struct {
 					Animal string
 				}{
 					Animal: "hippo",
@@ -52,12 +52,12 @@ var (
 		{
 			description: "Structs/Exported/False",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animal string
 				}{
 					Animal: "hippo",
 				},
-				b: struct{
+				b: struct {
 					Animal string
 				}{
 					Animal: "meerkat",
@@ -110,13 +110,13 @@ var (
 		{
 			description: "Slices/Structs/Exported/Sequence/True",
 			args: equalitorArgs{
-				a: []struct{
+				a: []struct {
 					Animal string
 				}{
 					{Animal: "hippo"},
 					{Animal: "meerkat"},
 				},
-				b: []struct{
+				b: []struct {
 					Animal string
 				}{
 					{Animal: "hippo"},
@@ -130,13 +130,13 @@ var (
 		{
 			description: "Slices/Structs/Exported/Sequence/False",
 			args: equalitorArgs{
-				a: []struct{
+				a: []struct {
 					Animal string
 				}{
 					{Animal: "hippo"},
 					{Animal: "meerkat"},
 				},
-				b: []struct{
+				b: []struct {
 					Animal string
 				}{
 					{Animal: "meerkat"},
@@ -150,13 +150,13 @@ var (
 		{
 			description: "Slices/Structs/Exported/Sequence/LengthChange/False",
 			args: equalitorArgs{
-				a: []struct{
+				a: []struct {
 					Animal string
 				}{
 					{Animal: "hippo"},
 					{Animal: "meerkat"},
 				},
-				b: []struct{
+				b: []struct {
 					Animal string
 				}{
 					{Animal: "hippo"},
@@ -171,7 +171,7 @@ var (
 		{
 			description: "Slice/Structs/Strings/MismatchedTypes/False",
 			args: equalitorArgs{
-				a: []struct{
+				a: []struct {
 					Animal string
 				}{
 					{Animal: "hippo"},
@@ -186,7 +186,7 @@ var (
 		{
 			description: "Struct/int/MismatchedTypes/False",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animal string
 				}{
 					Animal: "hippo",
@@ -200,7 +200,7 @@ var (
 		{
 			description: "Struct/nil/MismatchedTypes/False",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animal string
 				}{
 					Animal: "hippo",
@@ -215,11 +215,11 @@ var (
 			description: "Map/Strings/True",
 			args: equalitorArgs{
 				a: map[string]int{
-					"hippo": 64,
+					"hippo":   64,
 					"meerkat": 32,
 				},
 				b: map[string]int{
-					"hippo": 64,
+					"hippo":   64,
 					"meerkat": 32,
 				},
 			},
@@ -231,12 +231,12 @@ var (
 			description: "Map/Strings/Set/True",
 			args: equalitorArgs{
 				a: map[string]int{
-					"hippo": 64,
+					"hippo":   64,
 					"meerkat": 32,
 				},
 				b: map[string]int{
 					"meerkat": 32,
-					"hippo": 64,
+					"hippo":   64,
 				},
 			},
 			wants: equalitorWants{
@@ -269,17 +269,17 @@ func TestNewHashEqualitor(t *testing.T) {
 		{
 			description: "Structs/Slices/NoSetTag/False",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animals []Animal
-					}{
+				}{
 					Animals: []Animal{
 						{Name: "hippo"},
 						{Name: "meerkat"},
 					},
 				},
-				b: struct{
+				b: struct {
 					Animals []Animal
-					}{
+				}{
 					Animals: []Animal{
 						{Name: "meerkat"},
 						{Name: "hippo"},
@@ -293,17 +293,17 @@ func TestNewHashEqualitor(t *testing.T) {
 		{
 			description: "Structs/Slices/SetTag/True",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animals []Animal `hash:"set"`
-					}{
+				}{
 					Animals: []Animal{
 						{Name: "hippo"},
 						{Name: "meerkat"},
 					},
 				},
-				b: struct{
+				b: struct {
 					Animals []Animal `hash:"set"`
-					}{
+				}{
 					Animals: []Animal{
 						{Name: "meerkat"},
 						{Name: "hippo"},
@@ -317,7 +317,7 @@ func TestNewHashEqualitor(t *testing.T) {
 		{
 			description: "Structs/Field/Changed/NoIgnoreTag/False",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animal
 					Age int
 				}{
@@ -326,7 +326,7 @@ func TestNewHashEqualitor(t *testing.T) {
 					},
 					Age: 27,
 				},
-				b: struct{
+				b: struct {
 					Animal
 					Age int
 				}{
@@ -343,7 +343,7 @@ func TestNewHashEqualitor(t *testing.T) {
 		{
 			description: "Structs/Field/Changed/IgnoreTag/True",
 			args: equalitorArgs{
-				a: struct{
+				a: struct {
 					Animal
 					Age int `hash:"ignore"`
 				}{
@@ -352,7 +352,7 @@ func TestNewHashEqualitor(t *testing.T) {
 					},
 					Age: 27,
 				},
-				b: struct{
+				b: struct {
 					Animal
 					Age int `hash:"ignore"`
 				}{

@@ -258,7 +258,7 @@ func NewFakeOperator(ctx context.Context, options ...fakeOperatorOption) (*Opera
 	// Apply options to default config
 	config := &fakeOperatorConfig{
 		operatorConfig: &operatorConfig{
-			resyncPeriod:      queueinformer.ResyncWithJitter(5 * time.Minute, 0.1),
+			resyncPeriod:      queueinformer.ResyncWithJitter(5*time.Minute, 0.1),
 			operatorNamespace: "default",
 			watchedNamespaces: []string{metav1.NamespaceAll},
 			clock:             &utilclock.RealClock{},
