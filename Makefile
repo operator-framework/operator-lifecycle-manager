@@ -117,7 +117,6 @@ setup-bare: clean e2e.namespace
 
 # e2e test exculding the rh-operators directory which tests rh-operators and their metric cardinality.
 e2e:
-	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/rh-operators/...
 	./test/rh-operators/e2e-origin-prometheus.sh
 
 e2e-local: build-linux build-wait build-util-linux

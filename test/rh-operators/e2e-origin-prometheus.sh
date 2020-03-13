@@ -59,10 +59,12 @@ oc version      >> "${test_report_dir}/version.txt"
 rc=0
 
 ginkgo \
-  -nodes 1 -noColor '-focus=(\[[sig-instrumentation]\].*Prometheus|\[[sig-instrumentation]\].*Alerts)' $( which e2e.test ) -- \
+  -nodes 1 -noColor '-focus=(\[sig-instrumentation\].*Prometheus|\[sig-instrumentation\].*Alerts)' $( which e2e.test ) -- \
   -report-dir "${test_report_dir}" \
   -allowed-not-ready-nodes ${unschedulable} \
   2>&1 | tee -a "${test_report_dir}/e2e.log" || rc=1
+
+rename -v junit_ junit_serial_ ${test_report_dir}/junit*.xml
 
 echo
 echo "Run complete, results in ${test_report_dir}"
