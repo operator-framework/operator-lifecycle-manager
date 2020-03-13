@@ -16,5 +16,5 @@ spec:
             message: Failed to install Operator {{ printf "{{ $labels.name }}"  }} version {{ printf "{{ $labels.version }}"  }}. Reason-{{ printf "{{ $labels.reason }}" }}
           expr: csv_abnormal{phase="Failed"}
           labels:
-            severity: info
+            severity: warning
 {{ end }}
