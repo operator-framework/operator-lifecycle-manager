@@ -428,6 +428,22 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 	role, err := client.KubernetesInterface().RbacV1().Roles(namespace).Create(role)
 	require.NoError(t, err)
 
+	clusterrole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:genName("scoped-clusterrole-"),
+		Namespace: namespace},
+		Rules: []rbacv1.PolicyRule{
+			{
+				Verbs:     []string{rbac.VerbAll},
+				APIGroups: []string{rbac.APIGroupAll},
+				Resources: []string{rbac.ResourceAll},
+			},
+		},
+	}
+
+	clusterrole, err = client.KubernetesInterface().RbacV1().ClusterRoles().Create(clusterrole)
+	require.NoError(t, err)
+
 	binding := &rbacv1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      genName("scoped-rolebinding-"),
@@ -448,7 +464,30 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		},
 	}
 
+	clusterbinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      genName("scoped-clusterrolebinding-"),
+			Namespace: namespace,
+		},
+		Subjects: []rbacv1.Subject{
+			{
+				Kind:      "ServiceAccount",
+				APIGroup:  "",
+				Name:      serviceAccountName,
+				Namespace: namespace,
+			},
+		},
+		RoleRef: rbacv1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     clusterrole.GetName(),
+		},
+	}
+
 	binding, err = client.KubernetesInterface().RbacV1().RoleBindings(namespace).Create(binding)
+	require.NoError(t, err)
+
+	clusterbinding, err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Create(clusterbinding)
 	require.NoError(t, err)
 
 	cleanup = func() {
@@ -456,6 +495,12 @@ func grantPermission(t GinkgoTInterface, client operatorclient.ClientInterface, 
 		require.NoError(t, err)
 
 		err = client.KubernetesInterface().RbacV1().RoleBindings(binding.GetNamespace()).Delete(binding.GetName(), &metav1.DeleteOptions{})
+		require.NoError(t, err)
+
+		err = client.KubernetesInterface().RbacV1().ClusterRoles().Delete(clusterrole.GetName(), &metav1.DeleteOptions{})
+		require.NoError(t, err)
+
+		err = client.KubernetesInterface().RbacV1().ClusterRoleBindings().Delete(clusterbinding.GetName(), &metav1.DeleteOptions{})
 		require.NoError(t, err)
 	}
 

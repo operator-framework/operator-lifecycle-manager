@@ -3000,7 +3000,7 @@ var _ = Describe("CSV", func() {
 
 		notServedStatus := v1alpha1.RequirementStatus{
 			Group:   "apiextensions.k8s.io",
-			Version: "v1beta1",
+			Version: "v1",
 			Kind:    "CustomResourceDefinition",
 			Name:    crdName,
 			Status:  v1alpha1.RequirementStatusReasonNotPresent,
@@ -3401,6 +3401,8 @@ var _ = Describe("CSV", func() {
 
 		namespace, nsCleanupFunc := newNamespace(GinkgoT(), c, genName("csc-test-"))
 		defer nsCleanupFunc()
+
+
 
 		og := newOperatorGroup(namespace.Name, genName("test-og-"), nil, nil, []string{"test-go-"}, false)
 		og, err := crc.OperatorsV1().OperatorGroups(namespace.Name).Create(og)
@@ -4202,13 +4204,13 @@ func createCSV(t GinkgoTInterface, c operatorclient.ClientInterface, crc version
 
 func buildCRDCleanupFunc(c operatorclient.ClientInterface, crdName string) cleanupFunc {
 	return func() {
-		err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crdName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
+		err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crdName, &metav1.DeleteOptions{GracePeriodSeconds: &immediateDeleteGracePeriod})
 		if err != nil {
 			fmt.Println(err)
 		}
 
 		waitForDelete(func() error {
-			_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+			_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
 			return err
 		})
 	}
@@ -4240,7 +4242,7 @@ func createCRD(c operatorclient.ClientInterface, crd apiextensions.CustomResourc
 	if err := scheme.Convert(&crd, out, nil); err != nil {
 		return nil, err
 	}
-	_, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(out)
+	_, err := c.ApiextensionsInterface().ApiextensionsV1beta1().CustomResourceDefinitions().Create(out)
 	if err != nil {
 		return nil, err
 	}
@@ -4607,3 +4609,4 @@ func checkLegacyAPIResources(t GinkgoTInterface, desc v1alpha1.APIServiceDescrip
 	_, err = c.GetRoleBinding("kube-system", apiServiceName+"-auth-reader")
 	require.Equal(GinkgoT(), expectedIsNotFound, errors.IsNotFound(err))
 }
+

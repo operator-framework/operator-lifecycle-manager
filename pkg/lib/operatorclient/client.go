@@ -19,7 +19,7 @@ import (
 
 type ClientInterface interface {
 	KubernetesInterface() kubernetes.Interface
-	ApiextensionsV1beta1Interface() apiextensions.Interface
+	ApiextensionsInterface() apiextensions.Interface
 	ApiregistrationV1Interface() apiregistration.Interface
 	APIServiceClient
 	CustomResourceClient
@@ -201,8 +201,8 @@ func (c *Client) KubernetesInterface() kubernetes.Interface {
 	return c.Interface
 }
 
-// ApiextensionsV1beta1Interface returns the API extension interface.
-func (c *Client) ApiextensionsV1beta1Interface() apiextensions.Interface {
+// ApiextensionsInterface returns the API extension interface.
+func (c *Client) ApiextensionsInterface() apiextensions.Interface {
 	return c.extInterface
 }
 

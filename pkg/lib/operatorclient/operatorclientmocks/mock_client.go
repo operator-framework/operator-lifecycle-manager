@@ -57,18 +57,18 @@ func (mr *MockClientInterfaceMockRecorder) KubernetesInterface() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "KubernetesInterface", reflect.TypeOf((*MockClientInterface)(nil).KubernetesInterface))
 }
 
-// ApiextensionsV1beta1Interface mocks base method
-func (m *MockClientInterface) ApiextensionsV1beta1Interface() clientset.Interface {
+// ApiextensionsInterface mocks base method
+func (m *MockClientInterface) ApiextensionsInterface() clientset.Interface {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ApiextensionsV1beta1Interface")
+	ret := m.ctrl.Call(m, "ApiextensionsInterface")
 	ret0, _ := ret[0].(clientset.Interface)
 	return ret0
 }
 
-// ApiextensionsV1beta1Interface indicates an expected call of ApiextensionsV1beta1Interface
-func (mr *MockClientInterfaceMockRecorder) ApiextensionsV1beta1Interface() *gomock.Call {
+// ApiextensionsInterface indicates an expected call of ApiextensionsInterface
+func (mr *MockClientInterfaceMockRecorder) ApiextensionsInterface() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApiextensionsV1beta1Interface", reflect.TypeOf((*MockClientInterface)(nil).ApiextensionsV1beta1Interface))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ApiextensionsInterface", reflect.TypeOf((*MockClientInterface)(nil).ApiextensionsInterface))
 }
 
 // ApiregistrationV1Interface mocks base method
