@@ -27,5 +27,7 @@ package:
     pullPolicy: Always
   service:
     internalPort: 5443
+  securityContext:
+    runAsUser: 1000
 catalog_sources:
 - rh-operators
