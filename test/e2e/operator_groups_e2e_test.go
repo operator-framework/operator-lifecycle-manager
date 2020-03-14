@@ -1918,7 +1918,7 @@ func TestCleanupCsvsWithBadOwnerOperatorGroups(t *testing.T) {
 	t.Log("Creating CSV")
 	// Generate permissions
 	serviceAccountName := genName("nginx-sa")
-	permissions := []v1alpha1.StrategyDeploymentPermissions{
+	permissions := []install.StrategyDeploymentPermissions{
 		{
 			ServiceAccountName: serviceAccountName,
 			Rules: []rbacv1.PolicyRule{
