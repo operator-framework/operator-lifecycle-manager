@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/operators/olm/overrides"
-
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 var (
@@ -27,36 +27,55 @@ var (
 
 	defaultVolumeMounts = []corev1.VolumeMount{
 		corev1.VolumeMount{
-			Name: "foo",
+			Name:      "foo",
 			MountPath: "/bar",
 		},
 	}
 
 	defaultVolumes = []corev1.Volume{
 		corev1.Volume{
-			Name: "foo",
+			Name:         "foo",
 			VolumeSource: corev1.VolumeSource{},
+		},
+	}
+
+	defaultTolerations = []corev1.Toleration{
+		corev1.Toleration{
+			Key:      "my-toleration-key",
+			Effect:   corev1.TaintEffectNoSchedule,
+			Value:    "my-toleration-value",
+			Operator: corev1.TolerationOpEqual,
+		},
+	}
+
+	defaultResources = corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU: resource.MustParse("100m"),
+		},
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("128Mi"),
 		},
 	}
 )
 
 func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 	tests := []struct {
-		name     string
-		podSpec  *corev1.PodSpec
-		volumeMounts   []corev1.VolumeMount
-		expected *corev1.PodSpec
+		name         string
+		podSpec      *corev1.PodSpec
+		volumeMounts []corev1.VolumeMount
+		expected     *corev1.PodSpec
 	}{
 		{
 			// The container does not define a VolumeMount and is injected with an empty list of VolumeMounts.
 			// Expected: The container's VolumeMount list remains empty.
-			name:    "EmptyVolumeMounts",
+			name: "EmptyVolumeMounts",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{},
 				},
 			},
-			volumeMounts:  []corev1.VolumeMount{},
+			volumeMounts: []corev1.VolumeMount{},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{},
@@ -66,14 +85,14 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 		{
 			// The container does not define a VolumeMount and is injected with a single VolumeMount.
 			// Expected: The container contains the injected VolumeMount.
-			name:    "WithContainerHasNoVolumeMounts",
+			name: "WithContainerHasNoVolumeMounts",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{},
 				},
 			},
-			volumeMounts:  defaultVolumeMounts,
-			expected:&corev1.PodSpec{
+			volumeMounts: defaultVolumeMounts,
+			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
 						VolumeMounts: defaultVolumeMounts,
@@ -84,7 +103,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 		{
 			// The container defines a single VolumeMount which is injected with an empty VolumeMount list.
 			// Expected: The container's VolumeMount list is unchanged.
-			name:    "WithContainerHasVolumeMountsEmptyDefaults",
+			name: "WithContainerHasVolumeMountsEmptyDefaults",
 			podSpec: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
@@ -92,7 +111,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 					},
 				},
 			},
-			volumeMounts:  []corev1.VolumeMount{},
+			volumeMounts: []corev1.VolumeMount{},
 			expected: &corev1.PodSpec{
 				Containers: []corev1.Container{
 					corev1.Container{
@@ -110,7 +129,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 					corev1.Container{
 						VolumeMounts: []corev1.VolumeMount{
 							corev1.VolumeMount{
-								Name: "bar",
+								Name:      "bar",
 								MountPath: "/foo",
 							},
 						},
@@ -123,11 +142,11 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 					corev1.Container{
 						VolumeMounts: []corev1.VolumeMount{
 							corev1.VolumeMount{
-								Name: "bar",
+								Name:      "bar",
 								MountPath: "/foo",
 							},
 							corev1.VolumeMount{
-								Name: "foo",
+								Name:      "foo",
 								MountPath: "/bar",
 							},
 						},
@@ -145,7 +164,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 					corev1.Container{
 						VolumeMounts: []corev1.VolumeMount{
 							corev1.VolumeMount{
-								Name: "foo",
+								Name:      "foo",
 								MountPath: "/barbar",
 							},
 						},
@@ -158,7 +177,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 					corev1.Container{
 						VolumeMounts: []corev1.VolumeMount{
 							corev1.VolumeMount{
-								Name: "foo",
+								Name:      "foo",
 								MountPath: "/bar",
 							},
 						},
@@ -166,7 +185,7 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 				},
 			},
 		},
-}
+	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -180,47 +199,43 @@ func TestInjectVolumeMountIntoDeployment(t *testing.T) {
 	}
 }
 
-
 func TestInjectVolumeIntoDeployment(t *testing.T) {
 	tests := []struct {
 		name     string
 		podSpec  *corev1.PodSpec
-		volumes   []corev1.Volume
+		volumes  []corev1.Volume
 		expected *corev1.PodSpec
 	}{
 		{
 			// The PodSpec defines no Volumes and is injected with an empty list.
 			// Expected: The PodSpec's VolumeMount list remains empty.
-			name:    "EmptyVolumeMounts",
+			name: "EmptyVolumeMounts",
 			podSpec: &corev1.PodSpec{
-				Containers: []corev1.Container{
-				},
+				Containers: []corev1.Container{},
 			},
-			volumes:  []corev1.Volume{},
+			volumes: []corev1.Volume{},
 			expected: &corev1.PodSpec{
-				Containers: []corev1.Container{
-				},
+				Containers: []corev1.Container{},
 			},
 		},
 		{
 			// The PodSpec does not define any Volumes and is injected with a VolumeMount.
 			// Expected: The PodSpec contains the Volume that was injected.
 			name:    "WithContainerHasNoVolumeMounts",
-			podSpec: &corev1.PodSpec{
-			},
-			volumes:  defaultVolumes,
-			expected:&corev1.PodSpec{
+			podSpec: &corev1.PodSpec{},
+			volumes: defaultVolumes,
+			expected: &corev1.PodSpec{
 				Volumes: defaultVolumes,
 			},
 		},
 		{
 			// The PodSpec contains a single VolumeMount and is injected with an empty Volume list
 			// Expected: The PodSpec's Volume list is unchanged.
-			name:    "WithContainerHasVolumeMountsEmptyDefaults",
+			name: "WithContainerHasVolumeMountsEmptyDefaults",
 			podSpec: &corev1.PodSpec{
 				Volumes: defaultVolumes,
 			},
-			volumes:  []corev1.Volume{},
+			volumes: []corev1.Volume{},
 			expected: &corev1.PodSpec{
 				Volumes: defaultVolumes,
 			},
@@ -232,7 +247,7 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 			podSpec: &corev1.PodSpec{
 				Volumes: []corev1.Volume{
 					corev1.Volume{
-						Name: "bar",
+						Name:         "bar",
 						VolumeSource: corev1.VolumeSource{},
 					},
 				},
@@ -240,37 +255,37 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 			volumes: defaultVolumes,
 			expected: &corev1.PodSpec{
 				Volumes: []corev1.Volume{
-							corev1.Volume{
-								Name: "bar",
-								VolumeSource: corev1.VolumeSource{},
-							},
-							corev1.Volume{
-								Name: "foo",
-								VolumeSource: corev1.VolumeSource{},
-							},
-						},
+					corev1.Volume{
+						Name:         "bar",
+						VolumeSource: corev1.VolumeSource{},
+					},
+					corev1.Volume{
+						Name:         "foo",
+						VolumeSource: corev1.VolumeSource{},
 					},
 				},
+			},
+		},
 		{
 			// The PodSpec defines a single Volume that is injected with a Volume that has a name conflict.
 			// Expected: The existing Volume is overwritten.
 			name: "WithContainerHasOverlappingVolumeMounts",
 			podSpec: &corev1.PodSpec{
-						Volumes: []corev1.Volume{
-							corev1.Volume{
-								Name: "foo",
-							},
-						},
+				Volumes: []corev1.Volume{
+					corev1.Volume{
+						Name: "foo",
+					},
+				},
 			},
 			volumes: defaultVolumes,
 			expected: &corev1.PodSpec{
-						Volumes: []corev1.Volume{
-							corev1.Volume{
-								Name: "foo",
-								VolumeSource: corev1.VolumeSource{},
-							},
-						},
+				Volumes: []corev1.Volume{
+					corev1.Volume{
+						Name:         "foo",
+						VolumeSource: corev1.VolumeSource{},
 					},
+				},
+			},
 		},
 	}
 
@@ -285,7 +300,6 @@ func TestInjectVolumeIntoDeployment(t *testing.T) {
 		})
 	}
 }
-
 
 func TestInjectEnvIntoDeployment(t *testing.T) {
 	tests := []struct {
@@ -491,6 +505,194 @@ func TestInjectEnvIntoDeployment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			overrides.InjectEnvIntoDeployment(tt.podSpec, tt.envVar)
+
+			podSpecWant := tt.expected
+			podSpecGot := tt.podSpec
+
+			assert.Equal(t, podSpecWant, podSpecGot)
+		})
+	}
+}
+
+func TestInjectTolerationsIntoDeployment(t *testing.T) {
+	tests := []struct {
+		name        string
+		podSpec     *corev1.PodSpec
+		tolerations []corev1.Toleration
+		expected    *corev1.PodSpec
+	}{
+		{
+			// PodSpec has no tolerations and toleration config is empty
+			// Expected: Tolerations will be empty
+			name: "WithEmptyTolerations",
+			podSpec: &corev1.PodSpec{
+				Tolerations: []corev1.Toleration{},
+			},
+			tolerations: []corev1.Toleration{},
+			expected: &corev1.PodSpec{
+				Tolerations: []corev1.Toleration{},
+			},
+		},
+		{
+			// PodSpec has no tolerations and one toleration config given
+			// Expected: Toleration will be appended
+			name: "WithDeploymentHasNoTolerations",
+			podSpec: &corev1.PodSpec{
+				Tolerations: []corev1.Toleration{},
+			},
+			tolerations: defaultTolerations,
+			expected: &corev1.PodSpec{
+				Tolerations: defaultTolerations,
+			},
+		},
+		{
+			// PodSpec has one toleration and different toleration config given
+			// Expected: Toleration will be appended
+			name: "WithDeploymentHasOneNonOverlappingToleration",
+			podSpec: &corev1.PodSpec{
+				Tolerations: []corev1.Toleration{
+					corev1.Toleration{
+						Key:      "my-different-toleration-key",
+						Operator: corev1.TolerationOpExists,
+					},
+				},
+			},
+			tolerations: defaultTolerations,
+			expected: &corev1.PodSpec{
+				Tolerations: append([]corev1.Toleration{
+					corev1.Toleration{
+						Key:      "my-different-toleration-key",
+						Operator: corev1.TolerationOpExists,
+					},
+				}, defaultTolerations...),
+			},
+		},
+		{
+			// PodSpec has one toleration and same toleration config given
+			// Expected: Toleration will not be appended
+			name: "WithDeploymentHasOneOverlappingToleration",
+			podSpec: &corev1.PodSpec{
+				Tolerations: defaultTolerations,
+			},
+			tolerations: defaultTolerations,
+			expected: &corev1.PodSpec{
+				Tolerations: defaultTolerations,
+			},
+		},
+		{
+			// PodSpec has one toleration and 2 toleration config given with 1 overlapping
+			// Expected: Non overlapping toleration will be appended
+			name: "WithDeploymentHasOverlappingAndNonOverlappingTolerations",
+			podSpec: &corev1.PodSpec{
+				Tolerations: []corev1.Toleration{
+					corev1.Toleration{
+						Key:      "my-different-toleration-key",
+						Operator: corev1.TolerationOpExists,
+					},
+				},
+			},
+			tolerations: append([]corev1.Toleration{
+				corev1.Toleration{
+					Key:      "my-different-toleration-key",
+					Operator: corev1.TolerationOpExists,
+				},
+			}, defaultTolerations...),
+			expected: &corev1.PodSpec{
+				Tolerations: append([]corev1.Toleration{
+					corev1.Toleration{
+						Key:      "my-different-toleration-key",
+						Operator: corev1.TolerationOpExists,
+					},
+				}, defaultTolerations...),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides.InjectTolerationsIntoDeployment(tt.podSpec, tt.tolerations)
+
+			podSpecWant := tt.expected
+			podSpecGot := tt.podSpec
+
+			assert.Equal(t, podSpecWant, podSpecGot)
+		})
+	}
+}
+
+func TestInjectResourcesIntoDeployment(t *testing.T) {
+	tests := []struct {
+		name      string
+		podSpec   *corev1.PodSpec
+		resources corev1.ResourceRequirements
+		expected  *corev1.PodSpec
+	}{
+		{
+			// PodSpec has one container and empty resources
+			// Expected: Resources will remain empty
+			name: "WithEmptyResources",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: corev1.ResourceRequirements{},
+					},
+				},
+			},
+			resources: corev1.ResourceRequirements{},
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: corev1.ResourceRequirements{},
+					},
+				},
+			},
+		},
+		{
+			// PodSpec has one container with empty resources and one resource config given
+			// Expected: Resources will be appended
+			name: "WithDeploymentHasNoResources",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: corev1.ResourceRequirements{},
+					},
+				},
+			},
+			resources: defaultResources,
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: defaultResources,
+					},
+				},
+			},
+		},
+		{
+			// PodSpec has one container with one resource and one resource config given
+			// Expected: Resources will be overwritten
+			// Here, overriding with empty resources
+			name: "WithDeploymentHasResources",
+			podSpec: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: defaultResources,
+					},
+				},
+			},
+			resources: corev1.ResourceRequirements{},
+			expected: &corev1.PodSpec{
+				Containers: []corev1.Container{
+					corev1.Container{
+						Resources: corev1.ResourceRequirements{},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			overrides.InjectResourcesIntoDeployment(tt.podSpec, tt.resources)
 
 			podSpecWant := tt.expected
 			podSpecGot := tt.podSpec
