@@ -28,3 +28,4 @@ jobs:
         kind create cluster
         kind export kubeconfig
         make run-local
+![test-scripts](https://github.com/operator-framework/operator-lifecycle-manager/workflows/test-scripts/badge.svg?branch=e2e_metric&event=watch)
