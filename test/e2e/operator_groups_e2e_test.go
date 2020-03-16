@@ -528,7 +528,7 @@ func TestOperatorGroupRoleAggregation(t *testing.T) {
 	mockGroupVersion := strings.Join([]string{mockGroup, version}, "/")
 	mockKinds := []string{"fez", "fedora"}
 	mockNames := []string{"fezs", "fedoras"}
-	depSpec := newMockExtServerDeployment(depName, mockGroupVersion, mockKinds)
+	depSpec := newMockExtServerDeployment(depName, []mockGroupVersionKind{mockGroupVersionKind{depName, mockGroupVersion, mockKinds, 5443}})
 	strategy := v1alpha1.StrategyDetailsDeployment{
 		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
 			{
