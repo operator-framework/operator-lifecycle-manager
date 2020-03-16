@@ -123,6 +123,12 @@ spec:
                   requests:
                     cpu: 10m
                     memory: 50Mi
+                volumeMounts:
+                - name: tmpfs
+                  mountPath: /tmp
+              volumes:
+              - name: tmpfs
+                emptyDir: {}
   maturity: alpha
   version: 0.14.1
   apiservicedefinitions:
