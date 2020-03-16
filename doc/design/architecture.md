@@ -1,6 +1,6 @@
 # Architecture
 
-OLM is composed of two Operators: the OLM Operator and the Catalog Operator. There is also the Package Server, an optional veneer API, that is deployed by default. 
+OLM is composed of two Operators: the OLM Operator and the Catalog Operator.
 
 Each of these Operators is responsible for managing the CRDs that are the basis for the OLM framework:
 
@@ -12,19 +12,16 @@ Each of these Operators is responsible for managing the CRDs that are the basis 
 | Subscription          | sub        | Catalog | used to keep CSVs up to date by tracking a channel in a package                            |
 | OperatorGroup         | og     | OLM     | used to group multiple namespaces and prepare for use by an operator                     |
 
-In addition, a PackageManifest resource provides the user with an API presentation of the data a CatalogSource provides. This is not an actual CRD, but a simpler synthetic aggregated API resource. As a result, it cannot be managed in the same manner as a CRD.
-
 Each of these Operators are also responsible for creating resources:
 
-| Component | Managed Resources          |
-|-----------|----------------------------|
-| OLM       | Deployment                 |
-| Catalog   | Service Account            |
-| Catalog   | (Cluster)Roles             |
-| Catalog   | (Cluster)RoleBindings      |
-| Catalog   | Custom Resource Definition |
-| Catalog   | ClusterServiceVersion      |
-| Package Server | PackageManifest       |
+| Operator | Creatable Resources        |
+|----------|----------------------------|
+| OLM      | Deployment                 |
+| OLM      | Service Account            |
+| OLM      | (Cluster)Roles             |
+| OLM      | (Cluster)RoleBindings      |
+| Catalog  | Custom Resource Definition |
+| Catalog  | ClusterServiceVersion      |
 
 ## What is a ClusterServiceVersion
 
@@ -47,13 +44,11 @@ ClusterServiceVersion:
 
 ## OLM Operator
 
-The OLM Operator is responsible for installing applications defined by ClusterServiceVersion resources once the required resources specified in the ClusterServiceVersion are present in the cluster.
+The OLM Operator is responsible for installing applications defined by a `ClusterServiceVersion` resources once the required resources specified in the CSV are present in the cluster (the job of the Cluster Operator). This may be as simple as setting up a single `Deployment` resulting in an operator's pod becoming available. The OLM Operator is not concerned with the creation of the underlying resources. If this is not done manually, the Catalog Operator can help provide resolution of these needs.
 
-The OLM Operator is not concerned with the creation of the required resources; users can choose to manually create these resources using `kubectl` or users can choose to create these resources using the Catalog Operator, such as through a Subscription.
+This separation of concerns enables users incremental buy-in of the OLM framework components. Users can choose to manually create these resources, or define an InstallPlan for the Catalog Operator or allow the Catalog Operator to develop and implement the InstallPlan. An operator creator does not need to learn about the full operator package system before seeing a working operator.
 
-This separation of concern enables users incremental buy-in in terms of how much of the OLM framework they choose to leverage for their application.
-
-While the OLM Operator is often configured to watch all namespaces, it can also be operated alongside other OLM Operators so long as they all manage separate namespaces.
+While the OLM Operator is often configured to watch all namespaces, it can also be operated alongside other OLM Operators so long as they all manage separate namespaces defined by `OperatorGroups`.
 
 ### ClusterServiceVersion Control Loop
 
@@ -87,13 +82,13 @@ Replacing --> Deleting
 
 ## Catalog Operator
 
-The Catalog Operator is responsible for resolving ClusterServiceVersions and the required resources they specify. It is also responsible for watching CatalogSources. It updates to packages in channels, and upgrading them (optionally automatically) to the latest available versions. It also starts and maintains pods required to provide the grpc endpoints from container images those CatalogSources identify.
+The Catalog Operator is responsible for monitoring `Subscriptions`, `CatalogSources` and the catalogs themselves. When it finds a new or changed `Subscription`, it builds out the subscribed Operator. When it finds a new or changed CatalogSource it builds out the required catalog, if appropriate, and begins regular monitoring of the package in the catalog. The packages in the catalog will include various `ClusterServiceVersions`, `CustomResourceDefinitions` and a channel list for each package. A catalog has packages. A package has channels and CSVs. A Channels identifies a specific CSV. The CSVs identify specific CRDs.
 
-The process works this way. A user that wishes to track a package in a channel creates a Subscription resource configuring the desired package, channel, and the catalog source from which to pull updates. When updates are found, an appropriate InstallPlan is written into the namespace on behalf of the user. Users can also create their own InstallPlan resource directly, containing the names of the desired ClusterServiceVersions and an approval strategy. The Catalog Operator will then create an execution plan for the creation of all of the required resources and update the InstallPlan with that information.
+A user wanting a specific operator creates a `Subscription` which identifies a catalog, operator and channel within that operator. The Catalog Operator then receives that information and queries the catalog for the latest version of the channel requested. Then it looks up the appropriate `ClusterServiceVersion` identified by the channel and turns that into an `InstallPlan`. When updates are found in the catalog for the channel, a similar process occurs resulting in a new `InstallPlan`. (Users can also create an InstallPlan resource directly, containing the names of the desired ClusterServiceVersions and an approval strategy.) 
 
-If manual approval is required, the Catalog Operator now waits for the InstallPlan to be marked `approved`. Otherwise, it moves on to the next step.
+When the Catalog Operator find a new `InstallPlan`, even though it likely created it, it will create an "execution plan" and embed that into the `InstallPlan` to create all of the required resources. Once approved, whether manually or automatically, the Catalog Operator will implement its portion of the the execution plan, satisfying the underlying expectations of the OLM Operator. 
 
-Then Catalog Operator will create all of the resources in an InstallPlan; this should independently satisfy the OLM Operator, which will complete the operator deployment.
+The OLM Operator will then pickup the installation and carry it through to completion of everything required in the identified CSV.
 
 ### InstallPlan Control Loop
 
@@ -127,14 +122,6 @@ None --> UpgradeAvailable --> UpgradePending --> AtLatestKnown -+
 | UpgradeAvailable | catalog contains a CSV which replaces the `status.installedCSV`, but no `InstallPlan` has been created yet |
 | UpgradePending   | `InstallPlan` has been created (referenced in `status.installplan`) to install a new CSV                   |
 | AtLatestKnown    | `status.installedCSV` matches the latest available CSV in catalog                                             |
-
-## Package Server
-
-The Package Server provides a veneer API over the CatalogSource resources and the information they provide to ease user interaction. 
-
-It is not neccessary to run this for OLM to function, but enhances the user experience by providing the information needed for Subscription generation to the user. In a Production scenario where no discovery work is needed and all Subscriptions are predefined, this may be removed.
-
-Client GUI interfaces will use this API extention to present operator package information such as CSVs, packages and CRDs found in the CatalogSource to users. Additionally, CLI tools are able to examine the list of PackageManifests to list out available Operators and then examine the specific PackageManifests resources to find the appropriate data to build a Subscription to it.
 
 ## Catalog (Registry) Design
 
