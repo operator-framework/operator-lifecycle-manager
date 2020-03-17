@@ -131,8 +131,7 @@ e2e-local-docker:
 	. ./scripts/run_e2e_docker.sh $(TEST)
 
 e2e-operator-metrics:
-	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/rh-operators/...
-	./test/rh-operators/e2e-origin-prometheus.sh
+	go test -v $(MOD_FLAGS) -failfast -timeout 70m ./test/rh-operators/... || ./test/rh-operators/e2e-origin-prometheus.sh
 
 vendor:
 	go mod tidy
