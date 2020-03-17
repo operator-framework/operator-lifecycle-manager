@@ -1100,6 +1100,18 @@ func (o *Operator) unpackBundles(plan *v1alpha1.InstallPlan) (bool, *v1alpha1.In
 		// Add steps and remove resolved bundle lookup
 		out.Status.Plan = append(out.Status.Plan, steps...)
 		out.Status.BundleLookups = append(out.Status.BundleLookups[:i], out.Status.BundleLookups[i+1:]...)
+		// add csv name to the list
+		found := false
+		// the list should be short enough to iterate over
+		for _, name := range out.Spec.ClusterServiceVersionNames {
+			if name == res.Bundle().CsvName {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out.Spec.ClusterServiceVersionNames = append(out.Spec.ClusterServiceVersionNames, res.Bundle().CsvName)
+		}
 		i--
 	}
 
@@ -1138,6 +1150,14 @@ func (o *Operator) syncInstallPlans(obj interface{}) (syncError error) {
 		if err != nil {
 			syncError = fmt.Errorf("bundle unpacking failed: %v", err)
 			return
+		}
+
+		if !reflect.DeepEqual(plan.Spec.ClusterServiceVersionNames, out.Spec.ClusterServiceVersionNames) {
+			logger.Warnf("ClusterServiceVersionNames has changed, updating...")
+			if _, err := o.client.OperatorsV1alpha1().InstallPlans(out.GetNamespace()).Update(out); err != nil {
+				syncError = fmt.Errorf("failed to update installplan ClusterServiceVersionNames: %v", err)
+				return
+			}
 		}
 
 		if !reflect.DeepEqual(plan.Status, out.Status) {
