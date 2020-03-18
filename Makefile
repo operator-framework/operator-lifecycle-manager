@@ -117,7 +117,7 @@ setup-bare: clean e2e.namespace
 
 # e2e test exculding the rh-operators directory which tests rh-operators and their metric cardinality.
 e2e:
-	./test/rh-operators/e2e-origin-prometheus.sh
+	. ./test/rh-operators/e2e-origin-prometheus.sh
 
 e2e-local: build-linux build-wait build-util-linux
 	. ./scripts/build_local.sh
