@@ -62,19 +62,13 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 			client.Replace = true // Skip the name check
 			client.ClientOnly = !validate
 			client.APIVersions = chartutil.VersionSet(extraAPIs)
+			client.IncludeCRDs = includeCrds
 			rel, err := runInstall(args, client, valueOpts, out)
 			if err != nil {
 				return err
 			}
 
 			var manifests bytes.Buffer
-
-			if includeCrds {
-				for _, f := range rel.Chart.CRDs() {
-					fmt.Fprintf(&manifests, "---\n# Source: %s\n%s\n", f.Name, f.Data)
-				}
-			}
-
 			fmt.Fprintln(&manifests, strings.TrimSpace(rel.Manifest))
 
 			if !client.DisableHooks {
@@ -112,9 +106,9 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 					if missing {
 						return fmt.Errorf("could not find template %s in chart", f)
 					}
-					for _, m := range manifestsToRender {
-						fmt.Fprintf(out, "---\n%s\n", m)
-					}
+				}
+				for _, m := range manifestsToRender {
+					fmt.Fprintf(out, "---\n%s\n", m)
 				}
 			} else {
 				fmt.Fprintf(out, "%s", manifests.String())
@@ -137,6 +131,8 @@ func newTemplateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	f.BoolVar(&includeCrds, "include-crds", false, "include CRDs in the templated output")
 	f.BoolVar(&client.IsUpgrade, "is-upgrade", false, "set .Release.IsUpgrade instead of .Release.IsInstall")
 	f.StringArrayVarP(&extraAPIs, "api-versions", "a", []string{}, "Kubernetes api versions used for Capabilities.APIVersions")
+	f.BoolVar(&client.UseReleaseName, "release-name", false, "use release name in the output-dir path.")
+	bindPostRenderFlag(cmd, &client.PostRenderer)
 
 	return cmd
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.13.1 (2019-07-09)
+
+### Fixed
+
+- #101: Updated bitbucket API call as previous API was removed
+- #97: Fixed travis ci building
+- #95: Fixed "git clean" invocation for submodule
+
 ## 1.13.0 (2019-02-27)
 
 ### Changed
