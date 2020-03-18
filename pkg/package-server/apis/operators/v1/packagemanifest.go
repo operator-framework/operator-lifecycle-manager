@@ -16,6 +16,9 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 		InstallModes:              csv.Spec.InstallModes,
 		CustomResourceDefinitions: csv.Spec.CustomResourceDefinitions,
 		APIServiceDefinitions:     csv.Spec.APIServiceDefinitions,
+		NativeAPIs:                csv.Spec.NativeAPIs,
+		MinKubeVersion:            csv.Spec.MinKubeVersion,
+		RelatedImages:             GetRelatedImages(csv),
 	}
 
 	icons := make([]Icon, len(csv.Spec.Icon))
@@ -31,4 +34,22 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 	}
 
 	return desc
+}
+
+// GetRelatedImages returns a list of images listed in Deployments
+func GetRelatedImages(csv *operatorsv1alpha1.ClusterServiceVersion) []string {
+	var images []string
+	imageSet := make(map[string]struct{})
+
+	for _, deployment := range csv.Spec.InstallStrategy.StrategySpec.DeploymentSpecs {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			imageSet[container.Image] = struct{}{}
+		}
+	}
+
+	for k := range imageSet {
+		images = append(images, k)
+	}
+
+	return images
 }
