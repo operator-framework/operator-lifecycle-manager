@@ -22,6 +22,7 @@ package operators
 
 import (
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -65,6 +66,16 @@ func (in *CSVDescription) DeepCopyInto(out *CSVDescription) {
 	}
 	in.CustomResourceDefinitions.DeepCopyInto(&out.CustomResourceDefinitions)
 	in.APIServiceDefinitions.DeepCopyInto(&out.APIServiceDefinitions)
+	if in.NativeAPIs != nil {
+		in, out := &in.NativeAPIs, &out.NativeAPIs
+		*out = make([]v1.GroupVersionKind, len(*in))
+		copy(*out, *in)
+	}
+	if in.RelatedImages != nil {
+		in, out := &in.RelatedImages, &out.RelatedImages
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

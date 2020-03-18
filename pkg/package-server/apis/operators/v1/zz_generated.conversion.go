@@ -25,6 +25,7 @@ import (
 
 	v1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	operators "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -153,6 +154,9 @@ func autoConvert_v1_CSVDescription_To_operators_CSVDescription(in *CSVDescriptio
 	out.InstallModes = *(*[]v1alpha1.InstallMode)(unsafe.Pointer(&in.InstallModes))
 	out.CustomResourceDefinitions = in.CustomResourceDefinitions
 	out.APIServiceDefinitions = in.APIServiceDefinitions
+	out.NativeAPIs = *(*[]metav1.GroupVersionKind)(unsafe.Pointer(&in.NativeAPIs))
+	out.MinKubeVersion = in.MinKubeVersion
+	out.RelatedImages = *(*[]string)(unsafe.Pointer(&in.RelatedImages))
 	return nil
 }
 
@@ -173,6 +177,9 @@ func autoConvert_operators_CSVDescription_To_v1_CSVDescription(in *operators.CSV
 	out.InstallModes = *(*[]v1alpha1.InstallMode)(unsafe.Pointer(&in.InstallModes))
 	out.CustomResourceDefinitions = in.CustomResourceDefinitions
 	out.APIServiceDefinitions = in.APIServiceDefinitions
+	out.NativeAPIs = *(*[]metav1.GroupVersionKind)(unsafe.Pointer(&in.NativeAPIs))
+	out.MinKubeVersion = in.MinKubeVersion
+	out.RelatedImages = *(*[]string)(unsafe.Pointer(&in.RelatedImages))
 	return nil
 }
 
