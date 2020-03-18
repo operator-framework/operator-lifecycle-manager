@@ -16,5 +16,5 @@ mv ./kubectl /tmp/shared/kubectl
 make WHAT=cmd/openshift-tests
 DIR="./_output/local/bin/$(go env GOHOSTOS)/$(go env GOHOSTARCH)"
 
-${DIR}/openshift-tests run all --dry-run | grep "\[sig-instrumentation\].*Prometheus\|\[sig-instrumentation\].*Alerts" | ${DIR}/openshift-tests run --junit-dir=./ -o ./junit_e2e.xml -f -
-export JUNIT_REPORT_OUTPUT=$(pwd)/junit_e2e.xml
+${DIR}/openshift-tests run all --dry-run | grep "\[sig-instrumentation\].*Prometheus\|\[sig-instrumentation\].*Alerts" | ${DIR}/openshift-tests run --junit-dir=./ -o ./junit.e2e.xml -f -
+export JUNIT_REPORT_OUTPUT=$(pwd)/junit.e2e.xml
