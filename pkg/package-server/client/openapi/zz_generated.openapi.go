@@ -777,11 +777,44 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions"),
 						},
 					},
+					"nativeApis": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Ref: ref("k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind"),
+									},
+								},
+							},
+						},
+					},
+					"minKubeVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Minimum Kubernetes version for operator installation",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"relatedImages": {
+						SchemaProps: spec.SchemaProps{
+							Description: "List of related images",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Type:   []string{"string"},
+										Format: "",
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Maintainer"},
+			"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.CustomResourceDefinitions", "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.InstallMode", "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version.OperatorVersion", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.AppLink", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Icon", "github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators/v1.Maintainer", "k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind"},
 	}
 }
 
