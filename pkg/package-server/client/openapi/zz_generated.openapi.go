@@ -808,7 +808,7 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 							Ref: ref("github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1.APIServiceDefinitions"),
 						},
 					},
-					"nativeapis": {
+					"nativeApis": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
 							Items: &spec.SchemaOrArray{
@@ -820,14 +820,14 @@ func schema_package_server_apis_operators_v1_CSVDescription(ref common.Reference
 							},
 						},
 					},
-					"minkubeversion": {
+					"minKubeVersion": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Minimum Kubernetes version for operator installation",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"relatedimages": {
+					"relatedImages": {
 						SchemaProps: spec.SchemaProps{
 							Description: "List of related images",
 							Type:        []string{"array"},
