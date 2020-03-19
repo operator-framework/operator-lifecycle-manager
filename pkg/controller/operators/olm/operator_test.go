@@ -4251,6 +4251,11 @@ func RequireObjectsInNamespace(t *testing.T, opClient operatorclient.ClientInter
 			fetched, err = opClient.GetRoleBinding(namespace, o.GetName())
 		case *v1alpha1.ClusterServiceVersion:
 			fetched, err = client.OperatorsV1alpha1().ClusterServiceVersions(namespace).Get(o.GetName(), metav1.GetOptions{})
+			// This protects against small timing issues in sync tests
+			// We generally don't care about the conditions (state history in this case, unlike many kube resources)
+			// and this will still check that the final state is correct
+			object.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
+			fetched.(*v1alpha1.ClusterServiceVersion).Status.Conditions = nil
 		case *v1.OperatorGroup:
 			fetched, err = client.OperatorsV1().OperatorGroups(namespace).Get(o.GetName(), metav1.GetOptions{})
 		default:
