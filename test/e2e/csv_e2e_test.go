@@ -3521,6 +3521,129 @@ func deleteLegacyAPIResources(t *testing.T, desc v1alpha1.APIServiceDescription)
 	require.NoError(t, err)
 }
 
+func TestMultipleAPIServicesOnSinglePod(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	// Create the deployment that both APIServices will be deployed to.
+	depName := genName("hat-server")
+
+	// Define the expected mock APIService settings.
+	version := "v1alpha1"
+	apiService1Group := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	apiService1GroupVersion := strings.Join([]string{apiService1Group, version}, "/")
+	apiService1Kinds := []string{"fedora"}
+	apiService1Name := strings.Join([]string{version, apiService1Group}, ".")
+
+	apiService2Group := fmt.Sprintf("hats.%s.redhat.com", genName(""))
+	apiService2GroupVersion := strings.Join([]string{apiService2Group, version}, "/")
+	apiService2Kinds := []string{"fez"}
+	apiService2Name := strings.Join([]string{version, apiService2Group}, ".")
+
+	// Create the deployment spec with the two APIServices.
+	mockGroupVersionKinds := []mockGroupVersionKind{
+		mockGroupVersionKind{
+			depName,
+			apiService1GroupVersion,
+			apiService1Kinds,
+			5443,
+		},
+		mockGroupVersionKind{
+			depName,
+			apiService2GroupVersion,
+			apiService2Kinds,
+			5444,
+		},
+	}
+	depSpec := newMockExtServerDeployment(depName, mockGroupVersionKinds)
+
+	// Create the CSV.
+	strategy := v1alpha1.StrategyDetailsDeployment{
+		DeploymentSpecs: []v1alpha1.StrategyDeploymentSpec{
+			{
+				Name: depName,
+				Spec: depSpec,
+			},
+		},
+	}
+
+	// Update the owned APIServices two include the two APIServices.
+	owned := []v1alpha1.APIServiceDescription{
+		v1alpha1.APIServiceDescription{
+			Name:           apiService1Name,
+			Group:          apiService1Group,
+			Version:        version,
+			Kind:           apiService1Kinds[0],
+			DeploymentName: depName,
+			ContainerPort:  int32(5443),
+			DisplayName:    apiService1Kinds[0],
+			Description:    fmt.Sprintf("A %s", apiService1Kinds[0]),
+		},
+		v1alpha1.APIServiceDescription{
+			Name:           apiService2Name,
+			Group:          apiService2Group,
+			Version:        version,
+			Kind:           apiService2Kinds[0],
+			DeploymentName: depName,
+			ContainerPort:  int32(5444),
+			DisplayName:    apiService2Kinds[0],
+			Description:    fmt.Sprintf("A %s", apiService2Kinds[0]),
+		},
+	}
+
+	csv := v1alpha1.ClusterServiceVersion{
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			MinKubeVersion: "0.0.0",
+			InstallModes: []v1alpha1.InstallMode{
+				{
+					Type:      v1alpha1.InstallModeTypeOwnNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeSingleNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeMultiNamespace,
+					Supported: true,
+				},
+				{
+					Type:      v1alpha1.InstallModeTypeAllNamespaces,
+					Supported: true,
+				},
+			},
+			InstallStrategy: v1alpha1.NamedInstallStrategy{
+				StrategyName: v1alpha1.InstallStrategyNameDeployment,
+				StrategySpec: strategy,
+			},
+			APIServiceDefinitions: v1alpha1.APIServiceDefinitions{
+				Owned: owned,
+			},
+		},
+	}
+	csv.SetName("csv-hat-1")
+	csv.SetNamespace(testNamespace)
+
+	// Create the APIService CSV
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, false, false)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	_, err = fetchCSV(t, crc, csv.Name, testNamespace, csvSucceededChecker)
+	require.NoError(t, err)
+
+	// Check that the APIService caBundles are equal
+	apiService1, err := c.GetAPIService(apiService1Name)
+	require.NoError(t, err)
+
+	apiService2, err := c.GetAPIService(apiService2Name)
+	require.NoError(t, err)
+
+	require.Equal(t, apiService1.Spec.CABundle, apiService2.Spec.CABundle)
+}
+
 func createLegacyAPIResources(t *testing.T, csv *v1alpha1.ClusterServiceVersion, desc v1alpha1.APIServiceDescription) {
 	c := newKubeClient(t)
 
