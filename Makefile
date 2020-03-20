@@ -156,9 +156,9 @@ clean:
 
 # Generate manifests for CRDs
 manifests: vendor
-	$(CONTROLLER_GEN) schemapatch:manifests=./deploy/chart/templates paths=./pkg/api/apis/operators/... output:dir=./deploy/chart/templates
+	$(CONTROLLER_GEN) schemapatch:manifests=./deploy/chart/crds paths=./pkg/api/apis/operators/... output:dir=./deploy/chart/crds
 
-	$(YQ_INTERNAL) w --inplace deploy/chart/templates/0000_50_olm_03-clusterserviceversion.crd.yaml spec.validation.openAPIV3Schema.properties.spec.properties.install.properties.spec.properties.deployments.items.properties.spec.properties.template.properties.metadata.x-kubernetes-preserve-unknown-fields true
+	$(YQ_INTERNAL) w --inplace deploy/chart/crds/0000_50_olm_03-clusterserviceversion.crd.yaml spec.validation.openAPIV3Schema.properties.spec.properties.install.properties.spec.properties.deployments.items.properties.spec.properties.template.properties.metadata.x-kubernetes-preserve-unknown-fields true
 
 # Generate clients, listers, and informers
 codegen:
