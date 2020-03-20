@@ -12,7 +12,7 @@ import (
 type PackageManifestList struct {
 	metav1.TypeMeta
 	metav1.ListMeta
-
+	// +listType=set
 	Items []PackageManifest
 }
 
@@ -48,6 +48,7 @@ type PackageManifestStatus struct {
 	PackageName string
 
 	// Channels are the declared channels for the package, ala .
+	// +listType=set
 	Channels []PackageChannel
 
 	// DefaultChannel is, if specified, the name of the default channel for the package. The
@@ -88,6 +89,7 @@ type CSVDescription struct {
 	DisplayName string
 
 	// Icon is the CSV's base64 encoded icon
+	// +listType=set
 	Icon []Icon
 
 	// Version is the CSV's semantic version

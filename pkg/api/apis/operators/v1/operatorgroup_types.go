@@ -26,6 +26,7 @@ type OperatorGroupSpec struct {
 	// TargetNamespaces is an explicit set of namespaces to target.
 	// If it is set, Selector is ignored.
 	// +optional
+	// +listType=set
 	TargetNamespaces []string `json:"targetNamespaces,omitempty"`
 
 	// ServiceAccountName is the admin specified service account which will be
@@ -40,6 +41,7 @@ type OperatorGroupSpec struct {
 // OperatorGroupStatus is the status for an OperatorGroupResource.
 type OperatorGroupStatus struct {
 	// Namespaces is the set of target namespaces for the OperatorGroup.
+	// +listType=set
 	Namespaces []string `json:"namespaces,omitempty"`
 
 	// ServiceAccountRef references the service account object specified.
@@ -69,7 +71,7 @@ type OperatorGroup struct {
 type OperatorGroupList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata"`
-
+	// +listType=set
 	Items []OperatorGroup `json:"items"`
 }
 

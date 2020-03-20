@@ -108,7 +108,7 @@ type CRDDescription struct {
 	Resources         []APIResourceReference
 	StatusDescriptors []StatusDescriptor
 	SpecDescriptors   []SpecDescriptor
-	ActionDescriptor  []ActionDescriptor
+	ActionDescriptors []ActionDescriptor
 }
 
 // APIServiceDescription provides details to OLM about apis provided via aggregation
@@ -124,7 +124,7 @@ type APIServiceDescription struct {
 	Resources         []APIResourceReference
 	StatusDescriptors []StatusDescriptor
 	SpecDescriptors   []SpecDescriptor
-	ActionDescriptor  []ActionDescriptor
+	ActionDescriptors []ActionDescriptor
 }
 
 // APIResourceReference is a Kubernetes resource type used by a custom resource

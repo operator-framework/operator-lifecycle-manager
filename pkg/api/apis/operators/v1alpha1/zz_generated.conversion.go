@@ -591,7 +591,7 @@ func autoConvert_v1alpha1_APIServiceDescription_To_operators_APIServiceDescripti
 	out.Resources = *(*[]operators.APIResourceReference)(unsafe.Pointer(&in.Resources))
 	out.StatusDescriptors = *(*[]operators.StatusDescriptor)(unsafe.Pointer(&in.StatusDescriptors))
 	out.SpecDescriptors = *(*[]operators.SpecDescriptor)(unsafe.Pointer(&in.SpecDescriptors))
-	out.ActionDescriptor = *(*[]operators.ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptor))
+	out.ActionDescriptors = *(*[]operators.ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptors))
 	return nil
 }
 
@@ -612,7 +612,7 @@ func autoConvert_operators_APIServiceDescription_To_v1alpha1_APIServiceDescripti
 	out.Resources = *(*[]APIResourceReference)(unsafe.Pointer(&in.Resources))
 	out.StatusDescriptors = *(*[]StatusDescriptor)(unsafe.Pointer(&in.StatusDescriptors))
 	out.SpecDescriptors = *(*[]SpecDescriptor)(unsafe.Pointer(&in.SpecDescriptors))
-	out.ActionDescriptor = *(*[]ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptor))
+	out.ActionDescriptors = *(*[]ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptors))
 	return nil
 }
 
@@ -736,7 +736,7 @@ func autoConvert_v1alpha1_CRDDescription_To_operators_CRDDescription(in *CRDDesc
 	out.Resources = *(*[]operators.APIResourceReference)(unsafe.Pointer(&in.Resources))
 	out.StatusDescriptors = *(*[]operators.StatusDescriptor)(unsafe.Pointer(&in.StatusDescriptors))
 	out.SpecDescriptors = *(*[]operators.SpecDescriptor)(unsafe.Pointer(&in.SpecDescriptors))
-	out.ActionDescriptor = *(*[]operators.ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptor))
+	out.ActionDescriptors = *(*[]operators.ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptors))
 	return nil
 }
 
@@ -754,7 +754,7 @@ func autoConvert_operators_CRDDescription_To_v1alpha1_CRDDescription(in *operato
 	out.Resources = *(*[]APIResourceReference)(unsafe.Pointer(&in.Resources))
 	out.StatusDescriptors = *(*[]StatusDescriptor)(unsafe.Pointer(&in.StatusDescriptors))
 	out.SpecDescriptors = *(*[]SpecDescriptor)(unsafe.Pointer(&in.SpecDescriptors))
-	out.ActionDescriptor = *(*[]ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptor))
+	out.ActionDescriptors = *(*[]ActionDescriptor)(unsafe.Pointer(&in.ActionDescriptors))
 	return nil
 }
 

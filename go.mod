@@ -39,6 +39,7 @@ require (
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.17.3
 	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
+	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-tools v0.2.4
 )
 
