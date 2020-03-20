@@ -188,3 +188,4 @@ spec:
                   type: string
                 serviceNamespace:
                   type: string
+
