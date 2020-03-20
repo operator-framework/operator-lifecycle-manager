@@ -8,6 +8,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/ghodss/yaml v1.0.0
+	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-openapi/spec v0.19.4
 	github.com/golang/mock v1.3.1
 	github.com/maxbrunsfeld/counterfeiter/v6 v6.2.2
@@ -24,7 +25,6 @@ require (
 	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/cobra v0.0.5
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/sys v0.0.0-20191210023423-ac6580df4449 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	google.golang.org/grpc v1.27.0
 	gopkg.in/yaml.v2 v2.2.8
@@ -41,6 +41,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20191107075043-30be4d16710a
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-tools v0.2.4
+	sigs.k8s.io/kind v0.7.0
 )
 
 replace (

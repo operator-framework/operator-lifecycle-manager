@@ -1,23 +1,24 @@
 package e2e
 
 import (
-	"github.com/onsi/ginkgo/extensions/table"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
-	"github.com/sirupsen/logrus"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 	"time"
 
 	. "github.com/onsi/ginkgo"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/onsi/ginkgo/extensions/table"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/scoped"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Scoped Client", func() {
@@ -25,7 +26,6 @@ var _ = Describe("Scoped Client", func() {
 	// service account and then we can use the scoped client to make API calls.
 
 	var config *rest.Config
-	var err error
 
 	var kubeclient operatorclient.ClientInterface
 	var crclient versioned.Interface
@@ -34,14 +34,11 @@ var _ = Describe("Scoped Client", func() {
 	var logger *logrus.Logger
 
 	BeforeEach(func() {
-		require.NotEmpty(GinkgoT(), kubeConfigPath)
-
-		config, err = clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-		require.NoError(GinkgoT(), err)
+		config = ctx.Ctx().RESTConfig()
 
 		kubeclient = newKubeClient(GinkgoT())
 		crclient = newCRClient(GinkgoT())
-		dynamicclient = newDynamicClient(GinkgoT(), config)
+		dynamicclient = ctx.Ctx().DynamicClient()
 
 		logger = logrus.New()
 	})

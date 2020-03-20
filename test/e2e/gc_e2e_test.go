@@ -15,16 +15,27 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"
 )
 
 var _ = Describe("Garbage collector", func() {
-	It("should delete a ClusterRole owned by a CustomResourceDefinition when the owner is deleted", func() {
-		c := newKubeClient(GinkgoT())
+	var (
+		kubeClient     operatorclient.ClientInterface
+		operatorClient versioned.Interface
+	)
 
+	BeforeEach(func() {
+		kubeClient = ctx.Ctx().KubeClient()
+		operatorClient = ctx.Ctx().OperatorClient()
+	})
+
+	It("should delete a ClusterRole owned by a CustomResourceDefinition when the owner is deleted", func() {
 		group := fmt.Sprintf("%s.com", rand.String(16))
-		crd, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Create(&apiextensionsv1.CustomResourceDefinition{
+		crd, err := kubeClient.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Create(&apiextensionsv1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("plural.%s", group),
 			},
@@ -37,7 +48,7 @@ var _ = Describe("Garbage collector", func() {
 						Served:  true,
 						Storage: true,
 						Schema: &apiextensionsv1.CustomResourceValidation{
-							&apiextensionsv1.JSONSchemaProps{Type: "object"},
+							OpenAPIV3Schema: &apiextensionsv1.JSONSchemaProps{Type: "object"},
 						},
 					},
 				},
@@ -51,10 +62,10 @@ var _ = Describe("Garbage collector", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		defer func() {
-			IgnoreError(c.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{}))
+			IgnoreError(kubeClient.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{}))
 		}()
 
-		cr, err := c.CreateClusterRole(&rbacv1.ClusterRole{
+		cr, err := kubeClient.CreateClusterRole(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName:    "clusterrole-",
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(crd)},
@@ -62,21 +73,19 @@ var _ = Describe("Garbage collector", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		defer func() {
-			IgnoreError(c.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
+			IgnoreError(kubeClient.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
 		}()
 
-		Expect(c.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{})).To(Succeed())
+		Expect(kubeClient.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{})).To(Succeed())
 		Eventually(func() bool {
-			_, err := c.GetClusterRole(cr.GetName())
+			_, err := kubeClient.GetClusterRole(cr.GetName())
 			return k8serrors.IsNotFound(err)
 		}).Should(BeTrue(), "get cluster role should eventually return \"not found\"")
 	})
 
 	It("should delete a ClusterRole owned by an APIService when the owner is deleted", func() {
-		c := newKubeClient(GinkgoT())
-
 		group := rand.String(16)
-		as, err := c.CreateAPIService(&apiregistrationv1.APIService{
+		as, err := kubeClient.CreateAPIService(&apiregistrationv1.APIService{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: fmt.Sprintf("v1.%s", group),
 			},
@@ -89,10 +98,10 @@ var _ = Describe("Garbage collector", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		defer func() {
-			IgnoreError(c.DeleteAPIService(as.GetName(), &metav1.DeleteOptions{}))
+			IgnoreError(kubeClient.DeleteAPIService(as.GetName(), &metav1.DeleteOptions{}))
 		}()
 
-		cr, err := c.CreateClusterRole(&rbacv1.ClusterRole{
+		cr, err := kubeClient.CreateClusterRole(&rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				GenerateName:    "clusterrole-",
 				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(as)},
@@ -100,12 +109,12 @@ var _ = Describe("Garbage collector", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 		defer func() {
-			IgnoreError(c.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
+			IgnoreError(kubeClient.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
 		}()
 
-		Expect(c.DeleteAPIService(as.GetName(), &metav1.DeleteOptions{})).To(Succeed())
+		Expect(kubeClient.DeleteAPIService(as.GetName(), &metav1.DeleteOptions{})).To(Succeed())
 		Eventually(func() bool {
-			_, err := c.GetClusterRole(cr.GetName())
+			_, err := kubeClient.GetClusterRole(cr.GetName())
 			return k8serrors.IsNotFound(err)
 		}).Should(BeTrue(), "get cluster role should eventually return \"not found\"")
 	})
@@ -126,12 +135,9 @@ var _ = Describe("Garbage collector", func() {
 		ownerB := newCSV("ownerb", testNamespace, "", semver.MustParse("0.0.0"), nil, nil, newNginxInstallStrategy("dep-", nil, nil))
 
 		// create all owners
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
-
-		fetchedA, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&ownerA)
+		fetchedA, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&ownerA)
 		require.NoError(GinkgoT(), err)
-		fetchedB, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&ownerB)
+		fetchedB, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Create(&ownerB)
 		require.NoError(GinkgoT(), err)
 
 		dependent := &corev1.ConfigMap{
@@ -146,38 +152,38 @@ var _ = Describe("Garbage collector", func() {
 		ownerutil.AddOwner(dependent, fetchedB, true, false)
 
 		// create dependent
-		_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dependent)
+		_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Create(dependent)
 		require.NoError(GinkgoT(), err, "dependent could not be created")
 
 		// delete ownerA in the foreground (to ensure any "blocking" dependents are deleted before ownerA)
 		propagation := metav1.DeletionPropagation("Foreground")
 		options := metav1.DeleteOptions{PropagationPolicy: &propagation}
-		err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedA.GetName(), &options)
+		err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedA.GetName(), &options)
 		require.NoError(GinkgoT(), err)
 
 		// wait for deletion of ownerA
 		waitForDelete(func() error {
-			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerA.GetName(), metav1.GetOptions{})
+			_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerA.GetName(), metav1.GetOptions{})
 			return err
 		})
 
 		// check for dependent (should still exist since it still has one owner present)
-		_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dependent.GetName(), metav1.GetOptions{})
+		_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dependent.GetName(), metav1.GetOptions{})
 		require.NoError(GinkgoT(), err, "dependent deleted after one owner was deleted")
 		GinkgoT().Log("dependent still exists after one owner was deleted")
 
 		// delete ownerB in the foreground (to ensure any "blocking" dependents are deleted before ownerB)
-		err = crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedB.GetName(), &options)
+		err = operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Delete(fetchedB.GetName(), &options)
 		require.NoError(GinkgoT(), err)
 
 		// wait for deletion of ownerB
 		waitForDelete(func() error {
-			_, err := crc.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerB.GetName(), metav1.GetOptions{})
+			_, err := operatorClient.OperatorsV1alpha1().ClusterServiceVersions(testNamespace).Get(ownerB.GetName(), metav1.GetOptions{})
 			return err
 		})
 
 		// check for dependent (should be deleted since last blocking owner was deleted)
-		_, err = c.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dependent.GetName(), metav1.GetOptions{})
+		_, err = kubeClient.KubernetesInterface().CoreV1().ConfigMaps(testNamespace).Get(dependent.GetName(), metav1.GetOptions{})
 		require.Error(GinkgoT(), err)
 		require.True(GinkgoT(), k8serrors.IsNotFound(err))
 		GinkgoT().Log("dependent successfully garbage collected after both owners were deleted")

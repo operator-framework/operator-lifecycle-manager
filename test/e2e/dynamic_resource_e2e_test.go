@@ -7,11 +7,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/tools/clientcmd"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Dynamic Resource", func() {
@@ -19,12 +19,9 @@ var _ = Describe("Dynamic Resource", func() {
 
 		defer cleaner.NotifyTestComplete(GinkgoT(), true)
 
-		config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-		require.NoError(GinkgoT(), err)
-
 		c := newKubeClient(GinkgoT())
 		crc := newCRClient(GinkgoT())
-		dynamicClient := newDynamicClient(GinkgoT(), config)
+		dynamicClient := ctx.Ctx().DynamicClient()
 
 		ns, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
 			ObjectMeta: metav1.ObjectMeta{

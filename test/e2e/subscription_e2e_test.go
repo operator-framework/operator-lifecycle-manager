@@ -12,6 +12,7 @@ import (
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
@@ -21,7 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/discovery"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -31,6 +32,7 @@ import (
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 )
 
 var _ = Describe("Subscription", func() {
@@ -1072,26 +1074,24 @@ var _ = Describe("Subscription", func() {
 		defer cleaner.NotifyTestComplete(GinkgoT(), true)
 
 		newConfigClient := func(t GinkgoTInterface) configv1client.ConfigV1Interface {
-			config, err := clientcmd.BuildConfigFromFlags("", *kubeConfigPath)
-			require.NoError(GinkgoT(), err)
-
-			client, err := configv1client.NewForConfig(config)
+			client, err := configv1client.NewForConfig(ctx.Ctx().RESTConfig())
 			require.NoError(GinkgoT(), err)
 
 			return client
 		}
 
 		proxyEnvVarFunc := func(t GinkgoTInterface, client configv1client.ConfigV1Interface) []corev1.EnvVar {
-			proxy, getErr := client.Proxies().Get("cluster", metav1.GetOptions{})
-			if getErr != nil {
-				if !k8serrors.IsNotFound(getErr) {
-					require.NoError(GinkgoT(), getErr)
-				}
-
+			if discovery.ServerSupportsVersion(ctx.Ctx().KubeClient().KubernetesInterface().Discovery(), configv1.GroupVersion) != nil {
 				return nil
 			}
 
+			proxy, getErr := client.Proxies().Get("cluster", metav1.GetOptions{})
+			if k8serrors.IsNotFound(getErr) {
+				return nil
+			}
+			require.NoError(GinkgoT(), getErr)
 			require.NotNil(GinkgoT(), proxy)
+
 			proxyEnv := []corev1.EnvVar{}
 
 			if proxy.Status.HTTPProxy != "" {
@@ -1211,6 +1211,10 @@ var _ = Describe("Subscription", func() {
 		require.NotNil(GinkgoT(), subscription)
 
 		csv, err := fetchCSV(GinkgoT(), crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		if err != nil {
+			// TODO: If OLM doesn't have the subscription in its cache when it initially creates the deployment, the CSV will hang on "Installing" until it reaches the five-minute timeout, then succeed on a retry. It should be possible to skip the wait and retry immediately, but in the meantime, giving this test a little extra patience should mitigate flakes.
+			csv, err = fetchCSV(GinkgoT(), crClient, subscription.Status.CurrentCSV, testNamespace, buildCSVConditionChecker(v1alpha1.CSVPhaseSucceeded))
+		}
 		require.NoError(GinkgoT(), err)
 
 		proxyEnv := proxyEnvVarFunc(GinkgoT(), config)
