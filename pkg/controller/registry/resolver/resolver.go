@@ -109,8 +109,9 @@ func (r *OperatorsV1alpha1Resolver) ResolveSteps(namespace string, sourceQuerier
 				steps = append(steps, bundleSteps...)
 			} else {
 				bundleLookups = append(bundleLookups, v1alpha1.BundleLookup{
-					Path:     op.Bundle().GetBundlePath(),
-					Replaces: op.Replaces(),
+					Path:       op.Bundle().GetBundlePath(),
+					Identifier: op.Identifier(),
+					Replaces:   op.Replaces(),
 					CatalogSourceRef: &corev1.ObjectReference{
 						Namespace: op.SourceInfo().Catalog.Namespace,
 						Name:      op.SourceInfo().Catalog.Name,

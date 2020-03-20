@@ -378,6 +378,7 @@ func TestSyncSubscriptions(t *testing.T) {
 				bundleLookups: []v1alpha1.BundleLookup{
 					{
 						Path: "bundle-path-a",
+						Identifier: "bundle-a",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: testNamespace,
 							Name:      "src",
@@ -447,7 +448,7 @@ func TestSyncSubscriptions(t *testing.T) {
 			},
 			wantInstallPlan: &v1alpha1.InstallPlan{
 				Spec: v1alpha1.InstallPlanSpec{
-					ClusterServiceVersionNames: []string{},
+					ClusterServiceVersionNames: []string{"bundle-a"},
 					Approval:                   v1alpha1.ApprovalAutomatic,
 					Approved:                   true,
 					Generation:                 1,
@@ -458,6 +459,7 @@ func TestSyncSubscriptions(t *testing.T) {
 					BundleLookups: []v1alpha1.BundleLookup{
 						{
 							Path: "bundle-path-a",
+							Identifier: "bundle-a",
 							CatalogSourceRef: &corev1.ObjectReference{
 								Namespace: testNamespace,
 								Name:      "src",
