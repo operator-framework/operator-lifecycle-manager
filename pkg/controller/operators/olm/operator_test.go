@@ -1197,7 +1197,7 @@ func TestTransitionCSV(t *testing.T) {
 						apis("a1.v1.a1Kind"), nil),
 				},
 				clientObjs: []runtime.Object{addAnnotation(defaultOperatorGroup, v1.OperatorGroupProvidedAPIsAnnotationKey, "a1Kind.v1.a1")},
-				apis:       []runtime.Object{apiService("a1", "v1", "v1-a1", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace))},
+				apis:       []runtime.Object{apiService("a1", "v1", "a1-service", namespace, "", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace))},
 				objs: []runtime.Object{
 					withLabels(
 						deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
@@ -1207,20 +1207,20 @@ func TestTransitionCSV(t *testing.T) {
 							OLMCAHashAnnotationKey: validCAHash,
 						}))),
 					),
-					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+					withAnnotations(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
-					service("v1-a1", namespace, "a1", 80),
+					service("a1", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
-					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+					role("a1-cert", namespace, []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
 							APIGroups:     []string{""},
 							Resources:     []string{"secrets"},
-							ResourceNames: []string{"v1.a1-cert"},
+							ResourceNames: []string{"a1-service-cert"},
 						},
 					}),
-					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					roleBinding("a1-service-cert", namespace, "a1-cert", "sa", namespace),
 					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
@@ -1229,7 +1229,7 @@ func TestTransitionCSV(t *testing.T) {
 							ResourceNames: []string{"extension-apiserver-authentication"},
 						},
 					}),
-					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					roleBinding("a1-service-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
 					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
 						{
 							Verbs:     []string{"create"},
@@ -1242,7 +1242,7 @@ func TestTransitionCSV(t *testing.T) {
 							Resources: []string{"subjectaccessreviews"},
 						},
 					}),
-					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+					clusterRoleBinding("a1-service-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 			},
 			expected: expected{
@@ -1419,26 +1419,26 @@ func TestTransitionCSV(t *testing.T) {
 				},
 				clientObjs: []runtime.Object{defaultOperatorGroup},
 				apis: []runtime.Object{
-					apiService("a1", "v1", "v1-a1", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
+					apiService("a1", "v1", "a1-service", namespace, "a1", validCAPEM, apiregistrationv1.ConditionTrue, ownerLabelFromCSV("csv1", namespace)),
 				},
 				objs: []runtime.Object{
 					deployment("a1", namespace, "sa", addAnnotations(defaultTemplateAnnotations, map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					})),
-					withAnnotations(keyPairToTLSSecret("v1.a1-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"v1-a1.ns", "v1-a1.ns.svc"})), map[string]string{
+					withAnnotations(keyPairToTLSSecret("a1-service-cert", namespace, signedServingPair(time.Now().Add(24*time.Hour), validCA, []string{"a1-service.ns", "a1-service.ns.svc"})), map[string]string{
 						OLMCAHashAnnotationKey: validCAHash,
 					}),
-					service("v1-a1", namespace, "a1", 80),
+					service("a1-service", namespace, "a1", 80),
 					serviceAccount("sa", namespace),
-					role("v1.a1-cert", namespace, []rbacv1.PolicyRule{
+					role("a1-service-cert", namespace, []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
 							APIGroups:     []string{""},
 							Resources:     []string{"secrets"},
-							ResourceNames: []string{"v1.a1-cert"},
+							ResourceNames: []string{"a1-service-cert"},
 						},
 					}),
-					roleBinding("v1.a1-cert", namespace, "v1.a1-cert", "sa", namespace),
+					roleBinding("a1-service-cert", namespace, "a1-service-cert", "sa", namespace),
 					role("extension-apiserver-authentication-reader", "kube-system", []rbacv1.PolicyRule{
 						{
 							Verbs:         []string{"get"},
@@ -1447,7 +1447,7 @@ func TestTransitionCSV(t *testing.T) {
 							ResourceNames: []string{"extension-apiserver-authentication"},
 						},
 					}),
-					roleBinding("v1.a1-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
+					roleBinding("a1-service-auth-reader", "kube-system", "extension-apiserver-authentication-reader", "sa", namespace),
 					clusterRole("system:auth-delegator", []rbacv1.PolicyRule{
 						{
 							Verbs:     []string{"create"},
@@ -1460,7 +1460,7 @@ func TestTransitionCSV(t *testing.T) {
 							Resources: []string{"subjectaccessreviews"},
 						},
 					}),
-					clusterRoleBinding("v1.a1-system:auth-delegator", "system:auth-delegator", "sa", namespace),
+					clusterRoleBinding("a1-service-system:auth-delegator", "system:auth-delegator", "sa", namespace),
 				},
 				crds: []runtime.Object{
 					crd("c1", "v1", "g1"),
@@ -3018,7 +3018,7 @@ func TestTransitionCSV(t *testing.T) {
 				require.Equal(t, ok, csvState.exists, "%s existence should be %t", csvName, csvState.exists)
 				if csvState.exists {
 					if csvState.reason != "" {
-						require.EqualValues(t, string(csvState.reason), string(csv.Status.Reason), "%s had incorrect condition reason", csvName)
+						require.EqualValues(t, string(csvState.reason), string(csv.Status.Reason), "%s had incorrect condition reason - %v", csvName, csv)
 					}
 				}
 			}
@@ -3472,18 +3472,18 @@ func TestSyncOperatorGroups(t *testing.T) {
 	annotatedDeployment := ownedDeployment.DeepCopy()
 	annotatedDeployment.Spec.Template.SetAnnotations(map[string]string{v1.OperatorGroupTargetsAnnotationKey: operatorNamespace + "," + targetNamespace, v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedDeployment.SetLabels(map[string]string{
-		"olm.owner":           "csv1",
-		"olm.owner.namespace": "operator-ns",
-		"olm.owner.kind":      "ClusterServiceVersion",
+		"olm.owner":                        "csv1",
+		"olm.owner.namespace":              "operator-ns",
+		"olm.owner.kind":                   "ClusterServiceVersion",
 		install.DeploymentSpecHashLabelKey: install.HashDeploymentSpec(annotatedDeployment.Spec),
 	})
 
 	annotatedGlobalDeployment := ownedDeployment.DeepCopy()
 	annotatedGlobalDeployment.Spec.Template.SetAnnotations(map[string]string{v1.OperatorGroupTargetsAnnotationKey: "", v1.OperatorGroupAnnotationKey: "operator-group-1", v1.OperatorGroupNamespaceAnnotationKey: operatorNamespace})
 	annotatedGlobalDeployment.SetLabels(map[string]string{
-		"olm.owner":           "csv1",
-		"olm.owner.namespace": "operator-ns",
-		"olm.owner.kind":      "ClusterServiceVersion",
+		"olm.owner":                        "csv1",
+		"olm.owner.namespace":              "operator-ns",
+		"olm.owner.kind":                   "ClusterServiceVersion",
 		install.DeploymentSpecHashLabelKey: install.HashDeploymentSpec(annotatedGlobalDeployment.Spec),
 	})
 
