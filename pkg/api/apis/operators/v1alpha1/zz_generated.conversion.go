@@ -673,6 +673,7 @@ func Convert_operators_AppLink_To_v1alpha1_AppLink(in *operators.AppLink, out *A
 
 func autoConvert_v1alpha1_BundleLookup_To_operators_BundleLookup(in *BundleLookup, out *operators.BundleLookup, s conversion.Scope) error {
 	out.Path = in.Path
+	out.Identifier = in.Identifier
 	out.Replaces = in.Replaces
 	out.CatalogSourceRef = (*v1.ObjectReference)(unsafe.Pointer(in.CatalogSourceRef))
 	out.Conditions = *(*[]operators.BundleLookupCondition)(unsafe.Pointer(&in.Conditions))
@@ -686,6 +687,7 @@ func Convert_v1alpha1_BundleLookup_To_operators_BundleLookup(in *BundleLookup, o
 
 func autoConvert_operators_BundleLookup_To_v1alpha1_BundleLookup(in *operators.BundleLookup, out *BundleLookup, s conversion.Scope) error {
 	out.Path = in.Path
+	out.Identifier = in.Identifier
 	out.Replaces = in.Replaces
 	out.CatalogSourceRef = (*v1.ObjectReference)(unsafe.Pointer(in.CatalogSourceRef))
 	out.Conditions = *(*[]BundleLookupCondition)(unsafe.Pointer(&in.Conditions))
