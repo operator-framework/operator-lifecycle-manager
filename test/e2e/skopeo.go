@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	insecure    = "--insecure-policy=true"
-	skopeo      = "skopeo"
-	debug       = "--debug"
-	skipTLS     = "--dest-tls-verify=false"
-	skipCreds   = "--dest-no-creds=true"
-	destCreds   = "--dest-creds="
-	v2format    = "--format=v2s2"
-	skopeoImage = "quay.io/olmtest/skopeo:0.1.40"
+	insecure              = "--insecure-policy=true"
+	skopeo                = "skopeo"
+	debug                 = "--debug"
+	skipTLS               = "--dest-tls-verify=false"
+	skipCreds             = "--dest-no-creds=true"
+	destCreds             = "--dest-creds="
+	v2format              = "--format=v2s2"
+	skopeoImage           = "quay.io/olmtest/skopeo:0.1.40"
 	BuilderServiceAccount = "builder"
 )
 

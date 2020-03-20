@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"testing"
+
 	"time"
 
 	"github.com/ghodss/yaml"
@@ -32,6 +32,7 @@ import (
 	k8sscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 
+	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -75,7 +76,7 @@ func newNamespaceCleaner(namespace string) *namespaceCleaner {
 }
 
 // notifyOnFailure checks if a test has failed or cleanup is true before cleaning a namespace
-func (c *namespaceCleaner) NotifyTestComplete(t *testing.T, cleanup bool) {
+func (c *namespaceCleaner) NotifyTestComplete(t GinkgoTInterface, cleanup bool) {
 	if t.Failed() {
 		c.skipCleanupOLM = true
 	}
@@ -89,7 +90,7 @@ func (c *namespaceCleaner) NotifyTestComplete(t *testing.T, cleanup bool) {
 }
 
 // newKubeClient configures a client to talk to the cluster defined by KUBECONFIG
-func newKubeClient(t *testing.T) operatorclient.ClientInterface {
+func newKubeClient(t GinkgoTInterface) operatorclient.ClientInterface {
 	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
@@ -98,7 +99,7 @@ func newKubeClient(t *testing.T) operatorclient.ClientInterface {
 	return operatorclient.NewClientFromConfig(*kubeConfigPath, logrus.New())
 }
 
-func newCRClient(t *testing.T) versioned.Interface {
+func newCRClient(t GinkgoTInterface) versioned.Interface {
 	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
@@ -108,14 +109,14 @@ func newCRClient(t *testing.T) versioned.Interface {
 	return crclient
 }
 
-func newDynamicClient(t *testing.T, config *rest.Config) dynamic.Interface {
+func newDynamicClient(t GinkgoTInterface, config *rest.Config) dynamic.Interface {
 	// TODO: impersonate ALM serviceaccount
 	dynamicClient, err := dynamic.NewForConfig(config)
 	require.NoError(t, err)
 	return dynamicClient
 }
 
-func newPMClient(t *testing.T) pmversioned.Interface {
+func newPMClient(t GinkgoTInterface) pmversioned.Interface {
 	if kubeConfigPath == nil {
 		t.Log("using in-cluster config")
 	}
@@ -126,7 +127,7 @@ func newPMClient(t *testing.T) pmversioned.Interface {
 }
 
 // awaitPods waits for a set of pods to exist in the cluster
-func awaitPods(t *testing.T, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
+func awaitPods(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, selector string, checkPods podsCheckFunc) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
 
@@ -148,7 +149,7 @@ func awaitPods(t *testing.T, c operatorclient.ClientInterface, namespace, select
 	return fetchedPodList, err
 }
 
-func awaitPodsWithInterval(t *testing.T, c operatorclient.ClientInterface, namespace, selector string, interval time.Duration,
+func awaitPodsWithInterval(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, selector string, interval time.Duration,
 	duration time.Duration, checkPods podsCheckFunc) (*corev1.PodList, error) {
 	var fetchedPodList *corev1.PodList
 	var err error
@@ -230,7 +231,7 @@ func podReady(pod *corev1.Pod) bool {
 	return status == corev1.ConditionTrue
 }
 
-func awaitPod(t *testing.T, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
+func awaitPod(t GinkgoTInterface, c operatorclient.ClientInterface, namespace, name string, checkPod podCheckFunc) *corev1.Pod {
 	var pod *corev1.Pod
 	err := wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		p, err := c.KubernetesInterface().CoreV1().Pods(namespace).Get(name, metav1.GetOptions{})
@@ -245,7 +246,7 @@ func awaitPod(t *testing.T, c operatorclient.ClientInterface, namespace, name st
 	return pod
 }
 
-func awaitAnnotations(t *testing.T, query func() (metav1.ObjectMeta, error), expected map[string]string) error {
+func awaitAnnotations(t GinkgoTInterface, query func() (metav1.ObjectMeta, error), expected map[string]string) error {
 	var err error
 	err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
 		t.Logf("Waiting for annotations to match %v", expected)
@@ -273,7 +274,7 @@ func awaitAnnotations(t *testing.T, query func() (metav1.ObjectMeta, error), exp
 }
 
 // compareResources compares resource equality then prints a diff for easier debugging
-func compareResources(t *testing.T, expected, actual interface{}) {
+func compareResources(t GinkgoTInterface, expected, actual interface{}) {
 	if eq := equality.Semantic.DeepEqual(expected, actual); !eq {
 		t.Fatalf("Resource does not match expected value: %s",
 			diff.ObjectDiff(expected, actual))
@@ -367,7 +368,7 @@ func catalogSourceRegistryPodSynced(catalog *v1alpha1.CatalogSource) bool {
 	return false
 }
 
-func fetchCatalogSource(t *testing.T, crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
+func fetchCatalogSource(t GinkgoTInterface, crc versioned.Interface, name, namespace string, check catalogSourceCheckFunc) (*v1alpha1.CatalogSource, error) {
 	var fetched *v1alpha1.CatalogSource
 	var err error
 
@@ -397,7 +398,7 @@ func createFieldNotEqualSelector(field string, names ...string) string {
 	return builder.String()
 }
 
-func cleanupOLM(t *testing.T, namespace string) {
+func cleanupOLM(t GinkgoTInterface, namespace string) {
 	var immediate int64 = 0
 	crc := newCRClient(t)
 	c := newKubeClient(t)
@@ -445,28 +446,28 @@ func cleanupOLM(t *testing.T, namespace string) {
 	require.NoError(t, err)
 }
 
-func buildCatalogSourceCleanupFunc(t *testing.T, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
+func buildCatalogSourceCleanupFunc(t GinkgoTInterface, crc versioned.Interface, namespace string, catalogSource *v1alpha1.CatalogSource) cleanupFunc {
 	return func() {
 		t.Logf("Deleting catalog source %s...", catalogSource.GetName())
 		require.NoError(t, crc.OperatorsV1alpha1().CatalogSources(namespace).Delete(catalogSource.GetName(), &metav1.DeleteOptions{}))
 	}
 }
 
-func buildConfigMapCleanupFunc(t *testing.T, c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
+func buildConfigMapCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, configMap *corev1.ConfigMap) cleanupFunc {
 	return func() {
 		t.Logf("Deleting config map %s...", configMap.GetName())
 		require.NoError(t, c.KubernetesInterface().CoreV1().ConfigMaps(namespace).Delete(configMap.GetName(), &metav1.DeleteOptions{}))
 	}
 }
 
-func buildServiceAccountCleanupFunc(t *testing.T, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
+func buildServiceAccountCleanupFunc(t GinkgoTInterface, c operatorclient.ClientInterface, namespace string, serviceAccount *corev1.ServiceAccount) cleanupFunc {
 	return func() {
 		t.Logf("Deleting service account %s...", serviceAccount.GetName())
 		require.NoError(t, c.KubernetesInterface().CoreV1().ServiceAccounts(namespace).Delete(serviceAccount.GetName(), &metav1.DeleteOptions{}))
 	}
 }
 
-func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
+func createInternalCatalogSource(t GinkgoTInterface, c operatorclient.ClientInterface, crc versioned.Interface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*v1alpha1.CatalogSource, cleanupFunc) {
 	configMap, configMapCleanup := createConfigMapForCatalogData(t, c, name, namespace, manifests, crds, csvs)
 
 	// Create an internal CatalogSource custom resource pointing to the ConfigMap
@@ -500,7 +501,7 @@ func createInternalCatalogSource(t *testing.T, c operatorclient.ClientInterface,
 	return catalogSource, cleanupInternalCatalogSource
 }
 
-func createConfigMapForCatalogData(t *testing.T, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
+func createConfigMapForCatalogData(t GinkgoTInterface, c operatorclient.ClientInterface, name, namespace string, manifests []registry.PackageManifest, crds []apiextensions.CustomResourceDefinition, csvs []v1alpha1.ClusterServiceVersion) (*corev1.ConfigMap, cleanupFunc) {
 	// Create a config map containing the PackageManifests and CSVs
 	configMapName := fmt.Sprintf("%s-configmap", name)
 	catalogConfigMap := &corev1.ConfigMap{
@@ -546,7 +547,7 @@ func createConfigMapForCatalogData(t *testing.T, c operatorclient.ClientInterfac
 	return createdConfigMap, buildConfigMapCleanupFunc(t, c, namespace, createdConfigMap)
 }
 
-func serializeCRD(t *testing.T, crd apiextensions.CustomResourceDefinition) string {
+func serializeCRD(t GinkgoTInterface, crd apiextensions.CustomResourceDefinition) string {
 	scheme := runtime.NewScheme()
 	extScheme.AddToScheme(scheme)
 	k8sscheme.AddToScheme(scheme)

@@ -3,62 +3,65 @@
 package e2e
 
 import (
-	"testing"
-
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/net"
 
+	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
 )
 
-// TestMetrics tests the metrics endpoint of the OLM pod.
-func TestMetricsEndpoint(t *testing.T) {
-	c := newKubeClient(t)
-	crc := newCRClient(t)
+var _ = Describe("Metrics", func() {
+	It("endpoint", func() {
 
-	failingCSV := v1alpha1.ClusterServiceVersion{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       v1alpha1.ClusterServiceVersionKind,
-			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: genName("failing-csv-test-"),
-		},
-		Spec: v1alpha1.ClusterServiceVersionSpec{
-			InstallStrategy: v1alpha1.NamedInstallStrategy{
-				StrategyName: v1alpha1.InstallStrategyNameDeployment,
-				StrategySpec: strategy,
+		// TestMetrics tests the metrics endpoint of the OLM pod.
+
+		c := newKubeClient(GinkgoT())
+		crc := newCRClient(GinkgoT())
+
+		failingCSV := v1alpha1.ClusterServiceVersion{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.ClusterServiceVersionKind,
+				APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
 			},
-		},
-	}
+			ObjectMeta: metav1.ObjectMeta{
+				Name: genName("failing-csv-test-"),
+			},
+			Spec: v1alpha1.ClusterServiceVersionSpec{
+				InstallStrategy: v1alpha1.NamedInstallStrategy{
+					StrategyName: v1alpha1.InstallStrategyNameDeployment,
+					StrategySpec: strategy,
+				},
+			},
+		}
 
-	cleanupCSV, err := createCSV(t, c, crc, failingCSV, testNamespace, false, false)
-	require.NoError(t, err)
-	defer cleanupCSV()
+		cleanupCSV, err := createCSV(GinkgoT(), c, crc, failingCSV, testNamespace, false, false)
+		require.NoError(GinkgoT(), err)
+		defer cleanupCSV()
 
-	_, err = fetchCSV(t, crc, failingCSV.Name, testNamespace, csvFailedChecker)
-	require.NoError(t, err)
+		_, err = fetchCSV(GinkgoT(), crc, failingCSV.Name, testNamespace, csvFailedChecker)
+		require.NoError(GinkgoT(), err)
 
-	rawOutput, err := getMetricsFromPod(t, c, getOLMPodName(t, c), operatorNamespace, "8081")
-	if err != nil {
-		t.Fatalf("Metrics test failed: %v\n", err)
-	}
+		rawOutput, err := getMetricsFromPod(GinkgoT(), c, getOLMPodName(GinkgoT(), c), operatorNamespace, "8081")
+		if err != nil {
+			GinkgoT().Fatalf("Metrics test failed: %v\n", err)
+		}
 
-	// Verify metrics have been emitted for packageserver csv
-	require.Contains(t, rawOutput, "csv_abnormal")
-	require.Contains(t, rawOutput, "name=\""+failingCSV.Name+"\"")
-	require.Contains(t, rawOutput, "phase=\"Failed\"")
-	require.Contains(t, rawOutput, "reason=\"UnsupportedOperatorGroup\"")
-	require.Contains(t, rawOutput, "version=\"0.0.0\"")
+		// Verify metrics have been emitted for packageserver csv
+		require.Contains(GinkgoT(), rawOutput, "csv_abnormal")
+		require.Contains(GinkgoT(), rawOutput, "name=\""+failingCSV.Name+"\"")
+		require.Contains(GinkgoT(), rawOutput, "phase=\"Failed\"")
+		require.Contains(GinkgoT(), rawOutput, "reason=\"UnsupportedOperatorGroup\"")
+		require.Contains(GinkgoT(), rawOutput, "version=\"0.0.0\"")
 
-	require.Contains(t, rawOutput, "csv_succeeded")
-	log.Info(rawOutput)
-}
+		require.Contains(GinkgoT(), rawOutput, "csv_succeeded")
+		log.Info(rawOutput)
+	})
+})
 
-func getOLMPodName(t *testing.T, client operatorclient.ClientInterface) string {
+func getOLMPodName(t GinkgoTInterface, client operatorclient.ClientInterface) string {
 	listOptions := metav1.ListOptions{LabelSelector: "app=olm-operator"}
 	podList, err := client.KubernetesInterface().CoreV1().Pods(operatorNamespace).List(listOptions)
 	if err != nil {
@@ -75,7 +78,7 @@ func getOLMPodName(t *testing.T, client operatorclient.ClientInterface) string {
 
 }
 
-func getMetricsFromPod(t *testing.T, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
+func getMetricsFromPod(t GinkgoTInterface, client operatorclient.ClientInterface, podName string, namespace string, port string) (string, error) {
 	olmPod, err := client.KubernetesInterface().CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
