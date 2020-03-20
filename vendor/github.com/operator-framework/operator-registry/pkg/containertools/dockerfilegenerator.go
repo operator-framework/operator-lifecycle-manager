@@ -8,9 +8,8 @@ import (
 )
 
 const (
-	baseImage                = "scratch"
 	defaultBinarySourceImage = "quay.io/operator-framework/upstream-registry-builder"
-	DefaultDbLocation        = "./index.db"
+	DefaultDbLocation        = "/database/index.db"
 	DbLocationLabel          = "operators.operatorframework.io.index.database.v1"
 )
 
@@ -42,22 +41,17 @@ func (g *IndexDockerfileGenerator) GenerateIndexDockerfile(binarySourceImage, da
 
 	g.Logger.Info("Generating dockerfile")
 
-	// Where to collect the binary
-	dockerfile += fmt.Sprintf("FROM %s AS builder\n", binarySourceImage)
-
 	// From
-	dockerfile += fmt.Sprintf("\nFROM %s\n", baseImage)
+	dockerfile += fmt.Sprintf("FROM %s\n", binarySourceImage)
 
 	// Labels
 	dockerfile += fmt.Sprintf("LABEL %s=%s\n", DbLocationLabel, DefaultDbLocation)
 
 	// Content
-	dockerfile += fmt.Sprintf("COPY %s ./\n", databaseFolder)
-	dockerfile += fmt.Sprintf("COPY --from=builder /build/bin/opm /opm\n")
-	dockerfile += fmt.Sprintf("COPY --from=builder /bin/grpc_health_probe /bin/grpc_health_probe\n")
+	dockerfile += fmt.Sprintf("ADD %s /database\n", databaseFolder)
 	dockerfile += fmt.Sprintf("EXPOSE 50051\n")
-	dockerfile += fmt.Sprintf("ENTRYPOINT [\"/opm\"]\n")
-	dockerfile += fmt.Sprintf("CMD [\"registry\", \"serve\", \"--database\", \"index.db\"]\n")
+	dockerfile += fmt.Sprintf("ENTRYPOINT [\"/bin/opm\"]\n")
+	dockerfile += fmt.Sprintf("CMD [\"registry\", \"serve\", \"--database\", \"%s\"]\n", DefaultDbLocation)
 
 	return dockerfile
 }

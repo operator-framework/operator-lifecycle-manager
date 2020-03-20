@@ -4,22 +4,19 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path"
 
 	log "github.com/sirupsen/logrus"
 )
 
 // Create build command to build bundle manifests image
-func BuildBundleImage(directory, imageTag, imageBuilder string) (*exec.Cmd, error) {
+func BuildBundleImage(imageTag, imageBuilder string) (*exec.Cmd, error) {
 	var args []string
-
-	dockerfilePath := path.Join(directory, DockerFile)
 
 	switch imageBuilder {
 	case "docker", "podman":
-		args = append(args, "build", "-f", dockerfilePath, "-t", imageTag, directory)
+		args = append(args, "build", "-f", DockerFile, "-t", imageTag, ".")
 	case "buildah":
-		args = append(args, "bud", "--format=docker", "-f", dockerfilePath, "-t", imageTag, directory)
+		args = append(args, "bud", "--format=docker", "-f", DockerFile, "-t", imageTag, ".")
 	default:
 		return nil, fmt.Errorf("%s is not supported image builder", imageBuilder)
 	}
@@ -53,21 +50,21 @@ func ExecuteCommand(cmd *exec.Cmd) error {
 // @channels: The list of channels that bundle image belongs to
 // @channelDefault: The default channel for the bundle image
 // @overwrite: Boolean flag to enable overwriting annotations.yaml locally if existed
-func BuildFunc(directory, imageTag, imageBuilder, packageName, channels, channelDefault string, overwrite bool) error {
+func BuildFunc(directory, outputDir, imageTag, imageBuilder, packageName, channels, channelDefault string, overwrite bool) error {
 	_, err := os.Stat(directory)
 	if os.IsNotExist(err) {
 		return err
 	}
 
 	// Generate annotations.yaml and Dockerfile
-	err = GenerateFunc(directory, packageName, channels, channelDefault, overwrite)
+	err = GenerateFunc(directory, outputDir, packageName, channels, channelDefault, overwrite)
 	if err != nil {
 		return err
 	}
 
 	// Build bundle image
 	log.Info("Building bundle image")
-	buildCmd, err := BuildBundleImage(path.Clean(directory), imageTag, imageBuilder)
+	buildCmd, err := BuildBundleImage(imageTag, imageBuilder)
 	if err != nil {
 		return err
 	}

@@ -47,9 +47,9 @@ import (
 // version.
 //
 // Dpbtf2 is an internal routine, exported for testing purposes.
-func (Implementation) Dpbtf2(uplo blas.Uplo, n, kd int, ab []float64, ldab int) (ok bool) {
+func (Implementation) Dpbtf2(ul blas.Uplo, n, kd int, ab []float64, ldab int) (ok bool) {
 	switch {
-	case uplo != blas.Upper && uplo != blas.Lower:
+	case ul != blas.Upper && ul != blas.Lower:
 		panic(badUplo)
 	case n < 0:
 		panic(nLT0)
@@ -59,9 +59,8 @@ func (Implementation) Dpbtf2(uplo blas.Uplo, n, kd int, ab []float64, ldab int) 
 		panic(badLdA)
 	}
 
-	// Quick return if possible.
 	if n == 0 {
-		return true
+		return
 	}
 
 	if len(ab) < (n-1)*ldab+kd {
@@ -71,17 +70,16 @@ func (Implementation) Dpbtf2(uplo blas.Uplo, n, kd int, ab []float64, ldab int) 
 	bi := blas64.Implementation()
 
 	kld := max(1, ldab-1)
-	if uplo == blas.Upper {
-		// Compute the Cholesky factorization A = U^T * U.
+	if ul == blas.Upper {
 		for j := 0; j < n; j++ {
-			// Compute U(j,j) and test for non-positive-definiteness.
+			// Compute U(J,J) and test for non positive-definiteness.
 			ajj := ab[j*ldab]
 			if ajj <= 0 {
 				return false
 			}
 			ajj = math.Sqrt(ajj)
 			ab[j*ldab] = ajj
-			// Compute elements j+1:j+kn of row j and update the trailing submatrix
+			// Compute elements j+1:j+kn of row J and update the trailing submatrix
 			// within the band.
 			kn := min(kd, n-j-1)
 			if kn > 0 {
@@ -91,16 +89,16 @@ func (Implementation) Dpbtf2(uplo blas.Uplo, n, kd int, ab []float64, ldab int) 
 		}
 		return true
 	}
-	// Compute the Cholesky factorization A = L * L^T.
 	for j := 0; j < n; j++ {
-		// Compute L(j,j) and test for non-positive-definiteness.
+		// Compute L(J,J) and test for non positive-definiteness.
 		ajj := ab[j*ldab+kd]
 		if ajj <= 0 {
 			return false
 		}
 		ajj = math.Sqrt(ajj)
 		ab[j*ldab+kd] = ajj
-		// Compute elements j+1:j+kn of column j and update the trailing submatrix
+
+		// Compute elements J+1:J+KN of column J and update the trailing submatrix
 		// within the band.
 		kn := min(kd, n-j-1)
 		if kn > 0 {

@@ -226,11 +226,7 @@ func (v *VecDense) CopyVec(a Vector) int {
 		return n
 	}
 	if r, ok := a.(RawVectorer); ok {
-		src := r.RawVector()
-		src.N = n
-		dst := v.mat
-		dst.N = n
-		blas64.Copy(src, dst)
+		blas64.Copy(r.RawVector(), v.mat)
 		return n
 	}
 	for i := 0; i < n; i++ {

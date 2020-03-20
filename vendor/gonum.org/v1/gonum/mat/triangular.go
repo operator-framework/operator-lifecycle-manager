@@ -226,7 +226,6 @@ func (t *TriDense) SetRawTriangular(mat blas64.Triangular) {
 	if mat.Diag == blas.Unit {
 		panic("mat: cannot set TriDense with Unit storage format")
 	}
-	t.cap = mat.N
 	t.mat = mat
 }
 
@@ -453,39 +452,15 @@ func (t *TriDense) MulTri(a, b Triangular) {
 		defer restore()
 	}
 
-	// Inspect types here, helps keep the loops later clean(er).
-	_, aDiag := aU.(Diagonal)
-	_, bDiag := bU.(Diagonal)
-	// If they are both diagonal only need 1 loop.
-	// All diagonal matrices are Upper.
-	// TODO: Add fast paths for DiagDense.
-	if aDiag && bDiag {
-		t.Zero()
-		for i := 0; i < n; i++ {
-			t.SetTri(i, i, a.At(i, i)*b.At(i, i))
-		}
-		return
-	}
-
-	// Now we know at least one matrix is non-diagonal.
-	// And all diagonal matrices are all Upper.
-	// The both-diagonal case is handled above.
-	// TODO: Add fast paths for Dense variants.
+	// TODO(btracey): Improve the set of fast-paths.
 	if kind == Upper {
 		for i := 0; i < n; i++ {
 			for j := i; j < n; j++ {
-				switch {
-				case aDiag:
-					t.SetTri(i, j, a.At(i, i)*b.At(i, j))
-				case bDiag:
-					t.SetTri(i, j, a.At(i, j)*b.At(j, j))
-				default:
-					var v float64
-					for k := i; k <= j; k++ {
-						v += a.At(i, k) * b.At(k, j)
-					}
-					t.SetTri(i, j, v)
+				var v float64
+				for k := i; k <= j; k++ {
+					v += a.At(i, k) * b.At(k, j)
 				}
+				t.SetTri(i, j, v)
 			}
 		}
 		return

@@ -129,11 +129,11 @@ type RawColViewer interface {
 	RawColView(j int) []float64
 }
 
-// A ClonerFrom can make a copy of a into the receiver, overwriting the previous value of the
+// A Cloner can make a copy of a into the receiver, overwriting the previous value of the
 // receiver. The clone operation does not make any restriction on shape and will not cause
 // shadowing.
-type ClonerFrom interface {
-	CloneFrom(a Matrix)
+type Cloner interface {
+	Clone(a Matrix)
 }
 
 // A Reseter can reset the matrix so that it can be reused as the receiver of a dimensionally
@@ -848,43 +848,12 @@ func normLapack(norm float64, aTrans bool) lapack.MatrixNorm {
 
 // Sum returns the sum of the elements of the matrix.
 func Sum(a Matrix) float64 {
+	// TODO(btracey): Add a fast path for the other supported matrix types.
 
+	r, c := a.Dims()
 	var sum float64
 	aU, _ := untranspose(a)
-	switch rma := aU.(type) {
-	case RawSymmetricer:
-		rm := rma.RawSymmetric()
-		for i := 0; i < rm.N; i++ {
-			// Diagonals count once while off-diagonals count twice.
-			sum += rm.Data[i*rm.Stride+i]
-			var s float64
-			for _, v := range rm.Data[i*rm.Stride+i+1 : i*rm.Stride+rm.N] {
-				s += v
-			}
-			sum += 2 * s
-		}
-		return sum
-	case RawTriangular:
-		rm := rma.RawTriangular()
-		var startIdx, endIdx int
-		for i := 0; i < rm.N; i++ {
-			// Start and end index for this triangle-row.
-			switch rm.Uplo {
-			case blas.Upper:
-				startIdx = i
-				endIdx = rm.N
-			case blas.Lower:
-				startIdx = 0
-				endIdx = i + 1
-			default:
-				panic(badTriangle)
-			}
-			for _, v := range rm.Data[i*rm.Stride+startIdx : i*rm.Stride+endIdx] {
-				sum += v
-			}
-		}
-		return sum
-	case RawMatrixer:
+	if rma, ok := aU.(RawMatrixer); ok {
 		rm := rma.RawMatrix()
 		for i := 0; i < rm.Rows; i++ {
 			for _, v := range rm.Data[i*rm.Stride : i*rm.Stride+rm.Cols] {
@@ -892,21 +861,13 @@ func Sum(a Matrix) float64 {
 			}
 		}
 		return sum
-	case *VecDense:
-		rm := rma.RawVector()
-		for i := 0; i < rm.N; i++ {
-			sum += rm.Data[i*rm.Inc]
-		}
-		return sum
-	default:
-		r, c := a.Dims()
-		for i := 0; i < r; i++ {
-			for j := 0; j < c; j++ {
-				sum += a.At(i, j)
-			}
-		}
-		return sum
 	}
+	for i := 0; i < r; i++ {
+		for j := 0; j < c; j++ {
+			sum += a.At(i, j)
+		}
+	}
+	return sum
 }
 
 // A Tracer can compute the trace of the matrix. Trace must panic if the
