@@ -67,6 +67,7 @@ spec:
           - approval
           - approved
           - clusterServiceVersionNames
+          - generation
           properties:
             approval:
               description: Approval is the user approval policy for an InstallPlan.
@@ -77,6 +78,8 @@ spec:
               type: array
               items:
                 type: string
+            generation:
+              type: integer
             source:
               type: string
             sourceNamespace:
@@ -128,17 +131,22 @@ spec:
                   description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                   type: string
             bundleLookups:
+              description: BundleLookups is the set of in-progress requests to pull
+                and unpackage bundle content to the cluster.
               type: array
               items:
+                description: BundleLookup is a request to pull and unpackage the content
+                  of a bundle to the cluster.
                 type: object
                 required:
                 - catalogSourceRef
+                - identifier
                 - path
                 - replaces
                 properties:
                   catalogSourceRef:
-                    description: ObjectReference contains enough information to let
-                      you inspect or modify the referred object.
+                    description: CatalogSourceRef is a reference to the CatalogSource
+                      the bundle path was resolved from.
                     type: object
                     properties:
                       apiVersion:
@@ -174,6 +182,7 @@ spec:
                         description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
                         type: string
                   conditions:
+                    description: Conditions represents the overall state of a BundleLookup.
                     type: array
                     items:
                       type: object
@@ -187,7 +196,7 @@ spec:
                           type: string
                           format: date-time
                         lastUpdateTime:
-                          description: Last time the condition was probed
+                          description: Last time the condition was probed.
                           type: string
                           format: date-time
                         message:
@@ -204,9 +213,17 @@ spec:
                         type:
                           description: Type of condition.
                           type: string
+                  identifier:
+                    description: Identifier is the catalog-unique name of the operator
+                      (the name of the CSV for bundles that contain CSVs)
+                    type: string
                   path:
+                    description: Path refers to the location of a bundle to pull.
+                      It's typically an image reference.
                     type: string
                   replaces:
+                    description: Replaces is the name of the bundle to replace with
+                      the one found at Path.
                     type: string
             catalogSources:
               type: array
@@ -284,3 +301,4 @@ spec:
                     description: StepStatus is the current status of a particular
                       resource an in InstallPlan
                     type: string
+

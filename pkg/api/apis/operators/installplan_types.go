@@ -199,6 +199,8 @@ type BundleLookup struct {
 	// Path refers to the location of a bundle to pull.
 	// It's typically an image reference.
 	Path string
+	// Identifier is the catalog-unique name of the operator (the name of the CSV for bundles that contain CSVs)
+	Identifier string
 	// Replaces is the name of the bundle to replace with the one found at Path.
 	Replaces string
 	// CatalogSourceRef is a reference to the CatalogSource the bundle path was resolved from.
