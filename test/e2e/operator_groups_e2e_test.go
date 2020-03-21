@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
@@ -22,6 +23,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
@@ -2043,6 +2045,169 @@ var _ = Describe("Operator Group", func() {
 		})
 		require.NoError(GinkgoT(), err)
 	})
+	It("OperatorGroupLabels", func() {
+		c := newKubeClient(GinkgoT())
+		crc := newCRClient(GinkgoT())
+
+		// Create the namespaces that will have an OperatorGroup Label applied.
+		testNamespaceA := genName("namespace-a-")
+		testNamespaceB := genName("namespace-b-")
+		testNamespaceC := genName("namespace-c-")
+		testNamespaces := []string{
+			testNamespaceA, testNamespaceB, testNamespaceC,
+		}
+
+		// Create the namespaces
+		for _, namespace := range testNamespaces {
+			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			})
+			require.NoError(GinkgoT(), err)
+		}
+
+		// Cleanup namespaces
+		defer func() {
+			for _, namespace := range testNamespaces {
+				err := c.KubernetesInterface().CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{})
+				require.NoError(GinkgoT(), err)
+			}
+		}()
+
+		// Create an OperatorGroup
+		operatorGroup := &v1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("e2e-operator-group-"),
+				Namespace: testNamespaceA,
+			},
+			Spec: v1.OperatorGroupSpec{
+				TargetNamespaces: []string{},
+			},
+		}
+		_, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(operatorGroup)
+		require.NoError(GinkgoT(), err)
+
+		// Cleanup OperatorGroup
+		defer func() {
+			err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Delete(operatorGroup.GetName(), &metav1.DeleteOptions{})
+			require.NoError(GinkgoT(), err)
+		}()
+
+		// Create the OperatorGroup Label
+		ogLabel := fmt.Sprintf("olm.operatorgroup/%s.%s", testNamespaceA, operatorGroup.GetName())
+
+		// Create list options
+		listOptions := metav1.ListOptions{
+			LabelSelector: labels.Set(map[string]string{ogLabel: ""}).String(),
+		}
+
+		namespaceList, err := pollForListCount(c, listOptions, 0)
+		require.NoError(GinkgoT(), err)
+
+		// Update the OperatorGroup to include a single namespace
+		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA}
+		updateOGSpecFunc := updateOperatorGroupSpecFunc(GinkgoT(), crc, testNamespaceA, operatorGroup.GetName())
+		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
+
+		namespaceList, err = pollForListCount(c, listOptions, 1)
+		require.NoError(GinkgoT(), err)
+		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
+
+		// Update the OperatorGroup to include two namespaces
+		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA, testNamespaceC}
+		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
+
+		namespaceList, err = pollForListCount(c, listOptions, 2)
+		require.NoError(GinkgoT(), err)
+		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
+
+		// Update the OperatorGroup to include three namespaces
+		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA, testNamespaceB, testNamespaceC}
+		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
+
+		namespaceList, err = pollForListCount(c, listOptions, 3)
+		require.NoError(GinkgoT(), err)
+		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
+
+		// Update the OperatorGroup to include two namespaces
+		operatorGroup.Spec.TargetNamespaces = []string{testNamespaceA, testNamespaceC}
+		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
+
+		namespaceList, err = pollForListCount(c, listOptions, 2)
+		require.NoError(GinkgoT(), err)
+		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
+
+		// Make the OperatorGroup a Cluster OperatorGroup.
+		operatorGroup.Spec.TargetNamespaces = []string{}
+		require.NoError(GinkgoT(), retry.RetryOnConflict(retry.DefaultBackoff, updateOGSpecFunc(operatorGroup.Spec)))
+
+		namespaceList, err = pollForListCount(c, listOptions, 0)
+		require.NoError(GinkgoT(), err)
+	})
+	It("CleanupDeletedOperatorGroupLabels", func() {
+		c := newKubeClient(GinkgoT())
+		crc := newCRClient(GinkgoT())
+
+		// Create the namespaces that will have an OperatorGroup Label applied.
+		testNamespaceA := genName("namespace-a-")
+		testNamespaceB := genName("namespace-b-")
+		testNamespaceC := genName("namespace-c-")
+		testNamespaces := []string{
+			testNamespaceA, testNamespaceB, testNamespaceC,
+		}
+
+		// Create the namespaces
+		for _, namespace := range testNamespaces {
+			_, err := c.KubernetesInterface().CoreV1().Namespaces().Create(&corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: namespace,
+				},
+			})
+			require.NoError(GinkgoT(), err)
+		}
+
+		// Cleanup namespaces
+		defer func() {
+			for _, namespace := range testNamespaces {
+				err := c.KubernetesInterface().CoreV1().Namespaces().Delete(namespace, &metav1.DeleteOptions{})
+				require.NoError(GinkgoT(), err)
+			}
+		}()
+
+		// Create an OperatorGroup with three target namespaces.
+		operatorGroup := &v1.OperatorGroup{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      genName("e2e-operator-group-"),
+				Namespace: testNamespaceA,
+			},
+			Spec: v1.OperatorGroupSpec{
+				TargetNamespaces: testNamespaces,
+			},
+		}
+		_, err := crc.OperatorsV1().OperatorGroups(testNamespaceA).Create(operatorGroup)
+		require.NoError(GinkgoT(), err)
+
+		// Create the OperatorGroup Label
+		ogLabel := fmt.Sprintf("olm.operatorgroup/%s.%s", testNamespaceA, operatorGroup.GetName())
+
+		// Create list options
+		listOptions := metav1.ListOptions{
+			LabelSelector: labels.Set(map[string]string{ogLabel: ""}).String(),
+		}
+
+		namespaceList, err := pollForListCount(c, listOptions, 3)
+		require.NoError(GinkgoT(), err)
+		require.True(GinkgoT(), checkForOperatorGroupLabels(operatorGroup, namespaceList.Items))
+
+		// Delete the operatorGroup.
+		err = crc.OperatorsV1().OperatorGroups(testNamespaceA).Delete(operatorGroup.GetName(), &metav1.DeleteOptions{})
+		require.NoError(GinkgoT(), err)
+
+		// Check that no namespaces have the OperatorGroup.
+		namespaceList, err = pollForListCount(c, listOptions, 0)
+		require.NoError(GinkgoT(), err)
+	})
 })
 
 func checkOperatorGroupAnnotations(obj metav1.Object, op *v1.OperatorGroup, checkTargetNamespaces bool, targetNamespaces string) error {
@@ -2114,4 +2279,48 @@ func createProjectAdmin(t GinkgoTInterface, c operatorclient.ClientInterface, na
 		_ = c.DeleteServiceAccount(sa.GetNamespace(), sa.GetName(), metav1.NewDeleteOptions(0))
 		_ = c.DeleteRoleBinding(rb.GetNamespace(), rb.GetName(), metav1.NewDeleteOptions(0))
 	}
+}
+
+func checkForOperatorGroupLabels(operatorGroup *v1.OperatorGroup, namespaces []corev1.Namespace) bool {
+	for _, ns := range operatorGroup.Spec.TargetNamespaces {
+		if !containsNamespace(namespaces, ns) {
+			return false
+		}
+	}
+	return true
+}
+
+func updateOperatorGroupSpecFunc(t GinkgoTInterface, crc versioned.Interface, namespace, operatorGroupName string) func(v1.OperatorGroupSpec) func() error {
+	return func(operatorGroupSpec v1.OperatorGroupSpec) func() error {
+		return func() error {
+			fetchedOG, err := crc.OperatorsV1().OperatorGroups(namespace).Get(operatorGroupName, metav1.GetOptions{})
+			require.NoError(t, err)
+			fetchedOG.Spec = operatorGroupSpec
+			_, err = crc.OperatorsV1().OperatorGroups(namespace).Update(fetchedOG)
+			return err
+		}
+	}
+}
+
+func pollForListCount(c operatorclient.ClientInterface, listOptions metav1.ListOptions, expectedLength int) (list *corev1.NamespaceList, err error) {
+	wait.PollImmediate(pollInterval, pollDuration, func() (bool, error) {
+		list, err = c.KubernetesInterface().CoreV1().Namespaces().List(listOptions)
+		if err != nil {
+			return false, err
+		}
+		if len(list.Items) == expectedLength {
+			return true, nil
+		}
+		return false, nil
+	})
+	return
+}
+
+func containsNamespace(namespaces []corev1.Namespace, namespaceName string) bool {
+	for i := range namespaces {
+		if namespaces[i].GetName() == namespaceName {
+			return true
+		}
+	}
+	return false
 }

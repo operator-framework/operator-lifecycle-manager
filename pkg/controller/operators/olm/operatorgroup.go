@@ -27,6 +27,8 @@ const (
 	AdminSuffix = "admin"
 	EditSuffix  = "edit"
 	ViewSuffix  = "view"
+
+	operatorGroupLabelTemplate = "olm.operatorgroup/%s.%s"
 )
 
 var (
@@ -98,6 +100,10 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	logger.WithField("targetNamespaces", targetNamespaces).Debug("updated target namespaces")
 
 	if namespacesChanged(targetNamespaces, op.Status.Namespaces) {
+		// Labels are only applied to namespaces that are not empty strings.
+		prunedStatusNamespaces := pruneEmptyStrings(op.Status.Namespaces)
+		prunedTargetNamespaces := pruneEmptyStrings(targetNamespaces)
+
 		// Update operatorgroup target namespace selection
 		logger.WithField("targets", targetNamespaces).Debug("namespace change detected")
 		op.Status = v1.OperatorGroupStatus{
@@ -108,6 +114,25 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 		if _, err = a.client.OperatorsV1().OperatorGroups(op.GetNamespace()).UpdateStatus(op); err != nil && !k8serrors.IsNotFound(err) {
 			logger.WithError(err).Warn("operatorgroup update failed")
 			return err
+		}
+
+		// Remove labels from targetNamespaces that were dropped.
+		ogLabel := getOperatorGroupLabel(*op)
+		for _, namespaceName := range setDifference(prunedStatusNamespaces, prunedTargetNamespaces) {
+			err = a.removeNamespaceLabel(namespaceName, ogLabel)
+			if err != nil {
+				logger.WithError(err).Warnf("failed to remove operatorgroup label from namespace %s", namespaceName)
+				return err
+			}
+		}
+
+		// Add labels to targetNamespaces that were added.
+		for _, namespaceName := range setDifference(prunedTargetNamespaces, prunedStatusNamespaces) {
+			err = a.addNamespaceLabel(namespaceName, ogLabel, "")
+			if err != nil {
+				logger.WithError(err).Warnf("failed to add operatorgroup to from namespace %s", namespaceName)
+				return err
+			}
 		}
 		logger.Debug("namespace change detected and operatorgroup status updated")
 		// CSV requeue is handled by the succeeding sync in `annotateCSVs`
@@ -160,6 +185,43 @@ func (a *Operator) syncOperatorGroups(obj interface{}) error {
 	return nil
 }
 
+// pruneEmptyStrings removes any items from a list that are empty
+func pruneEmptyStrings(strings []string) []string {
+	prunedStrings := []string{}
+	for _, str := range strings {
+		if str != "" {
+			prunedStrings = append(prunedStrings, str)
+		}
+	}
+	return prunedStrings
+}
+
+// setDifference implements Set Difference: A - B
+// https://en.wikipedia.org/wiki/Complement_(set_theory)#In_programming_languages
+func setDifference(a, b []string) (diff []string) {
+	if len(a) == 0 {
+		return diff
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	// Find the Set Difference.
+	m := make(map[string]bool)
+
+	for _, item := range b {
+		m[item] = true
+	}
+
+	for _, item := range a {
+		if _, ok := m[item]; !ok {
+			diff = append(diff, item)
+		}
+	}
+	return diff
+}
+
 func (a *Operator) operatorGroupDeleted(obj interface{}) {
 	op, ok := obj.(*v1.OperatorGroup)
 	if !ok {
@@ -183,6 +245,53 @@ func (a *Operator) operatorGroupDeleted(obj interface{}) {
 			logger.WithError(err).Error("failed to delete ClusterRole during garbage collection")
 		}
 	}
+
+	// Remove OperatorGroup label from targeNamespaces.
+	ogLabel := getOperatorGroupLabel(*op)
+	for _, namespaceName := range op.Spec.TargetNamespaces {
+		a.removeNamespaceLabel(namespaceName, ogLabel)
+		if err != nil {
+			logger.WithError(err).Error("failed to remove OperatorGroup Label from Namespace during garbage collection")
+		}
+	}
+}
+
+func (a *Operator) updateNamespace(namespaceName string, namespaceUpdateFunc func(*corev1.Namespace)) error {
+	namespace, err := a.opClient.KubernetesInterface().CoreV1().Namespaces().Get(namespaceName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	namespaceUpdateFunc(namespace)
+
+	_, err = a.opClient.KubernetesInterface().CoreV1().Namespaces().Update(namespace)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *Operator) removeNamespaceLabel(namespaceName, key string) error {
+	namespaceUpdateFunc := func(namespace *corev1.Namespace) {
+		delete(namespace.Labels, key)
+	}
+	return a.updateNamespace(namespaceName, namespaceUpdateFunc)
+}
+
+func (a *Operator) addNamespaceLabel(namespaceName string, key, value string) error {
+	namespaceUpdateFunc := func(namespace *corev1.Namespace) {
+		if namespace.Labels == nil {
+			namespace.Labels = make(map[string]string, 1)
+		}
+		namespace.Labels[key] = value
+	}
+	return a.updateNamespace(namespaceName, namespaceUpdateFunc)
+}
+
+// getOperatorGroupLabel returns a label that is applied to Namespaces to signify that the
+// namespace is a part of the OperatorGroup using selectors.
+func getOperatorGroupLabel(og v1.OperatorGroup) string {
+	return fmt.Sprintf(operatorGroupLabelTemplate, og.GetNamespace(), og.GetName())
 }
 
 func (a *Operator) annotateCSVs(group *v1.OperatorGroup, targetNamespaces []string, logger *logrus.Entry) error {
