@@ -66,7 +66,7 @@ func TestPackageManifestLoading(t *testing.T) {
 	catalogSourceName := genName("mock-ocs")
 	namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 	csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
-
+	csv.SetLabels(map[string]string{"projected": "label"})
 	c := newKubeClient(t)
 	crc := newCRClient(t)
 	pmc := newPMClient(t)
@@ -108,9 +108,10 @@ func TestPackageManifestLoading(t *testing.T) {
 	require.NotNil(t, pm)
 	require.Equal(t, packageName, pm.GetName())
 	require.Equal(t, expectedStatus, pm.Status)
+	require.Equal(t, pm.GetLabels()["projected"], "label")
 
-	// Get a PackageManifestList and ensure it has the correct items
-	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+	// Filter PackageManifestList and ensure it has the correct items
+	pmList, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{LabelSelector: "projected=label"})
 	require.NoError(t, err, "could not access package manifests list meta")
 	require.NotNil(t, pmList.ListMeta, "package manifest list metadata empty")
 	require.NotNil(t, pmList.Items)
