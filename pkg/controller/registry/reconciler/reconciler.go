@@ -107,7 +107,8 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 					ReadinessProbe: &v1.Probe{
 						Handler: v1.Handler{
 							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051",
+								"-rpc-timeout=10s"},
 							},
 						},
 						InitialDelaySeconds: readinessDelay,
@@ -116,7 +117,8 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 					LivenessProbe: &v1.Probe{
 						Handler: v1.Handler{
 							Exec: &v1.ExecAction{
-								Command: []string{"grpc_health_probe", "-addr=localhost:50051"},
+								Command: []string{"grpc_health_probe", "-addr=localhost:50051",
+								"-rpc-timeout=10s"},
 							},
 						},
 						InitialDelaySeconds: livenessDelay,
