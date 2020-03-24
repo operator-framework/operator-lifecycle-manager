@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-registry/pkg/registry"
 )
 
 const (
@@ -12,7 +13,7 @@ const (
 )
 
 // CreateCSVDescription creates a CSVDescription from a given CSV
-func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescription {
+func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion, csvJSON string) CSVDescription {
 	desc := CSVDescription{
 		DisplayName: csv.Spec.DisplayName,
 		Version:     csv.Spec.Version,
@@ -33,7 +34,7 @@ func CreateCSVDescription(csv *operatorsv1alpha1.ClusterServiceVersion) CSVDescr
 		},
 		NativeAPIs:     csv.Spec.NativeAPIs,
 		MinKubeVersion: csv.Spec.MinKubeVersion,
-		RelatedImages:  GetImages(csv),
+		RelatedImages:  GetImages(csvJSON),
 	}
 
 	icons := make([]Icon, len(csv.Spec.Icon))
@@ -82,65 +83,27 @@ func descriptionsForAPIServices(apis []operatorsv1alpha1.APIServiceDescription) 
 	return descriptions
 }
 
-// GetOperatorImages returns a list of images listed in Deployments
-func GetOperatorImages(csv *operatorsv1alpha1.ClusterServiceVersion) map[string]struct{} {
-	imageSet := make(map[string]struct{})
-
-	for _, deployment := range csv.Spec.InstallStrategy.StrategySpec.DeploymentSpecs {
-		for _, container := range deployment.Spec.Template.Spec.Containers {
-			imageSet[container.Image] = struct{}{}
-		}
-		for _, initcont := range deployment.Spec.Template.Spec.InitContainers {
-			imageSet[initcont.Image] = struct{}{}
-		}
-	}
-
-	return imageSet
-}
-
-// GetRelatedImages returns a list of related images listed in CSV spec
-func GetRelatedImages(csv *operatorsv1alpha1.ClusterServiceVersion) map[string]struct{} {
-	var objMap map[string]*json.RawMessage
-	imageSet := make(map[string]struct{})
-
-	csvJSON, err := json.Marshal(csv)
-	if err != nil {
-		return imageSet
-	}
-
-	if err := json.Unmarshal(csvJSON, &objMap); err != nil {
-		return imageSet
-	}
-
-	rawValue, ok := objMap[relatedImages]
-	if !ok || rawValue == nil {
-		return imageSet
-	}
-
-	type relatedImage struct {
-		Name string `json:"name"`
-		Ref  string `json:"image"`
-	}
-
-	var relatedImages []relatedImage
-	if err = json.Unmarshal(*rawValue, &relatedImages); err != nil {
-		return imageSet
-	}
-
-	for _, img := range relatedImages {
-		imageSet[img.Ref] = struct{}{}
-	}
-
-	return imageSet
-}
-
 // GetImages returns a list of images listed in CSV (spec and deployments)
-func GetImages(csv *operatorsv1alpha1.ClusterServiceVersion) []string {
+func GetImages(csvJSON string) []string {
 	var images []string
 
-	imageSet := GetOperatorImages(csv)
+	csv := &registry.ClusterServiceVersion{}
+	err := json.Unmarshal([]byte(csvJSON), &csv)
+	if err != nil {
+		return images
+	}
 
-	for k := range GetRelatedImages(csv) {
+	imageSet, err := csv.GetOperatorImages()
+	if err != nil {
+		return images
+	}
+
+	relatedImgSet, err := csv.GetRelatedImages()
+	if err != nil {
+		return images
+	}
+
+	for k := range relatedImgSet {
 		imageSet[k] = struct{}{}
 	}
 

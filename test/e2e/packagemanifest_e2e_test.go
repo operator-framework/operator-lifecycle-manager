@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/blang/semver"
@@ -44,6 +45,8 @@ var _ = Describe("Package Manifest", func() {
 		namedStrategy := newNginxInstallStrategy(genName("dep-"), nil, nil)
 		csv := newCSV(packageStable, testNamespace, "", semver.MustParse("0.1.0"), []apiextensions.CustomResourceDefinition{crd}, nil, namedStrategy)
 		csv.SetLabels(map[string]string{"projected": "label"})
+		csv.Spec.NativeAPIs = []metav1.GroupVersionKind{{Group: "kubenative.io", Version: "v1", Kind: "Native"}}
+		csvJSON, _ := json.Marshal(csv)
 		c := newKubeClient(GinkgoT())
 		crc := newCRClient(GinkgoT())
 		pmc := newPMClient(GinkgoT())
@@ -56,7 +59,7 @@ var _ = Describe("Package Manifest", func() {
 				{
 					Name:           stableChannel,
 					CurrentCSV:     packageStable,
-					CurrentCSVDesc: packagev1.CreateCSVDescription(&csv),
+					CurrentCSVDesc: packagev1.CreateCSVDescription(&csv, string(csvJSON)),
 				},
 			},
 			DefaultChannel: stableChannel,
@@ -97,6 +100,72 @@ var _ = Describe("Package Manifest", func() {
 		require.NoError(GinkgoT(), err, "could not access package manifests list meta")
 		require.NotNil(GinkgoT(), pmList.ListMeta, "package manifest list metadata empty")
 		require.NotNil(GinkgoT(), pmList.Items)
+	})
+	It("loading relatedImages", func() {
+
+		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+
+		sourceName := genName("catalog-")
+		packageName := "etcd-test"
+		image := "quay.io/olmtest/catsrc-update-test:related"
+
+		crc := newCRClient(GinkgoT())
+		pmc := newPMClient(GinkgoT())
+
+		source := &v1alpha1.CatalogSource{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       v1alpha1.CatalogSourceKind,
+				APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      sourceName,
+				Namespace: testNamespace,
+				Labels:    map[string]string{"olm.catalogSource": sourceName},
+			},
+			Spec: v1alpha1.CatalogSourceSpec{
+				SourceType: v1alpha1.SourceTypeGrpc,
+				Image:      image,
+			},
+		}
+
+		expectedRelatedImages := map[string]string{
+			"quay.io/coreos/etcd@sha256:3816b6daf9b66d6ced6f0f966314e2d4f894982c6b1493061502f8c2bf86ac84":          "",
+			"quay.io/coreos/etcd@sha256:49d3d4a81e0d030d3f689e7167f23e120abf955f7d08dbedf3ea246485acee9f":          "",
+			"quay.io/coreos/etcd-operator@sha256:c0301e4686c3ed4206e370b42de5a3bd2229b9fb4906cf85f3f30650424abec2": "",
+		}
+
+		source, err := crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Create(source)
+		require.NoError(GinkgoT(), err)
+		defer func() {
+			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().CatalogSources(source.GetNamespace()).Delete(source.GetName(), &metav1.DeleteOptions{}))
+		}()
+
+		// Wait for package-server to be ready
+		err = wait.Poll(pollInterval, 1*time.Minute, func() (bool, error) {
+			GinkgoT().Logf("Polling package-server...")
+			_, err := pmc.OperatorsV1().PackageManifests(testNamespace).List(metav1.ListOptions{})
+			if err == nil {
+				return true, nil
+			}
+			return false, nil
+		})
+		require.NoError(GinkgoT(), err, "package-server not available")
+
+		_, err = fetchCatalogSource(GinkgoT(), crc, source.GetName(), testNamespace, catalogSourceRegistryPodSynced)
+		require.NoError(GinkgoT(), err)
+
+		pm, err := fetchPackageManifest(GinkgoT(), pmc, testNamespace, packageName, packageManifestHasStatus)
+		require.NoError(GinkgoT(), err, "error getting package manifest")
+		require.NotNil(GinkgoT(), pm)
+		require.Equal(GinkgoT(), packageName, pm.GetName())
+
+		relatedImages := pm.Status.Channels[0].CurrentCSVDesc.RelatedImages
+		require.Equal(GinkgoT(), len(expectedRelatedImages), len(relatedImages))
+
+		for _, v := range relatedImages {
+			_, ok := expectedRelatedImages[v]
+			require.True(GinkgoT(), ok, "Expect this image %s to exist in the related images list\n", v)
+		}
 	})
 })
 
