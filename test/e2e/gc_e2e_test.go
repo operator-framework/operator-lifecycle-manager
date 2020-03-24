@@ -1,17 +1,115 @@
 package e2e
 
 import (
+	"fmt"
+
 	"github.com/blang/semver"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
+	apiregistrationv1 "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1"
 
-	. "github.com/onsi/ginkgo"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
+	. "github.com/operator-framework/operator-lifecycle-manager/test/e2e/dsl"
 )
 
-var _ = Describe("Garbage Collection", func() {
+var _ = Describe("Garbage collector", func() {
+	It("should delete a ClusterRole owned by a CustomResourceDefinition when the owner is deleted", func() {
+		c := newKubeClient(GinkgoT())
+
+		group := fmt.Sprintf("%s.com", rand.String(16))
+		crd, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Create(&apiextensionsv1.CustomResourceDefinition{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("plural.%s", group),
+			},
+			Spec: apiextensionsv1.CustomResourceDefinitionSpec{
+				Group: group,
+				Scope: apiextensionsv1.ClusterScoped,
+				Versions: []apiextensionsv1.CustomResourceDefinitionVersion{
+					apiextensionsv1.CustomResourceDefinitionVersion{
+						Name:    "v1",
+						Served:  true,
+						Storage: true,
+						Schema: &apiextensionsv1.CustomResourceValidation{
+							&apiextensionsv1.JSONSchemaProps{Type: "object"},
+						},
+					},
+				},
+				Names: apiextensionsv1.CustomResourceDefinitionNames{
+					Plural:   "plural",
+					Singular: "singular",
+					Kind:     "Kind",
+					ListKind: "KindList",
+				},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			IgnoreError(c.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{}))
+		}()
+
+		cr, err := c.CreateClusterRole(&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName:    "clusterrole-",
+				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(crd)},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			IgnoreError(c.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
+		}()
+
+		Expect(c.ApiextensionsV1beta1Interface().ApiextensionsV1().CustomResourceDefinitions().Delete(crd.GetName(), &metav1.DeleteOptions{})).To(Succeed())
+		Eventually(func() bool {
+			_, err := c.GetClusterRole(cr.GetName())
+			return k8serrors.IsNotFound(err)
+		}).Should(BeTrue(), "get cluster role should eventually return \"not found\"")
+	})
+
+	It("should delete a ClusterRole owned by an APIService when the owner is deleted", func() {
+		c := newKubeClient(GinkgoT())
+
+		group := rand.String(16)
+		as, err := c.CreateAPIService(&apiregistrationv1.APIService{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: fmt.Sprintf("v1.%s", group),
+			},
+			Spec: apiregistrationv1.APIServiceSpec{
+				Group:                group,
+				Version:              "v1",
+				GroupPriorityMinimum: 1,
+				VersionPriority:      1,
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			IgnoreError(c.DeleteAPIService(as.GetName(), &metav1.DeleteOptions{}))
+		}()
+
+		cr, err := c.CreateClusterRole(&rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName:    "clusterrole-",
+				OwnerReferences: []metav1.OwnerReference{ownerutil.NonBlockingOwner(as)},
+			},
+		})
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			IgnoreError(c.DeleteClusterRole(cr.GetName(), &metav1.DeleteOptions{}))
+		}()
+
+		Expect(c.DeleteAPIService(as.GetName(), &metav1.DeleteOptions{})).To(Succeed())
+		Eventually(func() bool {
+			_, err := c.GetClusterRole(cr.GetName())
+			return k8serrors.IsNotFound(err)
+		}).Should(BeTrue(), "get cluster role should eventually return \"not found\"")
+	})
+
 	It("owner reference GC behavior", func() {
 
 		// TestOwnerReferenceGCBehavior runs a simple check on OwnerReference behavior to ensure

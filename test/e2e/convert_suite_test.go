@@ -2,14 +2,15 @@ package e2e
 
 import (
 	"flag"
-	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"testing"
-
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client"
 )
 
 var (
@@ -39,6 +40,8 @@ var (
 
 func TestConvert(t *testing.T) {
 	RegisterFailHandler(Fail)
+	SetDefaultEventuallyTimeout(1 * time.Minute)
+	SetDefaultEventuallyPollingInterval(1 * time.Second)
 	RunSpecs(t, "Convert Suite")
 }
 
