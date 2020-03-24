@@ -3,11 +3,11 @@ package storage
 import (
 	"time"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/printers"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	metav1beta1 "k8s.io/apimachinery/pkg/apis/meta/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/duration"
-	"k8s.io/kubernetes/pkg/printers"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 )

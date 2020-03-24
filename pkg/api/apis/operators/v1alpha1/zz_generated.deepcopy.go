@@ -97,8 +97,8 @@ func (in *APIServiceDescription) DeepCopyInto(out *APIServiceDescription) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ActionDescriptor != nil {
-		in, out := &in.ActionDescriptor, &out.ActionDescriptor
+	if in.ActionDescriptors != nil {
+		in, out := &in.ActionDescriptors, &out.ActionDescriptors
 		*out = make([]ActionDescriptor, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
@@ -237,8 +237,8 @@ func (in *CRDDescription) DeepCopyInto(out *CRDDescription) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.ActionDescriptor != nil {
-		in, out := &in.ActionDescriptor, &out.ActionDescriptor
+	if in.ActionDescriptors != nil {
+		in, out := &in.ActionDescriptors, &out.ActionDescriptors
 		*out = make([]ActionDescriptor, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])

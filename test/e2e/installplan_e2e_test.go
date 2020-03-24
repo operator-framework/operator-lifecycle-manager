@@ -2,10 +2,15 @@ package e2e
 
 import (
 	"fmt"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/blang/semver"
 	"github.com/onsi/ginkgo/extensions/table"
 	operatorsv1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/apis/rbac"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"
 	opver "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -13,12 +18,9 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/util/retry"
-	"k8s.io/kubernetes/pkg/apis/rbac"
-	"strings"
-	"sync"
-	"time"
 
 	"errors"
+
 	. "github.com/onsi/ginkgo"
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
@@ -492,8 +494,8 @@ var _ = Describe("Install Plan", func() {
 		mainCRDPlural := "testcrd"
 
 		// excluded: new CRD, same version, same schema - won't trigger a CRD update
-		tableEntries := []table.TableEntry {
-			table.Entry("all existing versions are present, different (backwards compatible) schema",schemaPayload {
+		tableEntries := []table.TableEntry{
+			table.Entry("all existing versions are present, different (backwards compatible) schema", schemaPayload{
 				name:          "all existing versions are present, different (backwards compatible) schema",
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseComplete,
 				oldCRD: func() *apiextensions.CustomResourceDefinition {
@@ -545,7 +547,7 @@ var _ = Describe("Install Plan", func() {
 					return &newCRD
 				}(),
 			}),
-			table.Entry("all existing versions are present, different (backwards incompatible) schema",schemaPayload {name:"all existing versions are present, different (backwards incompatible) schema",
+			table.Entry("all existing versions are present, different (backwards incompatible) schema", schemaPayload{name: "all existing versions are present, different (backwards incompatible) schema",
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseFailed,
 				oldCRD: func() *apiextensions.CustomResourceDefinition {
 					oldCRD := newCRD(mainCRDPlural + "b")
@@ -596,7 +598,7 @@ var _ = Describe("Install Plan", func() {
 					return &newCRD
 				}(),
 			}),
-			table.Entry("missing existing versions in new CRD",schemaPayload { name: "missing existing versions in new CRD",
+			table.Entry("missing existing versions in new CRD", schemaPayload{name: "missing existing versions in new CRD",
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseFailed,
 				oldCRD: func() *apiextensions.CustomResourceDefinition {
 					oldCRD := newCRD(mainCRDPlural + "c")
@@ -650,8 +652,8 @@ var _ = Describe("Install Plan", func() {
 						},
 					}
 					return &newCRD
-				}(),}),
-			table.Entry("existing version is present in new CRD (deprecated field)",schemaPayload {name: "existing version is present in new CRD (deprecated field)",
+				}()}),
+			table.Entry("existing version is present in new CRD (deprecated field)", schemaPayload{name: "existing version is present in new CRD (deprecated field)",
 				expectedPhase: operatorsv1alpha1.InstallPlanPhaseComplete,
 				oldCRD: func() *apiextensions.CustomResourceDefinition {
 					oldCRD := newCRD(mainCRDPlural + "d")
@@ -681,7 +683,7 @@ var _ = Describe("Install Plan", func() {
 						},
 					}
 					return &newCRD
-				}(),}),
+				}()}),
 		}
 
 		table.DescribeTable("Test", func(tt schemaPayload) {

@@ -1827,7 +1827,8 @@ spec:
                                                           metadata.namespace, metadata.labels,
                                                           metadata.annotations, spec.nodeName,
                                                           spec.serviceAccountName,
-                                                          status.hostIP, status.podIP.'
+                                                          status.hostIP, status.podIP,
+                                                          status.podIPs.'
                                                         type: object
                                                         required:
                                                         - fieldPath
@@ -2781,10 +2782,9 @@ spec:
                                                         and PodSecurityContext, the
                                                         value specified in SecurityContext
                                                         takes precedence. This field
-                                                        is alpha-level and it is only
-                                                        honored by servers that enable
-                                                        the WindowsRunAsUserName feature
-                                                        flag.
+                                                        is beta-level and may be disabled
+                                                        with the WindowsRunAsUserName
+                                                        feature flag.
                                                       type: string
                                             startupProbe:
                                               description: 'StartupProbe indicates
@@ -3084,7 +3084,6 @@ spec:
                                                       environment. Defaults to ""
                                                       (volume's root). SubPathExpr
                                                       and SubPath are mutually exclusive.
-                                                      This field is beta in 1.15.
                                                     type: string
                                             workingDir:
                                               description: Container's working directory.
@@ -3291,7 +3290,8 @@ spec:
                                                           metadata.namespace, metadata.labels,
                                                           metadata.annotations, spec.nodeName,
                                                           spec.serviceAccountName,
-                                                          status.hostIP, status.podIP.'
+                                                          status.hostIP, status.podIP,
+                                                          status.podIPs.'
                                                         type: object
                                                         required:
                                                         - fieldPath
@@ -4225,10 +4225,9 @@ spec:
                                                         and PodSecurityContext, the
                                                         value specified in SecurityContext
                                                         takes precedence. This field
-                                                        is alpha-level and it is only
-                                                        honored by servers that enable
-                                                        the WindowsRunAsUserName feature
-                                                        flag.
+                                                        is beta-level and may be disabled
+                                                        with the WindowsRunAsUserName
+                                                        feature flag.
                                                       type: string
                                             startupProbe:
                                               description: Probes are not allowed
@@ -4526,7 +4525,6 @@ spec:
                                                       environment. Defaults to ""
                                                       (volume's root). SubPathExpr
                                                       and SubPath are mutually exclusive.
-                                                      This field is beta in 1.15.
                                                     type: string
                                             workingDir:
                                               description: Container's working directory.
@@ -4732,7 +4730,8 @@ spec:
                                                           metadata.namespace, metadata.labels,
                                                           metadata.annotations, spec.nodeName,
                                                           spec.serviceAccountName,
-                                                          status.hostIP, status.podIP.'
+                                                          status.hostIP, status.podIP,
+                                                          status.podIPs.'
                                                         type: object
                                                         required:
                                                         - fieldPath
@@ -5686,10 +5685,9 @@ spec:
                                                         and PodSecurityContext, the
                                                         value specified in SecurityContext
                                                         takes precedence. This field
-                                                        is alpha-level and it is only
-                                                        honored by servers that enable
-                                                        the WindowsRunAsUserName feature
-                                                        flag.
+                                                        is beta-level and may be disabled
+                                                        with the WindowsRunAsUserName
+                                                        feature flag.
                                                       type: string
                                             startupProbe:
                                               description: 'StartupProbe indicates
@@ -5989,7 +5987,6 @@ spec:
                                                       environment. Defaults to ""
                                                       (volume's root). SubPathExpr
                                                       and SubPath are mutually exclusive.
-                                                      This field is beta in 1.15.
                                                     type: string
                                             workingDir:
                                               description: Container's working directory.
@@ -6259,9 +6256,8 @@ spec:
                                                   If set in both SecurityContext and
                                                   PodSecurityContext, the value specified
                                                   in SecurityContext takes precedence.
-                                                  This field is alpha-level and it
-                                                  is only honored by servers that
-                                                  enable the WindowsRunAsUserName
+                                                  This field is beta-level and may
+                                                  be disabled with the WindowsRunAsUserName
                                                   feature flag.
                                                 type: string
                                       serviceAccount:
@@ -6283,9 +6279,7 @@ spec:
                                           process in each container will not be assigned
                                           PID 1. HostPID and ShareProcessNamespace
                                           cannot both be set. Optional: Default to
-                                          false. This field is beta-level and may
-                                          be disabled with the PodShareProcessNamespace
-                                          feature.'
+                                          false.'
                                         type: boolean
                                       subdomain:
                                         description: If specified, the fully qualified

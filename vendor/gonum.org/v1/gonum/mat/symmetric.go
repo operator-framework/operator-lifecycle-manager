@@ -120,7 +120,6 @@ func (s *SymDense) SetRawSymmetric(mat blas64.Symmetric) {
 	if mat.Uplo != blas.Upper {
 		panic(badSymTriangle)
 	}
-	s.cap = mat.N
 	s.mat = mat
 }
 
@@ -263,12 +262,12 @@ func (s *SymDense) CopySym(a Symmetric) int {
 	return n
 }
 
-// SymRankOne performs a symmetric rank-one update to the matrix a with x,
-// which is treated as a column vector, and stores the result in the receiver
-//  s = a + alpha * x * x^T
+// SymRankOne performs a symetric rank-one update to the matrix a and stores
+// the result in the receiver
+//  s = a + alpha * x * x'
 func (s *SymDense) SymRankOne(a Symmetric, alpha float64, x Vector) {
-	n := x.Len()
-	if a.Symmetric() != n {
+	n, c := x.Dims()
+	if a.Symmetric() != n || c != 1 {
 		panic(ErrShape)
 	}
 	s.reuseAs(n)
@@ -282,9 +281,8 @@ func (s *SymDense) SymRankOne(a Symmetric, alpha float64, x Vector) {
 
 	xU, _ := untranspose(x)
 	if rv, ok := xU.(RawVectorer); ok {
-		r, c := xU.Dims()
 		xmat := rv.RawVector()
-		s.checkOverlap(generalFromVector(xmat, r, c))
+		s.checkOverlap((&VecDense{mat: xmat}).asGeneral())
 		blas64.Syr(alpha, xmat, s.mat)
 		return
 	}
@@ -373,16 +371,17 @@ func (s *SymDense) SymOuterK(alpha float64, x Matrix) {
 	}
 }
 
-// RankTwo performs a symmetric rank-two update to the matrix a with the
-// vectors x and y, which are treated as column vectors, and stores the
-// result in the receiver
-//  m = a + alpha * (x * y^T + y * x^T)
+// RankTwo performs a symmmetric rank-two update to the matrix a and stores
+// the result in the receiver
+//  m = a + alpha * (x * y' + y * x')
 func (s *SymDense) RankTwo(a Symmetric, alpha float64, x, y Vector) {
 	n := s.mat.N
-	if x.Len() != n {
+	xr, xc := x.Dims()
+	if xr != n || xc != 1 {
 		panic(ErrShape)
 	}
-	if y.Len() != n {
+	yr, yc := y.Dims()
+	if yr != n || yc != 1 {
 		panic(ErrShape)
 	}
 
@@ -396,17 +395,15 @@ func (s *SymDense) RankTwo(a Symmetric, alpha float64, x, y Vector) {
 	fast := true
 	xU, _ := untranspose(x)
 	if rv, ok := xU.(RawVectorer); ok {
-		r, c := xU.Dims()
 		xmat = rv.RawVector()
-		s.checkOverlap(generalFromVector(xmat, r, c))
+		s.checkOverlap((&VecDense{mat: xmat}).asGeneral())
 	} else {
 		fast = false
 	}
 	yU, _ := untranspose(y)
 	if rv, ok := yU.(RawVectorer); ok {
-		r, c := yU.Dims()
 		ymat = rv.RawVector()
-		s.checkOverlap(generalFromVector(ymat, r, c))
+		s.checkOverlap((&VecDense{mat: ymat}).asGeneral())
 	} else {
 		fast = false
 	}

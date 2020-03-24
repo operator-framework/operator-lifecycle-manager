@@ -3,12 +3,12 @@ package install
 import (
 	"fmt"
 
+	rbacauthorizer "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/plugin/pkg/auth/authorizer/rbac"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
 	crbacv1 "k8s.io/client-go/listers/rbac/v1"
-	rbacauthorizer "k8s.io/kubernetes/plugin/pkg/auth/authorizer/rbac"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/ownerutil"

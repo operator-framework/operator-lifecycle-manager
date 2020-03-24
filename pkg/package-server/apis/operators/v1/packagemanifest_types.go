@@ -12,7 +12,7 @@ import (
 type PackageManifestList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-
+	// +listType=set
 	Items []PackageManifest `json:"items"`
 }
 
@@ -48,6 +48,7 @@ type PackageManifestStatus struct {
 	PackageName string `json:"packageName"`
 
 	// Channels are the declared channels for the package, ala `stable` or `alpha`.
+	// +listType=set
 	Channels []PackageChannel `json:"channels"`
 
 	// DefaultChannel is, if specified, the name of the default channel for the package. The
@@ -88,19 +89,22 @@ type CSVDescription struct {
 	DisplayName string `json:"displayName,omitempty"`
 
 	// Icon is the CSV's base64 encoded icon
+	// +listType=set
 	Icon []Icon `json:"icon,omitempty"`
 
 	// Version is the CSV's semantic version
 	Version version.OperatorVersion `json:"version,omitempty"`
 
 	// Provider is the CSV's provider
-	Provider    AppLink           `json:"provider,omitempty"`
+	Provider AppLink `json:"provider,omitempty"`
+	// +listType=map
 	Annotations map[string]string `json:"annotations,omitempty"`
 
 	// LongDescription is the CSV's description
 	LongDescription string `json:"description,omitempty"`
 
 	// InstallModes specify supported installation types
+	// +listType=set
 	InstallModes []operatorv1alpha1.InstallMode `json:"installModes,omitempty"`
 
 	CustomResourceDefinitions operatorv1alpha1.CustomResourceDefinitions `json:"customresourcedefinitions,omitempty"`

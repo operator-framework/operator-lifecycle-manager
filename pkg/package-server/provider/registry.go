@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	utillabels "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/util/labels"
 	"github.com/operator-framework/operator-registry/pkg/api"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -18,7 +19,6 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/cache"
-	utillabels "k8s.io/kubernetes/pkg/util/labels"
 
 	operatorsv1alpha1 "github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"

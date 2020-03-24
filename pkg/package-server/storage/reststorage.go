@@ -6,6 +6,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/fields"
 
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/printers"
+	printerstorage "github.com/operator-framework/operator-lifecycle-manager/pkg/lib/kubernetes/pkg/printers/storage"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,8 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	genericreq "k8s.io/apiserver/pkg/endpoints/request"
 	"k8s.io/apiserver/pkg/registry/rest"
-	"k8s.io/kubernetes/pkg/printers"
-	printerstorage "k8s.io/kubernetes/pkg/printers/storage"
 
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/apis/operators"
 	"github.com/operator-framework/operator-lifecycle-manager/pkg/package-server/provider"
