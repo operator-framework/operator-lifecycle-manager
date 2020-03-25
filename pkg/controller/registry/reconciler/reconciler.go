@@ -119,7 +119,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 							},
 						},
 						InitialDelaySeconds: readinessDelay,
-						TimeoutSeconds:      5,
+						TimeoutSeconds:      10,
 					},
 					LivenessProbe: &v1.Probe{
 						Handler: v1.Handler{
