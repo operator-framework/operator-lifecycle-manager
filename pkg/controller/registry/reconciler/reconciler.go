@@ -129,6 +129,7 @@ func Pod(source *v1alpha1.CatalogSource, name string, image string, labels map[s
 							},
 						},
 						InitialDelaySeconds: livenessDelay,
+						TimeoutSeconds:      10,
 					},
 					Resources: v1.ResourceRequirements{
 						Requests: v1.ResourceList{
