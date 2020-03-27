@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"sort"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -182,6 +183,8 @@ func (c *catalogHealthReconciler) health(now *metav1.Time, catalog *v1alpha1.Cat
 // healthy returns true if the given catalog is healthy, false otherwise, and any error encountered
 // while checking the catalog's registry server.
 func (c *catalogHealthReconciler) healthy(catalog *v1alpha1.CatalogSource) (bool, error) {
+	logrus.Warnf("%#v", catalog)
+	logrus.Warnf("%#v", c.registryReconcilerFactory.ReconcilerForSource(catalog))
 	return c.registryReconcilerFactory.ReconcilerForSource(catalog).CheckRegistryServer(catalog)
 }
 
