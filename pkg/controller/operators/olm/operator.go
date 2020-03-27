@@ -68,6 +68,7 @@ type Operator struct {
 	csvCopyQueueSet       *queueinformer.ResourceQueueSet
 	csvGCQueueSet         *queueinformer.ResourceQueueSet
 	objGCQueueSet         *queueinformer.ResourceQueueSet
+	nsQueueSet            workqueue.RateLimitingInterface
 	apiServiceQueue       workqueue.RateLimitingInterface
 	csvIndexers           map[string]cache.Indexer
 	recorder              record.EventRecorder
@@ -394,6 +395,7 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	// register namespace queueinformer
 	namespaceInformer := k8sInformerFactory.Core().V1().Namespaces()
 	op.lister.CoreV1().RegisterNamespaceLister(namespaceInformer.Lister())
+	op.nsQueueSet = workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "resolver")
 	namespaceInformer.Informer().AddEventHandler(
 		&cache.ResourceEventHandlerFuncs{
 			DeleteFunc: op.namespaceAddedOrRemoved,
@@ -403,8 +405,9 @@ func newOperatorWithConfig(ctx context.Context, config *operatorConfig) (*Operat
 	namespaceQueueInformer, err := queueinformer.NewQueueInformer(
 		ctx,
 		queueinformer.WithLogger(op.logger),
+		queueinformer.WithQueue(op.nsQueueSet),
 		queueinformer.WithInformer(namespaceInformer.Informer()),
-		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncObject).ToSyncer()),
+		queueinformer.WithSyncer(queueinformer.LegacySyncHandler(op.syncNamespace).ToSyncer()),
 	)
 	if err != nil {
 		return nil, err
@@ -734,6 +737,49 @@ func (a *Operator) namespaceAddedOrRemoved(obj interface{}) {
 		}
 	}
 	return
+}
+
+func (a *Operator) syncNamespace(obj interface{}) error {
+	// Check to see if any operator groups are associated with this namespace
+	namespace, ok := obj.(*corev1.Namespace)
+	if !ok {
+		a.logger.Debugf("wrong type: %#v\n", obj)
+		return fmt.Errorf("casting Namespace failed")
+	}
+
+	logger := a.logger.WithFields(logrus.Fields{
+		"name": namespace.GetName(),
+	})
+
+	// Remove existing OperatorGroup labels
+	for label := range namespace.GetLabels() {
+		if v1.IsOperatorGroupLabel(label) {
+			delete(namespace.Labels, label)
+		}
+	}
+
+	operatorGroupList, err := a.lister.OperatorsV1().OperatorGroupLister().List(labels.Everything())
+	if err != nil {
+		logger.WithError(err).Warn("lister failed")
+		return err
+	}
+
+	for _, group := range operatorGroupList {
+		namespaceSet := resolver.NewNamespaceSet(group.Status.Namespaces)
+
+		// Apply the label if not an All Namespaces OperatorGroup.
+		if namespaceSet.Contains(namespace.GetName()) && !namespaceSet.IsAllNamespaces() {
+			if namespace.Labels == nil {
+				namespace.Labels = make(map[string]string, 1)
+			}
+			namespace.Labels[group.GetLabel()] = ""
+		}
+	}
+
+	// Update the Namespace
+	_, err = a.opClient.KubernetesInterface().CoreV1().Namespaces().Update(namespace)
+
+	return err
 }
 
 func (a *Operator) handleClusterServiceVersionDeletion(obj interface{}) {
@@ -1892,4 +1938,13 @@ func (a *Operator) ensureLabels(in *v1alpha1.ClusterServiceVersion, labelSets ..
 	out.SetLabels(merged)
 	out, err := a.client.OperatorsV1alpha1().ClusterServiceVersions(out.GetNamespace()).Update(out)
 	return out, err
+}
+
+func containsString(list []string, item string) bool {
+	for i := range list {
+		if list[i] == item {
+			return true
+		}
+	}
+	return false
 }

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 
@@ -15,6 +16,9 @@ const (
 	OperatorGroupProvidedAPIsAnnotationKey = "olm.providedAPIs"
 
 	OperatorGroupKind = "OperatorGroup"
+
+	operatorGroupLabelPrefix   = "olm.operatorgroup/"
+	operatorGroupLabelTemplate = operatorGroupLabelPrefix + "%s.%s"
 )
 
 // OperatorGroupSpec is the spec for an OperatorGroup resource.
@@ -98,4 +102,15 @@ func (o *OperatorGroup) HasServiceAccountSynced() bool {
 	}
 
 	return false
+}
+
+// getOperatorGroupLabel returns a label that is applied to Namespaces to signify that the
+// namespace is a part of the OperatorGroup using selectors.
+func (o *OperatorGroup) GetLabel() string {
+	return fmt.Sprintf(operatorGroupLabelTemplate, o.GetNamespace(), o.GetName())
+}
+
+// IsOperatorGroupLabel returns true if the label is an OperatorGroup label.
+func IsOperatorGroupLabel(label string) bool {
+	return strings.HasPrefix(label, operatorGroupLabelPrefix)
 }
