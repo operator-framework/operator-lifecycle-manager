@@ -719,23 +719,13 @@ func TestSyncCatalogSources(t *testing.T) {
 					UID:       types.UID("catalog-uid"),
 				},
 				Spec: v1alpha1.CatalogSourceSpec{
-					ConfigMap:  "cool-configmap",
 					SourceType: "nope",
 				},
 			},
-			k8sObjs: []runtime.Object{
-				&corev1.ConfigMap{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "cool-configmap",
-						Namespace:       "cool-namespace",
-						UID:             types.UID("configmap-uid"),
-						ResourceVersion: "resource-version",
-					},
-					Data: fakeConfigMapData(),
-				},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				Message: "unknown sourcetype: nope",
+				Reason:  v1alpha1.CatalogSourceSpecInvalidError,
 			},
-			expectedStatus: nil,
-			expectedError:  fmt.Errorf("no reconciler for source type nope"),
 		},
 		{
 			testName:      "CatalogSourceWithBackingConfigMap",
@@ -876,6 +866,66 @@ func TestSyncCatalogSources(t *testing.T) {
 			expectedObjs: []runtime.Object{
 				pod(*grpcCatalog),
 			},
+		},
+		{
+			testName:  "CatalogSourceWithGrpcType/EnsuresImageOrAddressIsSet",
+			namespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-spec-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+					Labels:    map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeGrpc,
+				},
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				Message: fmt.Sprintf("image and address unset: at least one must be set for sourcetype: %s", v1alpha1.SourceTypeGrpc),
+				Reason:  v1alpha1.CatalogSourceSpecInvalidError,
+			},
+			expectedError: nil,
+		},
+		{
+			testName:  "CatalogSourceWithInternalType/EnsuresConfigMapIsSet",
+			namespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-spec-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+					Labels:    map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeInternal,
+				},
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				Message: fmt.Sprintf("configmap name unset: must be set for sourcetype: %s", v1alpha1.SourceTypeInternal),
+				Reason:  v1alpha1.CatalogSourceSpecInvalidError,
+			},
+			expectedError: nil,
+		},
+		{
+			testName:  "CatalogSourceWithConfigMapType/EnsuresConfigMapIsSet",
+			namespace: "cool-namespace",
+			catalogSource: &v1alpha1.CatalogSource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "invalid-spec-catalog",
+					Namespace: "cool-namespace",
+					UID:       types.UID("catalog-uid"),
+					Labels:    map[string]string{"olm.catalogSource": "invalid-spec-catalog"},
+				},
+				Spec: v1alpha1.CatalogSourceSpec{
+					SourceType: v1alpha1.SourceTypeConfigmap,
+				},
+			},
+			expectedStatus: &v1alpha1.CatalogSourceStatus{
+				Message: fmt.Sprintf("configmap name unset: must be set for sourcetype: %s", v1alpha1.SourceTypeConfigmap),
+				Reason:  v1alpha1.CatalogSourceSpecInvalidError,
+			},
+			expectedError: nil,
 		},
 	}
 	for _, tt := range tests {
