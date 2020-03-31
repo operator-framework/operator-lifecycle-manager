@@ -107,6 +107,13 @@ type CSVDescription struct {
 
 	CustomResourceDefinitions operatorv1alpha1.CustomResourceDefinitions
 	APIServiceDefinitions     operatorv1alpha1.APIServiceDefinitions
+	NativeAPIs                []metav1.GroupVersionKind `json:"nativeApis,omitempty"`
+
+	// Minimum Kubernetes version for operator installation
+	MinKubeVersion string `json:"minKubeVersion,omitempty"`
+
+	// List of related images
+	RelatedImages []string `json:"relatedImages,omitempty"`
 }
 
 // AppLink defines a link to an application
