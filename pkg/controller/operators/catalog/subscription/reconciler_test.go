@@ -2,6 +2,7 @@ package subscription
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -98,6 +99,76 @@ func TestCatalogHealthReconcile(t *testing.T) {
 						},
 					},
 				),
+			},
+		},
+		{
+			description: "ExistsToUnhealthy/InvalidCatalogSpec",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now:                    nowFunc,
+					globalCatalogNamespace: "global",
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							func() *v1alpha1.CatalogSource {
+								cs := catalogSource("ns", "cs-0")
+								cs.Spec = v1alpha1.CatalogSourceSpec{
+									SourceType: v1alpha1.SourceTypeGrpc,
+								}
+								cs.Status = v1alpha1.CatalogSourceStatus{
+									Reason:  v1alpha1.CatalogSourceSpecInvalidError,
+									Message: fmt.Sprintf("image and address unset: at least one must be set for sourcetype: %s", v1alpha1.SourceTypeGrpc),
+								}
+
+								return cs
+							}(),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Spec: &v1alpha1.SubscriptionSpec{
+									CatalogSourceNamespace: "ns",
+									CatalogSource:          "cs-0",
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(
+					&v1alpha1.Subscription{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: "ns",
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSourceNamespace: "ns",
+							CatalogSource:          "cs-0",
+						},
+					},
+				),
+			},
+			want: want{
+				out: newCatalogUnhealthyState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSourceNamespace: "ns",
+						CatalogSource:          "cs-0",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+							catalogHealth("ns", "cs-0", &now, false),
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							catalogUnhealthyCondition(corev1.ConditionTrue, v1alpha1.CatalogSourcesAdded, "targeted catalogsource ns/cs-0 unhealthy", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
 			},
 		},
 		{
@@ -336,6 +407,94 @@ func TestCatalogHealthReconcile(t *testing.T) {
 						},
 						Conditions: []v1alpha1.SubscriptionCondition{
 							catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.CatalogSourcesAdded, "all available catalogsources are healthy", &now),
+						},
+						LastUpdated: now,
+					},
+				}),
+			},
+		},
+		{
+			description: "HealthyToUnhealthy/InvalidCatalogSpec",
+			fields: fields{
+				config: &fakeReconcilerConfig{
+					now:                    nowFunc,
+					globalCatalogNamespace: "global",
+					existingObjs: existingObjs{
+						clientObjs: []runtime.Object{
+							func() *v1alpha1.CatalogSource {
+								cs := catalogSource("ns", "cs-0")
+								cs.Spec = v1alpha1.CatalogSourceSpec{
+									SourceType: v1alpha1.SourceTypeGrpc,
+								}
+								cs.Status = v1alpha1.CatalogSourceStatus{
+									Reason:  v1alpha1.CatalogSourceSpecInvalidError,
+									Message: fmt.Sprintf("image and address unset: at least one must be set for sourcetype: %s", v1alpha1.SourceTypeGrpc),
+								}
+
+								return cs
+							}(),
+							&v1alpha1.Subscription{
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      "sub",
+									Namespace: "ns",
+								},
+								Spec: &v1alpha1.SubscriptionSpec{
+									CatalogSourceNamespace: "ns",
+									CatalogSource:          "cs-0",
+								},
+								Status: v1alpha1.SubscriptionStatus{
+									CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+										catalogHealth("ns", "cs-0", &earlier, true),
+									},
+									Conditions: []v1alpha1.SubscriptionCondition{
+										catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+									},
+									LastUpdated: earlier,
+								},
+							},
+						},
+					},
+				},
+			},
+			args: args{
+				in: newSubscriptionExistsState(
+					&v1alpha1.Subscription{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "sub",
+							Namespace: "ns",
+						},
+						Spec: &v1alpha1.SubscriptionSpec{
+							CatalogSourceNamespace: "ns",
+							CatalogSource:          "cs-0",
+						},
+						Status: v1alpha1.SubscriptionStatus{
+							CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+								catalogHealth("ns", "cs-0", &earlier, true),
+							},
+							Conditions: []v1alpha1.SubscriptionCondition{
+								catalogUnhealthyCondition(corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy", &earlier),
+							},
+							LastUpdated: earlier,
+						},
+					},
+				),
+			},
+			want: want{
+				out: newCatalogUnhealthyState(&v1alpha1.Subscription{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "sub",
+						Namespace: "ns",
+					},
+					Spec: &v1alpha1.SubscriptionSpec{
+						CatalogSourceNamespace: "ns",
+						CatalogSource:          "cs-0",
+					},
+					Status: v1alpha1.SubscriptionStatus{
+						CatalogHealth: []v1alpha1.SubscriptionCatalogHealth{
+							catalogHealth("ns", "cs-0", &now, false),
+						},
+						Conditions: []v1alpha1.SubscriptionCondition{
+							catalogUnhealthyCondition(corev1.ConditionTrue, v1alpha1.CatalogSourcesUpdated, "targeted catalogsource ns/cs-0 unhealthy", &now),
 						},
 						LastUpdated: now,
 					},

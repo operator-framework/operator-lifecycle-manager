@@ -485,6 +485,35 @@ func (o *Operator) handleCatSrcDeletion(obj interface{}) {
 	o.logger.WithField("source", sourceKey).Info("removed client for deleted catalogsource")
 }
 
+func validateSourceType(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, _ error) {
+	out = in
+	var err error
+	switch sourceType := out.Spec.SourceType; sourceType {
+	case v1alpha1.SourceTypeInternal, v1alpha1.SourceTypeConfigmap:
+		if out.Spec.ConfigMap == "" {
+			err = fmt.Errorf("configmap name unset: must be set for sourcetype: %s", sourceType)
+		}
+	case v1alpha1.SourceTypeGrpc:
+		if out.Spec.Image == "" && out.Spec.Address == "" {
+			err = fmt.Errorf("image and address unset: at least one must be set for sourcetype: %s", sourceType)
+		}
+	default:
+		err = fmt.Errorf("unknown sourcetype: %s", sourceType)
+	}
+	if err != nil {
+		out.SetError(v1alpha1.CatalogSourceSpecInvalidError, err)
+		return
+	}
+
+	// The sourceType is valid, clear (all) status if there's existing invalid spec reason
+	if out.Status.Reason == v1alpha1.CatalogSourceSpecInvalidError {
+		out.Status = v1alpha1.CatalogSourceStatus{}
+	}
+	continueSync = true
+
+	return
+}
+
 func (o *Operator) syncConfigMap(logger *logrus.Entry, in *v1alpha1.CatalogSource) (out *v1alpha1.CatalogSource, continueSync bool, syncError error) {
 	out = in
 	if !(in.Spec.SourceType == v1alpha1.SourceTypeInternal || in.Spec.SourceType == v1alpha1.SourceTypeConfigmap) {
@@ -705,6 +734,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 	}
 
 	chain := []CatalogSourceSyncFunc{
+		validateSourceType,
 		o.syncConfigMap,
 		o.syncRegistryServer,
 		o.syncConnection,
@@ -715,8 +745,7 @@ func (o *Operator) syncCatalogSources(obj interface{}) (syncError error) {
 
 	out, syncError := syncFunc(in, chain)
 
-	if equalFunc(&in.Status, &out.Status) {
-		logger.Debug("no change in status, skipping status update")
+	if equalFunc(&catsrc.Status, &out.Status) {
 		return
 	}
 

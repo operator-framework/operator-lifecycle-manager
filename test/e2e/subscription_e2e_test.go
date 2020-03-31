@@ -6,21 +6,13 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-
 	"time"
 
 	"github.com/blang/semver"
 	"github.com/ghodss/yaml"
 	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
-	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,6 +22,15 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/apis/operators/v1alpha1"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/api/client/clientset/versioned"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/install"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/controller/registry/resolver"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/comparison"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/operatorclient"
+	"github.com/operator-framework/operator-lifecycle-manager/pkg/lib/version"
 )
 
 var _ = Describe("Subscription", func() {
@@ -574,47 +575,294 @@ var _ = Describe("Subscription", func() {
 		require.NoError(GinkgoT(), err)
 	})
 
-	// TestSubscriptionStatusMissingTargetCatalogSource ensures that a Subscription has the appropriate status condition when
-	// its target catalog is missing.
-	//
-	// Steps:
-	// 1. Generate an initial CatalogSource in the target namespace
-	// 2. Generate Subscription, "sub", targetting non-existent CatalogSource, "missing"
-	// 3. Wait for sub status to show SubscriptionCatalogSourcesUnhealthy with status True, reason CatalogSourcesUpdated, and appropriate missing message
-	// 4. Update sub's spec to target the "mysubscription"
-	// 5. Wait for sub's status to show SubscriptionCatalogSourcesUnhealthy with status False, reason AllCatalogSourcesHealthy, and reason "all available catalogsources are healthy"
-	// 6. Wait for sub to succeed
-	It("status missing target catalog source", func() {
+	Describe("puppeting CatalogSource health status", func() {
+		var (
+			c          operatorclient.ClientInterface
+			crc        versioned.Interface
+			getOpts    metav1.GetOptions
+			deleteOpts *metav1.DeleteOptions
+		)
 
-		defer cleaner.NotifyTestComplete(GinkgoT(), true)
+		BeforeEach(func() {
+			c = newKubeClient(GinkgoT())
+			crc = newCRClient(GinkgoT())
+			getOpts = metav1.GetOptions{}
+			deleteOpts = &metav1.DeleteOptions{}
+		})
 
-		c := newKubeClient(GinkgoT())
-		crc := newCRClient(GinkgoT())
-		defer func() {
-			require.NoError(GinkgoT(), crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{}))
-		}()
-		require.NoError(GinkgoT(), initCatalog(GinkgoT(), c, crc))
+		AfterEach(func() {
+			defer cleaner.NotifyTestComplete(GinkgoT(), true)
+			err := crc.OperatorsV1alpha1().Subscriptions(testNamespace).DeleteCollection(&metav1.DeleteOptions{}, metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+		})
 
-		missingName := "missing"
-		cleanup := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
-		defer cleanup()
+		When("missing target catalog", func() {
+			// TestSubscriptionStatusMissingTargetCatalogSource ensures that a Subscription has the appropriate status condition when
+			// its target catalog is missing.
+			//
+			// Steps:
+			// 1. Generate an initial CatalogSource in the target namespace
+			// 2. Generate Subscription, "sub", targetting non-existent CatalogSource, "missing"
+			// 3. Wait for sub status to show SubscriptionCatalogSourcesUnhealthy with status True, reason CatalogSourcesUpdated, and appropriate missing message
+			// 4. Update sub's spec to target the "mysubscription"
+			// 5. Wait for sub's status to show SubscriptionCatalogSourcesUnhealthy with status False, reason AllCatalogSourcesHealthy, and reason "all available catalogsources are healthy"
+			// 6. Wait for sub to succeed
+			It("should surface the missing catalog", func() {
+				err := initCatalog(GinkgoT(), c, crc)
+				Expect(err).NotTo(HaveOccurred())
 
-		sub, err := fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", testNamespace, missingName)))
-		require.NoError(GinkgoT(), err)
-		require.NotNil(GinkgoT(), sub)
+				missingName := "missing"
+				cleanup := createSubscriptionForCatalog(GinkgoT(), crc, testNamespace, testSubscriptionName, missingName, testPackageName, betaChannel, "", v1alpha1.ApprovalAutomatic)
+				defer cleanup()
 
-		// Update sub to target an existing CatalogSource
-		sub.Spec.CatalogSource = catalogSourceName
-		_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(sub)
-		require.NoError(GinkgoT(), err)
+				By("detecting its absence")
+				sub, err := fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionTrue, v1alpha1.UnhealthyCatalogSourceFound, fmt.Sprintf("targeted catalogsource %s/%s missing", testNamespace, missingName)))
+				Expect(err).NotTo(HaveOccurred())
+				Expect(sub).ToNot(BeNil())
 
-		// Wait for SubscriptionCatalogSourcesUnhealthy to be false
-		_, err = fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
-		require.NoError(GinkgoT(), err)
+				// Update sub to target an existing CatalogSource
+				sub.Spec.CatalogSource = catalogSourceName
+				_, err = crc.OperatorsV1alpha1().Subscriptions(testNamespace).Update(sub)
+				Expect(err).NotTo(HaveOccurred())
 
-		// Wait for success
-		_, err = fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
-		require.NoError(GinkgoT(), err)
+				// Wait for SubscriptionCatalogSourcesUnhealthy to be false
+				By("detecting a new existing target")
+				_, err = fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionHasCondition(v1alpha1.SubscriptionCatalogSourcesUnhealthy, corev1.ConditionFalse, v1alpha1.AllCatalogSourcesHealthy, "all available catalogsources are healthy"))
+				Expect(err).NotTo(HaveOccurred())
+
+				// Wait for success
+				_, err = fetchSubscription(GinkgoT(), crc, testNamespace, testSubscriptionName, subscriptionStateAtLatestChecker)
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		When("the target catalog's sourceType", func() {
+			Context("is unknown", func() {
+				It("should surface catalog health", func() {
+					cs := &v1alpha1.CatalogSource{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.CatalogSourceKind,
+							APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name: "cs",
+						},
+						Spec: v1alpha1.CatalogSourceSpec{
+							SourceType: "goose",
+						},
+					}
+
+					var err error
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(cs)
+					defer func() {
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(cs.GetName(), deleteOpts)
+						Expect(err).ToNot(HaveOccurred())
+					}()
+
+					subName := genName("sub-")
+					cleanup := createSubscriptionForCatalog(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						cs.GetName(),
+						testPackageName,
+						betaChannel,
+						"",
+						v1alpha1.ApprovalManual,
+					)
+					defer cleanup()
+
+					var sub *v1alpha1.Subscription
+					sub, err = fetchSubscription(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						subscriptionHasCondition(
+							v1alpha1.SubscriptionCatalogSourcesUnhealthy,
+							corev1.ConditionTrue,
+							v1alpha1.UnhealthyCatalogSourceFound,
+							fmt.Sprintf("targeted catalogsource %s/%s unhealthy", cs.GetNamespace(), cs.GetName()),
+						),
+					)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(sub).ToNot(BeNil())
+
+					// Get the latest CatalogSource
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Get(cs.GetName(), getOpts)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(cs).ToNot(BeNil())
+				})
+			})
+
+			Context("is grpc and its spec is missing the address and image fields", func() {
+				It("should surface catalog health", func() {
+					// Create a CatalogSource pointing to the grpc pod
+					cs := &v1alpha1.CatalogSource{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.CatalogSourceKind,
+							APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      genName("cs-"),
+							Namespace: testNamespace,
+						},
+						Spec: v1alpha1.CatalogSourceSpec{
+							SourceType: v1alpha1.SourceTypeGrpc,
+						},
+					}
+
+					var err error
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(cs)
+					defer func() {
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(cs.GetName(), deleteOpts)
+						Expect(err).ToNot(HaveOccurred())
+					}()
+
+					subName := genName("sub-")
+					cleanup := createSubscriptionForCatalog(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						cs.GetName(),
+						testPackageName,
+						betaChannel,
+						"",
+						v1alpha1.ApprovalManual,
+					)
+					defer cleanup()
+
+					var sub *v1alpha1.Subscription
+					sub, err = fetchSubscription(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						subscriptionHasCondition(
+							v1alpha1.SubscriptionCatalogSourcesUnhealthy,
+							corev1.ConditionTrue,
+							v1alpha1.UnhealthyCatalogSourceFound,
+							fmt.Sprintf("targeted catalogsource %s/%s unhealthy", cs.GetNamespace(), cs.GetName()),
+						),
+					)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(sub).ToNot(BeNil())
+				})
+			})
+
+			Context("is internal and its spec is missing the configmap reference", func() {
+				It("should surface catalog health", func() {
+					cs := &v1alpha1.CatalogSource{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.CatalogSourceKind,
+							APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      genName("cs-"),
+							Namespace: testNamespace,
+						},
+						Spec: v1alpha1.CatalogSourceSpec{
+							SourceType: v1alpha1.SourceTypeInternal,
+						},
+					}
+
+					var err error
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(cs)
+					defer func() {
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(cs.GetName(), deleteOpts)
+						Expect(err).ToNot(HaveOccurred())
+					}()
+
+					subName := genName("sub-")
+					cleanup := createSubscriptionForCatalog(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						cs.GetName(),
+						testPackageName,
+						betaChannel,
+						"",
+						v1alpha1.ApprovalManual,
+					)
+					defer cleanup()
+
+					var sub *v1alpha1.Subscription
+					sub, err = fetchSubscription(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						subscriptionHasCondition(
+							v1alpha1.SubscriptionCatalogSourcesUnhealthy,
+							corev1.ConditionTrue,
+							v1alpha1.UnhealthyCatalogSourceFound,
+							fmt.Sprintf("targeted catalogsource %s/%s unhealthy", cs.GetNamespace(), cs.GetName()),
+						),
+					)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(sub).ToNot(BeNil())
+				})
+			})
+
+			Context("is configmap and its spec is missing the configmap reference", func() {
+				It("should surface catalog health", func() {
+					cs := &v1alpha1.CatalogSource{
+						TypeMeta: metav1.TypeMeta{
+							Kind:       v1alpha1.CatalogSourceKind,
+							APIVersion: v1alpha1.CatalogSourceCRDAPIVersion,
+						},
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      genName("cs-"),
+							Namespace: testNamespace,
+						},
+						Spec: v1alpha1.CatalogSourceSpec{
+							SourceType: v1alpha1.SourceTypeInternal,
+						},
+					}
+
+					var err error
+					cs, err = crc.OperatorsV1alpha1().CatalogSources(testNamespace).Create(cs)
+					defer func() {
+						err = crc.OperatorsV1alpha1().CatalogSources(cs.GetNamespace()).Delete(cs.GetName(), deleteOpts)
+						Expect(err).ToNot(HaveOccurred())
+					}()
+
+					subName := genName("sub-")
+					cleanup := createSubscriptionForCatalog(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						cs.GetName(),
+						testPackageName,
+						betaChannel,
+						"",
+						v1alpha1.ApprovalAutomatic,
+					)
+					defer cleanup()
+
+					var sub *v1alpha1.Subscription
+					sub, err = fetchSubscription(
+						GinkgoT(),
+						crc,
+						cs.GetNamespace(),
+						subName,
+						subscriptionHasCondition(
+							v1alpha1.SubscriptionCatalogSourcesUnhealthy,
+							corev1.ConditionTrue,
+							v1alpha1.UnhealthyCatalogSourceFound,
+							fmt.Sprintf("targeted catalogsource %s/%s unhealthy", cs.GetNamespace(), cs.GetName()),
+						),
+					)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(sub).ToNot(BeNil())
+				})
+			})
+		})
+
 	})
 
 	// TestSubscriptionInstallPlanStatus ensures that a Subscription has the appropriate status conditions for possible referenced
@@ -920,7 +1168,7 @@ var _ = Describe("Subscription", func() {
 		}
 
 		podTolerations := []corev1.Toleration{
-			corev1.Toleration{
+			{
 				Key:      "my-toleration-key",
 				Value:    "my-toleration-value",
 				Effect:   corev1.TaintEffectNoSchedule,
