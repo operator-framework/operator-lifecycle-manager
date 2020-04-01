@@ -44,11 +44,11 @@ ClusterServiceVersion:
 
 ## OLM Operator
 
-The OLM Operator is responsible for installing applications defined by ClusterServiceVersion resources once the required resources specified in the ClusterServiceVersion are present in the cluster.
-The OLM Operator is not concerned with the creation of the required resources; users can choose to manually create these resources using `kubectl` or users can choose to create these resources using the Catalog Operator.
-This separation of concern enables users incremental buy-in in terms of how much of the OLM framework they choose to leverage for their application.
+The OLM Operator is responsible for installing applications defined by a `ClusterServiceVersion` resources once the required resources specified in the CSV are present in the cluster (the job of the Cluster Operator). This may be as simple as setting up a single `Deployment` resulting in an operator's pod becoming available. The OLM Operator is not concerned with the creation of the underlying resources. If this is not done manually, the Catalog Operator can help provide resolution of these needs.
 
-While the OLM Operator is often configured to watch all namespaces, it can also be operated alongside other OLM Operators so long as they all manage separate namespaces.
+This separation of concerns enables users incremental buy-in of the OLM framework components. Users can choose to manually create these resources, or define an InstallPlan for the Catalog Operator or allow the Catalog Operator to develop and implement the InstallPlan. An operator creator does not need to learn about the full operator package system before seeing a working operator.
+
+While the OLM Operator is often configured to watch all namespaces, it can also be operated alongside other OLM Operators so long as they all manage separate namespaces defined by `OperatorGroups`.
 
 ### ClusterServiceVersion Control Loop
 
@@ -82,10 +82,13 @@ Replacing --> Deleting
 
 ## Catalog Operator
 
-The Catalog Operator is responsible for resolving ClusterServiceVersions and the required resources they specify. It is also responsible for watching catalog sources for updates to packages in channels, and upgrading them (optionally automatically) to the latest available versions.
-A user that wishes to track a package in a channel creates a Subscription resource configuring the desired package, channel, and the catalog source from which to pull updates. When updates are found, an appropriate InstallPlan is written into the namespace on behalf of the user.
-Users can also create an InstallPlan resource directly, containing the names of the desired ClusterServiceVersions and an approval strategy and the Catalog Operator will create an execution plan for the creation of all of the required resources.
-Once approved, the Catalog Operator will create all of the resources in an InstallPlan; this should then independently satisfy the OLM Operator, which will proceed to install the ClusterServiceVersions.
+The Catalog Operator is responsible for monitoring `Subscriptions`, `CatalogSources` and the catalogs themselves. When it finds a new or changed `Subscription`, it builds out the subscribed Operator. When it finds a new or changed CatalogSource it builds out the required catalog, if appropriate, and begins regular monitoring of the package in the catalog. The packages in the catalog will include various `ClusterServiceVersions`, `CustomResourceDefinitions` and a channel list for each package. A catalog has packages. A package has channels and CSVs. A Channels identifies a specific CSV. The CSVs identify specific CRDs.
+
+A user wanting a specific operator creates a `Subscription` which identifies a catalog, operator and channel within that operator. The Catalog Operator then receives that information and queries the catalog for the latest version of the channel requested. Then it looks up the appropriate `ClusterServiceVersion` identified by the channel and turns that into an `InstallPlan`. When updates are found in the catalog for the channel, a similar process occurs resulting in a new `InstallPlan`. (Users can also create an InstallPlan resource directly, containing the names of the desired ClusterServiceVersions and an approval strategy.) 
+
+When the Catalog Operator find a new `InstallPlan`, even though it likely created it, it will create an "execution plan" and embed that into the `InstallPlan` to create all of the required resources. Once approved, whether manually or automatically, the Catalog Operator will implement its portion of the the execution plan, satisfying the underlying expectations of the OLM Operator. 
+
+The OLM Operator will then pickup the installation and carry it through to completion of everything required in the identified CSV.
 
 ### InstallPlan Control Loop
 
