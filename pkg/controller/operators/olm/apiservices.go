@@ -298,7 +298,7 @@ func apiServiceDescriptionsForDeployment(descs []v1alpha1.APIServiceDescription,
 	return result
 }
 
-func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, error) {
+func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServiceVersion, strategy install.Strategy) (install.Strategy, map[string][]byte, error) {
 	logger := log.WithFields(log.Fields{
 		"csv":       csv.GetName(),
 		"namespace": csv.GetNamespace(),
@@ -307,12 +307,12 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	// Assume the strategy is for a deployment
 	strategyDetailsDeployment, ok := strategy.(*v1alpha1.StrategyDetailsDeployment)
 	if !ok {
-		return nil, fmt.Errorf("unsupported InstallStrategy type")
+		return nil, nil, fmt.Errorf("unsupported InstallStrategy type")
 	}
 
 	// Return early if there are no owned APIServices
 	if len(csv.Spec.APIServiceDefinitions.Owned) == 0 {
-		return strategyDetailsDeployment, nil
+		return strategyDetailsDeployment, nil, nil
 	}
 
 	// Create the CA
@@ -320,11 +320,12 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	ca, err := certs.GenerateCA(expiration, Organization)
 	if err != nil {
 		logger.Debug("failed to generate CA")
-		return nil, err
+		return nil, nil, err
 	}
 	rotateAt := expiration.Add(-1 * DefaultCertMinFresh)
 
 	apiDescs := csv.GetOwnedAPIServiceDescriptions()
+	deploymentCAPEMs := make(map[string][]byte)
 	for i, sddSpec := range strategyDetailsDeployment.DeploymentSpecs {
 		descs := apiServiceDescriptionsForDeployment(apiDescs, sddSpec.Name)
 		if len(descs) == 0 {
@@ -334,25 +335,22 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 		// Update the deployment for each api service desc
 		newDepSpec, err := a.installAPIServiceRequirements(sddSpec.Name, ca, rotateAt, sddSpec.Spec, csv, getServicePorts(descs))
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		caPEM, _, err := ca.ToPEM()
 		if err != nil {
 			logger.Warnf("unable to convert CA certificate to PEM format for Deployment %s", sddSpec.Name)
-			return nil, err
+			return nil, nil, err
 		}
 
-		for _, desc := range descs {
-			err = a.createOrUpdateAPIService(caPEM, desc, csv)
-			if err != nil {
-				return nil, err
-			}
+		deploymentCAPEMs[sddSpec.Name] = caPEM
 
+		for _, desc := range descs {
 			// Cleanup legacy resources
 			err = a.deleteLegacyAPIServiceResources(csv, desc)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 		strategyDetailsDeployment.DeploymentSpecs[i].Spec = *newDepSpec
@@ -364,7 +362,7 @@ func (a *Operator) installOwnedAPIServiceRequirements(csv *v1alpha1.ClusterServi
 	csv.Status.CertsLastUpdated = &now
 	csv.Status.CertsRotateAt = &rotateTime
 
-	return strategyDetailsDeployment, nil
+	return strategyDetailsDeployment, deploymentCAPEMs, nil
 }
 
 // updateDeploymentSpecsWithApiServiceData transforms an install strategy to include information about apiservices
