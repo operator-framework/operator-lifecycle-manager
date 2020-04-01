@@ -121,6 +121,7 @@ func TestNamespaceResolver(t *testing.T) {
 				lookups: []v1alpha1.BundleLookup{
 					{
 						Path: "quay.io/test/bundle@sha256:abcd",
+						Identifier: "b.v1",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
 							Name:      catalog.Name,
@@ -234,6 +235,7 @@ func TestNamespaceResolver(t *testing.T) {
 				lookups: []v1alpha1.BundleLookup{
 					{
 						Path:     "quay.io/test/bundle@sha256:abcd",
+						Identifier: "a.v2",
 						Replaces: "a.v1",
 						CatalogSourceRef: &corev1.ObjectReference{
 							Namespace: catalog.Namespace,
