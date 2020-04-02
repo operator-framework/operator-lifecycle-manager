@@ -6,7 +6,7 @@ metadata:
   annotations:
     openshift.io/node-selector: ""
   labels:
-    openshift.io/run-level: "1"
+    openshift.io/scc: "anyuid"
     openshift.io/cluster-monitoring: "true"
   {{ end }}
 ---
@@ -18,5 +18,5 @@ metadata:
   annotations:
     openshift.io/node-selector: ""
   labels:
-    openshift.io/run-level: "1"
+    openshift.io/scc: "anyuid"
   {{ end }}
