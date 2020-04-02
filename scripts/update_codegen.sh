@@ -31,7 +31,7 @@ MODULE="github.com/operator-framework/operator-lifecycle-manager"
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
-bash "${CODEGEN_PKG}/generate-internal-groups.sh" "deepcopy,conversion,informer,lister" \
+bash "${CODEGEN_PKG}/generate-internal-groups.sh" "conversion,informer,lister" \
   "${MODULE}/pkg/api/client" \
   "${MODULE}/pkg/api/apis" \
   "${MODULE}/pkg/api/apis" \
@@ -58,3 +58,4 @@ bash "${CODEGEN_PKG}/generate-internal-groups.sh" all \
 
 # copy the generated resources
 cp -R "${OUTPUT_BASE}/${MODULE}/." "${SCRIPT_ROOT}"
+

@@ -82,8 +82,8 @@ type StatusDescriptor struct {
 	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description,omitempty"`
 	// +listType=set
-	XDescriptors []string         `json:"x-descriptors,omitempty"`
-	Value        *json.RawMessage `json:"value,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // SpecDescriptor describes a field in a spec block of a CRD so that OLM can consume it
@@ -93,8 +93,8 @@ type SpecDescriptor struct {
 	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description,omitempty"`
 	// +listType=set
-	XDescriptors []string         `json:"x-descriptors,omitempty"`
-	Value        *json.RawMessage `json:"value,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // ActionDescriptor describes a declarative action that can be performed on a custom resource instance
@@ -104,8 +104,8 @@ type ActionDescriptor struct {
 	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description,omitempty"`
 	// +listType=set
-	XDescriptors []string         `json:"x-descriptors,omitempty"`
-	Value        *json.RawMessage `json:"value,omitempty"`
+	XDescriptors []string        `json:"x-descriptors,omitempty"`
+	Value        json.RawMessage `json:"value,omitempty"`
 }
 
 // CRDDescription provides details to OLM about the CRDs
